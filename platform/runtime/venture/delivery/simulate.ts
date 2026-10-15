@@ -192,7 +192,7 @@ export async function simulationRunHandler(deps: VentureDeps, ctx: Context, payl
     deps, ctx, useTemplate,
     judgeOn: !useTemplate && deps.models.status(ctx).tiers.fast.presetId !== 'built-in-templates',
     venture, blueprint, serviceType: blueprint.serviceType, country: venture.country,
-    refs: rehearsalRefs(state, venture.id, blueprint, todayIso(deps)), receipts: ventureReceipts(state, venture.id),
+    refs: rehearsalRefs(state, venture.id, blueprint, todayIso(deps, venture)), receipts: ventureReceipts(state, venture.id),
     offer: { name: offer.name.value, description: offer.description.value },
   };
 

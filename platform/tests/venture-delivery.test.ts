@@ -24,7 +24,7 @@ import { PRACTICE_CLIENTS } from '../runtime/venture/delivery/scenarios.ts';
 import {
   REASON_CONNECT_AI, REASON_NO_JUDGE, REASON_NOT_JUDGED, REASON_PASS_ALL, REASON_REHEARSE_ALL, REASON_TEMPLATE_DRAFTS,
 } from '../runtime/venture/delivery/launch.ts';
-import { DONE_CLAIM_REASON, STAGE_BLOCKED_REASON } from '../runtime/venture/delivery/runs.ts';
+import { DONE_CLAIM_REASON, PRACTICE_REASON, STAGE_BLOCKED_REASON } from '../runtime/venture/delivery/runs.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -1011,6 +1011,87 @@ test('real runs: an approval after the preview expired marks the draft failed in
   await assert.rejects(approve(env, run), code('DELIVERY_NOT_WAITING'));
   const listed = await call<DeliveryRunRecord[]>(env, 'venture.delivery.list');
   assert.equal(listed[0].status, 'failed');
+});
+
+test("Today's list: practice drafts drop off once the stage moves on, and Accept shows only where the engine takes it", async () => {
+  const env = await setup();
+  const { order } = await seedOrder(env);
+  await queueModel(env, { delivery: ['draft-order'] });
+  env.models.recordCalls = true;
+  type View = DeliveryRunRecord & { practiceNow: boolean; awaitingYou: boolean; canApprove: boolean; canAccept: boolean; acceptBlocked: string | null };
+  const flags = (run: View) => ({ practiceNow: run.practiceNow, awaitingYou: run.awaitingYou, canApprove: run.canApprove, canAccept: run.canAccept, acceptBlocked: run.acceptBlocked });
+  const listed = async (runId: string) => {
+    const found = (await call<View[]>(env, 'venture.delivery.list')).find(run => run.id === runId);
+    assert.ok(found, runId);
+    return found;
+  };
+  const views = await call<View[]>(env, 'venture.delivery.list');
+  assert.deepEqual(views, []);
+
+  // Shadow: a waiting draft can be approved and waits for the owner; once approved it is a practice draft to review.
+  await setStage(env, 'shadow');
+  const waiting = await call<View>(env, 'venture.delivery.run', { orderId: order.id });
+  assert.deepEqual(flags(waiting), { practiceNow: true, awaitingYou: true, canApprove: true, canAccept: false, acceptBlocked: null });
+  const practice = await call<View>(env, 'venture.delivery.approve', { runId: waiting.id, digest: waiting.preview!.digest });
+  assert.deepEqual(flags(practice), { practiceNow: true, awaitingYou: true, canApprove: false, canAccept: false, acceptBlocked: PRACTICE_REASON });
+  assert.deepEqual(flags(await listed(practice.id)), flags(practice));
+  // The list never changes what is stored.
+  assert.equal(Object.hasOwn(stored(env, practice.id), 'awaitingYou'), false);
+
+  // Approve each: the practice draft from shadow stays in the list for review but no longer waits on Today.
+  await setStage(env, 'approve-each');
+  const left = await listed(practice.id);
+  assert.equal(left.status, 'ready-for-review');
+  assert.deepEqual(flags(left), { practiceNow: true, awaitingYou: false, canApprove: false, canAccept: false, acceptBlocked: PRACTICE_REASON });
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: practice.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+
+  // A real draft at approve each: approvable, then acceptable, and both wait for the owner.
+  const real = await call<View>(env, 'venture.delivery.run', { orderId: order.id });
+  assert.deepEqual(flags(real), { practiceNow: false, awaitingYou: true, canApprove: true, canAccept: false, acceptBlocked: null });
+  const realReady = await call<View>(env, 'venture.delivery.approve', { runId: real.id, digest: real.preview!.digest });
+  assert.deepEqual(flags(realReady), { practiceNow: false, awaitingYou: true, canApprove: false, canAccept: true, acceptBlocked: null });
+
+  // A waiting draft left at approve each, after a move down to rehearsal: the engine would refuse to send it.
+  const stranded = await call<View>(env, 'venture.delivery.run', { orderId: order.id });
+  await setStage(env, 'rehearsal');
+  assert.deepEqual(flags(await listed(stranded.id)), { practiceNow: true, awaitingYou: false, canApprove: false, canAccept: false, acceptBlocked: null });
+  await assert.rejects(approve(env, stranded), code('LAUNCH_STAGE_BLOCKED'));
+  // ... and the ready real draft turns into a practice draft the engine refuses to accept, so it leaves Today too.
+  assert.deepEqual(flags(await listed(realReady.id)), { practiceNow: true, awaitingYou: false, canApprove: false, canAccept: false, acceptBlocked: PRACTICE_REASON });
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: realReady.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+  // Back at approve each it is a real draft again, and Accept works.
+  await setStage(env, 'approve-each');
+  assert.deepEqual(flags(await listed(realReady.id)), { practiceNow: false, awaitingYou: true, canApprove: false, canAccept: true, acceptBlocked: null });
+  const accepted = await call<View>(env, 'venture.delivery.review', { runId: realReady.id, verdict: 'accepted' });
+  assert.deepEqual(flags(accepted), { practiceNow: false, awaitingYou: false, canApprove: false, canAccept: false, acceptBlocked: null });
+
+  // A draft with a failed check waits for the owner to edit or reject it, with Accept refused and the reason given.
+  const claims = structuredClone(await fixture('claims-done'));
+  claims.sections[1].parts[1].ref = 'order.total';
+  env.models.outputs.delivery = [claims];
+  env.models.used = {};
+  const claimRun = await call<View>(env, 'venture.delivery.run', { orderId: order.id });
+  const claimReady = await call<View>(env, 'venture.delivery.approve', { runId: claimRun.id, digest: claimRun.preview!.digest });
+  assert.deepEqual(flags(claimReady), { practiceNow: false, awaitingYou: true, canApprove: false, canAccept: false, acceptBlocked: DONE_CLAIM_REASON });
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: claimRun.id, verdict: 'accepted' }), (error: any) => error.message === DONE_CLAIM_REASON);
+
+  // A template outline needs no agent: at rehearsal it waits for the owner and can be accepted.
+  await setStage(env, 'rehearsal');
+  const outline = await call<View>(env, 'venture.delivery.run', { orderId: order.id, useTemplate: true });
+  assert.deepEqual(flags(outline), { practiceNow: false, awaitingYou: true, canApprove: false, canAccept: true, acceptBlocked: null });
+
+  // A waiting draft whose preview ran out (thirty minutes) can't be approved, so it leaves Today.
+  await setStage(env, 'approve-each');
+  env.models.outputs.delivery = [await fixture('draft-order')];
+  env.models.used = {};
+  const late = await call<View>(env, 'venture.delivery.run', { orderId: order.id });
+  assert.equal(late.canApprove, true);
+  env.deps.clock = () => new Date('2026-10-15T10:31:00.000Z');
+  assert.deepEqual(flags(await listed(late.id)), { practiceNow: false, awaitingYou: false, canApprove: false, canAccept: false, acceptBlocked: null });
+
+  // Today's count: what still waits for the owner, as the screen counts it.
+  const waitingNow = (await call<View[]>(env, 'venture.delivery.list')).filter(run => run.awaitingYou).map(run => run.id).sort();
+  assert.deepEqual(waitingNow, [claimRun.id, outline.id].sort());
 });
 
 // ---------------------------------------------------------------------------

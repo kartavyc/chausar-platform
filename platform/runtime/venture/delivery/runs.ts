@@ -5,12 +5,13 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS } from '../contracts.ts';
 import type {
-  BlueprintRecord, CheckId, CheckResult, Deliverable, DeliveryReason, DeliveryRunRecord, ModelPreview, OrderRecord, PlaybookRecord,
+  BlueprintRecord, CheckId, CheckResult, Deliverable, DeliveryReason, DeliveryRunRecord, DeliveryRunView, ModelPreview, OrderRecord, PlaybookRecord,
   PriceReceiptRecord, SignalRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { firstFailedCheck, runChecks } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type DraftRefs } from './deliverable.ts';
 import { ensurePlaybook, verifyChecks } from './playbook.ts';
+import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
@@ -30,7 +31,7 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
 }
 
 function draftContext(context: OrderContext, today: string): { refs: DraftRefs; offer: { name: string; description: string } } {
-  const refs = orderRefs(context.blueprint, context.order, context.receipt, today);
+  const refs = orderRefs(context.blueprint, context.order, context.receipt, today, localDayAt(context.order.at, context.venture.country));
   const offer = context.blueprint.offers.find(item => item.id === context.order.offerId);
   return { refs, offer: { name: offer?.name.value ?? 'Your service', description: offer?.description.value ?? 'The service in your plan.' } };
 }
@@ -56,7 +57,7 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord): O
 }
 
 /** venture.delivery.run: a template outline at any stage, or an agent draft waiting for the owner to approve the send. */
-export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunRecord> {
+export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
   const body = exactPayload(payload, ['orderId', 'useTemplate'], ['orderId']);
   const orderId = identifier(body.orderId, 'Order');
   const useTemplate = optionalFlag(body.useTemplate, 'useTemplate');
@@ -69,7 +70,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const playbook = await ensurePlaybook(deps, ctx);
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
-  const { refs, offer } = draftContext(context, todayIso(deps));
+  const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
 
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
@@ -88,7 +89,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
       tx.put(run);
       recordCheckSignal(tx, run.id, checks);
       tx.emit('delivery-ready', { runId: run.id, orderId: run.orderId, servedBy: 'template' });
-      return run;
+      return runView(run, tx.venture!, Date.parse(tx.now));
     });
   }
 
@@ -101,7 +102,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     };
     tx.put(run);
     tx.emit('delivery-waiting', { runId: run.id, orderId: run.orderId, practice: run.practice });
-    return run;
+    return runView(run, tx.venture!, Date.parse(tx.now));
   });
 }
 
@@ -112,7 +113,7 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
 }
 
 /** venture.delivery.approve: sends the exact previewed text once, then checks and stores the draft. */
-export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunRecord> {
+export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
   requireAppChannel(ctx, 'venture.delivery.approve');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Draft reply');
@@ -128,7 +129,7 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
-  const { refs } = draftContext(context, todayIso(deps));
+  const { refs } = draftContext(context, todayIso(deps, context.venture));
   const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
 
   let deliverable: Deliverable;
@@ -154,7 +155,7 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
       tx.replace(next);
       recordCheckSignal(tx, runId, checks);
       tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
-      return next;
+      return runView(next, tx.venture!, Date.parse(tx.now));
     });
   } catch (error) {
     // The call is spent, so a draft that could not be stored can never be approved again.
@@ -199,7 +200,7 @@ async function markFailedWhenSpent(deps: VentureDeps, ctx: Context, run: Deliver
 }
 
 /** venture.delivery.review: accept, edit or reject a ready draft. Practice drafts are never accepted. */
-export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunRecord> {
+export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
   requireAppChannel(ctx, 'venture.delivery.review');
   const body = exactPayload(payload, ['runId', 'verdict', 'reason', 'editedText'], ['runId', 'verdict']);
   const runId = identifier(body.runId, 'Draft reply');
@@ -233,23 +234,51 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
       tx.emit('signal-recorded', { signalId: signal.id, runId, source: signal.source, reason });
     }
     tx.emit('delivery-reviewed', { runId, verdict, practice });
-    return next;
+    return runView(next, tx.venture!, Date.parse(tx.now));
   });
 }
 
 /**
- * A draft that failed a check can't be accepted and copied as it stands; the owner edits or rejects it. A draft that
- * claims finished work gets its own words, since an agent here only had the client's message.
+ * Why a draft can't be accepted as it stands, or null when every check passed. The owner edits or rejects it. A draft
+ * that claims finished work gets its own words, since an agent here only had the client's message.
  */
-function acceptableAsIs(checks: readonly CheckResult[]) {
+function failedCheckReason(checks: readonly CheckResult[]): string | null {
   const failed = checks.filter(result => !result.passed);
-  if (!failed.length) return;
-  if (failed.some(result => result.check === 'no-done-claims')) check(false, 'INVALID_VENTURE_REQUEST', DONE_CLAIM_REASON);
-  check(false, 'INVALID_VENTURE_REQUEST', `This draft failed a check: ${failed[0].detail} Edit it or reject it.`);
+  if (!failed.length) return null;
+  if (failed.some(result => result.check === 'no-done-claims')) return DONE_CLAIM_REASON;
+  return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
 }
 
-export async function deliveryListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunRecord[]> {
+function acceptableAsIs(checks: readonly CheckResult[]) {
+  const reason = failedCheckReason(checks);
+  check(reason === null, 'INVALID_VENTURE_REQUEST', reason ?? '');
+}
+
+/**
+ * A run as the screens read it, with what the engine would allow right now. The same rules as the handlers:
+ * a ready agent draft is practice unless the business is at approve each (review refuses Accept otherwise), a draft
+ * with a failed check can't be accepted, and a waiting draft is sent only at shadow or approve each while its preview
+ * is live. Practice drafts wait for the owner only at shadow, the one stage that makes them; once the stage moves on
+ * they drop off Today's list, though they stay in the list for review.
+ */
+export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: number): DeliveryRunView {
+  const stage = venture.launchStage;
+  const ready = run.status === 'ready-for-review';
+  const waiting = run.status === 'waiting-for-you';
+  const practiceNow = ready ? run.practice || (run.servedBy === 'model' && stage !== 'approve-each')
+    : waiting ? run.practice || stage !== 'approve-each'
+      : run.practice;
+  const canApprove = waiting && run.callId !== null && agentStage(stage) && run.preview !== null && Date.parse(run.preview.expiresAt) > nowMs;
+  const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks)) : null;
+  const canAccept = ready && blocked === null;
+  const awaitingYou = waiting ? canApprove : ready ? !practiceNow || stage === 'shadow' : false;
+  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };
+}
+
+/** venture.delivery.list: every run, newest first, each with what the engine would allow now (see runView). */
+export async function deliveryListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView[]> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
-  return newestFirst(listRecords(state, 'venture-delivery-run', venture.id));
+  const nowMs = deps.clock().getTime();
+  return newestFirst(listRecords(state, 'venture-delivery-run', venture.id)).map(run => runView(run, venture, nowMs));
 }

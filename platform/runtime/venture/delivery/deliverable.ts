@@ -54,13 +54,16 @@ export function rehearsalRefs(state: State, ventureId: string, blueprint: Bluepr
   return { figures, dates: [{ ref: 'today', label: "Today's date", iso: today }] };
 }
 
-/** Real order refs: the order's own price receipt, today and the date the order came in. */
-export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate): DraftRefs {
+/**
+ * Real order refs: the order's own price receipt, today and the date the order came in. Both dates are days on the
+ * owner's calendar; orderDay defaults to the UTC day of the order's time only for callers that have no venture.
+ */
+export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate, orderDay: IsoDate = order.at.slice(0, 10)): DraftRefs {
   const offer = blueprint.offers.find(item => item.id === order.offerId);
   const unit = offer ? UNIT_WORD[offer.pricing.quantityUnit] ?? 'unit' : 'unit';
   return {
     figures: figureEntries('order', receipt, { unit: `Price for one ${unit}`, total: 'Total for this order', tax: `${blueprint.backOffice.taxLabel} on this order` }),
-    dates: [{ ref: 'today', label: "Today's date", iso: today }, { ref: 'order.created', label: 'The date the order came in', iso: order.at.slice(0, 10) }],
+    dates: [{ ref: 'today', label: "Today's date", iso: today }, { ref: 'order.created', label: 'The date the order came in', iso: orderDay }],
   };
 }
 

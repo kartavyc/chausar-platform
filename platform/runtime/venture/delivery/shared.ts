@@ -2,6 +2,7 @@
 // Reads only. Every write in this package goes through ventureAction in records.ts.
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { findRecord, listRecords, requireVenture, type Permission } from '../records.ts';
+import { ownerToday } from '../local-day.ts';
 import type {
   BlueprintRecord, PlaybookRecord, PriceReceiptRecord, ServiceType, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -48,9 +49,9 @@ export function currentOfferReceipt(state: State, ventureId: string, offerId: st
   return matches.length ? matches[matches.length - 1] : null;
 }
 
-/** Today's calendar date in UTC from the engine clock. */
-export function todayIso(deps: VentureDeps): string {
-  return deps.clock().toISOString().slice(0, 10);
+/** Today on the owner's calendar (the venture's country), from the engine clock: the day basis every package uses. */
+export function todayIso(deps: VentureDeps, venture: VentureRecord): string {
+  return ownerToday(deps.clock, venture.country);
 }
 
 /** Newest first by time, keeping the later-stored record first when two share a time. */

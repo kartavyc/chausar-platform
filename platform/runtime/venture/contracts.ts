@@ -881,6 +881,17 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason: DeliveryReason | null; at: IsoTime } | null;
   editedText: string | null;
 };
+/**
+ * A delivery run as the screens read it: the stored record plus what the engine would allow right now, at today's
+ * launch stage. Never stored.
+ */
+export type DeliveryRunView = DeliveryRunRecord & {
+  practiceNow: boolean; // a practice draft at today's stage: never accepted, copied or saved
+  awaitingYou: boolean; // belongs on Today's list of things waiting for the owner
+  canApprove: boolean; // waiting for the owner, and the engine would send it if approved now
+  canAccept: boolean; // ready for review, and the engine would take Accept now
+  acceptBlocked: string | null; // why Accept is refused, in plain words; null when canAccept or the run is not ready
+};
 export type SignalRecord = RecordBase<'venture-signal'> & {
   source: 'owner-rejected' | 'owner-edited' | 'check-failed';
   runId: string;
@@ -1082,10 +1093,10 @@ export type VentureResults = {
   'venture.simulation.fromSignal': Scenario;
   'venture.launch.status': LaunchStatus;
   'venture.launch.advance': LaunchStatus;
-  'venture.delivery.run': DeliveryRunRecord;
-  'venture.delivery.approve': DeliveryRunRecord;
-  'venture.delivery.review': DeliveryRunRecord;
-  'venture.delivery.list': DeliveryRunRecord[];
+  'venture.delivery.run': DeliveryRunView;
+  'venture.delivery.approve': DeliveryRunView;
+  'venture.delivery.review': DeliveryRunView;
+  'venture.delivery.list': DeliveryRunView[];
   'venture.capabilities': CapabilityStatus[];
 };
 
