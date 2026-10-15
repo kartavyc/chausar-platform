@@ -29,6 +29,8 @@ export type GoalExecution = {
   run: number; objectiveRevision: number; scheduledFor: string; planDigest: string;
   startedAt: string; attempts: StepAttempt[]; meters: GoalLimits;
   sourceTainted: boolean; afterReconcile?: 'scheduled' | 'paused' | 'cancelled' | 'revoked' | 'stopped';
+  /** Time spent waiting for a person (WK-16); not counted against the plan's wall-time ceiling. */
+  personWaitMs?: number;
 };
 export const money = (value: unknown): bigint => {
   check(typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value), 'INVALID_BUDGET', 'Use non-negative integer minor currency units.');
@@ -57,6 +59,7 @@ export function validatePlan(plan: GoalPlan, reserveMinor: string, limits: GoalL
     check(!step.modelRequired || (typeof step.routeId === 'string' && step.routeId.length > 0), 'UNQUALIFIED_JOB_ROUTE', 'Model steps need an explicit tested route.');
     check(step.childTaskId === undefined || children.has(step.childTaskId), 'INVALID_CHILD_TASK', 'Child tasks are one level deep.');
     check(Number.isSafeInteger(step.modelUnits) && step.modelUnits >= 0 && Number.isSafeInteger(step.durationMs) && step.durationMs > 0, 'INVALID_JOB_LIMITS', 'Every step needs bounded estimated model and time use.');
+    if (step.provider === 'person') { const input = step.input as { what?: unknown; memberId?: unknown; who?: unknown } | null; const label = (value: unknown) => value === undefined || (typeof value === 'string' && value.length >= 1 && value.length <= 200); check(!step.modelRequired && input !== null && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).every(key => ['what', 'memberId', 'who'].includes(key)) && typeof input.what === 'string' && input.what.trim().length >= 1 && input.what.length <= 500 && label(input.memberId) && label(input.who), 'INVALID_PERSON_STEP', 'A step for a person says what to do in up to 500 characters, needs no model and may name one member.'); }
     for (const dependency of step.dependencies) check(prior.has(dependency.stepId) && ['observation', 'computation', 'hypothesis', 'action-preview'].includes(dependency.informationClass) && typeof dependency.evidenceRequired === 'boolean', 'INVALID_JOB_DEPENDENCY', 'Dependencies must name earlier typed results.');
     cash += money(step.reserveMinor); units += step.modelUnits; duration += step.durationMs; exposure += money(step.actionExposureMinor); prior.add(step.id);
   }
