@@ -140,7 +140,7 @@ function Holdings({ props, id }: { props: BooksProps; id: string }) {
  * waits for a person), then the report per store. Stores the lane cannot empty say who can.
  */
 function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
-  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const w = useWords(props.language); const m = useMoreWords(props.language); const k = useR4bWords(props.language);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [report, setReport] = useState<DeletionReport | null>(null);
@@ -152,6 +152,14 @@ function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
       <p className={report.complete ? s.note : s.amber}>{report.complete ? m['del.complete'] : m['del.partial']}</p>
       <Table view={props.view} caption={m['del.report']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
         rows={report.rows.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : `del.${r.state}` as const]}</span>, r.reason ?? ''] }))} />
+      {report.elsewhere && report.elsewhere.length > 0 && (
+        <div data-deletion-elsewhere>
+          <h4>{k['del.elsewhere']}</h4>
+          <Table view={props.view} caption={k['del.elsewhere']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+            rows={report.elsewhere.map(r => ({ key: r.store, cells: [k[`del.elsewhere.${r.store}`], String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : 'del.not-possible']}</span>, r.reason ?? ''] }))} />
+        </div>
+      )}
+      {report.derived && <Note>{fill(k['del.derived'], { stale: report.derived.staleMarked, model: report.derived.modelReceiptsRemoved, private: report.derived.privateRemoved })}</Note>}
     </div>
   );
   return <DeletePlan props={props} id={id} typed={typed} setTyped={setTyped} busy={act.busy} refusal={act.refusal} onCancel={() => setOpen(false)}
@@ -172,12 +180,11 @@ function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDel
     <div className={s.stack} data-deletion-plan>
       <h3>{m['del.plan']}</h3>
       <Table view={props.view} caption={m['del.plan']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
-        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>, r.reason ?? ''] }))} />
+        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>,
+          <>{r.reason ?? ''}{r.waiting !== undefined && r.waiting > 0 && <span data-waiting={r.waiting}>{r.reason ? ' ' : ''}{fill(k['del.waiting'], { n: r.waiting })}</span>}</>] }))} />
       {!plan.canDelete && plan.stores.some(r => r.state === 'needs-owner') && <p className={s.amber}>{m['del.notAvailable']}</p>}
       {plan.stores.some(r => r.state === 'needs-owner') && plan.sourceDeletion.available && <Note>{m['del.sourceDeletion']}</Note>}
-      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess !== false && plan.canDelete && <Note>{k['del.core']}</Note>}
-      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess !== false && plan.canDelete && plan.stores.some(r => r.state === 'can-delete' && CORE_STORE_NAMES.includes(r.store)) && <Note>{k['del.coreEveryRow']}</Note>}
-      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess === false && plan.stores.some(r => r.count > 0 && CORE_STORE_NAMES.includes(r.store)) && <p className={s.amber}>{k['del.coreNeedsFull']}</p>}
+      {plan.coreDeletion?.available === true && plan.canDelete && plan.stores.some(r => r.state === 'can-delete' && CORE_STORE_NAMES.includes(r.store)) && <><Note>{k['del.core']}</Note><Note>{k['del.coreVisible']}</Note></>}
       {plan.canDelete && (
         <form className={s.form} aria-label={m['del.start']} onSubmit={(e: FormEvent) => { e.preventDefault(); if (typed === id) void onDelete(); }}>
           <Note>{m['del.waits']}</Note>

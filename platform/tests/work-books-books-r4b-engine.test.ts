@@ -20,6 +20,8 @@ import { booksMethods } from '../runtime/work-books/books.ts';
 import { workMethods } from '../runtime/work-books/work.ts';
 import { outlineOf, withBoxes, wordsOf } from '../runtime/work-books/books-bill-r4b.ts';
 import { parseBill } from '../runtime/work-books/books-bill-parse.ts';
+import { fakeCoreDeletion, WAITING_REASON } from './work-books-core-data-fake.ts';
+import { extrasAccepted, extrasAcceptedBy } from '../runtime/work-books/books-definition-extras.ts';
 
 // Round 4 of the work-books lane (BK-09, BK-12, BK-19, BK-20, bill photo word boxes). Synthetic data only.
 // Other lanes are stubbed in a hand-built host: which of their methods are installed is the stub's own list.
@@ -96,24 +98,22 @@ test('BK-12: an action is listed only under core\'s access rule; a private one o
   assert.deepEqual((await call(owner, 'records.timelineMore', { id: 'c-1' })).entries.map((e: any) => e.ref), ['a-private'], 'the owner with every branch sees it');
 });
 
+
 // ---------------------------------------------------------------- BK-20 through core-data's one-customer deletion
 
-/** A stand-in for core-data's deletion: it removes the customer's facts the way a core deletion would. */
-const coreDelete: Stub = {
-  'deletion.customer': (payload, store) => {
-    assert.deepEqual(Object.keys(payload).sort(), ['confirmation', 'customerId', 'recordIds']);
-    for (const f of store.state.facts) if (payload.recordIds.includes(f.fields.customerId)) f.deletedAt = '2026-10-15T00:00:00.000Z';
-    return { customerId: payload.customerId, stores: [{ store: 'facts', count: 1 }] };
-  },
-};
+// core-data's `deletion.customerPlan` and `deletion.customer`, in their exact request and reply shapes (work-books-core-data-fake.ts).
+const coreDelete: Stub = fakeCoreDeletion();
+const byStore = (rows: any[]) => Object.fromEntries(rows.map((r: any) => [r.store, r]));
 
-test('BK-20: with core-data installed, the plan offers the core stores and delete reports each store after counting again', async () => {
+test('BK-20: with core-data installed, its plan is shown before the yes, delete calls it once and reports each store after counting again', async () => {
   const { services, call, calls } = await setup({ stub: coreDelete });
   await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
   await call(owner, 'records.setOptIn', { id: 'c-1', channel: 'mail', answer: 'yes', source: 'Email', on: '2026-09-03' });
   const plan = await call(viewer, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: true, everyRow: true, fullAccess: true }); assert.equal(plan.canDelete, true);
-  assert.deepEqual(plan.stores.find((s: any) => s.store === 'facts'), { store: 'facts', count: 1, state: 'can-delete', reason: null });
+  assert.deepEqual(calls.filter(c => c.method === 'deletion.customerPlan').map(c => c.payload), [{ id: 'c-1' }]);
+  assert.deepEqual(plan.coreDeletion, { available: true, planFrom: 'core' }); assert.equal(plan.canDelete, true);
+  assert.deepEqual(byStore(plan.stores).facts, { store: 'facts', count: 1, state: 'can-delete', reason: null, waiting: 0 });
+  assert.deepEqual(byStore(plan.stores)['opt-ins'], { store: 'opt-ins', count: 1, state: 'can-delete', reason: null });
 
   // Deleting always waits for a person: the approve seat and the typed id, checked before core-data is called.
   await assert.rejects(call(accountant, 'records.delete', { id: 'c-1', confirmation: 'c-1' }), code('FORBIDDEN'));
@@ -122,18 +122,63 @@ test('BK-20: with core-data installed, the plan offers the core stores and delet
   assert.equal(calls.filter(c => c.method === 'deletion.customer').length, 0, 'not called before the yes');
 
   const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
-  assert.deepEqual(calls.filter(c => c.method === 'deletion.customer').map(c => c.payload), [{ customerId: 'c-1', recordIds: ['c-1'], confirmation: 'c-1' }]);
-  const by = Object.fromEntries(report.rows.map((r: any) => [r.store, r.state]));
-  assert.deepEqual([by.facts, by['opt-ins'], by.receipts], ['deleted', 'deleted', 'nothing-held']);
+  assert.deepEqual(calls.filter(c => c.method === 'deletion.customer').map(c => c.payload), [{ id: 'c-1', confirmation: 'c-1' }], 'called once, in core-data\'s request shape');
+  const by = byStore(report.rows);
+  assert.deepEqual([by.facts.state, by['opt-ins'].state, by.receipts.state], ['deleted', 'deleted', 'nothing-held']);
   assert.equal(report.complete, true);
+  assert.deepEqual(report.elsewhere, [{ store: 'source-files', count: 0, state: 'nothing-held', reason: null }, { store: 'decisions', count: 0, state: 'nothing-held', reason: null }]);
+  assert.deepEqual(report.derived, { staleMarked: 0, modelReceiptsRemoved: 0, privateRemoved: 0 });
+  assert.deepEqual((await call(owner, 'records.deletions', {})).reports[0].elsewhere, report.elsewhere, 'kept with the report');
+});
+
+test('BK-20: an action core-data must wait for is shown before the yes and stays pending with core-data\'s reason', async () => {
+  const { store, services, call } = await setup({ stub: coreDelete });
+  await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
+  await store.update(s => { s.actions.push(reminderAction('a-1', 'c-1', '2026-09-08T10:00:00.000Z'), { ...reminderAction('a-2', 'c-1', '2026-09-08T11:00:00.000Z'), status: 'executing' }); });
+  const plan = await call(owner, 'records.deletionPlan', { id: 'c-1' });
+  assert.deepEqual(byStore(plan.stores).actions, { store: 'actions', count: 2, state: 'can-delete', reason: WAITING_REASON, waiting: 1 });
+  const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
+  assert.deepEqual(byStore(report.rows).actions, { store: 'actions', count: 2, state: 'pending', reason: WAITING_REASON });
+  assert.equal(byStore(report.rows).facts.state, 'deleted'); assert.equal(report.complete, false);
+  assert.deepEqual(store.read().actions.map(a => a.id), ['a-2'], 'the executing action is kept');
 });
 
 test('BK-20: a core deletion that refuses keeps its code on the store, which is never reported deleted', async () => {
-  const { services, call } = await setup({ stub: { 'deletion.customer': () => { throw new ChausarError('CORE_DELETION_LOCKED', 'Locked.'); } } });
+  const { services, call } = await setup({ stub: { ...coreDelete, 'deletion.customer': () => { throw new ChausarError('DELETION_REGISTER_FULL', 'The register is full.'); } } });
   await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
   const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
-  const facts = report.rows.find((r: any) => r.store === 'facts');
-  assert.equal(facts.state, 'pending'); assert.match(facts.reason, /CORE_DELETION_LOCKED/); assert.equal(report.complete, false);
+  const facts = byStore(report.rows).facts;
+  assert.equal(facts.state, 'pending'); assert.match(facts.reason, /DELETION_REGISTER_FULL/); assert.equal(report.complete, false);
+  assert.equal(report.elsewhere, null); assert.equal(report.derived, null);
+});
+
+test('BK-20: a refused plan leaves the core stores to the owner and core-data is not asked to delete', async () => {
+  const { services, call, calls } = await setup({ stub: { ...coreDelete, 'deletion.customerPlan': () => { throw new ChausarError('DELETION_REGISTER_UNAVAILABLE', 'No register.'); } } });
+  await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
+  await call(owner, 'books.remember', { text: 'c-1 prefers calls after noon', kind: 'preference' });
+  const plan = await call(owner, 'records.deletionPlan', { id: 'c-1' });
+  assert.deepEqual(plan.coreDeletion, { available: true, planFrom: 'here' });
+  assert.equal(byStore(plan.stores).facts.state, 'needs-owner'); assert.match(byStore(plan.stores).facts.reason, /DELETION_REGISTER_UNAVAILABLE/);
+  const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
+  assert.equal(byStore(report.rows).facts.state, 'not-possible'); assert.equal(byStore(report.rows).memory.state, 'deleted');
+  assert.equal(calls.some(c => c.method === 'deletion.customer'), false);
+});
+
+test('BK-20: a plan reply that is not core-data\'s shape is not trusted', async () => {
+  const { services, call } = await setup({ stub: { ...coreDelete, 'deletion.customerPlan': () => ({ recordId: 'c-1', canDelete: true, stores: [{ store: 'facts', count: 1, waiting: 0, state: 'gone', reason: null }] }) } });
+  await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
+  const plan = await call(owner, 'records.deletionPlan', { id: 'c-1' });
+  assert.equal(byStore(plan.stores).facts.state, 'needs-owner'); assert.match(byStore(plan.stores).facts.reason, /INVALID_DELETION_REPLY/);
+});
+
+test('BK-20: with only deletion.customer installed, the stores counted here are offered and core-data is called once', async () => {
+  const { services, call, calls } = await setup({ stub: { 'deletion.customer': coreDelete['deletion.customer'] } });
+  await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
+  const plan = await call(owner, 'records.deletionPlan', { id: 'c-1' });
+  assert.deepEqual(plan.coreDeletion, { available: true, planFrom: 'here' }); assert.deepEqual(byStore(plan.stores).facts, { store: 'facts', count: 1, state: 'can-delete', reason: null });
+  const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
+  assert.equal(byStore(report.rows).facts.state, 'deleted');
+  assert.equal(calls.filter(c => c.method === 'deletion.customer').length, 1);
 });
 
 test('BK-20: without the core deletion installed, the core stores stay "not possible here"', async () => {
@@ -141,10 +186,10 @@ test('BK-20: without the core deletion installed, the core stores stay "not poss
   await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
   await call(owner, 'books.remember', { text: 'c-1 prefers calls after noon', kind: 'preference' });
   const plan = await call(viewer, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: false, everyRow: true, fullAccess: true }); assert.equal(plan.stores.find((s: any) => s.store === 'facts').state, 'needs-owner');
+  assert.deepEqual(plan.coreDeletion, { available: false, planFrom: 'here' }); assert.equal(byStore(plan.stores).facts.state, 'needs-owner');
   const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
-  assert.equal(report.rows.find((r: any) => r.store === 'facts').state, 'not-possible');
-  assert.equal(calls.some(c => c.method === 'deletion.customer'), false, 'never probed');
+  assert.equal(byStore(report.rows).facts.state, 'not-possible'); assert.equal(report.elsewhere, null);
+  assert.equal(calls.some(c => c.method.startsWith('deletion.')), false, 'never probed');
 });
 
 // ---------------------------------------------------------------- BK-19 the not-counted count from receipts
@@ -264,6 +309,51 @@ test('BK-09: publishing retrospectively restates the saved answer as new evidenc
   assert.equal(restated.length, 1); assert.equal(restated[0].interpretation, 'restated-private-diagnostic');
   assert.equal((await engine.request('receipts.get', { id: restated[0].receiptId })).totalMinor, '3000');
   assert.equal((await engine.request('books.meanings', {})).drafts.find((d: any) => d.id === draft.id).state, 'published');
+});
+
+// ---------------------------------------------------------------- BK-08 worked example and date used, through the real engine
+
+const example = { rows: [{ label: 'Invoice I1', amountMinor: '1000', counted: true }, { label: 'Payment P1', amountMinor: '0', counted: false, reason: 'A payment is not billed.' }], resultMinor: '1000' };
+
+test('BK-08: a draft carries the worked example and date used; they are published only when the dictionary takes them', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-books-r4-bk08-'));
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  t.after(async () => { await engine.close(); await rm(directory, { recursive: true, force: true }); });
+  await engine.request('workspace.create', { name: 'Synthetic R4 Shop', passphrase: 'Synthetic r4 passphrase 2026', demo: false, pack: 'retail', folder: 'main' });
+  const word = (await engine.request('books.meaning', { name: 'billed' })).word;
+  const base = { label: word.label, meaning: 'Synthetic: billed counts invoice value by invoice date.', kind: word.kind, field: word.field, nulls: word.nulls };
+  await assert.rejects(engine.request('books.draft', { name: 'billed', definition: { ...base, example: { ...example, resultMinor: '999' } } }), code('INVALID_DEFINITION'));
+  await assert.rejects(engine.request('books.draft', { name: 'billed', definition: { ...base, usedFrom: '2026-02-30' } }), code('INVALID_DEFINITION'));
+  await assert.rejects(engine.request('books.draft', { name: 'billed', definition: { ...base, example: { rows: [{ label: 'Left out', amountMinor: '5', counted: false }], resultMinor: '0' } } }), code('INVALID_DEFINITION'));
+
+  const kept = extrasAccepted();
+  if (!kept) await assert.rejects(engine.request('books.draft', { name: 'billed', definition: { label: word.label, meaning: word.meaning, kind: word.kind, field: word.field, nulls: word.nulls, usedFrom: '2026-04-01' } }), code('NO_CHANGE'));
+  const draft = await engine.request('books.draft', { name: 'billed', definition: { ...base, example, usedFrom: '2026-04-01' } });
+  assert.deepEqual(draft.after.example, example); assert.equal(draft.after.usedFrom, '2026-04-01');
+  assert.equal(draft.extras, kept ? 'published-with' : 'draft-only');
+  assert.equal(draft.checks.ok, true, 'publishing never breaks on the extras');
+  assert.match(draft.change, /Adds a worked example\. It is used from 2026-04-01\./);
+  const sheet = await engine.request('books.meaning', { name: 'billed' });
+  assert.deepEqual(sheet.draft.after.example, example);
+
+  const published = await engine.request('books.publish', { draftId: draft.id, digest: draft.digest });
+  assert.ok(published.version > 1);
+  const after = (await engine.request('books.meaning', { name: 'billed' })).word;
+  assert.equal(after.meaning, base.meaning);
+  if (kept) { assert.deepEqual(after.example, example); assert.equal(after.usedFrom, '2026-04-01'); }
+  else assert.ok(!('example' in after) && !('usedFrom' in after));
+});
+
+test('BK-08: the extras are passed to a dictionary compiler that takes core-data\'s Definition fields, and left out for one that refuses them', () => {
+  // A compiler with core-data's definition keys (ontology.ts on claude/lane-core-data): sign, example, usedFrom and the quantity binding are optional.
+  const coreData = (draft: any) => {
+    for (const d of draft.definitions) if (!Object.keys(d).every(k => ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls', 'sign', 'example', 'usedFrom', 'measure', 'unit', 'item', 'balance', 'location'].includes(k))) throw new ChausarError('INVALID_DEFINITION', 'Definitions are data only.');
+    return {};
+  };
+  const base = (draft: any) => { for (const d of draft.definitions) if (!Object.keys(d).every(k => ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls', 'sign'].includes(k))) throw new ChausarError('INVALID_DEFINITION', 'Definitions are data only.'); return {}; };
+  assert.equal(extrasAcceptedBy(coreData), true);
+  assert.equal(extrasAcceptedBy(base), false);
+  assert.equal(extrasAcceptedBy(() => { throw new Error('broken'); }), false, 'a compiler that refuses everything keeps nothing');
 });
 
 // ---------------------------------------------------------------- the real reader, where tesseract is installed

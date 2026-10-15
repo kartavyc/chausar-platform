@@ -2,21 +2,24 @@
  * Deleting what we hold about one customer (BK-20, with the report of TR-13). The lane can
  * delete only what it keeps itself: agreements and stop words, same-or-not decisions and
  * memory lines that name the customer. Facts, receipts, saved answers, actions and
- * conversations live in the core, which has no per-customer delete; those rows say so and
- * name who can remove them. Nothing is reported deleted until it was counted again and gone.
+ * conversations live in the core: with core-data's one-customer deletion installed (round 4,
+ * `books-deletion-r4b.ts`) they are planned by `deletion.customerPlan` and deleted by one
+ * `deletion.customer` call; without it those rows say so and name who can remove them.
+ * Nothing is reported deleted until it was counted again and gone.
  */
 import { check, newId, now, type Context } from '../contracts.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
-import { hasAllBranches, input, member, peekBooks, plainId, seesEverything, text, writeBooks, type BooksState } from './books-common.ts';
+import { input, member, peekBooks, plainId, seesEverything, text, writeBooks, type BooksState } from './books-common.ts';
 import { holdingRowsOf, holdingsOf, lineNames, recordIdsOf, stillHeld, visibleRecordIds } from './books-records.ts';
 import { visibleMemoryLine } from './books-memory.ts';
 import { peekSection } from './state.ts';
-import { CORE_STORES, coreDeletionInstalled, deleteCoreRows } from './books-deletion-r4b.ts';
+import { CORE_STORES, coreDeletionInstalled, corePlan, deleteCoreRows, type Derived, type Elsewhere } from './books-deletion-r4b.ts';
 
 type RowState = 'deleted' | 'pending' | 'not-possible' | 'nothing-held';
 export type DeletionRow = { store: string; count: number; state: RowState; reason: string | null };
-export type DeletionReport = { id: string; recordId: string; at: string; by: string; complete: boolean; rows: DeletionRow[] };
+/** `elsewhere` and `derived`: core-data's copies outside the five stores and what it changed around them (null when the core was not called). */
+export type DeletionReport = { id: string; recordId: string; at: string; by: string; complete: boolean; rows: DeletionRow[]; elsewhere?: Elsewhere[] | null; derived?: Derived | null };
 /** As stored: who made the report, kept so only they and the administrators read it back. */
 type StoredReport = DeletionReport & { memberId?: string };
 const shown = ({ memberId: _m, ...report }: StoredReport): DeletionReport => report;
@@ -32,19 +35,32 @@ const NEEDS_OWNER: Readonly<Record<string, string>> = {
   conversations: 'Conversations are kept by the core. The owner deletes them with the conversation.',
 };
 const MAX_REPORTS = 500;
+const GONE = 'Some of it was still found after deleting. It was not reported deleted.';
 
-/** Core-data deletes every row about the customer, including rows the approver cannot see, so it needs every branch. */
-const NEEDS_FULL_ACCESS = 'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.';
+type PlanState = 'can-delete' | 'needs-owner' | 'pending' | 'nothing-held';
+/** `waiting`: core-data's own count of actions that are executing or unsure, kept until settled (core-plan rows only). */
+type PlanRow = { store: string; count: number; state: PlanState; reason: string | null; waiting?: number };
+const PLAN_REFUSED = (code: string) => `The core could not say what it would delete (${code}). Nothing in the core is deleted from here.`;
 /**
- * `core`: core-data's one-customer deletion is installed (round 4), so the core stores can be deleted too, by a
- * caller with every branch (`full`): core deletion removes every row for the customer, not only the ones counted here.
+ * What each store will do. `core`: core-data's one-customer deletion is installed (round 4). Its plan
+ * (`deletion.customerPlan`), when installed, gives the core stores' counts, the actions it waits for and its reasons;
+ * without the plan the stores this lane counted are offered. core-data chooses exactly the rows counted here for the
+ * caller, so no full-access rule applies (review 4's `'*'` requirement is dropped; see docs/lanes/work-books.md).
  */
-function plan(host: ModuleHost, ctx: Context, id: unknown, core = false, full = true) {
-  const can = (store: string) => OURS.has(store) || (core && full && CORE_STORES.has(store));
-  return holdingsOf(host, ctx, id).map(({ store, count }) => ({
-    store, count, state: count === 0 ? 'nothing-held' as const : can(store) ? 'can-delete' as const : 'needs-owner' as const,
-    reason: count > 0 && !can(store) ? (core && !full && CORE_STORES.has(store) ? NEEDS_FULL_ACCESS : NEEDS_OWNER[store] ?? 'This store has no delete for one customer.') : null,
-  }));
+async function plan(host: ModuleHost, ctx: Context, id: unknown, core: boolean): Promise<{ stores: PlanRow[]; planFrom: 'core' | 'here' }> {
+  const counted = holdingsOf(host, ctx, id);
+  const fromCore = core ? await corePlan(host, id as string) : null;
+  const stores = counted.map(({ store, count }): PlanRow => {
+    if (!CORE_STORES.has(store) || !core) {
+      const can = OURS.has(store);
+      return { store, count, state: count === 0 ? 'nothing-held' : can ? 'can-delete' : 'needs-owner', reason: count > 0 && !can ? NEEDS_OWNER[store] ?? 'This store has no delete for one customer.' : null };
+    }
+    if (fromCore?.code) return { store, count, state: count === 0 ? 'nothing-held' : 'needs-owner', reason: count > 0 ? PLAN_REFUSED(fromCore.code) : null };
+    const row = fromCore?.rows?.find(r => r.store === store);
+    if (row) return { store, count: row.count, state: row.state, reason: row.reason, waiting: row.waiting };
+    return { store, count, state: count === 0 ? 'nothing-held' : 'can-delete', reason: null };
+  });
+  return { stores, planFrom: fromCore?.rows ? 'core' : 'here' };
 }
 function reportsOf(books: BooksState): StoredReport[] {
   const holder = books as unknown as Record<string, unknown>;
@@ -54,26 +70,19 @@ function reportsOf(books: BooksState): StoredReport[] {
 
 export const deletionMethods: Record<string, MethodSpec> = {
   'records.deletionPlan': { permission: 'read', async handler(ctx, payload, host) {
-    const { id } = input(payload, ['id'], ['id']); const core = await coreDeletionInstalled(host); const full = hasAllBranches(host.store.read(), ctx); const stores = plan(host, ctx, id, core, full);
+    const { id } = input(payload, ['id'], ['id']); const core = await coreDeletionInstalled(host); const { stores, planFrom } = await plan(host, ctx, id, core);
     const sources = await optionalCall(host, 'trustx.deletions', {});
-    // `everyRow`: the core deletion removes every row about the customer, including rows this caller cannot see;
-    // `fullAccess`: the caller has every branch, which that deletion needs (without it `records.delete` refuses
-    // CORE_DELETION_NEEDS_FULL_ACCESS while core rows are held, so nothing is offered).
-    const blocked = core && !full && stores.some(s => CORE_STORES.has(s.store) && s.count > 0);
-    return { recordId: id as string, stores, canDelete: !blocked && stores.some(s => s.state === 'can-delete'), sourceDeletion: { available: sources.available },
-      coreDeletion: { available: core, everyRow: true as const, fullAccess: full } };
+    // `planFrom`: 'core' when core-data's own plan gave the core stores (with `waiting` and its reasons), 'here' when this lane counted them.
+    return { recordId: id as string, stores, canDelete: stores.some(s => s.state === 'can-delete'), sourceDeletion: { available: sources.available },
+      coreDeletion: { available: core, planFrom } };
   } },
   'records.delete': { permission: 'approve', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'confirmation'], ['id', 'confirmation']);
     check(plainId(request.id), 'INVALID_BOOKS_REQUEST', 'Name the record.');
     check(!ctx.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot delete anything.');
     check(text(request.confirmation, 200) && request.confirmation === request.id, 'CONFIRMATION_REQUIRED', 'Type the customer id exactly to delete.');
-    const core = await coreDeletionInstalled(host); const full = hasAllBranches(host.store.read(), ctx);
-    // The core deletion removes every row about the customer, including rows the approver cannot see: only a person
-    // with every branch may start it, so nothing beyond what they could see is deleted on their word.
-    check(!core || full || holdingsOf(host, ctx, request.id).every(s => !CORE_STORES.has(s.store) || s.count === 0), 'CORE_DELETION_NEEDS_FULL_ACCESS',
-      'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.');
-    const before = plan(host, ctx, request.id, core, full);
+    const core = await coreDeletionInstalled(host);
+    const { stores: before } = await plan(host, ctx, request.id, core);
     // The exact core rows counted now, recounted by key after the deletion (a receipt is no longer found through deleted facts).
     const snapshot = new Map(holdingRowsOf(host, ctx, request.id).filter(s => s.keys).map(s => [s.store, s.keys!]));
     check(before.some(s => s.state === 'can-delete') || before.every(s => s.state === 'nothing-held'), 'DELETION_NOT_AVAILABLE',
@@ -90,16 +99,24 @@ export const deletionMethods: Record<string, MethodSpec> = {
       books.matches = books.matches.filter(m => !deletable(m));
       for (const line of books.memory) if (visibleLines.has(line.id)) { line.text = null; line.earlier = []; line.deletedAt = at; }
     });
-    // Round 4: the core stores through core-data's one-customer deletion, once, only when it is installed and holds something.
-    const coreCall = core && before.some(s => CORE_STORES.has(s.store) && s.state === 'can-delete') ? await deleteCoreRows(host, ctx, request.id, [...ids], request.confirmation) : null;
+    // Round 4: the core stores through core-data's one-customer deletion, once, only when it is installed and offers something.
+    const coreCall = core && before.some(s => CORE_STORES.has(s.store) && s.state === 'can-delete') ? await deleteCoreRows(host, request.id, request.confirmation) : null;
     const afterState = host.store.read();
     const after = new Map(holdingRowsOf(host, ctx, request.id, true).map(s => [s.store,
       s.keys ? new Set([...s.keys, ...stillHeld(afterState, s.store, snapshot.get(s.store) ?? new Set())]).size : s.count]));
-    const rows: DeletionRow[] = before.map(s => s.state === 'nothing-held' ? { store: s.store, count: 0, state: 'nothing-held', reason: null }
-      : s.state === 'needs-owner' ? { store: s.store, count: s.count, state: 'not-possible', reason: s.reason }
-      : (after.get(s.store) ?? 0) === 0 ? { store: s.store, count: s.count, state: 'deleted', reason: null }
-      : { store: s.store, count: s.count, state: 'pending', reason: CORE_STORES.has(s.store) && coreCall?.code ? `The core deletion refused (${coreCall.code}). Nothing here was reported deleted.` : 'Some of it was still found after deleting. It was not reported deleted.' });
-    const report: StoredReport = { id: newId('deletion'), recordId: request.id, at, by: who.name, complete: rows.every(r => r.state === 'deleted' || r.state === 'nothing-held'), rows, memberId: ctx.memberId };
+    const rows: DeletionRow[] = before.map(s => {
+      if (s.state === 'nothing-held') return { store: s.store, count: 0, state: 'nothing-held', reason: null };
+      if (s.state === 'needs-owner') return { store: s.store, count: s.count, state: 'not-possible', reason: s.reason };
+      const left = after.get(s.store) ?? 0;
+      if (!CORE_STORES.has(s.store)) return left === 0 ? { store: s.store, count: s.count, state: 'deleted', reason: null } : { store: s.store, count: s.count, state: 'pending', reason: GONE };
+      // A core store is deleted only when the recount here and core-data's own row agree that nothing is left.
+      const said = coreCall?.rows?.find(r => r.store === s.store);
+      if (left === 0 && (!said || said.remaining === 0)) return { store: s.store, count: s.count, state: 'deleted', reason: null };
+      const reason = coreCall?.code ? `The core deletion refused (${coreCall.code}). Nothing here was reported deleted.` : said?.reason ?? s.reason ?? GONE;
+      return { store: s.store, count: s.count, state: 'pending', reason };
+    });
+    const report: StoredReport = { id: newId('deletion'), recordId: request.id, at, by: who.name, complete: rows.every(r => r.state === 'deleted' || r.state === 'nothing-held'), rows,
+      elsewhere: coreCall?.elsewhere ?? null, derived: coreCall?.derived ?? null, memberId: ctx.memberId };
     await writeBooks(host.store, ctx, 'approve', books => { const reports = reportsOf(books); reports.push(report); if (reports.length > MAX_REPORTS) reports.splice(0, reports.length - MAX_REPORTS); });
     return shown(report);
   } },
