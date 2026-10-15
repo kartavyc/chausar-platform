@@ -6,10 +6,18 @@ account identity; copies restored with the same UUID refer to the same entry.
 The helper does not accept a directory, provider selector, passphrase, recovery
 code, file input, credential argument or secret-bearing environment variable.
 
-This source has **not** been compiled against platform SDKs, executed against an
-OS credential store, signed or included in a qualified release. No native helper,
-keychain, credentials, D-Bus service or permissions were accessed to develop it.
-The portable parser self-test uses synthetic bytes and no platform backend.
+The Windows and macOS sources have **not** been compiled against platform SDKs or
+executed against an OS credential store; no helper is signed or included in a
+qualified release. The portable parser self-test uses synthetic bytes and no
+platform backend.
+
+Linux (round 4): the libsecret backend was compiled with this CMake file and run
+against a real Secret Service (gnome-keyring-daemon 46.1, libsecret 0.21.4, a
+private session bus and a throwaway unlocked keyring, synthetic keys only) through
+the real `PlatformKeychain`, by `scripts/release/verify-keychain-linux.ts` (test:
+`platform/tests/release-keychain-real.test.ts`, gated on `CHAUSAR_REAL_KEYCHAIN=1`).
+That run found that gnome-keyring returns every secret as `text/plain`, so reads no
+longer compare the content type (see Native entry behavior).
 
 ## Fixed protocol
 
@@ -44,7 +52,10 @@ The host must reject any extra output, wrong backend, status, key size or exit.
 
 The fixed namespace is `in.chausar.vault.v1`, with the exact vault UUID as account.
 Store first checks existing custody: the same 32-byte key succeeds without
-replacing it; a different, malformed or ambiguous entry returns conflict. Retrieve
+replacing it; a different, malformed or ambiguous entry returns conflict. Linux
+writes the content type `application/vnd.chausar.vault-key` but identifies an entry
+by its exact schema, service and account attributes and 32-byte size, because
+gnome-keyring does not keep a secret's content type. Retrieve
 returns missing only for absence; unavailable/locked/denied is not absence. Remove
 is idempotent for absence and otherwise propagates native failure. Linux removes
 all exact matching entries, preflighting locked items before any deletion; a
