@@ -1,0 +1,15 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written interview output that copies the token B2B from the owner's idea. It passes because the owner typed it. Not captured from a live account.",
+  "output": {
+    "serviceType": "research",
+    "questions": [
+      {
+        "field": "customer",
+        "kind": "choice",
+        "text": "Which B2B teams will you serve first?",
+        "choices": ["B2B software founders", "Sales teams"]
+      }
+    ]
+  }
+}
