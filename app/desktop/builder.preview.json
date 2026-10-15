@@ -44,6 +44,7 @@
     "target": [
       "zip"
     ],
+    "executableName": "Chausar",
     "signAndEditExecutable": false
   },
   "mac": {

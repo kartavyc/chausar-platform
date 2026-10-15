@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 // TEST ONLY. End-to-end smoke run of enterprise/server/compose.yaml on one Linux machine with Docker:
 // generated CAs and certificates, PostgreSQL with TLS only, the server image, and a fake OpenID provider.
-// It checks /healthz from the host, signs in, makes engine requests, restarts the server, signs out,
+// It checks /healthz from the host, signs in, makes engine requests (private token search over TLS included),
+// checks the identity map in PostgreSQL, restarts the server, signs in again as the same member, signs out,
 // and removes every container, network and volume it made. Nothing is pushed or published.
 //
 //   docker build -f enterprise/server/Dockerfile -t chausar-enterprise:dev .     (first)
@@ -106,27 +107,56 @@ async function main() {
   const plain = docker(['exec', '-T', 'postgres', 'psql', 'host=127.0.0.1 sslmode=disable user=chausar dbname=chausar', '-c', 'select 1'], { allowFail: true, quiet: true });
   step('a plaintext TCP connection is refused by PostgreSQL', plain.status !== 0 && /no pg_hba\.conf entry/.test(plain.out));
 
-  const login = await call(`${origin}/auth/login`, { ca: webCa });
-  const loginCookie = String((login.headers['set-cookie'] as string[])[0]).split(';')[0];
-  const authorize = new URL(String(login.headers.location)); step('GET /auth/login redirects to the provider', login.status === 302 && authorize.origin === 'https://idp:9443');
-  const approved = await call(`https://localhost:9443${authorize.pathname}${authorize.search}`, { ca: idpCa });
-  const callback = new URL(String(approved.headers.location));
-  const signedIn = await call(`${origin}${callback.pathname}${callback.search}`, { ca: webCa, headers: { cookie: loginCookie } });
-  const session = ((signedIn.headers['set-cookie'] as string[] | undefined) ?? []).find(item => item.startsWith('__Host-chausar=') && !item.startsWith('__Host-chausar=;'))?.split(';')[0] ?? '';
-  step('sign-in callback (server fetched discovery, token and keys from the IdP over TLS)', signedIn.status === 302 && !!session, signedIn.json?.error?.code);
+  async function signIn() {
+    const login = await call(`${origin}/auth/login`, { ca: webCa });
+    const loginCookie = String((login.headers['set-cookie'] as string[])[0]).split(';')[0];
+    const authorize = new URL(String(login.headers.location));
+    const approved = await call(`https://localhost:9443${authorize.pathname}${authorize.search}`, { ca: idpCa });
+    const callback = new URL(String(approved.headers.location));
+    const signedIn = await call(`${origin}${callback.pathname}${callback.search}`, { ca: webCa, headers: { cookie: loginCookie } });
+    const cookie = ((signedIn.headers['set-cookie'] as string[] | undefined) ?? []).find(item => item.startsWith('__Host-chausar=') && !item.startsWith('__Host-chausar=;'))?.split(';')[0] ?? '';
+    return { login, authorize, signedIn, cookie };
+  }
+  const psql = (sql: string) => docker(['exec', '-T', 'postgres', 'psql', '-U', 'chausar', '-d', 'chausar', '-tAc', sql], { quiet: true }).out.trim();
+  const first = await signIn(); const session = first.cookie;
+  step('GET /auth/login redirects to the provider', first.login.status === 302 && first.authorize.origin === 'https://idp:9443');
+  step('sign-in callback (server fetched discovery, token and keys from the IdP over TLS)', first.signedIn.status === 302 && !!session, first.signedIn.json?.error?.code);
   const me = await call(`${origin}/api/me`, { ca: webCa, headers: { cookie: session } });
   step('GET /api/me', me.status === 200 && me.json.role === 'owner', me.text);
-  const rpc = (method: string, cookie = session) => call(`${origin}/api/rpc`, { method: 'POST', ca: webCa, body: JSON.stringify({ method, payload: {} }),
+  const rpc = (method: string, cookie = session, payload: unknown = {}) => call(`${origin}/api/rpc`, { method: 'POST', ca: webCa, body: JSON.stringify({ method, payload }),
     headers: { cookie, origin, 'x-chausar-request': '1', 'content-type': 'application/json' } });
   const status = await rpc('workspace.status'); step('POST /api/rpc workspace.status', status.status === 200 && status.json.result.open === true);
   const members = await rpc('members.list'); step('POST /api/rpc members.list', members.status === 200 && Array.isArray(members.json.result), `${members.json?.result?.length} members`);
-  const rows = docker(['exec', '-T', 'postgres', 'psql', '-U', 'chausar', '-d', 'chausar', '-tAc', 'SELECT count(*) FROM public.chausar_enterprise_sessions'], { quiet: true }).out.trim();
+  const rows = psql('SELECT count(*) FROM public.chausar_enterprise_sessions');
   step('the session is stored in PostgreSQL (digest only)', Number(rows) >= 1, `${rows} row(s)`);
+  const identities = psql("SELECT count(*) || ':' || bool_and(subject_hash ~ '^[0-9a-f]{64}$') || ':' || min(member_id) || ':' || bool_or(revoked) FROM public.chausar_enterprise_identities");
+  step('the identity map is in PostgreSQL (one row, subject digest only)', identities === `1:true:${me.json.memberId}:false`, identities.replace(/:[^:]+:false$/, ':<member>:false'));
+  const serverFiles = docker(['exec', '-T', 'server', 'ls', '-A', '/var/lib/chausar/server'], { quiet: true, allowFail: true }).out.trim();
+  step('no identities.json is written on the server volume', !/identities\.json/.test(serverFiles), serverFiles || '(empty)');
+
+  // Private token search runs in PostgreSQL over the same verified TLS as the vault (enterprise-only remoteTls).
+  const investigation = await rpc('investigations.create', session, { objective: 'August smoke investigation', branch: 'main', asOf: new Date().toISOString(), sourceIds: [],
+    steps: [{ id: 'august', label: 'August empty collection scope', request: { operation: 'received', period: { from: '2026-08-01', to: '2026-08-31' } } }],
+    hypotheses: [], budget: { maxSteps: 2, maxReceiptRows: 10, maxContextBytes: 16384 } });
+  step('POST /api/rpc investigations.create', investigation.status === 200 && typeof investigation.json.result?.id === 'string', investigation.json?.error?.code);
+  const bounds = { maxDocuments: 100, maxTextBytes: 100000, maxMatches: 100 };
+  const found = await rpc('research.search', session, { method: 'simple-token-conjunction-v1', query: 'August', bounds });
+  const result = found.json?.result;
+  step('POST /api/rpc research.search finds the investigation in remote PostgreSQL', found.status === 200 && result?.engine === 'postgres' && result.matches.length === 1 && result.matches[0].id === investigation.json.result.id,
+    found.status === 200 ? `engine ${result.engine}, server ${result.serverIdentity?.address}:${result.serverIdentity?.port}, ${result.matches.length} match` : found.json?.error?.code);
+  const none = await rpc('research.search', session, { method: 'simple-token-conjunction-v1', query: 'September', bounds });
+  step('a search with no matching token returns no matches', none.status === 200 && none.json.result.matches.length === 0);
+  const searchTls = psql("SELECT s.ssl || ':' || coalesce(s.version, '-') FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.application_name = 'chausar-private-investigation-search'").split('\n').filter(Boolean);
+  step('the search connection uses TLS', searchTls.length > 0 && searchTls.every(line => /^(t|true):TLSv1\.[23]$/.test(line)), [...new Set(searchTls)].join(', '));
 
   docker(['restart', 'server'], { quiet: true });
   step('server healthy again after a restart', await until(async () => (await call(`${origin}/healthz`, { ca: webCa })).json?.vaultOpen === true, 120));
   const after = await call(`${origin}/api/me`, { ca: webCa, headers: { cookie: session } });
   step('the session survives the server restart', after.status === 200 && after.json.role === 'owner');
+  const second = await signIn(); const meAgain = await call(`${origin}/api/me`, { ca: webCa, headers: { cookie: second.cookie } });
+  const membersAfter = await rpc('members.list');
+  step('a new sign-in after the restart is the same member (read from the identity table)', meAgain.status === 200 && meAgain.json.memberId === me.json.memberId
+    && membersAfter.json.result.length === members.json.result.length && psql('SELECT count(*) FROM public.chausar_enterprise_identities') === '1', `${membersAfter.json.result.length} members`);
   const out = await call(`${origin}/auth/logout`, { method: 'POST', ca: webCa, headers: { cookie: session, origin, 'x-chausar-request': '1' } });
   const refused = await call(`${origin}/api/me`, { ca: webCa, headers: { cookie: session } });
   step('sign-out ends the session', out.status === 200 && refused.status === 401);

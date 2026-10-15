@@ -63,6 +63,8 @@ async function safeTree(directory, paths = [], prefix = '') {
   const info = await lstat(directory);
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('runtime directories must be real directories');
   for (const item of await readdir(directory, { withFileTypes: true })) {
+    // Dot entries are never packaged (builder.json extraResources "!**/.*") and never inventoried (stage-runtime.ts).
+    if (item.name.startsWith('.')) continue;
     if (item.isSymbolicLink()) throw new Error('symbolic links are forbidden in vendored runtimes');
     const name = prefix ? `${prefix}/${item.name}` : item.name;
     if (item.isDirectory()) await safeTree(join(directory, item.name), paths, name);

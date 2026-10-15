@@ -12,9 +12,24 @@ export type LoginStateStore = {
   /** Removes and returns the entry in one step, so a state value works once even across processes. */
   takeLogin(key: string, now: number): Promise<PendingLogin | null>;
 };
-/** Sessions, sign-ins in progress and sign-in rate limits, shared by every server process that uses the same store. */
+/** One provider identity: `subject` is the SHA-256 of the provider's `sub`; the raw subject is never stored. */
+export type IdentityEntry = { issuer: string; subject: string; memberId: string; role: Role; branches: string[]; revoked: boolean; updatedAt: string };
+/** What a sign-in decided while it held the identity: an entry to save, and the member to sign in as (null refuses). */
+export type IdentityDecision = { save?: IdentityEntry; memberId: string | null };
+/** The identity map, shared by every server process that uses the same store. */
+export type IdentityStore = {
+  readonly kind: 'memory' | 'postgres';
+  /** Runs `decide` while holding (issuer, subject) exclusively across every process, then saves its entry in the same step.
+   * Two concurrent first sign-ins of one person therefore provision one member: the second sees the first one's entry. */
+  withIdentity(issuer: string, subject: string, decide: (entry: IdentityEntry | null) => Promise<IdentityDecision>): Promise<IdentityDecision>;
+  /** Adds entries that are not already present (a one-time import); returns how many were added. */
+  importEntries(entries: readonly IdentityEntry[]): Promise<number>;
+  list(): Promise<IdentityEntry[]>;
+};
+/** Sessions, sign-ins in progress, sign-in rate limits and the identity map, shared by every server process that uses the same store. */
 export type EnterpriseStateStore = LoginStateStore & {
   readonly kind: 'memory' | 'postgres';
+  readonly identities: IdentityStore;
   /** Refuses ENTERPRISE_BUSY when `limit` live sessions exist. */
   putSession(key: string, session: StoredSession, limit: number, now: number): Promise<void>;
   getSession(key: string, now: number): Promise<StoredSession | null>;
@@ -34,9 +49,31 @@ const limited = () => check(false, 'RATE_LIMITED', 'Too many sign-in requests. W
 /** Client addresses are kept only as digests. */
 const addressKey = (address: string) => createHash('sha256').update(`chausar-enterprise-rate:${address}`).digest('hex');
 
+const identityKey = (issuer: string, subject: string) => JSON.stringify([issuer, subject]);
+const copyEntry = (entry: IdentityEntry): IdentityEntry => ({ ...entry, branches: [...entry.branches] });
+/** One process only: unit tests and a server started without a shared store. */
+export class MemoryIdentityStore implements IdentityStore {
+  readonly kind = 'memory' as const;
+  #entries = new Map<string, IdentityEntry>(); #held = new Map<string, Promise<unknown>>();
+  async withIdentity(issuer: string, subject: string, decide: (entry: IdentityEntry | null) => Promise<IdentityDecision>): Promise<IdentityDecision> {
+    const key = identityKey(issuer, subject); const before = this.#held.get(key) ?? Promise.resolve();
+    const run = before.catch(() => {}).then(async () => {
+      const current = this.#entries.get(key); const decision = await decide(current ? copyEntry(current) : null);
+      if (decision.save) this.#entries.set(key, copyEntry(decision.save)); return decision;
+    });
+    this.#held.set(key, run); try { return await run; } finally { if (this.#held.get(key) === run) this.#held.delete(key); }
+  }
+  async importEntries(entries: readonly IdentityEntry[]) {
+    let added = 0; for (const entry of entries) { const key = identityKey(entry.issuer, entry.subject); if (!this.#entries.has(key)) { this.#entries.set(key, copyEntry(entry)); added++; } }
+    return added;
+  }
+  async list() { return [...this.#entries.values()].map(copyEntry); }
+}
+
 /** One process only. Used by tests and by a server started without a shared store. */
 export class MemoryEnterpriseStore implements EnterpriseStateStore {
   readonly kind = 'memory' as const;
+  readonly identities: IdentityStore = new MemoryIdentityStore();
   #sessions = new Map<string, StoredSession>(); #logins = new Map<string, PendingLogin>(); #windows = new Map<string, { start: number; count: number }>();
   async putSession(key: string, session: StoredSession, limit: number, now: number) {
     if (this.#sessions.size >= limit) for (const [id, item] of this.#sessions) if (item.expiresAt <= now) this.#sessions.delete(id);
@@ -90,13 +127,66 @@ const SCHEMA = [
     state_digest TEXT PRIMARY KEY, nonce TEXT NOT NULL, verifier TEXT NOT NULL, expires_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS public.chausar_enterprise_rate_limits (
     address_digest TEXT PRIMARY KEY, window_start BIGINT NOT NULL, count INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS public.chausar_enterprise_identities (
+    issuer TEXT NOT NULL CHECK (char_length(issuer) BETWEEN 1 AND 2048), subject_hash TEXT NOT NULL CHECK (subject_hash ~ '^[0-9a-f]{64}$'),
+    member_id TEXT NOT NULL CHECK (char_length(member_id) BETWEEN 1 AND 200), role TEXT NOT NULL CHECK (role IN ('owner', 'cofounder', 'accountant', 'viewer')),
+    branches JSONB NOT NULL CHECK (jsonb_typeof(branches) = 'array'), revoked BOOLEAN NOT NULL DEFAULT false, updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT chausar_enterprise_identities_subject UNIQUE (issuer, subject_hash))`,
 ];
+const IDENTITY_COLUMNS = 'issuer, subject_hash, member_id, role, branches, revoked, updated_at';
+const IDENTITY_LOCK_MS = 30_000;
+function identityRow(row: any): IdentityEntry {
+  const updated = row?.updated_at instanceof Date ? row.updated_at : new Date(String(row?.updated_at));
+  check(!!row && typeof row.issuer === 'string' && typeof row.subject_hash === 'string' && /^[0-9a-f]{64}$/.test(row.subject_hash) && typeof row.member_id === 'string' && roles.includes(row.role)
+    && Array.isArray(row.branches) && row.branches.every((branch: unknown) => typeof branch === 'string') && typeof row.revoked === 'boolean' && !Number.isNaN(updated.getTime()),
+  'ENTERPRISE_IDENTITY_STORE_INVALID', 'A stored identity is not well formed.');
+  return { issuer: row.issuer, subject: row.subject_hash, memberId: row.member_id, role: row.role, branches: [...row.branches], revoked: row.revoked, updatedAt: updated.toISOString() };
+}
+const identityValues = (entry: IdentityEntry) => [entry.issuer, entry.subject, entry.memberId, entry.role, JSON.stringify(entry.branches), entry.revoked, entry.updatedAt];
+
+/** The identity map in the PostgreSQL database the engine uses, over the same pool (and TLS) as the sessions. */
+export class PostgresIdentityStore implements IdentityStore {
+  readonly kind = 'postgres' as const;
+  #pool: EnterpriseStorePool;
+  constructor(pool: EnterpriseStorePool) { this.#pool = pool; }
+  async withIdentity(issuer: string, subject: string, decide: (entry: IdentityEntry | null) => Promise<IdentityDecision>): Promise<IdentityDecision> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('lock_timeout', $1, true)", [String(IDENTITY_LOCK_MS)]);
+      // The row may not exist yet, so a row lock cannot serialize first sign-ins; a transaction-scoped advisory lock on the key does.
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`chausar-enterprise-identity:${identityKey(issuer, subject)}`]);
+      const row = (await client.query(`SELECT ${IDENTITY_COLUMNS} FROM public.chausar_enterprise_identities WHERE issuer = $1 AND subject_hash = $2`, [issuer, subject])).rows[0];
+      const decision = await decide(row ? identityRow(row) : null);
+      if (decision.save) {
+        check(decision.save.issuer === issuer && decision.save.subject === subject, 'ENTERPRISE_IDENTITY_STORE_INVALID', 'A sign-in can only record its own identity.');
+        await client.query(`INSERT INTO public.chausar_enterprise_identities (${IDENTITY_COLUMNS}) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+          ON CONFLICT (issuer, subject_hash) DO UPDATE SET member_id = EXCLUDED.member_id, role = EXCLUDED.role, branches = EXCLUDED.branches,
+            revoked = EXCLUDED.revoked, updated_at = EXCLUDED.updated_at`, identityValues(decision.save));
+      }
+      await client.query('COMMIT'); return decision;
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { client.release(); }
+  }
+  async importEntries(entries: readonly IdentityEntry[]) {
+    const client = await this.#pool.connect(); let added = 0;
+    try {
+      await client.query('BEGIN');
+      for (const entry of entries) added += (await client.query(`INSERT INTO public.chausar_enterprise_identities (${IDENTITY_COLUMNS}) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+        ON CONFLICT (issuer, subject_hash) DO NOTHING`, identityValues(entry))).rowCount ?? 0;
+      await client.query('COMMIT'); return added;
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { client.release(); }
+  }
+  async list() { return (await this.#pool.query(`SELECT ${IDENTITY_COLUMNS} FROM public.chausar_enterprise_identities ORDER BY issuer, subject_hash`)).rows.map(identityRow); }
+}
 
 /** Shared store for several server processes, in the PostgreSQL database the engine uses. */
 export class PostgresEnterpriseStore implements EnterpriseStateStore {
   readonly kind = 'postgres' as const;
+  readonly identities: PostgresIdentityStore;
   #pool: EnterpriseStorePool; #ownPool: boolean;
-  private constructor(pool: EnterpriseStorePool, ownPool: boolean) { this.#pool = pool; this.#ownPool = ownPool; }
+  private constructor(pool: EnterpriseStorePool, ownPool: boolean) { this.#pool = pool; this.#ownPool = ownPool; this.identities = new PostgresIdentityStore(pool); }
   static async connect(connection: EnterpriseStoreConnection): Promise<PostgresEnterpriseStore> {
     const pool = await openEnterpriseStorePool(connection);
     try { return await PostgresEnterpriseStore.fromPool(pool, true); } catch (error) { await pool.end().catch(() => {}); throw error; }
