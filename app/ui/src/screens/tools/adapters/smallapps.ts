@@ -12,6 +12,7 @@ import type { MissingState } from '../../../bridge/presentation.ts';
 import { figure } from '../../trust/kit/figure.ts';
 import { ShapeError, bool, int, list, oneOf, optStr, rec, str, strings, type Rec } from '../../trust/kit/validate.ts';
 import { id, when } from '../validate.ts';
+import { payloadSchema, type PayloadSchema } from '../frame/schema.ts';
 
 export const SMALLAPPS = {
   list: 'smallapps.list', propose: 'smallapps.propose', create: 'smallapps.create', get: 'smallapps.get', open: 'smallapps.open',
@@ -137,7 +138,7 @@ function valueOf(v: unknown, path: string): Value {
 
 export interface Entry {
   readonly id: string; readonly who: string; readonly when: string; readonly said: string; readonly status: 'open' | 'done' | 'dropped';
-  readonly version: number; readonly at: string; readonly withheld: number;
+  readonly version: number; readonly at: string; readonly withheld: number; readonly createdBy: string | null;
 }
 function entry(value: unknown, path: string): Entry {
   const e = rec(value, path);
@@ -145,6 +146,7 @@ function entry(value: unknown, path: string): Entry {
     id: id(e['id'], `${path}.id`), who: str(e['who'], `${path}.who`, 200), when: when(e['when'], `${path}.when`), said: str(e['said'], `${path}.said`, 2000),
     status: oneOf(e['status'], `${path}.status`, ['open', 'done', 'dropped'] as const), version: int(e['version'], `${path}.version`), at: when(e['at'], `${path}.at`),
     withheld: e['versionsWithheld'] === undefined ? 0 : int(e['versionsWithheld'], `${path}.versionsWithheld`),
+    createdBy: optStr(e['createdBy'], `${path}.createdBy`, 200),
   };
 }
 
@@ -152,7 +154,9 @@ export type OpenCard =
   | { readonly kind: 'metric'; readonly id: string; readonly label: string; readonly value: Value }
   | { readonly kind: 'comparison'; readonly id: string; readonly label: string; readonly current: Value; readonly previous: Value }
   | { readonly kind: 'table'; readonly id: string; readonly label: string; readonly rows: readonly { readonly label: string; readonly value: Value }[] }
-  | { readonly kind: 'action'; readonly id: string; readonly label: string; readonly alwaysWaits: boolean; readonly press: 'unavailable' | 'read-only' | 'prepares-for-approval' }
+  | { readonly kind: 'action'; readonly id: string; readonly label: string; readonly alwaysWaits: boolean; readonly press: 'unavailable' | 'read-only' | 'prepares-for-approval';
+      /** The details the action takes (the catalogue row's payload schema), when the engine gives it; absent: not said. */
+      readonly schema?: PayloadSchema | null }
   | { readonly kind: 'records'; readonly id: string; readonly label: string; readonly entries: readonly Entry[] };
 function openCard(value: unknown, path: string): OpenCard {
   const c = rec(value, path), kind = oneOf(c['kind'], `${path}.kind`, ['metric', 'table', 'comparison', 'action', 'records'] as const);
@@ -161,7 +165,8 @@ function openCard(value: unknown, path: string): OpenCard {
     case 'metric': return { kind, id: cardId, label, value: valueOf(c['value'], `${path}.value`) };
     case 'comparison': return { kind, id: cardId, label, current: valueOf(c['current'], `${path}.current`), previous: valueOf(c['previous'], `${path}.previous`) };
     case 'table': return { kind, id: cardId, label, rows: list(c['rows'], `${path}.rows`, (v, p) => { const r = rec(v, p); return { label: str(r['label'], `${p}.label`, 200), value: valueOf(r['value'], `${p}.value`) }; }, 8) };
-    case 'action': return { kind, id: cardId, label, alwaysWaits: bool(c['alwaysWaits'], `${path}.alwaysWaits`), press: oneOf(c['press'], `${path}.press`, ['unavailable', 'read-only', 'prepares-for-approval'] as const) };
+    case 'action': return { kind, id: cardId, label, alwaysWaits: bool(c['alwaysWaits'], `${path}.alwaysWaits`), press: oneOf(c['press'], `${path}.press`, ['unavailable', 'read-only', 'prepares-for-approval'] as const),
+      ...(c['payloadSchema'] === undefined ? {} : { schema: c['payloadSchema'] === null ? null : payloadSchema(c['payloadSchema'], `${path}.payloadSchema`) }) };
     case 'records': return { kind, id: cardId, label, entries: list(c['entries'], `${path}.entries`, entry, 2000) };
   }
 }
@@ -196,4 +201,23 @@ export function history(value: unknown): History {
     }, 200),
     withheld: int(r['versionsWithheld'], 'reply.versionsWithheld'),
   };
+}
+
+// ---- TL tools: delete and export the follow-up book (this lane's trustx methods over the book) ----
+
+export const FOLLOW_UP = { delete: 'trustx.followUpDelete', export: 'trustx.followUpExport' } as const;
+export function followUpDeleted(value: unknown): { readonly id: string; readonly versionsRemoved: number } {
+  const r = rec(value);
+  if (r['deleted'] !== true) throw new ShapeError('reply.deleted');
+  return { id: id(r['id'], 'reply.id'), versionsRemoved: int(r['versionsRemoved'], 'reply.versionsRemoved') };
+}
+export interface FollowUpExport { readonly name: string; readonly path: string; readonly rows: number; readonly bytes: number; readonly sha256: string }
+export function followUpExported(value: unknown): FollowUpExport {
+  const r = rec(value);
+  if (r['encrypted'] !== false) throw new ShapeError('reply.encrypted');
+  const sha = str(r['sha256'], 'reply.sha256', 64);
+  if (!/^[a-f0-9]{64}$/.test(sha)) throw new ShapeError('reply.sha256');
+  const rows = int(r['rows'], 'reply.rows'), bytes = int(r['bytes'], 'reply.bytes');
+  if (rows < 0 || bytes < 0) throw new ShapeError('reply.rows');
+  return { name: id(r['name'], 'reply.name'), path: id(r['path'], 'reply.path'), rows, bytes, sha256: sha };
 }

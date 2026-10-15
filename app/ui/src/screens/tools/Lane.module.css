@@ -1,0 +1,12 @@
+/* TL tools: the round-4 Tools screens (wrap, requests, network door). Tokens only. */
+.stack { display: flex; flex-direction: column; gap: var(--sp3); }
+.form { display: flex; flex-direction: column; gap: var(--sp2); max-width: 48em; }
+.field { display: flex; flex-direction: column; gap: var(--sp1); min-width: 0; }
+.label { font-size: var(--fs-note2); color: var(--fg2); }
+.area { font: inherit; font-family: var(--font-mono, monospace); font-size: var(--fs-note); color: var(--fg); background: var(--bg); border: var(--hair) solid var(--line2); padding: var(--sp2); min-height: 8em; resize: vertical; }
+.select { font: inherit; font-size: var(--fs-note); color: var(--fg); background: var(--bg); border: var(--hair) solid var(--line2); padding: var(--sp1); min-height: var(--target); }
+.p { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.note { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.small { margin: 0; font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }
+.buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; align-items: center; }
+.side { display: grid; grid-template-columns: repeat(auto-fit, minmax(16em, 1fr)); gap: var(--sp3); }

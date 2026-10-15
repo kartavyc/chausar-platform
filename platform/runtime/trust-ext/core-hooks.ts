@@ -15,6 +15,7 @@ import { seatHasEnded } from './core-seats.ts';
 import { seatSees, sourceMarkKinds } from './core-markings.ts';
 import { blockLeak } from './tools-network.ts';
 import { fields, tools } from './tools-common.ts';
+import { mcpRemoved } from './tools-assistants.ts';
 
 const sendRank: Record<TrustPolicy['send'], number> = { nothing: 0, shape: 1, samples: 2 };
 
@@ -70,8 +71,11 @@ registerCoreHook('sourceHidden', (state, member, sourceId) => {
 registerOutboundCheck((store, _ctx, outgoing) => blockLeak(store, outgoing));
 
 // Each call to the numbers server, refused ones included, by structure only; the newest thousand are kept.
+// What the disclosure check removed is kept when the core's record carries it (core-data's `removed`), checked by `mcpRemoved`.
 export const MCP_CALLS_KEPT = 1000;
 registerMcpCallHook((store, record) => store.update(state => {
-  const calls = (tools(state).mcpCalls ??= []) as unknown[]; calls.push({ id: newId('mcpcall'), at: now(), ...record });
+  const { memberId, method, tool, receiptId, outcome, code } = record; const removed = mcpRemoved((record as { removed?: unknown }).removed);
+  const calls = (tools(state).mcpCalls ??= []) as unknown[];
+  calls.push({ id: newId('mcpcall'), at: now(), memberId, method, tool, receiptId, outcome, code, ...(removed ? { removed } : {}) });
   if (calls.length > MCP_CALLS_KEPT) calls.splice(0, calls.length - MCP_CALLS_KEPT);
 }));

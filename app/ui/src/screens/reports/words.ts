@@ -11,7 +11,7 @@ type Key =
   | 'pageKind' | 'badSheet' | 'language' | 'english' | 'hindi' | 'print' | 'exportTo'
   | 'fmt.xlsx' | 'fmt.csv' | 'fmt.html' | 'fmt.pdf' | 'fmt.tally'
   | 'making' | 'fileMade' | 'fileSize' | 'checkNumber' | 'notEncrypted' | 'textCells'
-  | 'refused.PDF_USES_PRINT' | 'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE' | 'refused.RELAY_NOT_AVAILABLE' | 'refused.ACCESS_DENIED' | 'refused.notBuilt' | 'refused.other'
+  | 'refused.PDF_USES_PRINT' | 'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE' | 'refused.TALLY_PAGE_NO_FIGURES' | 'tallyVouchers' | 'tallyLeftOut' | 'refused.RELAY_NOT_AVAILABLE' | 'refused.ACCESS_DENIED' | 'refused.notBuilt' | 'refused.other'
   | 'periodLine' | 'noPeriod' | 'madeAt' | 'at' | 'projection' | 'projectionNote' | 'gap' | 'pageGaps' | 'notes' | 'source' | 'checkedOn' | 'notLegal'
   | 'markings' | 'marking.personal' | 'marking.financial' | 'marking.confidential' | 'footerCheck' | 'footerAt' | 'footerNone'
   | 'viewerNoExport' | 'receipts' | 'receipt' | 'pageNotStarted' | 'Dr' | 'Cr' | 'lineId'
@@ -50,7 +50,10 @@ export const WORDS: Catalogue<Key> = {
     making: 'Making the file…', fileMade: 'File made: {name}', fileSize: 'Size: {size} bytes', checkNumber: 'Check number: {check}',
     notEncrypted: 'This file is not encrypted.', textCells: 'Text cells are written as text, so a spreadsheet cannot run them as formulas.',
     'refused.PDF_USES_PRINT': 'Use Print and choose Save as PDF.',
-    'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE': 'A file Tally can import is not available for a single report page yet.',
+    'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE': 'Only a page of balances with Dr and Cr can go to Tally. Export this page to Excel or CSV instead.',
+    'refused.TALLY_PAGE_NO_FIGURES': 'No amount on this page is known yet, so there is nothing for Tally to import.',
+    tallyVouchers: '{count} amounts are in the file as Memorandum vouchers, which stay out of the books in Tally.',
+    tallyLeftOut: 'Left out, not written as zero: {line}',
     'refused.RELAY_NOT_AVAILABLE': 'The relay is a paid, hosted part: planned, not available yet.',
     'refused.ACCESS_DENIED': 'Your seat is not allowed to do this.', 'refused.notBuilt': 'This is not built yet.',
     'refused.other': 'That did not work. Code: {code}',
@@ -132,7 +135,10 @@ export const WORDS: Catalogue<Key> = {
     making: 'फ़ाइल बन रही है…', fileMade: 'फ़ाइल बनी: {name}', fileSize: 'आकार: {size} बाइट', checkNumber: 'जाँच संख्या: {check}',
     notEncrypted: 'यह फ़ाइल एन्क्रिप्टेड नहीं है।', textCells: 'टेक्स्ट वाले सेल टेक्स्ट की तरह लिखे जाते हैं, ताकि स्प्रेडशीट उन्हें फ़ॉर्मूला की तरह न चला सके।',
     'refused.PDF_USES_PRINT': 'प्रिंट दबाएँ और Save as PDF चुनें।',
-    'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE': 'एक रिपोर्ट पन्ने के लिए Tally में आयात होने वाली फ़ाइल अभी उपलब्ध नहीं है।',
+    'refused.TALLY_PAGE_EXPORT_NOT_AVAILABLE': 'केवल Dr और Cr वाले शेष का पन्ना Tally में जा सकता है। इस पन्ने को Excel या CSV में निर्यात करें।',
+    'refused.TALLY_PAGE_NO_FIGURES': 'इस पन्ने की कोई राशि अभी ज्ञात नहीं है, इसलिए Tally में आयात के लिए कुछ नहीं है।',
+    tallyVouchers: 'फ़ाइल में {count} राशियाँ मेमोरेंडम वाउचर के रूप में हैं, जो Tally में खातों से बाहर रहते हैं।',
+    tallyLeftOut: 'छोड़ा गया, शून्य नहीं लिखा गया: {line}',
     'refused.RELAY_NOT_AVAILABLE': 'रिले एक सशुल्क, होस्ट किया गया हिस्सा है: योजना में है, अभी उपलब्ध नहीं।',
     'refused.ACCESS_DENIED': 'आपकी सीट को यह करने की अनुमति नहीं है।', 'refused.notBuilt': 'यह अभी बना नहीं है।',
     'refused.other': 'यह नहीं हो सका। कोड: {code}',

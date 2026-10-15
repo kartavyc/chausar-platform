@@ -47,6 +47,11 @@ export function list<T>(value: unknown, path: string, item: (v: unknown, path: s
   if (!Array.isArray(value) || value.length > max) throw new ShapeError(path);
   return value.map((v, i) => item(v, `${path}[${i}]`));
 }
+/** A stable engine code (lower case, digits and dashes) that a screen maps to its own words. */
+export function code(value: unknown, path: string): string {
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(value)) throw new ShapeError(path);
+  return value;
+}
 export function strings(value: unknown, path: string, max = 500): string[] {
   return list(value, path, (v, p) => str(v, p), max);
 }

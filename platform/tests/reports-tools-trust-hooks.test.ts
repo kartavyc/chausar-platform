@@ -9,7 +9,8 @@ import { initialState, now } from '../runtime/contracts.ts';
 import type { Context, State, StateStore } from '../runtime/contracts.ts';
 import { ModelGateway } from '../runtime/gateway.ts';
 import { flushMcpCalls, MCPService } from '../runtime/mcp.ts';
-import { assistantsView } from '../runtime/trust-ext/tools-assistants.ts';
+import { assistantsView, mcpRemoved } from '../runtime/trust-ext/tools-assistants.ts';
+import * as mcpModule from '../runtime/mcp.ts';
 import { today } from '../runtime/trust-ext/core-state.ts';
 import { canaryHit, checkCanary, payloadLeaks } from '../runtime/trust-ext/tools-network.ts';
 import { visibleFacts } from '../runtime/trust.ts';
@@ -181,6 +182,15 @@ test('a paired assistant token works on /mcp only; each call, refused ones inclu
   assert.ok(view.assistants[0].lastCall);
   // The record keeps structure only: no arguments, no values.
   const records = (f.vault().read().extensions as any)[LANE].tools.mcpCalls as any[]; assert.equal(records.length, 3);
+  // `removed` is kept only when the core's record carries a checked list (core-data's MCP disclosure); nothing else is.
+  for (const record of records) {
+    const keys = Object.keys(record).sort().filter(key => key !== 'removed');
+    assert.deepEqual(keys, ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'tool']);
+    if ('removed' in record) assert.ok(Array.isArray(record.removed) && record.removed.every((r: any) => Object.keys(r).sort().join() === 'count,field,why'));
+  }
+  // core-data passes `removed` through, so an answered call reads its list, never "not recorded".
+  for (const call of view.calls) if (call.refused) assert.deepEqual(call.removed, []); else assert.ok(Array.isArray(call.removed), JSON.stringify(call.removed));
+  // core-data passes `removed` through: an assistant's answered record carries it.
   assert.deepEqual(Object.keys(records[0]).sort(), ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'removed', 'tool']);
   assert.ok(records.every(r => !JSON.stringify(r).includes('synthetic-hooks-shop') && !JSON.stringify(r).includes('delete_source')));
   // Revoking takes the token away from /mcp too.
@@ -267,6 +277,23 @@ test('guarded values keep up to 5,000 values and match a phone number on its dig
   assert.equal(payloadLeaks(state, '{"sample":"9876543211"}'), false);
   assert.equal(payloadLeaks(state, '{"amountMinor":"19876543210"}'), false);
   assert.equal(payloadLeaks(state, 'customer 27ABCDE0999F1Z5'), true);
+});
+
+test('what the disclosure check removed is shown when the record carries it, checked; otherwise it reads not recorded, never empty', () => {
+  assert.deepEqual(mcpRemoved([{ field: 'customerId', why: 'send-level', count: 3, value: 'dropped' }]), [{ field: 'customerId', why: 'send-level', count: 3 }]);
+  assert.deepEqual(mcpRemoved([]), []);
+  for (const bad of [undefined, null, 'customerId', [{ field: 'customer name', why: 'personal', count: 1 }], [{ field: 'customerId', why: 'because', count: 1 }],
+    [{ field: 'customerId', why: 'personal', count: 0 }], [{ field: 'customerId', why: 'personal', count: 1.5 }], Array.from({ length: 51 }, () => ({ field: 'a', why: 'personal', count: 1 }))])
+    assert.equal(mcpRemoved(bad), undefined, JSON.stringify(bad)?.slice(0, 80));
+  const state = initialState('Synthetic removed books');
+  const record = (id: string, outcome: string, removed?: unknown) => ({ id, at: now(), memberId: 'assistant_x', method: 'tools/call', tool: 'calculate', receiptId: null, outcome, code: null, ...(removed === undefined ? {} : { removed }) });
+  state.extensions = { [LANE]: { reports: {}, trust: {}, tools: { assistants: { on: true, paired: [{ id: 'assistant_x', name: 'Synthetic assistant', pairedAt: now(), sessionId: 's' }] },
+    mcpCalls: [record('c1', 'answered', [{ field: 'invoiceId', why: 'personal', count: 2 }]), record('c2', 'answered', [{ field: 'x', why: 'nope', count: 1 }]), record('c3', 'answered'), record('c4', 'refused')] } } };
+  const calls = new Map(assistantsView(state).calls.map((c: any) => [c.id, c.removed]));
+  assert.deepEqual(calls.get('c1'), [{ field: 'invoiceId', why: 'personal', count: 2 }]);
+  // Without a checked list: before core-data's disclosure step nothing was removed; with it, the record does not say.
+  const expected = typeof (mcpModule as Record<string, unknown>).discloseRows === 'function' ? 'not-recorded' : [];
+  assert.deepEqual(calls.get('c2'), expected); assert.deepEqual(calls.get('c3'), expected); assert.deepEqual(calls.get('c4'), []);
 });
 
 test('numbers server call records are written in batches, at most a thousand kept, and the list still shows them', async () => {

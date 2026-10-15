@@ -9,6 +9,7 @@ import { backupNow, deleteSource, deletions, exportDeletion, setLock, setRecover
 import { assistants, pairAssistant, revokeAssistant, setAssistants } from './tools-assistants.ts';
 import { inspect, installPlugin, pluginsView, purgePluginMeta, removePlugin } from './tools-plugins.ts';
 import { languagePacks } from './tools-language.ts';
+import { followUpDelete, followUpExport } from './tools-followup.ts';
 import { flushMcpCalls } from '../mcp.ts';
 
 /** trustx.*: models, network, record, sharing, vault, deletion, assistants, plugins, language packs. */
@@ -31,7 +32,7 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.deleteSource': { permission: 'admin', handler: deleteSource },
   'trustx.deletions': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return deletions(host.store.read()); } },
   'trustx.exportDeletion': { permission: 'admin', handler: exportDeletion },
-  'trustx.hosted': { permission: 'read', handler: (_ctx, payload) => { fields(payload, []); return hostedView(); } },
+  'trustx.hosted': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return hostedView(host); } },
   'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host); } },
   'trustx.withdraw': { permission: 'admin', handler: withdraw },
   // Calls waiting in the MCP record buffer are written first, so the list is never behind.
@@ -44,6 +45,9 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.installPlugin': { permission: 'admin', handler: installPlugin },
   'trustx.removePlugin': { permission: 'admin', handler: removePlugin },
   'trustx.languagePacks': { permission: 'read', handler: (_ctx, payload) => { fields(payload, []); return languagePacks(); } },
+  // TL tools: delete and export the follow-up book (TL-03).
+  'trustx.followUpDelete': { permission: 'prepare', handler: followUpDelete },
+  'trustx.followUpExport': { permission: 'prepare', handler: followUpExport },
 };
 
 // Purge: grants for plugins that are gone, and withdrawals for agreements that were removed.

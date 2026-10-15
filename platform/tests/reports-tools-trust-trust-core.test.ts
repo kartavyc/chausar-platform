@@ -7,6 +7,7 @@ import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { Context, Fact } from '../runtime/contracts.ts';
 import { markingsForSources } from '../runtime/trust-ext/methods-core.ts';
+import { moduleMethods, type RegisteredMethod } from '../runtime/modules/registry.ts';
 import { today } from '../runtime/trust-ext/core-state.ts'; // the lane's India date
 
 // Synthetic people, phones and GSTINs only.
@@ -161,6 +162,31 @@ test('keep lists kinds and the files the app writes, including the vault', async
   assert.equal((await f.call('trustx.setKeep', { kind: 'facts', days: null })).body.error.code, 'INVALID_KEEP');
 });
 
+test('keep says each kind is enforced once core-data\'s keep.enforce is there, with the last clean-up\'s counts; before, that it is stored only', async t => {
+  const f = await fixture(t);
+  const map = moduleMethods as Map<string, RegisteredMethod>; const before = map.get('keep.enforce');
+  t.after(() => { if (before) map.set('keep.enforce', before); else map.delete('keep.enforce'); });
+  await f.rpc('trustx.setKeep', { kind: 'exports', days: 14 }); await f.rpc('trustx.setKeep', { kind: 'activity', days: 30 });
+  // Before core-data: the rule is stored, not enforced, and no clean-up is shown.
+  map.delete('keep.enforce');
+  let keep = await f.rpc('trustx.keep'); const by = (kind: string) => keep.kinds.find((k: any) => k.kind === kind);
+  assert.deepEqual(keep.kinds.map((k: any) => k.rule), ['retention', 'until-deleted', 'not-enforced', 'until-deleted', 'not-enforced', 'until-deleted']);
+  assert.match(by('exports').note, /not built yet/); assert.equal(by('exports').lastApplied, null);
+  // With a (fake) keep.enforce and a recorded clean-up: enforced, and the counts of the newest clean-up by kind.
+  map.set('keep.enforce', Object.freeze({ permission: 'admin' as const, module: 'core-data-fake', handler: () => ({ at: new Date().toISOString(), kinds: [] }) }));
+  await f.store.update(state => {
+    state.activity.push({ id: 'event_old', at: '2026-10-01T00:00:00.000Z', event: 'trust.keep.enforced', details: { kinds: [{ kind: 'exports', removed: 9, held: 9 }] } } as any);
+    state.activity.push({ id: 'event_new', at: '2026-10-02T00:00:00.000Z', event: 'trust.keep.enforced', details: { kinds: [{ kind: 'exports', removed: 2, held: 1 }, { kind: 'activity', removed: 0, held: 40 }, { kind: 'learning', removed: -1, held: 0 }] } } as any);
+  });
+  keep = await f.rpc('trustx.keep');
+  assert.deepEqual(keep.kinds.map((k: any) => k.rule), ['retention', 'until-deleted', 'enforced', 'until-deleted', 'enforced', 'until-deleted']);
+  assert.match(by('exports').note, /removed each day/); assert.doesNotMatch(by('exports').note, /not built yet/);
+  assert.match(by('activity').note, /tamper-evident record links are held back/);
+  assert.deepEqual(by('exports').lastApplied, { at: '2026-10-02T00:00:00.000Z', removed: 2, held: 1 });
+  assert.deepEqual(by('activity').lastApplied, { at: '2026-10-02T00:00:00.000Z', removed: 0, held: 40 });
+  assert.equal(by('learning').lastApplied, null, 'a count that is not whole is left out');
+});
+
 test('do: what may run on its own is jobs-ext\'s; this lane keeps no autonomy engine', async t => {
   const f = await fixture(t);
   for (const method of ['trustx.autonomy', 'trustx.setAutonomy']) assert.equal((await f.call(method, {})).body.error.code, 'UNKNOWN_METHOD', method);
@@ -179,6 +205,11 @@ test('seats: invite with a one-time code, CA end date, removal and the last owne
   assert.equal(row.seat, 'accountant'); assert.deepEqual(row.limits.length, 4); assert.ok(row.limits.includes('Cannot approve money.'));
   assert.equal(seats.seats.find((s: any) => s.memberId === 'owner').you, true);
   assert.ok(seats.templates.find((s: any) => s.seat === 'staff').limits.some((l: string) => /not yet enforced/.test(l)));
+  // Each limit carries a stable code beside its English sentence, in the same order; screens use the code.
+  assert.deepEqual(row.limitCodes, ['reads-unmarked', 'prepares-actions', 'no-approve-money', 'no-change-send']);
+  assert.equal(row.limits[row.limitCodes.indexOf('no-approve-money')], 'Cannot approve money.');
+  for (const template of seats.templates) { assert.equal(template.limitCodes.length, template.limits.length); assert.ok(template.limitCodes.every((c: string) => /^[a-z][a-z-]+$/.test(c))); }
+  assert.deepEqual(seats.templates.find((s: any) => s.seat === 'staff').limitCodes, ['adds-entries', 'own-only-not-enforced', 'no-approve-money', 'no-change-send']);
 
   assert.equal((await f.call('trustx.invite', { seat: 'ca', name: 'Synthetic CA' })).body.error.code, 'INVALID_END_DATE');
   const day = today();
@@ -239,3 +270,48 @@ async function jobsPreset(f: { call(method: string, payload?: any): Promise<{ st
   const reply = await f.call('jobsx.autonomy', {});
   return reply.status === 200 && typeof reply.body.result?.preset === 'string' ? reply.body.result.preset : null;
 }
+
+test('explain names the rule that stopped a seat in plain words and who can change it', async t => {
+  const f = await fixture(t);
+  const accountant = await f.member('Synthetic accountant', 'accountant');
+  let e = await f.as(accountant, 'trustx.explain', { rule: 'marking' });
+  assert.equal(e.seat, 'accountant'); assert.equal(e.check, 'see'); assert.deepEqual(e.hidden, ['personal', 'confidential']);
+  assert.equal(e.sentence, 'Anything marked personal or confidential is hidden from the accountant seat.');
+  assert.deepEqual(e.whoCanChange, { seats: ['owner'], both: false, sentence: 'The owner can change it. The change is made in the app.' });
+  assert.equal(e.youCanChange, false); assert.deepEqual(e.where, { place: 'trust', sub: 'markings' });
+  e = await f.as(accountant, 'trustx.explain', { rule: 'marking', language: 'hi' });
+  assert.match(e.sentence, /निजी या गोपनीय/);
+  const cofounder = await f.member('Synthetic cofounder', 'cofounder');
+  e = await f.as(cofounder, 'trustx.explain', { rule: 'seat' });
+  assert.equal(e.check, 'people'); assert.equal(e.youCanChange, true);
+  assert.deepEqual(e.whoCanChange.seats, ['owner', 'cofounder']); assert.equal(e.whoCanChange.both, true);
+  e = await f.rpc('trustx.explain', { rule: 'source', sourceId: 'gone-source' });
+  assert.deepEqual(e.source, { known: false, allowed: true }); assert.equal(e.sentence, 'This source is no longer in the workspace.');
+  assert.equal(e.whoCanChange.both, false);
+  assert.equal((await f.call('trustx.explain', { rule: 'mood' })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+  assert.equal((await f.call('trustx.explain', { rule: 'seat', extra: 1 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+});
+
+test('trust.explain gives ask the rule id, its fixed words and who may change it', async t => {
+  const f = await fixture(t);
+  const accountant = await f.member('Synthetic accountant', 'accountant');
+  let e = await f.as(accountant, 'trust.explain', { rule: 'marking', receiptId: 'rcpt_synthetic' });
+  assert.deepEqual(e, { ruleId: 'marking:accountant:personal+confidential', text: 'Anything marked personal or confidential is hidden from the accountant seat.', changeableBy: 'owner' });
+  await f.member('Synthetic cofounder', 'cofounder');
+  e = await f.as(accountant, 'trust.explain', { rule: 'branch' });
+  assert.equal(e.ruleId, 'branch:accountant'); assert.equal(e.changeableBy, 'owner-or-cofounder');
+  assert.equal((await f.call('trust.explain', { rule: 'seat', receiptId: 5 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+});
+
+test('keep periods set in Trust are enforced by the real keep.enforce, and Keep shows the last clean-up', async t => {
+  const f = await fixture(t);
+  await f.rpc('trustx.setKeep', { kind: 'exports', days: 14 });
+  const enforced = await f.rpc('keep.enforce', {});
+  const exports = enforced.kinds.find((k: any) => k.kind === 'exports');
+  assert.equal(exports.days, 14, 'core-data reads the period Trust stored');
+  const keep = await f.rpc('trustx.keep');
+  const row = keep.kinds.find((k: any) => k.kind === 'exports');
+  assert.equal(row.rule, 'enforced');
+  assert.deepEqual(row.lastApplied && { removed: row.lastApplied.removed, held: row.lastApplied.held }, { removed: exports.removed, held: exports.held });
+  assert.equal(keep.kinds.find((k: any) => k.kind === 'briefs').rule, 'until-deleted');
+});

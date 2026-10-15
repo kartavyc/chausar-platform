@@ -24,6 +24,7 @@ import {
 } from './adapters/learning.ts';
 import { validateAgreements, validateHosted, validateSharing, type Agreements, type Hosted } from './validate.ts';
 import { COMMON, SHARING, codeWord, fill } from './words.ts';
+import { rtt } from './rtt.ts';
 import s from './Trust.module.css';
 
 type W = Readonly<Record<keyof typeof SHARING.en, string>>;
@@ -346,17 +347,21 @@ function Cleaner({ p }: { p: P }) {
 
 /** TR-14: the plan's promises; when the plan ended, that comes first. */
 function HostedBody({ p, h }: { p: P; h: Hosted }) {
-  const c = words(COMMON, p.language), w = words(SHARING, p.language);
+  const c = words(COMMON, p.language), w = words(SHARING, p.language), say = rtt(p.language);
   return (
     <div className={s.stack}>
       {h.ended && <p className={s.status} role="status" data-plan-ended="">{w.planEnded}</p>}
+      {/* TR-07/12/14 vault-hosted-keys: the plan read from hosted.status, and where hosted backup and always-on jobs live. */}
+      {h.ended && <p className={s.quiet}>{say('RTT.hosted.planEndedNote')}</p>}
+      {h.paid && <p className={s.status} data-plan-paid="">{say('RTT.hosted.planPaid')}</p>}
       <p className={s.text}>{h.blind}</p>
       <p className={s.text}>{h.notBlind}</p>
-      {!h.ended && <p className={s.quiet}>{w.planned}</p>}
+      {!h.ended && !h.paid && <p className={s.quiet}>{w.planned}</p>}
       <h3 className={s.label}>{w.jobsTitle}</h3>
       {h.jobs.length === 0 ? <p className={s.quiet}>{w.jobsNone}</p> : (
-        <ul className={s.list}>{h.jobs.map((j) => <li key={j.id} className={s.item}><span className={s.itemHead}><span>{j.name}</span><span className={s.quiet}>{c.off}</span>{!h.ended && <Tag>{w.planned}</Tag>}</span></li>)}</ul>
+        <ul className={s.list}>{h.jobs.map((j) => <li key={j.id} className={s.item}><span className={s.itemHead}><span>{j.name}</span><span className={s.quiet}>{c.off}</span>{!h.ended && !h.paid && <Tag>{w.planned}</Tag>}</span></li>)}</ul>
       )}
+      <span><Button variant="link" onClick={() => p.navigate({ place: 'trust', sub: 'hosted' })}>{say('RTT.hosted.openPage')}</Button></span>
       <h3 className={s.label}>{w.keepsTitle}</h3>
       <p className={s.text}>{h.keeps}</p>
     </div>

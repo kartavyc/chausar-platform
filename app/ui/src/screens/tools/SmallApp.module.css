@@ -12,3 +12,4 @@
 .value { display: flex; flex-direction: column; gap: var(--sp1); align-self: stretch; }
 .row { display: flex; flex-direction: column; gap: var(--sp1); align-self: stretch; }
 .buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; align-items: center; }
+.frame { display: block; width: 100%; border: 0; background: transparent; }

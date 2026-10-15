@@ -80,6 +80,8 @@ export function ReportPageSheet({ pack, page, origin, onClose, language, view, v
           <div className={s.stack} role="status">
             <p className={s.say}>{fill(w.fileMade, { name: exporter.sent.value.name })}</p>
             <p className={s.quiet}>{fill(w.fileSize, { size: count(String(exporter.sent.value.bytes)) })}</p>
+            {exporter.sent.value.tally !== null && <p className={s.quiet}>{fill(w.tallyVouchers, { count: count(String(exporter.sent.value.tally.vouchers)) })}</p>}
+            {exporter.sent.value.tally?.leftOut.map((item, i) => <p key={`${item.section}-${item.line}-${i}`} className={s.quiet}>{fill(w.tallyLeftOut, { line: item.line })}</p>)}
             <p className={[s.quiet, s.code].join(' ')}>{fill(w.checkNumber, { check: exporter.sent.value.sha256 })}</p>
             <p className={s.quiet}>{w.notEncrypted} {w.textCells}</p>
           </div>

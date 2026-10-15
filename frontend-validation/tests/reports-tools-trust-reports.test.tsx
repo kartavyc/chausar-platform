@@ -8,6 +8,7 @@ import { placeModuleFor } from '../../app/ui/src/places/registry';
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { reportsPlaces } from '../../app/ui/src/screens/reports/index';
 import { changedFields } from '../../app/ui/src/screens/reports/Rhythm';
+import { validateExportedFile } from '../../app/ui/src/screens/reports/validate';
 
 // Every reply below is a synthetic fixture shaped by section 1.1 of docs/lanes/reports-tools-trust.md.
 afterEach(() => cleanup());
@@ -215,8 +216,25 @@ test('RP-02 export: a file shows its name, size and check number; PDF and Tally 
   await userEvent.click(prints[1]!);
   expect(print).toHaveBeenCalledTimes(1);
   await userEvent.click(screen.getByRole('button', { name: 'Export · File for Tally' }));
-  expect(await screen.findByText('A file Tally can import is not available for a single report page yet.')).toBeTruthy();
+  expect(await screen.findByText('Only a page of balances with Dr and Cr can go to Tally. Export this page to Excel or CSV instead.')).toBeTruthy();
   expect(m.sent('reportsx.export').length).toBe(3);
+});
+
+test('RP-02 Tally: a balance page goes to a Tally file; the count of amounts and each line left out (not zero) are said', async () => {
+  let reply: unknown = { format: 'tally', name: 'ca-ageing.xml', path: '/out/ca-ageing.xml', bytes: 4096, sha256: SHA, encrypted: false, textCellsProtected: true,
+    vouchers: 6, leftOut: [{ section: 'Receivables by age', line: 'Overdue more than 90 days', missing: 'withheld' }] };
+  const m = mount({ sub: 'packs', sheet: 'lender.ready-for-loan', replies: { ...ALL, 'reportsx.export': () => reply } });
+  await screen.findByRole('region', { name: 'Ready for a loan?' });
+  await userEvent.click(screen.getByRole('button', { name: 'Export · File for Tally' }));
+  expect(await screen.findByText('File made: ca-ageing.xml')).toBeTruthy();
+  expect(screen.getByText('6 amounts are in the file as Memorandum vouchers, which stay out of the books in Tally.')).toBeTruthy();
+  expect(screen.getByText('Left out, not written as zero: Overdue more than 90 days')).toBeTruthy();
+  expect(m.sent('reportsx.export').at(-1)?.payload['format']).toBe('tally');
+  // A Tally reply without its count is not a shape the screen reads; a page with no known amount says so in words.
+  expect(() => validateExportedFile({ ...(reply as object), vouchers: undefined })).toThrow();
+  reply = new Refusal('TALLY_PAGE_NO_FIGURES');
+  await userEvent.click(screen.getByRole('button', { name: 'Export · File for Tally' }));
+  expect(await screen.findByText('No amount on this page is known yet, so there is nothing for Tally to import.')).toBeTruthy();
 });
 
 test('RP-02 period: the financial year to date by default, then a month, a quarter or from and to, sent to the page and to exports and shown in the header', async () => {

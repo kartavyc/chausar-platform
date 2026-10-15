@@ -154,8 +154,49 @@ test('page export writes CSV, XLSX and print HTML; PDF and Tally refuse with the
     if (format === 'html') assert.match(bytes.toString('utf8'), /Not legal advice/);
   }
   await assert.rejects(engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'pdf' }), code('PDF_USES_PRINT'));
-  await assert.rejects(engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'tally' }), code('TALLY_PAGE_EXPORT_NOT_AVAILABLE'));
+  await assert.rejects(engine.request('reportsx.export', { pack: 'ca', page: 'sales-register', format: 'tally' }), code('TALLY_PAGE_EXPORT_NOT_AVAILABLE'));
   await assert.rejects(engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'docx' }), code('INVALID_EXPORT_FORMAT'));
+});
+
+test('a page of balances goes to Tally as Memorandum vouchers with exact amounts from its receipts; other pages refuse', async t => {
+  const { engine, directory } = await fixture(t);
+  const page = await engine.request('reportsx.page', { pack: 'ca', page: 'ageing', period: september });
+  const file = await engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'tally', period: september });
+  assert.equal(file.format, 'tally'); assert.match(file.name, /^ca-ageing-en-2026-09-01-2026-09-30-.*\.xml$/); assert.equal(dirname(file.path), join(directory, 'exports', 'reports'));
+  assert.equal(file.encrypted, false); assert.equal(file.textCellsProtected, true);
+  const xml = (await readFile(file.path)).toString('utf8');
+  assert.equal(createHash('sha256').update(xml).digest('hex'), file.sha256);
+  const known = page.sections[0].lines.filter((line: any) => line.figure.kind === 'money');
+  const missing = page.sections[0].lines.filter((line: any) => line.figure.kind === 'missing');
+  assert.equal(file.vouchers, known.length); assert.equal((xml.match(/<VOUCHER /g) ?? []).length, known.length);
+  assert.deepEqual(file.leftOut, missing.map((line: any) => ({ section: page.sections[0].title, line: line.label, missing: line.figure.missing })));
+  const days = lineOf(page, 'ageing', 'days-1-30');
+  assert.equal(days.figure.exact, '97500');
+  // The 1 to 30 days line, exactly: a Dr balance between its own ledger and the counter ledger, the same exact amount on each side.
+  const receiptId = /chausar-report-ca-ageing-ageing-days-1-30-([\w-]+)"/.exec(xml)?.[1];
+  assert.ok(receiptId);
+  assert.ok(xml.includes(`<VOUCHER REMOTEID="chausar-report-ca-ageing-ageing-days-1-30-${receiptId}" VCHTYPE="Memorandum" ACTION="Create"><DATE>20260930</DATE><VOUCHERTYPENAME>Memorandum</VOUCHERTYPENAME>`
+    + `<NARRATION>Receivables ageing, Receivables by age, on the last day of the period: Overdue 1 to 30 days. Receipt ${receiptId}.</NARRATION>`
+    + '<ALLLEDGERENTRIES.LIST><LEDGERNAME>Chausar: Overdue 1 to 30 days</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-975.00</AMOUNT></ALLLEDGERENTRIES.LIST>'
+    + '<ALLLEDGERENTRIES.LIST><LEDGERNAME>Chausar report figures</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>975.00</AMOUNT></ALLLEDGERENTRIES.LIST></VOUCHER>'));
+  // Every amount in the file opens its receipt, and the receipt holds that exact figure.
+  for (const [, id] of xml.matchAll(/Receipt ([\w-]+)\.<\/NARRATION>/g)) {
+    const receipt = await engine.request('receipts.get', { id });
+    assert.equal(receipt.id, id); assert.equal(receipt.operation, 'aging');
+  }
+  assert.ok((await engine.request('receipts.get', { id: receiptId })).figures.some((figure: any) => figure.minor === '97500'));
+  assert.ok(xml.includes('<LEDGER NAME="Chausar report figures" ACTION="Create"><NAME.LIST><NAME>Chausar report figures</NAME></NAME.LIST><PARENT>Suspense A/c</PARENT></LEDGER>'));
+  assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>\n<!-- Receivables ageing, 2026-09-01 to 2026-09-30\. Memorandum vouchers: they stay out of the books in Tally\. -->/);
+  assert.doesNotMatch(xml, /NaN|undefined|<AMOUNT>-0\.00</);
+  assert.ok(xml.includes('<LEDGERNAME>Chausar: Not yet due</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>0.00</AMOUNT>'));
+  await assert.rejects(engine.request('reportsx.export', { pack: 'lender', page: 'monthly-sales', format: 'tally', period: september }), code('TALLY_PAGE_EXPORT_NOT_AVAILABLE'));
+  await assert.rejects(engine.request('reportsx.export', { pack: 'lender', page: 'key-financials', format: 'tally', period: september }), code('TALLY_PAGE_EXPORT_NOT_AVAILABLE'));
+  await assert.rejects(engine.request('reportsx.export', { pack: 'lender', page: 'bank-summary', format: 'tally', period: september }), code('TALLY_PAGE_EXPORT_NOT_AVAILABLE'));
+});
+
+test('a balance page with no known amount refuses Tally rather than writing zeros', async t => {
+  const { engine } = await fixture(t, false);
+  await assert.rejects(engine.request('reportsx.export', { pack: 'investor', page: 'receivables', format: 'tally', period: september }), code('TALLY_PAGE_NO_FIGURES'));
 });
 
 test('the week ahead is built once per period, labels a late build and compares the last completed week with the one before it', async t => {

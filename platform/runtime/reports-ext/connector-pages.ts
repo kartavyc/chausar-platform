@@ -4,9 +4,11 @@
  * GSTR-2B or a bank statement comes from `connectorsx.envelopes`; the match comes from `connectorsx.gstMatch`
  * and the months loaded from `connectorsx.freshness`, each called through `host.call` and checked here.
  *
- * Every amount on these pages is a registered calculation over those sources, so each opens its receipt.
- * The connector's own totals (a statement's balances, the match lists) point to source lines, not to a
- * calculation receipt, so they print as not counted with a gap saying why. Nothing is added up here.
+ * Every figure on these pages opens a calculation receipt; nothing is added up here. The GSTR-1 and books lines
+ * are registered calculations. Bank totals, GSTR-3B turnover and the GSTR-2B match come from core-data's receipts
+ * (`coredata.bankTotals`, `coredata.gstr3bTurnover`, `coredata.gst2bReceipt`), called through `host.call` and
+ * checked here. While core-data is not merged those methods are absent (UNKNOWN_METHOD or METHOD_UNAVAILABLE) and
+ * the pages fall back to what they printed before: those lines are not counted, with a gap saying why.
  */
 import { check, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -24,7 +26,7 @@ const words = {
   connectorRefused: w('The connector part refused to list the imported returns and statements.', 'कनेक्टर भाग ने आयात किए गए रिटर्न और विवरण सूचीबद्ध करने से मना किया।'),
   compare: w('Turnover in returns and in the books', 'रिटर्न में और खातों में टर्नओवर'),
   gstr1: w('Taxable value of invoices in GSTR-1', 'GSTR-1 में बिलों का कर योग्य मूल्य'),
-  gstr3b: w('Taxable value of outward supplies in GSTR-3B (table 3.1)', 'GSTR-3B (तालिका 3.1) में बाहरी आपूर्ति का कर योग्य मूल्य'),
+  gstr3b: w('Turnover in GSTR-3B: taxable value of outward supplies (table 3.1)', 'GSTR-3B में टर्नओवर: बाहरी आपूर्ति का कर योग्य मूल्य (तालिका 3.1)'),
   books: w('Net sales in the books', 'खातों में शुद्ध बिक्री'),
   noGstr1: w('No GSTR-1 is imported yet.', 'अभी तक कोई GSTR-1 आयात नहीं हुआ है।'),
   noGstr3b: w('No GSTR-3B is imported yet.', 'अभी तक कोई GSTR-3B आयात नहीं हुआ है।'),
@@ -62,6 +64,29 @@ const words = {
   invalid: w('Some lines have an invalid GSTIN or a repeated invoice and were set aside.', 'कुछ पंक्तियों में अमान्य GSTIN या दोहराया गया बिल है और उन्हें अलग रखा गया।'),
   composition: w('A composition business cannot claim input tax credit, so purchases are not matched with GSTR-2B.', 'कंपोज़िशन व्यवसाय इनपुट टैक्स क्रेडिट नहीं ले सकता, इसलिए ख़रीद का GSTR-2B से मिलान नहीं होता।'),
   unregistered: w('A business without GST registration has no GSTR-2B to match.', 'बिना GST पंजीकरण वाले व्यवसाय के पास मिलान के लिए GSTR-2B नहीं होता।'),
+  gstr3bTitle: w('GSTR-3B outward supplies (table 3.1)', 'GSTR-3B बाहरी आपूर्ति (तालिका 3.1)'),
+  outwardTaxable: w('Outward taxable supplies (3.1(a))', 'बाहरी कर योग्य आपूर्ति (3.1(a))'),
+  zeroRated: w('Zero rated supplies (3.1(b))', 'शून्य दर वाली आपूर्ति (3.1(b))'),
+  nilExempt: w('Nil rated and exempted supplies (3.1(c))', 'शून्य दर और छूट वाली आपूर्ति (3.1(c))'),
+  nonGst: w('Non-GST supplies (3.1(e))', 'गैर-GST आपूर्ति (3.1(e))'),
+  reverseChargeInward: w('Inward supplies under reverse charge (3.1(d)), not turnover', 'रिवर्स चार्ज वाली आवक आपूर्ति (3.1(d)), टर्नओवर नहीं'),
+  outwardTax: w('Tax on outward taxable and zero rated supplies', 'बाहरी कर योग्य और शून्य दर वाली आपूर्ति पर कर'),
+  gstr3bNotApplicable: w('A composition or unregistered business files no GSTR-3B outward supplies table, so there is no GSTR-3B turnover to compare.', 'कंपोज़िशन या बिना पंजीकरण वाला व्यवसाय GSTR-3B की बाहरी आपूर्ति तालिका दाखिल नहीं करता, इसलिए तुलना के लिए GSTR-3B टर्नओवर नहीं है।'),
+  gstr3bRefused: w('The calculation of GSTR-3B turnover was refused, so it is not shown.', 'GSTR-3B टर्नओवर की गणना से मना किया गया, इसलिए यह नहीं दिखाया गया।'),
+  net: w('Net movement (money in less money out)', 'शुद्ध बदलाव (आई राशि में से गई राशि घटाकर)'),
+  bankRefused: w('The calculation of the bank totals was refused, so they are not shown.', 'बैंक योगों की गणना से मना किया गया, इसलिए वे नहीं दिखाए गए।'),
+  withinToleranceLine: w('Invoices differing within the tolerance', 'सहनशीलता के भीतर अंतर वाले बिल'),
+  tolerance: w('Invoices are matched exactly: no difference is treated as within a tolerance.', 'बिलों का मिलान ठीक-ठीक किया गया: किसी अंतर को सहनशीलता के भीतर नहीं माना गया।'),
+  matchTooLarge: w('There are too many purchase lines to give each its own receipt. Choose a shorter period.', 'हर ख़रीद पंक्ति की अपनी रसीद देने के लिए पंक्तियाँ बहुत ज़्यादा हैं। छोटी अवधि चुनें।'),
+  matchNotApplicable: w('A composition or unregistered business does not match purchases with GSTR-2B.', 'कंपोज़िशन या बिना पंजीकरण वाला व्यवसाय ख़रीद का GSTR-2B से मिलान नहीं करता।'),
+  unknownTax: w('Some invoices in the books only do not state their tax; the credit at risk leaves them out, which is not their zero.', 'केवल खातों वाले कुछ बिलों में कर नहीं लिखा है; जोखिम वाला क्रेडिट उन्हें छोड़ देता है, यह उनका शून्य नहीं है।'),
+  invoicesTitle: w('Invoices to look at', 'देखने लायक बिल'),
+  invoicesMore: w('More invoices differ than are listed here; each has its own receipt in the match.', 'यहाँ जितने दिखाए गए हैं उससे ज़्यादा बिलों में अंतर है; हर एक की मिलान में अपनी रसीद है।'),
+  'line.within-tolerance': w('differs within the tolerance', 'सहनशीलता के भीतर अंतर'),
+  'line.amount-differs': w('amount differs', 'राशि अलग है'),
+  'line.books-only': w('in the books only', 'केवल खातों में'),
+  'line.gstr2b-only': w('in GSTR-2B only', 'केवल GSTR-2B में'),
+  'line.probable': w('probable match to confirm', 'पुष्टि के लिए संभावित मिलान'),
 };
 
 // ---- The adapter: connectorsx replies, checked before use. -----------------------------------------------
@@ -104,6 +129,71 @@ export function checkFreshness(reply: unknown): Months {
     return { month: item.month, status: item.status };
   });
 }
+
+// ---- The adapter: core-data's connector receipts, checked before use. ----------------------------------------
+const CORE_INVALID = 'COREDATA_REPLY_INVALID';
+const coreInvalid = 'The core data part gave a reply this page cannot read.';
+const MINOR = /^-?\d{1,30}$/;
+const coreMissing: readonly Missing[] = ['not-loaded-yet', 'absent', 'unknown', 'not-applicable', 'not-counted'];
+/** A figure core-data gives: money in paise, or a whole count (never money). */
+export type CoreFigure = { exact: string; unit: 'money' | 'count' };
+/** What one core-data receipt gives for the keys this page knows: each a figure that opens the receipt, or a missing state. */
+export type CoreTotals = { receipt: CalculationReceipt; figures: Record<string, CoreFigure | Missing> };
+/** A stored receipt as core-data returns it: an id, and figures each with a key and an exact whole number. */
+function checkReceipt(value: unknown): CalculationReceipt {
+  check(record(value) && text(value.id) && text(value.operation, 80) && Array.isArray(value.figures) && value.figures.length <= 200
+    && value.figures.every((f: unknown) => record(f) && text(f.key, 80) && typeof f.minor === 'string' && MINOR.test(f.minor))
+    && record(value.coverage) && Array.isArray(value.coverage.gaps) && value.coverage.gaps.length <= 100 && value.coverage.gaps.every((g: unknown) => text(g, 500)), CORE_INVALID, coreInvalid);
+  return value as CalculationReceipt;
+}
+/**
+ * `coredata.bankTotals` / `coredata.gstr3bTurnover` reply: `{ receipt, figures: Record<key, minor>, missing: Record<key, Missing> }`.
+ * Only `keys` are read. Each figure must be the receipt's own figure for that key; a count is never negative. A key
+ * neither given nor missing is unknown, never zero.
+ */
+export function checkCoreTotals(reply: unknown, keys: Record<string, 'money' | 'count'>): CoreTotals {
+  check(record(reply) && record(reply.figures) && record(reply.missing), CORE_INVALID, coreInvalid);
+  const receipt = checkReceipt(reply.receipt), figures: CoreTotals['figures'] = {};
+  for (const [key, unit] of Object.entries(keys)) {
+    const value = reply.figures[key], gap = reply.missing[key];
+    if (value !== undefined) {
+      check(typeof value === 'string' && MINOR.test(value) && (unit === 'money' || !value.startsWith('-'))
+        && receipt.figures.some(f => f.key === key && f.minor === value), CORE_INVALID, coreInvalid);
+      figures[key] = { exact: value, unit };
+    } else if (gap !== undefined) { check(coreMissing.includes(gap), CORE_INVALID, coreInvalid); figures[key] = gap; }
+    else figures[key] = 'unknown';
+  }
+  return { receipt, figures };
+}
+/** `coredata.gst2bReceipt` reply: `{ receiptId, lines: { key: 'SUPPLIERGSTIN|INVOICE|FY', receiptId }[] }`. */
+export function checkGst2b(reply: unknown): { receiptId: string; lines: { key: string; receiptId: string }[] } {
+  check(record(reply) && text(reply.receiptId) && Array.isArray(reply.lines) && reply.lines.length <= 2000
+    && reply.lines.every((l: unknown) => record(l) && text(l.key, 300) && l.key.split('|').length >= 3 && text(l.receiptId)), CORE_INVALID, coreInvalid);
+  return { receiptId: reply.receiptId, lines: reply.lines.map((l: { key: string; receiptId: string }) => ({ key: l.key, receiptId: l.receiptId })) };
+}
+/** Figures of a stored receipt by key, for the keys asked; missing figures by their state, anything else unknown. */
+function receiptFigures(receipt: CalculationReceipt, keys: Record<string, 'money' | 'count'>): CoreTotals['figures'] {
+  const missingFigures = (receipt as { missingFigures?: unknown }).missingFigures;
+  const gaps = new Map(Array.isArray(missingFigures) ? missingFigures.filter(m => record(m) && typeof m.key === 'string' && coreMissing.includes(m.missing)).map(m => [m.key as string, m.missing as Missing]) : []);
+  const out: CoreTotals['figures'] = {};
+  for (const [key, unit] of Object.entries(keys)) {
+    const figure = receipt.figures.find(f => f.key === key);
+    out[key] = figure && (unit === 'money' || !figure.minor.startsWith('-')) ? { exact: figure.minor, unit } : gaps.get(key) ?? 'unknown';
+  }
+  return out;
+}
+/** A core-data method: its reply, `absent` when core-data is not merged, or the refusal code. */
+async function core(host: ModuleHost, method: string, payload: Record<string, unknown>): Promise<{ reply: unknown } | { absent: true } | { code: string }> {
+  const result = await call(host, method, payload);
+  return 'code' in result && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(result.code) ? { absent: true } : result;
+}
+/** One figure line over a core-data receipt. */
+function coreFigure(receipt: CalculationReceipt, key: string, value: CoreFigure | Missing): EngineFigure {
+  if (typeof value === 'string') return missing(value);
+  return { kind: value.unit, exact: value.exact, receiptId: receipt.id, labels: receipt.stale ? ['stale'] : [], measure: { operation: receipt.operation, key } };
+}
+/** A receipt's page state: tested only over reconciled imports and not stale, as for the registered calculations. */
+const receiptState = (receipt: CalculationReceipt): PageState => receipt.coverage.completeness === 'reconciled-imports' && !receipt.stale ? 'ready-tested' : 'ready-untested';
 
 /** The committed, accepted imports, by what they hold. */
 async function imported(host: ModuleHost): Promise<{ envelopes: Envelope[] } | { reason: Words }> {
@@ -152,6 +242,9 @@ class Lines {
 }
 const line = (id: string, label: Words, lang: Language, figure: EngineFigure) => ({ id, label: label[lang], figure });
 
+const turnoverKeys = { turnover: 'money', outwardTaxable: 'money', zeroRated: 'money', nilExempt: 'money', nonGst: 'money', reverseChargeInward: 'money', outwardTax: 'money' } as const;
+type PageLine = ReturnType<typeof line>;
+
 async function gstTurnover(ctx: Context, host: ModuleHost, calc: Calculations, period: Period, lang: Language): Promise<ConnectorPage> {
   const found = await imported(host); if ('reason' in found) return blocked(found.reason);
   const gstr1 = sourcesOf(found.envelopes, item => item.group === 'gst-downloads' && item.operation === 'gstr1-outward-invoices');
@@ -160,19 +253,40 @@ async function gstTurnover(ctx: Context, host: ModuleHost, calc: Calculations, p
   const lines = new Lines(calc, period, lang);
   const first = line('gst', words.gstr1, lang, await lines.figure('billed', 'total', gstr1, words.noGstr1));
   if (gstr1.length) lines.gaps.push(words.gstr1Notes[lang]);
-  const third = line('gstr3b', words.gstr3b, lang, gstr3b.length ? notCounted() : missing('not-loaded-yet'));
-  lines.gaps.push((gstr3b.length ? words.gstr3bNotCounted : words.noGstr3b)[lang]);
+  // GSTR-3B turnover: core-data's receipt when it is there; before it is, not counted.
+  let third: PageLine, notCountedLine = false; const sections: ReportSection[] = [];
+  if (!gstr3b.length) { third = line('gstr3b', words.gstr3b, lang, missing('not-loaded-yet')); lines.gaps.push(words.noGstr3b[lang]); }
+  else if (gstr3b.length > 64) { third = line('gstr3b', words.gstr3b, lang, notCounted()); lines.gaps.push(words.tooManySources[lang]); notCountedLine = true; }
+  else {
+    const result = await core(host, 'coredata.gstr3bTurnover', { sourceIds: gstr3b, period });
+    if ('absent' in result) { third = line('gstr3b', words.gstr3b, lang, notCounted()); lines.gaps.push(words.gstr3bNotCounted[lang]); notCountedLine = true; }
+    else if ('code' in result) {
+      // Not GST-regular is a fact about the business, said in words; any other refusal leaves the line unknown.
+      const notApplicable = result.code === 'GST_RETURN_NOT_APPLICABLE';
+      third = line('gstr3b', words.gstr3b, lang, missing(notApplicable ? 'not-applicable' : 'unknown'));
+      lines.gaps.push((notApplicable ? words.gstr3bNotApplicable : result.code === 'DICTIONARY_REQUIRED' ? reasons.dictionary : words.gstr3bRefused)[lang]);
+      if (!notApplicable) lines.states.push('ready-untested');
+    } else {
+      const totals = checkCoreTotals(result.reply, turnoverKeys), receipt = totals.receipt;
+      lines.receipts.push(receipt); lines.gaps.push(...receipt.coverage.gaps); lines.states.push(receiptState(receipt));
+      third = line('gstr3b', words.gstr3b, lang, coreFigure(receipt, 'turnover', totals.figures.turnover));
+      sections.push({ id: 'gstr3b', title: words.gstr3bTitle[lang], projection: false, gaps: [],
+        lines: (['outwardTaxable', 'zeroRated', 'nilExempt', 'nonGst', 'reverseChargeInward', 'outwardTax'] as const).map(key => line(key, words[key], lang, coreFigure(receipt, key, totals.figures[key]))) });
+    }
+  }
   const books = line('books', words.books, lang, await lines.figure('net_sales', 'total', bookSources(ctx, host, found.envelopes, period, null), words.noBooks));
-  const state = lines.state(gstr3b.length > 0);
+  const state = lines.state(notCountedLine);
   return { state, ...(state === 'not-started' && lines.reason ? { reason: lines.reason } : {}), receipts: lines.receipts,
-    sections: [{ id: 'compare', title: words.compare[lang], projection: false, lines: [first, third, books], gaps: [...new Set(lines.gaps)] }] };
+    sections: [{ id: 'compare', title: words.compare[lang], projection: false, lines: [first, third, books], gaps: [...new Set(lines.gaps)] }, ...sections] };
 }
+
+const bankKeys = { credits: 'money', debits: 'money', net: 'money', opening: 'money', closing: 'money', entries: 'count' } as const;
 
 async function bankSummary(host: ModuleHost, period: Period, lang: Language): Promise<ConnectorPage> {
   const found = await imported(host); if ('reason' in found) return blocked(found.reason);
   const banks = sourcesOf(found.envelopes, item => item.group === 'bank-statements');
   if (!banks.length) return blocked(reasons.bank_summary);
-  const gaps = [words.bankNotCounted[lang]], wanted = new Set<string>();
+  const gaps: string[] = [], wanted = new Set<string>();
   for (let month = period.from.slice(0, 7); month <= period.to.slice(0, 7); month = addDays(`${month}-28`, 7).slice(0, 7)) wanted.add(month);
   let notLoaded = false, refused = false;
   for (const sourceId of banks) {
@@ -183,10 +297,71 @@ async function bankSummary(host: ModuleHost, period: Period, lang: Language): Pr
     if (wanted.size > months.length) notLoaded = true;
     for (const item of months) if (wanted.has(item.month)) { if (item.status === 'not-loaded-yet') notLoaded = true; if (item.status === 'refused' || item.status === 'failed') refused = true; }
   }
+  const ids = ['credits', 'debits', 'net', 'opening', 'closing', 'entries'] as const;
+  const result = banks.length > 64 ? null : await core(host, 'coredata.bankTotals', { sourceIds: banks, period });
+  let lines: PageLine[], receipts: CalculationReceipt[] = [], state: PageState = 'ready-untested', reason: Words | undefined;
+  if (result === null) { gaps.push(words.tooManySources[lang]); lines = ids.map(id => line(id, words[id], lang, notCounted())); }
+  else if ('absent' in result) {
+    // Before core-data: the lines the page always had, not counted.
+    gaps.push(words.bankNotCounted[lang]); lines = ids.filter(id => id !== 'net').map(id => line(id, words[id], lang, notCounted()));
+  } else if ('code' in result) {
+    reason = result.code === 'DICTIONARY_REQUIRED' ? reasons.dictionary : words.bankRefused; state = 'not-started';
+    gaps.push(reason[lang]); lines = ids.map(id => line(id, words[id], lang, missing('unknown')));
+  } else {
+    const totals = checkCoreTotals(result.reply, bankKeys), receipt = totals.receipt;
+    receipts = [receipt]; gaps.push(...receipt.coverage.gaps); state = receiptState(receipt);
+    lines = ids.map(id => line(id, words[id], lang, coreFigure(receipt, id, totals.figures[id])));
+  }
   if (notLoaded) gaps.push(words.bankMonthsMissing[lang]);
   if (refused) gaps.push(words.bankMonthsRefused[lang]);
-  const lines = (['credits', 'debits', 'opening', 'closing', 'entries'] as const).map(id => line(id, words[id], lang, notCounted()));
-  return { state: 'ready-untested', receipts: [], sections: [{ id: 'bank', title: words.bankTitle[lang], projection: false, lines, gaps }] };
+  // A month not loaded, or refused by its checks, keeps the page from being tested.
+  if (state === 'ready-tested' && (notLoaded || refused)) state = 'ready-untested';
+  return { state, ...(reason ? { reason } : {}), receipts, sections: [{ id: 'bank', title: words.bankTitle[lang], projection: false, lines, gaps: [...new Set(gaps)] }] };
+}
+
+const matchKeys = { booksTaxable: 'money', gstr2bTaxable: 'money', matched: 'count', withinTolerance: 'count', amountDiffers: 'count', inBooksOnly: 'count', in2bOnly: 'count',
+  probable: 'count', invalid: 'count', creditAtRisk: 'money', creditAtRiskUnknownTax: 'count' } as const;
+const lineKeys = { booksTaxable: 'money', gstr2bTaxable: 'money', difference: 'money' } as const;
+/** At most this many invoices that differ are listed on the page, each opening its own line receipt. */
+export const MAX_INVOICE_LINES = 20;
+const lineGroups = ['within-tolerance', 'amount-differs', 'books-only', 'gstr2b-only', 'probable'] as const;
+type LineGroup = typeof lineGroups[number];
+const matchIds = [['matched', 'matchedLine'], ['within-tolerance', 'withinToleranceLine'], ['amount-differs', 'mismatchLine'], ['books-only', 'booksOnlyLine'], ['gstr2b-only', 'twoBOnlyLine'],
+  ['probable', 'probableLine'], ['credit-at-risk', 'atRiskLine']] as const;
+
+/** The GSTR-2B match through core-data's receipts: group figures, gaps in words and the invoices that differ. */
+function coreMatch(ctx: Context, host: ModuleHost, lines: Lines, lang: Language, reply: unknown) {
+  const checked = checkGst2b(reply);
+  const receipt = checkReceipt(host.services.calculator.receipt(ctx, checked.receiptId));
+  const figures = receiptFigures(receipt, matchKeys);
+  lines.receipts.push(receipt); lines.gaps.push(...receipt.coverage.gaps); lines.states.push(receiptState(receipt));
+  const some = (key: keyof typeof matchKeys) => { const f = figures[key]; return typeof f !== 'string' && f.exact !== '0'; };
+  if (some('inBooksOnly')) lines.gaps.push(words.booksOnly[lang]);
+  if (some('in2bOnly')) lines.gaps.push(words.twoBOnly[lang]);
+  if (some('amountDiffers')) lines.gaps.push(words.mismatch[lang]);
+  if (some('probable')) lines.gaps.push(words.probable[lang]);
+  if (some('invalid')) lines.gaps.push(words.invalid[lang]);
+  if (some('creditAtRiskUnknownTax')) lines.gaps.push(words.unknownTax[lang]);
+  lines.gaps.push(words.tolerance[lang]);
+  const out = (id: string, label: Words, key: keyof typeof matchKeys) => line(id, label, lang, coreFigure(receipt, key, figures[key]));
+  const group = [out('books', words.booksPurchases, 'booksTaxable'), out('gstr2b', words.twoBPurchases, 'gstr2bTaxable'), out('matched', words.matchedLine, 'matched'),
+    out('within-tolerance', words.withinToleranceLine, 'withinTolerance'), out('amount-differs', words.mismatchLine, 'amountDiffers'), out('books-only', words.booksOnlyLine, 'inBooksOnly'),
+    out('gstr2b-only', words.twoBOnlyLine, 'in2bOnly'), out('probable', words.probableLine, 'probable'), out('credit-at-risk', words.atRiskLine, 'creditAtRisk')];
+  // The invoices that differ, in core-data's key order: each opens its own line receipt.
+  const stored = new Map(host.store.read().receipts.map(item => [item.id, item]));
+  const invoices: PageLine[] = []; let more = false;
+  for (const item of checked.lines) {
+    const kind = (stored.get(item.receiptId)?.assumptions as { group?: unknown } | undefined)?.group;
+    if (!lineGroups.includes(kind as LineGroup)) continue;
+    if (invoices.length >= MAX_INVOICE_LINES) { more = true; break; }
+    const one = checkReceipt(host.services.calculator.receipt(ctx, item.receiptId)), values = receiptFigures(one, lineKeys);
+    const key = typeof values.difference !== 'string' ? 'difference' : typeof values.booksTaxable !== 'string' ? 'booksTaxable' : 'gstr2bTaxable';
+    lines.receipts.push(one);
+    const [gstin, ...rest] = item.key.split('|'); const year = rest.pop()!;
+    invoices.push({ id: `invoice-${invoices.length + 1}`, label: `${gstin} · ${rest.join('|')} · ${year}: ${words[`line.${kind as LineGroup}`][lang]}`, figure: coreFigure(one, key, values[key]) });
+  }
+  const section: ReportSection | null = invoices.length ? { id: 'invoices', title: words.invoicesTitle[lang], projection: false, lines: invoices, gaps: more ? [words.invoicesMore[lang]] : [] } : null;
+  return { group, section };
 }
 
 async function purchasesAgainst2b(ctx: Context, host: ModuleHost, calc: Calculations, period: Period, lang: Language): Promise<ConnectorPage> {
@@ -195,18 +370,45 @@ async function purchasesAgainst2b(ctx: Context, host: ModuleHost, calc: Calculat
   if (!twoB.length) return blocked(reasons.gstr2b_match);
   const register = bookSources(ctx, host, found.envelopes, period, ['purchase']);
   const lines = new Lines(calc, period, lang);
-  const books = line('books', words.booksPurchases, lang, await lines.figure('purchases', 'total', register, words.noRegister));
-  const inTwoB = line('gstr2b', words.twoBPurchases, lang, await lines.figure('purchases', 'total', twoB, reasons.gstr2b_match));
+  const one = register.length === 1 && twoB.length === 1;
+  const page = (state: PageState, sections: ReportSection[]): ConnectorPage => ({ state, ...(state === 'not-started' && lines.reason ? { reason: lines.reason } : {}), receipts: lines.receipts, sections });
+  const purchaseLines = async () => [line('books', words.booksPurchases, lang, await lines.figure('purchases', 'total', register, words.noRegister)),
+    line('gstr2b', words.twoBPurchases, lang, await lines.figure('purchases', 'total', twoB, reasons.gstr2b_match))];
+  // core-data's match receipts, when they are there. Exact matching: no tolerance is set on this page.
+  if (one) {
+    let result = await core(host, 'coredata.gst2bReceipt', { registerSourceId: register[0], gstr2bSourceId: twoB[0], period, toleranceMinor: '0' });
+    if ('reply' in result) {
+      const trial = new Lines(calc, period, lang);
+      try {
+        const { group, section } = coreMatch(ctx, host, trial, lang, result.reply);
+        return { state: trial.state(false), receipts: trial.receipts,
+          sections: [{ id: 'match', title: words.matchTitle[lang], projection: false, lines: group, gaps: [...new Set(trial.gaps)] }, ...(section ? [section] : [])] };
+      } catch (error) {
+        // A match receipt that does not open is a refusal of the match, never a page of guesses.
+        const code = codeOf(error); if (code === 'ACCESS_REVOKED' || code === CORE_INVALID) throw error;
+        result = { code: code ?? 'REQUEST_FAILED' };
+      }
+    }
+    if ('code' in result) {
+      if (result.code === 'GST_MATCH_NOT_APPLICABLE') return blocked(words.matchNotApplicable);
+      // A refusal: the purchase lines still come from the registered calculation; the match lines are not known.
+      const purchases = await purchaseLines(), empty = result.code === 'GST_MATCH_SOURCES_EMPTY';
+      lines.gaps.push((empty ? words.matchEmpty : result.code === 'GST_MATCH_TOO_LARGE' ? words.matchTooLarge : result.code === 'DICTIONARY_REQUIRED' ? reasons.dictionary : words.matchRefused)[lang]);
+      const matchLines = matchIds.map(([id, label]) => line(id, words[label], lang, missing(empty ? 'not-loaded-yet' : 'unknown')));
+      return page(lines.state(!empty), [{ id: 'match', title: words.matchTitle[lang], projection: false, lines: [...purchases, ...matchLines], gaps: [...new Set(lines.gaps)] }]);
+    }
+  }
+  // Before core-data, or with more than one source on a side: the connector's own match, whose lines are not counted.
+  const purchases = await purchaseLines();
   let match: Match | null = null;
-  if (register.length !== 1 || twoB.length !== 1) { if (register.length) lines.gaps.push(words.matchOneEach[lang]); }
+  if (!one) { if (register.length) lines.gaps.push(words.matchOneEach[lang]); }
   else {
     const result = await call(host, 'connectorsx.gstMatch', { registerSourceId: register[0], gstr2bSourceId: twoB[0], period });
     if ('code' in result) lines.gaps.push((result.code === 'GST_MATCH_SOURCES_EMPTY' ? words.matchEmpty : result.code === 'DICTIONARY_REQUIRED' ? reasons.dictionary : words.matchRefused)[lang]);
     else match = checkMatch(result.reply);
   }
   if (match?.mode === 'not-applicable') return blocked(match.gstMode === 'composition' ? words.composition : words.unregistered);
-  const matchLines = ([['matched', 'matchedLine'], ['amount-differs', 'mismatchLine'], ['books-only', 'booksOnlyLine'], ['gstr2b-only', 'twoBOnlyLine'], ['probable', 'probableLine'], ['credit-at-risk', 'atRiskLine']] as const)
-    .map(([id, label]) => line(id, words[label], lang, match ? notCounted() : missing('not-loaded-yet')));
+  const matchLines = matchIds.filter(([id]) => id !== 'within-tolerance').map(([id, label]) => line(id, words[label], lang, match ? notCounted() : missing('not-loaded-yet')));
   if (match) {
     lines.gaps.push(words.matchNotCounted[lang]);
     const c = match.counts;
@@ -216,9 +418,7 @@ async function purchasesAgainst2b(ctx: Context, host: ModuleHost, calc: Calculat
     if (c.probable > 0) lines.gaps.push(words.probable[lang]);
     if (c.invalid > 0) lines.gaps.push(words.invalid[lang]);
   }
-  const state = lines.state(true);
-  return { state, ...(state === 'not-started' && lines.reason ? { reason: lines.reason } : {}), receipts: lines.receipts,
-    sections: [{ id: 'match', title: words.matchTitle[lang], projection: false, lines: [books, inTwoB, ...matchLines], gaps: [...new Set(lines.gaps)] }] };
+  return page(lines.state(true), [{ id: 'match', title: words.matchTitle[lang], projection: false, lines: [...purchases, ...matchLines], gaps: [...new Set(lines.gaps)] }]);
 }
 
 export function connectorPage(ctx: Context, host: ModuleHost, calc: Calculations, id: ConnectorPageId, period: Period, lang: Language): Promise<ConnectorPage> {

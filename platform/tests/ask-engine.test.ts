@@ -672,8 +672,10 @@ test('round 4: change, stop, needs-data, telling not asking, the rule’s words 
   assert.equal(proposed.state, 'proposed');
   const memory = await ask(engine, 'books.memory', {});
   assert.ok(JSON.stringify(memory).includes('customer A pays by cheque'));
-  // AS-09: until the trust lane serves trust.explain, the rule's words are "not built".
-  assert.deepEqual(await ask(engine, 'askx.explainRule', { rule: 'branch' }), { state: 'not-built' });
+  // AS-09: the rule's words come from the reports-tools-trust lane's trust.explain ("not built" only while that lane is absent).
+  const explained = await ask(engine, 'askx.explainRule', { rule: 'branch' });
+  assert.equal(explained.state, 'ready');
+  assert.equal(explained.ruleId, 'branch:owner'); assert.equal(explained.changeableBy, 'owner'); assert.ok(explained.text.length > 0);
   await assert.rejects(ask(engine, 'askx.explainRule', { rule: 'anything' }), code('ASK_INVALID'));
   // AS-05: provenance is read field by field; malformed parts are left out, never invented.
   assert.equal(provenanceOf(undefined), null);

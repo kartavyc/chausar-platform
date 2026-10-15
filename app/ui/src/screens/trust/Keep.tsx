@@ -8,7 +8,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Note } from './kit/Screen';
-import { Frame, Outcome, bytesText, countText, powers, type P } from './common';
+import { Frame, Outcome, bytesText, countText, dayText, powers, type P } from './common';
 import { wholeNumber } from './paise.ts';
 import { validateKeep, type Keep } from './validate.ts';
 import { COMMON, KEEP, codeWord, fill } from './words.ts';
@@ -24,6 +24,13 @@ export function KeepView({ p, mode, onChanged }: { p: P; mode: 'page' | 'sheet';
   );
 }
 
+/** The kind's rule in the screen's words when the engine names it; an older engine's own note otherwise. */
+function ruleText(k: Keep['kinds'][number], w: Record<string, string> & { 'rule.activityHeld': string }): string {
+  if (k.rule === null || (k.days === null && k.rule !== 'until-deleted')) return k.note;
+  const text = fill(w[`rule.${k.rule}`] ?? '', { days: countText(k.days ?? 0) });
+  return k.rule === 'enforced' && k.kind === 'activity' ? `${text} ${w['rule.activityHeld']}` : text;
+}
+
 function KeepBody({ p, keep, reload }: { p: P; keep: Keep; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(KEEP, p.language);
   const { admin } = powers(p);
@@ -35,7 +42,8 @@ function KeepBody({ p, keep, reload }: { p: P; keep: Keep; reload: () => void })
             {keep.kinds.map((k) => (
               <li key={k.kind} className={s.item}>
                 <span className={s.itemHead}><span className={s.name}>{codeWord(w, 'kind', k.kind)}</span>{p.view === 'books' && <span className={s.mono}>{k.kind}</span>}<span>{k.days === null ? w.until : fill(w.days, { days: countText(k.days) })}</span></span>
-                {k.note.length > 0 && <span className={s.quiet}>{k.note}</span>}
+                {ruleText(k, w).length > 0 && <span className={s.quiet}>{ruleText(k, w)}</span>}
+                {k.lastApplied !== null && <span className={s.quiet}>{fill(w.lastApplied, { date: dayText(k.lastApplied.at, p.language), removed: countText(k.lastApplied.removed), held: countText(k.lastApplied.held) })}</span>}
                 {admin && <KeepForm p={p} kind={k.kind} name={codeWord(w, 'kind', k.kind)} days={k.days} reload={reload} />}
               </li>
             ))}

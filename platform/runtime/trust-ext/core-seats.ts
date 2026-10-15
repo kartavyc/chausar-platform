@@ -6,16 +6,35 @@ import { boundedText, coreState, invitationOf, isDate, peekCore, seatOf, today }
 import type { Seat } from './core-state.ts';
 import { onApplyChange, requestChange } from './core-dual.ts';
 
-const noSend = 'Cannot change Send, Sharing or seats.';
-export const seatLimits: Record<Seat, string[]> = {
-  owner: ['Everything.', 'When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.'],
-  cofounder: ['Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.'],
-  accountant: ['Reads everything not marked away from this seat.', 'Prepares actions.', 'Cannot approve money.', noSend],
-  ca: ['Reads and exports, until a date.', 'Cannot prepare or approve actions.', noSend],
-  staff: ['Adds entries.', 'Sees their own: not yet enforced by the engine; today this seat reads like an accountant.', 'Cannot approve money.', noSend],
-  viewer: ['Reads only.', noSend],
-  assistant: ['An assistant on this computer that asks read-only questions.', 'Cannot prepare or approve actions.', noSend],
+/** What a seat allows, as a stable code with the engine's English sentence. Screens show their own words for the code. */
+export const limitSentences = {
+  'everything': 'Everything.',
+  'cofounder-too': 'When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.',
+  'everything-two-person': 'Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.',
+  'reads-unmarked': 'Reads everything not marked away from this seat.',
+  'prepares-actions': 'Prepares actions.',
+  'no-approve-money': 'Cannot approve money.',
+  'no-change-send': 'Cannot change Send, Sharing or seats.',
+  'reads-exports-until': 'Reads and exports, until a date.',
+  'no-prepare-approve': 'Cannot prepare or approve actions.',
+  'adds-entries': 'Adds entries.',
+  'own-only-not-enforced': 'Sees their own: not yet enforced by the engine; today this seat reads like an accountant.',
+  'reads-only': 'Reads only.',
+  'assistant-read-only': 'An assistant on this computer that asks read-only questions.',
+} as const;
+export type LimitCode = keyof typeof limitSentences;
+export const seatLimitCodes: Record<Seat, LimitCode[]> = {
+  owner: ['everything', 'cofounder-too'],
+  cofounder: ['everything-two-person'],
+  accountant: ['reads-unmarked', 'prepares-actions', 'no-approve-money', 'no-change-send'],
+  ca: ['reads-exports-until', 'no-prepare-approve', 'no-change-send'],
+  staff: ['adds-entries', 'own-only-not-enforced', 'no-approve-money', 'no-change-send'],
+  viewer: ['reads-only', 'no-change-send'],
+  assistant: ['assistant-read-only', 'no-prepare-approve', 'no-change-send'],
 };
+/** The English sentences, in the order of `seatLimitCodes`. */
+export const seatLimits = Object.fromEntries((Object.keys(seatLimitCodes) as Seat[])
+  .map(seat => [seat, seatLimitCodes[seat].map(code => limitSentences[code])])) as Record<Seat, string[]>;
 const seatRole: Partial<Record<Seat, Member['role']>> = { cofounder: 'cofounder', accountant: 'accountant', ca: 'viewer', staff: 'accountant' };
 const invitable = Object.keys(seatRole) as Seat[];
 
@@ -27,9 +46,9 @@ export function seatsView(state: State, ctx: Context) {
   const core = peekCore(state);
   const seats = state.members.map(m => {
     const record = seatRecordFor(state, m.id); const seat = seatOf(state, m); const endsOn = record?.endsOn ?? null;
-    return { memberId: m.id, name: m.name, seat, limits: [...seatLimits[seat]], endsOn, ended: ended(endsOn), removedOn: core.removed[m.id] ?? null, active: m.active, you: m.id === ctx.memberId };
+    return { memberId: m.id, name: m.name, seat, limits: [...seatLimits[seat]], limitCodes: [...seatLimitCodes[seat]], endsOn, ended: ended(endsOn), removedOn: core.removed[m.id] ?? null, active: m.active, you: m.id === ctx.memberId };
   });
-  return { seats, templates: (Object.keys(seatLimits) as Seat[]).map(seat => ({ seat, limits: [...seatLimits[seat]] })) };
+  return { seats, templates: (Object.keys(seatLimits) as Seat[]).map(seat => ({ seat, limits: [...seatLimits[seat]], limitCodes: [...seatLimitCodes[seat]] })) };
 }
 
 /** Members whose dated seat is past its end and who still have access. */

@@ -17,9 +17,16 @@ import { KeyValue } from '../../parts/KeyValue';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { Group, Note, Screen } from '../trust/kit/Screen';
 import { Line, Lines, SentLine, day, isAdmin, toolsWords, type Words } from './shared';
-import { assistants, pairing, type Assistants } from './validate.ts';
+import { assistants, pairing, type Assistants, type Removal } from './validate.ts';
 import { fill } from './words.ts';
 import s from './Assistants.module.css';
+
+/** One removal in words: the field (with its code in Books, or alone when the screen has no word for it), why, and how many. Never a value. */
+function removal(r: Removal, w: Words, books: boolean, language: PlaceRenderProps['language']): string {
+  const known = (w as Readonly<Record<string, string>>)[`removedField.${r.field}`];
+  const field = known === undefined ? r.field : books ? `${known} (${r.field})` : known;
+  return fill(w.removedLine, { field, why: w[`removedWhy.${r.why}`], count: r.count.toLocaleString(language === 'hi' ? 'hi-IN' : 'en-IN') });
+}
 
 function Pair({ props, w, onPaired }: { props: PlaceRenderProps; w: Words; onPaired: () => void }) {
   const [name, setName] = useState('');
@@ -101,10 +108,10 @@ function Body({ value, props, w, reload }: { value: Assistants; props: PlaceRend
             {value.calls.map((c) => (
               <Line key={c.id} title={c.calculation} notes={[
                 c.client, fill(w.callOn, { date: day(c.at, props.language) }),
-                c.refused ? w.refusedCall : c.removed.length === 0 && !simple ? w.removedNothing : null, books ? c.id : null,
+                c.refused ? w.refusedCall : simple ? null : c.removed === 'not-recorded' ? w.removedNotRecorded : c.removed.length === 0 ? w.removedNothing : null, books ? c.id : null,
               ]} after={c.receiptId === null ? <span className={s.note}>{w.noReceipt}</span>
                 : <Button variant="link" className="fig" aria-label={fill(w.receiptOf, { id: c.receiptId })} onClick={() => props.openReceipt(c.receiptId as string)}>{c.receiptId}</Button>}>
-                {!c.refused && c.removed.length > 0 && !simple && <div><p className={s.note}>{w.removedBy}</p><ul className={s.list}>{c.removed.map((r, i) => <li key={i}>{r}</li>)}</ul></div>}
+                {!c.refused && c.removed !== 'not-recorded' && c.removed.length > 0 && !simple && <div><p className={s.note}>{w.removedBy}</p><ul className={s.list}>{c.removed.map((r, i) => <li key={i}>{removal(r, w, books, props.language)}</li>)}</ul></div>}
               </Line>
             ))}
           </Lines>

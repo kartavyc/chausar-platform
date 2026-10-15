@@ -15,7 +15,7 @@ export function when(iso: string, w: Words, language: Language): string {
   return fill(w.at, { date: date(iso.slice(0, 10), 'short', language), time: time(iso, 'UTC') });
 }
 
-const KNOWN = ['PDF_USES_PRINT', 'TALLY_PAGE_EXPORT_NOT_AVAILABLE', 'RELAY_NOT_AVAILABLE', 'ACCESS_DENIED'] as const;
+const KNOWN = ['PDF_USES_PRINT', 'TALLY_PAGE_EXPORT_NOT_AVAILABLE', 'TALLY_PAGE_NO_FIGURES', 'RELAY_NOT_AVAILABLE', 'ACCESS_DENIED'] as const;
 
 /** A plain sentence for a known refusal code, the short code otherwise. */
 export function refusal(code: string, w: Words): string {

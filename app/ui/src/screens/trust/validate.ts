@@ -3,7 +3,7 @@
  * docs/lanes/reports-tools-trust.md, plus the three core replies the screens read
  * (`sources.list`, `trust.get`, `sync.status`). Every reply is untrusted data.
  */
-import { ShapeError, bool, int, list, oneOf, optStr, rec, str, strings, digits } from './kit/validate.ts';
+import { ShapeError, bool, code, int, list, oneOf, optStr, rec, str, strings, digits } from './kit/validate.ts';
 import type { Rec } from './kit/validate.ts';
 
 const ID = 200;
@@ -168,11 +168,21 @@ export function validateSendLevels(reply: unknown): SendLevels {
 }
 
 // ---------- Keep (TR-04) ----------
-export interface Keep { kinds: { kind: string; days: number | null; note: string }[]; inventory: { path: string; bytes: number | null; what: string }[] }
+/** How a kind's keep rule is applied (the engine's code, which the screen words); absent from an older engine, which sends only its note. */
+export const KEEP_RULES = ['retention', 'enforced', 'not-enforced', 'until-deleted'] as const;
+export type KeepRule = typeof KEEP_RULES[number];
+/** The last keep clean-up for a kind: counts of what it removed and held back. */
+export interface KeepApplied { at: string; removed: number; held: number }
+export interface Keep { kinds: { kind: string; days: number | null; note: string; rule: KeepRule | null; lastApplied: KeepApplied | null }[]; inventory: { path: string; bytes: number | null; what: string }[] }
 export function validateKeep(reply: unknown): Keep {
   const r = rec(reply);
   return {
-    kinds: list(r['kinds'], 'reply.kinds', (v, p) => { const k = rec(v, p); return { kind: id(k['kind'], `${p}.kind`), days: optCount(k['days'], `${p}.days`), note: str(k['note'], `${p}.note`, 500) }; }, 100),
+    kinds: list(r['kinds'], 'reply.kinds', (v, p) => {
+      const k = rec(v, p), applied = k['lastApplied'] === undefined || k['lastApplied'] === null ? null : rec(k['lastApplied'], `${p}.lastApplied`);
+      return { kind: id(k['kind'], `${p}.kind`), days: optCount(k['days'], `${p}.days`), note: str(k['note'], `${p}.note`, 500),
+        rule: k['rule'] === undefined ? null : oneOf(k['rule'], `${p}.rule`, KEEP_RULES),
+        lastApplied: applied === null ? null : { at: instant(applied['at'], `${p}.lastApplied.at`), removed: count(applied['removed'], `${p}.lastApplied.removed`), held: count(applied['held'], `${p}.lastApplied.held`) } };
+    }, 100),
     inventory: list(r['inventory'], 'reply.inventory', (v, p) => { const i = rec(v, p); return { path: id(i['path'], `${p}.path`), bytes: optCount(i['bytes'], `${p}.bytes`), what: str(i['what'], `${p}.what`, 500) }; }, 500),
   };
 }
@@ -180,17 +190,25 @@ export function validateKeep(reply: unknown): Keep {
 // TR-05 Do is read from jobs-ext through adapters/jobs.ts.
 
 // ---------- People (TR-06) ----------
-export interface SeatRow { memberId: string; name: string; seat: Seat; limits: string[]; endsOn: string | null; ended: boolean; removedOn: string | null; active: boolean; you: boolean }
-export interface Seats { seats: SeatRow[]; templates: { seat: Seat; limits: string[] }[] }
+/** One thing a seat allows: the engine's stable code, which the screen words, and its English sentence, shown only for a code the screen does not know. */
+export interface SeatLimit { code: string; text: string }
+export interface SeatRow { memberId: string; name: string; seat: Seat; limits: SeatLimit[]; endsOn: string | null; ended: boolean; removedOn: string | null; active: boolean; you: boolean }
+export interface Seats { seats: SeatRow[]; templates: { seat: Seat; limits: SeatLimit[] }[] }
+/** `limits` (sentences) and `limitCodes` (codes) come in the same order and length. */
+function seatLimits(s: Rec, p: string): SeatLimit[] {
+  const texts = strings(s['limits'], `${p}.limits`, 12), codes = list(s['limitCodes'], `${p}.limitCodes`, (v, q) => code(v, q), 12);
+  if (codes.length !== texts.length) throw new ShapeError(`${p}.limitCodes`);
+  return codes.map((c, i) => ({ code: c, text: texts[i]! }));
+}
 export function validateSeats(reply: unknown): Seats {
   const r = rec(reply);
   return {
     seats: list(r['seats'], 'reply.seats', (v, p) => {
       const s = rec(v, p);
-      return { memberId: id(s['memberId'], `${p}.memberId`), name: str(s['name'], `${p}.name`, 200), seat: oneOf(s['seat'], `${p}.seat`, SEATS), limits: strings(s['limits'], `${p}.limits`, 12),
+      return { memberId: id(s['memberId'], `${p}.memberId`), name: str(s['name'], `${p}.name`, 200), seat: oneOf(s['seat'], `${p}.seat`, SEATS), limits: seatLimits(s, p),
         endsOn: optDay(s['endsOn'], `${p}.endsOn`), ended: bool(s['ended'], `${p}.ended`), removedOn: optDay(s['removedOn'], `${p}.removedOn`), active: bool(s['active'], `${p}.active`), you: bool(s['you'], `${p}.you`) };
     }, 500),
-    templates: list(r['templates'], 'reply.templates', (v, p) => { const t = rec(v, p); return { seat: oneOf(t['seat'], `${p}.seat`, SEATS), limits: strings(t['limits'], `${p}.limits`, 12) }; }, 10),
+    templates: list(r['templates'], 'reply.templates', (v, p) => { const t = rec(v, p); return { seat: oneOf(t['seat'], `${p}.seat`, SEATS), limits: seatLimits(t, p) }; }, 10),
   };
 }
 export interface InviteResult extends ChangeResult { invite: { id: string; token: string; expiresAt: string } | null; guide: { html: string } | null }
@@ -311,12 +329,12 @@ export function validateCleaned(reply: unknown): Cleaned {
   if (r['uploaded'] !== false) throw new ShapeError('reply.uploaded');
   return { cleaned: str(r['cleaned'], 'reply.cleaned', 400000), hits: list(r['hits'], 'reply.hits', (v, p) => { const h = rec(v, p); return { line: count(h['line'], `${p}.line`), kind: str(h['kind'], `${p}.kind`, 60) }; }, 5000) };
 }
-/** `ended` when the engine says the paid plan ended (`plan: "ended"`); the contract today sends only "planned-not-available". */
-export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string; ended: boolean }
+/** `plan` from `trustx.hosted` (read from hosted-link's cached `hosted.status`): "paid", "ended" (paid once, free now), or "planned-not-available". */
+export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string; ended: boolean; paid: boolean }
 export function validateHosted(reply: unknown): Hosted {
   const r = rec(reply);
-  const plan = oneOf(r['plan'], 'reply.plan', ['planned-not-available', 'ended'] as const);
-  return { ended: plan === 'ended', blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
+  const plan = oneOf(r['plan'], 'reply.plan', ['planned-not-available', 'paid', 'ended'] as const);
+  return { ended: plan === 'ended', paid: plan === 'paid', blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
     jobs: list(r['jobs'], 'reply.jobs', (v, p) => { const j = rec(v, p); if (j['on'] !== false) throw new ShapeError(`${p}.on`); return { id: id(j['id'], `${p}.id`), name: str(j['name'], `${p}.name`, 200) }; }, 50) };
 }
 export interface Agreements { notice: { version: string; en: string; hi: string }; items: { id: string; person: string; purpose: string; at: string; withdrawnAt: string | null }[] }
@@ -349,11 +367,16 @@ export function validateVault(reply: unknown): VaultView {
   };
 }
 export const DELETION_STATES = ['deleted', 'pending', 'not-possible', 'not-built'] as const;
-export interface DeletionReport { id: string; at: string; sourceId: string; rows: { place: string; state: (typeof DELETION_STATES)[number]; reason: string }[] }
+/** `code` is the engine's stable code for the place, which the screen words; null only for a place the engine kept without one, shown by its `place` text. */
+export interface DeletionReport { id: string; at: string; sourceId: string; rows: { place: string; code: string | null; state: (typeof DELETION_STATES)[number]; reason: string }[] }
 export function validateDeletion(value: unknown, path = 'reply'): DeletionReport {
   const d = rec(value, path);
   return { id: id(d['id'], `${path}.id`), at: instant(d['at'], `${path}.at`), sourceId: id(d['sourceId'], `${path}.sourceId`),
-    rows: list(d['rows'], `${path}.rows`, (v, p) => { const x = rec(v, p); return { place: str(x['place'], `${p}.place`, 300), state: oneOf(x['state'], `${p}.state`, DELETION_STATES), reason: str(x['reason'], `${p}.reason`, 1000) }; }, 200) };
+    rows: list(d['rows'], `${path}.rows`, (v, p) => {
+      const x = rec(v, p);
+      if (!('code' in x)) throw new ShapeError(`${p}.code`);
+      return { place: str(x['place'], `${p}.place`, 300), code: x['code'] === null ? null : code(x['code'], `${p}.code`), state: oneOf(x['state'], `${p}.state`, DELETION_STATES), reason: str(x['reason'], `${p}.reason`, 1000) };
+    }, 200) };
 }
 export function validateDeletions(reply: unknown): DeletionReport[] {
   return list(rec(reply)['items'], 'reply.items', (v, p) => validateDeletion(v, p), 500);
