@@ -218,7 +218,16 @@ Notes on the contract as built (additive to the tables above):
 
 New or changed methods in round 4. Other lanes may code against these.
 
-### `trustx.explain` (read) — for ask AS-09
+### `trust.explain` (read) — the shape ask AS-09 codes against
+
+Request: `{ rule: 'branch' | 'source' | 'seat' | 'access' | 'marking', receiptId?: string, sourceId?: string, language?: 'en' | 'hi' }`.
+Reply: `{ ruleId: string, text: string, changeableBy: 'owner' | 'owner-or-cofounder' }`.
+`ruleId` is stable for the rule and seat (`marking:accountant:personal+confidential`, `branch:viewer`, ...); `text` is the
+fixed sentence below (seat and marking names only, never data values); `changeableBy` is `owner-or-cofounder` when the
+workspace has an active cofounder. Refusals: `INVALID_EXPLAIN_REQUEST`, `ACCESS_REVOKED`. `receiptId` is accepted and
+checked for shape; the rule is explained for the caller's seat. The longer form follows.
+
+### `trustx.explain` (read) — the full form, for Trust screens
 
 Request: `{ rule: 'branch' | 'source' | 'seat' | 'access' | 'marking', sourceId?: string, language?: 'en' | 'hi' }`.
 `rule` is the `RuleKind` ask's `askx.run` returns with `ASK_STOPPED_BY_RULE`. Unknown properties or kinds refuse

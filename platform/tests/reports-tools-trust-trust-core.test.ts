@@ -260,3 +260,14 @@ test('explain names the rule that stopped a seat in plain words and who can chan
   assert.equal((await f.call('trustx.explain', { rule: 'mood' })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
   assert.equal((await f.call('trustx.explain', { rule: 'seat', extra: 1 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
 });
+
+test('trust.explain gives ask the rule id, its fixed words and who may change it', async t => {
+  const f = await fixture(t);
+  const accountant = await f.member('Synthetic accountant', 'accountant');
+  let e = await f.as(accountant, 'trust.explain', { rule: 'marking', receiptId: 'rcpt_synthetic' });
+  assert.deepEqual(e, { ruleId: 'marking:accountant:personal+confidential', text: 'Anything marked personal or confidential is hidden from the accountant seat.', changeableBy: 'owner' });
+  await f.member('Synthetic cofounder', 'cofounder');
+  e = await f.as(accountant, 'trust.explain', { rule: 'branch' });
+  assert.equal(e.ruleId, 'branch:accountant'); assert.equal(e.changeableBy, 'owner-or-cofounder');
+  assert.equal((await f.call('trust.explain', { rule: 'seat', receiptId: 5 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+});

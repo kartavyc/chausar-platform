@@ -56,7 +56,8 @@ const whereOf: Record<RuleKind, { place: 'trust'; sub: string }> = {
 };
 
 export function explainRule(state: State, ctx: Context, payload: unknown) {
-  const input = closed(payload ?? {}, ['rule', 'sourceId', 'language'], 'INVALID_EXPLAIN_REQUEST');
+  const input = closed(payload ?? {}, ['rule', 'sourceId', 'receiptId', 'language'], 'INVALID_EXPLAIN_REQUEST');
+  check(input.receiptId === undefined || (typeof input.receiptId === 'string' && input.receiptId.length > 0 && input.receiptId.length <= 200), 'INVALID_EXPLAIN_REQUEST', 'Name the receipt by its id.');
   check(ruleKinds.includes(input.rule), 'INVALID_EXPLAIN_REQUEST', 'Name the kind of rule: branch, source, seat, access or marking.');
   check(input.sourceId === undefined || (typeof input.sourceId === 'string' && input.sourceId.length > 0 && input.sourceId.length <= 200), 'INVALID_EXPLAIN_REQUEST', 'Name the source by its id.');
   const lang = language(input.language); const rule = input.rule as RuleKind;
@@ -80,3 +81,10 @@ export function explainRule(state: State, ctx: Context, payload: unknown) {
 }
 
 export async function explain(ctx: Context, payload: unknown, host: ModuleHost) { return explainRule(host.store.read(), ctx, payload); }
+
+/** The short form ask's AS-09 reads: a stable rule id, the rule's fixed words, and who may change it. */
+export async function explainShort(ctx: Context, payload: unknown, host: ModuleHost) {
+  const full = explainRule(host.store.read(), ctx, payload);
+  const ruleId = full.rule === 'marking' ? `marking:${full.seat}:${full.hidden?.join('+') || 'none'}` : `${full.rule}:${full.seat}`;
+  return { ruleId, text: full.sentence, changeableBy: full.whoCanChange.seats.includes('cofounder') ? 'owner-or-cofounder' as const : 'owner' as const };
+}

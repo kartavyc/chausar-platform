@@ -9,7 +9,7 @@ import { sendLevels, setSend } from './core-send.ts';
 import { confirmChange, expirePending, pendingView } from './core-dual.ts';
 import { keepView, setKeep } from './core-keep.ts';
 import { autonomyPreset } from './adapters.ts';
-import { explain } from './core-explain.ts';
+import { explain, explainShort } from './core-explain.ts';
 import { endSeats, endedMembers, invite, removeSeat, seats } from './core-seats.ts';
 
 export { markingsForSources, seatSees } from './core-markings.ts';
@@ -34,6 +34,7 @@ export const trustCoreMethods: Record<string, MethodSpec> = {
   'trustx.removeSeat': { permission: 'admin', handler: removeSeat },
   /** Ask AS-09: the rule that stopped an answer, in plain words, and who can change it. */
   'trustx.explain': { permission: 'read', handler: explain },
+  'trust.explain': { permission: 'read', handler: explainShort },
 };
 
 // Deleted sources take their marks with them, and any waiting change that names them.
