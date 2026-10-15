@@ -120,15 +120,25 @@ export function peekDataState(state: State): DataState | undefined {
   return data && Array.isArray(data.outbox) && Array.isArray(data.exports) ? data : undefined;
 }
 
+/** Entries noted while no application folder was known (a store that is not the engine's vault), per workspace, until the next deletion method writes them. */
+const unplaced = new Map<string, RegisterEntry[]>();
+export const hasUnplaced = (workspaceId: string) => (unplaced.get(workspaceId)?.length ?? 0) > 0;
+function keep(list: RegisterEntry[], entry: RegisterEntry) {
+  const existing = list.find(e => e.kind === entry.kind && e.key === entry.key);
+  if (existing) { if (entry.at > existing.at) existing.at = entry.at; } else { list.push(entry); if (list.length > REGISTER_LIMITS.outbox) list.splice(0, list.length - REGISTER_LIMITS.outbox); }
+}
+
 /**
  * Called by the trust service inside the source-deletion transaction. The entry is written to the register
- * file at once; when no application folder is known or the file cannot be written, it waits in the vault's
- * outbox and the next deletion method writes it out. A source deletion is never refused for the register.
+ * file at once. When the file cannot be written it waits in the vault's outbox; when no application folder is
+ * known at all (the engine always knows its vault's), it waits in memory. The next deletion method writes either
+ * out. A source deletion is never refused for the register.
  */
 export function noteSourceDeletion(store: StateStore, state: State, sourceId: string): void {
-  const at = now(), directory = directoryOf(store);
-  if (directory) try { addToRegister(directory, state.workspace.id, [{ kind: 'source', id: sourceId, at }]); return; } catch { /* kept in the outbox below */ }
-  const outbox = dataState(state).outbox, key = registerKey(state.workspace.id, 'source', sourceId);
+  const at = now(), directory = directoryOf(store), key = registerKey(state.workspace.id, 'source', sourceId);
+  if (!directory) { const list = unplaced.get(state.workspace.id) ?? []; keep(list, { key, kind: 'source', at }); unplaced.set(state.workspace.id, list); return; }
+  try { addToRegister(directory, state.workspace.id, [{ kind: 'source', id: sourceId, at }]); return; } catch { /* kept in the outbox below */ }
+  const outbox = dataState(state).outbox;
   const existing = outbox.find(e => e.kind === 'source' && e.key === key);
   if (existing) existing.at = at; else { outbox.push({ key, kind: 'source', at }); if (outbox.length > REGISTER_LIMITS.outbox) outbox.splice(0, outbox.length - REGISTER_LIMITS.outbox); }
 }
@@ -136,7 +146,7 @@ export function noteSourceDeletion(store: StateStore, state: State, sourceId: st
 /** Register entries plus anything still waiting in the outbox (by key, the later time wins). */
 export function registerEntries(directory: string, state: State): RegisterEntry[] {
   const entries = readRegister(directory, state.workspace.id);
-  for (const waiting of peekDataState(state)?.outbox ?? []) {
+  for (const waiting of [...(peekDataState(state)?.outbox ?? []), ...(unplaced.get(state.workspace.id) ?? [])]) {
     const existing = entries.find(e => e.kind === waiting.kind && e.key === waiting.key);
     if (!existing) entries.push({ ...waiting }); else if (waiting.at > existing.at) existing.at = waiting.at;
   }
@@ -144,14 +154,14 @@ export function registerEntries(directory: string, state: State): RegisterEntry[
 }
 /** Writes outbox entries to the register file (inside a store update); the outbox is emptied only once the file holds them. */
 export function flushOutbox(directory: string, state: State): void {
-  const data = peekDataState(state); if (!data?.outbox.length) return;
+  const data = peekDataState(state), memory = unplaced.get(state.workspace.id) ?? []; if (!data?.outbox.length && !memory.length) return;
   const { folder, file } = registerFile(directory, state.workspace.id); const entries = readRegister(directory, state.workspace.id);
-  for (const waiting of data.outbox) {
+  for (const waiting of [...(data?.outbox ?? []), ...memory]) {
     const existing = entries.find(e => e.kind === waiting.kind && e.key === waiting.key);
     if (existing) { if (waiting.at > existing.at) existing.at = waiting.at; continue; }
     check(entries.length < REGISTER_LIMITS.entries, 'DELETION_REGISTER_FULL', 'The deletion register is full. Nothing was deleted.');
     entries.push({ ...waiting });
   }
   writeAtomic(folder, file, `${JSON.stringify({ ...empty(state.workspace.id), entries })}\n`);
-  data.outbox = [];
+  if (data) data.outbox = []; unplaced.delete(state.workspace.id);
 }

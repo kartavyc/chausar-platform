@@ -16,7 +16,7 @@ import { registerPrivateStatePurgeHook } from '../private-state-lifecycle.ts';
 import { mentions } from '../work-books/books-common.ts';
 import { recordIdsOf, visibleRecordIds } from '../work-books/books-records.ts';
 import { coreScope, deleteCore, erasedIds, factReferences, madeAt, planRows, plainRecordId, rowScope, CORE_STORES, type CoreDeletionRow } from './deletion-customer.ts';
-import { addToRegister, bindRegisterDirectory, flushOutbox, peekDataState, registerEntries, registerKey, rowKey, type DeletionKind, type RegisterEntry } from './deletion-register.ts';
+import { addToRegister, bindRegisterDirectory, flushOutbox, hasUnplaced, peekDataState, registerEntries, registerKey, rowKey, type DeletionKind, type RegisterEntry } from './deletion-register.ts';
 import { preparedExportNames, rememberPreparedExports } from './prepared-exports.ts';
 
 // Export names are copied into private state whenever the core purges (source deletion, revocation, keep-period cleanup).
@@ -34,7 +34,7 @@ const actionsOf = (host: ModuleHost) => host.services.actions as ActionService |
 async function housekeep(host: ModuleHost) {
   bindRegisterDirectory(host.store, host.directory);
   const state = host.store.read(), known = new Set(peekDataState(state)?.exports ?? []);
-  if (!(peekDataState(state)?.outbox.length) && preparedExportNames(state).every(n => known.has(n))) return;
+  if (!(peekDataState(state)?.outbox.length) && !hasUnplaced(state.workspace.id) && preparedExportNames(state).every(n => known.has(n))) return;
   await host.store.update(next => { rememberPreparedExports(next); try { flushOutbox(host.directory, next); } catch { /* stays in the outbox; deletion.pending reports a broken register */ } });
 }
 
