@@ -125,7 +125,8 @@ What changed, by item in ROUND4.md's "ask" section:
 - **AS-04 two meanings side by side.** The screen runs each meaning and shows the answers as different measures, each with its own receipt.
 - **BK-17/SH-04 telling, not asking.** A statement typed into Ask ("Remember that…", or a sentence that tells rather than asks) is offered to Memory through work-books' `books.memoryPropose` (`askx.tell`); it waits for the owner to confirm it.
 - **Receipts.** An unknown receipt id and another seat's receipt give the same answer (`ASK_NOT_FOUND`) on every method; only a seat's own receipt can be "stopped by a rule".
-- **AS-02 `ask.change`, SH-04 `ask.stop`.** `askx.change` changes a proposal and records the correction as structure only. `askx.stop` stops this member's running forecast, plan or checks run (`ASK_STOPPED`).
+- **AS-02 `ask.change`, SH-04 `ask.stop`.** `askx.change` returns the changed proposal and records nothing; the run that follows sends `correctedFrom`, recorded once as structure only. `askx.stop` stops this member's running forecast, plan or checks run (`ASK_STOPPED`); stops are kept per workspace, member and epoch with a counter, so a stop from before a run began never ends it, and the scheduler's own check runs are not stopped by a person.
+- **Reviewed adversarially.** Statements are read only after data needs, a question word anywhere keeps a sentence a question, and Hindi statements need "याद रखो"; a seat that cannot see every purchase in the period is stopped by the rule rather than given GSTR-2B portal advice; another member's forecast id and an unknown one give the same answer; replies from connectors-ext, core-data and Trust are checked field by field (control and direction characters, dates, ids, the member of an Allowed-by decision) before they reach a screen.
 
 ## Round 4 contracts
 
@@ -133,7 +134,7 @@ Methods this lane serves (all in `platform/runtime/ask/contracts.ts`, list at it
 
 | Method | Payload | Reply |
 |---|---|---|
-| `askx.change` | `{ operationId!, period \| periodId, branch, change!: { operationId, period \| periodId, branch }, today }` | `UnderstandReply` (proposal) |
+| `askx.change` | `{ operationId!, period \| periodId, branch, change!: { operationId, period \| periodId, branch }, today }` (period and periodId never both) | `UnderstandReply` (proposal); records nothing |
 | `askx.stop` | `{}` | `{ stopped: true, at }`; the stopped call refuses `ASK_STOPPED` |
 | `askx.tell` | `{ text!, kind!: 'preference' \| 'claim' }` | `{ state: 'proposed', memoryId, status } \| { state: 'not-built' }` |
 | `askx.explainRule` | `{ rule!: 'branch' \| 'source' \| 'seat' \| 'access' \| 'marking', receiptId, sourceId, language: 'en' \| 'hi' }` | `{ state: 'ready', ruleId, text, changeableBy } \| { state: 'not-built' }` |
