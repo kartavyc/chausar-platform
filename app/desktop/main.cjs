@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, OPEN_EXTERNAL_CHANNEL, validateRequest, validateExternalUrl, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
@@ -81,8 +81,10 @@ if (singleInstance) app.whenReady().then(async () => {
   hostAwake = true;
   powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
   powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // One permission is allowed: the app's own window may write text to the clipboard (Copy brief, Copy invoice). Everything else is refused.
+  const clipboardWrite = (contents, permission) => permission === 'clipboard-sanitized-write' && Boolean(window) && contents === window.webContents && contents.mainFrame?.url === TRUSTED_DOCUMENT;
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(clipboardWrite(contents, permission)));
+  session.defaultSession.setPermissionCheckHandler((contents, permission) => clipboardWrite(contents, permission));
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
     const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/launch.js', 'launch.js'], ['/assets/icon.svg', 'assets/icon.svg']]);

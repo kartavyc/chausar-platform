@@ -17,7 +17,7 @@ export type IsoDate = string;
 export type IsoTime = string;
 /** Integer amount in the currency's minor unit, as decimal text. Never a JS number. */
 export type MinorString = string;
-/** Integer basis points as decimal text. '1800' is 18 percent. */
+/** Integer basis points as decimal text. '1800' is 18 percent. A CGST or SGST invoice line holds half the rate, so half of an odd rate reads 'n.5'. */
 export type BpsString = string;
 /** Integer millionths of a currency unit as decimal text. Used for model costs only. */
 export type MicroString = string;
@@ -349,7 +349,7 @@ export type ModelPreset = {
 
 export type ModelConnectionRecord = RecordBase<'venture-model-connection'> & {
   presetId: ModelPresetId;
-  kind: ModelRouteKind;
+  routeKind: ModelRouteKind; // `kind` is the record kind from RecordBase
   model: string | null;
   endpoint: string; // as in ModelCallRecord
   tiers: ModelTier[]; // tiers this connection serves; later connections win per tier
@@ -374,7 +374,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   tier: ModelTier;
   presetId: ModelPresetId;
   connectionId: string | null;
-  kind: ModelRouteKind;
+  routeKind: ModelRouteKind; // `kind` is the record kind from RecordBase
   model: string | null;
   consent: 'standing' | 'approved-preview';
   endpoint: string; // 'https://api.anthropic.com/v1/messages', 'cli://claude', 'cli://codex'

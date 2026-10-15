@@ -72,6 +72,7 @@ test('the IPC contract carries the same partner origins as the venture contracts
 /** Runs main.cjs in a vm with an Electron mock, following the pattern in desktop-main.test.ts. */
 async function desktop() {
   const windows: any[] = [], engines: any[] = [], handlers = new Map<string, any>(), errors: string[] = [], opened: string[] = [];
+  const permissions: { request?: any; check?: any } = {};
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
@@ -88,7 +89,11 @@ async function desktop() {
     async stop() { this.state = 'stopped'; return { graceful: true, forced: false }; }
   }
   class Tray extends EventEmitter { setToolTip() {} setContextMenu() {} destroy() {} }
-  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
+  const session = { defaultSession: {
+    setPermissionRequestHandler(handler: any) { permissions.request = handler; },
+    setPermissionCheckHandler(handler: any) { permissions.check = handler; },
+    webRequest: { onBeforeRequest() {} },
+  } };
   const shell = { openExternal: async (url: string) => { opened.push(url); } };
   const electron = { app, BrowserWindow: Window, Tray, shell, powerMonitor: new EventEmitter(), Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   const source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
@@ -100,7 +105,7 @@ async function desktop() {
     return require(name);
   }, process: { argv: ['electron', '/owned/app'], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
-  return { windows, engines, handlers, errors, opened };
+  return { windows, engines, handlers, errors, opened, permissions };
 }
 
 test('main.cjs opens an allowed link once for a trusted sender, refuses everything else, and allows 15 minutes per request', async () => {
@@ -123,6 +128,26 @@ test('main.cjs opens an allowed link once for a trusted sender, refuses everythi
     assert.equal(reply.ok, false); assert.equal(reply.error.code, expected);
   }
   assert.deepEqual(d.opened, [url], 'a refused link never reaches shell.openExternal');
+});
+
+test('main.cjs lets only the app window write to the clipboard and refuses every other permission', async () => {
+  const d = await desktop();
+  const window = d.windows[0];
+  assert.equal(typeof d.permissions.check, 'function');
+  assert.equal(typeof d.permissions.request, 'function');
+  const asked = (contents: unknown, permission: string) => new Promise<boolean>(accept => d.permissions.request(contents, permission, accept));
+  assert.equal(d.permissions.check(window.webContents, 'clipboard-sanitized-write'), true);
+  assert.equal(await asked(window.webContents, 'clipboard-sanitized-write'), true);
+  for (const permission of ['clipboard-read', 'media', 'notifications', 'geolocation', 'openExternal', 'fullscreen']) {
+    assert.equal(d.permissions.check(window.webContents, permission), false, permission);
+    assert.equal(await asked(window.webContents, permission), false, permission);
+  }
+  const stranger = new EventEmitter() as any; stranger.mainFrame = { url: 'chausar://app/index.html' };
+  assert.equal(d.permissions.check(stranger, 'clipboard-sanitized-write'), false);
+  assert.equal(d.permissions.check(null, 'clipboard-sanitized-write'), false);
+  window.loadURL('https://example.com/');
+  assert.equal(d.permissions.check(window.webContents, 'clipboard-sanitized-write'), false, 'only the trusted document');
+  assert.equal(await asked(window.webContents, 'clipboard-sanitized-write'), false);
 });
 
 test('preload.cjs exposes openExternal, which invokes the open-external channel and rethrows coded failures', async () => {
