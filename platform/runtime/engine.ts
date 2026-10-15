@@ -914,7 +914,9 @@ export class Engine {
       check(['postgresql:', 'postgres:'].includes(url.protocol), 'INVALID_POSTGRES_CONFIG', 'Use a local PostgreSQL connection URL.');
       this.#searchAdapter = PostgresInvestigationSearch.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1',
         port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
-        database: decodeURIComponent(url.pathname.slice(1)) }).catch(error => { this.#searchAdapter = null; throw error; });
+        database: decodeURIComponent(url.pathname.slice(1)),
+        // release (round 4): the enterprise-only remote TLS opt-in, exactly as for the snapshot adapter in `adapter()`.
+        ...(this.options.storageMode === 'enterprise-server' && this.options.postgresTls ? { remoteTls: this.options.postgresTls } : {}) }).catch(error => { this.#searchAdapter = null; throw error; });
     }
     return this.#searchAdapter;
   }

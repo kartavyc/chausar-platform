@@ -87,7 +87,7 @@ test('a new install asks before everything; always-waits kinds have no switch; p
   await refused(engine.requestAs({ ...owner, sourceTainted: true }, 'jobsx.setAutonomy', { kind: KIND, on: true }), 'APP_APPROVAL_REQUIRED');
   await refused(engine.requestAs({ ...owner, channel: 'phone' }, 'jobsx.setAutonomy', { kind: KIND, on: true }), 'OPEN_DESKTOP');
 
-  assert.deepEqual(await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 5 }), { kind: KIND, on: true, dailyCount: 5, preset: 'custom' });
+  assert.deepEqual(await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 5 }), { kind: KIND, on: true, dailyCount: 5, dailyAmountMinor: '0', preset: 'custom' });
   let view = await engine.request('jobsx.autonomy');
   assert.equal(view.preset, 'custom'); assert.deepEqual(view.kinds.find((k: any) => k.kind === KIND).on, true);
   assert.equal(view.master, false, 'A kind switch never turns the master switch on.');
@@ -190,4 +190,62 @@ test('the always-waits words also catch plurals, tenses, acronyms and non-ASCII 
   for (const kind of ['shop.sendInvites', 'hooks.webhooks', 'crm.deleting-records', 'bank.payouts', 'msg.SMSReminder', 'shop.listProduct', 'shop.publish-product', 'books.void-invoice', 'drive.shared-link', 'gst.gstr1-submit', 'shop.set-qty', 'local.dеlete'])
     assert.equal(alwaysWaits(kind), true, kind);
   assert.equal(alwaysWaits('local.reminder-draft'), false);
+});
+
+test('the daily amount limit: nothing that touches money runs by default, and the day’s total stays within the limit', async t => {
+  const engine = await fixture(t);
+  await engine.request('trust.update', { autonomy: true });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  const withAmount = async (n: number, amountMinor: unknown) => {
+    const action = await engine.request('actions.prepare', { connector: 'local', operation: 'reminder-draft', payload: { invoiceId: `inv-${n}`, text: 'Synthetic reminder', amountMinor }, idempotencyKey: `synthetic-amount-${n}` });
+    await (engine as any).store().update((state: any) => { lane(state).reminders.push({ customerId: `cust-${n}`, invoiceId: `inv-${n}`, day: '2026-10-05', actionId: action.id, jobId: 'synthetic-job', key: action.idempotencyKey, ownerId: action.createdBy }); });
+    return action;
+  };
+  const status = async (id: string) => (await engine.request('actions.list')).find((a: any) => a.id === id).status;
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true });
+  const first = await withAmount(61, '5000');
+  await engine.tick();
+  assert.equal(await status(first.id), 'prepared', 'the default limit is zero: money never runs on its own');
+  await refused(engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyAmountMinor: '10.5' }), 'INVALID_AUTONOMY');
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyAmountMinor: '10000' });
+  await engine.tick();
+  assert.equal(await status(first.id), 'verified');
+  const second = await withAmount(62, '6000'); const unreadable = await withAmount(63, 'lots');
+  await engine.tick();
+  assert.equal(await status(second.id), 'prepared', '5000 + 6000 is over the 10000 limit');
+  assert.equal(await status(unreadable.id), 'prepared', 'an unreadable amount never runs on its own');
+  const view = await engine.request('jobsx.autonomy');
+  const row = view.kinds.find((k: any) => k.kind === KIND);
+  assert.equal(row.dailyAmountMinor, '10000'); assert.equal(row.amountUsedTodayMinor, '5000');
+});
+
+test('an overlapping claim never erases the record of a run, and the claim reads the live switch and limits', async t => {
+  const engine = await fixture(t);
+  await engine.request('trust.update', { autonomy: true });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyAmountMinor: '10000' });
+  const first = await prepare(engine, 71);
+  // Another tick already claimed this action: this tick must not claim it again, nor remove that record.
+  await (engine as any).store().update((state: any) => { lane(state).autonomy.runs.push({ kind: KIND, actionId: first.id, at: new Date().toISOString(), claim: 'other-tick' }); });
+  await engine.tick();
+  const runs = () => (engine as any).store().read().extensions['jobs-ext'].autonomy.runs.filter((r: any) => r.actionId === first.id);
+  assert.equal(runs().length, 1); assert.equal(runs()[0].claim, 'other-tick');
+  // The kind switched off between the snapshot and the claim: nothing more runs.
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: false });
+  const second = await prepare(engine, 72);
+  await engine.tick();
+  assert.equal((await engine.request('actions.list')).find((a: any) => a.id === second.id).status, 'prepared');
+  // An omitted amount keeps the limit; a preset keeps it too.
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true });
+  assert.equal((await engine.request('jobsx.autonomy')).kinds.find((k: any) => k.kind === KIND).dailyAmountMinor, '10000');
+  await engine.request('jobsx.autonomyPreset', { preset: 'all-but-always-waits' });
+  assert.equal((await engine.request('jobsx.autonomy')).kinds.find((k: any) => k.kind === KIND).dailyAmountMinor, '10000');
+});
+
+test('money under any other name or depth is unknown, so it never runs on its own', async () => {
+  const { actionAmount } = await import('../runtime/jobs-ext/autonomy.ts');
+  assert.equal(actionAmount({ payload: { invoiceId: 'i', text: 't' } }), 0n);
+  assert.equal(actionAmount({ payload: { amountMinor: '500', payload: { amountMinor: '250' } } }), 750n);
+  for (const payload of [{ amount: '5' }, { total: 1 }, { lines: [{ amountMinor: '5', price: '1' }] }, { a: { b: { value: 1 } } }, { amountMinor: 5 }, { amountMinor: '-5' }])
+    assert.equal(actionAmount({ payload }), null, JSON.stringify(payload));
 });

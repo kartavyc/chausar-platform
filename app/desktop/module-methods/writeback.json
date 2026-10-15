@@ -33,5 +33,7 @@
   "writeback.reauth",
   "writeback.credentials.set",
   "writeback.credentials.remove",
-  "writeback.credentials.status"
+  "writeback.credentials.status",
+  "writeback.overview",
+  "writeback.caps"
 ]

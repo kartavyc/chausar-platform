@@ -204,8 +204,10 @@ test('catch-up after sleep, background mode, budget stop with what was left undo
   assert.equal(missed[0].text, '3 runs were missed while this computer slept. Ran once.');
   assert.equal((await ui('jobs.list')).find((j: any) => j.id === job.id).status, 'awaiting-acceptance');
   const background = await ui('jobsx.background');
-  assert.equal(background.backgroundMode, false); assert.equal(background.wake.code, 'WAKE_TIMER_UNAVAILABLE');
-  await assert.rejects(ui('jobsx.setWake', {}), { code: 'WAKE_TIMER_UNAVAILABLE' });
+  // The release lane's wake timer needs the installed app's service; here it says so, passed through unchanged.
+  assert.equal(background.backgroundMode, false); assert.equal(background.wake.code, 'SERVICE_UNAVAILABLE'); assert.equal(background.wake.nextWakeAt, null);
+  await assert.rejects(ui('jobsx.setWake', {}), { code: 'INVALID_REQUEST' });
+  await assert.rejects(ui('jobsx.setWake', { at: '2026-10-20T06:00:00Z', confirmed: true }), { code: 'SERVICE_UNAVAILABLE' });
   await ui('jobsx.setBackground', { enabled: true });
   assert.equal((await ui('jobsx.background')).asked, true);
   // The missed-run rule can be changed in the app.

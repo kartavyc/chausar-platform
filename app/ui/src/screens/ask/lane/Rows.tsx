@@ -11,7 +11,7 @@ import { Figure, MissingWords } from '../../../parts/Figure';
 import { AskPage, countWords, fill, moneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
 import { sourceRowsReply, type RuleKind, type SourceRowsReply } from './core-replies.ts';
-import { useExplain } from './core-words';
+import { RuleLine, useExplain } from './core-words';
 import s from './core.module.css';
 
 const LIMIT = 50;
@@ -54,6 +54,7 @@ export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> 
           {r.hidden && (r.hiddenCount === null
             ? <p className={s.note} data-hidden="">{w.hidden}</p>
             : <p className={s.note} data-hidden="" data-hidden-rule={r.rule ?? ''}>{fill(w.hiddenCount, { count: countWords(String(r.hiddenCount)), rule: w[`rule-${r.rule ?? 'unknown'}`] })}</p>)}
+          {r.hidden && r.rule !== null && <RuleLine rule={r.rule} receiptId={view.receiptId} />}
           {r.rows.length === 0 ? <p className={s.note} data-rows-empty="">{r.hidden ? w.allHidden : r.tab === 'counted' ? w.emptyCounted : w.emptyLeftOut}</p> : (
             <>
               <div className={s.tableWrap}>

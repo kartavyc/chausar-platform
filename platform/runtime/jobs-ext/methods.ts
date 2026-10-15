@@ -27,6 +27,24 @@ function owned(host: ModuleHost, ctx: Context, jobId: unknown): { job: Job; meta
   return { job, meta };
 }
 
+/** release's wake status, reduced to what a screen draws. An unknown shape is not drawn as a time. */
+function wakeView(value: any) {
+  const next = typeof value?.nextWakeAt === 'string' && Number.isFinite(Date.parse(value.nextWakeAt)) ? value.nextWakeAt : null;
+  return { available: value?.available === true, mechanism: typeof value?.mechanism === 'string' ? value.mechanism.slice(0, 60) : null, nextWakeAt: next,
+    ...(typeof value?.reason === 'string' ? { reason: value.reason.slice(0, 300) } : {}), experimental: true };
+}
+/** The planned wake from `native.wake.status`; a missing method, an absent app service or a seat that may not read it says so by code. */
+async function wakeStatus(host: ModuleHost) {
+  try {
+    const reply = await optionalCall<any>(host, 'native.wake.status', {});
+    return reply.available ? wakeView(reply.value) : { available: false, code: 'WAKE_TIMER_UNAVAILABLE', nextWakeAt: null, experimental: true };
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'SERVICE_UNAVAILABLE' || code === 'FORBIDDEN') return { available: false, code, nextWakeAt: null, experimental: true };
+    throw error;
+  }
+}
+
 /** One plain state per job for the Jobs list (WK-07). */
 export function label(job: Job, meta: LaneJob | undefined, ns: JobsExtState): { state: string; reason?: string; resumesAt?: string } {
   if (meta?.setAside) return { state: 'set-aside', reason: meta.setAside.reason };
@@ -204,13 +222,17 @@ export const jobsMethods: Record<string, MethodSpec> = {
   'jobsx.missed': { permission: 'read', handler: (ctx, _p, host) => {
     const state = host.store.read(); const ns = peekLane(state); const mine = jobsOf(host).list(ctx);
     const lanes = ns.missed.filter(m => mine.some(j => j.id === m.jobId)).reverse();
-    const core = mine.filter(j => !isLaneJob(j)).flatMap(j => ledgerMissed(j.ledger).map(item => ({ id: `${j.id}:${item.at}`, jobId: j.id, at: item.at, missed: item.missed, ran: 0, rule: 'skip', text: `${item.missed === 1 ? '1 run was' : `${item.missed} runs were`} missed while this computer slept. Skipped by the job’s rule.`, seen: false })));
+    const core = mine.filter(j => !isLaneJob(j)).flatMap(j => ledgerMissed(j.ledger).map(item => ({ id: `${j.id}:${item.at}`, jobId: j.id, at: item.at, missed: item.missed, ran: 0, rule: 'skip', text: `${item.missed === 1 ? '1 run was' : `${item.missed} runs were`} missed while this computer slept. Skipped by the job’s rule.`, seen: (ns.seenCoreMissed ?? []).includes(`${j.id}:${item.at}`) })));
     return [...lanes, ...core].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200);
   } },
   'jobsx.missed.seen': { permission: 'prepare', handler: (ctx, p, host) => host.store.update(state => {
     check(Array.isArray(p.ids) && p.ids.length <= 200, 'INVALID_REQUEST', 'Name the notes you read.');
     const mine = new Set(jobsOf(host).list(ctx).map(j => j.id)); let count = 0;
-    for (const note of lane(state).missed) if (p.ids.includes(note.id) && mine.has(note.jobId) && !note.seen) { note.seen = true; count++; }
+    const ns = lane(state);
+    for (const note of ns.missed) if (p.ids.includes(note.id) && mine.has(note.jobId) && !note.seen) { note.seen = true; count++; }
+    // Core-run jobs' notes live in their ledgers; their read marks are kept here.
+    for (const id of p.ids) if (typeof id === 'string' && id.length <= 300 && id.indexOf(':') > 0 && mine.has(id.slice(0, id.indexOf(':'))) && !(ns.seenCoreMissed ??= []).includes(id)) { ns.seenCoreMissed.push(id); count++; }
+    if (ns.seenCoreMissed && ns.seenCoreMissed.length > 2000) ns.seenCoreMissed.splice(0, ns.seenCoreMissed.length - 2000);
     return { seen: count };
   }) },
   'jobsx.schedules': { permission: 'read', handler: (ctx, _p, host) => { const ns = peekLane(host.store.read());
@@ -231,7 +253,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     return { backgroundMode: ns.settings.backgroundMode, asked: ns.settings.backgroundAsked, lifecycle: types?.lifecycle ?? null,
       jobs: jobsOf(host).list(ctx).filter(j => ns.jobs[j.id] && !ns.jobs[j.id].deletedAt).map(j => ({ id: j.id, background: ns.jobs[j.id].background, runsWhileClosed: ns.settings.backgroundMode && ns.jobs[j.id].background })),
       rules: ['Scheduled jobs on the free app run only while this computer is awake.', 'With background mode off, closing the window pauses jobs; the next start lists what was missed.', 'Background mode is off until you turn it on.'],
-      wake: { available: false, code: 'WAKE_TIMER_UNAVAILABLE', experimental: true },
+      wake: await wakeStatus(host),
       alwaysOn: { available: false, note: 'Jobs that run while every laptop is closed need a server. A server cannot use your own command-line sign-in, so it needs an API key or the Chausar allowance, and it must read the data it works on, so that part is not end-to-end encrypted. A home box (a spare computer of yours running the same app) is the other way; it is experimental.' } };
   } },
   'jobsx.setBackground': { permission: 'admin', handler: (ctx, p, host) => { inApp(ctx); return host.store.update(state => {
@@ -240,7 +262,16 @@ export const jobsMethods: Record<string, MethodSpec> = {
     if (p.jobId !== undefined) { check(typeof p.job === 'boolean', 'INVALID_REQUEST', 'Say whether this job runs in background.'); const job = jobsOf(host).find(state, id(p.jobId)); check(ownsJob(ctx, job) && ns.jobs[job.id], 'NOT_FOUND', 'Job not found.'); ns.jobs[job.id].background = p.job; }
     audit(state, 'jobsx.background.changed', { enabled: ns.settings.backgroundMode }); return { backgroundMode: ns.settings.backgroundMode, asked: ns.settings.backgroundAsked };
   }); } },
-  'jobsx.setWake': { permission: 'admin', handler: () => { check(false, 'WAKE_TIMER_UNAVAILABLE', 'Waking this computer for jobs needs the operating-system timer, which is not installed yet.'); } },
+  'jobsx.setWake': { permission: 'admin', handler: async (ctx, p, host) => {
+    // The OS wake timer belongs to the release lane (native.wake.*). Its refusals pass through unchanged.
+    inApp(ctx);
+    check(Object.keys(p).every(k => ['at', 'clear', 'confirmed'].includes(k)) && (p.clear === undefined || p.clear === true) && (p.clear === true || typeof p.at === 'string' && p.at.length <= 40),
+      'INVALID_REQUEST', 'Give the wake time, or ask to clear it.');
+    const reply = p.clear === true ? await optionalCall<any>(host, 'native.wake.clear', { confirmed: p.confirmed })
+      : await optionalCall<any>(host, 'native.wake.set', { at: p.at, confirmed: p.confirmed });
+    check(reply.available, 'WAKE_TIMER_UNAVAILABLE', 'Waking this computer for jobs needs the operating-system timer, which is not installed yet.');
+    return wakeView(reply.value);
+  } },
   'jobsx.budget': { permission: 'read', handler: async (ctx, p, host) => {
     const ns = peekLane(host.store.read());
     if (p.id !== undefined) { const { job } = owned(host, ctx, p.id); return budgetView(host, job, ns); }

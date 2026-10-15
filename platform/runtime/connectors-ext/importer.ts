@@ -48,6 +48,9 @@ export function canonicalImport(outcome: RecipeOutcome, target: CommitTarget, kn
   return { content: [header.join(','), ...lines].join('\n') + '\n', recipe, expectedTotals: { rowCount: outcome.records.length, amountMinor: outcome.observed.total } };
 }
 
+/** Accepted on the system's own record count alone: the amount was not checked against any source total. */
+export const amountUnchecked = (outcome: RecipeOutcome) => outcome.sourceTotals?.provenance === 'source-declared-count';
+
 export async function commitOutcome(store: StateStore, imports: ImportService, ctx: Context, outcome: RecipeOutcome, target: CommitTarget): Promise<{ importId: string; rowIds: string[]; duplicate: boolean; measure: 'money' | 'count' }> {
   check(SOURCE.test(target.sourceId) && typeof target.company === 'string' && target.company.length > 0 && target.company.length <= 200 && SOURCE.test(target.branch), 'INVALID_IMPORT_TARGET', 'Name the source, company and branch for this import.');
   check(outcome.status === 'accepted', 'IMPORT_NOT_ACCEPTED', 'Only a file that passed its checks against the source\'s own totals can be imported.');
@@ -56,6 +59,12 @@ export async function commitOutcome(store: StateStore, imports: ImportService, c
     const contentHash = hash(prepared.content), recipeHash = hash(prepared.recipe);
     const existed = store.read().imports.some(item => item.sourceId === target.sourceId && item.contentHash === contentHash && item.recipeHash === recipeHash);
     const result = await imports.commit(ctx, { sourceId: target.sourceId, format: 'csv', ...prepared });
+    // The core importer's second check is against our own totals. When the source stated only its
+    // record count, the amount was never checked against the source: the import is not reconciled.
+    if (amountUnchecked(outcome) && !existed && result.duplicate !== true) await store.update(state => {
+      const record = state.imports.find(item => item.id === result.id);
+      if (record?.coverage) record.coverage.reconciled = false;
+    });
     return { importId: result.id, rowIds: [...result.rowIds], duplicate: existed || result.duplicate === true, measure: 'money' };
   }
   return store.update(state => {
@@ -77,7 +86,7 @@ export async function commitOutcome(store: StateStore, imports: ImportService, c
     const latest = new Map(state.facts.filter(fact => fact.sourceId === target.sourceId).map(fact => [`${fact.kind}\u0000${fact.entityId}`, fact.id] as const));
     const rowIds = facts.map(fact => latest.get(`${fact.kind}\u0000${fact.entityId}`)!);
     const record = { id: newId('import'), at: now(), sourceId: target.sourceId, format: 'csv', recipeHash, contentHash, rowIds,
-      coverage: { sourceRows: outcome.records.length + outcome.excludedRows, importedRows: facts.length, rejectedRows: 0, expectedRows: outcome.sourceTotals?.rowCount ?? null, reconciled: true },
+      coverage: { sourceRows: outcome.records.length + outcome.excludedRows, importedRows: facts.length, rejectedRows: 0, expectedRows: outcome.sourceTotals?.rowCount ?? null, reconciled: !amountUnchecked(outcome) },
       totalsMinor: null, measure: { type: 'count', unit: outcome.observed.unit, total: outcome.observed.total }, unmappedFields: [...outcome.unmappedFields], qualification: 'experimental', recipeId: outcome.recipe.id };
     state.imports.push(record);
     audit(state, 'source.imported', { importId: record.id, sourceId: target.sourceId, rowCount: rowIds.length });

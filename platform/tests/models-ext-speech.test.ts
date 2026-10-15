@@ -25,7 +25,7 @@ function wav(rate = 16000) {
 const audioBase64 = wav();
 const sarvam: SpeechProvider = { id: 'sarvam', kind: 'sarvam-stt', model: 'saaras:v4', language: 'hi-IN', ratePerMinuteMinor: '50', budgetMinor: '100' };
 const bhashini: SpeechProvider = { id: 'bhashini', kind: 'bhashini-asr', language: 'hi', pipelineId: 'pipeline0001', serviceId: 'ai4bharat/asr-hi', ratePerMinuteMinor: '0' };
-const live: SpeechProvider = { id: 'live', kind: 'live-voice', model: 'gpt-realtime', ratePerMinuteMinor: '1500', budgetMinor: '50000' };
+const live: SpeechProvider = { id: 'live', kind: 'live-voice', model: 'gpt-4o-transcribe', ratePerMinuteMinor: '1500', budgetMinor: '50000' };
 const bhashiniConfig = (callbackUrl = BHASHINI_COMPUTE_ENDPOINT, serviceId = 'ai4bharat/asr-hi') => JSON.stringify({ languages: [{ sourceLanguage: 'hi' }], pipelineResponseConfig: [{ taskType: 'asr', config: [{ serviceId, modelId: 'm', language: { sourceLanguage: 'hi' } }] }],
   pipelineInferenceAPIEndPoint: { callbackUrl, inferenceApiKey: { name: 'Authorization', value: 'inference-key-secret' }, isMultilingualEnabled: true, isSyncApi: true } });
 const bhashiniReply = (source: string) => JSON.stringify({ pipelineResponse: [{ taskType: 'asr', config: { serviceId: 'ai4bharat/asr-hi' }, output: [{ source }], audio: null }] });
@@ -139,7 +139,7 @@ test('paid live voice: approved cost cap, one session-secret request, the secret
   const reply = { value: 'ek_live_secret_value_123', expires_at: 1790000000, session: { type: 'realtime', model: 'gpt-realtime' } };
   const { store, speech, calls, preview, approval } = await previewed(live, 'sk-live-key', async () => ({ status: 200, body: JSON.stringify(reply) }), { durationMs: 600000 });
   assert.equal(preview.endpoint, LIVE_VOICE_ENDPOINT); assert.equal(preview.estimatedCostMinor, '15000'); assert.equal(preview.approvalRequired, true); assert.equal(preview.receiptBoundary, 'application-to-provider-session-secret');
-  assert.deepEqual(JSON.parse(Buffer.from(preview.payloadBase64, 'base64').toString()), { expires_after: { anchor: 'created_at', seconds: 60 }, session: { type: 'realtime', model: 'gpt-realtime' } });
+  assert.deepEqual(JSON.parse(Buffer.from(preview.payloadBase64, 'base64').toString()), { expires_after: { anchor: 'created_at', seconds: 60 }, session: { type: 'transcription', audio: { input: { transcription: { model: 'gpt-4o-transcribe' } } } } });
   await assert.rejects(speech.transcribe(owner, { previewId: preview.id }), code('OUTBOUND_APPROVAL_REQUIRED')); assert.equal(calls.length, 0);
   const result: any = await speech.transcribe(owner, { previewId: preview.id, approvalId: approval.id });
   assert.equal(result.transcript, null); assert.equal(result.live.clientSecret, reply.value); assert.equal(result.live.expiresAt, new Date(reply.expires_at * 1000).toISOString());

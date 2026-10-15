@@ -105,9 +105,9 @@ test('enterprise HTTPS server: OIDC sign-in, roles, branch scope, CSRF, denied m
     const context = await f.rpc(cookie, 'ui.context'); assert.equal(context.status, 200);
     assert.equal(context.json.result.member.id, me.json.memberId); assert.equal(context.json.result.member.role, 'owner');
     assert.equal((await f.rpc(cookie, 'workspace.status')).json.result.open, true);
-    const stored = await readFile(join(f.config.dataDirectory, 'identities.json'), 'utf8');
+    const stored = JSON.stringify(await f.app.identity.entries());
     assert.ok(!stored.includes('owner-sub') && !stored.includes('example.com') && !stored.includes('access'), 'Only hashed subjects are stored.');
-    if (process.platform !== 'win32') assert.equal((await stat(join(f.config.dataDirectory, 'identities.json'))).mode & 0o777, 0o600);
+    await assert.rejects(stat(join(f.config.dataDirectory, 'identities.json')), 'The identity map lives in the store, not in a file.');
     const again = await f.login('owner-sub', ['admins']); const meAgain = await f.call('GET', '/api/me', { headers: { cookie: again.cookie } });
     assert.equal(meAgain.json.memberId, me.json.memberId, 'An unchanged mapping reuses the member.');
   });
