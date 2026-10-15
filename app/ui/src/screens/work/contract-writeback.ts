@@ -27,12 +27,13 @@ export const reminder = object({
   notes: nullable(list(paymentNote, 10)),
   agreement: list(object({ channel, answer: oneOf(['yes', 'no', 'not-asked'] as const), source: nullable(short), on: nullable(day) }), 4),
   stoppedOn: nullable(day),
-  caps: nullable(object({ perCustomer: count, perDay: count, day: nullable(day), preparedOnDay: count, customerOnDay: count, reached: bool, customerReached: bool })),
+  caps: nullable(object({ perCustomer: count, perDay: count, day: nullable(day), preparedOnDay: count, customerOnDay: count, reached: bool, customerReached: bool },
+    { timeZone: nullable(short), today: nullable(day) })),
   blocked: nullable(object({ code: short, reason: long })),
-});
+}, { recordId: nullable(id) });
 export type Reminder = ReturnType<typeof reminder>;
 
-const sheetExtra = object({}, { writeback: wbExtra, secondAsk: object({ by: oneOf(['typed-amount', 'passphrase'] as const) }), reminder });
+const sheetExtra = object({}, { writeback: wbExtra, secondAsk: object({ by: oneOf(['typed-amount', 'passphrase'] as const) }, { whose: oneOf(['own-secret', 'vault-passphrase'] as const) }), reminder });
 /** The approval sheet with its write-back additions. */
 export const approvalSheet: Check<ApprovalDetail & ReturnType<typeof sheetExtra>> = (value, path) => Object.freeze({ ...approvalDetail(value, path), ...sheetExtra(value, path) });
 export type ApprovalSheetReply = ReturnType<typeof approvalSheet>;

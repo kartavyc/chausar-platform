@@ -34,6 +34,8 @@
   "approvals.practice",
   "approvals.prepareReminder",
   "approvals.proposeJob",
+  "approvals.reapplyDeletions",
+  "approvals.reminders",
   "approvals.resolveUnknown",
   "approvals.resumeJob",
   "approvals.reverse",

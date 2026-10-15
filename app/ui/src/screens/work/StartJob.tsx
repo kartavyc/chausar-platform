@@ -15,11 +15,15 @@ import { useAct, useReply } from './kit/reply.ts';
 import { amountText } from './kit/format.ts';
 import { Actions, Button, Note, Refusal } from './kit/Page';
 import { proposed, sheetOf, type JobTemplate } from './contract.ts';
-import { templatesWithSchedule, type TemplateWithSchedule } from './contract-jobs.ts';
+import type { TemplateWithSchedule } from './contract-jobs.ts';
 import { jobWords } from './text-jobs.ts';
 import { say, type WorkProps } from './shared.tsx';
 import type { WorkWords } from './text.ts';
 import type { Language } from '../../app/presentation.ts';
+import { Label } from '../../parts/Label';
+import { templatesR4, type LaneList, type LaneTemplate } from './contract-r4.ts';
+import { codeWords, r4Words, sayR4, type R4Words } from './text-r4.ts';
+import type { MissedRun } from './contract-jobs.ts';
 import s from './work.module.css';
 
 /** Rupees as typed ("50", "50.5", "50.25") to whole paise as text. Null when it is not that shape or is zero. */
@@ -47,6 +51,83 @@ export function templatePairs(t: TemplateWithSchedule, w: WorkWords, language: L
     { name: w['f.actions'], value: t.actions.length > 0 ? t.actions.join(', ') : w['start.readsOnly'] },
     { name: w['f.runsOn'], value: `${w['start.noModel']}; ${w['start.runsHere']}` },
   ];
+}
+
+/** WK-09: one of jobs-ext's ready-made jobs as its card: goal, how you will know, budget, rounds, missed rule, actions, its steps. */
+export function laneTemplatePairs(t: LaneTemplate, w: WorkWords, r: R4Words, language: Language): Pair[] {
+  const j = jobWords(language);
+  return [
+    { name: w['f.goal'], value: t.goal },
+    { name: w['f.doneWhen'], value: t.doneWhen },
+    { name: w['start.every'], value: t.every === null ? r['lane.everyOther'] : w[`every.${t.every}`] },
+    { name: w['f.budget'], value: amountText(t.budget, language), mono: true },
+    { name: w['f.stops'], value: t.stepsPerDelivery > 1 ? sayR4(r, 'lane.rounds', { n: t.stepsPerDelivery }) : r['lane.round'] },
+    { name: w['f.missed'], value: t.missedRun === 'run-all' ? j['missed.run-all'] : w[`missed.${t.missedRun}`] },
+    { name: w['f.actions'], value: t.actions.length > 0 ? t.actions.join(', ') : w['start.readsOnly'] },
+    { name: w['f.runsOn'], value: `${t.needsModel ? r['lane.needsModel'] : r['lane.noModel']}; ${w['start.runsHere']}` },
+  ];
+}
+
+function LaneTemplateForm({ p, t, onProposed }: { p: WorkProps; t: LaneTemplate; onProposed: (id: string) => void }) {
+  const { w, language } = p;
+  const j = jobWords(language);
+  const [budget, setBudget] = useState(paiseToRupees(t.budget.minor));
+  const [missed, setMissed] = useState<MissedRun>(t.missedRun);
+  const [problem, setProblem] = useState<string | null>(null);
+  const act = useAct(p.rpc);
+  // "Run every missed one" only for a job that delivers every run; daily rounds cannot all be caught up on one day.
+  const choices: readonly MissedRun[] = t.stepsPerDelivery === 1 ? ['run-once-on-wake', 'skip', 'run-all'] : ['run-once-on-wake', 'skip'];
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const budgetMinor = rupeesToPaise(budget);
+    if (budgetMinor === null) { setProblem(w['start.budgetBad']); return; }
+    setProblem(null);
+    const out = await act.run('approvals.proposeJob', { laneTemplate: t.id, budgetMinor, missedRun: missed }, proposed);
+    if (out.ok) onProposed(out.value.id);
+  };
+  return (
+    <form className={s.form} onSubmit={e => void submit(e)} aria-label={t.title}>
+      <label>{w['start.budget']}<input inputMode="decimal" value={budget} onChange={e => setBudget(e.currentTarget.value)} /></label>
+      <p className={s.meta}>{say(w, 'start.budgetHint', { budget: amountText(t.budget, language) })}</p>
+      <fieldset className={s.form}>
+        <legend>{w['start.missed']}</legend>
+        {choices.map(m => <label key={m}><span><input type="radio" name={`lane-missed-${t.id}`} checked={missed === m} onChange={() => setMissed(m)} /> {m === 'run-all' ? j['missed.run-all'] : w[`missed.${m}`]}</span></label>)}
+      </fieldset>
+      {problem !== null && <p role="alert">{problem}</p>}
+      <Actions><Button submit variant="filled" disabled={act.busy}>{w['start.propose']}</Button></Actions>
+      <Refusal code={act.refusal} language={language} />
+    </form>
+  );
+}
+
+/** WK-09: jobs-ext's ready-made jobs beside the core briefs. One that cannot start here says why. */
+function LaneTemplates({ p, lane, chosen, onChoose, onProposed }: { p: WorkProps; lane: LaneList; chosen: string | null; onChoose: (id: string) => void; onProposed: (id: string) => void }) {
+  const { w, language } = p;
+  const r = r4Words(language);
+  const j = jobWords(language);
+  return (
+    <div className={s.block} data-part="lane-templates">
+      <h3 className={s.h}>{r['lane.title']}</h3>
+      {!lane.available ? <Note>{r['lane.notBuilt']}</Note> : (
+        <>
+          <Note>{r['lane.note']}</Note>
+          {lane.activeJobs !== null && lane.activeJobCap !== null && <p className={s.meta}>{sayR4(r, 'lane.active', { n: lane.activeJobs, cap: lane.activeJobCap })}</p>}
+          {lane.templates.map(t => (
+            <div key={t.id} className={s.block} data-lane-template={t.id}>
+              <h4 className={s.h}>{t.title} {t.experimental && <Label kind="experimental" />}</h4>
+              <KeyValue pairs={laneTemplatePairs(t, w, r, language)} onReceipt={p.openReceipt} />
+              {p.view !== 'simple' && t.steps.length > 0 && (
+                <ol className={s.list} aria-label={j['lane.steps']}>{t.steps.map((st, i) => <li key={`${i}-${st.title}`} className={s.item}><span>{st.title}</span><span className={s.meta}>{st.needsModel ? r['lane.needsModel'] : r['lane.noModel']}</span></li>)}</ol>
+              )}
+              {!t.available ? <Note>{`${r['lane.cannot']} ${codeWords(r, t.code ?? 'TEMPLATE_NOT_AVAILABLE')}`}</Note>
+                : chosen === `lane:${t.id}` ? <LaneTemplateForm p={p} t={t} onProposed={onProposed} />
+                  : <Actions><Button variant="quiet" onClick={() => onChoose(`lane:${t.id}`)}>{say(w, 'start.choose', { title: t.title })}</Button></Actions>}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
 }
 
 type Schedule = 'month-end' | 'every-30-days';
@@ -117,7 +198,7 @@ function SentenceForm({ p, onProposed }: { p: WorkProps; onProposed: (id: string
 
 export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HTMLElement | null; onClose: () => void }) {
   const { w, language } = p;
-  const { loaded, reload } = useReply(p.host, 'approvals.jobTemplates', {}, templatesWithSchedule);
+  const { loaded, reload } = useReply(p.host, 'approvals.jobTemplates', {}, templatesR4);
   const [chosen, setChosen] = useState<string | null>(null);
   const open = (id: string) => p.navigate({ place: 'work', sub: 'approvals', sheet: sheetOf(id) });
   if (loaded.phase !== 'ready') {
@@ -127,7 +208,7 @@ export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HT
       </Sheet>
     );
   }
-  const { templates, fromSentence, monthEnd } = loaded.value;
+  const { templates, fromSentence, monthEnd, lane } = loaded.value;
   return (
     <Sheet kind={w['start.kind']} title={w['start.title']} onClose={onClose} origin={origin}>
       <Note>{w['start.note']}</Note>
@@ -140,6 +221,7 @@ export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HT
             : <Actions><Button variant="quiet" onClick={() => setChosen(t.id)}>{say(w, 'start.choose', { title: t.title })}</Button></Actions>}
         </div>
       ))}
+      <LaneTemplates p={p} lane={lane} chosen={chosen} onChoose={setChosen} onProposed={open} />
       <div className={s.block}>
         <h3 className={s.h}>{w['start.sentence']}</h3>
         {fromSentence.available ? <SentenceForm p={p} onProposed={open} /> : <Note>{w['jobs.proposalsMissing']}</Note>}

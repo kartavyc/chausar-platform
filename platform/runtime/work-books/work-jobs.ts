@@ -17,6 +17,7 @@ import { workJobEditMethods } from './work-jobs-edit.ts';
 import { calendarInfo, createMonthEnd } from './work-jobs-calendar.ts';
 import { workDrivingMethods } from './work-driving.ts';
 import { workJobLaneMethods } from './work-jobs-lane.ts';
+import { laneTemplates, proposeLaneTemplate } from './work-r4.ts';
 
 const DAY = 86_400_000;
 const INTERVAL = { day: DAY, week: 7 * DAY, month: 30 * DAY } as const;
@@ -109,6 +110,8 @@ export function jobMeters(e: Env, job: Job): JobMeters {
   const named = new Set<string>([
     ...job.ledger.map(l => (l as { actionId?: unknown }).actionId).filter((s): s is string => typeof s === 'string'),
     ...(record(d) ? strings(d.actionIds) : []),
+    // Round 4 (core-sync-jobs): the actions the core names per job.
+    ...strings((job as { actionIds?: unknown }).actionIds),
   ]);
   const open = named.size === 0 ? [] : visibleActions(e).filter((a: PreparedAction) => named.has(a.id) && ['prepared', 'approved'].includes(a.status));
   const amounts = open.map(a => a.payload?.amountMinor).filter((m): m is string => typeof m === 'string' && /^(0|[1-9]\d*)$/.test(m));
@@ -125,6 +128,8 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
     return {
       templates: JOB_TEMPLATES.map(t => ({ ...t, budget: { ...t.budget }, actions: [...t.actions] })), fromSentence: { available: await sentenceAvailable(host) },
       monthEnd: { available: (await calendarInfo(host)) !== null },
+      // Round 4 (WK-09): jobs-ext's own ready-made jobs, beside the core briefs (`jobsx.types`).
+      lane: await laneTemplates(host),
     };
   } },
   /**
@@ -133,6 +138,7 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
    */
   'approvals.proposeJob': { permission: 'approve', async handler(ctx, payload, host) {
     check(record(payload), 'INVALID_JOB_PROPOSAL', 'Send a template or a sentence.');
+    if (Object.hasOwn(payload, 'laneTemplate')) return proposeLaneTemplate(host, payload);
     if (Object.hasOwn(payload, 'sentence')) {
       check(Object.keys(payload).length === 1 && typeof payload.sentence === 'string' && payload.sentence.trim().length >= 5 && payload.sentence.length <= 500,
         'INVALID_JOB_PROPOSAL', 'Say the job in one sentence of up to 500 characters.');

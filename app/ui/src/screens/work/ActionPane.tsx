@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { Sheet } from '../../parts/Sheet';
 import { Steps } from '../../parts/Steps';
 import { KeyValue, type Pair } from '../../parts/KeyValue';
-import { useAct } from './kit/reply.ts';
+import { act as readOnce, useAct } from './kit/reply.ts';
+import { LIVE, useLive } from './R4Parts.tsx';
 import { dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
 import { approvalDetail, sheetOf } from './contract.ts';
@@ -35,6 +36,8 @@ export function ActionPane({ p, view, origin, onClose, onView }: ActionPaneProps
   const unsure = view.state === 'unknown' || view.steps.some(st => st.state === 'unsure');
   const canResolve = !p.viewer && unsure && (view.can.includes('resolve') || view.can.includes('reconcile'));
   const amountWords = money(view.amount, language);
+  // WK-04: the steps move on a matching engine event when the host offers live refresh.
+  useLive(p, LIVE.action, () => { void readOnce(p.rpc, 'approvals.action', { id: view.id }, actionRecord).then(out => { if (out.ok) onView(out.value); }); });
 
   const resolve = async (result: 'check' | 'was-sent' | 'was-not-sent') => {
     const out = await act.run('approvals.resolveUnknown', { id: view.id, result }, actionRecord);

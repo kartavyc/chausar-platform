@@ -12,6 +12,7 @@ import { dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Section, pageStyles } from './kit/Page';
 import { approvalList, idOf, sheetOf, TIERS, type ApprovalRow } from './contract.ts';
 import { ApprovalPane } from './ApprovalPane.tsx';
+import { LIVE, useLive } from './R4Parts.tsx';
 import { GroupPane } from './GroupPane.tsx';
 import { Frame, expiryNote, money, rowTitle, say, type WorkProps } from './shared.tsx';
 import type { WorkWords } from './text.ts';
@@ -35,6 +36,8 @@ export function ApprovalsPage({ p }: { p: WorkProps }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
   const { loaded, reload } = useReply(p.host, 'approvals.list', {}, approvalList, String(tick));
+  // WK-01: the queue re-reads on a matching engine event when the host offers live refresh.
+  useLive(p, LIVE.approvals, reload);
   const [picked, setPicked] = useState<readonly string[]>([]);
   const [groupIds, setGroupIds] = useState<readonly string[] | null>(null);
   const origin = useRef<HTMLElement | null>(null);
