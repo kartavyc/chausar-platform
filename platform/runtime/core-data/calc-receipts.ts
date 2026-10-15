@@ -11,7 +11,7 @@
 import { audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore } from '../contracts.ts';
 import { canSeeFact, currentAccess, type Period } from '../memory.ts';
 import { assertSourceAccess } from '../trust.ts';
-import { numberGuard, ratesOf, type CalculationReceipt, type CalculatorService, type Figure, type MissingFigure, type ReceiptRow } from '../calculator.ts';
+import { decorateReceipt, numberGuard, ratesOf, type CalculationReceipt, type CalculatorService, type Figure, type MissingFigure, type ReceiptRow } from '../calculator.ts';
 import type { Dictionary } from '../ontology.ts';
 import { moduleState } from '../modules/types.ts';
 
@@ -57,6 +57,7 @@ export function buildReceipt(ctx: Context, state: State, dictionary: Dictionary,
   receipt.allowedNumbers = [...new Set([...draft.figures.flatMap(f => [f.minor, ...numericTokens(f.display), ...numericTokens(f.label)]), ...draft.missingFigures.flatMap(m => numericTokens(m.label)),
     String(rows.length), String(receipt.coverage.excludedRows), ...(draft.notCounted ? [String(draft.notCounted)] : []), ...numericTokens(JSON.stringify({ period: receipt.period, asOf: receipt.asOf }))])];
   numberGuard(receipt.explanation, receipt);
+  decorateReceipt(ctx, receipt, state);
   return receipt;
 }
 

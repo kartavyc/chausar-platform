@@ -225,5 +225,8 @@ test('engine: connector receipts are module methods behind the engine\'s authori
   assert.deepEqual(reply.missing, { opening: 'absent', closing: 'absent' });
   assert.equal(reply.receipt.coverage.completeness, 'reconciled-imports');
   assert.deepEqual(await engine.request('receipts.get', { id: reply.receipt.id }), reply.receipt);
+  // Connector receipts carry the same provenance as calculator receipts (AS-05).
+  assert.equal(reply.receipt.provenance?.allowedBy?.memberId, 'owner'); assert.equal(reply.receipt.provenance?.allowedBy?.at, reply.receipt.createdAt);
+  assert.deepEqual(reply.receipt.provenance?.recipes?.map((r: any) => r.sourceId), ['bank-csv']);
   await assert.rejects(engine.request('coredata.gst2bReceipt', { registerSourceId: 'bank-csv', gstr2bSourceId: 'none', period, toleranceMinor: '0' }), { code: 'GST_MATCH_SOURCES_EMPTY' });
 });

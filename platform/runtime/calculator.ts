@@ -32,6 +32,8 @@ export type ReceiptProvenance = {
 export type ReceiptDecorator = (ctx: Context, receipt: CalculationReceipt, state: State) => void;
 const receiptDecorators = new Set<ReceiptDecorator>();
 export function registerReceiptDecorator(decorator: ReceiptDecorator): void { receiptDecorators.add(decorator); }
+/** Runs the registered decorators on a receipt made outside `calculate` (core-data's connector and GST receipts). */
+export function decorateReceipt(ctx: Context, receipt: CalculationReceipt, state: State): void { for (const decorate of receiptDecorators) decorate(structuredClone(ctx), receipt, state); }
 export type CalculatorOptions = {
   /** Trusted publication context only, never a caller-authored calculation parameter. */
   restatement?: ReceiptRestatement;
