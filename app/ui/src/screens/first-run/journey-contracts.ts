@@ -409,8 +409,11 @@ export function validateReaderStatus(value: unknown): ReaderStatus {
   const status = obj.status === 'installed' || obj.status === 'not-installed' ? obj.status : invalid('reader.status');
   const pdfText = bool(obj.pdfText, 'reader.pdfText'), pdfOcr = bool(obj.pdfOcr, 'reader.pdfOcr');
   const reason = codeOrNull(obj.reason, 'reader.reason');
-  // The size is not known in this build: anything but null is not this contract.
-  only(obj, null, 'sizeBytes', 'reader');
+  // A whole number of bytes when the reader is installed; null otherwise.
+  if (obj.sizeBytes !== null) {
+    if (status !== 'installed') invalid('reader.sizeBytes');
+    whole(obj.sizeBytes, 'reader.sizeBytes');
+  }
   if ((status === 'installed') !== pdfText || (status === 'installed') !== (reason === null)) invalid('reader.status');
   return Object.freeze({ status, pdfText, pdfOcr, reason });
 }
