@@ -901,7 +901,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
       }), ...lane.banners],
-    } : lane.banners.length > 0 ? { banners: lane.banners } : {}),
+    } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
     idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
     ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
