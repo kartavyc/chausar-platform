@@ -6,7 +6,8 @@ import { currentAccess } from '../memory.ts';
 import { runApiRead, type ReadCredentials } from '../adapters/read-kit.ts';
 import type { BoundedHttp } from '../connectors.ts';
 import type { ModuleHost } from '../modules/types.ts';
-import { RECIPES, recipe as registeredRecipe, runRegistered, DECODERS } from './recipes/index.ts';
+import { RECIPES, recipe as registeredRecipe, runCompiled, DECODERS } from './recipes/index.ts';
+import { answersFor, holdRead, questionFor, withAnswers, ANSWER_LIMITS } from './answers.ts';
 import { boardCounts, buildCatalogue, type WriteRow } from './catalogue.ts';
 import { READS, readsFor } from './reads.ts';
 import { commitOutcome } from './importer.ts';
@@ -17,7 +18,7 @@ import type { SchedulerHost } from '../modules/types.ts';
 import { sourceAllowed } from '../trust.ts';
 import { cxState, freshness, LIMITS, peekCx, prune, publicEnvelope, type Connection, type Envelope } from './state.ts';
 import type { RecipeOutcome, Road } from './types.ts';
-import { compileRecipe, runRecipe, type DecoderInput, type SourceRecipe } from './recipe.ts';
+import { compileRecipe, type DecoderInput, type RunOptions, type SourceRecipe } from './recipe.ts';
 import { extractBankPdfWithOcr, pdfTextToRows } from './bank-pdf.ts';
 import { matchPurchaseRegister, type MatchLine } from './gst-match.ts';
 import { listTables, plainDbRead, type PlainDbConnection } from './plain-db/index.ts';
@@ -88,10 +89,18 @@ function databaseOptions(ctx: Context, host: ModuleHost, item: Connection) {
 /** Summaries only: a reply never carries source rows. */
 export function outcomeSummary(envelope: Envelope) { return publicEnvelope(envelope); }
 
-async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
-  recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read']; learn?: (state: any, envelope: Envelope) => unknown }): Promise<Envelope> {
+/** The recipe this source reads with: the base recipe and the source's own answers for that version. */
+export function answered(host: ModuleHost, sourceId: string, base: SourceRecipe): { recipe: SourceRecipe; applied: string[] } {
+  return withAnswers(base, answersFor(sourceId, base, peekCx(host.store.read()).answers ?? []));
+}
+/** What an abstained read is held with in memory, so an answer can try it again at once. */
+export type HoldInput = { base: SourceRecipe; input: DecoderInput; options: RunOptions; ocrNotice: string | null };
+
+export async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
+  recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read']; learn?: (state: any, envelope: Envelope) => unknown;
+  answerIds?: string[]; hold?: HoldInput }): Promise<Envelope> {
   const recipe = input.recipe, outcome = input.outcome;
-  return host.store.update(state => {
+  const recorded = await host.store.update(state => {
     authorize(view(host.store, state), ctx, 'prepare');
     const cx = cxState(state); prune(cx, Date.now());
     const pendingRows = cx.envelopes.reduce((sum, item) => sum + (item.pending?.records.length ?? 0), 0);
@@ -102,13 +111,27 @@ async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: 
       abstention: outcome?.abstention ?? null, checks: outcome?.checks ?? [], observed: outcome?.observed ?? { rowCount: 0, total: '0', unit: '' }, sourceTotals: outcome?.sourceTotals ?? null,
       balances: outcome?.balances ?? null, unmappedFields: outcome?.unmappedFields ?? [], excludedRows: outcome?.excludedRows ?? 0, contentHash: outcome?.contentHash ?? '', sensitivity: recipe.sensitivity, notices: outcome?.notices ?? [...(recipe.notices ?? [])],
       read: input.read ?? null, pending: keep ? { records: outcome!.records, measure: outcome!.recipe.measure, expiresAt: new Date(Date.now() + LIMITS.pendingTtlMs).toISOString() } : null,
-      committed: null, createdBy: ctx.memberId };
+      committed: null, createdBy: ctx.memberId,
+      question: outcome?.status === 'abstained' ? questionFor(recipe, outcome.abstention) : null, answerIds: [...(input.answerIds ?? [])], reconciliations: [] };
+    if (outcome) keepRecipe(cx, recipe, outcome.recipe.digest, envelope.sourceId);
     if (outcome?.status === 'accepted' && !keep) { envelope.status = 'refused'; envelope.refusal = { code: 'PENDING_LIMIT', reason: 'Too many rows are waiting. Import or discard earlier files first.' }; }
     cx.envelopes.push(envelope);
     audit(state, 'connectorsx.envelope', { envelopeId: envelope.id, sourceId: envelope.sourceId, status: envelope.status, code: envelope.refusal?.code ?? envelope.abstention?.reason ?? null });
     input.learn?.(state, envelope);
     return structuredClone(envelope);
   });
+  if (recorded.status === 'abstained' && recorded.question && input.hold) {
+    holdRead(host, { envelopeId: recorded.id, memberId: ctx.memberId, ...input.hold, connectionId: recorded.connectionId, target: input.target, road: input.road, requestedPeriod: input.requestedPeriod, read: input.read ?? null });
+  }
+  return recorded;
+}
+/** Keep the exact recipe a read used, by digest, for the version diff. Bounded; oldest unused first out. */
+function keepRecipe(cx: ReturnType<typeof cxState>, recipe: SourceRecipe, digest: string, sourceId: string) {
+  if (!digest) return;
+  const kept = cx.recipesKept ??= [], at = now(), found = kept.find(item => item.digest === digest);
+  if (found) { found.usedAt = at; if (!found.sourceIds.includes(sourceId)) found.sourceIds.push(sourceId); kept.splice(kept.indexOf(found), 1); kept.push(found); }
+  else kept.push({ digest, recipe: structuredClone(recipe) as SourceRecipe, sourceIds: [sourceId], usedAt: at });
+  if (kept.length > ANSWER_LIMITS.recipesKept) kept.splice(0, kept.length - ANSWER_LIMITS.recipesKept);
 }
 
 async function writeRows(host: ModuleHost): Promise<WriteRow[] | null> {
@@ -242,8 +265,11 @@ export const handlers = {
     }
     const declared = result.declared ?? null;
     const meta: Record<string, string> = declared ? { ...(declared.rowCount != null ? { declaredRowCount: String(declared.rowCount) } : {}), ...(declared.amount != null ? { declaredAmount: declared.amount, declaredAmountUnit: declared.amountUnit ?? 'major' } : {}), declaredReference: declared.reference ?? `${binding!.spec.system}-declared` } : {};
-    const outcome = runRegistered(binding!.recipe, { records: result.records, meta }, totals ? { reportTotals: totals } : {});
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
+    const base = registeredRecipe(binding!.recipe), use = answered(host, item.sourceId, base);
+    const readInput: DecoderInput = { records: result.records, meta }, runOptions: RunOptions = totals ? { reportTotals: totals } : {};
+    const outcome = runCompiled(use.recipe, readInput, runOptions);
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: use.recipe, road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes },
+      answerIds: use.applied, hold: { base, input: readInput, options: runOptions, ocrNotice: null } }));
   },
   /** `internal.password` comes only from the in-memory FR-07 password hold, never from an RPC payload. */
   async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost, internal: { password?: string } = {}) {
@@ -271,10 +297,13 @@ export const handlers = {
       check(workbook.sheets.length === 1, 'SHEET_REQUIRED', 'Choose the exact worksheet to import.');
       input.rows = workbook.sheets[0].rows;
     } else check(false, 'RECIPE_INPUT_MISMATCH', 'This recipe reads records from a connected system.');
-    const outcome = runRegistered(selected.id, input, payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {});
+    const runOptions: RunOptions = payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {};
+    const use = answered(host, target.sourceId, selected);
+    const outcome = runCompiled(use.recipe, input, runOptions);
     if (ocrNotice) outcome.notices.push(ocrNotice);
     const library = connectorLibrary(host.store.read(), ctx, { columns: fileColumns(decoder, input, selected), chosen: selected });
-    return { ...outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null, learn: (state, envelope) => recordConnectorPreview(state, ctx, envelope, library) })), library };
+    return { ...outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: use.recipe, road: 'file', requestedPeriod: null, learn: (state, envelope) => recordConnectorPreview(state, ctx, envelope, library),
+      answerIds: use.applied, hold: { base: selected, input, options: runOptions, ocrNotice } })), library };
   },
   async importCommit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['envelopeId'], ['envelopeId']); check(text(payload.envelopeId, 100), REQUEST, 'Choose a file or read to import.');
@@ -345,9 +374,11 @@ export const handlers = {
     const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.');
     check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.'); scoped(host, ctx, item);
     const read = await plainDbRead(databaseConnection(item), payload.mapping, databaseOptions(ctx, host, item));
-    const recipe = compileRecipe(read.recipe, DECODERS);
-    const outcome = runRecipe(recipe, DECODERS.get('api-records')!, { records: read.records, meta: Object.fromEntries(Object.entries(read.meta).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) });
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe, road: 'database', requestedPeriod: payload.mapping?.period ?? null }));
+    const base = compileRecipe(read.recipe, DECODERS), use = answered(host, item.sourceId, base);
+    const dbInput: DecoderInput = { records: read.records, meta: Object.fromEntries(Object.entries(read.meta).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) };
+    const outcome = runCompiled(use.recipe, dbInput);
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: use.recipe, road: 'database', requestedPeriod: payload.mapping?.period ?? null,
+      answerIds: use.applied, hold: { base, input: dbInput, options: {}, ocrNotice: null } }));
   },
   async credentialsSet(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['connectionId', 'secret'], ['connectionId', 'secret']);

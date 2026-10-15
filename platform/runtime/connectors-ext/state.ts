@@ -2,6 +2,8 @@ import type { State } from '../contracts.ts';
 import { moduleState, peekModuleState } from '../modules/types.ts';
 import type { Abstention, CanonicalRecord, Check, Refusal, Road, SourceTotals } from './types.ts';
 import type { Schedule } from './schedule.ts';
+import type { Answer, Question } from './answers.ts';
+import type { SourceRecipe } from './recipe.ts';
 
 export const MODULE_ID = 'connectors-ext';
 export type Connection = {
@@ -24,9 +26,24 @@ export type Envelope = {
   pending: { records: CanonicalRecord[]; measure: 'money' | 'count'; expiresAt: string } | null;
   committed: { importId: string; at: string; rows: number; duplicate: boolean } | null;
   createdBy: string;
+  /** Round 4: the question an abstained read asks, with the choices `recipes.answer` accepts. */
+  question?: Question | null;
+  /** The source answers the recipe ran with. */
+  answerIds?: string[];
+  /** The latest person-run reconciliations of this read against the source's own total. */
+  reconciliations?: Reconciliation[];
 };
+export type Reconciliation = {
+  at: string; by: { memberId: string; name: string; role: string }; importId: string | null;
+  status: 'matches' | 'differs' | 'rows-changed' | 'not-imported' | 'no-source-total';
+  theirs: { total: string | null; rowCount: number | null; reference: string; provenance: string } | null;
+  ours: { total: string | null; rowCount: number; live: number; changed: number };
+  measure: 'money' | 'count'; unit: string;
+};
+/** The exact recipe a read used, by digest, so a later version can be compared with it. */
+export type KeptRecipe = { digest: string; recipe: SourceRecipe; sourceIds: string[]; usedAt: string };
 export type SignInAttempt = { state: string; provider: string; connectionId: string; verifier: string; redirectUri: string; scopes: string[]; expiresAt: string; createdBy: string };
-export type ConnectorsState = { version: 1; connections: Connection[]; envelopes: Envelope[]; signIns: SignInAttempt[] };
+export type ConnectorsState = { version: 1; connections: Connection[]; envelopes: Envelope[]; signIns: SignInAttempt[]; answers?: Answer[]; recipesKept?: KeptRecipe[] };
 export const LIMITS = Object.freeze({ connections: 200, envelopes: 400, pendingRecords: 50_000, pendingTtlMs: 6 * 60 * 60 * 1000, signInTtlMs: 10 * 60 * 1000 });
 
 export const cxState = (state: State): ConnectorsState => moduleState<ConnectorsState>(state, MODULE_ID, () => ({ version: 1, connections: [], envelopes: [], signIns: [] }));
@@ -43,11 +60,17 @@ export function purgeSources(state: State, sourceIds: readonly string[]): number
   const cx = peekModuleState<ConnectorsState>(state, MODULE_ID); if (!cx) return 0;
   const before = cx.envelopes.length;
   cx.envelopes = cx.envelopes.filter(envelope => !sourceIds.includes(envelope.sourceId));
-  return before - cx.envelopes.length;
+  // Answers and kept recipes carry the source's own values (an unknown word, a sign word): they go with the source.
+  const answers = cx.answers?.length ?? 0;
+  if (cx.answers) cx.answers = cx.answers.filter(answer => !sourceIds.includes(answer.sourceId));
+  if (cx.recipesKept) cx.recipesKept = cx.recipesKept.map(kept => ({ ...kept, sourceIds: kept.sourceIds.filter(id => !sourceIds.includes(id)) })).filter(kept => kept.sourceIds.length > 0);
+  return before - cx.envelopes.length + answers - (cx.answers?.length ?? 0);
 }
 export function publicEnvelope(envelope: Envelope) {
-  const { pending, ...rest } = envelope;
-  return structuredClone({ ...rest, pendingRows: pending ? pending.records.length : 0, pendingExpiresAt: pending?.expiresAt ?? null });
+  const { pending, question, ...rest } = envelope;
+  return structuredClone({ ...rest, question: question ? { reason: question.reason, field: question.field, sample: question.sample, choices: [...question.choices] } : null,
+    answerIds: envelope.answerIds ?? [], reconciliations: envelope.reconciliations ?? [],
+    pendingRows: pending ? pending.records.length : 0, pendingExpiresAt: pending?.expiresAt ?? null });
 }
 
 export type MonthState = 'loaded' | 'not-loaded-yet' | 'refused' | 'failed';

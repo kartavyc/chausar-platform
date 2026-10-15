@@ -21,7 +21,7 @@ export type TotalsSpec =
   /** The person types the total shown by the system's own report. */
   | { kind: 'report' };
 export type MeasureSpec =
-  | { type: 'money'; amount: { field: string } | { credit: string; debit: string }; currency: { constant: string } | { field: string }; unit: 'major' | 'minor' }
+  | { type: 'money'; amount: { field: string } | { credit: string; debit: string }; currency: { constant: string } | { field: string; default?: string }; unit: 'major' | 'minor' }
   | { type: 'count'; field: string; unit: string };
 export type SourceRecipe = {
   id: string; version: string; group: string; operation: string; title: string;
@@ -80,7 +80,7 @@ export function compileRecipe(recipe: SourceRecipe, decoders: ReadonlyMap<string
   const m = copy.measure;
   if (m.type === 'money') {
     check(['major', 'minor'].includes(m.unit) && ('field' in m.amount ? known(m.amount.field, ['money']) : known(m.amount.credit, ['money']) && known(m.amount.debit, ['money'])), 'RECIPE_MEASURE_INVALID', 'The amount must be a money field.');
-    check('constant' in m.currency ? /^[A-Z]{3}$/.test(m.currency.constant) : known(m.currency.field, ['text']), 'RECIPE_CURRENCY_REQUIRED', 'State the currency or the field that holds it.');
+    check('constant' in m.currency ? /^[A-Z]{3}$/.test(m.currency.constant) : known(m.currency.field, ['text']) && (m.currency.default === undefined || /^[A-Z]{3}$/.test(m.currency.default)), 'RECIPE_CURRENCY_REQUIRED', 'State the currency or the field that holds it.');
   } else check(m.type === 'count' && known(m.field, ['integer']) && /^[a-z][a-z_]{0,30}$/.test(m.unit), 'RECIPE_MEASURE_INVALID', 'A count needs an integer field and a unit.');
   check('constant' in copy.kind ? KIND.test(copy.kind.constant) : known(copy.kind.field) && Object.keys(copy.kind.values).length > 0 && Object.values(copy.kind.values).every(v => KIND.test(v)), 'RECIPE_KIND_INVALID', 'Map every source record type to a dictionary kind.');
   if (copy.status) check(known(copy.status.field) && Object.keys(copy.status.values).length > 0 && Object.values(copy.status.values).every(v => STATUS.test(v)), 'RECIPE_STATUS_INVALID', 'Map every source status to a dictionary status.');
@@ -136,6 +136,8 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       if (m.type !== 'money') return '';
       if ('constant' in m.currency) return m.currency.constant;
       const value = cell(row, m.currency.field).toUpperCase();
+      // A source answer ("this file is in INR") fills only empty currency cells, never a stated one.
+      if (!value && m.currency.default) return m.currency.default;
       if (!value) ask('currency', m.currency.field, []);
       if (!/^[A-Z]{3}$/.test(value)) refuse('INVALID_CURRENCY', 'A currency is not an ISO code.', row.line);
       return value;
