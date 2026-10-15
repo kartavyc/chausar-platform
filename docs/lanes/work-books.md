@@ -1080,3 +1080,23 @@ New refusal code on the work-books line: `CORE_DELETION_NEEDS_FULL_ACCESS`. New 
   through and replies `{ reapplied, remaining, complete, at, kinds }` (`reapplied` is the sum of `deleted`). The screen
   asks for the workspace name before the button works and states every kind that still remains, with core-data's reason.
 
+
+### Core-data merged (base 652a84d5): tested against the real methods
+
+`platform/tests/work-books-core-data-engine.test.ts` runs the merged engine in demo mode with synthetic rows:
+
+- BK-20: `records.deletionPlan` reads core-data's own plan (`coreDeletion.planFrom: 'core'`); `records.delete` with a
+  wrong confirmation is refused; with the id typed it calls the real `deletion.customer`, the facts row is `deleted`
+  after the recount, `derived` is present, and `records.search` keeps only the other customer.
+- BK-08: `books.draft` with `example` and `usedFrom` replies `extras: 'published-with'` (the merged
+  `compileDictionary` accepts both); after `books.publish`, `books.meaning` shows the date used and the example.
+- WK-14: `approvals.drivingStatus` against driving's real `session.*`: the rules sent with a start (one window,
+  read and export only, never types a secret), `driver.available: false` with its code in this container, no windows;
+  a start is refused and stop returns to idle. The screen export path reads `status.exports` from the same reply.
+
+This supersedes, above: "BK-08 has no worked-example drawing and no date used", the BK-20 bullet that core stores are
+"not possible here", the WK-14 row "not possible: no lane provides `session.*`", and the round-4 note that
+`deletion.reapply`'s adapter still needed aligning (done; see "WK-15 re-apply"). Supported or experimental: BK-20
+core deletion supported; BK-08 example and date supported; WK-14 stays experimental (no computer that can be driven
+was available to test a real start). Still missing: `books.setRate` does not mark earlier answers stale (no core-data
+method for it).
