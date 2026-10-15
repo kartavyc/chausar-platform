@@ -1,18 +1,20 @@
 /**
- * Voice minutes and their cost per provider per calendar month (India time), read from speech receipts only:
+ * Voice minutes and their cost per provider per calendar month in the workspace's time zone (the same month
+ * function as model spend, months.ts), read from speech receipts only:
  * - recorded uploads and local whisper count the recording length; uploads cost their per-minute charge, local costs nothing;
- * - live voice counts the minutes the engine recorded for the session, ended at the approved cap at the latest;
+ * - live voice counts the minutes the engine measured for the session (`liveMinutesMs`, `liveChargedMinor`), ended at the
+ *   approved cap at the latest. The budget check never uses these: it counts the receipt's `costReservedMinor`, the cap;
  * - the browser transcript sends Chausar text only, so its minutes and cost are "not counted".
  * Paise are BigInt strings; a figure that cannot be counted is the words "not counted", never zero.
  */
 import type { State } from '../contracts.ts';
 import { peekModuleState } from '../modules/types.ts';
 import { MODULE_ID } from './part.ts';
+import { DEFAULT_ZONE, monthOf, workspaceZone } from './months.ts';
 
 export const NOT_COUNTED = 'not counted';
-const IST_OFFSET_MS = 19800000;
-/** The calendar month, India time, of an epoch-millisecond instant: 'YYYY-MM'. */
-export const voiceMonth = (ms: number) => new Date(ms + IST_OFFSET_MS).toISOString().slice(0, 7);
+/** The calendar month of an epoch-millisecond instant in a time zone (India by default): 'YYYY-MM'. */
+export const voiceMonth = (ms: number, zone: string = DEFAULT_ZONE) => monthOf(ms, zone);
 export const isVoiceMonth = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 
 type Basis = 'browser-text-only' | 'local-free' | 'recorded-length-at-rate' | 'live-minutes-at-rate';
@@ -42,13 +44,13 @@ function useOf(receipt: Record<string, any>, kinds: ReadonlyMap<string, string>)
 
 const minutesWords = (ms: number) => String(Math.ceil(ms / 60000));
 
-export function voiceUsage(state: State, month: string): VoiceUsage {
+export function voiceUsage(state: State, month: string, zone: string = workspaceZone(state)): VoiceUsage {
   const providers = peekModuleState<{ speech?: { providers?: { id: string; kind: string }[] } }>(state, MODULE_ID)?.speech?.providers ?? [];
   const kinds = new Map(providers.map(p => [p.id, p.kind]));
   const rows = new Map<string, { providerId: string; kind: string; ms: number; msCounted: boolean; cost: bigint; costCounted: boolean }>();
   for (const receipt of state.modelReceipts) {
     const use = useOf(receipt, kinds); if (!use) continue;
-    const at = Date.parse(use.at); if (!Number.isFinite(at) || voiceMonth(at) !== month) continue;
+    const at = Date.parse(use.at); if (!Number.isFinite(at) || voiceMonth(at, zone) !== month) continue;
     const row = rows.get(use.providerId) ?? { providerId: use.providerId, kind: use.kind, ms: 0, msCounted: false, cost: 0n, costCounted: false };
     if (use.ms !== null) { row.ms += use.ms; row.msCounted = true; }
     if (use.cost !== null) { row.cost += use.cost; row.costCounted = true; }
@@ -64,6 +66,6 @@ export function voiceUsage(state: State, month: string): VoiceUsage {
 }
 
 /** For `modelsx.meters`: the month's counted voice minutes and their cost in paise ("not counted" when only uncountable use happened). */
-export function voiceMeters(state: State, month: string): { voiceMinutesMs: number; voiceCostMinor: string } {
-  const { totals } = voiceUsage(state, month); return { voiceMinutesMs: totals.minutesMs, voiceCostMinor: totals.costMinor };
+export function voiceMeters(state: State, month: string, zone: string = workspaceZone(state)): { voiceMinutesMs: number; voiceCostMinor: string } {
+  const { totals } = voiceUsage(state, month, zone); return { voiceMinutesMs: totals.minutesMs, voiceCostMinor: totals.costMinor };
 }

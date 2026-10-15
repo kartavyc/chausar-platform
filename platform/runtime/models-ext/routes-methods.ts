@@ -8,6 +8,7 @@ import { ROUTE_CATALOGUE } from './catalogue.ts';
 import { DAY, DIGITS, PRICE_TABLE, ageDays, findPrice, paisePerMillion, requestCostMinor, validPrice } from './pricing.ts';
 import { validateEndpoint } from '../gateway.ts';
 import { voiceMeters } from './voice-usage.ts';
+import { monthOf, workspaceZone } from './months.ts';
 import type { FxSetting, PriceEntry } from './pricing.ts';
 
 type RoutesState = { fx?: FxSetting; overrides: PriceEntry[] };
@@ -96,12 +97,9 @@ function clockNow(host: ModuleHost): Date {
   check(Number.isFinite(at.getTime()), 'CLOCK_INVALID', 'The configured clock is not usable.');
   return at;
 }
-/** Calendar month of an instant in the workspace's time zone (India when none is set). */
-export function monthOf(at: Date | string, timeZone = 'Asia/Kolkata'): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).formatToParts(typeof at === 'string' ? new Date(at) : at);
-  return `${parts.find(p => p.type === 'year')!.value}-${parts.find(p => p.type === 'month')!.value}`;
-}
-const zoneOf = (state: State) => { const zone = (state.workspace as any).timeZone; return typeof zone === 'string' && zone.length > 0 ? zone : 'Asia/Kolkata'; };
+/** Calendar month of an instant in the workspace's time zone (India when none or an unknown one is set); shared with voice in months.ts. */
+export { monthOf };
+const zoneOf = workspaceZone;
 
 /** Model spend this month across every route: measured where the provider reported usage, else the reservation. */
 function monthSpend(state: State, month: string) {
@@ -110,7 +108,7 @@ function monthSpend(state: State, month: string) {
     && monthOf(r.dispatchedAt ?? r.createdAt, zone) === month);
   const measured = calls.filter(r => typeof r.actualCostMinor === 'string'), reserved = calls.filter(r => typeof r.actualCostMinor !== 'string');
   const measuredMinor = sum(measured.map(r => r.actualCostMinor)), reservedMinor = sum(reserved.map(r => r.costReservedMinor ?? '0'));
-  const voice = voiceMeters(state, month), voiceCost = voice.voiceCostMinor === NOT_COUNTED ? 0n : BigInt(voice.voiceCostMinor);
+  const voice = voiceMeters(state, month, zone), voiceCost = voice.voiceCostMinor === NOT_COUNTED ? 0n : BigInt(voice.voiceCostMinor);
   return { month, timeZone: zone, calls: calls.length, modelSpendMinor: String(measuredMinor + reservedMinor), spendMinor: String(measuredMinor + reservedMinor + voiceCost),
     measuredMinor: String(measuredMinor), reservedMinor: String(reservedMinor), voiceMinutesMs: voice.voiceMinutesMs, voiceCostMinor: voice.voiceCostMinor };
 }
