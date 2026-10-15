@@ -16,7 +16,9 @@ import {
   type CardSeat, type CloseStep, type CloseStrip, type Handover, type Ready, type StatusCard,
 } from './card.ts';
 
-export type ClientLink = { firmName: string; code: string; linkedAt: string; linkedBy: string; consent: { version: string; at: string; by: string } | null; lastCardAt: string | null };
+export type ClientLink = { firmName: string; code: string; linkedAt: string; linkedBy: string; consent: { version: string; at: string; by: string } | null };
+/** `lastCardAt` outlives a link, so every card this workspace issues is newer than any before it, whichever code made it. */
+type LinkState = { firm: ClientLink | null; lastCardAt: string | null };
 export type Wording = { version: string; approved: boolean; text: string | null };
 
 /** Shown only in a synthetic demo workspace, so the flow can be tried before the founder supplies the real wording. */
@@ -25,8 +27,10 @@ const DRAFT_TEXT = 'Draft wording, not approved. I agree that this workspace may
   + 'The card never holds a figure, a customer\'s name or a document. I can withdraw this at any time.';
 const MAX_WORDING_BYTES = 64 * 1024;
 
-const peekLink = (state: State): ClientLink | undefined => peekLane(state)?.link as ClientLink | undefined;
-const writeLink = (state: State): ClientLink | undefined => laneState(state).link as ClientLink | undefined;
+const peekLinkState = (state: State): LinkState => ({ firm: null, lastCardAt: null, ...(peekLane(state)?.link as Partial<LinkState> | undefined) });
+const peekLink = (state: State): ClientLink | undefined => peekLinkState(state).firm ?? undefined;
+function linkState(state: State): LinkState { const lane = laneState(state); const link = (lane.link ??= { firm: null, lastCardAt: null }) as LinkState; link.firm ??= null; link.lastCardAt ??= null; return link; }
+const writeLink = (state: State): ClientLink | undefined => linkState(state).firm ?? undefined;
 
 function wordingFrom(value: unknown): Wording | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -190,7 +194,8 @@ async function issueCard(ctx: Context, host: ModuleHost): Promise<StatusCard> {
     check(current.consent && current.consent.version === wording.version, 'CA_NO_CONSENT', 'The owner has not agreed to share status with the firm.');
     // Each card is strictly newer than the last, so the firm never takes a newer card for a stale one.
     let issued = new Date(ms).toISOString();
-    if (current.lastCardAt && issued <= current.lastCardAt) issued = new Date(Date.parse(current.lastCardAt) + 1).toISOString();
+    const last = linkState(state).lastCardAt;
+    if (last && issued <= last) issued = new Date(Date.parse(last) + 1).toISOString();
     const card = sealCard(current.code, {
       v: 1, kind: 'chausar.ca-status', workspaceId: state.workspace.id, link: linkDigest(current.code), issuedAt: issued, month,
       booksReadAt: booksReadAt(state, fresh), close,
@@ -202,18 +207,18 @@ async function issueCard(ctx: Context, host: ModuleHost): Promise<StatusCard> {
       questions: questions(state), handover: ready, dueNext: due,
       seats: givenSeats(state, day).slice(0, 20).map(({ seat, endsOn }) => ({ seat, endsOn })), consent: current.consent.version,
     });
-    current.lastCardAt = card.issuedAt;
+    linkState(state).lastCardAt = card.issuedAt;
     audit(state, 'castatus.card.issued', { by: ctx.memberId });
     return card;
   });
 }
 
 function view(host: ModuleHost) {
-  const state = host.store.read(), link = peekLink(state);
+  const state = host.store.read(), link = peekLink(state), lastCardAt = peekLinkState(state).lastCardAt;
   return {
     link: link ? { firmName: link.firmName, linkedAt: link.linkedAt } : null,
     consent: link?.consent ? { version: link.consent.version, at: link.consent.at } : null,
-    wording: currentWording(host, state), lastCardAt: link?.lastCardAt ?? null,
+    wording: currentWording(host, state), lastCardAt,
   };
 }
 
@@ -226,14 +231,14 @@ export const clientMethods: Record<string, MethodSpec> = {
     return host.store.update(state => {
       const linkedAt = now();
       // A new link is a new firm or a new code: the earlier agreement does not carry over.
-      laneState(state).link = { firmName, code: input.code, linkedAt, linkedBy: ctx.memberId, consent: null, lastCardAt: null } satisfies ClientLink;
+      linkState(state).firm = { firmName, code: input.code, linkedAt, linkedBy: ctx.memberId, consent: null };
       audit(state, 'castatus.linked', { by: ctx.memberId });
       return { firmName, linkedAt };
     });
   } },
   'castatus.unlink': { permission: 'admin', async handler(ctx, payload, host) {
     fields(payload, []);
-    await host.store.update(state => { const lane = laneState(state); if (lane.link) { delete lane.link; audit(state, 'castatus.unlinked', { by: ctx.memberId }); } });
+    await host.store.update(state => { const link = linkState(state); if (link.firm) { link.firm = null; audit(state, 'castatus.unlinked', { by: ctx.memberId }); } });
     return { unlinked: true };
   } },
   'castatus.consent': { permission: 'admin', async handler(ctx, payload, host) {
