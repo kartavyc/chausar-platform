@@ -3,7 +3,7 @@
  * docs/lanes/reports-tools-trust.md, plus the three core replies the screens read
  * (`sources.list`, `trust.get`, `sync.status`). Every reply is untrusted data.
  */
-import { ShapeError, bool, int, list, oneOf, optStr, rec, str, strings, digits } from './kit/validate.ts';
+import { ShapeError, bool, code, int, list, oneOf, optStr, rec, str, strings, digits } from './kit/validate.ts';
 import type { Rec } from './kit/validate.ts';
 
 const ID = 200;
@@ -180,17 +180,25 @@ export function validateKeep(reply: unknown): Keep {
 // TR-05 Do is read from jobs-ext through adapters/jobs.ts.
 
 // ---------- People (TR-06) ----------
-export interface SeatRow { memberId: string; name: string; seat: Seat; limits: string[]; endsOn: string | null; ended: boolean; removedOn: string | null; active: boolean; you: boolean }
-export interface Seats { seats: SeatRow[]; templates: { seat: Seat; limits: string[] }[] }
+/** One thing a seat allows: the engine's stable code, which the screen words, and its English sentence, shown only for a code the screen does not know. */
+export interface SeatLimit { code: string; text: string }
+export interface SeatRow { memberId: string; name: string; seat: Seat; limits: SeatLimit[]; endsOn: string | null; ended: boolean; removedOn: string | null; active: boolean; you: boolean }
+export interface Seats { seats: SeatRow[]; templates: { seat: Seat; limits: SeatLimit[] }[] }
+/** `limits` (sentences) and `limitCodes` (codes) come in the same order and length. */
+function seatLimits(s: Rec, p: string): SeatLimit[] {
+  const texts = strings(s['limits'], `${p}.limits`, 12), codes = list(s['limitCodes'], `${p}.limitCodes`, (v, q) => code(v, q), 12);
+  if (codes.length !== texts.length) throw new ShapeError(`${p}.limitCodes`);
+  return codes.map((c, i) => ({ code: c, text: texts[i]! }));
+}
 export function validateSeats(reply: unknown): Seats {
   const r = rec(reply);
   return {
     seats: list(r['seats'], 'reply.seats', (v, p) => {
       const s = rec(v, p);
-      return { memberId: id(s['memberId'], `${p}.memberId`), name: str(s['name'], `${p}.name`, 200), seat: oneOf(s['seat'], `${p}.seat`, SEATS), limits: strings(s['limits'], `${p}.limits`, 12),
+      return { memberId: id(s['memberId'], `${p}.memberId`), name: str(s['name'], `${p}.name`, 200), seat: oneOf(s['seat'], `${p}.seat`, SEATS), limits: seatLimits(s, p),
         endsOn: optDay(s['endsOn'], `${p}.endsOn`), ended: bool(s['ended'], `${p}.ended`), removedOn: optDay(s['removedOn'], `${p}.removedOn`), active: bool(s['active'], `${p}.active`), you: bool(s['you'], `${p}.you`) };
     }, 500),
-    templates: list(r['templates'], 'reply.templates', (v, p) => { const t = rec(v, p); return { seat: oneOf(t['seat'], `${p}.seat`, SEATS), limits: strings(t['limits'], `${p}.limits`, 12) }; }, 10),
+    templates: list(r['templates'], 'reply.templates', (v, p) => { const t = rec(v, p); return { seat: oneOf(t['seat'], `${p}.seat`, SEATS), limits: seatLimits(t, p) }; }, 10),
   };
 }
 export interface InviteResult extends ChangeResult { invite: { id: string; token: string; expiresAt: string } | null; guide: { html: string } | null }
@@ -349,11 +357,16 @@ export function validateVault(reply: unknown): VaultView {
   };
 }
 export const DELETION_STATES = ['deleted', 'pending', 'not-possible', 'not-built'] as const;
-export interface DeletionReport { id: string; at: string; sourceId: string; rows: { place: string; state: (typeof DELETION_STATES)[number]; reason: string }[] }
+/** `code` is the engine's stable code for the place, which the screen words; null only for a place the engine kept without one, shown by its `place` text. */
+export interface DeletionReport { id: string; at: string; sourceId: string; rows: { place: string; code: string | null; state: (typeof DELETION_STATES)[number]; reason: string }[] }
 export function validateDeletion(value: unknown, path = 'reply'): DeletionReport {
   const d = rec(value, path);
   return { id: id(d['id'], `${path}.id`), at: instant(d['at'], `${path}.at`), sourceId: id(d['sourceId'], `${path}.sourceId`),
-    rows: list(d['rows'], `${path}.rows`, (v, p) => { const x = rec(v, p); return { place: str(x['place'], `${p}.place`, 300), state: oneOf(x['state'], `${p}.state`, DELETION_STATES), reason: str(x['reason'], `${p}.reason`, 1000) }; }, 200) };
+    rows: list(d['rows'], `${path}.rows`, (v, p) => {
+      const x = rec(v, p);
+      if (!('code' in x)) throw new ShapeError(`${p}.code`);
+      return { place: str(x['place'], `${p}.place`, 300), code: x['code'] === null ? null : code(x['code'], `${p}.code`), state: oneOf(x['state'], `${p}.state`, DELETION_STATES), reason: str(x['reason'], `${p}.reason`, 1000) };
+    }, 200) };
 }
 export function validateDeletions(reply: unknown): DeletionReport[] {
   return list(rec(reply)['items'], 'reply.items', (v, p) => validateDeletion(v, p), 500);

@@ -5,6 +5,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import { addDays, daysBetween, lastTwelveMonths, monthLabel, record, type EngineFigure, type Language, type Missing, type Period, type Words } from './common.ts';
 import { notRegistered, notes, packs, reasons, words, type PackSpec, type PageSpec, type SectionSpec } from './packs.ts';
 import { connectorPage, type ConnectorPage, type ConnectorPageId } from './connector-pages.ts';
+import { keptConnectorPage } from './connector-cache.ts';
 import { hiddenKinds, markingsForSources, markKinds, withheldFigure, withheldGap, withheldKinds, type MarkKind } from './withhold.ts';
 
 export type PageState = 'ready-tested' | 'ready-untested' | 'not-started';
@@ -48,10 +49,10 @@ export class Calculations {
     if (!this.cache.has(key)) this.cache.set(key, this.calculate(op, request));
     return this.cache.get(key)!;
   }
-  /** A page over the connector part, built once per request and language. */
+  /** A page over the connector part, built once per request and language, and kept between requests while what it reads is unchanged. */
   connector(id: ConnectorPageId, period: Period, lang: Language): Promise<ConnectorPage> {
     const key = JSON.stringify([id, period, lang]);
-    if (!this.pages.has(key)) this.pages.set(key, connectorPage(this.ctx, this.host, this, id, period, lang));
+    if (!this.pages.has(key)) this.pages.set(key, keptConnectorPage(this.host.store.read(), this.ctx, id, period, lang, () => connectorPage(this.ctx, this.host, this, id, period, lang)));
     return this.pages.get(key)!;
   }
   private async calculate(op: string, request: Record<string, unknown>): Promise<OpResult> {

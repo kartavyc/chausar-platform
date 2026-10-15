@@ -179,6 +179,11 @@ test('seats: invite with a one-time code, CA end date, removal and the last owne
   assert.equal(row.seat, 'accountant'); assert.deepEqual(row.limits.length, 4); assert.ok(row.limits.includes('Cannot approve money.'));
   assert.equal(seats.seats.find((s: any) => s.memberId === 'owner').you, true);
   assert.ok(seats.templates.find((s: any) => s.seat === 'staff').limits.some((l: string) => /not yet enforced/.test(l)));
+  // Each limit carries a stable code beside its English sentence, in the same order; screens use the code.
+  assert.deepEqual(row.limitCodes, ['reads-unmarked', 'prepares-actions', 'no-approve-money', 'no-change-send']);
+  assert.equal(row.limits[row.limitCodes.indexOf('no-approve-money')], 'Cannot approve money.');
+  for (const template of seats.templates) { assert.equal(template.limitCodes.length, template.limits.length); assert.ok(template.limitCodes.every((c: string) => /^[a-z][a-z-]+$/.test(c))); }
+  assert.deepEqual(seats.templates.find((s: any) => s.seat === 'staff').limitCodes, ['adds-entries', 'own-only-not-enforced', 'no-approve-money', 'no-change-send']);
 
   assert.equal((await f.call('trustx.invite', { seat: 'ca', name: 'Synthetic CA' })).body.error.code, 'INVALID_END_DATE');
   const day = today();

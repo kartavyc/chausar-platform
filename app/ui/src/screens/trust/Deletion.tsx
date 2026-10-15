@@ -14,7 +14,7 @@ import { useEngine, useSend } from './kit/engine.ts';
 import { Group } from './kit/Screen';
 import { Loads, Outcome, Refusal, dayText, powers, useClose, type P } from './common';
 import { validateDeletion, validateDeletions, validateFile, validateSources, type DeletionReport } from './validate.ts';
-import { DELETION, codeWord, fill } from './words.ts';
+import { DELETION, engineCodeWord, fill } from './words.ts';
 import s from './Trust.module.css';
 
 export function DeletionSheet({ p }: { p: P }) {
@@ -73,7 +73,7 @@ function Report({ p, report }: { p: P; report: DeletionReport }) {
         <thead><tr><th scope="col">{w.place}</th><th scope="col">{w.state}</th><th scope="col">{w.reason}</th></tr></thead>
         <tbody>
           {report.rows.map((row, i) => (
-            <tr key={`${row.place}-${i}`}><td>{codeWord(w, 'place', row.place)}</td><td>{w[`state.${row.state}`]}</td><td>{row.reason}</td></tr>
+            <tr key={`${row.place}-${i}`}><td>{engineCodeWord(p.language, 'place', row.code, row.place)}</td><td>{w[`state.${row.state}`]}</td><td>{row.reason}</td></tr>
           ))}
         </tbody>
       </table>

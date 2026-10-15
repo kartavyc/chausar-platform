@@ -16,7 +16,7 @@ import { useEngine, useSend } from './kit/engine.ts';
 import { Note, Screen } from './kit/Screen';
 import { AskTwice, InviteShown, Loads, Outcome, Pending, Tag, dayText, powers, useClose, type P } from './common';
 import { validateChange, validateInvite, validateSeats, validateSync, type InviteResult, type SeatRow } from './validate.ts';
-import { COMMON, LIMIT_WORDS, PEOPLE, SEAT_WORDS, codeWord, fill } from './words.ts';
+import { COMMON, PEOPLE, SEAT_WORDS, engineCodeWord, fill } from './words.ts';
 import s from './Trust.module.css';
 
 export function PeopleScreen(p: P) {
@@ -72,7 +72,7 @@ function SeatList({ p, rows, onChange }: { p: P; rows: SeatRow[]; onChange: (wai
               {row.you && <span className={s.quiet}>{w.you}</span>}
               <span>{seatW[row.seat]}</span>
             </span>
-            {row.limits.length > 0 && <span className={s.quiet}>{row.limits.map((x) => codeWord(words(LIMIT_WORDS, p.language), 'limit', x)).join(' · ')}</span>}
+            {row.limits.length > 0 && <span className={s.quiet}>{row.limits.map((x) => engineCodeWord(p.language, 'limit', x.code, x.text)).join(' · ')}</span>}
             {row.removedOn !== null ? <span className={s.quiet}>{fill(w.removed, { date: dayText(row.removedOn, p.language) })}</span>
               : row.ended && row.endsOn !== null ? <span className={s.quiet}>{fill(w.ended, { date: dayText(row.endsOn, p.language) })}</span>
                 : row.endsOn !== null && <span className={s.quiet}>{fill(w.endsOn, { date: dayText(row.endsOn, p.language) })}</span>}

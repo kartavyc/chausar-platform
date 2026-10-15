@@ -8,6 +8,8 @@ import type { Address, Language, View } from '../../app/ui/src/app/presentation'
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { trustPlaces } from '../../app/ui/src/screens/trust/index';
 import { COMMON, DELETION, KEEP, NETWORK, PEOPLE, RECORD, RULES, SEE, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
+import { validateDeletion } from '../../app/ui/src/screens/trust/validate';
+import { words as laneWords } from '../../app/ui/src/text/lanes/reports-tools-trust';
 
 afterEach(cleanup);
 
@@ -70,10 +72,10 @@ const FIXTURES: Record<string, unknown> = {
   },
   'trustx.seats': {
     seats: [
-      { memberId: 'owner-1', name: 'Asha', seat: 'owner', limits: ['Everything'], endsOn: null, ended: false, removedOn: null, active: true, you: true },
-      { memberId: 'acc-1', name: 'Kiran', seat: 'accountant', limits: ['Reads everything not marked away', 'Cannot approve money'], endsOn: null, ended: false, removedOn: null, active: true, you: false },
-      { memberId: 'ca-1', name: 'R. Mehta', seat: 'ca', limits: ['Reads and exports'], endsOn: '2026-10-01', ended: true, removedOn: null, active: false, you: false },
-      { memberId: 'staff-1', name: 'Ravi', seat: 'staff', limits: ['Adds entries'], endsOn: null, ended: false, removedOn: '2026-10-02', active: false, you: false },
+      { memberId: 'owner-1', name: 'Asha', seat: 'owner', limits: ['Everything'], limitCodes: ['everything'], endsOn: null, ended: false, removedOn: null, active: true, you: true },
+      { memberId: 'acc-1', name: 'Kiran', seat: 'accountant', limits: ['Reads everything not marked away', 'Cannot approve money'], limitCodes: ['reads-unmarked', 'no-approve-money'], endsOn: null, ended: false, removedOn: null, active: true, you: false },
+      { memberId: 'ca-1', name: 'R. Mehta', seat: 'ca', limits: ['Reads and exports'], limitCodes: ['reads-exports-until'], endsOn: '2026-10-01', ended: true, removedOn: null, active: false, you: false },
+      { memberId: 'staff-1', name: 'Ravi', seat: 'staff', limits: ['Adds entries'], limitCodes: ['adds-entries'], endsOn: null, ended: false, removedOn: '2026-10-02', active: false, you: false },
     ],
     templates: [],
   },
@@ -137,7 +139,7 @@ const SERVICE = { platform: 'linux', mechanism: 'linux-systemd-user', installed:
 
 const REPORT = {
   id: 'del-1', at: AT, sourceId: 'sales',
-  rows: [{ place: 'Books', state: 'deleted', reason: 'Checked gone.' }, { place: 'AI provider', state: 'not-possible', reason: 'Kept for 30 days by the provider.' }],
+  rows: [{ place: 'Books', code: 'books-new', state: 'deleted', reason: 'Checked gone.' }, { place: 'AI provider', code: 'ai-provider', state: 'not-possible', reason: 'Kept for 30 days by the provider.' }],
 };
 
 type Reply = unknown | ((payload: Record<string, unknown>) => unknown);
@@ -820,15 +822,29 @@ describe('TR-04 Keep and TR-06 People: engine codes in words', () => {
     expect(screen.getByText('facts')).toBeTruthy();
   });
 
-  test('seat limits and deletion places from the engine read in Hindi; an unknown one is shown as sent', async () => {
-    const seats = structuredClone(FIXTURES['trustx.seats']) as { seats: { limits: string[] }[] };
-    seats.seats[1]!.limits = ['Reads only.', 'Something new.'];
+  test('seat limits and deletion places are worded by their engine codes, in Hindi too; an unknown code is shown as the engine wrote it', async () => {
+    const seats = structuredClone(FIXTURES['trustx.seats']) as { seats: { limits: string[]; limitCodes: string[] }[] };
+    // The screen reads the code, not the sentence: a changed English sentence still reads in the screen's own words.
+    seats.seats[1]!.limits = ['Reads only (reworded by the engine).', 'Something new.'];
+    seats.seats[1]!.limitCodes = ['reads-only', 'something-new'];
     draw(at('people'), { rpc: fakeRpc({ 'trustx.seats': seats }), language: 'hi' });
-    expect(await screen.findByText('केवल पढ़ता है। · Something new.')).toBeTruthy();
+    expect(await screen.findByText(`${laneWords.hi['RTT.codes.limit.reads-only']} · Something new.`)).toBeTruthy();
+    cleanup();
+    draw(at('people'), { rpc: fakeRpc({ 'trustx.seats': seats }) });
+    expect(await screen.findByText(`${laneWords.en['RTT.codes.limit.reads-only']} · Something new.`)).toBeTruthy();
     cleanup();
     draw(at('vault', 'delete'), { rpc: fakeRpc({ 'trustx.deletions': { items: [REPORT] } }), language: 'hi' });
-    expect(await screen.findByText(DELETION.hi['place.AI provider'])).toBeTruthy();
+    expect(await screen.findByText(laneWords.hi['RTT.codes.place.ai-provider']!)).toBeTruthy();
     expect(screen.getByText('Books')).toBeTruthy();
+    cleanup();
+    // A reply without the codes is refused as a shape the screen cannot read.
+    const old = structuredClone(FIXTURES['trustx.seats']) as { seats: Record<string, unknown>[] };
+    delete old.seats[0]!['limitCodes'];
+    draw(at('people'), { rpc: fakeRpc({ 'trustx.seats': old }) });
+    await waitFor(() => expect(screen.queryByText('Asha')).toBeNull());
+    expect(validateDeletion({ ...REPORT, rows: [{ place: 'Kept', code: null, state: 'deleted', reason: 'r' }] }).rows[0]!.code).toBeNull();
+    expect(() => validateDeletion({ ...REPORT, rows: [{ place: 'Kept', state: 'deleted', reason: 'r' }] })).toThrow();
+    expect(() => validateDeletion({ ...REPORT, rows: [{ place: 'Kept', code: 'Not A Code', state: 'deleted', reason: 'r' }] })).toThrow();
   });
 });
 

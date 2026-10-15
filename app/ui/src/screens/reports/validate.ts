@@ -25,7 +25,11 @@ export interface ReportPage {
   state: PageState; sections: PageSection[]; notes: PageNote[]; disclaimer: string | null; gaps: string[]; markings: Marking[];
   footer: { checkCode: string | null; at: string | null }; receiptIds: string[];
 }
-export interface ExportedFile { format: 'csv' | 'xlsx' | 'html'; name: string; path: string; bytes: number; sha256: string; encrypted: false; textCellsProtected: true }
+/** `tally` is present only for a Tally file: how many amounts went in, and each line left out (never written as zero). */
+export interface ExportedFile {
+  format: 'csv' | 'xlsx' | 'html' | 'tally'; name: string; path: string; bytes: number; sha256: string; encrypted: false; textCellsProtected: true;
+  tally: { vouchers: number; leftOut: { section: string; line: string; missing: string }[] } | null;
+}
 /** `movement` and `coverage` are null from an engine that does not send them. */
 export interface BriefItem {
   id: string; text: string; figure: FigureOrMissing | null; chart: { id: string; label: string; figure: FigureOrMissing }[];
@@ -163,10 +167,15 @@ export function validatePage(reply: unknown): ReportPage {
 export function validateExportedFile(reply: unknown): ExportedFile {
   const r = rec(reply);
   if (r['encrypted'] !== false || r['textCellsProtected'] !== true) throw new ShapeError('reply.encrypted');
+  const format = oneOf(r['format'], 'reply.format', ['csv', 'xlsx', 'html', 'tally'] as const);
   return {
-    format: oneOf(r['format'], 'reply.format', ['csv', 'xlsx', 'html'] as const), name: str(r['name'], 'reply.name', 300),
+    format, name: str(r['name'], 'reply.name', 300),
     path: str(r['path'], 'reply.path', 2000), bytes: whole(r['bytes'], 'reply.bytes'), sha256: sha(r['sha256'], 'reply.sha256'),
     encrypted: false, textCellsProtected: true,
+    tally: format !== 'tally' ? null : {
+      vouchers: whole(r['vouchers'], 'reply.vouchers'),
+      leftOut: list(r['leftOut'], 'reply.leftOut', (v, p) => { const x = rec(v, p); return { section: str(x['section'], `${p}.section`, 500), line: str(x['line'], `${p}.line`, 500), missing: str(x['missing'], `${p}.missing`, 40) }; }, 500),
+    },
   };
 }
 

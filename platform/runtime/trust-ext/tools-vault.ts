@@ -107,8 +107,19 @@ export async function setRecoveryContact(ctx: Context, payload: Record<string, a
   return vaultView(ctx, host);
 }
 
-type Row = { place: string; state: 'deleted' | 'pending' | 'not-possible' | 'not-built'; reason: string };
-const PLACES: [string, keyof State][] = [['Facts', 'facts'], ['Imports', 'imports'], ['Receipts', 'receipts'], ['Answers', 'answers'], ['Decisions', 'decisions'], ['Actions', 'actions'], ['AI model receipts', 'modelReceipts']];
+/** Every place a deletion report checks, as a stable code with the engine's English name. Screens show their own words for the code. */
+export const deletionPlaces = {
+  'facts': 'Facts', 'imports': 'Imports', 'receipts': 'Receipts', 'answers': 'Answers', 'decisions': 'Decisions', 'actions': 'Actions',
+  'model-receipts': 'AI model receipts', 'lane-records': 'Reports, Tools and Trust records', 'backups': 'Backups on this computer',
+  'exports': 'Exports on this computer', 'ai-provider': 'AI provider', 'briefs-sent': 'Briefs already sent', 'drive-versions': 'Old versions in Google Drive',
+} as const;
+export type PlaceCode = keyof typeof deletionPlaces;
+type Row = { place: string; code: PlaceCode; state: 'deleted' | 'pending' | 'not-possible' | 'not-built'; reason: string };
+const row = (code: PlaceCode, state: Row['state'], reason: string): Row => ({ place: deletionPlaces[code], code, state, reason });
+const PLACES: [PlaceCode, keyof State][] = [['facts', 'facts'], ['imports', 'imports'], ['receipts', 'receipts'], ['answers', 'answers'], ['decisions', 'decisions'], ['actions', 'actions'], ['model-receipts', 'modelReceipts']];
+/** A report kept before places had codes carries only the English name; the engine gives it the code of its own sentence. */
+const codeOfPlace = new Map(Object.entries(deletionPlaces).map(([code, place]) => [place as string, code as PlaceCode]));
+const withCode = (item: Row) => item.code ? item : { ...item, code: codeOfPlace.get(item.place) ?? null };
 const SENT = new Set(['dispatching', 'completed', 'failed']);
 
 /** Deletes through the trust service, then checks each place before reporting it. */
@@ -123,31 +134,31 @@ export async function deleteSource(ctx: Context, payload: Record<string, any>, h
   // The engine's own deletion, with its managed-copy cleanup (older managed backups and exports), callable from this request.
   await host.services.sourceDeletion.delete(sourceId, confirmation);
   const after = host.store.read(); const rows: Row[] = [];
-  for (const [place, key] of PLACES) {
+  for (const [code, key] of PLACES) {
     const left = (after[key] as unknown[]).filter(item => references(item, sourceId, factIds)).length;
-    rows.push(left ? { place, state: 'pending', reason: `${left} still refer to it.` } : { place, state: 'deleted', reason: 'Checked: nothing here refers to it.' });
+    rows.push(left ? row(code, 'pending', `${left} still refer to it.`) : row(code, 'deleted', 'Checked: nothing here refers to it.'));
   }
   const lane = structuredClone(laneState(after)); delete lane.tools.deletions;
-  rows.push(references(lane, sourceId, factIds) ? { place: 'Reports, Tools and Trust records', state: 'pending', reason: 'Something here still refers to it.' }
-    : { place: 'Reports, Tools and Trust records', state: 'deleted', reason: 'Checked: nothing here refers to it.' });
+  rows.push(references(lane, sourceId, factIds) ? row('lane-records', 'pending', 'Something here still refers to it.')
+    : row('lane-records', 'deleted', 'Checked: nothing here refers to it.'));
   const older = (await files(backupsDir(host), name => name.endsWith('.backup'))).filter(file => file.mtimeMs <= startedAt);
-  rows.push(older.length ? { place: 'Backups on this computer', state: 'pending', reason: 'Older backups still hold it until they are replaced.' }
-    : { place: 'Backups on this computer', state: 'deleted', reason: 'Checked: no backup made before the deletion is on this computer.' });
+  rows.push(older.length ? row('backups', 'pending', 'Older backups still hold it until they are replaced.')
+    : row('backups', 'deleted', 'Checked: no backup made before the deletion is on this computer.'));
   // Page exports, question files and "Export everything" folders sit in sub-folders; a file the purge could not remove is still found here.
   const exportsRoot = join(host.directory, 'exports'), deletionReports = join(exportsRoot, 'deletions');
   const exports = (await allFiles(exportsRoot, path => path === deletionReports)).filter(file => file.mtimeMs <= startedAt);
-  rows.push(exports.length ? { place: 'Exports on this computer', state: 'pending', reason: 'Exported files made before the deletion may hold it. Delete them yourself.' }
-    : { place: 'Exports on this computer', state: 'deleted', reason: 'Checked: no export made before the deletion is on this computer.' });
-  rows.push(sent ? { place: 'AI provider', state: 'not-possible', reason: 'The provider keeps requests for its stated period.' }
-    : { place: 'AI provider', state: 'deleted', reason: 'Checked: no request that used it left this computer.' });
-  rows.push({ place: 'Briefs already sent', state: 'not-possible', reason: 'A brief that was already sent cannot be called back.' });
-  rows.push({ place: 'Old versions in Google Drive', state: 'not-built', reason: 'Removing old Drive versions is not built yet.' });
+  rows.push(exports.length ? row('exports', 'pending', 'Exported files made before the deletion may hold it. Delete them yourself.')
+    : row('exports', 'deleted', 'Checked: no export made before the deletion is on this computer.'));
+  rows.push(sent ? row('ai-provider', 'not-possible', 'The provider keeps requests for its stated period.')
+    : row('ai-provider', 'deleted', 'Checked: no request that used it left this computer.'));
+  rows.push(row('briefs-sent', 'not-possible', 'A brief that was already sent cannot be called back.'));
+  rows.push(row('drive-versions', 'not-built', 'Removing old Drive versions is not built yet.'));
   const report = { id: newId('deletion'), at, sourceId, rows };
   await host.store.update(state => { (tools(state).deletions ??= []).push(report); });
   return report;
 }
 
-export function deletions(state: State) { return { items: [...(tools(state).deletions ?? [])].reverse() }; }
+export function deletions(state: State) { return { items: [...(tools(state).deletions ?? [])].reverse().map((report: any) => ({ ...report, rows: report.rows.map(withCode) })) }; }
 
 const cell = (value: string) => { const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value; return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe; };
 export async function exportDeletion(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {

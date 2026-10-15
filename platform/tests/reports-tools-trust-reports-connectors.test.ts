@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { checkEnvelopes, checkFreshness, checkMatch } from '../runtime/reports-ext/connector-pages.ts';
+import { Calculations } from '../runtime/reports-ext/pages.ts';
+import { connectorCacheStats } from '../runtime/reports-ext/connector-cache.ts';
 
 // Synthetic books: September sales and a purchase register whose suppliers are those of the connector fixture GSTR-2B.
 const books = `id,kind,date,amount,currency,customerId,invoiceId,gstin,taxMinor
@@ -119,4 +121,44 @@ test('the connector adapter refuses replies it cannot read', () => {
   assert.throws(() => checkMatch({ mode: 'matched', counts: { matched: -1 } }), code('CONNECTOR_REPLY_INVALID'));
   assert.deepEqual(checkMatch({ mode: 'not-applicable', gstMode: 'composition', reason: 'ignored outside text' }), { mode: 'not-applicable', gstMode: 'composition' });
   assert.throws(() => checkFreshness([{ months: [{ month: '2026-09', status: 'zero' }] }]), code('CONNECTOR_REPLY_INVALID'));
+});
+
+test('drawing the packs list again with nothing changed does not recalculate the connector pages; a change in data does', async t => {
+  const engine = await open(t);
+  await engine.request('sources.import', { sourceId: 'books', format: 'csv', content: books, recipe, expectedTotals: { rowCount: 8, amountMinor: '18835000' } });
+  await importFile(engine, 'gst.gstr1-invoices-summary', 'gstr1-sep', 'gst-downloads/gstr1-sep-2026-with-summary.json');
+  await importFile(engine, 'gst.gstr2b-b2b', 'gstr2b-sep', 'gst-downloads/gstr2b-sep-2026.json');
+  // Connector lines name their sources; every other page's calculation runs over all sources. Count only the connector ones.
+  const original = Calculations.prototype.run; let connectorRuns = 0;
+  Calculations.prototype.run = function (this: Calculations, op: string, period: any, sourceIds?: string[]) { if (sourceIds) connectorRuns++; return original.call(this, op, period, sourceIds); };
+  t.after(() => { Calculations.prototype.run = original; });
+
+  const first = await engine.request('reportsx.packs', {});
+  const built = connectorRuns; assert.ok(built > 0, 'the first draw calculates the connector pages');
+  const before = { ...connectorCacheStats };
+  const second = await engine.request('reportsx.packs', {});
+  assert.equal(connectorRuns, built, 'the second draw recalculates nothing for the connector pages');
+  assert.equal(connectorCacheStats.builds, before.builds); assert.equal(connectorCacheStats.hits, before.hits + 3);
+  assert.deepEqual(second.packs, first.packs);
+  // The page itself, over the same default period, is the kept one, and still opens its receipts.
+  const kept = await engine.request('reportsx.page', { pack: 'ca', page: 'purchases-gstr2b' });
+  assert.equal(connectorRuns, built); await receiptsOpen(engine, kept);
+  assert.ok(kept.sections[0].lines.some((line: any) => line.figure.kind === 'money'));
+
+  // Another language is another page: built once, then kept too.
+  await engine.request('reportsx.packs', { language: 'hi' });
+  const hindi = connectorRuns; assert.ok(hindi > built);
+  await engine.request('reportsx.packs', { language: 'hi' });
+  assert.equal(connectorRuns, hindi);
+
+  // New data: a GSTR-3B arrives, so the connector pages are built again and the new import shows.
+  await importFile(engine, 'gst.gstr3b-supplies', 'gstr3b-sep', 'gst-downloads/gstr3b-sep-2026.json', { rowCount: 5, total: '27050000' });
+  await engine.request('reportsx.packs', {});
+  assert.ok(connectorRuns > hindi, 'a change in data recalculates');
+  const after = await page(engine, 'lender', 'gst-turnover');
+  assert.deepEqual(lineOf(after, 'gstr3b').figure, { kind: 'missing', missing: 'not-counted' });
+  assert.ok(after.gaps.some((gap: string) => gap.startsWith('GSTR-3B is kept as the rows of the filed return')));
+  const settled = connectorRuns;
+  await engine.request('reportsx.packs', {});
+  assert.equal(connectorRuns, settled, 'and is kept again once built');
 });

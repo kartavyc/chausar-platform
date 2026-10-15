@@ -413,7 +413,67 @@ const TR08_MODELS_HI: Readonly<Record<keyof typeof TR08_MODELS_EN, string>> = {
 export const TR08_MODELS = { en: TR08_MODELS_EN, hi: TR08_MODELS_HI };
 // end TR-08 models
 
+// engine codes: what a seat allows (trustx.seats limitCodes) and the places a deletion report checks (trustx.deleteSource rows[].code)
+const ENGINE_CODES_EN = {
+  'RTT.codes.limit.everything': 'Everything.',
+  'RTT.codes.limit.cofounder-too': 'When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.',
+  'RTT.codes.limit.everything-two-person': 'Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.',
+  'RTT.codes.limit.reads-unmarked': 'Reads everything not marked away from this seat.',
+  'RTT.codes.limit.prepares-actions': 'Prepares actions.',
+  'RTT.codes.limit.no-approve-money': 'Cannot approve money.',
+  'RTT.codes.limit.no-change-send': 'Cannot change Send, Sharing or seats.',
+  'RTT.codes.limit.reads-exports-until': 'Reads and exports, until a date.',
+  'RTT.codes.limit.no-prepare-approve': 'Cannot prepare or approve actions.',
+  'RTT.codes.limit.adds-entries': 'Adds entries.',
+  'RTT.codes.limit.own-only-not-enforced': 'Sees their own: not yet enforced by the engine; today this seat reads like an accountant.',
+  'RTT.codes.limit.reads-only': 'Reads only.',
+  'RTT.codes.limit.assistant-read-only': 'An assistant on this computer that asks read-only questions.',
+  'RTT.codes.place.facts': 'Facts',
+  'RTT.codes.place.imports': 'Imports',
+  'RTT.codes.place.receipts': 'Receipts',
+  'RTT.codes.place.answers': 'Answers',
+  'RTT.codes.place.decisions': 'Decisions',
+  'RTT.codes.place.actions': 'Actions',
+  'RTT.codes.place.model-receipts': 'AI model receipts',
+  'RTT.codes.place.lane-records': 'Reports, Tools and Trust records',
+  'RTT.codes.place.backups': 'Backups on this computer',
+  'RTT.codes.place.exports': 'Exports on this computer',
+  'RTT.codes.place.ai-provider': 'AI provider',
+  'RTT.codes.place.briefs-sent': 'Briefs already sent',
+  'RTT.codes.place.drive-versions': 'Old versions in Google Drive',
+};
+const ENGINE_CODES_HI: Readonly<Record<keyof typeof ENGINE_CODES_EN, string>> = {
+  'RTT.codes.limit.everything': 'सब कुछ।',
+  'RTT.codes.limit.cofounder-too': 'सह-संस्थापक होने पर, भेजना, साझा करना और सीटों के बदलाव के लिए सह-संस्थापक भी चाहिए।',
+  'RTT.codes.limit.everything-two-person': 'सब कुछ, सिवाय इसके कि भेजना, साझा करना और सीटों के बदलाव के लिए मालिक और सह-संस्थापक दोनों चाहिए।',
+  'RTT.codes.limit.reads-unmarked': 'वह सब पढ़ता है जो इस सीट से छिपाने के लिए चिह्नित नहीं है।',
+  'RTT.codes.limit.prepares-actions': 'काम तैयार करता है।',
+  'RTT.codes.limit.no-approve-money': 'पैसे को मंज़ूरी नहीं दे सकता।',
+  'RTT.codes.limit.no-change-send': 'भेजना, साझा करना या सीटें नहीं बदल सकता।',
+  'RTT.codes.limit.reads-exports-until': 'एक तारीख़ तक पढ़ता और निर्यात करता है।',
+  'RTT.codes.limit.no-prepare-approve': 'काम तैयार या मंज़ूर नहीं कर सकता।',
+  'RTT.codes.limit.adds-entries': 'प्रविष्टियाँ जोड़ता है।',
+  'RTT.codes.limit.own-only-not-enforced': 'केवल अपना देखता है: इंजन अभी यह लागू नहीं करता; आज यह सीट अकाउंटेंट की तरह पढ़ती है।',
+  'RTT.codes.limit.reads-only': 'केवल पढ़ता है।',
+  'RTT.codes.limit.assistant-read-only': 'इस कंप्यूटर पर एक सहायक जो केवल पढ़ने वाले सवाल पूछता है।',
+  'RTT.codes.place.facts': 'तथ्य',
+  'RTT.codes.place.imports': 'आयात',
+  'RTT.codes.place.receipts': 'रसीदें',
+  'RTT.codes.place.answers': 'जवाब',
+  'RTT.codes.place.decisions': 'फ़ैसले',
+  'RTT.codes.place.actions': 'काम',
+  'RTT.codes.place.model-receipts': 'AI मॉडल की रसीदें',
+  'RTT.codes.place.lane-records': 'रिपोर्ट, औज़ार और भरोसा के रिकॉर्ड',
+  'RTT.codes.place.backups': 'इस कंप्यूटर पर बैकअप',
+  'RTT.codes.place.exports': 'इस कंप्यूटर पर निर्यात',
+  'RTT.codes.place.ai-provider': 'AI सेवा',
+  'RTT.codes.place.briefs-sent': 'पहले भेजे जा चुके ब्रीफ़',
+  'RTT.codes.place.drive-versions': 'Google Drive में पुराने संस्करण',
+};
+export const ENGINE_CODES = { en: ENGINE_CODES_EN, hi: ENGINE_CODES_HI };
+// end engine codes
+
 export const words: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = {
-  en: { ...TR08_MODELS.en },
-  hi: { ...TR08_MODELS.hi },
+  en: { ...TR08_MODELS.en, ...ENGINE_CODES.en },
+  hi: { ...TR08_MODELS.hi, ...ENGINE_CODES.hi },
 };

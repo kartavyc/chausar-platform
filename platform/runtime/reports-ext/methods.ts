@@ -9,6 +9,7 @@ import { clock, closed, escapeHtml, indiaDate, language, peekReports, reportsSta
 import { buildPage, findPage, listPacks } from './pages.ts';
 import { checkNumberOf, csvFile, exportStores, pageHtml, pageRows, writeOut } from './export-files.ts';
 import { xlsxBook } from './xlsx.ts';
+import { requireTallyPage, tallyXml } from './tally.ts';
 import { friday, mergeRhythm, rhythmSettings, rhythmView, tickBrief, weekAhead } from './briefs.ts';
 import { dueDates, dueRequest, validProfile } from './due-dates.ts';
 import { openQuestion, questionFiles } from './questions.ts';
@@ -49,17 +50,18 @@ export const reportsMethods: Record<string, MethodSpec> = {
   'reportsx.export': { permission: 'prepare', async handler(ctx, payload, host) {
     const input = closed(payload, ['pack', 'page', 'format', 'language', 'period'], 'INVALID_REPORT_REQUEST');
     check(input.format !== 'pdf', 'PDF_USES_PRINT', 'Use Print in the app to make a PDF of this page.');
-    check(input.format !== 'tally', 'TALLY_PAGE_EXPORT_NOT_AVAILABLE', 'A report page cannot be exported to Tally yet.');
-    check(['csv', 'xlsx', 'html'].includes(input.format), 'INVALID_EXPORT_FORMAT', 'Choose CSV, Excel or a print page.');
-    findPage(input.pack, input.page);
+    check(['csv', 'xlsx', 'html', 'tally'].includes(input.format), 'INVALID_EXPORT_FORMAT', 'Choose CSV, Excel, Tally or a print page.');
+    const spec = findPage(input.pack, input.page);
+    if (input.format === 'tally') requireTallyPage(spec.page);
     const built = await buildPage(ctx, host, input.pack, input.page, periodOf(host, input.period), language(input.language));
     const { sourceIds, rowIds, ...page } = built;
-    const name = `${page.pack}-${page.page}-${page.language}-${page.period!.from}-${page.period!.to}-${stamp(clock(host))}.${input.format}`;
+    const tally = input.format === 'tally' ? tallyXml(page) : null;
+    const name = `${page.pack}-${page.page}-${page.language}-${page.period!.from}-${page.period!.to}-${stamp(clock(host))}.${tally ? 'xml' : input.format}`;
     const path = join(host.directory, 'exports', 'reports', name);
-    const data = input.format === 'csv' ? csvFile(pageRows(page)) : input.format === 'xlsx' ? new Uint8Array(xlsxBook(page.title, pageRows(page))) : pageHtml(page);
+    const data = tally ? tally.xml : input.format === 'csv' ? csvFile(pageRows(page)) : input.format === 'xlsx' ? new Uint8Array(xlsxBook(page.title, pageRows(page))) : pageHtml(page);
     const file = await writeOut(path, data);
     await host.store.update(state => { (reportsState(state).pageExports ??= []).push({ id: newId('report-export'), at: now(), path, sourceIds, rowIds, receiptIds: page.receiptIds }); });
-    return { format: input.format, ...file, encrypted: false, textCellsProtected: true };
+    return { format: input.format, ...file, encrypted: false, textCellsProtected: true, ...(tally ? { vouchers: tally.vouchers, leftOut: tally.leftOut } : {}) };
   } },
   'reportsx.weekAhead': { permission: 'read', async handler(ctx, payload, host) { const input = briefRequest(host, payload, 'INVALID_BRIEF_REQUEST'); return weekAhead(ctx, host, input.onDate, input.language); } },
   'reportsx.friday': { permission: 'read', async handler(ctx, payload, host) { const input = briefRequest(host, payload, 'INVALID_BRIEF_REQUEST'); return friday(ctx, host, input.onDate, input.language); } },

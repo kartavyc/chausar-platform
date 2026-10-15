@@ -5,6 +5,8 @@
  * as data and is drawn as a text node.
  */
 import type { Catalogue } from '../../places/types.ts';
+import type { Language } from '../../app/presentation.ts';
+import { words as laneText } from '../../text/lanes/reports-tools-trust.ts';
 
 function cat<K extends string>(en: Record<K, string>, hi: Record<K, string>): Catalogue<K> { return { en, hi }; }
 
@@ -85,36 +87,11 @@ export const SEAT_WORDS = cat({
   owner: 'मालिक', cofounder: 'सह-संस्थापक', accountant: 'अकाउंटेंट', ca: 'सीए', staff: 'स्टाफ़', viewer: 'देखने वाले', assistant: 'सहायक',
 });
 
-/** The seat limits the engine writes (core-seats.ts), keyed by its own sentence; an unknown sentence is shown as the engine wrote it. */
-export const LIMIT_WORDS = cat({
-  'limit.Everything.': 'Everything.',
-  'limit.When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.': 'When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.',
-  'limit.Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.': 'Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.',
-  'limit.Reads everything not marked away from this seat.': 'Reads everything not marked away from this seat.',
-  'limit.Prepares actions.': 'Prepares actions.',
-  'limit.Cannot approve money.': 'Cannot approve money.',
-  'limit.Cannot change Send, Sharing or seats.': 'Cannot change Send, Sharing or seats.',
-  'limit.Reads and exports, until a date.': 'Reads and exports, until a date.',
-  'limit.Cannot prepare or approve actions.': 'Cannot prepare or approve actions.',
-  'limit.Adds entries.': 'Adds entries.',
-  'limit.Sees their own: not yet enforced by the engine; today this seat reads like an accountant.': 'Sees their own: not yet enforced by the engine; today this seat reads like an accountant.',
-  'limit.Reads only.': 'Reads only.',
-  'limit.An assistant on this computer that asks read-only questions.': 'An assistant on this computer that asks read-only questions.',
-}, {
-  'limit.Everything.': 'सब कुछ।',
-  'limit.When there is a cofounder, changes to Send, Sharing and seats need the cofounder too.': 'सह-संस्थापक होने पर, भेजना, साझा करना और सीटों के बदलाव के लिए सह-संस्थापक भी चाहिए।',
-  'limit.Everything, except that changes to Send, Sharing and seats need both the owner and the cofounder.': 'सब कुछ, सिवाय इसके कि भेजना, साझा करना और सीटों के बदलाव के लिए मालिक और सह-संस्थापक दोनों चाहिए।',
-  'limit.Reads everything not marked away from this seat.': 'वह सब पढ़ता है जो इस सीट से छिपाने के लिए चिह्नित नहीं है।',
-  'limit.Prepares actions.': 'काम तैयार करता है।',
-  'limit.Cannot approve money.': 'पैसे को मंज़ूरी नहीं दे सकता।',
-  'limit.Cannot change Send, Sharing or seats.': 'भेजना, साझा करना या सीटें नहीं बदल सकता।',
-  'limit.Reads and exports, until a date.': 'एक तारीख़ तक पढ़ता और निर्यात करता है।',
-  'limit.Cannot prepare or approve actions.': 'काम तैयार या मंज़ूर नहीं कर सकता।',
-  'limit.Adds entries.': 'प्रविष्टियाँ जोड़ता है।',
-  'limit.Sees their own: not yet enforced by the engine; today this seat reads like an accountant.': 'केवल अपना देखता है: इंजन अभी यह लागू नहीं करता; आज यह सीट अकाउंटेंट की तरह पढ़ती है।',
-  'limit.Reads only.': 'केवल पढ़ता है।',
-  'limit.An assistant on this computer that asks read-only questions.': 'इस कंप्यूटर पर एक सहायक जो केवल पढ़ने वाले सवाल पूछता है।',
-});
+/** Screen words for an engine code (`RTT.codes.<kind>.<code>` in the lane words); the engine's own text when the code is not known. */
+export function engineCodeWord(language: Language, kind: 'limit' | 'place', code: string | null, fallback: string): string {
+  const key = `RTT.codes.${kind}.${code}`, table = laneText[language];
+  return code !== null && Object.hasOwn(table, key) ? table[key]! : fallback;
+}
 
 export const KIND_WORDS = cat({
   personal: 'personal', financial: 'financial', confidential: 'confidential',
@@ -471,35 +448,11 @@ export const DELETION = cat({
   again: 'Type the source id again to confirm', mismatch: 'The two do not match.', delete: 'Delete everywhere',
   reportTitle: 'Deletion report', reportOf: 'Source {source}, {date}', place: 'Place', state: 'State', reason: 'Reason',
   'state.deleted': 'deleted', 'state.pending': 'pending', 'state.not-possible': 'not possible', 'state.not-built': 'not built yet',
-  earlier: 'Earlier reports', none: 'No deletion yet.', export: 'Export the report', exported: 'Saved as {name}.',  'place.Facts': 'Facts',
-  'place.Imports': 'Imports',
-  'place.Receipts': 'Receipts',
-  'place.Answers': 'Answers',
-  'place.Decisions': 'Decisions',
-  'place.Actions': 'Actions',
-  'place.AI model receipts': 'AI model receipts',
-  'place.Reports, Tools and Trust records': 'Reports, Tools and Trust records',
-  'place.Backups on this computer': 'Backups on this computer',
-  'place.Exports on this computer': 'Exports on this computer',
-  'place.AI provider': 'AI provider',
-  'place.Briefs already sent': 'Briefs already sent',
-  'place.Old versions in Google Drive': 'Old versions in Google Drive',
+  earlier: 'Earlier reports', none: 'No deletion yet.', export: 'Export the report', exported: 'Saved as {name}.',
 }, {
   title: 'कोई स्रोत हटाएँ', ownerOnly: 'स्रोत केवल मालिक हटा सकते हैं।', chooseSource: 'स्रोत', sourceField: 'स्रोत की पहचान',
   again: 'पुष्टि के लिए स्रोत की पहचान फिर से लिखें', mismatch: 'दोनों मेल नहीं खाते।', delete: 'हर जगह से हटाएँ',
   reportTitle: 'हटाने की रिपोर्ट', reportOf: 'स्रोत {source}, {date}', place: 'जगह', state: 'स्थिति', reason: 'कारण',
   'state.deleted': 'हटाया गया', 'state.pending': 'बाक़ी', 'state.not-possible': 'संभव नहीं', 'state.not-built': 'अभी बना नहीं',
-  earlier: 'पिछली रिपोर्टें', none: 'अभी कुछ नहीं हटाया गया।', export: 'रिपोर्ट निर्यात करें', exported: '{name} के रूप में सहेजा गया।',  'place.Facts': 'तथ्य',
-  'place.Imports': 'आयात',
-  'place.Receipts': 'रसीदें',
-  'place.Answers': 'जवाब',
-  'place.Decisions': 'फ़ैसले',
-  'place.Actions': 'काम',
-  'place.AI model receipts': 'AI मॉडल की रसीदें',
-  'place.Reports, Tools and Trust records': 'रिपोर्ट, औज़ार और भरोसा के रिकॉर्ड',
-  'place.Backups on this computer': 'इस कंप्यूटर पर बैकअप',
-  'place.Exports on this computer': 'इस कंप्यूटर पर निर्यात',
-  'place.AI provider': 'AI सेवा',
-  'place.Briefs already sent': 'पहले भेजे जा चुके ब्रीफ़',
-  'place.Old versions in Google Drive': 'Google Drive में पुराने संस्करण',
+  earlier: 'पिछली रिपोर्टें', none: 'अभी कुछ नहीं हटाया गया।', export: 'रिपोर्ट निर्यात करें', exported: '{name} के रूप में सहेजा गया।',
 });

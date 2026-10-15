@@ -164,6 +164,12 @@ test('deleteSource reports only what it checked: facts and managed backups gone 
   assert.equal(row('Backups on this computer').state, 'deleted'); assert.equal((await readdir(join(f.directory, 'backups'))).filter(name => name.endsWith('.backup')).length, 0);
   assert.equal(row('AI provider').state, 'deleted'); assert.equal(row('Briefs already sent').state, 'not-possible'); assert.equal(row('Old versions in Google Drive').state, 'not-built');
   assert.equal(row('Reports, Tools and Trust records').state, 'deleted'); assert.equal(row('Exports on this computer').state, 'pending');
+  // Every place carries a stable code beside its English name; screens use the code.
+  assert.deepEqual(report.rows.map((item: any) => item.code), ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'model-receipts', 'lane-records', 'backups', 'exports', 'ai-provider', 'briefs-sent', 'drive-versions']);
+  assert.equal(row('Old versions in Google Drive').code, 'drive-versions');
+  // A report kept before places had codes is given the code of its own English name when it is read.
+  await f.vault.update((state: any) => { const kept = state.extensions['reports-tools-trust'].tools.deletions[0]; for (const item of kept.rows) delete item.code; });
+  assert.deepEqual((await f.rpc('trustx.deletions')).items[0].rows.map((item: any) => item.code), report.rows.map((item: any) => item.code));
   assert.equal(f.vault.read().facts.some(fact => fact.sourceId === sourceId), false);
   assert.equal((await f.rpc('trustx.deletions')).items[0].id, report.id);
   const file = await f.rpc('trustx.exportDeletion', { id: report.id });
