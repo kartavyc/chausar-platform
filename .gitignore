@@ -21,3 +21,6 @@ exports/
 Thumbs.db
 # Vite and vitest caches
 .vite/
+
+# Temporary agent worktrees
+.claude/worktrees/
