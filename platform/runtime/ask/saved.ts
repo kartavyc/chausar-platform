@@ -7,12 +7,12 @@
  * access and keeps the new receipt. When a source it used is deleted, its derived values are
  * removed and only the question and the deletion date remain.
  */
-import { check, newId, now, type Context, type Fact } from '../contracts.ts';
+import { ChausarError, check, newId, now, type Context, type Fact } from '../contracts.ts';
 import { canSeeFact } from '../memory.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { SavedItem, SavedKind, SavedReply } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, isRuleCode, peekAsk, requireId, text, translate } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, isRuleCode, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
 
 export function staleOf(host: ModuleHost, ctx: Context, item: SavedItem, receipt: CalculationReceipt | null, dictionaryHash: string | null): SavedReply['items'][number]['stale'] {
   if (!receipt) return { reason: 'access-changed', since: null };
@@ -44,7 +44,7 @@ function roomFor(own: ReturnType<typeof askState>, memberId: string) {
 
 export async function save(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['receiptId', 'question'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   const question = request.question === undefined || request.question === null ? null : text(request.question, 500);
   const answer = host.store.read().answers.find(a => a?.receiptId === receipt.id && a.request);
   check(answer, 'ASK_NOT_FOUND', 'This answer has no saved request to rebuild from.');
@@ -73,15 +73,18 @@ export async function saveRef(ctx: Context, payload: unknown, host: ModuleHost) 
     const record = peekAsk(host.store.read()).why.find(w => w.id === refId && w.memberId === ctx.memberId);
     check(record, 'ASK_NOT_FOUND', 'This investigation is no longer available.');
     // Both measured receipts must still open for this seat before their change is copied.
-    await core(host, 'receipts.get', { id: record.earlier.receiptId }); await core(host, 'receipts.get', { id: record.later.receiptId });
+    await openReceipt(host, ctx, record.earlier.receiptId); await openReceipt(host, ctx, record.later.receiptId);
     headline = { kind: 'money', minor: String(BigInt(record.later.minor) - BigInt(record.earlier.minor)) };
     receiptId = record.later.receiptId; operationId = record.operationId; workedOutAt = record.createdAt; sourceIds = [...record.sourceIds];
   } else if (kind === 'what-if') {
-    const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: refId });
+    const receipt = await openReceipt(host, ctx, refId);
     const figure = receipt.figures.find(f => f.key === 'scenario');
     headline = figure ? { kind: 'money', minor: figure.minor } : null; receiptId = receipt.id; operationId = receipt.operation; workedOutAt = receipt.createdAt; sourceIds = [...receipt.sourceIds];
   } else {
-    const forecast = await core<any>(host, 'forecasts.get', { id: refId });
+    // Another member's forecast and an unknown one give the same answer.
+    let forecast: any;
+    try { forecast = await host.call('forecasts.get', { id: refId }); }
+    catch (error) { if (['FORECAST_NOT_FOUND', 'FORECAST_FORBIDDEN', 'INVALID_FORECAST'].includes(codeOf(error))) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.'); throw translate(error); }
     operationId = forecast.operation; workedOutAt = forecast.createdAt; sourceIds = [...forecast.sourceIds];
   }
   const answer = receiptId ? host.store.read().answers.find(a => a?.receiptId === receiptId && a.request) : undefined;

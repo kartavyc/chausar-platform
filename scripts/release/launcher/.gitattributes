@@ -1,0 +1,2 @@
+# The Windows launcher must keep its CRLF line endings byte for byte (cmd labels and GOTO rely on them).
+*.cmd -text

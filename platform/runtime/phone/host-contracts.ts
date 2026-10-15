@@ -1,4 +1,4 @@
-import type { AppChannel, ApprovalChallenge, ApprovalDecision, ApprovalPreview, Brief, DeviceBinding, PhoneCapability, PhoneMethods, RemoteRequest, RequestResult, SessionAuthority, SessionGrant } from './contracts.ts';
+import type { AppChannel, ApprovalChallenge, ApprovalListItem, ApprovalDecision, ApprovalPreview, Brief, DeviceBinding, PhoneCapability, PhoneMethods, RemoteRequest, RequestResult, SessionAuthority, SessionGrant } from './contracts.ts';
 
 export type PhoneRequestIdentity = { requestId: string; kind: 'chat' | 'upload' | 'approval'; target?: string };
 export type PhoneReceipt = { id: string; workspaceId: string; text: string };
@@ -51,7 +51,7 @@ export interface PhoneHostPorts {
   revoke?(principal: PhoneHostPrincipal, deviceId: string): Promise<void>;
   briefs(principal: PhoneHostPrincipal, briefId?: string): Promise<Brief[]>;
   receipt(principal: PhoneHostPrincipal, receiptId: string): Promise<PhoneReceipt>;
-  approvals?(principal: PhoneHostPrincipal): Promise<{ approvalId: string; title: string }[]>;
+  approvals?(principal: PhoneHostPrincipal): Promise<ApprovalListItem[]>;
   inspectApproval?(principal: PhoneHostPrincipal, approvalId: string): Promise<ApprovalChallenge>;
   /** Resolve trusted current source/action/access identity; question text has no authority.
    * Approval admission MUST check the exact decision against its current desktop offer. */

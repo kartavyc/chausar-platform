@@ -133,3 +133,60 @@ test('engine: catalogue, FX, pricing, cost, meters and the allowance boundary', 
     await assert.rejects(engine.request('modelsx.applyPricing', { routeId: 'claude', extra: 1 }), code('INVALID_REQUEST'));
   } finally { await engine.request('workspace.lock', {}).catch(() => {}); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('engine: modelsx.price in jobs-ext shape, the local model list and this month\'s spend', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-mx-price-'));
+  const seen: string[] = [];
+  const ollamaHttp = async (request: { url: string }) => { seen.push(request.url);
+    return { status: 200, body: JSON.stringify({ models: [{ name: 'llama3.2:3b', size: 2019393189, modified_at: '2026-09-01T10:00:00Z', details: { family: 'llama' } }, { name: 'bad name; rm -rf', size: 1 }] }) }; };
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock),
+    modules: { 'models-ext': { ollamaHttp, clock: () => '2031-03-15T06:00:00.000Z' } } });
+  try {
+    await engine.request('workspace.create', { name: 'Price Shop', passphrase: 'correct horse battery staple 42', demo: false, pack: 'ecommerce' });
+    await engine.request('models.configure', { config: { id: 'cloud', kind: 'openai-responses', model: 'gpt-5.6-luna', maxCostMinor: '150', budgetMinor: '5000' }, secret: 'k' });
+    await engine.request('models.configure', { config: { id: 'local', kind: 'ollama', model: 'llama3.2:3b' } });
+    await engine.request('models.configure', { config: { id: 'codex', kind: 'codex-cli', model: 'gpt-5.6-luna' } });
+    assert.deepEqual(await engine.request('modelsx.price', { routeId: 'cloud' }), { routeId: 'cloud', unitMinor: '150', basis: 'estimate', pricedAt: '2031-03-15T06:00:00.000Z' });
+    assert.deepEqual(await engine.request('modelsx.price', { routeId: 'local' }), { routeId: 'local', unitMinor: '0', basis: 'zero', pricedAt: '2031-03-15T06:00:00.000Z' });
+    await assert.rejects(engine.request('modelsx.price', { routeId: 'codex' }), code('ROUTE_ESTIMATE_UNAVAILABLE'));
+    await assert.rejects(engine.request('modelsx.price', { routeId: 'nope' }), code('ROUTE_NOT_FOUND'));
+    // Measured: two completed calls of 40 and 45 paise give a rounded-up mean of 43; one this month, one last month.
+    await engine.vault!.update(state => {
+      state.modelReceipts.push({ id: 'r1', routeId: 'cloud', status: 'completed', actualCostMinor: '40', costReservedMinor: '150', dispatchedAt: '2031-03-02T05:00:00.000Z', createdAt: '2031-03-02T05:00:00.000Z' },
+        { id: 'r2', routeId: 'cloud', status: 'completed', actualCostMinor: '45', costReservedMinor: '150', dispatchedAt: '2031-02-27T05:00:00.000Z', createdAt: '2031-02-27T05:00:00.000Z' },
+        { id: 'r3', routeId: 'cloud', status: 'failed', costReservedMinor: '150', dispatchedAt: '2031-03-31T19:00:00.000Z', createdAt: '2031-03-31T19:00:00.000Z' });
+    });
+    assert.deepEqual(await engine.request('modelsx.price', { routeId: 'cloud' }), { routeId: 'cloud', unitMinor: '43', basis: 'measured', pricedAt: '2031-03-15T06:00:00.000Z' });
+    // r3 is 31 March 19:00 UTC = 1 April in India, so it falls in April, not March.
+    const month = (await engine.request('modelsx.meters', {})).month;
+    assert.deepEqual({ month: month.month, calls: month.calls, spend: month.spendMinor, measured: month.measuredMinor, reserved: month.reservedMinor },
+      { month: '2031-03', calls: 1, spend: '40', measured: '40', reserved: '0' });
+    assert.deepEqual([month.modelSpendMinor, month.voiceMinutesMs, month.voiceCostMinor], ['40', 0, '0']);
+    const list = await engine.request('modelsx.localList', {});
+    assert.equal(list.reachable, true); assert.equal(list.endpoint, 'http://127.0.0.1:11434'); assert.deepEqual(seen, ['http://127.0.0.1:11434/api/tags']);
+    assert.deepEqual(list.models, [{ name: 'llama3.2:3b', sizeBytes: 2019393189, modifiedAt: '2026-09-01T10:00:00.000Z', family: 'llama' }]); assert.equal(list.skipped, 1);
+    await assert.rejects(engine.request('modelsx.localList', { endpoint: 'https://ollama.example.com/api/chat' }), code('INVALID_ENDPOINT'));
+    // Review 4, item 10: naming another loopback port is for an owner in the untainted desktop app only; anyone else
+    // (another channel, a tainted request, a non-admin) cannot probe local ports, and reads only the configured endpoint.
+    const desk: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+    assert.equal((await engine.requestAs(desk, 'modelsx.localList', { endpoint: 'http://127.0.0.1:9999/api/chat' })).endpoint, 'http://127.0.0.1:9999');
+    const added = await engine.request('members.add', { name: 'Accountant', role: 'accountant', branches: ['*'] });
+    const accountant: Context = { memberId: added.id, role: added.role, epoch: added.epoch, channel: 'desktop' };
+    seen.length = 0;
+    for (const who of [{ ...desk, channel: 'mcp' as const }, { ...desk, sourceTainted: true }, accountant])
+      await assert.rejects(engine.requestAs(who, 'modelsx.localList', { endpoint: 'http://127.0.0.1:5432/api/chat' }), code('LOCAL_ENDPOINT_APP_ONLY'));
+    assert.deepEqual(seen, [], 'A refused endpoint is never contacted.');
+    assert.equal((await engine.requestAs(accountant, 'modelsx.localList', {})).endpoint, 'http://127.0.0.1:11434');
+  } finally { await engine.request('workspace.lock', {}).catch(() => {}); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('engine: an unreachable local model service is words, never an error or an empty "none installed"', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-mx-local-'));
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock),
+    modules: { 'models-ext': { ollamaHttp: async () => { throw new Error('ECONNREFUSED'); } } } });
+  try {
+    await engine.request('workspace.create', { name: 'Local Shop', passphrase: 'correct horse battery staple 42', demo: false, pack: 'ecommerce' });
+    const list = await engine.request('modelsx.localList', {});
+    assert.equal(list.reachable, false); assert.match(list.words, /No local model service/);
+  } finally { await engine.request('workspace.lock', {}).catch(() => {}); await rm(directory, { recursive: true, force: true }); }
+});

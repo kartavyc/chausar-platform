@@ -9,6 +9,8 @@
   "phone.templates.preview",
   "phone.messages.counts",
   "phone.messages.send",
+  "phone.messages.log",
+  "phone.messages.check",
   "phone.relay.collect",
   "phone.verify",
   "hosted.messageStatuses",
@@ -31,5 +33,12 @@
   "phone.documents.collect",
   "phone.documents.list",
   "phone.documents.preview",
-  "phone.documents.discard"
+  "phone.documents.discard",
+  "phone.documents.done",
+  "hosted.recovery.enrol",
+  "hosted.recovery.status",
+  "hosted.recovery.remove",
+  "hosted.recovery.request",
+  "hosted.recovery.check",
+  "hosted.recovery.complete"
 ]

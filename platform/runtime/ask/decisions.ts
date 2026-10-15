@@ -10,7 +10,7 @@ import type { CalculationReceipt } from '../calculator.ts';
 import type { JournalContent, JournalDecision } from '../decision-journal.ts';
 import { validDate } from '../memory.ts';
 import type { DecisionReply, DecisionsReply, InboxReply } from './contracts.ts';
-import { askState, businessToday, core, headlineKey, identifier, input, peekAsk, requireId, text } from './shared.ts';
+import { askState, businessToday, core, headlineKey, identifier, input, peekAsk, requireId, text , openReceipt } from './shared.ts';
 
 function receiptIds(value: unknown): string[] {
   check(value === undefined || Array.isArray(value) && value.length <= 10 && value.every(identifier) && new Set(value).size === value.length, 'ASK_INVALID', 'Cite at most ten receipts.');
@@ -26,7 +26,7 @@ export async function draft(ctx: Context, payload: unknown, host: ModuleHost, or
   const cited = origin === 'typed' ? receiptIds(request.receiptIds) : [];
   // A decision made earlier and written down now is labelled "recorded later".
   if (request.decidedOn !== undefined) check(validDate(request.decidedOn) && request.decidedOn <= today, 'ASK_INVALID', 'The day it was decided cannot be after today.');
-  for (const id of cited) await core(host, 'receipts.get', { id });
+  for (const id of cited) await openReceipt(host, ctx, id);
   return host.store.update(state => {
     const own = askState(state);
     check(own.drafts.filter(d => d.memberId === ctx.memberId).length < 100, 'ASK_INVALID', 'Confirm or drop some drafts first.');
@@ -120,7 +120,7 @@ export async function listDecisions(_ctx: Context, payload: unknown, host: Modul
     receiptIds: Array.isArray(d.receiptIds) ? d.receiptIds : [] })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
 }
 
-export async function getDecision(_ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionReply> {
+export async function getDecision(ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionReply> {
   const request = input(payload, ['decisionId'], ['decisionId']), id = requireId(request.decisionId);
   const found = (await decisions(host)).find(d => d.id === id);
   check(found, 'ASK_NOT_FOUND', 'This decision is unavailable under your current access.');
@@ -128,7 +128,7 @@ export async function getDecision(_ctx: Context, payload: unknown, host: ModuleH
   const snapshots: CalculationReceipt[] = journal(found) ? found.receipts : [];
   const known = [];
   for (const receiptId of (found.receiptIds ?? []) as string[]) {
-    const receipt = snapshots.find(r => r.id === receiptId) ?? await core<CalculationReceipt>(host, 'receipts.get', { id: receiptId });
+    const receipt = snapshots.find(r => r.id === receiptId) ?? await openReceipt(host, ctx, receiptId);
     const figure = receipt.figures.find(f => f.key === headlineKey(receipt));
     known.push({ receiptId, label: receipt.operation, minor: figure?.minor ?? null, asOf: receipt.asOf });
   }

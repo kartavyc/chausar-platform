@@ -70,3 +70,26 @@ export function messageBody(event: MessageEvent, link: string, channel: Channel)
   if (channel === 'mail') lines.push('', MAIL_FOOTER);
   return lines.join('\n');
 }
+/**
+ * Recovery through a contact (FR-13): the one fixed message to the contact, the fixed notice to the owner and the
+ * words of the /r/ link page. No name, amount or digit. WhatsApp needs two more approved templates (a founder item):
+ * `chausar_recovery_confirm` (the contact line, with a URL button whose suffix is the link token) and
+ * `chausar_recovery_requested` (the owner line, no button).
+ */
+export const RECOVERY_TEXT = Object.freeze({
+  contactSubject: 'Someone named you to confirm a Chausar recovery.',
+  contactLine: 'Someone asked to recover their Chausar workspace and named you to confirm. Confirm only if they asked you directly.',
+  contactNote: 'Open the link and choose Confirm or I did not ask. The link works once and stops working after a day.',
+  ownerSubject: 'A recovery of your Chausar workspace was asked for.',
+  ownerLine: 'A recovery of your Chausar workspace was asked for through your recovery contact. If this was not you, open Chausar on your computer and remove the recovery contact.',
+  pageAsk: 'Did the person who named you ask you directly to confirm their Chausar recovery?',
+  confirm: 'Confirm',
+  decline: 'I did not ask',
+  pageConfirmed: 'Confirmed. They can finish their recovery on their computer now.',
+  pageDeclined: 'Thank you. The recovery was stopped.',
+});
+export const WHATSAPP_RECOVERY_TEMPLATE = Object.freeze({ contact: 'chausar_recovery_confirm', owner: 'chausar_recovery_requested' });
+/** The exact mail body the contact gets. */
+export function recoveryContactBody(link: string): string {
+  return [RECOVERY_TEXT.contactLine, link, '', RECOVERY_TEXT.contactNote].join('\n');
+}

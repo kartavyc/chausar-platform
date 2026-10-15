@@ -58,6 +58,8 @@ import { createEngineLessonService, type EngineLessonOptions } from './engine-le
 import { EngineTodayService } from './engine-today.ts';
 import type { TodayAttentionSelectionPolicy } from './engine-today-contracts.ts';
 import { TodayTilesService } from './today-tiles.ts';
+import { EngineEventBus } from './core-sync-jobs/event-bus.ts'; // core-sync-jobs (round 4)
+import { RequestAudits } from './core-sync-jobs/request-audits.ts'; // core-sync-jobs (round 4)
 import { TodayAttentionService, type TodayAttentionOptions } from './today-attention.ts';
 import { TodayEventsService } from './today-events.ts';
 import { TodayReviewService } from './today-review.ts';
@@ -167,6 +169,11 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
+  // core-sync-jobs (round 4): event bus and request audits
+  /** Bumped when the open workspace or its authority revision changes (`events.subscribe`, the desktop event channel). */
+  readonly events = new EngineEventBus();
+  readonly #requestAudits = new RequestAudits(this.events, () => this.vault, () => this.context);
+  // end core-sync-jobs
   constructor(options: EngineOptions) {
     this.#demo = options.demo === true;
     check(!options.invoiceFollowUp || options.demo === true, 'INVOICE_SIMULATION_ONLY', 'Install invoice follow-up only in the explicitly experimental synthetic host.');
@@ -913,7 +920,9 @@ export class Engine {
       check(['postgresql:', 'postgres:'].includes(url.protocol), 'INVALID_POSTGRES_CONFIG', 'Use a local PostgreSQL connection URL.');
       this.#searchAdapter = PostgresInvestigationSearch.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1',
         port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
-        database: decodeURIComponent(url.pathname.slice(1)) }).catch(error => { this.#searchAdapter = null; throw error; });
+        database: decodeURIComponent(url.pathname.slice(1)),
+        // release (round 4): the enterprise-only remote TLS opt-in, exactly as for the snapshot adapter in `adapter()`.
+        ...(this.options.storageMode === 'enterprise-server' && this.options.postgresTls ? { remoteTls: this.options.postgresTls } : {}) }).catch(error => { this.#searchAdapter = null; throw error; });
     }
     return this.#searchAdapter;
   }
@@ -994,8 +1003,8 @@ export class Engine {
     const transition = transitions.has(method);
     check(!this.#transition && (!transition || this.#activeRequests === 0), 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     if (transition) this.#transition = true; else this.#activeRequests++;
-    try { return await this.handleRequest(method, payload); }
-    finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); }
+    try { return await this.#requestAudits.run(method, payload, () => this.handleRequest(method, payload)); } // core-sync-jobs: request audits
+    finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); this.#requestAudits.observe(); }
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
@@ -2151,6 +2160,6 @@ export class Engine {
         catch (error) { results.push({ module: engineModule.id, error: { code: (error as any).code ?? 'MODULE_SCHEDULER_FAILED' } }); }
       }
     return results;
-    } finally { this.#activeRequests--; this.notifyIdle(); }
+    } finally { this.#activeRequests--; this.notifyIdle(); this.#requestAudits.observe(); }
   }
 }

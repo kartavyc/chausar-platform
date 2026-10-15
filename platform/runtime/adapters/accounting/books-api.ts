@@ -80,8 +80,9 @@ export const zohoBooksInvoicesSpec: ApiReadSpec<ZohoBooksInvoicesConfig> = Objec
  * list asks per_page=200 (https://www.zoho.com/books/api/v3/invoices/#list-invoices).
  *
  * Bounded up front: on the first list page, the list pages plus one detail per declared invoice must
- * fit the read kit's request budget (API_READ_LIMITS.maxRequests, 60), or the read is refused with
- * ZOHO_DETAIL_BUDGET before any detail is read. A multi-page list without a stated total cannot be
+ * fit the read kit's request budget and its page budget (every detail response is a page too:
+ * ZOHO_NET_READ_BUDGET, 50, so at most 49 invoices), or the read is refused with ZOHO_DETAIL_BUDGET
+ * before any detail is read. connectorsx.read then reads the period in parts. A multi-page list without a stated total cannot be
  * bounded and is refused the same way. A partial set is never returned: the runner fails the whole read.
  */
 export const ZOHO_BOOKS_PER_PAGE = 200;
@@ -92,6 +93,8 @@ export function zohoBooksInvoiceDetailUrl(config: ZohoBooksInvoicesConfig, invoi
 }
 /** Requests a net read needs: every list page plus one detail per invoice. */
 export const zohoBooksNetRequests = (invoices: number, perPage = ZOHO_BOOKS_PER_PAGE): number => Math.max(1, Math.ceil(invoices / perPage)) + invoices;
+/** Requests (and so pages) one net read may use: each list page and each invoice detail is both. */
+export const ZOHO_NET_READ_BUDGET = Math.min(API_READ_LIMITS.maxRequests, API_READ_LIMITS.maxPages);
 export const zohoBooksInvoicesNetSpec: ApiReadSpec<ZohoBooksInvoicesConfig> = Object.freeze({
   ...zohoBooksInvoicesSpec, operation: 'invoices-net', version: '1',
   parse(body: string, _response: unknown, config: ZohoBooksInvoicesConfig, request: ReadRequest): ParsedPage {
@@ -106,7 +109,7 @@ export const zohoBooksInvoicesNetSpec: ApiReadSpec<ZohoBooksInvoicesConfig> = Ob
     const context = sourceObject(parseSourceJson(body).page_context), total = totalCount(context.total), more = parsed.continuation.kind === 'more';
     if (page === 1) {
       const known = total ?? (more ? null : parsed.records.length);
-      check(known !== null && zohoBooksNetRequests(known) <= API_READ_LIMITS.maxRequests, 'ZOHO_DETAIL_BUDGET',
+      check(known !== null && zohoBooksNetRequests(known) <= ZOHO_NET_READ_BUDGET, 'ZOHO_DETAIL_BUDGET',
         'Net amounts need one request per invoice, and this period has more invoices than one read allows. Choose a shorter period.');
     }
     const queue: ReadRequest[] = parsed.records.map(record => ({ method: 'GET', url: zohoBooksInvoiceDetailUrl(config, record.id) }));

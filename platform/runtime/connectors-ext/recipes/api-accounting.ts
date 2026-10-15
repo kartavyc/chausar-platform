@@ -67,15 +67,17 @@ function invoices(system: Books, basis: 'net' | 'gross'): SourceRecipe {
     exclude: { field: 'status', values: ['draft', 'void', 'deleted'] },
     outputs: { invoiceId: 'number', customerName: 'customer', taxMinor: 'tax' },
     ignored: [net ? 'grossAmount' : 'netAmount', 'sourceStatus'],
-    totals: { kind: 'report' },
+    // Each adapter states the invoice count for exactly the filter read (Zoho page_context.total,
+    // Xero pagination.itemCount, a QuickBooks count(*) query with the same filter).
+    totals: { kind: 'report', declaredCount: 'accepts' },
     notices: [
       net ? 'The amount is the tax-exclusive subtotal the system states. An invoice without one is refused, never replaced by its gross total.'
         : 'The amount is the invoice total including tax. That is gross billing, not net revenue.',
       'Draft, void and deleted invoices are left out and counted as excluded.',
-      system === 'quickbooks' ? 'QuickBooks states its invoice count; a read that returns a different number is refused. Enter the total from a QuickBooks report.'
-        : system === 'xero' ? 'Xero states its invoice count; a read that returns a different number is refused. Enter the total from a Xero report.'
-        : net ? 'Zoho Books gives the subtotal in each invoice\'s detail, read one request per invoice; a period with too many invoices is refused. Zoho states its invoice count; enter the total from a Zoho Books report for the same period.'
-        : 'Enter the total from a Zoho Books report for the same period.',
+      system === 'quickbooks' ? 'QuickBooks states its invoice count; a read that returns a different number is refused. Enter the total from a QuickBooks report to check the amount as well.'
+        : system === 'xero' ? 'Xero states its invoice count; a read that returns a different number is refused. Enter the total from a Xero report to check the amount as well.'
+        : net ? 'Zoho Books gives the subtotal in each invoice\'s detail, read one request per invoice; a long period is read in parts by date. Zoho states its invoice count; enter the total from a Zoho Books report for the same period to check the amount as well.'
+        : 'Zoho states its invoice count; enter the total from a Zoho Books report for the same period to check the amount as well.',
     ],
     sensitivity: 'financial',
   };

@@ -37,6 +37,21 @@ test('final builder config has the three installer targets, versioned artifact n
   assert.equal(preview.publish, null);
 });
 
+test('runtime-binaries ships every staged file but no dotfile, matched the way electron-builder matches (dot: true)', () => {
+  const [resource] = final.extraResources;
+  assert.equal(final.extraResources.length, 1);
+  assert.deepEqual([resource.from, resource.to], ['runtime-binaries', 'runtime-binaries']);
+  // Use the minimatch electron-builder itself resolves; its FileMatcher passes { dot: true }, so "**/*" alone would ship dotfiles.
+  const { minimatch } = createRequire(require.resolve('app-builder-lib/package.json'))('minimatch');
+  const shipped = (path: string) => {
+    const positive = resource.filter.filter((pattern: string) => !pattern.startsWith('!'));
+    const negative = resource.filter.filter((pattern: string) => pattern.startsWith('!')).map((pattern: string) => pattern.slice(1));
+    return positive.some((pattern: string) => minimatch(path, pattern, { dot: true })) && !negative.some((pattern: string) => minimatch(path, pattern, { dot: true }));
+  };
+  for (const path of ['manifest.json', 'README.md', 'postgres/bin/postgres', 'postgres/lib/libssl.so.3', 'postgres-16/share/postgres.bki', 'python/lib/python3.13/os.py', 'keychain/manifest.json']) assert.ok(shipped(path), path);
+  for (const path of ['.gitignore', 'python/lib/python3.13/lib-dynload/.empty', '.stage-0a1b2c/postgres.tar.gz', '.manifest-0a1b2c.tmp', 'postgres/.hidden/libx.so']) assert.ok(!shipped(path), path);
+});
+
 test('signing hooks and entitlements point at existing files', async () => {
   assert.equal(final.win.signAndEditExecutable, true);
   assert.equal(final.win.signtoolOptions.sign, 'scripts/release/windows-sign.cjs');

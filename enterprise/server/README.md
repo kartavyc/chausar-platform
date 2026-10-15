@@ -25,6 +25,16 @@ for that review, not as a finished deployment.
   `chausar_enterprise_logins`, `chausar_enterprise_rate_limits`), so a restart keeps people
   signed in and several server processes share them. Tests and embedders that pass no store
   get the same behaviour in one process's memory (`MemoryEnterpriseStore`).
+- Keeps the identity map (provider issuer, SHA-256 of the subject, member id, role, branches,
+  revoked) in the same PostgreSQL database, table `chausar_enterprise_identities`, over the
+  same connection and TLS settings as the sessions. Each (issuer, subject) is unique, and a
+  sign-in holds its identity with a transaction-scoped advisory lock while it decides and
+  records, so two server processes signing in the same new person at the same moment add
+  exactly one member. An `identities.json` left by an earlier version in `dataDirectory` is
+  imported once on start (entries already in the table are kept) and renamed
+  `identities.json.imported`. Raw subjects are never stored.
+- Runs private token search (`research.search`) in that PostgreSQL database too, over the same
+  pinned TLS, when the database is on another host.
 - Reaches PostgreSQL on another host only over verified TLS: the database certificate is
   checked against a CA you pin (`database.caFile`) and the host name (or `database.servername`).
   There is no `sslmode=prefer` and no plaintext fallback; options in the URL are ignored.
@@ -117,8 +127,10 @@ throw-away CAs, certificates and secrets, starts `compose.yaml` plus
 `testing/compose.smoke.yaml` (a fake OpenID provider over HTTPS, test only), creates the
 workspace, checks `/healthz` from the host, checks that every Chausar database connection
 uses TLS and that a plaintext connection is refused, signs in, calls `/api/me` and two engine
-methods, restarts the server and checks the session survived, signs out, and removes every
-container, network and volume. It never pushes an image.
+methods, checks the identity row in PostgreSQL (and that no `identities.json` is written),
+creates an investigation and finds it with `research.search` over TLS, restarts the server,
+checks the session survived and that signing in again is the same member, signs out, and
+removes every container, network and volume. It never pushes an image.
 
 ## Configuration
 
@@ -136,7 +148,7 @@ Every key is checked; unknown keys are refused. See `config.example.json`.
 | `roles` | Ordered `{ claim, equals, role, branches }`. A rule matches when the top-level claim equals the value or is an array containing it. `branches` is a list of names, or `["*"]` for all. |
 | `allowedEmailDomains` | Optional. When set, the `email` claim must be verified and in one of these domains. |
 | `sessionTtlMinutes` | 5 to 1440. |
-| `dataDirectory` | Private server state (`identities.json`, mode 0600). |
+| `dataDirectory` | Private server directory (mode 0700). An `identities.json` from an earlier version found here is imported into PostgreSQL on start and renamed `identities.json.imported`. |
 | `workspace.directory`, `workspace.folder` | Where the engine keeps the workspace. |
 | `workspace.unlock` | `{ "passphraseFile": "/path" }` or `"keychain"`. |
 | `database.caFile`, `database.servername` | Optional. Verified TLS to PostgreSQL: the pinned CA (PEM) and, when the URL host is not the name in the certificate, that name. Required for a database host other than `127.0.0.1`/`::1`. |
@@ -171,6 +183,12 @@ Supported (tested in `platform/tests/release-enterprise-*.test.ts`):
   (`release-enterprise-postgres.test.ts`, run against a real TLS-only PostgreSQL 16).
 - Remote PostgreSQL over verified TLS (`release-postgres-tls.test.ts`, a real TLS-only cluster on
   a non-loopback address; wrong CA, wrong name and plaintext are refused).
+- The identity map in PostgreSQL (`release-enterprise-identity.test.ts`, real TLS-only cluster):
+  one-time import of `identities.json`, the unique (issuer, subject) constraint, three OS
+  processes and two HTTPS instances racing one new person (one member), and the same member
+  after a restart. `MemoryIdentityStore` runs the same contract in one process for unit tests.
+- Private token search on a remote database over verified TLS (`release-investigation-tls.test.ts`).
+  Only the enterprise storage mode with a pinned CA reaches it; the desktop stays loopback-only.
 - CSRF protection (marker header and exact origin), request size limit (2 MB), security
   headers including HSTS, and refusal of local-operator methods over HTTP.
 
@@ -183,8 +201,6 @@ Experimental:
   directory, so a second engine process would not see the first one's changes and its writes
   would be refused (`REVISION_CONFLICT`). Run one server process per workspace; restarts and
   hand-overs keep sessions.
-- Private token search (`PostgresInvestigationSearch`) still accepts a loopback database only,
-  so it is unavailable when the database is on another host.
 
 Not available over HTTP (refused with `ENTERPRISE_METHOD_DENIED`): `auth.accept`,
 `workspace.create`, `workspace.open`, `workspace.restore`, `workspace.recover`,

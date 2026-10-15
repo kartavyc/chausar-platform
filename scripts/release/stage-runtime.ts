@@ -5,6 +5,8 @@ import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, realpath, renam
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../platform/runtime/contracts.ts';
+import { LibraryPackages, patchelfRunpath, validateLinuxLibraries, vendorLinuxLibraries, type LinuxLibraries, type SetRunpath } from './linux-libraries.ts';
+import { stageReaders, type PythonRunner, type ReaderSources } from './stage-readers.ts';
 
 /*
  * Stages vendored PostgreSQL and Python runtimes into `runtime-binaries/` for one target and writes
@@ -13,6 +15,10 @@ import { check } from '../../platform/runtime/contracts.ts';
  *
  *   node scripts/release/stage-runtime.ts --platform win32 --arch x64 --out runtime-binaries
  *   node scripts/release/stage-runtime.ts --platform linux --arch x64 --out runtime-binaries --inventory-only
+ *   node scripts/release/stage-runtime.ts --platform linux --arch x64 --out runtime-binaries --readers-only
+ *
+ * `--readers` (with a full stage) or `--readers-only` (into an already-staged runtime) adds the
+ * bundled PDF readers from stage-readers.ts: Python's PDF packages and tesseract with English data.
  *
  * The inventory covers every regular file under the output folder, including `keychain/` (the CI
  * builds the helper and its keychain/manifest.json first, then runs --inventory-only).
@@ -21,14 +27,21 @@ import { check } from '../../platform/runtime/contracts.ts';
  * under postgres/ and python/ before hashes are computed. keychain/ is excluded from signing: its
  * own manifest pins the already-signed helper bytes. Signing state is printed, never written into
  * the strict manifest schema.
+ *
+ * A target may also list a retained older PostgreSQL major (`postgres-16`), staged as
+ * `postgres-16/{bin,lib,share}` beside `postgres/` for one pg_upgrade. A layout with `vendorLibraries`
+ * (Linux only) makes the component self-contained from the target's pinned library packages
+ * (linux-libraries.ts); that step needs `patchelf` (`--patchelf <path>` or on PATH). Inventories skip
+ * dotfiles and dot-folders (any path segment starting with "."): electron-builder never packages them.
  */
 
 export type RuntimePlatform = 'win32' | 'darwin' | 'linux';
 export type RuntimeArchitecture = 'x64' | 'arm64';
-export type RuntimeComponent = 'postgres' | 'python';
-export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz'; strip: string | null; into: RuntimeComponent; include?: string[]; /** Archive paths left out, such as a symlinked duplicate of a large file. */ exclude?: string[]; materialiseSymlinks: boolean };
+/** `postgres-<major>` is a retained older PostgreSQL kept for one upgrade. */
+export type RuntimeComponent = 'postgres' | 'python' | `postgres-${number}`;
+export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz' | 'tar'; strip: string | null; into: RuntimeComponent; include?: string[]; /** Archive paths left out, such as a symlinked duplicate of a large file. */ exclude?: string[]; materialiseSymlinks: boolean; /** Linux: vendor the component's shared libraries from the target's pinned packages. */ vendorLibraries?: boolean };
 export type RuntimeSource = { component: RuntimeComponent; version: string; vendor: string; url: string | null; sha256: string | null; license: string; licenseFile: string; official: boolean; layout: RuntimeLayout; note?: string; /** Where the pin was verified (the vendor's own checksum file); required with a pin. */ checksumSource?: string };
-export type RuntimeSources = { schemaVersion: 1; note?: string; targets: Record<string, RuntimeSource[]> };
+export type RuntimeSources = { schemaVersion: 1; note?: string; targets: Record<string, RuntimeSource[]>; /** Pinned library packages per Linux target, for layouts with `vendorLibraries`. */ libraries?: Record<string, LinuxLibraries> };
 export type ManifestComponent = { version: string; source: string; license: string; licenseFile: string };
 export type ManifestFile = { path: string; sha256: string; size: number };
 export type RuntimeManifest = { schemaVersion: 1; platform: RuntimePlatform; architecture: RuntimeArchitecture; components: { postgres: ManifestComponent; python: ManifestComponent }; files: ManifestFile[] };
@@ -45,6 +58,13 @@ export type StageOptions = {
   repoRoot?: string;
   /** Absolute signing executable run as `<command> <file>` (no shell) on each native file before hashing. */
   signCommand?: string | null;
+  /** patchelf executable for `vendorLibraries` layouts (default: `patchelf` on PATH). */
+  patchelf?: string | null;
+  /** Test seam replacing patchelf. */
+  setRunpath?: SetRunpath;
+  /** Also stage the bundled PDF readers (runtime-sources.json `readers`) before signing and inventory. */
+  readers?: boolean;
+  runPython?: PythonRunner;
   onNote?: (text: string) => void;
 };
 
@@ -59,8 +79,9 @@ const DEFAULT_MAX_BYTES = 1_500_000_000;
 const MAX_FILES = 20_000;
 const OUTPUT_LIMIT = 4000;
 
+const RETAINED = /^postgres-(\d{1,3})$/;
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const safeRelative = (value: unknown): value is string => typeof value === 'string' && SAFE_RELATIVE.test(value) && !value.endsWith('/');
+export const safeRelative = (value: unknown): value is string => typeof value === 'string' && SAFE_RELATIVE.test(value) && !value.endsWith('/');
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
 
 function validTarget(platform: string, architecture: string): asserts platform is RuntimePlatform {
@@ -74,11 +95,16 @@ function httpsUrl(value: string): boolean {
 export function validateRuntimeSources(value: unknown): RuntimeSources {
   const invalid = 'The runtime source pins are malformed.';
   check(isObject(value) && value.schemaVersion === 1 && isObject(value.targets), 'RUNTIME_SOURCES_INVALID', invalid);
+  check(value.libraries === undefined || isObject(value.libraries), 'RUNTIME_SOURCES_INVALID', invalid);
+  for (const [target, libraries] of Object.entries(value.libraries ?? {})) {
+    check(TARGETS.has(target) && target.startsWith('linux-'), 'RUNTIME_SOURCES_INVALID', 'Library packages are pinned for Linux targets only.');
+    validateLinuxLibraries(libraries);
+  }
   for (const [target, entries] of Object.entries(value.targets)) {
-    check(TARGETS.has(target) && Array.isArray(entries) && entries.length === 2, 'RUNTIME_SOURCES_INVALID', invalid);
+    check(TARGETS.has(target) && Array.isArray(entries) && entries.length >= 2, 'RUNTIME_SOURCES_INVALID', invalid);
     const components = new Set<string>();
     for (const entry of entries as unknown[]) {
-      check(isObject(entry) && (entry.component === 'postgres' || entry.component === 'python') && !components.has(entry.component), 'RUNTIME_SOURCES_INVALID', invalid);
+      check(isObject(entry) && (entry.component === 'postgres' || entry.component === 'python' || (typeof entry.component === 'string' && RETAINED.test(entry.component))) && !components.has(entry.component as string), 'RUNTIME_SOURCES_INVALID', invalid);
       components.add(entry.component as string);
       check(typeof entry.version === 'string' && RUNTIME_VERSION.test(entry.version) && typeof entry.vendor === 'string' && entry.vendor.trim() !== '' && typeof entry.license === 'string' && entry.license.trim() !== '' && typeof entry.official === 'boolean', 'RUNTIME_SOURCES_INVALID', invalid);
       check(entry.url === null || (typeof entry.url === 'string' && httpsUrl(entry.url)), 'RUNTIME_SOURCES_INVALID', 'Every runtime source must be a public HTTPS URL or null.');
@@ -91,7 +117,15 @@ export function validateRuntimeSources(value: unknown): RuntimeSources {
       check(layout.include === undefined || (Array.isArray(layout.include) && layout.include.length > 0 && layout.include.every(safeRelative)), 'RUNTIME_SOURCES_INVALID', invalid);
       check(layout.exclude === undefined || (Array.isArray(layout.exclude) && layout.exclude.length > 0 && layout.exclude.every(safeRelative)), 'RUNTIME_SOURCES_INVALID', invalid);
       check(safeRelative(entry.licenseFile) && entry.licenseFile.startsWith(`${entry.component}/`), 'RUNTIME_SOURCES_INVALID', 'Each license file must sit inside its component folder.');
+      check(layout.vendorLibraries === undefined || typeof layout.vendorLibraries === 'boolean', 'RUNTIME_SOURCES_INVALID', invalid);
+      check(!layout.vendorLibraries || (target.startsWith('linux-') && isObject((value.libraries as Record<string, unknown> | undefined)?.[target])), 'RUNTIME_SOURCES_INVALID', 'Vendored libraries need pinned library packages for the same Linux target.');
+      const retained = RETAINED.exec(entry.component as string);
+      if (retained) {
+        const current = (entries as Record<string, unknown>[]).find(item => item.component === 'postgres');
+        check(typeof entry.version === 'string' && entry.version.split('.')[0] === retained[1] && typeof current?.version === 'string' && Number(retained[1]) < Number(current.version.split('.')[0]), 'RUNTIME_SOURCES_INVALID', 'A retained PostgreSQL must be an older major than the bundled one, named for its major.');
+      }
     }
+    check(components.has('postgres') && components.has('python'), 'RUNTIME_SOURCES_INVALID', invalid);
   }
   return value as RuntimeSources;
 }
@@ -100,12 +134,12 @@ export async function loadRuntimeSources(path = DEFAULT_SOURCES_PATH): Promise<R
   try { parsed = JSON.parse(await readFile(path, 'utf8')); } catch { check(false, 'RUNTIME_SOURCES_INVALID', 'The runtime source pins could not be read.'); }
   return validateRuntimeSources(parsed);
 }
-/** The two sources for a target. Refuses missing upstreams and null pins before any download. */
+/** PostgreSQL, Python, then any retained older PostgreSQL majors. Refuses missing upstreams and null pins before any download. */
 export function selectRuntimeSources(sources: RuntimeSources, platform: string, architecture: string, options: { requirePins?: boolean } = {}): RuntimeSource[] {
   validTarget(platform, architecture);
   const entries = sources.targets[`${platform}-${architecture}`];
-  check(Array.isArray(entries) && entries.length === 2, 'RUNTIME_SOURCE_UNAVAILABLE', 'No runtime sources are recorded for this target.');
-  const ordered = (['postgres', 'python'] as const).map(component => entries.find(entry => entry.component === component) as RuntimeSource);
+  check(Array.isArray(entries) && entries.length >= 2, 'RUNTIME_SOURCE_UNAVAILABLE', 'No runtime sources are recorded for this target.');
+  const ordered = [...(['postgres', 'python'] as const).map(component => entries.find(entry => entry.component === component) as RuntimeSource), ...entries.filter(entry => RETAINED.test(entry.component)).sort((left, right) => left.component < right.component ? -1 : 1)];
   for (const entry of ordered) check(entry.url !== null, 'RUNTIME_SOURCE_UNAVAILABLE', 'A runtime for this target has no identified upstream archive.');
   if (options.requirePins !== false) for (const entry of ordered) check(entry.sha256 !== null, 'RUNTIME_SOURCE_UNPINNED', 'A runtime archive has no pinned SHA-256. The release operator must pin it first.');
   return ordered;
@@ -140,9 +174,10 @@ export async function downloadArchive(url: string, destination: string, options:
   return hash.digest('hex');
 }
 
-function tool(executable: string, args: string[], timeoutMs = 600_000): Promise<{ code: number | null; stdout: string }> {
+/** Runs a staging tool without a shell; `env` replaces the inherited environment when given. */
+export function tool(executable: string, args: string[], timeoutMs = 600_000, env?: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string }> {
   return new Promise(accept => {
-    const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...(env ? { env } : {}) });
     const chunks: Buffer[] = [];
     let size = 0, stderr = '', done = false;
     const finish = (code: number | null) => { if (done) return; done = true; clearTimeout(deadline); accept({ code, stdout: Buffer.concat(chunks).toString('utf8') }); };
@@ -219,19 +254,24 @@ export async function arrangeComponent(extracted: string, layout: RuntimeLayout,
   return count;
 }
 
-export function requiredExecutables(platform: RuntimePlatform): string[] {
+export function requiredExecutables(platform: RuntimePlatform, retained: string[] = []): string[] {
   const extension = platform === 'win32' ? '.exe' : '';
-  return [...['postgres', 'initdb', 'pg_ctl'].map(name => `postgres/bin/${name}${extension}`), platform === 'win32' ? 'python/python.exe' : 'python/bin/python3'];
+  return [...['postgres', 'initdb', 'pg_ctl'].map(name => `postgres/bin/${name}${extension}`), platform === 'win32' ? 'python/python.exe' : 'python/bin/python3', ...retained.flatMap(component => ['postgres', 'pg_ctl'].map(name => `${component}/bin/${name}${extension}`))];
 }
 async function regularFile(path: string): Promise<boolean> {
   try { const info = await lstat(path); return info.isFile() && !info.isSymbolicLink(); } catch { return false; }
 }
 
-/** Every regular file under `root` except the root `manifest.json`, sorted; refuses links and special files. */
+/** True when any path segment starts with "." (`.gitignore`, `.stage-x/y`): never packaged, never inventoried. */
+export const isDotPath = (path: string) => path.split('/').some(segment => segment.startsWith('.'));
+
+/** Every regular file under `root` except the root `manifest.json` and dot entries, sorted; refuses links and special files. */
 export async function inventoryFiles(root: string): Promise<ManifestFile[]> {
   const files: ManifestFile[] = [];
   const walk = async (directory: string, prefix: string) => {
     for (const item of await readdir(directory, { withFileTypes: true })) {
+      // electron-builder's extraResources filter (app/desktop/builder.json "!**/.*") never packages dot entries.
+      if (item.name.startsWith('.')) continue;
       const path = prefix ? `${prefix}/${item.name}` : item.name;
       const full = join(directory, item.name);
       check(!item.isSymbolicLink(), 'RUNTIME_SYMLINK_REFUSED', 'The staged runtime contains a symbolic link.');
@@ -279,7 +319,7 @@ export async function isNativeFile(path: string): Promise<boolean> {
   } finally { await handle.close(); }
 }
 /** Runs the signing command on every native file under the staged postgres/ and python/ folders. */
-export async function signNativeFiles(out: string, signCommand: string, components: RuntimeComponent[] = ['postgres', 'python']): Promise<string[]> {
+export async function signNativeFiles(out: string, signCommand: string, components: string[] = ['postgres', 'python']): Promise<string[]> {
   check(isAbsolute(signCommand) && await regularFile(signCommand), 'RUNTIME_SIGN_COMMAND_INVALID', 'The signing command must be an absolute path to a regular file.');
   const signed: string[] = [];
   for (const component of components) {
@@ -295,7 +335,9 @@ export async function signNativeFiles(out: string, signCommand: string, componen
 }
 async function signIfRequested(out: string, options: Pick<StageOptions, 'signCommand' | 'onNote'>): Promise<void> {
   if (!options.signCommand) { options.onNote?.('Runtime files were not signed: no signing command was supplied.'); return; }
-  const signed = await signNativeFiles(out, options.signCommand);
+  const components = (await readdir(out)).filter((name): name is RuntimeComponent => name === 'postgres' || name === 'python' || RETAINED.test(name));
+  const tesseract = await lstat(join(out, 'tesseract')).then(info => info.isDirectory(), () => false);
+  const signed = await signNativeFiles(out, options.signCommand, tesseract ? [...components, 'tesseract'] : components);
   options.onNote?.(`Signed ${signed.length} native runtime files before hashing.`);
 }
 
@@ -308,7 +350,7 @@ export async function assertOutputAllowed(out: string, repoRoot = PROJECT_ROOT):
   const rel = relative(resolve(repoRoot), out);
   if (rel.startsWith(`..${sep}`) || rel === '..' || isAbsolute(rel)) return;
   const runtimeFolder = rel === 'runtime-binaries' || rel.startsWith(`runtime-binaries${sep}`);
-  const written = ['postgres', 'python', 'manifest.json'].map(name => join(out, name));
+  const written = ['postgres', 'python', 'tesseract', 'readers.json', 'manifest.json'].map(name => join(out, name));
   const tracked = await trackedPaths(repoRoot, runtimeFolder ? written : [out]);
   check(tracked.length === 0, 'RUNTIME_OUTPUT_TRACKED', 'Staged runtimes are never committed. Choose runtime-binaries or a folder outside the repository.');
 }
@@ -325,6 +367,9 @@ async function prepareOutput(out: string, options: StageOptions, components: Run
   }
 }
 
+/** The `readers` section when the sources object carries one (otherwise stage-readers.ts reads the pin file). */
+const readerPins = (sources: RuntimeSources) => isObject((sources as { readers?: unknown }).readers) ? (sources as unknown as { readers: ReaderSources }).readers : undefined;
+
 /** Download, verify, extract and arrange both runtimes for one target, then write the manifest. */
 export async function stageRuntime(options: StageOptions): Promise<RuntimeManifest> {
   validTarget(options.platform, options.architecture);
@@ -335,6 +380,9 @@ export async function stageRuntime(options: StageOptions): Promise<RuntimeManife
   const work = join(out, `.stage-${randomBytes(6).toString('hex')}`);
   await mkdir(work, { mode: 0o700 });
   try {
+    const libraries = sources.libraries?.[`${options.platform}-${options.architecture}`];
+    const packages = new LibraryPackages(join(work, 'library-packages'), (url, destination) => downloadArchive(url, destination, { fetch: options.fetch, maxBytes: options.maxBytes }));
+    let setRunpath = options.setRunpath ?? null;
     for (const source of selected) {
       const archive = join(work, `${source.component}.${source.layout.archive}`);
       const digest = await downloadArchive(source.url as string, archive, { fetch: options.fetch, maxBytes: options.maxBytes });
@@ -343,14 +391,32 @@ export async function stageRuntime(options: StageOptions): Promise<RuntimeManife
       await extractArchive(archive, join(work, `${source.component}-extracted`), source.layout.archive);
       await arrangeComponent(join(work, `${source.component}-extracted`), source.layout, join(work, 'arranged', source.layout.into));
       await rm(archive, { force: true });
+      if (source.layout.vendorLibraries) {
+        check(libraries !== undefined && options.platform === 'linux', 'RUNTIME_SOURCES_INVALID', 'Vendored libraries need pinned library packages for this target.');
+        setRunpath ??= await patchelfRunpath(options.patchelf ?? 'patchelf');
+        await vendorLinuxLibraries(join(work, 'arranged', source.layout.into), libraries, { packages, setRunpath, onNote: options.onNote });
+      }
     }
-    for (const path of requiredExecutables(options.platform)) check(await regularFile(join(work, 'arranged', ...path.split('/'))), 'RUNTIME_LAYOUT_INVALID', 'A required runtime executable is missing from the archive.');
+    for (const path of requiredExecutables(options.platform, selected.slice(2).map(source => source.component))) check(await regularFile(join(work, 'arranged', ...path.split('/'))), 'RUNTIME_LAYOUT_INVALID', 'A required runtime executable is missing from the archive.');
     for (const source of selected) check(await regularFile(join(work, 'arranged', ...source.licenseFile.split('/'))), 'RUNTIME_LICENSE_MISSING', 'A runtime license file is missing from the archive.');
     for (const source of selected) {
       await rm(join(out, source.layout.into), { recursive: true, force: true });
       await rename(join(work, 'arranged', source.layout.into), join(out, source.layout.into));
     }
   } finally { await rm(work, { recursive: true, force: true }); }
+  if (options.readers) await stageReaders({ platform: options.platform, architecture: options.architecture, out, sourcesPath: options.sourcesPath, readers: readerPins(sources), fetch: options.fetch, maxBytes: options.maxBytes, replace: true, runPython: options.runPython, pythonVersion: selected[1].version, onNote: options.onNote });
+  await signIfRequested(out, options);
+  return writeRuntimeManifest(out, options.platform, options.architecture, selected);
+}
+
+/** Adds the bundled PDF readers to an already-staged runtime, then re-signs and re-inventories it. */
+export async function stageReadersIntoRuntime(options: StageOptions): Promise<RuntimeManifest> {
+  validTarget(options.platform, options.architecture);
+  const out = resolve(options.out);
+  await assertOutputAllowed(out, options.repoRoot);
+  const sources = options.sources ? validateRuntimeSources(options.sources) : await loadRuntimeSources(options.sourcesPath);
+  const selected = selectRuntimeSources(sources, options.platform, options.architecture, { requirePins: false });
+  await stageReaders({ platform: options.platform, architecture: options.architecture, out, sourcesPath: options.sourcesPath, readers: readerPins(sources), fetch: options.fetch, maxBytes: options.maxBytes, replace: options.replace, runPython: options.runPython, pythonVersion: selected[1].version, onNote: options.onNote });
   await signIfRequested(out, options);
   return writeRuntimeManifest(out, options.platform, options.architecture, selected);
 }
@@ -366,27 +432,30 @@ export async function inventoryRuntime(options: Pick<StageOptions, 'platform' | 
   return writeRuntimeManifest(out, options.platform, options.architecture, selected);
 }
 
-export function parseStageArguments(argv: string[], environment: Record<string, string | undefined> = process.env): StageOptions & { inventoryOnly: boolean } {
+export function parseStageArguments(argv: string[], environment: Record<string, string | undefined> = process.env): StageOptions & { inventoryOnly: boolean; readersOnly: boolean } {
   const values = new Map<string, string>();
   const flags = new Set<string>();
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
-    if (name === '--inventory-only' || name === '--replace') { flags.add(name); continue; }
-    check(['--platform', '--arch', '--out', '--sources', '--max-bytes', '--sign-command'].includes(name) && argv[index + 1] !== undefined && !values.has(name), 'RUNTIME_USAGE', 'Usage: node scripts/release/stage-runtime.ts --platform win32|darwin|linux --arch x64|arm64 --out runtime-binaries [--inventory-only] [--replace] [--sources file] [--max-bytes n] [--sign-command /absolute/path]');
+    if (['--inventory-only', '--replace', '--readers', '--readers-only'].includes(name)) { check(!flags.has(name), 'RUNTIME_USAGE', 'Give each option once.'); flags.add(name); continue; }
+    check(['--platform', '--arch', '--out', '--sources', '--max-bytes', '--sign-command', '--patchelf'].includes(name) && argv[index + 1] !== undefined && !values.has(name), 'RUNTIME_USAGE', 'Usage: node scripts/release/stage-runtime.ts --platform win32|darwin|linux --arch x64|arm64 --out runtime-binaries [--inventory-only | --readers-only] [--readers] [--replace] [--sources file] [--max-bytes n] [--sign-command /absolute/path] [--patchelf /absolute/path]');
     values.set(name, argv[index += 1]);
   }
   check(values.has('--platform') && values.has('--arch') && values.has('--out'), 'RUNTIME_USAGE', 'Provide --platform, --arch and --out.');
+  check([...flags].filter(flag => ['--inventory-only', '--readers-only', '--readers'].includes(flag)).length <= 1, 'RUNTIME_USAGE', 'Choose one of --inventory-only, --readers-only or --readers.');
   const maxBytes = values.has('--max-bytes') ? Number(values.get('--max-bytes')) : undefined;
   check(maxBytes === undefined || (Number.isSafeInteger(maxBytes) && maxBytes > 0), 'RUNTIME_USAGE', 'The download size limit must be a positive whole number of bytes.');
   const signCommand = values.get('--sign-command') ?? (environment.CHAUSAR_RUNTIME_SIGN_COMMAND?.trim() || null);
   check(signCommand === null || isAbsolute(signCommand), 'RUNTIME_USAGE', 'The signing command must be an absolute path.');
-  return { signCommand, platform: values.get('--platform') as string, architecture: values.get('--arch') as string, out: resolve(values.get('--out') as string), sourcesPath: values.has('--sources') ? resolve(values.get('--sources') as string) : undefined, maxBytes, replace: flags.has('--replace'), inventoryOnly: flags.has('--inventory-only') };
+  const patchelf = values.get('--patchelf') ?? null;
+  check(patchelf === null || isAbsolute(patchelf), 'RUNTIME_USAGE', 'The patchelf path must be absolute.');
+  return { signCommand, patchelf, platform: values.get('--platform') as string, architecture: values.get('--arch') as string, out: resolve(values.get('--out') as string), sourcesPath: values.has('--sources') ? resolve(values.get('--sources') as string) : undefined, maxBytes, replace: flags.has('--replace'), inventoryOnly: flags.has('--inventory-only'), readers: flags.has('--readers'), readersOnly: flags.has('--readers-only') };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = { ...parseStageArguments(process.argv.slice(2)), onNote: (text: string) => console.log(text) };
-    const manifest = options.inventoryOnly ? await inventoryRuntime(options) : await stageRuntime(options);
+    const manifest = options.inventoryOnly ? await inventoryRuntime(options) : options.readersOnly ? await stageReadersIntoRuntime(options) : await stageRuntime(options);
     console.log(`Runtime manifest written for ${manifest.platform}-${manifest.architecture}: ${manifest.files.length} files. Run node scripts/package-preflight.mjs next.`);
   } catch (error) {
     const failure = error as { code?: string; message?: string };
