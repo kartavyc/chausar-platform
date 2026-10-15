@@ -162,7 +162,7 @@ test('read-only Today removes cash, prepare, setup and update mutations while re
 
 test('Simple Today submits a cash string once without numeric conversion, then clears the field', async () => {
   const user = userEvent.setup();
-  const onSaveClosing = vi.fn<NonNullable<TodayIntents['onSaveClosing']>>();
+  const onSaveClosing = vi.fn<NonNullable<TodayIntents['onSaveClosing']>>(async () => 'saved');
   const data: TodayData = {
     ...todayData(),
     cash: { week: { form: 'columns', sentence: 'Synthetic chart with no supplied points', values: [] } },
@@ -174,7 +174,8 @@ test('Simple Today submits a cash string once without numeric conversion, then c
   expect(onSaveClosing).not.toHaveBeenCalled();
   await user.keyboard('{Enter}');
   expect(onSaveClosing).toHaveBeenCalledExactlyOnceWith('00,450.70');
-  expect(field.value).toBe('');
+  // The field clears once the save is confirmed.
+  await waitFor(() => expect(field.value).toBe(''));
 });
 
 test('Ask preserves reviewed question text, submits only on Enter and has no absent voice control', async () => {

@@ -499,7 +499,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.cash.week': () => { round4('todayx.cash.week'); return cashWeekFixture(date, cashTold); },
     'todayx.cash.save': payload => {
       round4('todayx.cash.save'); mutating();
-      if (seat.role === 'viewer') throw fakeRefusal('FORBIDDEN', 'Your role can only read.');
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'Only the owner or a cofounder tells the day\'s cash.');
       if (Object.keys(payload).some(key => key !== 'day' && key !== 'paise') || payload['day'] !== date || typeof payload['paise'] !== 'string' || !/^(0|[1-9][0-9]{0,14})$/.test(payload['paise'])) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Give today and the cash as whole paise.');
       cashTold.set(date, payload['paise']);
       return cashWeekFixture(date, cashTold);

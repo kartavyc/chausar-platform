@@ -45,7 +45,10 @@ export interface BooksQueueRow {
 export type CloseStepKind = 'bank' | 'gstr2b' | 'tds' | 'trial-balance';
 export const CLOSE_STEP_ORDER: ReadonlyArray<CloseStepKind> = ['bank', 'gstr2b', 'tds', 'trial-balance'];
 /** A close step's state as a code; the screen gives its words and its square. */
-export type CloseStepState = 'done' | 'in-progress' | 'not-started' | 'needs-you' | 'not-applicable' | 'not-loaded-yet' | 'failed';
+/** What a cash save came to: kept, not a plain amount, or refused or failed. */
+export type CashSaveResult = 'saved' | 'invalid' | 'failed';
+
+export type CloseStepState = 'done' | 'in-progress' | 'not-started' | 'needs-you' | 'not-applicable' | 'not-loaded-yet' | 'not-sure' | 'failed';
 
 export interface CloseStep {
   readonly id: string;
@@ -135,7 +138,7 @@ export interface TodayIntents {
   onResumeSetup?: (() => void) | undefined;
   onUpdate?: (() => void) | undefined;
   /** Simple: the day's cash, as something the owner said. The text is data. */
-  onSaveClosing?: ((text: string) => void) | undefined;
+  onSaveClosing?: ((text: string) => Promise<CashSaveResult>) | undefined;
   /** Daily closing on or off (`todayx.closing.set`). Supplied only to a seat that may change it. */
   onSetClosing?: ((on: boolean) => void) | undefined;
   /** Simple: the day's cash by voice (TD-02, SH-05). Off unless supplied with `on: true`. */

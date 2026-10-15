@@ -38,7 +38,8 @@ export interface VoiceSpeakerPort {
   stop(): void;
 }
 
-export type ReadBack = { readonly kind: 'amount'; readonly paise: string } | { readonly kind: 'date'; readonly text: string };
+/** An amount (rupees or paise were said), a number with no money unit shown as its words, or a date. */
+export type ReadBack = { readonly kind: 'amount'; readonly paise: string } | { readonly kind: 'number'; readonly text: string } | { readonly kind: 'date'; readonly text: string };
 
 export type VoicePhase =
   | { readonly kind: 'idle' }
@@ -91,14 +92,15 @@ export interface VoiceController {
 const MONTHS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|मई|जून|जुलाई|अगस्त|सितंबर|सितम्बर|अक्टूबर|नवंबर|नवम्बर|दिसंबर|दिसम्बर';
 const DATE = new RegExp(`\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}\\b|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS})(?:\\s+\\d{4})?|(?:${MONTHS})\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?`, 'giu');
 
-/** The amounts and dates in a reading, in order. Amounts are the engine's exact paise; a number with no unit is rupees. */
+/** The numbers and dates in a reading, in order. Only a number said in rupees or paise is money (the
+ *  engine's exact paise); any other number is shown back as its words, never as rupees. */
 export function readBacksOf(heard: VoiceHeard): readonly ReadBack[] {
   const understood = heard.understood;
   if (understood === null) return [];
   const out: ReadBack[] = [];
   for (const n of understood.numbers) {
-    const paise = n.paise ?? (n.unit === null && n.integer !== null ? (BigInt(n.integer) * 100n).toString() : null);
-    if (paise !== null) out.push({ kind: 'amount', paise });
+    if ((n.unit === 'rupees' || n.unit === 'paise') && n.paise !== null) out.push({ kind: 'amount', paise: n.paise });
+    else out.push({ kind: 'number', text: n.text });
   }
   for (const match of understood.understood.matchAll(DATE)) out.push({ kind: 'date', text: match[0] });
   return out;
@@ -202,9 +204,11 @@ export function createVoiceController(rpc: PlaceRpc, capture: VoiceCapturePort |
       if (p.kind !== 'heard' || p.confirming || !p.answers.every(a => a === true)) return null;
       phase({ ...p, confirming: true });
       try {
-        const reply = await rpc.request(VOICE_METHODS.confirm, { sessionId: p.sessionId, digest: p.digest });
+        // The text confirmed is the text the person saw; a reply with other words is refused, not used.
+        const reply = await rpc.request(VOICE_METHODS.confirm, { sessionId: p.sessionId, digest: p.digest, text: p.text });
         if (mine !== turn) return null;
         if (!isVoiceConfirm(reply, p.digest)) { phase({ kind: 'failed', code: 'INVALID_REPLY' }); return null; }
+        if (reply.text !== p.text) { phase({ kind: 'failed', code: 'UNDERSTOOD_CHANGED' }); return null; }
         phase({ kind: 'idle' });
         return reply.text;
       } catch (error) { refusal(error, mine); return null; }

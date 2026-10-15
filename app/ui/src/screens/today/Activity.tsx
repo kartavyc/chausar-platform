@@ -208,7 +208,7 @@ export function ActivityPlace({ address, language, view, rpc, live, openReceipt,
   const jobOptions = [{ value: 'all', label: t('FT4.activity.allJobs') }, ...recent(seen.current.jobs, filters.job).map((job) => ({ value: job, label: job }))];
   const recordOptions = [{ value: 'all', label: t('FT4.activity.allRecords') }, ...recent(seen.current.records, filters.record).map((record) => ({ value: record, label: record }))];
   const choose = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
-  const filtersSet = filters.state !== null || filters.actor !== null || filters.day !== null;
+  const filtersSet = filters.state !== null || filters.actor !== null || filters.day !== null || filters.job !== null || filters.record !== null;
   const filterChoices = (
     <div className={s.filters}>
       <Choice label={t('TD-04.filter.state')} options={stateOptions} value={filters.state ?? 'all'} onChange={(v) => choose({ state: v === 'all' ? null : (v as ActivityState) })} />

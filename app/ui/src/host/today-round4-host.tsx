@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react';
 import type { Address, Count, Language, View } from '../app/presentation.ts';
 import type { PlaceId } from '../app/presentation.ts';
 import type { PlaceRpc } from '../places/types.ts';
-import type { TodayData, TodayIntents } from '../screens/today/TodayData.ts';
+import type { CashSaveResult, TodayData, TodayIntents } from '../screens/today/TodayData.ts';
 import { GroupStepper } from '../screens/today/GroupStepper.tsx';
 import { PhoneDocumentSheet } from '../screens/today/PhoneDocumentSheet.tsx';
 import { sheetOf } from '../screens/work/contract.ts';
@@ -58,10 +58,17 @@ export function useTodayRound4Host(input: Round4HostInput): Round4Host {
     input.openSheet(opened.kind === 'group' ? 'today-group' : 'today-document', origin);
     return true;
   };
-  const saveCash = (text: string) => {
+  /** Saves the typed cash and says what happened: `invalid` when it is not a plain amount, `failed` on a refusal or a reply that does not check. */
+  const saveCash = async (text: string): Promise<CashSaveResult> => {
     const paise = rupeesToPaise(text), day = r4.reads.cash?.day;
-    if (paise === null || day === undefined) return;
-    input.rpc.request('todayx.cash.save', { day, paise }).then(reply => { if (r4.setCash(reply)) input.rereadFrame(); else r4.reread(); }, () => r4.reread());
+    if (paise === null) return 'invalid';
+    if (day === undefined) return 'failed';
+    try {
+      const reply = await input.rpc.request('todayx.cash.save', { day, paise });
+      if (r4.setCash(reply)) { input.rereadFrame(); return 'saved'; }
+    } catch { /* refused or failed: said below */ }
+    r4.reread();
+    return 'failed';
   };
   const setClosing = (on: boolean) => {
     input.rpc.request('todayx.closing.set', { on }).then(reply => { if (isClosingReply(reply)) input.rereadFrame(); }, () => input.rereadFrame());
@@ -73,8 +80,8 @@ export function useTodayRound4Host(input: Round4HostInput): Round4Host {
       ...base,
       onReview: (rowId, origin) => { if (!open(rowId, origin)) base.onReview(rowId, origin); },
       onOpenQueueRow: (rowId, origin) => { if (!open(rowId, origin)) base.onOpenQueueRow?.(rowId, origin); },
-      // Cash is told by a seat that prepares; the switch belongs to the seats that may change it.
-      ...(r4.reads.cash !== null && input.role !== 'viewer' ? { onSaveClosing: saveCash } : {}),
+      // Cash is told by the owner (or a cofounder): the engine refuses any other seat, so the field is not offered.
+      ...(r4.reads.cash !== null && approver ? { onSaveClosing: saveCash } : {}),
       ...(approver ? { onSetClosing: setClosing } : {}),
     }),
     counts: data => { const count = todayRailCount(data); return count === undefined ? undefined : { today: count }; },

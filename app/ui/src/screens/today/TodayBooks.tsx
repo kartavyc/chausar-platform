@@ -38,6 +38,7 @@ const CLOSE_MARK: Readonly<Record<CloseStepState, Mark>> = {
   'needs-you': 'you',
   'not-applicable': 'off',
   'not-loaded-yet': 'off',
+  'not-sure': 'unsure',
   failed: 'unsure',
 };
 

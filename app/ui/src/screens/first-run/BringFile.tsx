@@ -40,6 +40,7 @@ import { ProposedMeanings } from './ProposedMeanings';
 import type { ProposalsOutcome } from './proposals.ts';
 import { PdfStatement } from './PdfStatement';
 import s from './Journey.module.css';
+import { csvText, fitsRequest } from './pick.ts';
 
 export type { PickedFile } from './journey-contracts.ts';
 
@@ -74,7 +75,7 @@ type Phase =
   | { readonly kind: 'failed'; readonly failure: JourneyFailure };
 
 /** The chooser's refusals (`imports.pickFile`), each with its own sentence. */
-export const PICK_REFUSED: ReadonlySet<string> = new Set(['FILE_TOO_LARGE', 'FILE_KIND_REFUSED', 'FILE_UNREADABLE', 'PICKER_BUSY']);
+export const PICK_REFUSED: ReadonlySet<string> = new Set(['FILE_TOO_LARGE', 'FILE_KIND_REFUSED', 'FILE_UNREADABLE', 'PICKER_BUSY', 'FILE_NOT_UTF8']);
 
 const ROLES: readonly ColumnRole[] = ['date', 'customer', 'amount', 'invoice', 'ignore'];
 const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'DMY'];
@@ -98,7 +99,7 @@ function base64Of(bytes: Uint8Array): string {
 /** The browser fallback: the chosen file's text or bytes, held only to hand to the engine. */
 async function fromInput(file: File, pdf: boolean): Promise<PickedFile | null> {
   const format = formatOf(file.name, pdf);
-  if (format === 'csv') return { name: file.name, format, content: await file.text() };
+  if (format === 'csv') return { name: file.name, format, content: csvText(await file.arrayBuffer()) };
   if (format === 'xlsx' || format === 'pdf') return { name: file.name, format, bytesBase64: base64Of(new Uint8Array(await file.arrayBuffer())) };
   return null;
 }
@@ -133,10 +134,12 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     setPhase({ kind: 'reading' });
     const sourceId = sourceIdFor(chosen.name);
     const extra = { ...(recipe === null ? {} : { recipe }), ...(totals === null ? {} : { expectedTotals: totals }) };
+    const [method, payload] = chosen.format === 'csv'
+      ? ['sources.preview', { sourceId, format: 'csv', content: chosen.content, ...extra }] as const
+      : ['sources.workbookPreview', { sourceId, bytesBase64: chosen.bytesBase64, ...extra }] as const;
+    if (!fitsRequest(method, payload)) { setPhase({ kind: 'pickRefused', code: 'FILE_TOO_LARGE' }); return; }
     try {
-      const reply = chosen.format === 'csv'
-        ? await rpc.request('sources.preview', { sourceId, format: 'csv', content: chosen.content, ...extra })
-        : await rpc.request('sources.workbookPreview', { sourceId, bytesBase64: chosen.bytesBase64, ...extra });
+      const reply = await rpc.request(method, payload);
       if (token !== generation.current) return;
       const checked = validatePreview(reply);
       setPhase({ kind: 'previewed', preview: checked, recipe, totals });
@@ -183,9 +186,11 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     const extra = { ...(current.recipe === null ? {} : { recipe: current.recipe }), ...(current.totals === null ? {} : { expectedTotals: current.totals }) };
     try {
       if (file.format === 'pdf') return;
-      const reply = file.format === 'csv'
-        ? await rpc.request('sources.import', { sourceId, format: 'csv', content: file.content, ...extra })
-        : await rpc.request('sources.workbookImport', { sourceId, bytesBase64: file.bytesBase64, ...extra });
+      const [method, payload] = file.format === 'csv'
+        ? ['sources.import', { sourceId, format: 'csv', content: file.content, ...extra }] as const
+        : ['sources.workbookImport', { sourceId, bytesBase64: file.bytesBase64, ...extra }] as const;
+      if (!fitsRequest(method, payload)) { setPhase({ kind: 'pickRefused', code: 'FILE_TOO_LARGE' }); return; }
+      const reply = await rpc.request(method, payload);
       if (token !== generation.current) return;
       setPhase({ kind: 'taken', result: validateImport(reply) });
     } catch (error) { if (token === generation.current) setPhase({ kind: 'failed', failure: failureOf(error) }); }
@@ -217,7 +222,10 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
         <div><input id={inputId} type="file" accept={pdf ? '.csv,.txt,.xlsx,.pdf' : '.csv,.txt,.xlsx'} onChange={event => {
           const chosen = event.currentTarget.files?.[0];
           if (chosen === undefined) return;
-          void fromInput(chosen, pdf).then(begin, error => setPhase({ kind: 'failed', failure: failureOf(error) }));
+          void fromInput(chosen, pdf).then(begin, error => {
+            const failure = failureOf(error);
+            setPhase(failure.kind === 'refused' && PICK_REFUSED.has(failure.code) ? { kind: 'pickRefused', code: failure.code } : { kind: 'failed', failure });
+          });
         }} /></div>
       </div>
     );

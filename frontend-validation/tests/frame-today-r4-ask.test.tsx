@@ -254,7 +254,9 @@ test('hold to talk: words as heard, the amount shown back large, nahi named, and
   expect(await screen.findByText('Your question: do lakh nahi mila')).toBeTruthy();
   expect(screen.getByText('Speech is turned into text on this computer.')).toBeTruthy();
   expect(screen.getByText('“nahi” changes the meaning.')).toBeTruthy();
-  expect(screen.getByText('₹2,00,000. Is that right?')).toBeTruthy();
+  // No rupees or paise were said: the number is read back as its words, never as money.
+  expect(screen.getByText('do lakh. Is that right?')).toBeTruthy();
+  expect(screen.queryByText('₹2,00,000. Is that right?')).toBeNull();
   expect(onAsk).not.toHaveBeenCalled();
   expect(engine.calls).not.toContain('voice.confirm');
   expect(screen.queryByRole('button', { name: 'Ask this' })).toBeNull();
@@ -300,7 +302,7 @@ test('a dropped voice note is heard and read back the same way', async () => {
   const file = new File([new TextEncoder().encode('do lakh')], 'note.webm', { type: 'audio/webm' });
   await act(async () => { fireEvent.drop(screen.getByRole('search'), { dataTransfer: { files: [file], types: ['Files'] } }); });
   // The note's length is read from its metadata, or counted as unknown after a short wait.
-  expect(await screen.findByText('₹2,00,000. Is that right?', undefined, { timeout: 5000 })).toBeTruthy();
+  expect(await screen.findByText('do lakh. Is that right?', undefined, { timeout: 5000 })).toBeTruthy();
   expect(engine.calls).toContain('voice.dropNote');
 });
 
