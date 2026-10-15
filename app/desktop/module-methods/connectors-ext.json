@@ -21,6 +21,8 @@
   "connectorsx.credentials.remove",
   "connectorsx.credentials.status",
   "connectorsx.schedule",
+  "connectorsx.screenExport.start",
+  "connectorsx.screenExport.collect",
   "imports.preview",
   "imports.providePassword",
   "imports.commit",

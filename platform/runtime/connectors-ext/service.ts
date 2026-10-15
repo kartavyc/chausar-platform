@@ -3,12 +3,12 @@ import { authorize, audit, check, ChausarError, newId, now, type Context, type S
 import { APPROVED_CONNECTOR_GROUPS } from '../connectors.ts';
 import { readWorkbook } from '../workbook.ts';
 import { currentAccess } from '../memory.ts';
-import { runApiRead, type ReadCredentials } from '../adapters/read-kit.ts';
+import { API_READ_LIMITS, runApiRead, type ApiReadResult, type ReadCredentials } from '../adapters/read-kit.ts';
 import type { BoundedHttp } from '../connectors.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { RECIPES, recipe as registeredRecipe, runRegistered, DECODERS } from './recipes/index.ts';
 import { boardCounts, buildCatalogue, type WriteRow } from './catalogue.ts';
-import { READS, readsFor } from './reads.ts';
+import { READ_SPLIT_TRIGGER, READS, readsFor } from './reads.ts';
 import { commitOutcome } from './importer.ts';
 import { authorizeUrl, KEY_SIGN_IN, pkce, providerFor } from './oauth.ts';
 import { decide, recordRun, SCHEDULE_LIMITS, stale, validateSchedule } from './schedule.ts';
@@ -61,6 +61,46 @@ function connection(store: StateStore, id: unknown): Connection {
   return found;
 }
 const options = (host: ModuleHost) => host.options as ConnectorsHostOptions;
+/**
+ * Desktop programs exported by driving their own screen (the driving lane's `session.*`): those with
+ * no interface Chausar reads, and Tally when it is on another computer (its XML read is this one only).
+ */
+export const SCREEN_GROUPS: readonly string[] = Object.freeze(['busy', 'marg', 'vyapar', 'tally']);
+
+/** Bounds for a read split by period: parts, and requests across every part (refused attempts included). */
+export const SPLIT_LIMITS = Object.freeze({ maxParts: 8, maxRequests: 400 });
+const DAY_MS = 86_400_000;
+const dayAfter = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
+/**
+ * Reads a period in parts, one after another: a part the adapter refuses as over its request budget
+ * is halved by date (from..mid, mid+1..to) and each half read in turn, earliest first. A single day
+ * that still does not fit, more than `maxParts` parts or more than `maxRequests` requests refuses the
+ * whole read; nothing partial is returned. The declared count is the sum of the parts' counts, or
+ * none when any part stated none.
+ */
+export async function splitRead(read: (period: { from: string; to: string }, maxRequests: number) => Promise<ApiReadResult>, period: { from: string; to: string }, trigger: string):
+  Promise<{ records: Record<string, unknown>[]; pages: number; requests: number; bytes: number; parts: number; declared: ApiReadResult['declared'] }> {
+  const queue = [period], done: ApiReadResult[] = []; let requests = 0;
+  while (queue.length) {
+    const part = queue.shift()!, budget = Math.min(API_READ_LIMITS.maxRequests, SPLIT_LIMITS.maxRequests - requests);
+    check(budget > 0, trigger, 'This period needs more requests than one read allows, even in parts. Choose a shorter period.');
+    try { const result = await read(part, budget); requests += result.requests; done.push(result); }
+    catch (error) {
+      const code = error instanceof ChausarError ? error.code : null;
+      if (code === 'READ_REQUEST_LIMIT' && budget < API_READ_LIMITS.maxRequests) throw new ChausarError(trigger, 'This period needs more requests than one read allows, even in parts. Choose a shorter period.');
+      if (code !== trigger) throw error;
+      requests += 1; // the adapter refuses on its first list page, before any detail request
+      check(part.from < part.to, trigger, 'One day has more records than one read allows. That day cannot be read through the interface.');
+      check(done.length + queue.length + 2 <= SPLIT_LIMITS.maxParts, trigger, 'This period needs more parts than one read allows. Choose a shorter period.');
+      const mid = dayAfter(part.from, Math.floor((Date.parse(part.to) - Date.parse(part.from)) / DAY_MS / 2));
+      queue.unshift({ from: part.from, to: mid }, { from: dayAfter(mid, 1), to: part.to });
+    }
+  }
+  const counted = done.every(item => item.declared?.rowCount != null);
+  return { records: done.flatMap(item => item.records), pages: done.reduce((sum, item) => sum + item.pages, 0), requests: done.reduce((sum, item) => sum + item.requests, 0),
+    bytes: done.reduce((sum, item) => sum + item.bytes, 0), parts: done.length,
+    declared: counted ? { rowCount: done.reduce((sum, item) => sum + item.declared!.rowCount!, 0), reference: done[0].declared?.reference ?? 'source-declared' } : null };
+}
 /** Methods that reach outside, persist a way in, or move secrets need the person at the desktop, not text-driven or remote callers. */
 function trusted(ctx: Context) {
   check((ctx.channel === undefined || ctx.channel === 'desktop') && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Do this yourself in the desktop app.');
@@ -143,7 +183,7 @@ export const handlers = {
     check(group, 'SYSTEM_NOT_FOUND', 'Choose one of the listed systems.');
     check((group.id === 'plain-database') === (payload.road === 'database'), REQUEST, 'A plain database is reached as a database, and only a plain database is.');
     check(['interface', 'file', 'screen', 'database'].includes(payload.road), REQUEST, 'Choose how Chausar reaches this system.');
-    check(payload.road !== 'screen', 'SCREEN_EXPORT_NOT_BUILT', 'Driving the program on your screen is not built in this version. Export a file instead.');
+    check(payload.road !== 'screen' || SCREEN_GROUPS.includes(group.id), REQUEST, 'Only Busy, Marg, Vyapar and Tally are exported by driving the program on your screen.');
     check(text(payload.company), REQUEST, 'Name the company this connection reads.');
     const branch = payload.branch ?? 'main'; check(text(branch, 100) && /^[A-Za-z0-9_.:-]+$/.test(branch), REQUEST, 'Name the branch.');
     const settings = payload.settings ?? {};
@@ -158,7 +198,7 @@ export const handlers = {
       check(Object.keys(settings).every(key => ['engine', 'host', 'port', 'database', 'user', 'ssl', 'path'].includes(key)), REQUEST, 'A setting is not used by database connections.');
       databaseConnection({ settings, sourceId: 'cx-plain-database-check' } as Connection);
     }
-    else check(Object.keys(settings).length === 0, REQUEST, 'File connections take no settings.');
+    else check(Object.keys(settings).length === 0, REQUEST, 'File and screen connections take no settings.');
     return host.store.update(state => {
       const member = authorize(view(host.store, state), ctx, 'admin');
       check(member.branches.includes('*') || member.branches.includes(branch), 'FORBIDDEN_BRANCH', 'This branch is outside your current access.');
@@ -233,8 +273,12 @@ export const handlers = {
     check(plain(parameters) && Object.keys(parameters).every(key => binding!.parameters.includes(key)) && Object.values(parameters).every(value => text(value, 200)), REQUEST, 'This read takes different choices.');
     const broker = options(host).credentialBroker;
     const credentials: ReadCredentials | undefined = broker ? request => broker(ctx, request) : undefined;
-    let result: Awaited<ReturnType<typeof runApiRead>>;
-    try { result = await runApiRead(binding!.spec, { config: binding!.config(item.settings, parameters), sourceId: item.sourceId, period: requested, credentials, http: options(host).http }); }
+    let result: { records: Record<string, unknown>[]; pages: number; requests: number; bytes: number; parts: number; declared: ApiReadResult['declared'] };
+    const once = (part: { from: string; to: string } | null, maxRequests?: number) => runApiRead(binding!.spec, { config: binding!.config(item.settings, parameters), sourceId: item.sourceId, period: part, credentials, http: options(host).http, ...(maxRequests ? { limits: { maxRequests } } : {}) });
+    try {
+      if (binding!.split === 'period' && requested) result = await splitRead(once, requested, READ_SPLIT_TRIGGER);
+      else result = { ...(await once(requested)), parts: 1 };
+    }
     catch (error) {
       const code = error instanceof ChausarError ? error.code : 'SOURCE_READ_FAILED';
       await recordEnvelope(host, ctx, { outcome: null, failure: { code }, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested });
@@ -243,10 +287,13 @@ export const handlers = {
     const declared = result.declared ?? null;
     const meta: Record<string, string> = declared ? { ...(declared.rowCount != null ? { declaredRowCount: String(declared.rowCount) } : {}), ...(declared.amount != null ? { declaredAmount: declared.amount, declaredAmountUnit: declared.amountUnit ?? 'major' } : {}), declaredReference: declared.reference ?? `${binding!.spec.system}-declared` } : {};
     const outcome = runRegistered(binding!.recipe, { records: result.records, meta }, totals ? { reportTotals: totals } : {});
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes, parts: result.parts } }));
   },
-  /** `internal.password` comes only from the in-memory FR-07 password hold, never from an RPC payload. */
-  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost, internal: { password?: string } = {}) {
+  /**
+   * `internal` never comes from an RPC payload: `password` only from the in-memory FR-07 password
+   * hold, `road: 'screen'` only from a screen export collected over the driving lane.
+   */
+  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost, internal: { password?: string; road?: 'screen' } = {}) {
     shape(payload, ['recipeId', 'connectionId', 'sourceId', 'company', 'branch', 'text', 'bytesBase64', 'pdfBase64', 'sheet', 'reportTotals'], ['recipeId']);
     const selected = registeredRecipe(payload.recipeId), decoder = DECODERS.get(selected.decoder)!;
     let target: { sourceId: string; company: string; branch: string }, item: Connection | null = null;
@@ -274,7 +321,7 @@ export const handlers = {
     const outcome = runRegistered(selected.id, input, payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {});
     if (ocrNotice) outcome.notices.push(ocrNotice);
     const library = connectorLibrary(host.store.read(), ctx, { columns: fileColumns(decoder, input, selected), chosen: selected });
-    return { ...outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null, learn: (state, envelope) => recordConnectorPreview(state, ctx, envelope, library) })), library };
+    return { ...outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: internal.road === 'screen' ? 'screen' : 'file', requestedPeriod: null, learn: (state, envelope) => recordConnectorPreview(state, ctx, envelope, library) })), library };
   },
   async importCommit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['envelopeId'], ['envelopeId']); check(text(payload.envelopeId, 100), REQUEST, 'Choose a file or read to import.');
@@ -387,7 +434,9 @@ export const handlers = {
       check(item.road === 'interface', 'SCHEDULE_NOT_AVAILABLE', 'Only connections read through the system\'s own interface can repeat.');
       const binding = readsFor(item.group).find(read => read.id === chosen.operation);
       check(binding && binding.live && binding.parameters.length === 0, 'SCHEDULE_NOT_AVAILABLE', 'This read cannot repeat on its own.');
-      check(registeredRecipe(binding!.recipe).totals.kind !== 'report', 'SCHEDULE_NEEDS_SOURCE_TOTAL', 'A read checked against a total you type cannot repeat on its own.');
+      const totals = registeredRecipe(binding!.recipe).totals;
+      // A read checked against the system's own count may repeat; one that waits for a typed total cannot.
+      check(totals.kind !== 'report' || totals.declaredCount === 'accepts', 'SCHEDULE_NEEDS_SOURCE_TOTAL', 'A read checked against a total you type cannot repeat on its own.');
       next = { ...chosen, lastRunAt: null, lastOutcome: null, runs: { day: '', count: 0 } };
     }
     return host.store.update(state => {
