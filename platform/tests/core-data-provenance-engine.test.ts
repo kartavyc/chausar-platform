@@ -62,7 +62,7 @@ test('a release is reviewed and co-signed only by other people, and every receip
   assert.deepEqual({ ...p.recipes[0], acceptedAt: typeof p.recipes[0].acceptedAt }, { sourceId: 'synthetic-export', recipeId: 'synthetic-shop-v1', acceptedBy: 'owner', acceptedAt: 'string' });
   assert.deepEqual({ ...p.meaning, reviewedAt: typeof p.meaning.reviewedAt }, { publishedBy: 'owner', reviewedBy: ravi.memberId, coSignedBy: asha.memberId, reviewedAt: 'string' });
   assert.equal(p.forecast, null);
-  assert.deepEqual(p.allowedBy, { ruleId: p.allowedBy.ruleId, check: 'source access check passed; number guard passed', device: 'desktop', memberId: 'owner', at: receipt.createdAt });
+  assert.deepEqual(p.allowedBy, { ruleId: p.allowedBy.ruleId, check: 'source-access+number-guard', device: 'desktop', memberId: 'owner', at: receipt.createdAt });
   assert.match(p.allowedBy.ruleId, /^policy\.allowed-sources:/);
   // Stored on the receipt exactly as returned.
   assert.deepEqual(await engine.request('receipts.get', { id: receipt.id }), receipt);
@@ -76,7 +76,7 @@ test('a release is reviewed and co-signed only by other people, and every receip
   assert.deepEqual(served.meaning.atCalculation.reviewedBy.name, 'Ravi');
   assert.equal(served.forecast, 'not applicable');
   assert.deepEqual(served.allowedBy.device, { channel: 'desktop', deviceId: 'absent' });
-  assert.equal(served.allowedBy.checkStep, 'source access check passed; number guard passed');
+  assert.equal(served.allowedBy.checkStep, 'source-access+number-guard');
 
   // Same refusal for an unknown receipt and someone else's.
   const refusals = await Promise.all([engine.requestAs(ravi, 'receipts.provenance', { receiptId: receipt.id }), engine.request('receipts.provenance', { receiptId: 'receipt_unknown' })]

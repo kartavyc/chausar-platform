@@ -279,6 +279,7 @@ These codes were agreed with the coordinator for connectors-ext.
 - **Rates and staleness:** `books.setRate` (work-books) does not mark earlier answers stale.
 - **Aging:** if an invoice's link fields are withheld, aging refuses `AGING_LINK_REQUIRED` instead of giving a partial number.
 - **Workbook size:** the engine's base64 cap (about 2.1 MB) can refuse an encrypted workbook that `readWorkbook` itself would accept (up to 2.5 MiB).
+- **Allowed by ids:** `ruleId` and `check` are identifiers (`policy.allowed-sources:all`, `source-grant:<ids>`, `member-access`; `source-access+number-guard`), as ask reads them.
 - **Device id:** provenance reports the device id as `absent` until core-sync-jobs adds devices.
 
 Nothing in this lane needs the founder.
