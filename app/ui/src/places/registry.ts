@@ -23,8 +23,7 @@ export const laneModules: Readonly<Record<string, readonly PlaceModule[]>> = {
   'hosted-link': hostedLinkPlaces, 'models-ext': modelsExtPlaces, release: releasePlaces, driving: drivingPlaces, 'ca-enterprise': caEnterprisePlaces,
 };
 
-// ca-enterprise: authored addresses that exist only in the ca-firm and enterprise shells are looked up first.
-export const placeModules: readonly PlaceModule[] = [...caEnterpriseFirstPlaces, ...Object.values(laneModules).flat()];
+export const placeModules: readonly PlaceModule[] = Object.values(laneModules).flat();
 
 /** The lane that added this sub-place (places/subplaces/<lane>.ts), if a lane did. */
 function subPlaceOwner(address: Address): string | undefined {
@@ -37,5 +36,7 @@ function subPlaceOwner(address: Address): string | undefined {
 export function placeModuleFor(address: Address, list: readonly PlaceModule[] = placeModules): PlaceModule | null {
   const owner = subPlaceOwner(address);
   const owned = owner === undefined ? undefined : laneModules[owner]?.find(module => list.includes(module) && module.handles(address));
-  return owned ?? list.find(module => module.handles(address)) ?? null;
+  // ca-enterprise: authored addresses that exist only in the ca-firm and enterprise shells come next.
+  const shellOnly = caEnterpriseFirstPlaces.find(module => list.includes(module) && module.handles(address));
+  return owned ?? shellOnly ?? list.find(module => module.handles(address)) ?? null;
 }
