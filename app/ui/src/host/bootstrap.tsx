@@ -45,6 +45,8 @@ import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, Scen
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
+import { FaultReportSheetBody, RouteStatesPanel, UpdatesSheetBody, useCrashPrompt, useUpdates } from './frame-r4.tsx';
+import { todayUpdateRow } from '../app/updates-model.ts';
 import { useTodayRound4Host, ROUND4_SHEETS, type Round4SheetKind } from './today-round4-host.tsx';
 import { useHostAskLine } from './ask-line.tsx';
 import type { AskQuestion } from '../bridge/voice-contract.ts';
@@ -368,7 +370,7 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof' | Round4SheetKind;
+  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof' | Round4SheetKind | 'updates' | 'fault-report';
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
   readonly todayView?: TodayConsumerState;
@@ -451,6 +453,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
+  // Round 4 (frame-r4.tsx): SH-08 updates, SH-09 route states, SH-11 the after-crash question.
+  const updates = useUpdates(controller.places, contextKey);
+  const crashed = useCrashPrompt(shell);
+  const [crashAnswered, setCrashAnswered] = useState(false);
   /** Round 4 Today: approvals and phone documents joined, the close, cash, the closing switch, grouped stepping. */
   const round4 = useTodayRound4Host({ rpc: controller.places, contextKey, language, view, role: context.member.role, navigate, rereadFrame: frame.reread,
     openSheet: (kind, from) => openRound4Sheet(kind, from), onReceipt: id => openReceipt(id) });
@@ -826,6 +832,18 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
     const address = withSheet(active.current, 'about'); setLocalSheet({ address, kind: 'about' }); navigate(address);
   };
+  const showFrameSheet = (kind: 'updates' | 'fault-report') => {
+    if (!stillAuthorized() || active.current === null) return;
+    origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
+    const address = withSheet(active.current, kind); setLocalSheet({ address, kind }); navigate(address);
+  };
+  // SH-11: after an unclean exit, the fault report opens once with Send report and Don't send; nothing is sent by itself.
+  const crashShown = useRef(false);
+  useEffect(() => {
+    // Only once the page at rest is settled (Today read, the frame on the address the hash names), so no start-up step closes it.
+    const settled = active.current !== null && sameAddress(parseAddress(window.location.hash), active.current) && (consumer === null || todayCurrent?.phase === 'ready');
+    if (crashed && !crashShown.current && localSheetRef.current === null && settled && stillAuthorized()) { crashShown.current = true; showFrameSheet('fault-report'); }
+  });
   const showHelp = (suppliedOrigin?: HTMLElement | null, fallback?: HTMLElement | null) => {
     if (!stillAuthorized() || active.current === null) return;
     if (localSheetRef.current?.kind === 'help') return;
@@ -847,7 +865,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
   const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
-  const data: TodayData = round4.project({ ...baseData, ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) });
+  const updateRow = todayUpdateRow(updates.reply);
+  const data: TodayData = round4.project({ ...baseData, ...(updateRow !== undefined ? { update: updateRow } : {}), ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) });
   const openRound4Sheet = (kind: Round4SheetKind, from: HTMLElement | null) => {
     if (!stillAuthorized() || active.current === null) return;
     origin.current = from; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
@@ -908,6 +927,12 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     address: localSheet.address,
     content: <LessonPanel key={localSheet.id} id={localSheet.id} scope={`${formatAddress(localSheet.address)}:${contextKey}`} lessons={retained.lessons} context={context}
       origin={origin.current} onClose={closeLesson} onAdjacent={(id, binding) => openLesson(id, origin.current, binding)} onDecide={decideLesson} />,
+  } : localSheet.kind === 'updates' || localSheet.kind === 'fault-report' ? {
+    address: localSheet.address,
+    content: <Sheet kind={t(localSheet.kind === 'updates' ? 'SH-08.title' : 'SH-11.title')} title={t(localSheet.kind === 'updates' ? 'SH-08.title' : 'SH-11.title')} origin={origin.current} onClose={closeSheet}>
+      {localSheet.kind === 'updates' ? <UpdatesSheetBody updates={updates} />
+        : <FaultReportSheetBody rpc={controller.places} shell={shell} crash={crashed && !crashAnswered} onAnswered={() => setCrashAnswered(true)} />}
+    </Sheet>,
   } : ROUND4_SHEETS.includes(localSheet.kind as Round4SheetKind) ? {
     address: localSheet.address,
     content: round4.content(localSheet.kind, origin.current, closeSheet),
@@ -919,6 +944,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         : localSheet.kind === 'demo-clock' && frame.reads.shell !== null ? <DemoClockControl state={demoClockState(frame.reads.shell, language)} busy={clockBusy}
           onSet={date => clockCall('todayx.clock.set', { date })} onAdvance={by => clockCall('todayx.clock.advance', { by })} />
         : <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>}
+      {localSheet.kind === 'about' && <p><Button variant="link" onClick={() => showFrameSheet('updates')}>{t('SH-08.title')}</Button>{' '}
+        <Button variant="link" onClick={() => showFrameSheet('fault-report')}>{t('SH-11.title')}</Button></p>}
       {localSheet.id !== undefined && <p className={detail.exact}>{hostMessage(language, 'referenceIdentity', { id: localSheet.id })}</p>}
       {legacyLink}
     </Sheet>,
@@ -939,6 +966,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       banners: shellBanners(frame.reads.shell, language, {
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
+        update: () => showFrameSheet('updates'),
+        // The driving lane's own stop (`session.stop`); the banner is read again whatever the reply.
+        stopDriving: () => { void controller.places.request('session.stop', {}).then(frame.reread, frame.reread); },
       }),
     } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
@@ -956,7 +986,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     ],
     capabilities: {},
     counts: round4.counts(data),
-    today: { data, intents: round4.intents(consumer !== null && todayCurrent !== null ? {
+    today: { data, intents: { ...(viewer ? {} : { onUpdate: () => showFrameSheet('updates') }), ...round4.intents(consumer !== null && todayCurrent !== null ? {
       onReview: (id, rowOrigin) => {
         const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
         const row = rows[Number(id.replace(/^review-/, ''))];
@@ -977,7 +1007,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         },
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
-    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) },
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) } },
     sheet: askLine.sheet ?? sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
@@ -1010,7 +1040,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       if (address.place === 'ask' && (address.sub === undefined || address.sub === 'new')) {
         // Ask, New at rest: the route picker, then the ask lane's menu of calculations (its "no model" way to ask).
         const ask = placeModules.find(module => module.id === 'ask');
-        return ask === undefined ? routePicker : <>{routePicker}{ask.render(placeProps({ place: 'ask', sub: 'new' }))}</>;
+        // SH-09: a route that cannot answer says so under the picker; nothing retries or switches by itself.
+        const routes = <RouteStatesPanel rpc={controller.places} contextKey={contextKey} timeZone={workspaceZone}
+          routes={state.routes.filter(route => route.enabled).map(route => ({ id: route.id, label: route.label }))} />;
+        return ask === undefined ? <>{routePicker}{routes}</> : <>{routePicker}{routes}{ask.render(placeProps({ place: 'ask', sub: 'new' }))}</>;
       }
       return address.place === 'trust' && address.sub === 'models'
         ? routePicker

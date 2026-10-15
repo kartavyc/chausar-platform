@@ -38,6 +38,7 @@ import {
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
 import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
+import { applyReply, stageReply, updatesReply, type FakeUpdates } from './fixtures/frame-r4.ts';
 import { cashWeekFixture, closeStatusFixture, todayReviewFixture } from './fixtures/today-r4.ts';
 import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
 import { HOSTED_RECOVERY_PRE_VAULT } from './fixtures/hosted-recovery.ts';
@@ -60,6 +61,8 @@ export interface FakeEngineOptions {
   readonly scenario?: FakeScenario;
   /** The demo clock's starting day, `YYYY-MM-DD`. */
   readonly clock?: string;
+  /** SH-08: a release candidate is ready to install (Today then shows "Update ready"). Off by default. */
+  readonly updateReady?: boolean;
   /** Round 4 Today: serve `todayx.review`, `todayx.closeStatus` and `todayx.cash.*` (off by default, so
    *  earlier previews keep their pages). Other lanes' methods come from `fixtures/today-r4.ts`. */
   readonly today4?: boolean;
@@ -155,6 +158,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   let recoveryContact: RecoveryContact | null = null;
   /* TD-01 daily closing: off until an owner turns it on, as in the engine. */
   let closingOn = false;
+  /* SH-08: the fake release lane's candidate and run. */
+  const updates: FakeUpdates = { ready: options.updateReady === true, staged: false, applied: false };
   const store = new Map<string, unknown>();
   /* Round 4: cash told by the owner, by day, as whole paise. */
   const cashTold = new Map<string, string>();
@@ -458,6 +463,20 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.setupChecklist': () => checklistReply(scenario),
     'todayx.help': () => helpReply(),
     'todayx.faultReport': () => faultReport(date),
+    'todayx.faultReport.send': () => { throw fakeRefusal('FAULT_REPORT_SEND_UNAVAILABLE', 'There is no place to send a fault report yet.'); },
+    'todayx.updates': () => updatesReply(updates, date, seat.role === 'owner' || seat.role === 'cofounder'),
+    'todayx.updates.stage': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'An owner must approve this change.');
+      if (payload['confirmed'] !== true) throw fakeRefusal('CONFIRMATION_REQUIRED', 'Confirm the update.');
+      if (!updates.ready) throw fakeRefusal('UPDATE_NOT_CHECKED', 'Check for an update first.');
+      updates.staged = true; return stageReply();
+    },
+    'todayx.updates.apply': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'An owner must approve this change.');
+      if (payload['confirmed'] !== true || !updates.staged) throw fakeRefusal('UPDATE_NOT_STAGED', 'Check the update first.');
+      updates.applied = true; return applyReply();
+    },
+    'todayx.updates.dismiss': () => updatesReply(updates, date, seat.role === 'owner' || seat.role === 'cofounder'),
     'todayx.phoneMessages': () => phoneMessagesReply(scenario),
     'todayx.idea.start': () => { mutating(); return idea.start(`${date}T06:00:00.000Z`); },
     'todayx.idea.get': () => idea.get(),

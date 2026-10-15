@@ -30,13 +30,14 @@ const TYPES: Record<string, string> = {
   'action.interrupted': 'action.unknown', 'action.deleted-while-executing': 'action.unknown',
   'job.step-dispatched': 'job.step', 'job.step-settled': 'job.step', 'job.step-unknown': 'job.step', 'job.cancelled': 'job.stopped',
   'dictionary.published': 'dictionary.published', 'trust.member.created': 'member.joined', 'auth.invitation.accepted': 'member.joined',
-  // Round 4 (TD-04): lesson decided, backup done, update checked, lock and unlock. An event the core
-  // records under one of these sentence codes passes through as it is; these are the other names it
-  // or a lane records the same fact under.
+  // Round 4 (TD-04): lesson decided, backup done, update checked, lock and unlock. core-sync-jobs records
+  // them as lesson.decided, vault.backup.done, release.update.checked, workspace.locked and
+  // workspace.unlocked, which pass through as they are; these are the other names a lane records the
+  // same fact under.
   'memory.lesson-decided': 'lesson.decided', 'lesson.decision-recorded': 'lesson.decided',
-  'workspace.backup': 'backup.done', 'workspace.backed-up': 'backup.done', 'hosted.backup.uploaded': 'backup.done',
-  'updates.checked': 'update.checked', 'release.update-checked': 'update.checked',
-  'workspace.locked': 'lock', 'vault.locked': 'lock', 'workspace.unlocked': 'unlock', 'vault.unlocked': 'unlock',
+  'workspace.backed-up': 'vault.backup.done', 'hosted.backup.uploaded': 'vault.backup.done',
+  'updates.checked': 'release.update.checked', 'release.update-checked': 'release.update.checked',
+  'vault.locked': 'workspace.locked', 'vault.unlocked': 'workspace.unlocked',
 };
 /** Model dispatch audits duplicate the model receipts, which carry route and cost. */
 const SKIPPED = new Set(['model.dispatch.prepared', 'model.dispatch.completed']);
@@ -67,7 +68,7 @@ function values(details: Record<string, unknown>): Record<string, string> {
 }
 
 /** The same visibility rule as `activity.list`: owners with every branch see everything, others their own records. */
-function visibleAudit(store: StateStore, ctx: Context, state: State) {
+export function visibleAudit(store: StateStore, ctx: Context, state: State = store.read()) {
   const member = authorize(store, ctx);
   return state.activity.filter(item => {
     const details = item.details ?? {};
@@ -151,6 +152,12 @@ export function activityFilter(payload: Record<string, unknown>): ActivityFilter
   return payload as ActivityFilter;
 }
 
+/** The screen's sentence code for core-sync-jobs' own record names; `auditEvents` keeps the recorded names. */
+const SCREEN_TYPES: Record<string, string> = {
+  'vault.backup.done': 'backup.done', 'release.update.checked': 'update.checked', 'workspace.locked': 'lock', 'workspace.unlocked': 'unlock',
+};
+const onScreen = (e: ActivityEvent): ActivityEvent => (SCREEN_TYPES[e.type] === undefined ? e : { ...e, type: SCREEN_TYPES[e.type]! });
+
 export function activityPage(events: readonly ActivityEvent[], filter: ActivityFilter) {
   const matching = events.filter(e => (!filter.state || e.state === filter.state) && (!filter.actor || (e.actor.name ?? e.actor.kind) === filter.actor || e.actor.kind === filter.actor) && (!filter.day || e.at.startsWith(filter.day))
     && (!filter.job || e.values.job === filter.job) && (!filter.record || RECORD_VALUES.some(key => e.values[key] === filter.record)))
@@ -158,5 +165,5 @@ export function activityPage(events: readonly ActivityEvent[], filter: ActivityF
   const after = filter.cursor === undefined ? null : decode(filter.cursor);
   const rest = after ? matching.filter(e => newerFirst(e, after) > 0) : matching;
   const page = rest.slice(0, PAGE_SIZE);
-  return { events: page, nextCursor: rest.length > PAGE_SIZE ? encode(page.at(-1)!) : null, total: String(matching.length) };
+  return { events: page.map(onScreen), nextCursor: rest.length > PAGE_SIZE ? encode(page.at(-1)!) : null, total: String(matching.length) };
 }

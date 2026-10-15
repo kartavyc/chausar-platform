@@ -316,7 +316,7 @@ function transport() {
   } };
   const count = (method: string) => calls.filter(call => call.method === method).length;
   const methods = (from = 0) => calls.slice(from).map(call => call.method);
-  const retainedOrDomain = (from = 0) => methods(from).filter(method => !method.startsWith('todayx.') && !['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'voice.status'].includes(method));
+  const retainedOrDomain = (from = 0) => methods(from).filter(method => !method.startsWith('todayx.') && !['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'voice.status', 'models.probe'].includes(method));
   const payloads = (method: string) => calls.filter(call => call.method === method).map(call => call.payload);
   /** Holds the next raw call of `method` after it was issued (it is counted first). */
   const hold = (method: string) => { const held = gate(); behavior.holds[method] = held; return () => { held.release(); }; };
@@ -1117,7 +1117,7 @@ test('from a grounded answer on Ask, New the saved-answer reference and its stil
   // The old figure opened nothing: no receipt read, no sheet, no receipt address, no model request and no discovery after the press.
   expect(window.location.hash).toBe('#/ask/saved'); expect(sheetElement()).toBeNull();
   expect(fixture.count('receipts.get')).toBe(globalReads);
-  expect(fixture.methods(before).filter(method => method !== 'ui.context')).toEqual(['conversation.get']);
+  expect(fixture.methods(before).filter(method => method !== 'ui.context' && method !== 'models.probe')).toEqual(['conversation.get']);
   expect(fixture.count('scenarios.discover')).toBe(0);
   // The fresh figure of the selected saved answer opens its receipt at Saved; closing it returns to that same saved answer, not to the grounded one.
   await fixture.user.click(button(/^Earned: INR 9\.00\./, page()));
@@ -1222,7 +1222,7 @@ test('a saved grounded turn selected on Saved: fresh Preview writing opens its r
     expect(selected.kind).toBe('answer');
     if (selected.kind === 'answer') expect(selected.saved.id).toBe(NEXT_GROUNDED_SAVED_ID);
   });
-  expect(fixture.methods(replacing).filter(method => method !== 'ui.context')).toEqual(['conversation.get']);
+  expect(fixture.methods(replacing).filter(method => method !== 'ui.context' && method !== 'models.probe')).toEqual(['conversation.get']);
   expect(fixture.count('conversation.synthesis.preview')).toBe(1); expect(sent()).toBe(dispatched);
   expect(window.location.hash).toBe('#/ask/saved'); expect(sheetElement()).toBeNull();
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads); expect(fixture.count('scenarios.discover')).toBe(0);

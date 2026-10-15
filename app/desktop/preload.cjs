@@ -39,7 +39,7 @@ const laneRefusals = [
   ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE', 'OPEN_DESKTOP', 'DEMO_EXTERNAL_DISABLED'],
 
   /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY', 'PIN_WRONG', 'PIN_LOCKED_OUT', 'PIN_NOT_SET', 'PIN_INVALID', 'LADDER_INVALID', 'ROUTE_NOT_FOUND', 'TIME_ZONE_INVALID', 'JOIN_EXPIRED', 'JOIN_USED', 'JOIN_CODE_MISMATCH', 'INVALID_PATH', 'HOSTED_NOT_CONFIGURED', 'HOSTED_UNREACHABLE', 'RECOVERY_NOT_ENROLLED', 'RECOVERY_REQUEST_LIMITED', 'RECOVERY_CREDENTIAL_INVALID', 'RECOVERY_FILE_INVALID', 'RECOVERY_KEY_RELEASED', 'RECOVERY_DECLINED', 'RECOVERY_EXPIRED', 'RECOVERY_NOT_CONFIRMED', 'RECOVERY_IN_PROGRESS', 'RECOVERY_REQUEST_NOT_FOUND', 'RECOVERY_CODE_REJECTED', 'WEAK_PASSPHRASE',
-    /* FR-07 locked workbooks (core-data round 4; UNSUPPORTED_WORKBOOK and ENCRYPTED_ZIP from a core without it) */ 'PASSWORD_REQUIRED', 'WRONG_PASSWORD', 'WORKBOOK_PASSWORD_INVALID', 'WORKBOOK_INTEGRITY_FAILED', 'WORKBOOK_ENCRYPTION_UNSUPPORTED', 'WORKBOOK_ENCRYPTION_INVALID', 'WORKBOOK_CFB_INVALID', 'WORKBOOK_LIMIT', 'UNSUPPORTED_WORKBOOK', 'ENCRYPTED_ZIP'],
+    /* FR-07 locked workbooks (core-data round 4; UNSUPPORTED_WORKBOOK and ENCRYPTED_ZIP from a core without it) */ 'PASSWORD_REQUIRED', 'WRONG_PASSWORD', 'WORKBOOK_PASSWORD_INVALID', 'WORKBOOK_INTEGRITY_FAILED', 'WORKBOOK_ENCRYPTION_UNSUPPORTED', 'WORKBOOK_ENCRYPTION_INVALID', 'WORKBOOK_CFB_INVALID', 'WORKBOOK_LIMIT', 'UNSUPPORTED_WORKBOOK', 'ENCRYPTED_ZIP', 'FAULT_REPORT_SEND_UNAVAILABLE', 'UPDATES_STATUS_UNAVAILABLE', 'UPDATE_REPLY_INVALID', 'INVALID_RELEASE_SIGNATURE', 'UPDATE_FEED_SIGNATURE_INVALID', 'UPDATE_FEED_UNSIGNED', 'UPDATE_MANIFEST_MISMATCH', 'RELEASE_HASH_MISMATCH', 'RELEASE_DOWNGRADE_REFUSED', 'SCHEMA_DOWNGRADE_REFUSED', 'UPDATE_FEED_ROLLBACK', 'UPDATE_WITHDRAWN'],
 
   /* ask */ ['ASK_INVALID', 'ASK_NOT_FOUND', 'ASK_NO_DICTIONARY', 'ASK_NO_CALCULATION', 'ASK_STOPPED_BY_RULE', 'ASK_REFUSED', 'ASK_CHANGED', 'ASK_STALE', 'ASK_NOT_GROUPABLE', 'ASK_BRIDGE_NOT_EXACT', 'ASK_CANNOT_REBUILD', 'ASK_NOT_FORECASTABLE', 'ASK_FAILED', 'ASK_STOPPED', 'ASK_FORECAST_GAPS'],
 
@@ -138,6 +138,16 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   print: async kind => {
     if (kind !== 'recovery-kit' && kind !== 'page') return 'refused';
     try { return await ipcRenderer.invoke('chausar:shell-print', kind) === 'printed' ? 'printed' : 'refused'; } catch { return 'refused'; }
+  },
+  // SH-11 (frame-today): the shown fault report to a file through the system save dialog, and the after-crash question.
+  saveText: async (kind, text) => {
+    if (kind !== 'fault-report' || typeof text !== 'string' || text.length === 0 || text.length > 65536) return 'refused';
+    try { const result = await ipcRenderer.invoke('chausar:shell-save-text', kind, text); return result === 'saved' || result === 'cancelled' ? result : 'refused'; } catch { return 'refused'; }
+  },
+  crashState: async () => { try { return await ipcRenderer.invoke('chausar:shell-crash-state') === 'crashed' ? 'crashed' : 'clean'; } catch { return 'clean'; } },
+  crashAnswer: async answer => {
+    if (answer !== 'send' && answer !== 'dont-send') return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-crash-answer', answer) === 'answered' ? 'answered' : 'refused'; } catch { return 'refused'; }
   },
   // imports.pickFile (frame-today, FR-07/BK-04/FR-13): the kind only goes to main (app/desktop/file-ipc.cjs); the reply is copied field by field.
   pickFile: async kind => {

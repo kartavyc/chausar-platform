@@ -56,10 +56,16 @@ function item(b: ShellBanner, language: Language): BannerItem {
       return { kind: b.kind, values: { date: day(b.date, language) } };
     case 'read-only':
       return { kind: b.kind, values: { holder: b.holder } };
-    case 'sending-closed':
-      return { kind: b.kind, values: { date: day(b.restoredFrom, language), count: pluralSelector(b.unchecked), display: count(b.unchecked) } };
+    case 'sending-closed': {
+      // The restore date and the count are said only when known; neither is ever guessed.
+      const counted = b.unchecked === null ? {} : { count: pluralSelector(b.unchecked), display: count(b.unchecked) };
+      if (b.restoredFrom !== null && b.unchecked !== null) return { kind: b.kind, values: { date: day(b.restoredFrom, language), ...counted } };
+      if (b.restoredFrom !== null) return { kind: b.kind, textKey: 'SH-03.sending-closed.uncounted', values: { date: day(b.restoredFrom, language) } };
+      return b.unchecked === null ? { kind: b.kind, textKey: 'SH-03.sending-closed.undated-uncounted' } : { kind: b.kind, textKey: 'SH-03.sending-closed.undated', values: counted };
+    }
     case 'update-needed':
       if (b.reason === 'withdrawn') return { kind: b.kind, textKey: 'SH-03.update-needed.withdrawn' };
+      if (b.reason === 'vault-newer') return { kind: b.kind, textKey: 'SH-03.update-needed.vault-newer' };
       return b.date === null ? { kind: b.kind, textKey: 'SH-03.update-needed.undated' } : { kind: b.kind, values: { date: day(b.date, language) } };
     case 'jobs-paused':
     case 'no-connection':

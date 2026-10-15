@@ -197,10 +197,12 @@ test('packaged preview forces synthetic worker and enforces the isolated window 
 });
 
 test('background process exposes Open/Quit and drains once without startup persistence', async () => {
-  const d = await desktop(['--background']); assert.equal(d.menus.length, 1); d.windows[0].emit('closed');
+  // The tray menu is built at once and again after its facts are read (frame-today SH-07); Open and Quit are always there.
+  const d = await desktop(['--background']); assert.ok(d.menus.length >= 1); d.windows[0].emit('closed');
+  assert.equal(d.menus[0][0].label, 'Open Chausar');
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0);
   d.app.emit('second-instance'); assert.equal(d.windows.length, 2);
-  d.menus[0][2].click(); assert.equal(d.app.quits, 1);
+  d.menus[0].find((item: any) => item.label === 'Quit Chausar and stop jobs').click(); assert.equal(d.app.quits, 1);
   let prevented = false; d.app.emit('before-quit', { preventDefault: () => { prevented = true; } }); await flush();
   assert.equal(prevented, true); assert.equal(d.engines[0].stops, 1);
 });
@@ -401,7 +403,8 @@ test('imports.pickFile (frame-today): the trusted window gets the system dialog,
 // Release lane (round 4): start at login and wake launches.
 test('release lane: --start-at-login starts hidden in the tray, keeps it after the window closes and grants no background jobs', async () => {
   const d = await desktop(['--start-at-login']); const engine = d.engines[0];
-  assert.equal(d.menus.length, 1); assert.equal(d.windows.length, 0);
+  // frame-today SH-07: the tray menu is built at once and again after its facts are read.
+  assert.ok(d.menus.length >= 1); assert.equal(d.windows.length, 0);
   assert.deepEqual(engine.lifecycle, [{ awake: true, windowOpen: false, backgroundEnabled: false }]);
   d.menus[0][0].click(); await flush(); assert.equal(d.windows.length, 1);
   assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
@@ -409,7 +412,7 @@ test('release lane: --start-at-login starts hidden in the tray, keeps it after t
   assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
   d.app.emit('second-instance', {}, ['chausar', '--start-at-login']); assert.equal(d.windows.length, 1);
   d.app.emit('second-instance', {}, ['chausar']); assert.equal(d.windows.length, 2);
-  d.menus[0][2].click(); assert.equal(d.app.quits, 1);
+  d.menus[0].find((item: any) => item.label === 'Quit Chausar and stop jobs').click(); assert.equal(d.app.quits, 1);
 });
 
 test('release lane: a wake or sign-in launch never opens a window in the running instance; an ordinary launch still does', async () => {

@@ -78,6 +78,10 @@ const speaker = (): VoiceSpeakerPort & { said: string[][]; stopped: number } => 
   return s;
 };
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+/** Waits until a started hold has left idle and starting (the fake engine answers on its own ticks, slower under load). */
+async function started(voice: { snapshot(): { phase: { kind: string } } }): Promise<void> {
+  for (let tries = 0; tries < 400 && ['idle', 'starting'].includes(voice.snapshot().phase.kind); tries++) await new Promise(resolve => setTimeout(resolve, 5));
+}
 
 test('voice: a hold is heard, every amount is read back, and nothing is confirmed before Yes and Ask this', async () => {
   const fixtures = registerAskLineFixtures({ enabled: true, mode: 'browser' });
@@ -86,7 +90,7 @@ test('voice: a hold is heard, every amount is read back, and nothing is confirme
     const voice = createVoiceController(engine, fakeCapture('do lakh nahi mila'), speaker(), () => 'hi');
     await voice.refresh();
     assert.equal(voice.snapshot().status.kind, 'ready');
-    voice.start(); await settle(); await settle();
+    voice.start(); await started(voice);
     assert.equal(voice.snapshot().phase.kind, 'listening');
     await voice.stop();
     const heard = voice.snapshot().phase;
@@ -119,7 +123,7 @@ test('voice: only rupees or paise are read back as money; confirm asks with the 
   try {
     const engine = createFakeEngine();
     const voice = createVoiceController(engine, fakeCapture('paanch hazaar rupaye mila'), null, () => 'hi');
-    voice.start(); await settle(); await settle(); await voice.stop();
+    voice.start(); await started(voice); await voice.stop();
     const p = voice.snapshot().phase;
     assert.ok(p.kind === 'heard');
     if (p.kind !== 'heard') return;
@@ -145,7 +149,7 @@ test('voice: could not hear, voice off, local only, and not built', async () => 
   let fixtures = registerAskLineFixtures({ enabled: true, mode: 'local' });
   try {
     const voice = createVoiceController(createFakeEngine(), fakeCapture(null), null, () => 'en');
-    voice.start(); await settle(); await settle(); await voice.stop();
+    voice.start(); await started(voice); await voice.stop();
     assert.deepEqual(voice.snapshot().phase, { kind: 'unsure', words: '' });
   } finally { fixtures.undo(); }
   fixtures = registerAskLineFixtures({});
@@ -154,19 +158,19 @@ test('voice: could not hear, voice off, local only, and not built', async () => 
     await voice.refresh();
     const status = voice.snapshot().status;
     assert.ok(status.kind === 'ready' && !status.value.enabled, 'off by default');
-    voice.start(); await settle(); await settle();
+    voice.start(); await started(voice);
     assert.equal(voice.snapshot().phase.kind, 'off');
   } finally { fixtures.undo(); }
   fixtures = registerAskLineFixtures({ enabled: true, mode: 'paid', localOnly: true });
   try {
     const voice = createVoiceController(createFakeEngine(), fakeCapture('x'), null, () => 'en');
-    voice.start(); await settle(); await settle();
+    voice.start(); await started(voice);
     assert.equal(voice.snapshot().phase.kind, 'local-only');
   } finally { fixtures.undo(); }
   const voice = createVoiceController(createFakeEngine(), fakeCapture('x'), null, () => 'en');
   await voice.refresh();
   assert.equal(voice.snapshot().status.kind, 'not-built');
-  voice.start(); await settle(); await settle();
+  voice.start(); await started(voice);
   assert.equal(voice.snapshot().phase.kind, 'not-built');
 });
 
@@ -179,7 +183,7 @@ test('voice: a dropped note, a paid approval, and speaking from the receipt', as
     await voice.dropNote({ audioBase64: Buffer.from('paanch hazaar rupaye').toString('base64'), mimeType: 'audio/webm', durationMs: 900 });
     const p = voice.snapshot().phase;
     assert.ok(p.kind === 'heard' && p.readBacks[0]?.kind === 'amount' && p.readBacks[0].paise === '500000');
-    voice.start(); await settle(); await settle();
+    voice.start(); await started(voice);
     assert.deepEqual(voice.snapshot().phase, { kind: 'approval', costCapMinor: '200' });
     await voice.speak('receipt_demo', 'en');
     assert.equal(voice.snapshot().speak.kind, 'speaking');
