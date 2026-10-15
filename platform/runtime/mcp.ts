@@ -15,7 +15,7 @@ export type RegisteredReadTool = { name: string; description: string; inputSchem
 const readToolProviders = new Set<(store: StateStore) => RegisteredReadTool[]>();
 export function registerMcpReadTools(provider: (store: StateStore) => RegisteredReadTool[]): void { readToolProviders.add(provider); }
 /** A per-call record: the member, the registered tool (null for anything else), the receipt and how the call ended. */
-export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; tool: string | null; receiptId: string | null; outcome: 'answered' | 'failed' | 'refused'; code: string | null };
+export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; tool: string | null; receiptId: string | null; outcome: 'answered' | 'failed' | 'refused'; code: string | null; removed?: McpRemoved[] };
 const callHooks = new Set<(store: StateStore, record: McpCallRecord) => void | Promise<void>>();
 /** Engine modules register at load to keep each tool call and refused request; a hook failure never changes the reply. */
 export function registerMcpCallHook(hook: (store: StateStore, record: McpCallRecord) => void | Promise<void>): void { callHooks.add(hook); }
@@ -73,7 +73,7 @@ function validateArguments(schema: any, args: unknown): Record<string, unknown> 
   }
   return JSON.parse(canonical(input));
 }
-/** TL-08: one kind of thing the disclosure check removed from an answer: the field, why (a marking kind, `own-entries`, `withheld` or `send-level`) and how many; never a value. */
+/** TL-08: one kind of thing the disclosure check removed from an answer: the field, why (exactly `personal`, `financial`, `confidential`, `withheld` or `send-level`) and how many; never a value. */
 export type McpRemoved = { field: string; why: string; count: number };
 const markedRowFields = ['customerId', 'invoiceId', 'orderId', 'dueDate', 'status'];
 /** Below the samples send level, a numbers-only assistant gets no value that names a record. */
@@ -148,9 +148,9 @@ export class MCPService {
     return { receipt, receiptDigest };
   }
   /** One record per tool call or refused request for the registered hooks, structure only (no arguments, no values). */
-  async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null) {
+  async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null, removed?: McpRemoved[]) {
     const name = request?.params?.name; const tool = typeof name === 'string' && (this.calculations.has(name) || this.readTools.has(name) || receiptTools.some(t => t.name === name)) ? name : null;
-    const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code };
+    const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code, ...(removed ? { removed: removed.map(({ field, why, count }) => ({ field, why, count })) } : {}) };
     const waiting = pendingCalls.get(this.store) ?? { records: [] as McpCallRecord[], timer: undefined as NodeJS.Timeout | undefined };
     pendingCalls.set(this.store, waiting); waiting.records.push(record);
     if (waiting.records.length >= MCP_FLUSH_RECORDS) await flushMcpCalls(this.store);
@@ -180,7 +180,7 @@ export class MCPService {
         check(calculation || receiptTool || readTool, 'UNKNOWN_TOOL', 'This read-only calculation or receipt tool is not registered.');
         const args = validateArguments((calculation || receiptTool || readTool)!.inputSchema, request.params.arguments ?? {});
         try {
-          const verified = async (structuredContent: any) => { await this.#record(context, request, 'answered', null, readTool ? null : structuredContent?.receipt?.id ?? structuredContent?.receiptId); return respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false }); };
+          const verified = async (structuredContent: any) => { await this.#record(context, request, 'answered', null, readTool ? null : structuredContent?.receipt?.id ?? structuredContent?.receiptId, Array.isArray(structuredContent?.removed) ? structuredContent.removed : undefined); return respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false }); };
           // TL-08: what the reader may not see leaves the receipt and is listed; the digest still pins the stored receipt.
           const shown = (receipt: any) => { const out = discloseRows(this.store.read(), context, receipt, Array.isArray(receipt.rows) ? receipt.rows : [], true);
             return { receipt: out.rows.some((row, i) => row !== receipt.rows[i]) ? { ...receipt, rows: out.rows } : receipt, removed: out.removed, listed: out.scoped || out.removed.length > 0 }; };
