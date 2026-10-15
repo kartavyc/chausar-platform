@@ -9,4 +9,9 @@ export const subPlaces: readonly LaneSubPlace[] = [
   { place: 'trust', id: 'models-voice' },
   { place: 'trust', id: 'models-allowance' },
   // end TR-08 models
+  // TR-07/12/14 vault-hosted-keys
+  { place: 'trust', id: 'keys' },
+  { place: 'trust', id: 'devices' },
+  { place: 'trust', id: 'hosted' },
+  // end TR-07/12/14 vault-hosted-keys
 ];

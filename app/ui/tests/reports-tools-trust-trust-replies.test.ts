@@ -17,11 +17,13 @@ test('a vault with no idle time and no version is read, as missing', () => {
   assert.throws(() => validateVault({ ...VAULT, lock: { idleMinutes: -1, deviceCheck: false } }));
 });
 
-test('the hosted plan may say it ended; anything else is refused', () => {
+test('the hosted plan may say paid or ended (read from hosted.status); anything else is refused', () => {
   const hosted = { blind: 'b', notBlind: 'n', keeps: 'k', jobs: [], plan: 'ended' };
   assert.equal(validateHosted(hosted).ended, true);
   assert.equal(validateHosted({ ...hosted, plan: 'planned-not-available' }).ended, false);
-  assert.throws(() => validateHosted({ ...hosted, plan: 'paid' }));
+  assert.deepEqual([validateHosted({ ...hosted, plan: 'paid' }).paid, validateHosted({ ...hosted, plan: 'paid' }).ended], [true, false]);
+  assert.throws(() => validateHosted({ ...hosted, plan: 'free' }));
+  assert.throws(() => validateHosted({ ...hosted, plan: 'gold' }));
 });
 
 test('a marking change is the markings or a change that waits; a pending change may name a rule this screen does not list', () => {

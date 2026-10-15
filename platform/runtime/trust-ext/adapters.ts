@@ -59,6 +59,30 @@ export function hostedLeft(state: State): HostedLeft[] {
     : e.event === 'hosted.backup.uploaded' && iso(e.at) ? [{ id: e.id, at: e.at, kind: 'backup', channel: null }] : []);
 }
 
+export type HostedAccount = {
+  state: 'not-configured' | 'demo' | 'not-paired' | 'paired';
+  plan: 'free' | 'paid' | null;
+  refreshedAt: string | null;
+  entitlements: { backup: boolean; worker: boolean; relay: boolean; allowance: boolean } | null;
+};
+/**
+ * hosted.status (TR-14): whether the hosted link is set up and paired, and the plan and entitlements it cached at its
+ * last account refresh. Never reaches the hosted service. Absent, refused or not understood reads as not configured.
+ */
+export async function hostedAccount(host: ModuleHost): Promise<HostedAccount> {
+  const none: HostedAccount = { state: 'not-configured', plan: null, refreshedAt: null, entitlements: null };
+  const reply = await ask(host, 'hosted.status');
+  if (!obj(reply) || typeof reply.configured !== 'boolean' || typeof reply.paired !== 'boolean') return none;
+  if (reply.demo === true) return { ...none, state: 'demo' };
+  if (!reply.configured) return none;
+  if (!reply.paired) return { ...none, state: 'not-paired' };
+  const account = reply.account;
+  if (!obj(account) || !['free', 'paid'].includes(account.plan) || !iso(account.refreshedAt) || !obj(account.entitlements)) return { ...none, state: 'paired' };
+  const e = account.entitlements, on = (v: unknown) => v === true;
+  return { state: 'paired', plan: account.plan, refreshedAt: account.refreshedAt,
+    entitlements: { backup: on(e.backup), worker: on(e.worker), relay: on(e.relay), allowance: on(e.allowance) } };
+}
+
 /** jobsx.autonomy: the preset the jobs lane holds, or null when that lane does not answer. */
 export async function autonomyPreset(host: ModuleHost): Promise<string | null> {
   const reply = await ask(host, 'jobsx.autonomy');

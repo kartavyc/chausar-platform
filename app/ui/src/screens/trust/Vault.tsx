@@ -15,6 +15,7 @@ import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Note, Screen } from './kit/Screen';
 import { AskTwice, Loads, Outcome, Refusal, Tag, bytesText, countText, dayText, powers, type P } from './common';
 import { DeletionSheet } from './Deletion';
+import { ComputerSettings, RestoreFile } from './Computer';
 import { wholeNumber } from './paise.ts';
 import { validateBackup, validateService, validateVault, type Backup, type ServiceStatus, type VaultView } from './validate.ts';
 import { COMMON, VAULT, fill } from './words.ts';
@@ -68,7 +69,7 @@ function VaultBody({ p, v, reload }: { p: P; v: VaultView; reload: () => void })
         {admin ? <RecoveryContactSettings rpc={p.rpc} /> : <p className={s.text}>{v.recoveryContact === null ? w.recoveryNone : fill(w.recoveryIs, { name: v.recoveryContact })}</p>}
       </Group>
       <Group title={w.versionTitle}>{v.version === null ? <p className={s.quiet}>{w.versionUnknown}</p> : <p className={s.mono}>{v.version}</p>}</Group>
-      <Group title={w.restoreTitle}><p className={s.text}>{w.restoreNote}</p></Group>
+      <Group title={w.restoreTitle}><p className={s.text}>{w.restoreNote}</p><RestoreFile p={p} file={last?.file ?? null} /></Group>
       <ThisComputer p={p} />
       {owner && <span><Button variant="link" onClick={() => p.navigate(withSheet(p.address, 'delete'))}>{w.deleteLink}</Button></span>}
       {!admin && <Note>{c.adminOnly}</Note>}
@@ -129,7 +130,8 @@ function ThisComputer({ p }: { p: P }) {
   const w = words(VAULT, p.language);
   const { admin } = powers(p);
   if (!admin) return <Group title={w.computerTitle}><p className={s.quiet}>{w.computerAdmin}</p><p className={s.quiet}>{w.wake}</p></Group>;
-  return <ServiceGroup p={p} />;
+  // TR-07/12/14 vault-hosted-keys: start at login, background mode and wake for jobs (SH-07).
+  return <><ServiceGroup p={p} /><ComputerSettings p={p} /></>;
 }
 
 function ServiceGroup({ p }: { p: P }) {
@@ -149,7 +151,6 @@ function ServiceGroup({ p }: { p: P }) {
               : <AskTwice label={w.turnOn} ask={w.turnOnAsk} confirmLabel={w.turnOn} onConfirm={() => void change('service.install')} language={p.language} disabled={sent.kind === 'sending'} />}
           </span>
           <Outcome sent={sent} language={p.language} />
-          <p className={s.quiet}>{w.wake}</p>
         </div>
       )}
     </Loads>

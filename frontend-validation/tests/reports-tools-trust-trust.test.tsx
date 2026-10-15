@@ -660,7 +660,10 @@ describe('TR-12 Vault and TR-13 deletion', () => {
     expect(await screen.findByText(/Its test restore passed\./)).toBeTruthy();
     expect(screen.getByText(/The passphrase limits this; it does not remove it\./)).toBeTruthy();
     expect(screen.getByText(VAULT.en.restoreNote)).toBeTruthy();
-    expect(screen.getByText('experimental')).toBeTruthy();
+    // The recovery contact and the wake timer are both experimental.
+    expect(screen.getAllByText('experimental').length).toBeGreaterThanOrEqual(1);
+    const recovery = screen.getByRole('heading', { name: VAULT.en.recoveryTitle }).closest('section') as HTMLElement;
+    expect(within(recovery).getByText('experimental')).toBeTruthy();
     const pass = screen.getByLabelText(VAULT.en.passphrase) as HTMLInputElement;
     expect(pass.type).toBe('password');
     await user.type(pass, 'synthetic pass');
@@ -859,7 +862,8 @@ describe('TR-12 Vault: missing values, Restore, PIN and this computer', () => {
     expect(screen.getByText(VAULT.en.restoreNote)).toBeTruthy();
     expect(screen.getByText(VAULT.en.pin)).toBeTruthy();
     expect(await screen.findByText(`${VAULT.en.service}: ${VAULT.en['service.off']}`)).toBeTruthy();
-    expect(screen.getByText(VAULT.en.wake)).toBeTruthy();
+    // Wake for jobs is now its own group over jobs-ext (reports-tools-trust-vault-hosted.test.tsx).
+    expect(screen.queryByText(VAULT.en.wake)).toBeNull();
     await user.click(screen.getByRole('button', { name: VAULT.en.turnOn }));
     expect(rpc.of('service.install')).toHaveLength(0);
     await user.click(screen.getAllByRole('button', { name: VAULT.en.turnOn }).at(-1)!);
