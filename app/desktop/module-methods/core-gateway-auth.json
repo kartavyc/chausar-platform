@@ -1,1 +1,16 @@
-[]
+[
+  "auth.verifyApprovalSecret",
+  "models.capStatus",
+  "models.discard",
+  "models.probe",
+  "models.setLadder",
+  "network.online",
+  "pin.clear",
+  "pin.set",
+  "pin.status",
+  "secondAsk.clearSecret",
+  "secondAsk.grant",
+  "secondAsk.setSecret",
+  "secondAsk.status",
+  "secrets.status"
+]
