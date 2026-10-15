@@ -116,6 +116,13 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
   },
+  // core-sync-jobs (round 4): live refresh. Only a safe sequence number crosses; the renderer then asks events.subscribe.
+  onEngineEvent: callback => {
+    if (typeof callback !== 'function') throw new TypeError('Use a function for engine event updates.');
+    const listener = (_event, value) => { const seq = value?.seq; if (Number.isSafeInteger(seq) && seq >= 0) callback(Object.freeze({ seq })); };
+    ipcRenderer.on('chausar:engine-event', listener);
+    return () => ipcRenderer.removeListener('chausar:engine-event', listener);
+  },
   // SH-10 and FR-04 (frame-today): checked here and again in main (app/desktop/shell-ipc.cjs).
   openExternal: async url => {
     if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return 'refused';

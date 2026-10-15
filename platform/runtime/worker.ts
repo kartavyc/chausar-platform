@@ -17,6 +17,14 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
 export function runEngineWorker(engine: Engine) {
   const scheduler = setInterval(() => { void engine.tick().catch(error => reply({ kind: 'scheduler-error', code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' })); }, 30000); scheduler.unref();
   function reply(value: unknown) { if (process.connected) process.send?.(value as any, () => {}); }
+  // core-sync-jobs (round 4): live refresh. A workspace change reaches the desktop as a bare sequence number, at most one
+  // message per 250 ms; the renderer then asks `events.subscribe` what it may see.
+  let pushedAt = 0, push: NodeJS.Timeout | null = null;
+  const stopEvents = engine.events.on(() => {
+    if (push) return;
+    push = setTimeout(() => { push = null; pushedAt = Date.now(); reply({ kind: 'engine-event', seq: engine.events.seq }); }, Math.max(0, pushedAt + 250 - Date.now()));
+    push.unref();
+  });
   process.on('message', async (message: any) => {
     if (message?.kind === 'host-lifecycle') {
       try { engine.updateJobLifecycle(message.state); reply({ id: message.id, kind: 'host-lifecycle', applied: true, result: { applied: true } }); }
@@ -28,7 +36,7 @@ export function runEngineWorker(engine: Engine) {
     catch (error) { const e = error as Error & { code?: string }; reply({ id: message.id, error: { code: e.code ?? 'REQUEST_FAILED', message: e.message } }); }
   });
   let stopping = false;
-  function stop() { if (stopping) return; stopping = true; clearInterval(scheduler); void engine.shutdown().then(() => process.exit(0), () => process.exit(1)); }
+  function stop() { if (stopping) return; stopping = true; clearInterval(scheduler); stopEvents(); if (push) clearTimeout(push); void engine.shutdown().then(() => process.exit(0), () => process.exit(1)); }
   process.on('disconnect', stop);
   process.on('SIGTERM', stop);
   reply({ ready: true });
