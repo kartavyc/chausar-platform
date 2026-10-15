@@ -56,6 +56,7 @@ All commands from the repo root on Windows, Node 24.13.1, with the other package
 - `node --test platform/tests/venture-e2e.test.ts`: 2 of 2 pass (the India journey with recordings, and the United States template path).
 - `node --test` on `desktop-harness`, `desktop-ipc-methods`, `desktop-renderer`, `desktop-main`, `desktop-packaging`, `server` and `decision-journal-renderer`: 71 of 71 pass.
 - A scratch script outside the repo started `EngineHarness` on `platform/runtime/worker.ts` with `CHAUSAR_DEMO=1` and called `venture.countries` (15 rows) and `venture.preview` (bookkeeping) through the forked worker.
+- A second scratch script walked the demo script through `createServerEngine` with `--demo`, `CHAUSAR_VENTURE_REPLAY=1` and both recording paths, so the host read the recordings from disk itself: the AI rewrite of the plan, the brief, the GitHub check, three judged rehearsals, a practice draft, an accepted draft, a tax invoice `INV-0001` and its payment. The checklist reached 12 of 12.
 - The fixture words were checked with `assertNoNumbers`, `houseStyleFindings` and `doneClaimFindings` from `records.ts`: no findings.
 
 `scripts/check.mjs`, the full typecheck and the full suite were not run, as section 2 of the build spec says for Phase B.
