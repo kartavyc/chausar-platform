@@ -4,6 +4,12 @@ import { words, type PlaceModule, type PlaceRenderProps } from '../../places/typ
 import { Screen } from './kit/Screen';
 import { KeepView } from './Keep';
 import { ModelsScreen } from './Models';
+// TR-08 models
+import { ModelsAllowanceScreen } from './ModelsAllowance';
+import { ModelsCompareScreen } from './ModelsCompare';
+import { ModelsPricesScreen } from './ModelsPrices';
+import { ModelsVoiceScreen } from './ModelsVoice';
+// end TR-08 models
 import { NetworkScreen } from './Network';
 import { PeopleScreen } from './People';
 import { RecordScreen } from './Record';
@@ -39,4 +45,10 @@ export const trustPlaces: readonly PlaceModule[] = [
   place('markings', ['markings'], (p) => <SeeView p={p} mode="page" />),
   place('retention', ['retention'], (p) => <KeepView p={p} mode="page" />),
   place('channels', ['channels'], (p) => <Channels {...p} />),
+  // TR-08 models
+  place('models-compare', ['models-compare'], (p) => <ModelsCompareScreen {...p} />),
+  place('models-prices', ['models-prices'], (p) => <ModelsPricesScreen {...p} />),
+  place('models-voice', ['models-voice'], (p) => <ModelsVoiceScreen {...p} />),
+  place('models-allowance', ['models-allowance'], (p) => <ModelsAllowanceScreen {...p} />),
+  // end TR-08 models
 ];

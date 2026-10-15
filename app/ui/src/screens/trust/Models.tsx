@@ -17,6 +17,9 @@ import { Group, Note, Screen } from './kit/Screen';
 import { Outcome, Tag, countText, dayText, powers, type P } from './common';
 import { paiseToTyped, rupeesToPaise } from './paise.ts';
 import { validateModels, type Models, type Route } from './validate.ts';
+import { LadderForm } from './ModelsLadder';
+import { MODELS_MORE } from './ModelsMore.ts';
+import { modelWords } from './models-kit';
 import { COMMON, MODELS, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -31,6 +34,7 @@ export function ModelsScreen(p: P) {
 function ModelsBody({ p, m, reload }: { p: P; m: Models; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(MODELS, p.language);
   const { admin } = powers(p);
+  const more = modelWords(p.language);
   const cost = <> <Tag>{c.cost}</Tag></>;
   return (
     <>
@@ -38,6 +42,7 @@ function ModelsBody({ p, m, reload }: { p: P; m: Models; reload: () => void }) {
         {m.routes.length === 0 ? <p className={s.quiet}>{w.routesNone}</p> : (
           <ol className={s.ordered} data-route-order="">{m.routes.map((r) => <li key={r.id}>{r.label}</li>)}</ol>
         )}
+        {admin && <LadderForm key={m.routes.map((r) => r.id).join(' ')} p={p} routes={m.routes} reload={reload} />}
       </Group>
       {m.routes.length > 0 && (
         <Group title={w.routesTitle}>
@@ -57,6 +62,16 @@ function ModelsBody({ p, m, reload }: { p: P; m: Models; reload: () => void }) {
           { name: w.voiceProvider, value: m.voice.provider ?? w.voiceNone },
           { name: w.minutes, value: m.voice.minutesThisMonth === null ? w.notCounted : countText(m.voice.minutesThisMonth), mono: m.voice.minutesThisMonth !== null },
         ]} />
+      </Group>
+      <Group title={more('more.title')}>
+        <ul className={s.list}>
+          {MODELS_MORE.map((x) => (
+            <li key={x.sub} className={s.item}>
+              <span><Button variant="link" onClick={() => p.navigate({ place: 'trust', sub: x.sub })}>{more(x.title)}</Button></span>
+              <span className={s.quiet}>{more(x.note)}</span>
+            </li>
+          ))}
+        </ul>
       </Group>
     </>
   );
