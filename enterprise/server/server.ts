@@ -22,7 +22,7 @@ export type EnterpriseServerDeps = {
   allowLoopbackHttpIssuer?: boolean;
   oidc?: OidcClient; identity?: IdentityDirectory; tls?: { cert: Buffer; key: Buffer };
   now?: () => number; uiRoot?: string; authRateLimitPerMinute?: number;
-  /** Shared sessions, sign-ins in progress and rate limits. The caller owns and closes it. Defaults to one process's memory. */
+  /** Shared sessions, sign-ins in progress, rate limits and the identity map. The caller owns and closes it. Defaults to one process's memory. */
   store?: EnterpriseStateStore;
 };
 export type EnterpriseServer = { server: Server; oidc: OidcClient; identity: IdentityDirectory; store: EnterpriseStateStore; sessionCount(): Promise<number>; listen(): Promise<{ origin: string; port: number }>; close(timeoutMs?: number): Promise<void> };
@@ -80,7 +80,7 @@ export async function createEnterpriseServer(engine: Engine, config: EnterpriseC
   const tls = deps.tls ?? await readTlsFiles(config);
   const oidc = deps.oidc ?? new OidcClient({ issuer: config.oidc.issuer, clientId: config.oidc.clientId, clientSecret: await readSecretFile(config.oidc.clientSecretFile),
     redirectUri: `${origin}${config.oidc.redirectPath}`, scopes: config.oidc.scopes, fetch: deps.fetch, now, allowLoopbackHttpIssuer: deps.allowLoopbackHttpIssuer === true, logins: store });
-  const identity = deps.identity ?? await IdentityDirectory.open(engine, { dataDirectory: config.dataDirectory, rules: config.roles, allowedEmailDomains: config.allowedEmailDomains });
+  const identity = deps.identity ?? await IdentityDirectory.open(engine, { dataDirectory: config.dataDirectory, rules: config.roles, allowedEmailDomains: config.allowedEmailDomains, store: store.identities });
   const ttlMs = config.sessionTtlMinutes * 60_000;
   const limit = deps.authRateLimitPerMinute ?? 60;
   let closing = false;

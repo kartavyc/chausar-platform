@@ -80,12 +80,12 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 - The theseus-rs Linux PostgreSQL build links system libraries it does not ship (OpenSSL, libxml2, zstd, lz4, GSSAPI, zlib; glibc 2.34+). No relocatable PostgreSQL 16 archive is pinned for the upgrade's old runtime. Ending orphaned backends after a crash is Linux-only.
 - The enterprise engine is still one writer per workspace: several HTTPS front ends share sessions in PostgreSQL, but not two engines. The identity map stays on that engine's disk; keychain unlock does not work in a container; private token search still needs a loopback database.
 - Updates cannot be served from GitHub release-download URLs, which always redirect; the feed and artifacts need a host that serves them directly.
-- The public-copy dry run finds 5 email hits (one npm author's public address in `package-lock.json`, left for the founder) and 3 private-detail markers in `platform/runtime/invoice-follow-up.md` (another lane's file).
-- The Windows launcher is documented, not built.
+- The public-copy dry run still finds the 5 npm-author email hits in `package-lock.json` (left for the founder), plus newer hits in other lanes' files (see round 4 below). The 3 invoice-follow-up markers are gone.
+- The Windows launcher is built (round 4) but has run only under Wine, not on Windows.
 
 ## Full suite
 
-`npm test` on `3d2f7bc` (after round 2): 4,230 tests, 4,199 passed, 1 failed, 30 skipped. The failure is `vault-encrypted-custody-bigint-identity.test.ts` ("unsafe-collision"), which fails the same way on the base branch `claude/clever-goldberg-49qobq`; it depends on file-system inode numbers and is not touched by this lane. The skipped release tests are the real-binary ones (`release-postgres-real`, `release-enterprise-postgres`), which run only when pointed at a staged runtime or a real database, and did run here (see below). `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules`, which `npm test` supplies.
+`npm test` on `3d2f7bc` (after round 2): 4,230 tests, 4,199 passed, 1 failed, 30 skipped. The failure is `vault-encrypted-custody-bigint-identity.test.ts` ("unsafe-collision"), which fails the same way on the base branch; it depends on file-system inode numbers and is not touched by this lane. The skipped release tests are the real-binary ones (`release-postgres-real`, `release-enterprise-postgres`), which run only when pointed at a staged runtime or a real database, and did run here (see below). `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules`, which `npm test` supplies.
 
 ## Real Linux runs: PostgreSQL
 
@@ -213,6 +213,303 @@ Dotfiles: electron-builder's resource filters drop dotfiles such as `runtime-bin
 - macOS and Windows launchers; a launch as a non-root desktop user with the Chromium sandbox.
 - A window-title check (no `xdotool` or `wmctrl`); screenshots were checked instead.
 
+## Round 4: wake timer and start at login
+
+SH-07 and TR-12 ("This computer"): waking the computer for jobs and starting at sign-in. Both are per-user OS mechanisms in `platform/runtime/native/`, with injectable runner, home folder, uid and clock, and handler-ready functions for the release module (methods `native.wake.status`, `native.wake.set`, `native.wake.clear`, `shell.startAtLogin`, `shell.setStartAtLogin`; registered in `lane-release.ts` separately).
+
+### What changed
+
+| Piece | Files | Label |
+|---|---|---|
+| Wake timer: one pending wake, ISO time with an explicit offset, rounded down to the minute, at least a minute and at most seven days ahead, confirmation required. Windows: Task Scheduler task `Chausar\Wake` (TimeTrigger in UTC, `WakeToRun`, InteractiveToken, LeastPrivilege, action = app `--background`) via `schtasks /Create /XML`. macOS: `pmset schedule wake "<MM/dd/yyyy HH:mm:ss>" Chausar` (local time; pmset has no offset syntax), refused `WAKE_TIMER_NEEDS_ADMIN` unless root, with the exact command in the plan, never a password prompt. Linux: `chausar-wake.timer` (`OnCalendar=<UTC> UTC`, `WakeSystem=true`, `Persistent=false`) + `chausar-wake.service` (app `--background`), daemon-reload, enable, restart; refused `WAKE_TIMER_UNAVAILABLE` without `/sys/class/rtc/rtc0/wakealarm` and `WAKE_TIMER_NEEDS_ADMIN` unless the user manager holds `cap_wake_alarm` (`systemctl show user@<uid>.service -p AmbientCapabilities`; root's always does) | `wake-timer.ts`, `os-integration.ts` | **experimental** |
+| Start at login (off by default): Windows HKCU `...\CurrentVersion\Run` value `Chausar` = `"<exe>" --start-at-login` via `reg.exe add/delete/query` (no PowerShell); macOS LaunchAgent `in.chausar.login.plist` (RunAtLoad, no KeepAlive, never loaded or booted out by Chausar, so it neither starts a second copy nor stops the running one); Linux XDG autostart `~/.config/autostart/in.chausar.desktop` (Exec quoted per the Desktop Entry spec, `X-GNOME-Autostart-enabled=true`; an entry the session turned off reads as disabled). Status reports `matches` when the entry points to another executable | `start-at-login.ts`, `os-integration.ts` | **supported** (Linux), **experimental** (Windows, macOS: code only) |
+| Desktop main process: `--start-at-login` starts hidden in the tray (no window until Open; closing the window keeps the tray) and grants nothing else (background jobs still need `--background`). A later launch with `--background` (the wake timer) or `--start-at-login` only wakes the running instance and never opens a window | `app/desktop/main.cjs` (delimited release-lane block + 4 one-line changes) | **supported** |
+
+Electron's `app.setLoginItemSettings` was not used: the engine runs in a worker process and cannot call Electron APIs, it has no Linux implementation, and the OS-level mechanism is testable with an injected runner and a temporary home.
+
+Notes for other lanes: the release refusal line in `preload.cjs` does not yet list `WAKE_TIMER_NEEDS_ADMIN`, `WAKE_TIMER_UNAVAILABLE`, `WAKE_TIME_INVALID`, `WAKE_TIME_PAST`, `WAKE_TIME_TOO_FAR`, `START_AT_LOGIN_UNSUPPORTED` (to be added with the method registration). The dev launcher (`desktopLaunchArguments`) does not accept `--start-at-login`; only installed launches use it. The host should pass the launcher path (not a versioned executable) as `executable` once in-place updates are used, or `matches` turns false after an update.
+
+### Results
+
+| Run | Command | Result |
+|---|---|---|
+| Typecheck, check, tests | `npm run typecheck`; `node scripts/check.mjs`; `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/desktop-*.test.ts` | pass; pass (1162 files); 337 tests, 334 pass, 0 fail, 3 skipped (env-gated real-PostgreSQL tests) |
+| New tests | `release-wake-timer.test.ts` (12), `release-login.test.ts` (7), two new cases in `desktop-main.test.ts` | pass: generated XML/units/plists/commands, escaping, rounding, past/too-far/offset-less times, confirmation, macOS non-root and Linux no-capability refusals before any write, symlink refusals, Windows UTF-16 task file removed after `/Create` |
+| Real Linux start at login | `release-login.test.ts` "real Linux" case | pass: the autostart entry was written, read back (Exec parsed back to the exact executable, mode 0644, no temporary file), detected as disabled when edited to `X-GNOME-Autostart-enabled=false`, and removed, in a temporary HOME |
+| Real Linux wake status | default runner, this container | `available: false`, `WAKE_TIMER_UNAVAILABLE` (no `/sys/class/rtc`; no user bus); `set` refused with nothing written |
+| Generated units | `systemd-analyze verify` on the timer and service; `systemd-analyze calendar "2026-10-16 01:30:00 UTC"` | pass; normalized form unchanged |
+| Generated XML | `xmllint --noout` on the Windows task and the login plist | pass |
+
+### Could not run
+
+- A real wake on any OS (needs a machine that sleeps and an RTC; this container has neither).
+- Windows `schtasks /Create /XML` and `reg.exe`; macOS `pmset` and launchd at sign-in: code and recorded-command tests only.
+- A Linux user manager with `cap_wake_alarm` (`systemctl --user` has no bus here), and a real desktop session reading the autostart entry.
+
+## Round 4: enterprise identity map and search
+
+Run on 2026-10-15 in one Linux container (kernel 6.18, Node 24.13.1, Docker 29.8.2, PostgreSQL 16.15 server binaries from Ubuntu for the test clusters, `postgres:17` image for compose). Nothing was pushed, published or deployed; every cluster, container, network and volume was removed afterwards. This section supersedes two lines under "What could not run or is still missing" in the enterprise section above: the identity map on disk and loopback-only search.
+
+### What changed
+
+| Item | Where | Label |
+|---|---|---|
+| Identity map in PostgreSQL. Table `chausar_enterprise_identities` holds issuer, `subject_hash` (the SHA-256 of `sub`), member id, role, branches (JSONB), `revoked` and `updated_at`, with `UNIQUE (issuer, subject_hash)` and checks on the digest shape and role. It is created with the other enterprise tables under the same advisory schema lock, over the same pool and TLS rules as the sessions (`PostgresEnterpriseStore.identities`) | `enterprise/server/state-store.ts` | **experimental** (real TLS-only PostgreSQL; never deployed) |
+| Concurrency. A sign-in runs in one transaction. It takes `pg_advisory_xact_lock(hashtextextended('chausar-enterprise-identity:' + key, 0))` for its (issuer, subject), reads the row, and decides: reuse, refuse, or revoke-and-add through the engine. It then writes with `INSERT … ON CONFLICT (issuer, subject_hash) DO UPDATE` before `COMMIT`, with a `lock_timeout` of 30 s. A second process signing in the same person waits, then sees the first one's row and reuses its member. If the row cannot be written after the engine added a member, that member is revoked (`ENTERPRISE_IDENTITY_STORE_FAILED`) | `state-store.ts`, `identity.ts` | **experimental** |
+| Revoked state recorded. When a sign-in finds the mapped member revoked in the engine, the row is marked `revoked = true`. Later sign-ins with the same mapping are then refused from the table as well (`ENTERPRISE_MEMBER_REVOKED`). A changed role or branch list provisions a new member and clears the mark | `identity.ts` | **experimental** |
+| One-time import. An `identities.json` (version 1) in `dataDirectory` is checked as before: a regular file, not a link, owner-only mode, at most 8 MB, well formed. Its entries are inserted with `ON CONFLICT DO NOTHING`, so existing rows win, and the file is renamed `identities.json.imported`. If another process renamed it first (`ENOENT`), start-up continues. With the in-memory store the file is read but left in place | `identity.ts` | **experimental** |
+| `MemoryIdentityStore` (a per-identity promise chain) for unit tests and for embedders without a shared store; `MemoryEnterpriseStore.identities` uses it. `createEnterpriseServer` now always takes the identity map from its state store, and no `identities.json` is written any more | `state-store.ts`, `server.ts` | **supported** (unit-tested contract) |
+| Private token search on a remote PostgreSQL over verified TLS. `PostgresInvestigationSearch.connect` accepts `InvestigationSearchRemoteOptions`: `host` (a name or address) and `remoteTls: { ca, servername? }`, with only those two keys. It connects with `ssl: { ca, rejectUnauthorized: true, minVersion: 'TLSv1.2', servername? }` and checks `pg_stat_ssl.ssl` on its own backend. It records the server's own address rather than comparing it with the host name. A missing or malformed pin is refused before any connection (`POSTGRES_TLS_REQUIRED`). Without `remoteTls` the old code path runs unchanged: a literal loopback host, `ssl: false`, and the address must equal the host | `platform/runtime/investigation-search.ts` (core edit) | **experimental** |
+| The engine passes `remoteTls` to the search adapter only when both `storageMode === 'enterprise-server'` and `postgresTls` are set, as it already does for the snapshot adapter | `platform/runtime/engine.ts` (one fenced spread in `privateSearchAdapter`) | **experimental** |
+
+### Core edits
+
+- **`platform/runtime/investigation-search.ts`.** Adds one exported type (`InvestigationSearchRemoteOptions`) and one helper (`remoteSearchTls`). Inside `connect` it makes three guarded changes:
+  - `remoteTls` is an allowed key only when it is present;
+  - the pool uses `ssl: tls`, where `tls` is `false` for every existing caller;
+  - the identity check compares the address only for loopback, and requires TLS for a remote host.
+
+  Reason: the search adapter refused every non-loopback host, so `research.search` could not run in the enterprise server with a database on another host. No other lane owns this file in round 4: core-data owns calculator, ontology, workbook, trust and mcp, and core-gateway-auth owns gateway, actions, vault and plugins.
+- **`platform/runtime/engine.ts`.** Adds one spread in `privateSearchAdapter`, marked `release (round 4)`. Reason: the engine builds and closes the search adapter itself from its options, and the enterprise-only gate (`storageMode`) lives there. Injecting a search port through `options.research.search` would instead bypass the engine's own close on lock and shutdown. Desktop and owner-server engines never set `storageMode`, so they build the same loopback-only options as before.
+
+### Results
+
+| Check | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` | pass |
+| Syntax check | `node scripts/check.mjs` | pass (1,159 files) |
+| Release, investigation and PostgreSQL tests, no database URL | `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/investigation*.test.ts platform/tests/postgres-*.test.ts` | 434 tests: 429 pass, 0 fail, 5 skipped. Of the skipped tests, 2 need the Windows C-drive fixture, 1 needs a staged runtime (`CHAUSAR_REAL_POSTGRES_RUNTIME`) and 2 need `CHAUSAR_TEST_POSTGRES_URL`. The new identity and search tests start their own real clusters, so they are not skipped. All existing `investigation*.test.ts` tests pass unchanged |
+| Same, with a real TLS-only PostgreSQL 16.15 on a non-loopback address (192.0.2.2) | the same command with `CHAUSAR_TEST_POSTGRES_URL` and `CHAUSAR_TEST_POSTGRES_CA` (cluster from `enterprise/server/testing/real-postgres.ts`, run as the unprivileged `postgres` user) | 434 tests: 431 pass, 0 fail, 3 skipped (Windows fixture, staged runtime). `release-enterprise-postgres.test.ts` (sessions shared by two instances) passes with the identity map now in PostgreSQL |
+| In-memory identity store | `release-enterprise-identity.test.ts` | pass. One identity is held at a time while another proceeds. A failed decision saves nothing, and an import never overwrites. Two directories sharing one store, racing four sign-ins of one new person, add one member; without a shared store they add two, which is the case the store prevents. Revoked state is recorded and kept until the mapping changes. A legacy file is read; a malformed or group-readable file is refused (`ENTERPRISE_IDENTITY_STORE_INVALID`) |
+| Identity map, real TLS-only cluster | `release-enterprise-identity.test.ts` (starts its own cluster) | pass. See "Identity map against a real cluster" below |
+| Search adapter refusals | `release-investigation-tls.test.ts` | pass. Without `remoteTls`, `192.0.2.10`, `db.example.com` and `localhost` are refused (`INVALID_POSTGRES_CONFIG`). Missing, empty, non-PEM, extra-key and badly named pins are refused (`POSTGRES_TLS_REQUIRED`). Driver controls such as `ssl` are still refused (`SEARCH_CONFIGURATION_INVALID`) |
+| Desktop refuses; enterprise without TLS refuses | `release-investigation-tls.test.ts` | pass. `research.search` with a remote URL is refused with `INVALID_POSTGRES_CONFIG` in a desktop engine, in a desktop engine with `postgresTls` only, and in an enterprise engine without `postgresTls`. An enterprise engine with a pin takes the remote path: a malformed pin is refused with `POSTGRES_TLS_REQUIRED` |
+| Enterprise search, real TLS-only cluster | `release-investigation-tls.test.ts` (starts its own cluster) | pass. See "Search against a real cluster" below |
+| Image build | `docker build --network host --build-arg HTTPS_PROXY --secret id=build_ca,src=/root/.ccr/ca-bundle.crt -f enterprise/server/Dockerfile -t chausar-enterprise:dev .` | pass (no new runtime files; the identity store is in `state-store.ts`) |
+| Compose smoke | `node enterprise/server/testing/compose-smoke.ts` | **24/24 steps pass** (was 17). See "Compose smoke" below. Torn down: no containers, networks or volumes left |
+
+#### Identity map against a real cluster
+
+- **Import.** `identities.json` was imported (1 entry), renamed `.imported` and not read again. The imported mapping signs in as the same member.
+- **Constraints.** A second row for one (issuer, subject) is refused by `chausar_enterprise_identities_subject`, and a raw subject is refused by the check.
+- **Three separate OS processes.** Each ran `testing/identity-race-child.ts` with its own pool over TLS, and all three started at the same instant on one new identity. Exactly one provisioned a member, and all three resolved to that member. The other two waited on the lock (at least 300 ms of a 400 ms hold). The table has one row.
+- **Two HTTPS server instances.** Each had its own pool, store and identity directory, over one engine (the engine is one writer per workspace). Both finished the same new person's sign-in concurrently, three times. Each time, both sessions were the same member, exactly one member was added, and the table had one row.
+- **Restart.** After both instances stopped and a fresh instance started with a fresh pool, signing in again gave the same member. Only digests are stored.
+
+#### Search against a real cluster
+
+- Plaintext loopback is refused by the server. An unrelated CA and a wrong server name are refused.
+- With the pinned CA the adapter indexes a two-document projection:
+  - "August payment" finds the investigation;
+  - "private draft" finds the journal;
+  - "September" finds nothing.
+
+  The server identity is 192.0.2.2, PostgreSQL 16. With `servername: 'chausar-db.test'` over 127.0.0.1 the search works too.
+- An enterprise engine creates a workspace and an investigation over TLS, and `research.search` returns the investigation (`engine: 'postgres'`). The same URL in a desktop engine is refused.
+
+#### Compose smoke
+
+The 17 earlier steps pass, plus seven new ones:
+
+- the identity map is one row in PostgreSQL, with a 64-hex subject digest, the signed-in member's id and `revoked = false`;
+- no `identities.json` is written on the server volume;
+- `investigations.create` over `/api/rpc` succeeds;
+- `research.search` over `/api/rpc` finds the new investigation in the remote database (`engine postgres`, server 172.18.0.2:5432, 1 match);
+- a search for "September" finds nothing;
+- the `chausar-private-investigation-search` connection uses TLSv1.3, alongside `chausar-vault` and `chausar-enterprise-sessions`;
+- after `docker compose restart server`, a new sign-in is the same member, the member count is unchanged and the table still has one row.
+
+### Still missing
+
+- Active-active engines. The HTTPS race test shares one engine, because the engine is one writer per workspace: a second engine opening the same PostgreSQL workspace is refused with `VAULT_BUSY` (checked here). The identity lock itself is proven across real OS processes at the store level.
+- An administrator's revocation is written to the identity table at that person's next sign-in, not when it happens. Sessions still end at once through the per-request member check.
+- Not run or not supported:
+  - search through a remote database whose server port is translated (the adapter requires the server's own port to equal the configured one);
+  - IPv6;
+  - a managed PostgreSQL service;
+  - a real identity provider;
+  - CI.
+
+## Round 4: bundled PDF readers
+
+Run on 15 October 2026 in the Linux x64 cloud container (Node 24.13.1, Docker 29.8.2). The installed app now ships the FR-07 PDF readers, so nothing needs downloading: `imports.readerStatus` reports them installed and `imports.installReader` verifies them instead of refusing.
+
+### What changed
+
+| Item | Where | Label |
+|---|---|---|
+| Reader staging: the staged interpreter's own pip installs hash-pinned wheels (`--no-deps --only-binary=:all: --require-hashes --no-compile`) into its site-packages, drops `bin/` console scripts, checks every installed `dist-info` against the pins, byte-compiles with checked-hash `.pyc`; conda-forge `.conda` packages (zip of `pkg-`/`info-*.tar.zst`, zstd through Node's zlib, archive listings checked for unsafe paths) are merged and only `bin/tesseract`, its shared-library closure and `share/tessdata/configs/tsv` are copied (symlinks materialised), plus every package's licences (`info/licenses`, or `licensePaths` in the payload for the GCC runtime packages) and the separately pinned `eng.traineddata`; writes `readers.json` (`chausar.readers.v1`); refuses another host (`READER_STAGE_HOST_ONLY`), unresolved targets (`READER_SOURCE_UNRESOLVED`), changed downloads, a different package set, missing closure files and missing licences | `scripts/release/stage-readers.ts`; `stage-runtime.ts` gains `--readers` / `--readers-only` (re-signs, tesseract included, and re-inventories) | **experimental** (Linux x64 run below; other targets unrun) |
+| Pins: requirement files per target (one wheel per package, every hash equal to PyPI's JSON API digest, resolved with pip's dry-run report per platform tag) and a `readers` section in `runtime-sources.json` | `scripts/release/reader-requirements/*.txt`, `scripts/release/runtime-sources.json` | **supported** for linux-x64; recorded only elsewhere |
+| `readerBundle({ resourcesPath, pythonExecutable })` and `verifyReaderBundle(...)`: read only `runtime-binaries/manifest.json` and `readers.json` (which must match its own manifest entry); the configured Python must be the bundled one; verification re-hashes the reader package folders, everything under `tesseract/` and `readers.json`, and refuses unlisted files there. No download | `platform/runtime/native/reader-bundle.ts` | **supported** |
+| Helper lookup: `bundled_tesseract()` finds `<runtime>/tesseract/bin/tesseract[.exe]` beside `sys.executable` (`python/bin/python3` or `python/python.exe`): a regular file, not a link, whose real path stays inside the runtime; `TESSDATA_PREFIX` points at the bundled `tessdata`; otherwise the old `os.defpath` lookup. No `LD_LIBRARY_PATH` (conda's `RPATH $ORIGIN/../lib`) | `platform/helpers/analytics.py` (connectors-ext/helpers area; small edit) | **experimental** |
+| `imports.readerStatus.sizeBytes` from `native.readerBundle`; `imports.installReader` calls `native.installReader` and returns `{ installed: true, downloaded: false, ...readerStatus }`; without the release method (`UNKNOWN_METHOD`, `METHOD_UNAVAILABLE`) or without a bundle (`READER_BUNDLE_MISSING`) it still refuses `READER_INSTALL_UNAVAILABLE` | `platform/runtime/connectors-ext/fr07.ts` (cross-lane edit) | **experimental** until `native.*` is wired |
+
+### Round 4 contracts
+
+- `native.readerBundle` (read, no payload) → `{ present, reason, python: { version } | null, packages: { pdfplumber, pypdfium2, Pillow } | null, tesseract: { version, languages } | null, sizeBytes | null, manifestSha256 | null }`. Absent reasons: `RUNTIME_NOT_BUNDLED`, `RUNTIME_MANIFEST_INVALID`, `READERS_NOT_BUNDLED`, `READERS_CHANGED`, `READERS_INVALID`, `PYTHON_NOT_CONFIGURED`, `PYTHON_NOT_BUNDLED`, `READER_PACKAGE_MISSING`, `OCR_PROGRAM_MISSING`. `sizeBytes` sums the manifest sizes under `python/` and `tesseract/`.
+- `native.installReader` (admin, no payload) → `{ installed: true, downloaded: false, verifiedFiles, verifiedBytes, manifestSha256, bundle }`, or `READER_BUNDLE_MISSING` / `READER_BUNDLE_CHANGED`.
+- Both take `resourcesPath` from the release module options (`process.resourcesPath` in the app) and `pythonExecutable` from `host.services.helper.options.executable` (the engine's `CHAUSAR_PYTHON`). The methods are wired by the coordinator in `lane-release.ts` and `module-methods/release.json`.
+
+### Pins (linux-x64, staged and run)
+
+| Part | Pin | Checksum source |
+|---|---|---|
+| pdfplumber 0.11.10, pdfminer.six 20260107, pypdfium2 5.14.0, Pillow 12.3.0, charset-normalizer 3.5.2, cryptography 50.0.2, cffi 2.1.1, pycparser 3.11 | `reader-requirements/linux-x64.txt` (manylinux_2_17/2_28 x86_64 or py3-none-any wheels) | PyPI JSON API `digests.sha256`, cross-checked with pip's report. cryptography (with cffi, pycparser) is required: pdfminer.six imports it at load time for encrypted PDFs |
+| tesseract 5.5.3 (`h7618cdf_0`), leptonica 1.87.0 and 29 further conda-forge linux-64 packages (31 in all, the closure's owners) | `runtime-sources.json` `readers.targets.linux-x64.tesseract.packages` | conda-forge `repodata.json` sha256 via micromamba 2.9.0's solve |
+| `eng.traineddata` (4,113,088 bytes, sha256 `7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2`) and its LICENSE | tesseract-ocr/tessdata_fast commit `87416418657359cb625c412a48b6e1d6d41c29bd` | hashed locally (git blob `bbef4675…`); byte-identical to the copy inside the pinned conda tesseract package |
+
+Other targets: `linux-arm64`, `win32-x64`, `darwin-x64` (cryptography 48.0.1, the last with Intel macOS wheels) and `darwin-arm64` have pinned requirement files; pypdfium2 5.14.0 needs macOS 13. `win32-x64`, `darwin-x64` and `darwin-arm64` have conda-forge tesseract 5.5.3 package pins (repodata sha256) but no computed closure (`include: null`), so staging refuses. Windows also needs the embeddable Python's `python313._pth` to gain `Lib\site-packages` and `import site` (not done). `win32-arm64` has no pins: cryptography publishes no `win_arm64` wheel. The UB Mannheim Windows installer is recorded as an unpinned alternative (no publisher checksum could be read here).
+
+### Results
+
+| Run | Command | Result |
+|---|---|---|
+| Stage | copy of `/var/tmp/chausar-pg-runtime`, then `NODE_EXTRA_CA_CERTS=… PIP_CERT=… node scripts/release/stage-runtime.ts --platform linux --arch x64 --out <copy> --readers-only` | pass in 21 s: 8 Python packages, tesseract 40 files (39 ELF files + the TSV config), 33 licence files; manifest 6,614 files (was 5,116), 698,432,034 bytes (+163 MB: tesseract 96.7 MB, site-packages 67.4 MB) |
+| Desktop start-up inventory | `verifyRuntimeInventory` on the staged copy | pass: 6,614 files verified in 5.1 s |
+| Bundle record | `readerBundle` / `verifyReaderBundle` | present; Python 3.13.7; pdfplumber 0.11.10, pypdfium2 5.14.0, Pillow 12.3.0; tesseract 5.5.3, `eng`; `sizeBytes` 669,031,286; install verified 1,012 files (154,532,565 bytes) in about 1 s, no download |
+| Real helper (`helper.ts` → `analytics.py`, staged Python, process limits on) | `CHAUSAR_TEST_READER_RUNTIME=<copy> node --test platform/tests/release-readers-real.test.ts` | `pdf.status` → `{pdfText: true, pdfOcr: true, tesseract: true}` (0.3 s); `pdf.extract` of a hand-built text PDF returns its four lines exactly (0.2 s); a Pillow-drawn picture-only PDF has no text layer and `pdf.ocr` reads all four lines exactly at confidence 95, engine 5.5.3, renderer pypdfium2 (1.0 s) |
+| connectors-ext real OCR case on the bundle | `connectors-ext-ocr.test.ts`'s "real OCR" test with `CHAUSAR_PYTHON=<copy>/python/bin/python3` and its probe relaxed (scratch copy, not committed; its probe looks only on `os.defpath`) | pass: a two-page A4 300 dpi scanned statement OCRs at ≥ 80 confidence and passes the bank recipe's running-balance check (total 1750000) |
+| Self-contained in a minimal OS | same test with `CHAUSAR_TEST_READER_DOCKER=1`: `docker run --network none debian:bookworm-slim` with only the runtime and `analytics.py` mounted read-only (image pulled through `mirror.gcr.io` after Docker Hub returned 429) | pass: OCR reads all four lines; `ldd` inside the container resolves everything to the bundle except glibc (libc, libm, libpthread, libdl, libresolv, ld-linux; Debian 12.15, glibc 2.36) |
+| Typecheck, check, tests | `npm run typecheck`; `node scripts/check.mjs`; `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/connectors-ext*.test.ts platform/tests/helper*.test.ts` | pass; pass; 457 tests, 449 pass, 0 fail, 8 skipped (env-gated) |
+
+A finding on the way: tesseract's `tsv` output needs `tessdata/configs/tsv`; with only `eng.traineddata` in `TESSDATA_PREFIX` it silently prints plain text and the helper reads no words. The config is part of the closure now.
+
+### Still missing
+
+- `native.readerBundle` / `native.installReader` wiring in `lane-release.ts` and `release.json` (coordinator).
+- Windows and macOS: closures not computed, never staged or run; Windows `._pth` change not made; macOS signing of the bundled dylibs (the sign hook now covers `tesseract/`) not run.
+- The conda binaries keep their build-prefix placeholders (default tessdata, OpenSSL and Kerberos configuration paths); the helper always sets `TESSDATA_PREFIX` and never uses the network paths, so they are inert, but they are not rewritten.
+- libcurl, OpenSSL, Kerberos and ICU ride along because the conda tesseract links them (about 45 MB); a tesseract built without URL input would drop them.
+- `connectors-ext-ocr.test.ts` and `connectors-ext-fr07.test.ts` gate their real cases on `os.defpath` tesseract and on pypdf/reportlab, so with only the bundled runtime they skip (connectors-ext may switch the OCR probe to `pdf.status`).
+- No packaged app was built with the readers; the run used the staged folder through the helper and the desktop inventory check.
+
+## Round 4: keychain on a real Secret Service, Windows launcher, public copy
+
+### What changed
+
+| Piece | Files | Status |
+|---|---|---|
+| A real Secret Service run of the Linux keychain helper, scripted, printing a JSON receipt | `scripts/release/verify-keychain-linux.ts`. Test: `platform/tests/release-keychain-real.test.ts`. The test runs only with `CHAUSAR_REAL_KEYCHAIN=1`; it uses `CHAUSAR_REAL_KEYCHAIN_HELPER` or compiles the helper with CMake. | **experimental** (libsecret on Linux has now run against a real store; the Windows and macOS stores still have not) |
+| Bug fix in the Linux helper: reads no longer require the stored content type | `platform/native/keychain/linux.cpp` and its README | **experimental** |
+| Windows launcher stub | `scripts/release/launcher/chausar-launcher.cmd`. `adopt` places it as `chausar-launcher.cmd` (`update-launch.ts`). Both builder configs set `win.executableName: "Chausar"`, so the app is `Chausar.exe`. Test: `platform/tests/release-launcher-cmd.test.ts`. | **experimental** (static checks and a Wine run; **not run on Windows**) |
+| Public-copy markers in `platform/runtime/invoice-follow-up.md` | Its one "Requirements" line, rewritten without the internal plan names or links into `docs/specs/` | done |
+
+### Keychain: how it ran
+
+`node scripts/release/verify-keychain-linux.ts --build <dir> --as-user <name>` works in five steps:
+
+1. It compiles `platform/native/keychain` with the real libsecret backend (CMake, as in `native-keychain.yml`).
+2. It starts its own `dbus-daemon` session bus.
+3. It starts `gnome-keyring-daemon --unlock --components=secrets` with a random throwaway password under a temporary `HOME`.
+4. It pins the helper with `keychain-manifest.ts`.
+5. It loads the helper through the engine's own manifest reader (`loadEngineKeychain`).
+
+So the real `PlatformKeychain`, with its real pin, ownership and environment checks, runs the real helper. Nothing touches a person's own keyring. Keys and vault ids are random and are never printed.
+
+Setup: an Ubuntu 24.04 container with libsecret 0.21.4, GLib 2.80.0, gnome-keyring 46.1 and D-Bus 1.14.10. It ran as an unprivileged account (uid 30033) and again as root; both runs pass. The receipt:
+
+| Step | Result |
+|---|---|
+| `secret-service-started` | A private bus; `org.freedesktop.secrets` is owned by gnome-keyring; the default collection `/org/freedesktop/secrets/collection/login` is unlocked. |
+| `manifest-written-and-loaded-by-engine` | Helper sha256 `9e53c6c3d33c22ecabc8620c3999dac7a8654b7ac21a6df42fe77289cf7b07e8` (29,536 bytes; two builds produced the same bytes). A wrong pin refuses `KEYCHAIN_UNAVAILABLE`. |
+| `store-retrieve-conflict-remove` | Absent, then store, then retrieve: the bytes are equal. Storing the same key again succeeds. A different key gets `KEYCHAIN_CONFLICT` and the entry is unchanged. `secret-tool` sees exactly 1 item under schema `in.chausar.vault.v1` (label "Chausar vault key"). After remove, retrieve finds nothing, a second remove succeeds, and 0 items are left. |
+| `vault-created-with-custody-reopened-with-keychain` | `Vault.create` registers the key and `Vault.openWithKeychain` reopens it. `delete` removes the entry; reopening afterwards gives `UNLOCK_FAILED`. |
+| `engine-workspace-open-unlock-keychain` | An `Engine` (demo, experimental-file storage, real provider) runs `workspace.create`, then lock. A fresh engine's `workspace.open { unlock: 'keychain' }` opens the same vault. `workspace.delete` removes the entry, and a second keychain unlock gives `UNLOCK_FAILED`. |
+| `no-session-bus` | With the address of a missing socket, the helper runs and answers "unavailable", giving `KEYCHAIN_UNAVAILABLE`. With the address unset, the request is refused before any helper launch, also `KEYCHAIN_UNAVAILABLE`. |
+| `bus-without-secret-service` | On a second bus with no keyring, retrieve and store give `KEYCHAIN_UNAVAILABLE`. Nothing was auto-started. |
+| `locked-keyring` | With the login collection locked over D-Bus, retrieve, store (new key and same key) and remove all give `KEYCHAIN_DENIED`, with no prompt and no hang (about 0.3 s). `workspace.create` refuses with `KEYCHAIN_DENIED` and leaves no workspace. |
+
+**Bug found and fixed.** The helper compared the stored secret's content type with `application/vnd.chausar.vault-key`, but gnome-keyring returns every secret as `text/plain`. So every entry the helper wrote read back as a conflict:
+
+- retrieve gave `KEYCHAIN_CONFLICT`;
+- a second store of the same key gave `KEYCHAIN_CONFLICT`;
+- keychain unlock always failed with `UNLOCK_FAILED`.
+
+The first real run showed this: steps 3 to 5 failed. Reads now identify the entry by its exact schema, service and account attributes and its 32-byte size. The content type is still written. `PlatformKeychain` and `engine-keychain-host.ts` needed no change.
+
+What this run does not prove:
+
+- other Secret Service providers (KWallet, KeePassXC);
+- a desktop session's real login keyring and its unlock at login;
+- concurrent helpers against one vault;
+- duplicate entries made by another client;
+- Windows Credential Manager and the macOS Keychain, which have still never run.
+
+In the worker host, `"keychain"` unlock still needs PostgreSQL storage (non-demo). The engine path here used the demo file storage, with the real provider passed in directly.
+
+### Windows launcher
+
+`chausar-launcher.cmd` follows the same design as the sh stub:
+
+- It never edits `current.json`.
+- It runs an installed `Chausar.exe` with `ELECTRON_RUN_AS_NODE=1` on the packaged resolver: `resources\app.asar.unpacked\platform\runtime\native\update-launch.ts resolve --install-root <root> --executable-name Chausar.exe`.
+- While a new version is on trial, it tries the previous committed version first, then the current one.
+- It reads the resolver's `key=value` lines, runs the chosen executable with `CHAUSAR_INSTALL_ROOT` set and Node mode cleared, and returns the app's exit code.
+- Its refusals match the sh stub: 64 when the executable name is not plain, 66 when nothing is installed, and 70 when no copy could resolve or there is no executable.
+
+Quoting rules in the stub:
+
+- It runs under `setlocal EnableExtensions DisableDelayedExpansion`.
+- Every path appears only inside double quotes.
+- Values from `current.json`, folder names and the resolver arrive through FOR variables or SET and are never parsed again. There is no CALL.
+- The two short delayed-expansion scopes (the name check and the pointer rewrite) touch no path.
+- A `CHAUSAR_EXECUTABLE_NAME` override is read from SET's raw output and checked before use.
+- The resolver's output goes to a temporary file in `%TEMP%`, not through `for /f` over a command, so no second cmd re-reads a path.
+- The file is ASCII with CRLF line endings; `scripts/release/launcher/.gitattributes` (`*.cmd -text`) stops git from converting them.
+
+`release-launcher-cmd.test.ts` has three parts:
+
+1. **Static reading** of the file. It checks: CRLF and ASCII; setlocal comes first; no CALL; `!` only inside the delayed scopes; every path quoted; labels; Node mode set and cleared around the resolver; previous-first ordering; exit codes equal to the sh stub's; the pointer is never written.
+2. **Packaging and placement.** It checks that both builder configs package `scripts/release/launcher/**/*` and name the Windows executable `Chausar`. It runs `adopt` to place the stub with the default and a custom executable name, and checks that an LF copy is refused.
+3. **A Wine run**, only when `CHAUSAR_TEST_WINE_NODE` names a Windows `node.exe`. Here: Wine 9.0 and Node 24.13.1 win-x64, its published SHA-256 checked. The stub runs over a real install root named `Chausar & Co! x`, with `node.exe` standing in for `Chausar.exe` and the real resolver. The run passes:
+   - Version 2.0.0 launches twice on trial. Its own resolver is broken, so 1.0.0's copy resolves.
+   - The third launch returns to 1.0.0 and prints the rollback message.
+   - The app's exit code 7 comes back. `CHAUSAR_INSTALL_ROOT` arrives, `ELECTRON_RUN_AS_NODE` does not, and arguments pass through.
+   - Six hostile names refuse with 64 and run nothing: `..\evil.exe`, an injection attempt with `"` and `&`, `a&b.exe`, `%PATH%`, `bang!.exe` and `.hidden.exe`.
+   - The last two launches give 70 (no copy can resolve) and 66 (no install).
+
+Wine is not Windows. Wine 9's cmd has six gaps that real Windows cmd does not:
+
+- no `findstr /r`;
+- `for /d` with a quoted pattern is misread;
+- `%%~` modifiers in nested loops are misread;
+- `pushd` reports the wrong status to `||`;
+- a quoted `)` inside a block ends the block;
+- a `%` in the path is lost from `%~dp0`.
+
+The stub avoids the first four. The Wine run avoids the last two by keeping `(`, `)` and `%` out of its path; the static test covers their quoting. **The stub has not run on Windows.** Still to do: a Windows run with a real packaged `Chausar.exe`, and checking how the console window looks when a shortcut starts the stub.
+
+### Public copy
+
+A dry run of `node scripts/release/public-copy.ts --out <tmp>` after the edit copied 1,752 files and found:
+
+| Kind | Hits |
+|---|---|
+| private-key | 0 |
+| token | 0 |
+| email | 24 |
+| private-link | 7 |
+| fleet-marker | 15 (was 19: the 3 `invoice-follow-up.md` markers are gone, and so is a private base-branch name in this document's "Full suite" paragraph) |
+| licence | 0 |
+
+The 5 npm-author emails in `package-lock.json` stay (the founder's decision). The other hits are in files merged since round 3, mostly other lanes':
+
+- **19 emails** in tests and fixtures: the hosted-link relay and mail tests, connectors-ext payments, learning-ext, models-ext speech and reports-tools-trust.
+- **7 private-host URLs** in tests: 6 in frame-today and connectors-ext tests, and 1 deliberately hostile URL in `release-attack-signatures.test.ts`.
+- **15 fleet markers:** the `claude/lane-<id>` branch line in 10 lane documents (this one included), 4 in work-books files and tests, and 1 in a hosted-link test.
+
+These are synthetic or fleet-internal details. The coordinator or the owning lanes need to clear or allowlist them before publishing.
+
+### Commands run
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` | pass |
+| `node scripts/check.mjs` | pass (1,160 files) |
+| `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/*keychain*.test.ts` | 275 tests: 270 pass, 0 fail, 5 skipped. Two need `CHAUSAR_TEST_POSTGRES_URL` and one a staged PostgreSQL runtime; the real-keychain and Wine tests skip without their variables and pass with them. |
+| `CHAUSAR_REAL_KEYCHAIN=1 CHAUSAR_TEST_WINE_NODE=<node.exe> node --test platform/tests/release-keychain-real.test.ts platform/tests/release-launcher-cmd.test.ts` | 7 of 7 pass |
+| `node scripts/release/verify-keychain-linux.ts --build <dir> --as-user kcuser` | receipt `ok: true` (above) |
+
 ## Round 4: runtimes, pins and PostgreSQL
 
 Run on 15 October 2026 in the Linux x64 cloud container (kernel 6.18, Ubuntu 24.04 userland, Node 24.13.1, Docker 29.8.2, patchelf 0.17.2 from `pip install patchelf==0.17.2.4`). The real PostgreSQL checks ran as the unprivileged `postgres` account (uid 102); the minimal-container runs used uid 65534 with the staged runtime mounted read-only and no network. Nothing was committed from `runtime-binaries/`, signed, uploaded or published.
@@ -297,3 +594,7 @@ All passing runs printed `postgres (PostgreSQL) 17.6`, `select 1` → `1`, the S
 - PostgreSQL 17.6 is not the newest 17 minor: theseus-rs publishes 16.14 (pinned here), so later 17.x builds exist too. Bumping 17 needs new pins and a fresh run.
 - linux-arm64 stays unpinned and has no library set (the arm64 packages live on `ports.ubuntu.com`); Windows-on-Arm PostgreSQL is still missing.
 - `scripts/postgres-runtime.mjs` (kept for other callers; the desktop now starts through `desktop-database.ts`) does not set `cluster_name`.
+
+### Together with the bundled PDF readers
+
+After merging `claude/lane-release` @ `ab1fb92`, one Linux x64 stage ran with both features (`stageRuntime` with `readers: true`; vendored libraries for `postgres` and `postgres-16`, then the PDF readers): 7,081 files, 815,745,105 bytes in 33 s (PostgreSQL, Python and the `.deb` files from the local download cache, readers from the network). Signing now covers `postgres`, every `postgres-<major>`, `python` and `tesseract` when present. On the result, `verifyRuntimeInventory` passed (7,081 files, 5.3 s; the cached re-check took 0.4 s; no skipped dotfiles), `readerBundle` reported present (Python 3.13.7; pdfplumber 0.11.10, pypdfium2 5.14.0, Pillow 12.3.0; tesseract 5.5.3 with `eng`), and `verifyReaderBundle` verified 1,012 files (154,530,388 bytes). `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/desktop-*.test.ts platform/tests/connectors-ext*.test.ts`: 634 tests, 624 pass, 0 fail, 10 skipped (env-gated).
