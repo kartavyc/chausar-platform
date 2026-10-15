@@ -1167,7 +1167,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
             <LockFolderChoice rpc={controller.places} folder={lockFolder} onFolder={setLockFolder} />
             <PinUnlock rpc={controller.places} folder={lockFolder} onUnlocked={() => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); return controller.unlocked(); }} />
             <UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />
-            <AskRecoveryContact rpc={controller.places} folder={lockFolder} />
+            <AskRecoveryContact rpc={controller.places} folder={lockFolder} onRecovered={() => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); void controller.unlocked(); }} />
           </>} />
       </TextProvider>;
     }

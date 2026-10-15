@@ -8,8 +8,8 @@
  * with the name to `workspace.restore` (`{ folder, backupFile, passphrase }`). Without the
  * chooser (the browser) it says it is not built here yet. After the vault opens, the host
  * reopens its view.
- * "Ask recovery contact" is the second way in; the engine refuses it until the hosted relay
- * exists, and the screen says so.
+ * "Recover through my contact" is the second way in, over hosted-link's `hosted.recovery.*`;
+ * without hosted-link frame-today's own request refuses it, and the screen says so.
  */
 
 import { useState } from 'react';
@@ -113,7 +113,7 @@ export function Recover({ rpc, pickBackup, onReopened, onBack }: RecoverProps) {
           <Actions><Act variant="filled" submit label="FR-13.backup.open.btn" disabled={busy} /></Actions>
         </form>
       )}
-      <AskRecoveryContact rpc={rpc} folder={FOLDER.test(folder.trim()) ? folder.trim() : 'main'} />
+      <AskRecoveryContact rpc={rpc} folder={FOLDER.test(folder.trim()) ? folder.trim() : 'main'} onRecovered={onReopened} />
     </section>
   );
 }
