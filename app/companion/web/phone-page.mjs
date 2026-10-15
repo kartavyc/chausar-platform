@@ -1,7 +1,8 @@
 // PH-04 "The phone page" — EXPERIMENTAL, off unless the host switches it on.
 // Renders the shared display model (app/companion/shared/phone-page.ts) only:
 // headlines, row titles, a count and the laptop's last-seen time. No summary,
-// figure or receipt reaches this page. Approve appears only on rows the display
+// figure or receipt reaches this page: a row or confirm title with a digit is
+// drawn as fixed words, here as in the model. Approve appears only on rows the display
 // model marks 'approve' (online, fresh list, engine hint 'simple-reversible').
 
 /**
@@ -22,6 +23,12 @@ export function renderPhonePage({ document, view, words, busy, formatTime, forma
     if (options.id) node.id = options.id;
     if (options.label) node.setAttribute('aria-label', options.label);
     node.addEventListener('click', () => run(action)); return node;
+  };
+  // Row and confirm titles pass the same digit check as headlines here too (the model already
+  // applies it): a title with any decimal digit, in any script, is drawn as fixed words.
+  const titleText = text => {
+    const clean = String(text ?? '').replace(/\s+/g, ' ').trim();
+    return !clean || /\p{Nd}/u.test(clean) ? words.figureTitle : clean;
   };
   const root = element('div', 'phone-page');
   root.dataset.experimental = 'true';
@@ -48,14 +55,15 @@ export function renderPhonePage({ document, view, words, busy, formatTime, forma
     const list = element('ul', 'phone-rows');
     for (const row of view.review.rows) {
       const item = element('li', 'phone-row'); item.dataset.approvalId = row.approvalId;
-      item.append(element('span', 'phone-row-title', row.title));
+      const rowTitle = titleText(row.title);
+      item.append(element('span', 'phone-row-title', rowTitle));
       const confirming = view.confirm && view.confirm.approvalId === row.approvalId;
-      if (row.action === 'approve' && !confirming) item.append(button(words.approve, () => actions.approve(row.approvalId), { className: 'primary', disabled: busy, label: `${words.approve}: ${row.title}` }));
+      if (row.action === 'approve' && !confirming) item.append(button(words.approve, () => actions.approve(row.approvalId), { className: 'primary', disabled: busy, label: `${words.approve}: ${rowTitle}` }));
       else if (row.action !== 'approve') item.append(element('span', 'pill phone-in-app', words.inTheApp));
       list.append(item);
       if (confirming) {
         const confirm = element('div', 'confirm phone-confirm'); confirm.setAttribute('role', 'group'); confirm.setAttribute('aria-label', words.confirmQuestion);
-        confirm.append(element('h3', '', words.confirmQuestion), element('p', 'phone-row-title', view.confirm.title), element('p', 'small muted', words.confirmHelp));
+        confirm.append(element('h3', '', words.confirmQuestion), element('p', 'phone-row-title', titleText(view.confirm.title)), element('p', 'small muted', words.confirmHelp));
         const buttons = element('div', 'actions');
         buttons.append(button(words.confirmApprove, actions.confirm, { className: 'primary', disabled: busy || view.confirm.expired, id: 'phone-confirm-approve' }),
           button(words.notNow, actions.notNow, { disabled: busy, id: 'phone-confirm-not-now' }));

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { requestLabel } from '../../../shared/view-contracts';
 import type { CompanionScreenController, CompanionViewState } from '../../../shared/view-contracts';
-import { phonePageView, phonePageWords } from '../../../shared/phone-page';
+import { approvalTitleText, phonePageView, phonePageWords } from '../../../shared/phone-page';
 import { Badge, Button, Heading, Metadata, ProofLinks, TextButton } from './components';
 import { colors, styles } from './styles';
 import { approvalCanDecide, canWorkOnline, hasOnlineAuthority, pairingLabel, readableTime, requestControls, run, uploadStatus } from './view-helpers';
@@ -328,16 +328,18 @@ export function PhonePageScreen({ state, controller, now }: ScreenProps) {
       {view.review.status === 'loaded' && !view.review.rows.length && <Text style={styles.body}>{words.nothingAwaiting}</Text>}
       {view.review.rows.map(row => {
         const confirming = view.confirm?.approvalId === row.approvalId;
+        // Same digit check as headlines (the model applies it too): no figure in a title reaches the page.
+        const rowTitle = approvalTitleText(row.title, words);
         return <View key={row.approvalId} style={styles.section}>
           <View style={styles.row}>
-            <Text numberOfLines={2} style={[styles.body, styles.grow]}>{row.title}</Text>
-            {row.action === 'approve' && !confirming && <Button title={words.approve} accessibilityLabel={`${words.approve}: ${row.title}`}
+            <Text numberOfLines={2} style={[styles.body, styles.grow]}>{rowTitle}</Text>
+            {row.action === 'approve' && !confirming && <Button title={words.approve} accessibilityLabel={`${words.approve}: ${rowTitle}`}
               disabled={busy} onPress={() => run(() => controller.approveOnPhone(row.approvalId))} />}
             {row.action !== 'approve' && <Badge tone="neutral">{words.inTheApp}</Badge>}
           </View>
           {confirming && view.confirm && <View style={[styles.card, styles.cardMuted]}>
             <Text style={styles.cardTitle}>{words.confirmQuestion}</Text>
-            <Text numberOfLines={2} style={styles.body}>{view.confirm.title}</Text>
+            <Text numberOfLines={2} style={styles.body}>{approvalTitleText(view.confirm.title, words)}</Text>
             <Text style={styles.small}>{words.confirmHelp}</Text>
             <View style={styles.row}><View style={styles.grow}>
               <Button title={words.notNow} variant="secondary" disabled={busy} onPress={() => controller.dismissPhoneApproval()} />

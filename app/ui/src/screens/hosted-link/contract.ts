@@ -11,7 +11,8 @@
  * - `phone.documents.discard` (admin) { documentId } -> { documentId, discarded: true }
  * - `phone.documents.done` (admin) { documentId } -> any object
  * - `phone.messages.log` (read) { filter: 'lost' | 'all' } -> { messages: [{ id, event, channel, status, at, buttons, errorCode, checkedAt }], lost }
- * - `phone.messages.check` (admin) { id } -> the updated entry (also accepted wrapped as { message })
+ * - `phone.messages.check` (admin) { id } -> the updated entry plus `sendAgain` (also accepted wrapped as { message, sendAgain })
+ * - `books.billConfirm` (prepare) { readId, digest, fields } -> any object: a bill preview whose confirm adds 'fields'
  */
 
 export const METHODS = {
@@ -124,11 +125,17 @@ export function partlyCollected(c: Collected): boolean {
   return c.outcomes.some((o) => o === 'held-full' || o === 'not-collected' || o === 'refused');
 }
 
-/** `needsFields`: the confirm also needs fields a person checks and corrects (a bill), so it is done on the bill screen. */
+/** `needsFields`: the confirm also needs fields a person checks and corrects (a bill), drawn as a form on this screen. */
 export interface Confirm { readonly method: (typeof CONFIRM_METHODS)[number]; readonly input: Rec; readonly needsFields: boolean }
 export interface DocumentPreview {
   readonly documentId: string; readonly route: Route; readonly preview: Rec; readonly confirm: Confirm | null;
+  /** For a bill whose confirm needs fields: the reading to check field by field, and the reading it binds to. */
+  readonly bill: BillCheck | null;
+  /** Why there is nothing to confirm, when the runtime says (only with a null confirm). */
+  readonly confirmReason: NoConfirmReason | null;
 }
+export const NO_CONFIRM_REASONS = ['statement-question', 'statement-refused', 'statement-imported', 'reply-unrecognised'] as const;
+export type NoConfirmReason = (typeof NO_CONFIRM_REASONS)[number];
 /** The reading of one document. It must be for the document and route asked, and marked untrusted. */
 export function documentPreview(value: unknown, asked?: { documentId: string; route: Route }): DocumentPreview {
   const r = rec(value, 'reply');
@@ -140,9 +147,131 @@ export function documentPreview(value: unknown, asked?: { documentId: string; ro
   if (r['confirm'] !== null) {
     const c = rec(r['confirm'], 'reply.confirm');
     const add = c['add'] === undefined ? [] : list(c['add'], 'reply.confirm.add', (v, p) => oneOf(v, p, ['fields'] as const), 4);
+    // `optional` names inputs the confirm may also take (a bill's `zoho`); this screen sends none of them.
+    if (c['optional'] !== undefined) list(c['optional'], 'reply.confirm.optional', (v, p) => oneOf(v, p, ['zoho'] as const), 4);
     confirm = { method: oneOf(c['method'], 'reply.confirm.method', CONFIRM_METHODS), input: rec(c['input'], 'reply.confirm.input'), needsFields: add.includes('fields') };
   }
-  return { documentId, route, preview: rec(r['preview'], 'reply.preview'), confirm };
+  const preview = rec(r['preview'], 'reply.preview');
+  let bill: BillCheck | null = null;
+  if (confirm !== null && confirm.needsFields) {
+    // Only a bill's confirm takes checked fields; anything else is not a contract this screen knows.
+    if (route !== 'bill' || confirm.method !== 'books.billConfirm') throw new ReplyError('reply.confirm.add');
+    bill = billCheck(preview, confirm.input);
+  }
+  const reason = r['confirmReason'] === undefined || r['confirmReason'] === null ? null : oneOf(r['confirmReason'], 'reply.confirmReason', NO_CONFIRM_REASONS);
+  return { documentId, route, preview, confirm, bill, confirmReason: confirm === null ? reason : null };
+}
+
+// A bill's fields, checked and corrected on this screen: the `books.billRead` reply
+// (platform/runtime/work-books/books-bill.ts and books-bill-parse.ts), confirmed through `books.billConfirm`.
+
+export const CERTAINTIES = ['sure', 'check-this', 'could-not-read'] as const;
+export type Certainty = (typeof CERTAINTIES)[number];
+/** One field as read: its text (null when it could not be read) and how sure the reading is. */
+export interface BillField { readonly value: string | null; readonly certainty: Certainty }
+export interface BillReading {
+  readonly supplier: BillField; readonly billNumber: BillField; readonly date: BillField;
+  readonly lines: readonly { readonly description: BillField; readonly quantity: BillField; readonly amount: BillField }[];
+  readonly tax: readonly { readonly name: BillField; readonly amount: BillField }[];
+  readonly total: BillField;
+}
+/** The reading to check and the exact reading (`readId`, `digest`) the confirm binds to. */
+export interface BillCheck { readonly readId: string; readonly digest: string; readonly reading: BillReading }
+function billField(value: unknown, path: string): BillField {
+  const f = rec(value, path);
+  const v = f['value'];
+  if (!(v === null || (typeof v === 'string' && v.length <= 500))) throw new ReplyError(`${path}.value`);
+  return { value: v, certainty: oneOf(f['certainty'], `${path}.certainty`, CERTAINTIES) };
+}
+/** The bill reading, strictly. When the reading names its readId and digest, the confirm's must be the same. */
+export function billCheck(preview: Rec, input: Rec): BillCheck {
+  const readId = str(input['readId'], 'reply.confirm.input.readId', 200);
+  const digest = str(input['digest'], 'reply.confirm.input.digest', 200);
+  if (preview['readId'] !== undefined && preview['readId'] !== readId) throw new ReplyError('reply.preview.readId');
+  if (preview['digest'] !== undefined && preview['digest'] !== digest) throw new ReplyError('reply.preview.digest');
+  const p = 'reply.preview';
+  return {
+    readId, digest,
+    reading: {
+      supplier: billField(preview['supplier'], `${p}.supplier`), billNumber: billField(preview['billNumber'], `${p}.billNumber`),
+      date: billField(preview['date'], `${p}.date`), total: billField(preview['total'], `${p}.total`),
+      lines: list(preview['lines'], `${p}.lines`, (v, q) => {
+        const l = rec(v, q);
+        return { description: billField(l['description'], `${q}.description`), quantity: billField(l['quantity'], `${q}.quantity`), amount: billField(l['amount'], `${q}.amount`) };
+      }, 50),
+      tax: list(preview['tax'], `${p}.tax`, (v, q) => {
+        const x = rec(v, q);
+        return { name: billField(x['name'], `${q}.name`), amount: billField(x['amount'], `${q}.amount`) };
+      }, 10),
+    },
+  };
+}
+
+const PAISE = /^(0|[1-9]\d{0,15})$/;
+/** Whole paise as rupees text, by text only ("73160" -> "731.60"); anything that is not whole paise reads as empty. */
+export function rupeesText(minor: string | null): string {
+  if (minor === null || !PAISE.test(minor)) return '';
+  const d = minor.padStart(3, '0');
+  return `${d.slice(0, -2).replace(/^0+(?=\d)/, '')}.${d.slice(-2)}`;
+}
+/**
+ * Rupees a person typed, as whole paise, parsed by hand and never through a float: digits with at
+ * most two decimals ("1,234.5" -> "123450"). Commas are allowed only as Indian ("1,23,456") or
+ * thousands ("123,456") grouping, and dropped. Null when it is not such an amount.
+ */
+export function paiseText(typed: string): string | null {
+  const plain = typed.trim();
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3})(?:\.\d{1,2})?$/.test(plain)) return null;
+  const [whole = '', fraction = ''] = plain.replace(/,/g, '').split('.');
+  const paise = `${whole}${fraction.padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
+  return PAISE.test(paise) ? paise : null;
+}
+/** A quantity the engine takes: a whole number from one, as text. */
+export function wholeQuantity(typed: string): string | null {
+  const plain = typed.trim();
+  return /^[1-9]\d{0,5}$/.test(plain) ? plain : null;
+}
+export const isoDayText = (typed: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(typed);
+
+/** What the person typed, field by field. Amounts are rupees text. */
+export interface BillForm {
+  readonly supplier: string; readonly billNumber: string; readonly date: string;
+  readonly lines: readonly { readonly description: string; readonly quantity: string; readonly amount: string }[];
+  readonly tax: readonly { readonly name: string; readonly amount: string }[];
+  readonly total: string;
+}
+export function billFormOf(reading: BillReading): BillForm {
+  return {
+    supplier: reading.supplier.value ?? '', billNumber: reading.billNumber.value ?? '', date: reading.date.value ?? '',
+    lines: reading.lines.map((l) => ({ description: l.description.value ?? '', quantity: l.quantity.value ?? '', amount: rupeesText(l.amount.value) })),
+    tax: reading.tax.map((x) => ({ name: x.name.value ?? '', amount: rupeesText(x.amount.value) })),
+    total: rupeesText(reading.total.value),
+  };
+}
+/**
+ * The exact `books.billConfirm` request for the checked form, or null while an amount, a quantity or
+ * the date cannot be sent the way the engine takes them. Nothing is added up here: the engine checks
+ * that lines plus tax make the total, and refuses BILL_TOTAL_MISMATCH.
+ */
+export function billConfirmPayload(check: BillCheck, form: BillForm): Record<string, unknown> | null {
+  const totalMinor = paiseText(form.total);
+  if (totalMinor === null || !isoDayText(form.date)) return null;
+  const lines: { description: string; quantity: string; amountMinor: string }[] = [];
+  for (const l of form.lines) {
+    const quantity = wholeQuantity(l.quantity), amountMinor = paiseText(l.amount);
+    if (quantity === null || amountMinor === null) return null;
+    lines.push({ description: l.description.trim(), quantity, amountMinor });
+  }
+  const tax: { name: string; amountMinor: string }[] = [];
+  for (const x of form.tax) {
+    const amountMinor = paiseText(x.amount);
+    if (amountMinor === null) return null;
+    tax.push({ name: x.name.trim(), amountMinor });
+  }
+  return {
+    readId: check.readId, digest: check.digest,
+    fields: { supplier: form.supplier.trim(), billNumber: form.billNumber.trim(), date: form.date, lines, tax, totalMinor },
+  };
 }
 export function discarded(value: unknown): { readonly documentId: string } {
   const r = rec(value, 'reply');
@@ -181,8 +310,11 @@ export function readLines(value: Rec, max = 200): { lines: readonly ReadLine[]; 
 
 export const MESSAGE_EVENTS = ['week-ahead-ready', 'review-ready', 'document-received', 'due-date-near'] as const;
 export const MESSAGE_CHANNELS = ['whatsapp', 'telegram', 'mail'] as const;
-/** `unknown` is a lost result: the relay never answered, so it may or may not have been sent. */
-export const MESSAGE_STATUSES = ['unknown', 'failed', 'queued', 'sent', 'delivered', 'read'] as const;
+/**
+ * `unknown` is a lost result: the relay never answered, so it may or may not have been sent.
+ * `not-sent`: a check found the relay never received it (platform/runtime/hosted-link/message-log.ts).
+ */
+export const MESSAGE_STATUSES = ['unknown', 'failed', 'not-sent', 'queued', 'sent', 'delivered', 'read'] as const;
 export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const BUTTONS = ['open-only', 'approve-not-now-open'] as const;
 export interface MessageEntry {
@@ -208,7 +340,12 @@ export function messageLog(value: unknown): MessageLog {
   if (typeof truncated !== 'boolean') throw new ReplyError('reply.truncated');
   return { messages: list(r['messages'], 'reply.messages', entry, 500), anyLost: lost === true || (typeof lost === 'number' && lost > 0), truncated };
 }
-export function messageChecked(value: unknown): MessageEntry {
+/** A checked entry, and whether it may be sent again: only ever elsewhere in the app, by a person's press. */
+export interface CheckedMessage extends MessageEntry { readonly sendAgain: boolean }
+export function messageChecked(value: unknown): CheckedMessage {
   const r = rec(value, 'reply');
-  return r['message'] !== undefined && r['id'] === undefined ? entry(r['message'], 'reply.message') : entry(r, 'reply');
+  const sendAgain = r['sendAgain'] === undefined ? false : r['sendAgain'];
+  if (typeof sendAgain !== 'boolean') throw new ReplyError('reply.sendAgain');
+  const checked = r['message'] !== undefined && r['id'] === undefined ? entry(r['message'], 'reply.message') : entry(r, 'reply');
+  return { ...checked, sendAgain };
 }

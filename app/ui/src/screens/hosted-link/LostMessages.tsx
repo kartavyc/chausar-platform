@@ -30,13 +30,16 @@ function MessageRow({ entry, props, t }: { entry: MessageEntry; props: PlaceRend
   const lost = isLost(shown);
   const headline = t(`HL.log.event.${shown.event}`);
   const done = check.sent.kind === 'done' ? t(lost ? 'HL.log.stillUnknown' : 'HL.log.checked') : undefined;
+  // Sending again stays an explicit action elsewhere in the app: this screen only says so, it offers no resend.
+  const sendAgain = check.sent.kind === 'done' && check.sent.value.sendAgain;
   return (
     <li className={s.line}>
       <div className={s.lineTop}>
         <div className={s.lineMain}>
           <span className={s.lineTitle}>{headline}</span>
-          <span className={lost ? s.warn : s.lineNote}>{t(`HL.log.status.${shown.status}`)}</span>
+          <span className={lost || shown.status === 'not-sent' ? s.warn : s.lineNote}>{t(`HL.log.status.${shown.status}`)}</span>
           <span className={s.lineNote}>{t('HL.log.sentBy', { channel: t(`HL.channel.${shown.channel}`), date: day(shown.at, props.language) })}</span>
+          {shown.errorCode === 'MESSAGE_OTHER_PAIRING' && <span className={s.lineNote}>{t('HL.refusal.MESSAGE_OTHER_PAIRING')}</span>}
           {!simple && shown.status === 'delivered' && <span className={s.lineNote}>{t('HL.log.deliveredNote')}</span>}
           {!simple && shown.checkedAt !== null && <span className={s.lineNote}>{t('HL.log.checkedOn', { date: day(shown.checkedAt, props.language) })}</span>}
           {books && (
@@ -56,6 +59,7 @@ function MessageRow({ entry, props, t }: { entry: MessageEntry; props: PlaceRend
         )}
       </div>
       <SentLine sent={check.sent} done={done} />
+      {sendAgain && <Note>{t('HL.log.sendAgain')}</Note>}
     </li>
   );
 }

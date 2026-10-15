@@ -19,3 +19,5 @@
 .reading dt { color: var(--mute); overflow-wrap: anywhere; }
 .reading dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pair { display: contents; }
+.fields { display: flex; flex-direction: column; gap: var(--sp3); margin: 0; padding: 0; border: 0; min-width: 0; }
+.fieldRow { display: flex; gap: var(--sp2) var(--sp3); align-items: flex-end; flex-wrap: wrap; }

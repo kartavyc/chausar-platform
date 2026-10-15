@@ -7,7 +7,8 @@ import { PhoneError } from '../runtime/phone/contracts.ts';
 import type { Brief, PhoneMethods, PhoneTransport } from '../runtime/phone/contracts.ts';
 import { CompanionController } from '../../app/companion/shared/controller.ts';
 import { DEMO_INVITE, MemoryPreviewBriefCache, MemoryPreviewCredentials, PreviewPhoneTransport, previewIdentity, previewPicker, previewReceipts } from '../../app/companion/shared/preview.ts';
-import { emptyPhonePage, headlineText, phonePageView, phonePageWords } from '../../app/companion/shared/phone-page.ts';
+import { readFile } from 'node:fs/promises';
+import { approvalTitleText, emptyPhonePage, headlineText, phonePageView, phonePageWords } from '../../app/companion/shared/phone-page.ts';
 import type { PhonePageView } from '../../app/companion/shared/phone-page.ts';
 import type { CompanionViewState } from '../../app/companion/shared/view-contracts.ts';
 import { createPhoneWebPreviewServer } from '../../scripts/phone-web-preview.mjs';
@@ -123,6 +124,35 @@ test('the week ahead is at most three headlines, latest first; a headline with a
   assert.equal(JSON.stringify(f.controller.getState().phonePage).includes('1,250'), false, 'brief summaries are not kept');
 });
 
+test('approval row and confirm titles pass the digit check: a title with a figure becomes fixed words', async () => {
+  const f = await paired({ phonePage: true, handler: original => async (method, input, auth) => {
+    if (method === 'approval.list') return [{ approvalId: 'demo_internal_note', title: 'Pay ₹4,500', eligibility: 'simple-reversible' },
+      { approvalId: 'demo_money', title: 'GST due on १५ October' }, { approvalId: 'demo_plain', title: '  Save   the note ' }];
+    if (method === 'approval.inspect') {
+      const challenge = await original(method, input, auth) as { preview: Record<string, unknown> };
+      return { ...challenge, preview: { ...challenge.preview, title: 'Pay ₹4,500 to Sharma' } };
+    }
+    return original(method, input, auth);
+  } });
+  await f.controller.loadPhonePage();
+  assert.deepEqual(view(f).review.rows.map(row => row.title), [phonePageWords.en.figureTitle, phonePageWords.en.figureTitle, 'Save the note']);
+  await f.controller.approveOnPhone('demo_internal_note');
+  assert.equal(view(f).confirm!.title, phonePageWords.en.figureTitle);
+  assert.equal(view(f).confirm!.approvalId, 'demo_internal_note');
+  assert.doesNotMatch(JSON.stringify(view(f)), /4,500|१५/);
+  assert.equal(approvalTitleText('Rs ٣ refund'), phonePageWords.en.figureTitle);
+  assert.equal(approvalTitleText(''), phonePageWords.en.figureTitle);
+  assert.equal(phonePageWords.en.figureTitle, 'A change with figures. See it in the app.');
+});
+
+test('the native screen draws row and confirm titles only through the digit check', async () => {
+  const source = await readFile(new URL('../../app/companion/native/src/ui/screens.tsx', import.meta.url), 'utf8');
+  const page = source.slice(source.indexOf('export function PhonePageScreen'));
+  assert.doesNotMatch(page, /\{row\.title\}|\$\{row\.title\}|\{view\.confirm\.title\}/);
+  assert.match(page, /approvalTitleText\(row\.title, words\)/);
+  assert.match(page, /approvalTitleText\(view\.confirm\.title, words\)/);
+});
+
 test('fixed words carry no digits', () => {
   for (const [key, text] of Object.entries(phonePageWords.en)) assert.doesNotMatch(text, /\p{Nd}/u, key);
 });
@@ -214,6 +244,20 @@ test('web client confirm step and read-only view', async () => {
   assert.match(readOnly.textContent!, /Read only/); assert.match(readOnly.textContent!, /not ready yet/);
   const unavailable = renderPhonePage(input(baseView({ review: { status: 'unavailable', rows: [], saved: false } })));
   assert.equal(unavailable.querySelector('#phone-review-count'), null); assert.match(unavailable.textContent!, /in the app on your computer/);
+});
+
+test('web client draws a row or confirm title with a figure as fixed words, aria-label too', async () => {
+  const { document, renderPhonePage } = await dom();
+  const root = renderPhonePage({ document, words: phonePageWords.en, busy: false, run: (action: () => unknown) => { action(); }, formatTime: String, formatCount: String,
+    actions: { refresh: () => {}, approve: () => {}, confirm: () => {}, notNow: () => {} },
+    view: baseView({ review: { status: 'loaded', count: 3, saved: false, rows: [
+      { approvalId: 'pay', title: 'Pay ₹4,500', action: 'approve' }, { approvalId: 'gst', title: 'GST due on १५ October', action: 'in-the-app' },
+      { approvalId: 'note', title: 'Save the review note', action: 'approve' }] },
+      confirm: { approvalId: 'note', title: 'Save note 2', expiresAt: new Date(Date.now() + 60000).toISOString(), expired: false } }) });
+  assert.deepEqual([...root.querySelectorAll('.phone-rows .phone-row-title')].map(node => node.textContent),
+    [phonePageWords.en.figureTitle, phonePageWords.en.figureTitle, 'Save the review note', phonePageWords.en.figureTitle]);
+  assert.equal(root.querySelector('.phone-row button')!.getAttribute('aria-label'), `Approve: ${phonePageWords.en.figureTitle}`);
+  assert.doesNotMatch(root.textContent!, /4,500|१५|note 2/);
 });
 
 function get(port: number, path: string) {

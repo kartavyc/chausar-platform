@@ -301,19 +301,152 @@ test('the Phone settings link opens Tools, Phone', async () => {
   expect(navigate).toHaveBeenCalledWith({ place: 'tools', sub: 'phone' });
 });
 
-test('a bill whose confirm needs checked fields offers no Confirm here, only the way to Books, Bill photo', async () => {
+// A `books.billRead` reply as work-books writes it, held under the preview (synthetic).
+const field = (value: string | null, certainty = 'sure') => ({ value, certainty, region: null });
+let readCount = 0;
+const billPreview = (documentId: string) => {
+  const readId = `billread_${++readCount}`;
+  return {
+    documentId, route: 'bill', untrusted: true, outside: true, imported: false,
+    preview: { readId, digest: 'd'.repeat(64), mime: 'image/jpeg', stored: false, untrusted: true,
+      supplier: field('Sharma Traders'), billNumber: field('INV-7'), date: field('2026-10-01'),
+      lines: [{ description: field('Rice'), quantity: field('2'), amount: field('100000') }, { description: field('Oil', 'check-this'), quantity: field('1', 'check-this'), amount: field(null, 'could-not-read') }],
+      tax: [{ name: field('GST'), amount: field('5000') }], total: field('123400'), sums: { linesPlusTax: { missing: 'unknown' }, total: { minor: '123400' }, equal: null } },
+    confirm: { method: 'books.billConfirm', input: { readId, digest: 'd'.repeat(64) }, add: ['fields'] },
+  };
+};
+async function openBill(sentRead = false) {
+  await screen.findAllByText(en['HL.docs.outside']);
+  const photo = row(en['HL.docs.type.jpeg']);
+  await userEvent.click(within(photo).getByRole('button', { name: en['HL.docs.read'] }));
+  if (!sentRead) await userEvent.click(within(photo).getByRole('button', { name: en['HL.docs.readNow'] }));
+  const form = await within(photo).findByRole('form', { name: en['HL.bill.form'] });
+  return { photo, form };
+}
+
+test('a bill whose confirm needs fields is checked here, field by field, and confirmed with exactly the engine shape', async () => {
+  let attempts = 0;
   const { sent, navigate } = draw(DOCS, { handlers: {
     'phone.documents.list': () => LIST,
-    'phone.documents.preview': (p) => preview(String(p['documentId']), 'bill', { method: 'books.billConfirm', input: { readId: 'billread_x', digest: 'd'.repeat(64) }, add: ['fields'] }),
+    'phone.documents.preview': (p) => billPreview(String(p['documentId'])),
+    'books.billConfirm': () => (++attempts === 1 ? refuse('BILL_TOTAL_MISMATCH') : { id: 'bill_1', approvalId: 'bill:bill_1', state: 'prepared' }),
+    'phone.documents.done': (p) => ({ documentId: p['documentId'], done: true }),
+  } });
+  const { photo, form } = await openBill();
+  // No hand-off to another screen any more.
+  expect(within(photo).queryByText(/Bill photo/)).toBeNull();
+  expect((within(form).getByLabelText(en['HL.bill.supplier']) as HTMLInputElement).value).toBe('Sharma Traders');
+  expect((within(form).getByLabelText(en['HL.bill.date']) as HTMLInputElement).value).toBe('2026-10-01');
+  expect((within(form).getByLabelText(en['HL.bill.total']) as HTMLInputElement).value).toBe('1234.00');
+  expect(within(form).getAllByText(en['HL.bill.cert.could-not-read'])).toHaveLength(1);
+  expect(within(form).getAllByText(en['HL.bill.cert.check-this'])).toHaveLength(2);
+  // The unread amount must be written before Confirm can send anything.
+  const confirm = within(form).getByRole('button', { name: en['HL.docs.confirm'] }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  expect(within(form).getByText(en['HL.bill.notReady'])).toBeTruthy();
+  const second = within(form).getByRole('group', { name: `${en['HL.bill.lines']} 2` });
+  await userEvent.type(within(second).getByLabelText(en['HL.bill.amount']), '1,84.5');
+  expect(confirm.disabled).toBe(true);
+  await userEvent.clear(within(second).getByLabelText(en['HL.bill.amount']));
+  await userEvent.type(within(second).getByLabelText(en['HL.bill.amount']), '184');
+  const supplier = within(form).getByLabelText(en['HL.bill.supplier']);
+  await userEvent.clear(supplier);
+  await userEvent.type(supplier, 'Sharma Traders Pvt');
+  expect(sent('books.billConfirm')).toHaveLength(0);
+  await userEvent.click(confirm);
+  // The engine checks the sum; its refusal is drawn in words and nothing is marked done.
+  expect(await within(photo).findByText(en['HL.refusal.BILL_TOTAL_MISMATCH'])).toBeTruthy();
+  expect(sent('phone.documents.done')).toHaveLength(0);
+  await userEvent.click(within(form).getByRole('button', { name: en['HL.docs.confirm'] }));
+  expect(await screen.findByText(en['HL.bill.confirmed'])).toBeTruthy();
+  const exact = { readId: 'billread_1', digest: 'd'.repeat(64), fields: { supplier: 'Sharma Traders Pvt', billNumber: 'INV-7', date: '2026-10-01',
+    lines: [{ description: 'Rice', quantity: '2', amountMinor: '100000' }, { description: 'Oil', quantity: '1', amountMinor: '18400' }],
+    tax: [{ name: 'GST', amountMinor: '5000' }], totalMinor: '123400' } };
+  expect(sent('books.billConfirm').map((c) => c.payload)).toEqual([exact, exact]);
+  expect(sent('phone.documents.done').map((c) => c.payload)).toEqual([{ documentId: ID('c') }]);
+  expect(navigate).not.toHaveBeenCalled();
+});
+
+test('bill refusals are drawn in words; a reading no longer held offers to read the document again', async () => {
+  readCount = 0;
+  const codes = ['BILL_FIELD_MISSING', 'PREVIEW_CHANGED', 'BILL_READ_EXPIRED'];
+  const { sent } = draw(DOCS, { language: 'hi', handlers: {
+    'phone.documents.list': () => LIST,
+    'phone.documents.preview': (p) => billPreview(String(p['documentId'])),
+    'books.billConfirm': () => refuse(codes.shift()!),
+  } });
+  await screen.findAllByText(hi['HL.docs.outside']);
+  const photo = row(hi['HL.docs.type.jpeg']);
+  await userEvent.click(within(photo).getByRole('button', { name: hi['HL.docs.read'] }));
+  await userEvent.click(within(photo).getAllByRole('button', { name: hi['HL.docs.readNow'] })[0]!);
+  const form = await within(photo).findByRole('form', { name: hi['HL.bill.form'] });
+  await userEvent.type(within(within(form).getByRole('group', { name: `${hi['HL.bill.lines']} 2` })).getByLabelText(hi['HL.bill.amount']), '184');
+  await userEvent.clear(within(form).getByLabelText(hi['HL.bill.supplier']));
+  await userEvent.click(within(form).getByRole('button', { name: hi['HL.docs.confirm'] }));
+  expect(await within(photo).findByText(hi['HL.refusal.BILL_FIELD_MISSING'])).toBeTruthy();
+  expect(within(photo).queryByRole('button', { name: hi['HL.bill.readAgain'] })).toBeNull();
+  await userEvent.click(within(form).getByRole('button', { name: hi['HL.docs.confirm'] }));
+  expect(await within(photo).findByText(hi['HL.refusal.PREVIEW_CHANGED'])).toBeTruthy();
+  await userEvent.click(within(form).getByRole('button', { name: hi['HL.docs.confirm'] }));
+  expect(await within(photo).findByText(hi['HL.refusal.BILL_READ_EXPIRED'])).toBeTruthy();
+  await userEvent.click(within(photo).getByRole('button', { name: hi['HL.bill.readAgain'] }));
+  const fresh = await within(photo).findByRole('form', { name: hi['HL.bill.form'] });
+  expect((within(fresh).getByLabelText(hi['HL.bill.supplier']) as HTMLInputElement).value).toBe('Sharma Traders');
+  expect(sent('phone.documents.preview')).toHaveLength(2);
+  expect(sent('phone.documents.done')).toHaveLength(0);
+});
+
+test('a checked message the relay never received reads as not sent, and says to send it again from the app without a resend button', async () => {
+  const { sent } = draw(LOG, { handlers: {
+    'phone.messages.log': () => ({ messages: [entry('msg_1', 'unknown')], lost: 1 }),
+    'phone.messages.check': (p) => ({ ...entry(String(p['id']), 'not-sent'), checkedAt: AT, sendAgain: true }),
+  } });
+  const r = row(await screen.findByText(en['HL.log.event.review-ready']).then(() => en['HL.log.event.review-ready']));
+  await userEvent.click(within(r).getByRole('button', { name: /Check/ }));
+  expect(await within(r).findByText(en['HL.log.status.not-sent'])).toBeTruthy();
+  expect(within(r).getByText(en['HL.log.sendAgain'])).toBeTruthy();
+  expect(within(r).queryByText(en['HL.refusal.INVALID_REPLY'])).toBeNull();
+  expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
+  expect(sent('phone.messages.send')).toHaveLength(0);
+});
+
+test('a statement with nothing to confirm says why, in words', async () => {
+  draw(DOCS, { handlers: {
+    'phone.documents.list': () => LIST,
+    'phone.documents.preview': (p) => ({ ...preview(String(p['documentId']), 'statement', null), confirmReason: 'statement-question' }),
   } });
   await screen.findAllByText(en['HL.docs.outside']);
   const pdf = row(en['HL.docs.type.pdf']);
   await userEvent.click(within(pdf).getByRole('button', { name: en['HL.docs.read'] }));
-  await userEvent.click(within(pdf).getByRole('radio', { name: en['HL.route.bill'] }));
+  await userEvent.click(within(pdf).getByRole('radio', { name: en['HL.route.statement'] }));
   await userEvent.click(within(pdf).getByRole('button', { name: en['HL.docs.readNow'] }));
-  await within(pdf).findByText(en['HL.docs.billElsewhere']);
+  expect(await within(pdf).findByText(en['HL.docs.noConfirm.statement-question'])).toBeTruthy();
   expect(within(pdf).queryByRole('button', { name: en['HL.docs.confirm'] })).toBeNull();
-  await userEvent.click(within(pdf).getByRole('button', { name: en['HL.docs.billLink'] }));
-  expect(navigate).toHaveBeenCalledWith({ place: 'books', sub: 'bill' });
-  expect(sent('books.billConfirm')).toHaveLength(0);
+});
+
+test('a message from an earlier pairing says so, and a check refused for it is drawn in words', async () => {
+  draw(LOG, { handlers: {
+    'phone.messages.log': () => ({ messages: [{ ...entry('m1', 'unknown'), errorCode: 'MESSAGE_OTHER_PAIRING' }], lost: 1 }),
+    'phone.messages.check': () => refuse('MESSAGE_OTHER_PAIRING'),
+  } });
+  await screen.findByText(en['HL.log.event.review-ready']);
+  const r = row(en['HL.log.event.review-ready']);
+  expect(within(r).getByText(en['HL.refusal.MESSAGE_OTHER_PAIRING'])).toBeTruthy();
+  await userEvent.click(within(r).getByRole('button', { name: /Check/ }));
+  expect(await within(r).findAllByText(en['HL.refusal.MESSAGE_OTHER_PAIRING'])).toHaveLength(2);
+});
+
+test('the Lost messages log draws a not-sent row; a check refused as too soon says so in words', async () => {
+  draw(LOG, { view: 'books', handlers: {
+    'phone.messages.log': (p) => p['filter'] === 'all'
+      ? { messages: [{ ...entry('m1', 'not-sent'), checkedAt: AT }, entry('m2', 'unknown', 'due-date-near')], lost: 1 }
+      : { messages: [entry('m2', 'unknown', 'due-date-near')], lost: 1 },
+    'phone.messages.check': () => refuse('MESSAGE_CHECK_TOO_SOON'),
+  } });
+  await screen.findByText(en['HL.log.event.due-date-near']);
+  await userEvent.click(screen.getByRole('radio', { name: en['HL.log.filter.all'] }));
+  expect(await screen.findByText(en['HL.log.status.not-sent'])).toBeTruthy();
+  const r = row(en['HL.log.event.due-date-near']);
+  await userEvent.click(within(r).getByRole('button', { name: /Check/ }));
+  expect(await within(r).findByText(en['HL.refusal.MESSAGE_CHECK_TOO_SOON'])).toBeTruthy();
 });

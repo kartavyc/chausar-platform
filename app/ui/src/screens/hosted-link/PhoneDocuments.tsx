@@ -3,7 +3,9 @@
  * on WhatsApp or Telegram waits here as outside data, not imported. The person chooses how it is
  * read (a CSV as rows; a PDF as a statement or a bill; a photo as a bill), sees the reading with
  * its untrusted marking, and only a press of Confirm sends the reading's own confirm (the normal
- * import or bill check), then marks the document done. Discard deletes it from this computer.
+ * import or bill check), then marks the document done. A bill's confirm needs checked fields: they
+ * are drawn here as a form prefilled from the reading, which the person checks and corrects before
+ * Confirm. Discard deletes it from this computer.
  * Simple: the rows, Read it and Discard, and the first lines of a reading. Guided adds the kind,
  * the dates and the notes. Books adds the document id, the media type, its size in bytes, the
  * confirm method and every line read. Nothing is added up or worked out here.
@@ -14,11 +16,13 @@ import { money } from '../../format/index.ts';
 import { count } from '../../format/index.ts';
 import { Button } from '../../parts/Button';
 import { Choice } from '../../parts/Choice';
+import { Field } from '../../parts/Field';
 import { Label } from '../../parts/Label';
 import type { PlaceRenderProps } from '../../places/types.ts';
 import {
-  METHODS, anyObject, collected, discarded, documentList, documentPreview, partlyCollected, previewPayload, readLines, routesFor,
-  type DocumentPreview, type MediaType, type PhoneDocument, type Route,
+  METHODS, anyObject, billConfirmPayload, billFormOf, collected, discarded, documentList, documentPreview, isoDayText, paiseText, partlyCollected,
+  previewPayload, readLines, routesFor, wholeQuantity,
+  type BillCheck, type BillField, type BillForm, type DocumentPreview, type MediaType, type PhoneDocument, type Route,
 } from './contract.ts';
 import { useRead, useSend } from './engine.ts';
 import { Note, Page, PhoneLink, SentLine, canChange, day, type T } from './Frame';
@@ -30,7 +34,105 @@ const TYPE_KEY: Readonly<Record<MediaType, string>> = {
 const SHOWN_LINES = { simple: 12, guided: 40, books: 200 } as const;
 
 /** What was read, as plain lines under its untrusted marking, and the confirm it offers. */
-function Reading({ value, props, t, onConfirmed }: { value: DocumentPreview; props: PlaceRenderProps; t: T; onConfirmed: (sentence: string) => void }) {
+/** How sure one field's reading is, in words; an unread field is marked amber. */
+function Certain({ field, t }: { field: BillField | undefined; t: T }) {
+  if (field === undefined) return null;
+  return <span className={field.certainty === 'sure' ? s.lineNote : s.warn} data-certainty={field.certainty}>{t(`HL.bill.cert.${field.certainty}`)}</span>;
+}
+
+/**
+ * A bill's fields, prefilled from the reading, for the person to check and correct one by one.
+ * Confirm sends exactly { readId, digest, fields } to `books.billConfirm` (amounts as whole paise
+ * text, converted by hand), then marks the document done. Nothing is added up here: the engine
+ * checks that lines plus tax make the total and its refusals are drawn in words.
+ */
+function BillFields({ documentId, check, props, t, onConfirmed, onReadAgain }: {
+  documentId: string; check: BillCheck; props: PlaceRenderProps; t: T; onConfirmed: (sentence: string) => void; onReadAgain: () => void;
+}) {
+  const reading = check.reading;
+  const [form, setForm] = useState<BillForm>(() => billFormOf(reading));
+  const confirm = useSend(props.rpc, anyObject);
+  const done = useSend(props.rpc, anyObject);
+  const busy = confirm.sent.kind === 'sending' || done.sent.kind === 'sending';
+  const payload = billConfirmPayload(check, form);
+  const set = (patch: Partial<BillForm>) => { setForm((f) => ({ ...f, ...patch })); if (confirm.sent.kind === 'refused') confirm.clear(); };
+  const badAmount = (text: string) => (paiseText(text) === null ? t('HL.bill.amountProblem') : undefined);
+  const press = async () => {
+    if (payload === null) return;
+    if (await confirm.send('books.billConfirm', payload) === null || !props.live(props.address)) return;
+    if (await done.send(METHODS.done, { documentId }) !== null && props.live(props.address)) onConfirmed(t('HL.bill.confirmed'));
+  };
+  const confirmed = confirm.sent.kind === 'done';
+  const stale = confirm.sent.kind === 'refused' && (confirm.sent.code === 'BILL_READ_EXPIRED' || confirm.sent.code === 'PREVIEW_CHANGED');
+  return (
+    <form className={s.group} aria-label={t('HL.bill.form')} onSubmit={(e) => { e.preventDefault(); void press(); }}>
+      <h4 className={s.heading}>{t('HL.bill.title')}</h4>
+      <Note>{t('HL.bill.intro')}</Note>
+      <fieldset className={s.fields} disabled={confirmed || busy}>
+        <div className={s.fieldRow}>
+          <Field label={t('HL.bill.supplier')} value={form.supplier} onChange={(e) => set({ supplier: e.target.value })} />
+          <Certain field={reading.supplier} t={t} />
+        </div>
+        <div className={s.fieldRow}>
+          <Field label={t('HL.bill.number')} value={form.billNumber} onChange={(e) => set({ billNumber: e.target.value })} />
+          <Certain field={reading.billNumber} t={t} />
+        </div>
+        <div className={s.fieldRow}>
+          <Field label={t('HL.bill.date')} type="date" value={form.date} onChange={(e) => set({ date: e.target.value })}
+            problem={isoDayText(form.date) ? undefined : t('HL.bill.dateProblem')} />
+          <Certain field={reading.date} t={t} />
+        </div>
+        <h5 className={s.heading}>{t('HL.bill.lines')}</h5>
+        {form.lines.map((line, i) => {
+          const read = reading.lines[i];
+          const change = (patch: Partial<BillForm['lines'][number]>) => set({ lines: form.lines.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+          return (
+            <div key={i} className={s.fieldRow} role="group" aria-label={`${t('HL.bill.lines')} ${i + 1}`} data-line={i}>
+              <Field label={t('HL.bill.description')} value={line.description} onChange={(e) => change({ description: e.target.value })} />
+              <Certain field={read?.description} t={t} />
+              <Field label={t('HL.bill.quantity')} inputMode="numeric" value={line.quantity} onChange={(e) => change({ quantity: e.target.value })}
+                problem={wholeQuantity(line.quantity) === null ? t('HL.bill.quantityProblem') : undefined} />
+              <Certain field={read?.quantity} t={t} />
+              <Field label={t('HL.bill.amount')} inputMode="decimal" value={line.amount} onChange={(e) => change({ amount: e.target.value })} problem={badAmount(line.amount)} />
+              <Certain field={read?.amount} t={t} />
+              {form.lines.length > 1 && <Button variant="link" onClick={() => set({ lines: form.lines.filter((_, j) => j !== i) })}>{t('HL.bill.remove')}</Button>}
+            </div>
+          );
+        })}
+        <div><Button variant="link" onClick={() => set({ lines: [...form.lines, { description: '', quantity: '1', amount: '' }] })}>{t('HL.bill.addLine')}</Button></div>
+        <h5 className={s.heading}>{t('HL.bill.tax')}</h5>
+        {form.tax.map((tax, i) => {
+          const read = reading.tax[i];
+          const change = (patch: Partial<BillForm['tax'][number]>) => set({ tax: form.tax.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+          return (
+            <div key={i} className={s.fieldRow} role="group" aria-label={`${t('HL.bill.tax')} ${i + 1}`} data-tax={i}>
+              <Field label={t('HL.bill.taxName')} value={tax.name} onChange={(e) => change({ name: e.target.value })} />
+              <Certain field={read?.name} t={t} />
+              <Field label={t('HL.bill.amount')} inputMode="decimal" value={tax.amount} onChange={(e) => change({ amount: e.target.value })} problem={badAmount(tax.amount)} />
+              <Certain field={read?.amount} t={t} />
+              <Button variant="link" onClick={() => set({ tax: form.tax.filter((_, j) => j !== i) })}>{t('HL.bill.remove')}</Button>
+            </div>
+          );
+        })}
+        <div><Button variant="link" onClick={() => set({ tax: [...form.tax, { name: '', amount: '' }] })}>{t('HL.bill.addTax')}</Button></div>
+        <div className={s.fieldRow}>
+          <Field label={t('HL.bill.total')} inputMode="decimal" value={form.total} onChange={(e) => set({ total: e.target.value })} problem={badAmount(form.total)} />
+          <Certain field={reading.total} t={t} />
+        </div>
+      </fieldset>
+      <Note>{t('HL.bill.confirmNote')}</Note>
+      {!confirmed && payload === null && <p className={s.warn} role="note">{t('HL.bill.notReady')}</p>}
+      {!confirmed && <div><Button variant="filled" submit disabled={payload === null || busy}>{t('HL.docs.confirm')}</Button></div>}
+      <SentLine sent={confirm.sent} />
+      {stale && <div><Button variant="link" onClick={onReadAgain}>{t('HL.bill.readAgain')}</Button></div>}
+      {confirmed && done.sent.kind === 'not-built' ? <p className={s.status} role="status">{t('HL.docs.doneNotBuilt')}</p> : <SentLine sent={done.sent} />}
+    </form>
+  );
+}
+
+function Reading({ value, props, t, onConfirmed, onReadAgain }: {
+  value: DocumentPreview; props: PlaceRenderProps; t: T; onConfirmed: (sentence: string) => void; onReadAgain: () => void;
+}) {
   const books = props.view === 'books';
   const [all, setAll] = useState(false);
   const { lines, more } = useMemo(() => readLines(value.preview, all ? 200 : SHOWN_LINES[props.view]), [value.preview, all, props.view]);
@@ -66,12 +168,9 @@ function Reading({ value, props, t, onConfirmed }: { value: DocumentPreview; pro
           <Button variant="link" aria-expanded={all} onClick={() => setAll((a) => !a)}>{all ? t('HL.docs.showLess') : t('HL.docs.showAll')}</Button>
         </div>
       )}
-      {value.confirm !== null && value.confirm.needsFields ? (
-        <>
-          <Note>{t('HL.docs.billElsewhere')}</Note>
-          <div><Button variant="link" onClick={() => props.navigate({ place: 'books', sub: 'bill' })}>{t('HL.docs.billLink')}</Button></div>
-        </>
-      ) : value.confirm === null ? <Note>{t('HL.docs.noConfirm')}</Note> : (
+      {value.bill !== null ? (
+        <BillFields documentId={value.documentId} check={value.bill} props={props} t={t} onConfirmed={onConfirmed} onReadAgain={onReadAgain} />
+      ) : value.confirm === null ? <Note>{t(value.confirmReason === null ? 'HL.docs.noConfirm' : `HL.docs.noConfirm.${value.confirmReason}`)}</Note> : (
         <>
           <Note>{t('HL.docs.confirmNote')}</Note>
           {books && <Note><span className="fig">{t('HL.docs.confirmMethod', { method: value.confirm.method })}</span></Note>}
@@ -147,7 +246,10 @@ function DocumentRow({ doc, props, t, onGone }: { doc: PhoneDocument; props: Pla
             <div><Button variant="filled" disabled={route === null || preview.sent.kind === 'sending'} onClick={read}>{t('HL.docs.readNow')}</Button></div>
           )}
           <SentLine sent={preview.sent} />
-          {preview.sent.kind === 'done' && <Reading key={`${doc.documentId}-${preview.sent.value.route}`} value={preview.sent.value} props={props} t={t} onConfirmed={onGone} />}
+          {preview.sent.kind === 'done' && (
+            <Reading key={`${doc.documentId}-${preview.sent.value.route}-${preview.sent.value.bill?.readId ?? ''}`} value={preview.sent.value} props={props} t={t}
+              onConfirmed={onGone} onReadAgain={read} />
+          )}
         </div>
       )}
     </li>

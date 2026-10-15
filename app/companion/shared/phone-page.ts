@@ -40,6 +40,7 @@ export const phonePageWords = {
     weekAhead: 'The week ahead',
     weekAheadEmpty: 'The week ahead is not ready yet.',
     figureHeadline: 'A headline with figures. Read it on your computer.',
+    figureTitle: 'A change with figures. See it in the app.',
     laptopSeen: 'Laptop last seen',
     notKnown: 'Not known',
     refresh: 'Refresh',
@@ -51,11 +52,18 @@ export const phonePageWords = {
 } as const;
 export type PhonePageWords = typeof phonePageWords.en;
 
-/** Any decimal digit in any script means the headline carries a figure. */
+/** Any decimal digit in any script means the text carries a figure. */
 const hasDigit = (text: string) => /\p{Nd}/u.test(text);
+const figureFree = (text: string, fallback: string) => {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return !clean || hasDigit(clean) ? fallback : clean;
+};
 export function headlineText(title: string, words: PhonePageWords = phonePageWords.en): string {
-  const clean = title.replace(/\s+/g, ' ').trim();
-  return !clean || hasDigit(clean) ? words.figureHeadline : clean;
+  return figureFree(title, words.figureHeadline);
+}
+/** An approval row or confirm title, under the same digit check: "Pay ₹4,500" never reaches the page. */
+export function approvalTitleText(title: string, words: PhonePageWords = phonePageWords.en): string {
+  return figureFree(title, words.figureTitle);
 }
 
 export type PhonePageRow = { approvalId: string; title: string; action: 'approve' | 'in-the-app' };
@@ -81,13 +89,14 @@ export function phonePageView(state: CompanionViewState, now: number): PhonePage
   const readOnly = !authority || !authority.capabilities.includes('approval.simple');
   const review = page.review;
   const saved = !review || review.freshness === 'saved';
-  const rows = (review?.items ?? []).map(item => ({ approvalId: item.approvalId, title: item.title,
+  const rows = (review?.items ?? []).map(item => ({ approvalId: item.approvalId, title: approvalTitleText(item.title),
     action: !readOnly && !saved && item.eligibility === 'simple-reversible' ? 'approve' as const : 'in-the-app' as const }));
   const weekAhead = [...page.headlines]
     .sort((left, right) => Date.parse(right.generatedAt) - Date.parse(left.generatedAt))
     .slice(0, 3).map(headline => headlineText(headline.title));
   const seen = page.lastSeenAt && Number.isFinite(Date.parse(page.lastSeenAt)) && Date.parse(page.lastSeenAt) <= now ? page.lastSeenAt : undefined;
-  const confirm = page.confirm && !readOnly ? { ...page.confirm, expired: !(Date.parse(page.confirm.expiresAt) > now) } : undefined;
+  const confirm = page.confirm && !readOnly
+    ? { ...page.confirm, title: approvalTitleText(page.confirm.title), expired: !(Date.parse(page.confirm.expiresAt) > now) } : undefined;
   return {
     experimental: true, readOnly,
     review: page.reviewUnavailable ? { status: 'unavailable', rows: [], saved }
