@@ -26,8 +26,13 @@ export type Envelope = {
   createdBy: string;
 };
 export type SignInAttempt = { state: string; provider: string; connectionId: string; verifier: string; redirectUri: string; scopes: string[]; expiresAt: string; createdBy: string };
-export type ConnectorsState = { version: 1; connections: Connection[]; envelopes: Envelope[]; signIns: SignInAttempt[] };
-export const LIMITS = Object.freeze({ connections: 200, envelopes: 400, pendingRecords: 50_000, pendingTtlMs: 6 * 60 * 60 * 1000, signInTtlMs: 10 * 60 * 1000 });
+/** A Tally export made for another computer: the requests only (never the answers), kept 30 days so the answer file can be checked. */
+export type TallyExport = {
+  exportId: string; connectionId: string; sourceId: string; register: 'sales' | 'purchase'; period: { from: string; to: string };
+  company: string; ledgers: string[]; baseCurrency: string; requestDigests: string[]; createdAt: string; expiresAt: string; createdBy: string;
+};
+export type ConnectorsState = { version: 1; connections: Connection[]; envelopes: Envelope[]; signIns: SignInAttempt[]; tallyExports?: TallyExport[] };
+export const LIMITS = Object.freeze({ connections: 200, envelopes: 400, pendingRecords: 50_000, pendingTtlMs: 6 * 60 * 60 * 1000, signInTtlMs: 10 * 60 * 1000, tallyExports: 50, tallyExportTtlMs: 30 * 24 * 60 * 60 * 1000 });
 
 export const cxState = (state: State): ConnectorsState => moduleState<ConnectorsState>(state, MODULE_ID, () => ({ version: 1, connections: [], envelopes: [], signIns: [] }));
 export const peekCx = (state: State): ConnectorsState => peekModuleState<ConnectorsState>(state, MODULE_ID) ?? { version: 1, connections: [], envelopes: [], signIns: [] };
@@ -36,6 +41,7 @@ export const peekCx = (state: State): ConnectorsState => peekModuleState<Connect
 export function prune(cx: ConnectorsState, at: number): void {
   for (const envelope of cx.envelopes) if (envelope.pending && Date.parse(envelope.pending.expiresAt) <= at) envelope.pending = null;
   cx.signIns = cx.signIns.filter(item => Date.parse(item.expiresAt) > at);
+  if (cx.tallyExports) { cx.tallyExports = cx.tallyExports.filter(item => Date.parse(item.expiresAt) > at); if (cx.tallyExports.length > LIMITS.tallyExports) cx.tallyExports.splice(0, cx.tallyExports.length - LIMITS.tallyExports); }
   if (cx.envelopes.length > LIMITS.envelopes) cx.envelopes.splice(0, cx.envelopes.length - LIMITS.envelopes);
 }
 /** Source deletion or revocation removes every envelope read from that source, and its pending rows. */
@@ -43,6 +49,7 @@ export function purgeSources(state: State, sourceIds: readonly string[]): number
   const cx = peekModuleState<ConnectorsState>(state, MODULE_ID); if (!cx) return 0;
   const before = cx.envelopes.length;
   cx.envelopes = cx.envelopes.filter(envelope => !sourceIds.includes(envelope.sourceId));
+  if (cx.tallyExports) cx.tallyExports = cx.tallyExports.filter(item => !sourceIds.includes(item.sourceId));
   return before - cx.envelopes.length;
 }
 export function publicEnvelope(envelope: Envelope) {

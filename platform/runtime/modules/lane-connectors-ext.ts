@@ -5,6 +5,7 @@ import { ConnectorCredentialStore, hostCredentialServices, loadOAuthClients } fr
 import { readHttp } from '../adapters/read-kit.ts';
 import { purgeSources } from '../connectors-ext/state.ts';
 import { imports } from '../connectors-ext/fr07.ts';
+import { tallyCompanies, tallyExporter, tallyImportExport, tallyLedgers } from '../connectors-ext/tally-export.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const connectorsExtModule: EngineModule = {
@@ -32,6 +33,11 @@ export const connectorsExtModule: EngineModule = {
     'connectorsx.credentials.remove': { permission: 'admin', handler: handlers.credentialsRemove },
     'connectorsx.credentials.status': { permission: 'read', handler: handlers.credentialsStatus },
     'connectorsx.schedule': { permission: 'admin', handler: handlers.schedule },
+    // BK-03, Tally on another computer.
+    'connectorsx.tally.exporter': { permission: 'prepare', handler: (ctx, payload, host) => tallyExporter(ctx, payload, host) },
+    'connectorsx.tally.importExport': { permission: 'prepare', handler: tallyImportExport },
+    'connectorsx.tally.companies': { permission: 'admin', external: true, handler: tallyCompanies },
+    'connectorsx.tally.ledgers': { permission: 'admin', external: true, handler: tallyLedgers },
     // FR-07, Bring a file.
     'imports.preview': { permission: 'prepare', handler: imports.preview },
     'imports.providePassword': { permission: 'prepare', handler: imports.providePassword },

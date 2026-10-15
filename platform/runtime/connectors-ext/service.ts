@@ -53,20 +53,20 @@ function reportTotals(value: unknown) {
     && (value.rowCount === undefined || value.rowCount === null || (Number.isSafeInteger(value.rowCount) && value.rowCount >= 0)), 'INVALID_SOURCE_TOTALS', 'Enter the report total as whole minor units and an optional row count.');
   return { total: value.total as string, rowCount: (value.rowCount ?? null) as number | null };
 }
-const view = (store: StateStore, state: any): StateStore => ({ read: () => state, update: store.update.bind(store) });
-function connection(store: StateStore, id: unknown): Connection {
+export const view = (store: StateStore, state: any): StateStore => ({ read: () => state, update: store.update.bind(store) });
+export function connection(store: StateStore, id: unknown): Connection {
   check(text(id, 100), REQUEST, 'Choose a connection.');
   const found = peekCx(store.read()).connections.find(item => item.id === id);
   check(found, 'CONNECTION_NOT_FOUND', 'This connection does not exist.');
   return found;
 }
-const options = (host: ModuleHost) => host.options as ConnectorsHostOptions;
+export const options = (host: ModuleHost) => host.options as ConnectorsHostOptions;
 /** Methods that reach outside, persist a way in, or move secrets need the person at the desktop, not text-driven or remote callers. */
-function trusted(ctx: Context) {
+export function trusted(ctx: Context) {
   check((ctx.channel === undefined || ctx.channel === 'desktop') && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Do this yourself in the desktop app.');
 }
 /** Branch and source trust for one connection, checked before any network access. */
-function scoped(host: ModuleHost, ctx: Context, item: Connection) { currentAccess(host.store, ctx, item.branch, item.sourceId); }
+export function scoped(host: ModuleHost, ctx: Context, item: Connection) { currentAccess(host.store, ctx, item.branch, item.sourceId); }
 /** Listings show only connections in the caller's branches and allowed sources. */
 function visible(host: ModuleHost, ctx: Context) {
   const state = host.store.read(), member = authorize(host.store, ctx);
@@ -88,7 +88,7 @@ function databaseOptions(ctx: Context, host: ModuleHost, item: Connection) {
 /** Summaries only: a reply never carries source rows. */
 export function outcomeSummary(envelope: Envelope) { return publicEnvelope(envelope); }
 
-async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
+export async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
   recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read']; learn?: (state: any, envelope: Envelope) => unknown }): Promise<Envelope> {
   const recipe = input.recipe, outcome = input.outcome;
   return host.store.update(state => {
