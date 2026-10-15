@@ -49,13 +49,20 @@ export type PreparedAction = {
   approval?: { memberId: string; role: Context['role']; epoch: number; digest: string; revision: number; workspaceRevision: number; at: string };
   attempts: ActionAttempt[]; result?: ActionResult; readback?: Readback; businessSuccess?: boolean; blockedReason?: string;
 };
+/** core-gateway-auth: rules that hide an action from a member (the staff seat sees only its own, TR-06). Registered by engine modules at load. */
+type ActionHidden = (state: State, member: ReturnType<typeof current>, action: PreparedAction) => boolean;
+const actionHiddenRules = new Set<ActionHidden>();
+export function registerActionHidden(rule: ActionHidden): void { actionHiddenRules.add(rule); }
 export type PrepareAction = { connector: string; operation: string; payload: unknown; idempotencyKey: string; sourceIds?: string[] };
 
 export class ActionService {
   store: StateStore; registry: Map<string, Connector>;
   active = new Set<string>();
-  constructor(store: StateStore, connectors: Connector[] = []) {
+  /** Optional money gate (core-gateway-auth's second ask): throws unless the approver answered it for exactly this action. */
+  readonly secondAsk?: (state: State, context: Context, action: PreparedAction) => void;
+  constructor(store: StateStore, connectors: Connector[] = [], options?: { secondAsk?: (state: State, context: Context, action: PreparedAction) => void }) {
     this.store = store; this.registry = new Map();
+    this.secondAsk = options?.secondAsk;
     for (const connector of connectors) {
       check(!this.registry.has(connector.id) && /^[a-z][a-z0-9-]{0,63}$/.test(connector.id), 'INVALID_CONNECTOR', 'Connector IDs must be unique.');
       for (const operation of Object.values(connector.operations)) check(operation.idempotency && operation.readback && typeof operation.execute === 'function' && typeof operation.reconcile === 'function', 'INVALID_CONNECTOR', 'Every operation needs an idempotency and readback contract.');
@@ -70,7 +77,10 @@ export class ActionService {
     const entry = this.registry.get(connector)?.operations[operation]; check(entry, 'UNSUPPORTED_ACTION', 'This action is absent from the written connector catalogue.'); return entry;
   }
   access(state: State, context: Context, action: PreparedAction) {
-    const member = current(state, context); sourceAccess(state, context, action.sourceIds);
+    const member = current(state, context);
+    // A hidden action answers exactly like a missing one, so its existence is not revealed.
+    for (const hidden of actionHiddenRules) check(!hidden(state, member, action), 'NOT_FOUND', 'Action not found.');
+    sourceAccess(state, context, action.sourceIds);
     if (action.sourceIds.length === 0) check((action.createdBy === context.memberId && action.createdEpoch === context.epoch) || (member.role === 'owner' && member.branches.includes('*')), 'ACTION_FORBIDDEN', 'This private local action belongs to another account or permission epoch.');
   }
   list(context: Context): PreparedAction[] {
@@ -107,6 +117,7 @@ export class ActionService {
       check(context.channel !== 'phone' || op.impact === 'message', 'APP_APPROVAL_REQUIRED', 'Money and other actions must be approved inside the app.');
       check(action.status === 'prepared' && action.attempts.length === 0, 'INVALID_ACTION_STATE', 'Only a prepared, unattempted action can be approved.');
       check(expectedDigest === action.digest && action.digest === this.identity(action), 'PREVIEW_CHANGED', 'The exact action changed. Review its new preview.');
+      if (this.secondAsk && (action.impact === 'money' || op.impact === 'money')) this.secondAsk(state, context, action);
       action.approval = { memberId: context.memberId, role: context.role, epoch: context.epoch, digest: expectedDigest, revision: action.revision, workspaceRevision: state.revision, at: now() }; action.status = 'approved'; audit(state, 'action.approved', { actionId: id, digest: expectedDigest, memberId: context.memberId }); return structuredClone(action);
     });
   }
