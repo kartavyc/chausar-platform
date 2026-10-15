@@ -2,7 +2,7 @@ import { check, audit, ChausarError } from './contracts.ts';
 import type { Context, State } from './contracts.ts';
 import { current, digest, sourceAccess, canonical, ActionService } from './actions.ts';
 import type { PrepareAction, PreparedAction } from './actions.ts';
-import { JobService } from './jobs.ts';
+import { JobService, jobActions } from './jobs.ts';
 import type { Job, JobConfig, Lease } from './jobs.ts';
 import { json, money, validatePlan, validateSettlement } from './job-protocol.ts';
 import type { GoalPlan, GoalStep, StepResult, ProviderSettlement, StepAttempt, Json } from './job-protocol.ts';
@@ -46,7 +46,7 @@ export class DurableJobRunner {
     check(typeof options.workerId === 'string' && options.workerId.length >= 1 && options.workerId.length <= 100 && Number.isSafeInteger(options.maxActiveJobs) && options.maxActiveJobs > 0 && Number.isSafeInteger(options.leaseMs) && options.leaseMs >= 100 && options.leaseMs <= 300000 && typeof options.networkAvailable === 'function', 'INVALID_JOB_RUNNER', 'Supply explicit worker, active-job, lease and transport policy.');
     this.jobs = jobs; this.options = options; this.runners = new Map(); this.providers = new Map();
     for (const runner of runners) { check(/^[a-z][a-z0-9-]{0,63}$/.test(runner.type) && runner.version.length > 0 && !this.runners.has(runner.type) && typeof runner.release === 'function', 'INVALID_JOB_RUNNER', 'Install unique versioned runners with current release checks.'); this.runners.set(runner.type, runner); }
-    for (const provider of providers) { check(/^[a-z][a-z0-9-]{0,63}$/.test(provider.id) && !this.providers.has(provider.id) && ['read-only', 'prepare-action'].includes(provider.kind) && ['local', 'remote'].includes(provider.transport) && typeof provider.model === 'boolean', 'INVALID_JOB_PROVIDER', 'Install explicit read or action-preparation providers.'); if (provider.kind === 'read-only') { check(typeof provider.dispatch === 'function' && typeof provider.reconcile === 'function', 'INVALID_JOB_PROVIDER', 'Every dispatched provider needs readback.'); check(provider.transport === 'local' || typeof provider.authorize === 'function', 'INVALID_JOB_PROVIDER', 'Remote providers need an explicit current read and exact egress authority.'); } else check(provider.transport === 'local' && !provider.model && options.actions, 'INVALID_JOB_PROVIDER', 'Action previews use the local ActionService.'); this.providers.set(provider.id, provider); }
+    for (const provider of providers) { check(/^[a-z][a-z0-9-]{0,63}$/.test(provider.id) && provider.id !== 'person' && !this.providers.has(provider.id) && ['read-only', 'prepare-action'].includes(provider.kind) && ['local', 'remote'].includes(provider.transport) && typeof provider.model === 'boolean', 'INVALID_JOB_PROVIDER', 'Install explicit read or action-preparation providers.'); if (provider.kind === 'read-only') { check(typeof provider.dispatch === 'function' && typeof provider.reconcile === 'function', 'INVALID_JOB_PROVIDER', 'Every dispatched provider needs readback.'); check(provider.transport === 'local' || typeof provider.authorize === 'function', 'INVALID_JOB_PROVIDER', 'Remote providers need an explicit current read and exact egress authority.'); } else check(provider.transport === 'local' && !provider.model && options.actions, 'INVALID_JOB_PROVIDER', 'Action previews use the local ActionService.'); this.providers.set(provider.id, provider); }
   }
   runner(type?: string) { const runner = type && this.runners.get(type); check(runner, 'JOB_TYPE_UNSUPPORTED', 'This goal has no installed typed runner.'); return runner; }
   async create(context: Context, config: Omit<JobConfig, 'plan'> & { type: string }): Promise<Job> {
@@ -107,7 +107,7 @@ export class DurableJobRunner {
       this.jobs.interrupt(job, 'paused', 'objective-amended');
       if (job.execution && !job.execution.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))) { (job.archivedExecutions ??= []).push(job.execution); delete job.execution; }
       check((config.allowedActions ?? []).every(value => typeof value === 'string' && value.length > 0) && (config.testedRoutes ?? []).every(value => typeof value === 'string' && value.length > 0) && (config.background === undefined || typeof config.background === 'boolean'), 'INVALID_JOB_PLAN', 'Declare valid amended action, route and background permissions.');
-      job.revision += 1; job.type = config.type; job.goal = config.goal.trim(); job.input = input; job.plan = plan; job.limits = json(config.limits!); job.sourceIds = sources; job.budgetMinor = config.budgetMinor; job.reserveMinor = config.reserveMinor ?? config.budgetMinor; job.stopRule = json(config.stopRule); job.allowedActions = [...new Set(config.allowedActions ?? [])].sort(); job.testedRoutes = [...new Set(config.testedRoutes ?? [])].sort(); job.background = config.background ?? false; job.requiresApproval = config.requiresApproval === true; job.nextRunAt = nextRunAt; job.scheduleAnchor = nextRunAt; job.intervalMs = intervalMs; job.catchup = catchup; job.graceMs = graceMs; delete job.approval; delete job.deliverable; job.digest = this.jobs.identity(job);
+      job.revision += 1; job.type = config.type; job.goal = config.goal.trim(); job.input = input; job.plan = plan; job.limits = json(config.limits!); job.sourceIds = sources; job.budgetMinor = config.budgetMinor; job.reserveMinor = config.reserveMinor ?? config.budgetMinor; job.stopRule = json(config.stopRule); job.allowedActions = [...new Set(config.allowedActions ?? [])].sort(); job.testedRoutes = [...new Set(config.testedRoutes ?? [])].sort(); job.background = config.background ?? false; if (config.actions !== undefined || job.actions) job.actions = jobActions(config.actions, job.allowedActions); job.requiresApproval = config.requiresApproval === true; job.nextRunAt = nextRunAt; job.scheduleAnchor = nextRunAt; job.intervalMs = intervalMs; job.catchup = catchup; job.graceMs = graceMs; delete job.approval; delete job.deliverable; job.digest = this.jobs.identity(job);
       audit(state, 'job.objective-amended', { jobId: id, revision: job.revision }); return this.jobs.view(context, job);
     }); this.signals.get(id)?.abort(); return amended;
   }
@@ -121,12 +121,32 @@ export class DurableJobRunner {
     const describe = (group: { id: string; requiredStepIds: string[] }) => ({ id: group.id, missingStepIds: group.requiredStepIds.filter(stepId => !verified.has(stepId)) });
     return { jobId: job.id, objectiveRevision: job.revision, goal: job.goal, status: job.status, scheduleAnchor: job.scheduleAnchor, scheduledFor: job.execution?.scheduledFor ?? job.nextRunAt, spentMinor: job.spentMinor, reservedMinor: job.reservedMinor, budgetMinor: job.budgetMinor, meters: job.execution?.meters, remainingStepIds: job.plan?.steps.filter(step => !verified.has(step.id)).map(step => step.id) ?? [], obligations: job.plan?.obligations.map(describe) ?? [], children: job.plan?.children.map(describe) ?? [], uncertainAttempts: job.execution?.attempts.filter(attempt => ['dispatched', 'unknown'].includes(attempt.status)).map(attempt => ({ key: attempt.key, stepId: attempt.stepId, reconciliationOwner: job.ownerId })) ?? [] };
   }
+  /** WK-08. Each child task with its released results; a child whose result is missing keeps the job open and is named. */
+  childResults(context: Context, id: string) {
+    const raw = this.raw(id); this.scope(this.jobs.store.read(), context, raw);
+    if (!raw.plan) return { jobId: raw.id, objectiveRevision: raw.revision, open: false, children: [] };
+    const execution = raw.execution?.objectiveRevision === raw.revision ? raw.execution : undefined; const plan = execution?.plan ?? raw.plan;
+    const runner = this.runners.get(execution?.type ?? raw.type ?? ''); const released = new Map<string, StepResult>();
+    for (const step of plan.steps) { const attempt = execution?.attempts.filter(a => a.stepId === step.id).at(-1); if (attempt?.status === 'verified' && attempt.settlement && runner && this.released(context, runner, step, attempt.settlement.result)) released.set(step.id, json(attempt.settlement.result)); }
+    const waiting = (stepId: string) => plan.steps.some(step => step.id === stepId && step.provider === 'person') && !raw.ledger.some(entry => entry.event === 'person-step-done' && entry.stepId === stepId && entry.revision === raw.revision);
+    const children = plan.children.map(child => {
+      const missingStepIds = child.requiredStepIds.filter(stepId => !released.has(stepId));
+      return { id: child.id, goal: child.goal, state: (missingStepIds.length === 0 ? 'done' : missingStepIds.some(waiting) ? 'waiting-for-person' : 'missing') as 'done' | 'missing' | 'waiting-for-person', missingStepIds,
+        results: plan.steps.filter(step => step.childTaskId === child.id && released.has(step.id)).map(step => { const result = released.get(step.id)!; return { stepId: step.id, informationClass: result.informationClass, evidenceIds: [...result.evidenceIds], value: result.value }; }) };
+    });
+    return { jobId: raw.id, objectiveRevision: raw.revision, open: children.some(child => child.state !== 'done'), children };
+  }
+  /** A person's done mark is the owner's own observation; every other result passes the runner's current release check. */
+  private released(context: Context, runner: GoalRunner<any>, step: GoalStep, result: StepResult) {
+    if (step.provider === 'person') return result.informationClass === 'observation' && (result.value as { kind?: unknown } | null)?.kind === 'person-step-done';
+    try { return runner.release(context, structuredClone(result)) === true; } catch { return false; }
+  }
   private raw(id: string) { return this.jobs.find(this.jobs.store.read(), id); }
   private scope(state: State, context: Context, job: Job) { current(state, context, 'prepare'); sourceAccess(state, context, job.sourceIds); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Execute with the mandate owner\'s pinned identity.'); }
   private latest(job: Job, stepId: string) { return job.execution?.attempts.filter(a => a.stepId === stepId).at(-1); }
   private results(context: Context, job: Job) {
     const runner = this.runner(job.execution?.type ?? job.type); const results: Record<string, StepResult> = {};
-    for (const step of (job.execution?.plan ?? job.plan!).steps) { const attempt = this.latest(job, step.id); if (attempt?.status !== 'verified' || !attempt.settlement) continue; check(runner.release(context, structuredClone(attempt.settlement.result)), 'JOB_EVIDENCE_REVOKED', 'A required saved result is no longer available to this owner.'); results[step.id] = json(attempt.settlement.result); }
+    for (const step of (job.execution?.plan ?? job.plan!).steps) { const attempt = this.latest(job, step.id); if (attempt?.status !== 'verified' || !attempt.settlement) continue; check(step.provider === 'person' ? this.released(context, runner, step, attempt.settlement.result) : runner.release(context, structuredClone(attempt.settlement.result)), 'JOB_EVIDENCE_REVOKED', 'A required saved result is no longer available to this owner.'); results[step.id] = json(attempt.settlement.result); }
     return results;
   }
   private request(context: Context, job: Job, step: GoalStep, key: string, signal: AbortSignal): ProviderRequest {
@@ -148,7 +168,7 @@ export class DurableJobRunner {
     this.jobs.calendarDispatchValid(job);
     check(job.plan && job.execution && job.execution.objectiveRevision === job.revision && job.execution.planDigest === digest(job.plan) && job.digest === this.jobs.identity(job) && this.runner(job.type).version === job.plan.runnerVersion, 'JOB_RUNNER_CHANGED', 'The objective or installed runner changed.');
     check(state.policy.autonomy, 'AUTONOMY_DISABLED', 'Autonomy was disabled.');
-    check(this.jobs.clock() < Date.parse(job.stopRule.deadline) && job.runs < job.stopRule.maxRuns && this.jobs.clock() - Date.parse(job.execution.startedAt) < job.limits!.durationMs, 'JOB_STOP_RULE', 'The mandate stop or wall-time ceiling was reached.');
+    check(this.jobs.clock() < Date.parse(job.stopRule.deadline) && job.runs < job.stopRule.maxRuns && this.jobs.clock() - Date.parse(job.execution.startedAt) - (job.execution.personWaitMs ?? 0) < job.limits!.durationMs, 'JOB_STOP_RULE', 'The mandate stop or wall-time ceiling was reached.');
     this.jobs.validateLease(job, lease);
     if (job.requiresApproval) { const approval = job.approval; const member = approval && state.members.find(m => m.id === approval.memberId); check(approval?.digest === job.digest && approval.revision === job.revision && member?.active && member.epoch === approval.epoch && member.role === approval.role, 'APPROVAL_REQUIRED', 'The exact mandate approval is no longer valid.'); }
   }
@@ -169,6 +189,19 @@ export class DurableJobRunner {
       job.execution!.attempts.push(attempt); job.ledger.push({ at: this.jobs.timestamp(), event: 'step-dispatched', fence: lease.fence, amountMinor: step.reserveMinor, reason: step.id }); audit(state, 'job.step-dispatched', { jobId: id, key, stepId: step.id }); return json(attempt);
     });
   }
+  /** WK-16. A person step is never dispatched: it settles from the owner's done mark for this objective, or the job waits. Returns true while waiting. */
+  private async person(context: Context, id: string, lease: LeaseIdentity, step: GoalStep): Promise<boolean> {
+    return this.jobs.store.update(state => {
+      const job = this.jobs.find(state, id); this.dispatchCheck(state, context, job, lease);
+      const done = job.ledger.findLast(entry => entry.event === 'person-step-done' && entry.stepId === step.id && entry.revision === job.revision);
+      if (!done) { this.block(job, 'PERSON_STEP_WAITING'); job.ledger.at(-1)!.stepId = step.id; audit(state, 'job.person-step-waiting', { jobId: id, stepId: step.id }); return true; }
+      check(!this.latest(job, step.id), 'JOB_STEP_ALREADY_ATTEMPTED', 'A settled logical step is never repeated.');
+      const settlement: ProviderSettlement = { result: { value: { kind: 'person-step-done', by: done.by ?? null, at: done.at }, informationClass: 'observation', evidenceIds: [`person:${job.id}:${job.revision}:${step.id}`], sourceTainted: false }, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' };
+      validateSettlement(settlement, step); const at = this.jobs.timestamp(); const key = this.operationKey(job, step);
+      job.execution!.attempts.push({ stepId: step.id, key, attempt: 1, fence: lease.fence, status: 'verified', reservedMinor: '0', startedAt: at, settledAt: at, settlement: json(settlement) });
+      job.ledger.push({ at, event: 'step-verified', amountMinor: '0', reason: step.id, stepId: step.id, durationMs: 0 }); audit(state, 'job.step-settled', { jobId: id, key, spentMinor: '0' }); return false;
+    });
+  }
   private async settle(id: string, key: string, settlement: ProviderSettlement, reconciliationId?: string) {
     return this.jobs.store.update(state => {
       const job = this.jobs.find(state, id); const attempt = job.execution?.attempts.find(a => a.key === key); check(attempt && job.plan, 'JOB_ATTEMPT_MISSING', 'The admitted attempt was removed.');
@@ -180,7 +213,8 @@ export class DurableJobRunner {
       if (job.lease && job.lease.fence === attempt.fence) job.lease.chargedMinor = String(money(job.lease.chargedMinor) + cost);
       const execution = job.execution!; execution.meters.modelUnits += settlement.modelUnits; execution.meters.durationMs += settlement.durationMs; execution.meters.actionExposureMinor = String(money(execution.meters.actionExposureMinor) + money(settlement.actionExposureMinor)); execution.sourceTainted ||= settlement.result.sourceTainted;
       attempt.status = 'verified'; attempt.settlement = json(settlement); attempt.settledAt = this.jobs.timestamp(); if (reconciliationId) attempt.reconciliationId = reconciliationId;
-      job.ledger.push({ at: this.jobs.timestamp(), event: 'step-verified', amountMinor: settlement.spentMinor, reason: step.id });
+      const actionId = settlement.result.informationClass === 'action-preview' ? (settlement.result.value as { actionId?: unknown } | null)?.actionId : undefined;
+      job.ledger.push({ at: this.jobs.timestamp(), event: 'step-verified', amountMinor: settlement.spentMinor, reason: step.id, stepId: step.id, durationMs: settlement.durationMs, ...(typeof actionId === 'string' ? { actionId } : {}) });
       // Cancellation or lease expiry cannot refund uncertain consumption. A confirmed readback can.
       if (!job.lease && !execution.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))) { job.reservedMinor = '0'; job.status = execution.afterReconcile ?? (['cancelled', 'revoked', 'stopped'].includes(job.status) ? job.status : 'scheduled'); delete execution.afterReconcile; if (execution.objectiveRevision !== job.revision) { (job.archivedExecutions ??= []).push(execution); delete job.execution; } }
       audit(state, 'job.step-settled', { jobId: id, key, spentMinor: settlement.spentMinor });
@@ -199,7 +233,7 @@ export class DurableJobRunner {
   private previewResult(action: PreparedAction, sourceTainted: boolean): ProviderSettlement { return { result: { value: { actionId: action.id, digest: action.digest, status: action.status, businessSuccess: false }, informationClass: 'action-preview', evidenceIds: [action.id], sourceTainted }, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' }; }
   private async boundedDispatch(provider: GoalProvider, request: ProviderRequest, controller: AbortController): Promise<ProviderSettlement> {
     const job = this.raw(request.key.split(':revision:')[0]);
-    const timeoutMs = Math.min(request.step.durationMs, Date.parse(job.stopRule.deadline) - this.jobs.clock(), job.calendar ? Date.parse(job.calendar.definition.stop.until) - this.jobs.clock() : Infinity, job.limits!.durationMs - (this.jobs.clock() - Date.parse(job.execution!.startedAt)));
+    const timeoutMs = Math.min(request.step.durationMs, Date.parse(job.stopRule.deadline) - this.jobs.clock(), job.calendar ? Date.parse(job.calendar.definition.stop.until) - this.jobs.clock() : Infinity, job.limits!.durationMs - (this.jobs.clock() - Date.parse(job.execution!.startedAt) - (job.execution!.personWaitMs ?? 0)));
     let timer: ReturnType<typeof setTimeout> | undefined;
     let aborted!: () => void;
     let stopped!: () => void;
@@ -222,8 +256,9 @@ export class DurableJobRunner {
       while (true) {
         const job = this.raw(id); this.scope(this.jobs.store.read(), context, job); const results = this.results(context, job);
         const pending = job.plan!.steps.filter(item => this.latest(job, item.id)?.status !== 'verified');
-        const step = pending.find(item => item.dependencies.every(dependency => results[dependency.stepId]?.informationClass === dependency.informationClass && (!dependency.evidenceRequired || results[dependency.stepId].evidenceIds.length > 0)) && (this.providers.get(item.provider)?.transport === 'local' || this.options.networkAvailable())) ?? pending[0];
+        const step = pending.find(item => item.dependencies.every(dependency => results[dependency.stepId]?.informationClass === dependency.informationClass && (!dependency.evidenceRequired || results[dependency.stepId].evidenceIds.length > 0)) && (item.provider === 'person' || this.providers.get(item.provider)?.transport === 'local' || this.options.networkAvailable())) ?? pending[0];
         if (!step) { await this.jobs.store.update(state => { this.dispatchCheck(state, context, this.jobs.find(state, id), lease!); }); const runner = this.runner(job.type); const value = json(runner.deliver(runner.validate(job.input), results)); return await this.jobs.complete(context, id, lease, { ...(job.execution!.calendar ? { calendar: job.execution!.calendar } : {}), kind: job.type!, objectiveRevision: job.revision, scheduledFor: job.execution!.scheduledFor, result: value }, this.raw(id).lease!.chargedMinor); }
+        if (step.provider === 'person') { this.request(context, job, step, this.operationKey(job, step), controller.signal); if (await this.person(context, id, lease, step)) return this.jobs.view(context, this.raw(id)); continue; }
         const request = this.request(context, job, step, this.operationKey(job, step), controller.signal); const attempt = await this.begin(context, id, lease, step, request); activeKey = attempt.key;
         const provider = this.providers.get(step.provider)!;
         // Recheck synchronously at the invocation boundary after the admission commit resolves.

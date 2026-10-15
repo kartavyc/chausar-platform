@@ -4,6 +4,7 @@
  * row, no receipt. `todayx.cash.save` records one figure for one business day (the last one told
  * for that day stands); `todayx.cash.week` returns the seven days ending today, a day not told as
  * null. The figure is whole paise exactly as told; nothing is added up or converted here.
+ * Only the owner or a cofounder tells it (`FORBIDDEN` for any other seat), so `told-by-owner` stays true.
  */
 import { audit, check, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -31,6 +32,7 @@ export async function cashSave(ctx: Context, payload: Record<string, any>, host:
   check(validDay(payload.day), 'INVALID_TODAYX_REQUEST', 'Give the day as YYYY-MM-DD.');
   check(typeof payload.paise === 'string' && PAISE.test(payload.paise), 'INVALID_TODAYX_REQUEST', 'Give the cash as whole paise.');
   await updateFrame(host, ctx, 'prepare', (frame, state) => {
+    check(ctx.role === 'owner' || ctx.role === 'cofounder', 'FORBIDDEN', 'Only the owner or a cofounder tells the day\'s cash.');
     const today = businessToday(state);
     check(payload.day <= today && payload.day >= addDays(today, -CASH_BACK_DAYS), 'INVALID_TODAYX_REQUEST', 'Tell the cash for today or a day in the last month.');
     const cash = frame.cash ??= {};

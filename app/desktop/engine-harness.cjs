@@ -28,6 +28,8 @@ class EngineHarness extends EventEmitter {
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }
+          // core-sync-jobs (round 4): a bare change counter from the worker's event bus; nothing else crosses.
+          if (message.kind === 'engine-event' && typeof message.id !== 'string') { if (Number.isSafeInteger(message.seq) && message.seq >= 0 && this.state === 'ready') this.emit('engine-event', Object.freeze({ seq: message.seq })); return; }
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;
           this.waiting.delete(message.id); clearTimeout(pending.timer);

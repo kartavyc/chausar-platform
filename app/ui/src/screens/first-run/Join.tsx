@@ -6,13 +6,16 @@
  *   in and approves it there; "Check again" reads the join. Approved: open the workspace with its
  *   own passphrase. Expired or used: start again.
  * - `JoinRequests`, on a computer already in (Trust · People and devices): the computers asking,
- *   each with its code to compare and Approve. The engine checks the code again on Approve.
+ *   each with a field for the code shown on the new computer and Approve. This computer does not
+ *   show the code: the person types what the new computer shows, Approve sends that typed code and
+ *   the engine checks it (`JOIN_CODE_MISMATCH` when it differs).
  * Without the methods each says "not built yet". The code is a short number, never a secret
  * that opens anything by itself.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useT } from '../../app/text';
+import { useLanguage, useT } from '../../app/text';
+import { Field } from '../../parts/Field';
 import { isJoinRequests, isJoinState, joinPhaseAt, type JoinState } from '../../bridge/r4-contracts.ts';
 import { failureOf, type JourneyFailure } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Status, StepHeader } from './JourneyParts';
@@ -98,6 +101,7 @@ type Answer = { readonly joinId: string; readonly result: 'approved' | 'mismatch
 
 export function JoinRequests({ rpc, now = Date.now }: { rpc: ComputerPort; now?: (() => number) | undefined }) {
   const t = useT();
+  const language = useLanguage();
   const [state, setState] = useState<Requests>({ kind: 'reading' });
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,10 +113,11 @@ export function JoinRequests({ rpc, now = Date.now }: { rpc: ComputerPort; now?:
   }, [rpc]);
   useEffect(() => { void read(); }, [read]);
 
-  const approve = async (join: JoinState) => {
+  /** Approve with the code the person typed from the new computer, never the code this computer was sent. */
+  const approve = async (join: JoinState, typed: string) => {
     setBusy(true); setAnswer(null);
     try {
-      const reply = await rpc.request('seats.inviteVerify', { joinId: join.joinId, code: join.code });
+      const reply = await rpc.request('seats.inviteVerify', { joinId: join.joinId, code: typed });
       setAnswer({ joinId: join.joinId, result: isJoinState(reply) && reply.joinId === join.joinId && reply.state === 'approved' ? 'approved' : { kind: 'refused', code: 'INVALID_REPLY' } });
     } catch (error) {
       const failure = failureOf(error);
@@ -134,10 +139,18 @@ export function JoinRequests({ rpc, now = Date.now }: { rpc: ComputerPort; now?:
           <ul className={s.rows}>
             {waiting.map(join => (
               <li key={join.joinId} className={s.row} data-join-request={join.joinId}>
-                <div className={s.rowLine}>
-                  <span className={[s.rowName, 'fig'].join(' ')}>{t('FR-14.requests.code', { code: join.code })}</span>
-                </div>
-                <Act variant="filled" label="FR-14.approve.btn" aria-label={`${t('FR-14.approve.btn')}: ${join.code}`} disabled={busy} onClick={() => { void approve(join); }} />
+                <form onSubmit={event => {
+                  event.preventDefault();
+                  const typed = new FormData(event.currentTarget).get('code');
+                  void approve(join, typeof typed === 'string' ? typed.trim() : '');
+                }}>
+                  <div className={s.rowLine}>
+                    <span className={s.rowName}>{t('FR-14.requests.until', { time: timeOf(join.expiresAt, language) })}</span>
+                  </div>
+                  {/* Uncontrolled: the typed code is read once, on Approve. */}
+                  <Field label={t('FR-14.requests.field')} name="code" defaultValue="" autoComplete="off" spellCheck={false} />
+                  <Act variant="filled" submit label="FR-14.approve.btn" disabled={busy} />
+                </form>
               </li>
             ))}
           </ul>

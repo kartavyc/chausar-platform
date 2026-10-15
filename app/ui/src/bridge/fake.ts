@@ -11,6 +11,8 @@
  * - Unknown methods reject with an Error whose `code` is `UNKNOWN_METHOD`, so a place whose
  *   engine method does not exist yet shows "not built yet".
  * - Other lanes add fixture handlers for their own families with `registerFakeMethods`.
+ *   hosted-link's recovery through a contact (`fixtures/hosted-recovery.ts`) is registered that way
+ *   by the tests that walk it, and served before the vault is open as the engine serves it.
  * - learning-ext's `learningx` family is served by default from `fixtures/learningx.ts` (FR-07
  *   proposed meanings, FR-10 sharing), after any `learningx` handlers a test registers.
  *
@@ -38,6 +40,7 @@ import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
 import { cashWeekFixture, closeStatusFixture, todayReviewFixture } from './fixtures/today-r4.ts';
 import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
+import { HOSTED_RECOVERY_PRE_VAULT } from './fixtures/hosted-recovery.ts';
 
 export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
@@ -446,6 +449,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.capabilities': () => capabilitiesReply(),
     'todayx.worthALook': () => worthReply(scenario, date),
     'todayx.activity': payload => activityReply(scenario, date, payload),
+    // core-sync-jobs (round 4): live refresh. The fake records no live events.
+    'events.subscribe': () => ({ cursor: 'fake', events: [], more: false }),
     'todayx.firstRun.status': () => firstRunStatusReply(scenario, ontology.current !== null),
     'todayx.identity.check': payload => identityCheck(isRecord(payload['fields']) ? payload['fields'] : {}),
     'todayx.identity.save': payload => identitySave(payload),
@@ -496,7 +501,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.cash.week': () => { round4('todayx.cash.week'); return cashWeekFixture(date, cashTold); },
     'todayx.cash.save': payload => {
       round4('todayx.cash.save'); mutating();
-      if (seat.role === 'viewer') throw fakeRefusal('FORBIDDEN', 'Your role can only read.');
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'Only the owner or a cofounder tells the day\'s cash.');
       if (Object.keys(payload).some(key => key !== 'day' && key !== 'paise') || payload['day'] !== date || typeof payload['paise'] !== 'string' || !/^(0|[1-9][0-9]{0,14})$/.test(payload['paise'])) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Give today and the cash as whole paise.');
       cashTold.set(date, payload['paise']);
       return cashWeekFixture(date, cashTold);
@@ -516,7 +521,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
     const handler = options.absent?.includes(method) ? undefined : handlers[method] ?? registry.get(method) ?? r4[method] ?? learningx[method];
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method) && !HOSTED_RECOVERY_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }

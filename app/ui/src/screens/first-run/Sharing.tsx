@@ -6,8 +6,9 @@
  * - "See the exact file" opens `learningx.preview` for the ticked boxes (or both): the exact bytes,
  *   structure only, drawn as text;
  * - with a box ticked, Continue gives consent to exactly that file with `learningx.consent`
- *   ({ previewId, digest }) when intake is open. Nothing is sent from here: sending is Trust ·
- *   Sharing's, under the same consent.
+ *   ({ previewId, digest }) when intake is open, and only to a file already shown for the ticked
+ *   boxes: when none is shown, Continue shows it first and consent needs one more press. Nothing is
+ *   sent from here: sending is Trust · Sharing's, under the same consent.
  * Both boxes start empty, and leaving them empty is a plain way on. While intake is closed the
  * ticked boxes say "Sharing is not open yet. Nothing is sent." In a demo workspace a test switch
  * ("Demo test: sends to a test inbox only") must be on before anything is agreed. No feature
@@ -24,7 +25,7 @@ import s from './Journey.module.css';
 
 type Status = { readonly kind: 'reading' } | { readonly kind: 'known'; readonly value: IntakeStatus } | JourneyFailure;
 type File = { readonly kind: 'closed' } | { readonly kind: 'reading' } | { readonly kind: 'shown'; readonly preview: SharingPreview } | { readonly kind: 'nothing' } | JourneyFailure;
-type Outcome = null | 'working' | 'empty' | 'closed' | 'off' | 'agreed' | JourneyFailure;
+type Outcome = null | 'working' | 'review' | 'empty' | 'closed' | 'off' | 'agreed' | JourneyFailure;
 
 export interface SharingQuestionProps {
   readonly rpc: ComputerPort;
@@ -77,9 +78,18 @@ export function SharingQuestion({ rpc, onContinue }: SharingQuestionProps) {
     if (!intake.open || (intake.mode === 'test-inbox' && !demoTest)) { setOutcome('closed'); return; }
     if (!intake.sharingSwitch) { setOutcome('off'); return; }
     setOutcome('working');
-    // Consent names exactly the file the boxes would send now.
-    const shown = file.kind === 'shown' && sameBoxes(boxes, shownBoxes.current) ? file : await preview(boxes);
-    if (shown.kind !== 'shown') { setFile(shown); setOutcome(shown.kind === 'nothing' ? 'empty' : shown.kind === 'closed' || shown.kind === 'reading' ? null : shown); return; }
+    // Consent names exactly the file the boxes would send now, and only once that file was shown:
+    // a file not yet shown for these boxes is shown first, and agreeing takes one more press.
+    if (!(file.kind === 'shown' && sameBoxes(boxes, shownBoxes.current))) {
+      const chosen = [...boxes];
+      const next = await preview(chosen);
+      shownBoxes.current = chosen;
+      setFile(next);
+      setOutcome(next.kind === 'shown' ? (next.preview.blocked > 0 ? { kind: 'refused', code: 'SHARING_BLOCKED' } : 'review')
+        : next.kind === 'nothing' ? 'empty' : next.kind === 'closed' || next.kind === 'reading' ? null : next);
+      return;
+    }
+    const shown = file;
     if (shown.preview.blocked > 0) { setFile(shown); setOutcome({ kind: 'refused', code: 'SHARING_BLOCKED' }); return; }
     try {
       const consent = readSharingConsent(await rpc.request('learningx.consent', { previewId: shown.preview.id, digest: shown.preview.digest }));
@@ -138,6 +148,7 @@ export function SharingQuestion({ rpc, onContinue }: SharingQuestionProps) {
       {outcome === 'off' && <p className={s.status} role="status" data-sharing-outcome="off">{t('FR-10.off')}</p>}
       {outcome === 'agreed' && <p className={s.status} role="status" data-sharing-outcome="agreed">{t('FR-10.agreed')}</p>}
       {outcome === 'empty' && <p className={s.status} role="status" data-sharing-outcome="empty">{t('FR-10.empty')}</p>}
+      {outcome === 'review' && <p className={s.status} role="status" data-sharing-outcome="review">{t('FR-10.reviewFirst')}</p>}
       {outcome !== null && typeof outcome === 'object' && <FailureLine failure={outcome} notBuilt="FR-10.notBuilt" refused="FR-10.refused" />}
       <Actions>
         {outcome === 'closed' || outcome === 'off' || outcome === 'agreed' || (outcome !== null && typeof outcome === 'object')

@@ -13,6 +13,7 @@ import { approvalsTodayFixture, DEMO_MONEY_ID, DEMO_REMINDER_IDS, phoneDocuments
 import { isCashWeekReply, isCloseStatusReply, isTodayReviewReply } from '../../app/ui/src/bridge/todayx-contract';
 import { projectRound4, round4Open } from '../../app/ui/src/host/today-round4';
 import { TodayScreen } from '../../app/ui/src/screens/today/Today';
+import { GroupStepper } from '../../app/ui/src/screens/today/GroupStepper';
 import type { TodayData, TodayIntents } from '../../app/ui/src/screens/today/TodayData';
 import { withReceiptDetail, type ReceiptView } from '../../app/ui/src/bridge/receipt-view';
 
@@ -161,6 +162,86 @@ test('Simple: today\'s cash is typed and saved as told by owner, and its bar fil
   const week = await h.engine.request('todayx.cash.week', {}) as { days: { paise: string | null }[] };
   expect(week.days[6]!.paise).toBe('1250000');
   await waitFor(() => expect(within(h.page()).getAllByText('₹12,500').length).toBeGreaterThan(0));
+  // Told cash has no receipt: drawn as a figure with no receipt link, labelled told by owner.
+  expect(within(h.page()).queryByRole('button', { name: /12,500/ })).toBeNull();
+  expect(h.page().querySelector('[data-told]')?.textContent).toContain('told by owner');
+});
+
+test('Simple: cash that is not an amount keeps the typed text and says so; Devanagari digits are read as digits', { timeout: 20000 }, async () => {
+  const h = await host('simple');
+  const field = await within(h.page()).findByRole('textbox', { name: /Today’s cash sales|Today's cash sales/ }, { timeout: 5000 }) as HTMLInputElement;
+  await h.user.type(field, 'twelve');
+  await h.user.click(within(h.page()).getByRole('button', { name: 'Enter' }));
+  await within(h.page()).findByText('Type the cash in rupees, like 12500.');
+  expect(field.value).toBe('twelve');
+  expect(h.engine.calls).not.toContain('todayx.cash.save');
+  await h.user.clear(field);
+  await h.user.type(field, '१२५००');
+  await h.user.click(within(h.page()).getByRole('button', { name: 'Enter' }));
+  await waitFor(() => expect(h.engine.calls).toContain('todayx.cash.save'));
+  const week = await h.engine.request('todayx.cash.week', {}) as { days: { paise: string | null }[] };
+  expect(week.days[6]!.paise).toBe('1250000');
+});
+
+test('Simple: a refused cash save keeps the typed text and says it was not saved', async () => {
+  const user = userEvent.setup();
+  const onSaveClosing = vi.fn(async () => 'failed' as const);
+  const data = base({ cash: { week: { form: 'columns', sentence: 'Synthetic week', values: [] } } });
+  show(<TodayScreen data={data} intents={{ onReview: vi.fn(), onReceipt: vi.fn(), onSaveClosing }} view="simple" onNavigate={vi.fn()} />);
+  const field = screen.getByRole('textbox', { name: "Today's cash sales" }) as HTMLInputElement;
+  await user.type(field, '8450');
+  await user.click(screen.getByRole('button', { name: 'Enter' }));
+  await screen.findByText('The cash was not saved. Try again.');
+  expect(field.value).toBe('8450');
+  onSaveClosing.mockImplementation(async () => 'saved' as const);
+  await user.click(screen.getByRole('button', { name: 'Enter' }));
+  await waitFor(() => expect(field.value).toBe(''));
+  expect(screen.queryByText('The cash was not saved. Try again.')).toBeNull();
+});
+
+/* ------------------------------------------------------------------ grouped stepping: each refusal in its own words */
+
+function stepper(approve: (call: number) => unknown) {
+  const engine = createFakeEngine({ scenario: 'populated', today4: true });
+  const fixture = approvalsTodayFixture();
+  let calls = 0;
+  cleanups.push(registerFakeMethods('approvals', { ...fixture, approve: (payload, context) => { calls++; const out = approve(calls); return out === undefined ? fixture['approve']!(payload, context) : (() => { throw out; })(); } }));
+  show(<GroupStepper ids={[...DEMO_REMINDER_IDS]} title="3 messages to send" rpc={engine} language="en" viewer={false} origin={null}
+    onClose={vi.fn()} onChanged={vi.fn()} onOpenInWork={vi.fn()} onReceipt={vi.fn()} />);
+  return { engine, user: userEvent.setup() };
+}
+const refusal = (code: string) => Object.assign(new Error(code), { code });
+
+test('grouped stepping: a changed preview is read again and shown, then approved on its own', { timeout: 20000 }, async () => {
+  const s = stepper(call => call === 1 ? refusal('PREVIEW_CHANGED') : undefined);
+  await screen.findByText(/Dear Kiran Retail Demo/, undefined, { timeout: 5000 });
+  const gets = () => s.engine.calls.filter(c => c === 'approvals.get').length;
+  const before = gets();
+  await s.user.click(screen.getByRole('button', { name: 'Approve' }));
+  await screen.findByText('It changed since you opened it. This is the new version; read it before you approve.');
+  expect(gets()).toBe(before + 1);
+  expect(screen.queryByText('This item is no longer waiting.')).toBeNull();
+  await s.user.click(screen.getByRole('button', { name: 'Approve' }));
+  await waitFor(() => expect(document.body.textContent).toContain('2 of 3'));
+});
+
+test('grouped stepping: only a gone item says no longer waiting; any other refusal says it failed, and the summary says failed', { timeout: 20000 }, async () => {
+  const s = stepper(call => call === 1 ? refusal('APPROVAL_EXPIRED') : call === 2 ? refusal('STORE_BUSY') : undefined);
+  await screen.findByText(/Dear Kiran Retail Demo/, undefined, { timeout: 5000 });
+  await s.user.click(screen.getByRole('button', { name: 'Approve' }));
+  await screen.findByText('This item is no longer waiting.');
+  await s.user.click(screen.getByRole('button', { name: 'Next' }));
+  await waitFor(() => expect(document.body.textContent).toContain('2 of 3'));
+  await s.user.click(await screen.findByRole('button', { name: 'Approve' }));
+  await screen.findByText('This could not be done (STORE_BUSY). It is still waiting.');
+  expect(screen.queryByText('This item is no longer waiting.')).toBeNull();
+  await s.user.click(screen.getByRole('button', { name: 'Next' }));
+  await waitFor(() => expect(document.body.textContent).toContain('3 of 3'));
+  await s.user.click(await screen.findByRole('button', { name: 'Approve' }));
+  await waitFor(() => expect(document.querySelector('[data-group-results]')).not.toBeNull());
+  const outcomes = [...document.querySelectorAll('[data-group-results] li')].map(li => li.getAttribute('data-outcome'));
+  expect(outcomes).toEqual(['gone', 'failed', 'approved']);
+  expect(document.querySelector('[data-group-results]')!.textContent).toContain('This could not be done (STORE_BUSY). It is still waiting.');
 });
 
 /* ------------------------------------------------------------------ the closing switch */
@@ -245,6 +326,26 @@ test('Activity filters by record and by job, each asking the engine again', asyn
   await user.click(screen.getByRole('radio', { name: 'All records' }));
   await user.click(await screen.findByRole('radio', { name: 'job_demo_brief' }));
   await waitFor(() => expect(request).toHaveBeenCalledWith('todayx.activity', { job: 'job_demo_brief' }));
+});
+
+test('Activity in Simple: a job or record filter counts as set, so the folded filters open on it', async () => {
+  const address: Address = { place: 'today', sub: 'activity' };
+  const events = [
+    { id: 'e1', at: '2026-10-14T06:05:00Z', type: 'job.step', state: 'done', actor: { kind: 'job', name: null }, values: { job: 'job_demo_brief' }, costPaise: null, route: null, tainted: false, proof: { kind: 'none', id: null } },
+  ];
+  const request = vi.fn(async (method: string) => {
+    if (method === 'ui.context') throw Object.assign(Error('x'), { code: 'UNKNOWN_METHOD' });
+    return { events, nextCursor: null, total: String(events.length) };
+  });
+  const props = (view: View): PlaceRenderProps => ({ address, language: 'en', view, member: { id: 'm', role: 'owner' }, viewer: false, rpc: { request }, live: () => true, openReceipt: vi.fn(), navigate: vi.fn() });
+  const place = frameTodayPlaces.find((m) => m.handles(address))!;
+  const shown = show(<>{place.render(props('guided'))}</>);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('radio', { name: 'job_demo_brief' }));
+  await waitFor(() => expect(request).toHaveBeenCalledWith('todayx.activity', { job: 'job_demo_brief' }));
+  shown.rerender(<TextProvider language="en">{place.render(props('simple'))}</TextProvider>);
+  const fold = await waitFor(() => { const found = document.querySelector('details'); expect(found).not.toBeNull(); return found!; });
+  expect(fold.open).toBe(true);
 });
 
 /* ------------------------------------------------------------------ the switch is hidden without its intent */

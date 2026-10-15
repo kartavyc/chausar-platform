@@ -3,7 +3,9 @@
  * "Today's cash sales" with one field and Enter; the week's cash as seven bars, today's
  * bar open until it is entered. The cash figure is stored as something the owner said,
  * labelled told by owner; the text typed is data and goes to the callback unchanged.
- * The field and Enter appear only when the adapter can save what is typed.
+ * The field and Enter appear only when the adapter can save what is typed. The typed text stays
+ * until the save is confirmed; a text that is not a plain amount, or a save that was refused or
+ * failed, says so in its own words.
  */
 
 import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -17,6 +19,7 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
+import type { CashSaveResult } from './TodayData.ts';
 import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayReviewLink, TodayProducerSections, type TodayScreenProps, TodayState } from './shared';
 import { CashVoice } from './CashVoice';
 import { cashWeek } from './cash.ts';
@@ -30,6 +33,8 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
   const cashId = useId();
   const worthId = useId();
   const [cash, setCash] = useState('');
+  const [cashProblem, setCashProblem] = useState<'invalid' | 'failed' | null>(null);
+  const [saving, setSaving] = useState(false);
   const system = useSystemRows(data, intents);
   const worthSource = useWorth(data, intents, 'simple', onNavigate);
   const { review, worth, hidden, offered } = attentionRows(data, system, worthSource.rows, worthSource.showAll);
@@ -39,12 +44,17 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
 
   const expansion = (row: RowItem): ReactNode => <RowExpansion row={row} intents={intents} origin={inPlace.originOf(row.id)} />;
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const v = cash.trim();
-    if (v.length === 0 || !onSaveClosing) return;
-    onSaveClosing(v);
-    setCash('');
+    if (v.length === 0 || !onSaveClosing || saving) return;
+    setSaving(true); setCashProblem(null);
+    let result: CashSaveResult;
+    try { result = await onSaveClosing(v); } catch { result = 'failed'; }
+    setSaving(false);
+    // Only a confirmed save clears what was typed.
+    if (result === 'saved') setCash('');
+    else setCashProblem(result === 'invalid' ? 'invalid' : 'failed');
   };
 
   const rows = review;
@@ -81,7 +91,7 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
 
       {data.cash && week && (
         <section className={s.cash} aria-labelledby={cashId}>
-          <form className={s.cashForm} onSubmit={submit}>
+          <form className={s.cashForm} onSubmit={(e) => void submit(e)}>
             <h2 id={cashId} className={s.cashLabel}>
               {t('TD-02.cash')}
             </h2>
@@ -91,10 +101,11 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
               </span>
             ) : onSaveClosing ? (
               <>
-                <Field label={t('TD-02.cash')} prefix={t('TD-02.cash.rupee')} inputMode="numeric" value={cash} onChange={(e) => setCash(e.target.value)} className={s.cashField} />
+                <Field label={t('TD-02.cash')} prefix={t('TD-02.cash.rupee')} inputMode="numeric" value={cash} onChange={(e) => { setCash(e.target.value); setCashProblem(null); }} className={s.cashField} />
                 <Button variant="quiet" submit>
                   {t('BTN.enter')}
                 </Button>
+                {cashProblem !== null && <p role="alert" data-cash-problem={cashProblem}>{t(`FT4.cash.${cashProblem}`)}</p>}
               </>
             ) : (
               <MissingWords missing="cash-not-captured" />
