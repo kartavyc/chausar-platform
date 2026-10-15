@@ -1,0 +1,31 @@
+/* Layout for the jobs-ext screens. Colours and spacing come from tokens only. */
+.page { display: flex; flex-direction: column; gap: var(--sp4); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp5); align-items: start; }
+.split[data-open] { grid-template-columns: minmax(0, 1fr) minmax(0, var(--col-sheet)); }
+@media (max-width: 52rem) { .split[data-open] { grid-template-columns: minmax(0, 1fr); } }
+.pane { display: flex; flex-direction: column; gap: var(--sp4); min-width: 0; }
+.section { display: flex; flex-direction: column; gap: var(--sp2); }
+.h { font-size: var(--fs-read); font-weight: var(--fw-medium); margin: 0; }
+.block { display: flex; flex-direction: column; gap: var(--sp2); padding-top: var(--sp3); border-top: var(--hair) solid var(--line2); }
+.list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp1) var(--sp3); padding: var(--sp2) 0; border-bottom: var(--hair) solid var(--line2); align-items: baseline; }
+.sublist { margin: 0; padding-inline-start: var(--sp4); display: flex; flex-direction: column; gap: var(--sp1); }
+.meta { color: var(--mute); font-size: var(--fs-note2); margin: 0; }
+.note { color: var(--mute); margin: 0; }
+.refusal { color: var(--amber-t); margin: 0; }
+.fig { font-family: var(--fm); white-space: nowrap; }
+.digest { margin: 0; font-family: var(--fm); font-size: var(--fs-note2); color: var(--fg2); overflow-wrap: anywhere; }
+.open { font: inherit; text-align: start; background: none; border: 0; padding: 0; color: var(--fg); cursor: pointer; min-height: var(--target); }
+.open:focus-visible { outline: var(--focus); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp2); align-items: center; }
+.form { display: flex; flex-direction: column; gap: var(--sp2); border: 0; margin: 0; padding: 0; }
+.form label { display: flex; gap: var(--sp2); align-items: center; color: var(--fg2); font-size: var(--fs-note2); }
+.field { display: flex; flex-direction: column; gap: var(--sp1); color: var(--fg2); font-size: var(--fs-note2); }
+.field input { font: inherit; color: var(--fg); background: var(--bg); border: var(--hair) solid var(--line); border-radius: var(--r1); padding: var(--sp1) var(--sp2); max-width: 8rem; }
+.legend { font-size: var(--fs-note2); color: var(--fg2); padding: 0; margin-bottom: var(--sp1); }
+.skill { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--fm); font-size: var(--fs-note2); color: var(--fg2); border: var(--hair) solid var(--line2); border-radius: var(--r1); padding: var(--sp2); max-height: 24rem; overflow: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-note2); }
+.table th { text-align: start; font-weight: var(--fw-medium); color: var(--fg2); padding: 0 var(--sp1); border-bottom: var(--hair) solid var(--line); }
+.table td { padding: 0 var(--sp1); border-bottom: var(--hair) solid var(--line2); vertical-align: top; }
+.num { font-family: var(--fm); text-align: end; white-space: nowrap; }
+.quote { margin: 0; color: var(--fg2); font-size: var(--fs-note2); }

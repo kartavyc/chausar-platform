@@ -107,23 +107,33 @@ describe('TR-12 This computer', () => {
     expect(screen.getByText('Backup file: backup-1.chausar')).toBeTruthy();
   });
 
-  test('start at login reads and sets over shell.startAtLogin; no desktop shell is its own state', async () => {
+  test('start at login reads shell.startAtLogin and sets through shell.setStartAtLogin after asking once more', async () => {
     let on = false;
-    const rpc = fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': (p: Record<string, unknown>) => { if (typeof p['enabled'] === 'boolean') on = p['enabled']; return { enabled: on }; } });
+    const login = () => ({ platform: 'linux', mechanism: 'linux-xdg-autostart', enabled: on, path: '/home/synthetic/.config/autostart/in.chausar.desktop', matches: on ? true : null });
+    const rpc = fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': login,
+      'shell.setStartAtLogin': (p: Record<string, unknown>) => { on = p['enabled'] === true; return login(); } });
     const { user } = draw(at('vault'), { rpc });
     const g = await group(EN['RTT.vault.loginTitle']!);
     expect(await within(g).findByText(EN['RTT.vault.loginOff']!)).toBeTruthy();
     await user.click(within(g).getByRole('button', { name: EN['RTT.vault.turnOnLogin']! }));
-    await waitFor(() => expect(rpc.of('shell.startAtLogin').map((c) => c.payload)).toEqual([{}, { enabled: true }, {}]));
+    expect(rpc.of('shell.setStartAtLogin')).toEqual([]);
+    const ask = within(g).getByRole('group', { name: EN['RTT.vault.loginAskOn']! });
+    await user.click(within(ask).getByRole('button', { name: EN['RTT.vault.turnOnLogin']! }));
+    await waitFor(() => expect(rpc.of('shell.setStartAtLogin').map((c) => c.payload)).toEqual([{ enabled: true, confirmed: true }]));
     expect(await within(g).findByRole('button', { name: EN['RTT.vault.turnOffLogin']! })).toBeTruthy();
     cleanup();
-    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': refusal('SHELL_UNAVAILABLE') }) });
+    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': refusal('SERVICE_UNAVAILABLE') }) });
     expect(await within(await group(EN['RTT.vault.loginTitle']!)).findByText(EN['RTT.vault.loginDesktop']!)).toBeTruthy();
     cleanup();
-    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': { enabled: false, supported: false } }) });
+    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': refusal('UNKNOWN_METHOD') }) });
+    const g2 = await group(EN['RTT.vault.loginTitle']!);
+    expect(await within(g2).findByText(EN['RTT.vault.loginNotBuilt']!)).toBeTruthy();
+    expect(within(g2).queryByRole('button')).toBeNull();
+    cleanup();
+    on = true;
+    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'shell.startAtLogin': { ...login(), matches: false }, 'shell.setStartAtLogin': refusal('START_AT_LOGIN_UNSUPPORTED') }) });
     const g3 = await group(EN['RTT.vault.loginTitle']!);
-    expect(await within(g3).findByText(EN['RTT.vault.loginUnsupported']!)).toBeTruthy();
-    expect(within(g3).queryByRole('button')).toBeNull();
+    expect(await within(g3).findByText(EN['RTT.vault.loginOtherCopy']!)).toBeTruthy();
   });
 
   test('background mode switches over jobsx.setBackground; wake for jobs over jobsx.setWake once the timer exists', async () => {
@@ -156,7 +166,7 @@ describe('TR-12 This computer', () => {
   });
 
   test('a seat other than owner or cofounder sees no switch', async () => {
-    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'jobsx.background': BACKGROUND, 'shell.startAtLogin': { enabled: true } }), role: 'accountant' });
+    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': VAULT, 'jobsx.background': BACKGROUND, 'shell.startAtLogin': { platform: 'linux', mechanism: 'linux-xdg-autostart', enabled: true, path: null, matches: null } }), role: 'accountant' });
     await screen.findByText('0.1.0-preview.1');
     expect(screen.queryByRole('heading', { name: EN['RTT.vault.loginTitle']! })).toBeNull();
   });

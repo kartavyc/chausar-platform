@@ -102,7 +102,10 @@ test('exports without their own total wait for the report total and match it to 
 test('connections never hold credentials; unbuilt roads refuse with typed codes', async t => {
   const engine = await open(t);
   await assert.rejects(engine.request('connectorsx.connect', { group: 'razorpay', road: 'file', company: 'X', settings: { keySecret: 'abc' } }), code('CREDENTIAL_NOT_ACCEPTED'));
-  await assert.rejects(engine.request('connectorsx.connect', { group: 'tally', road: 'screen', company: 'X' }), code('SCREEN_EXPORT_NOT_BUILT'));
+  const screen = await engine.request('connectorsx.connect', { group: 'tally', road: 'screen', company: 'X' });
+  assert.equal(screen.road, 'screen', 'Tally on another computer is exported by driving its screen');
+  await assert.rejects(engine.request('connectorsx.connect', { group: 'razorpay', road: 'screen', company: 'X' }), code('CONNECTOR_REQUEST_INVALID'));
+  await assert.rejects(engine.request('connectorsx.connect', { group: 'busy', road: 'screen', company: 'X', settings: { window: 'BUSY' } }), code('CONNECTOR_REQUEST_INVALID'));
   await assert.rejects(engine.request('connectorsx.connect', { group: 'quick-commerce', road: 'interface', company: 'X' }), code('READ_NOT_AVAILABLE'));
   await assert.rejects(engine.request('connectorsx.connect', { group: 'not-a-group', road: 'file', company: 'X' }), code('SYSTEM_NOT_FOUND'));
   const file = await engine.request('connectorsx.connect', { group: 'paytm-business', road: 'file', company: 'X' });
@@ -112,7 +115,7 @@ test('connections never hold credentials; unbuilt roads refuse with typed codes'
   await assert.rejects(engine.request('connectorsx.importPreview', { recipeId: 'paytm.settlements', connectionId: file.id, text: 'a' }), code('CONNECTION_PAUSED'));
   const removed = await engine.request('connectorsx.disconnect', { connectionId: file.id });
   assert.equal(removed.factsKept, true);
-  assert.deepEqual(await engine.request('connectorsx.connections', {}), []);
+  assert.deepEqual((await engine.request('connectorsx.connections', {})).map((c: any) => c.id), [screen.id]);
 });
 
 test('sign-in uses the browser with PKCE; the missing pieces are typed refusals', async t => {

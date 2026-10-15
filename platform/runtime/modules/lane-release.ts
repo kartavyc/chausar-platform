@@ -6,7 +6,10 @@ import type { EngineModule, ModuleHost } from './types.ts';
 import { UpdateService } from '../native/update-service.ts';
 import { DataGuard } from '../native/update-data-guard.ts';
 import { BackgroundService } from '../native/background-service.ts';
+import { WakeTimer, nativeWakeStatus, nativeWakePlan, nativeWakeSet, nativeWakeClear } from '../native/wake-timer.ts';
+import { StartAtLogin, shellStartAtLogin, shellSetStartAtLogin } from '../native/start-at-login.ts';
 import { keychainStatus } from '../native/keychain-status.ts';
+import { readerBundle, verifyReaderBundle } from '../native/reader-bundle.ts';
 import { BundledPostgres } from '../native/postgres-lifecycle.ts';
 import { releaseModuleOptions } from '../native/release-options.ts';
 import { confirmInstalledTrial, type TrialConfirmation } from '../native/update-launch.ts';
@@ -67,6 +70,23 @@ async function backgroundService(host: ModuleHost): Promise<BackgroundService> {
   const o = await options(host);
   check(typeof o.appExecutable === 'string' && isAbsolute(o.appExecutable), 'SERVICE_UNAVAILABLE', 'Background mode needs the installed desktop app.');
   return new BackgroundService({ executable: o.appExecutable, dataDirectory: host.directory, platform: o.platform, homeDirectory: o.homeDirectory, uid: o.uid, runner: o.serviceRunner });
+}
+async function wakeTimer(host: ModuleHost): Promise<WakeTimer> {
+  const o = await options(host);
+  check(typeof o.appExecutable === 'string' && isAbsolute(o.appExecutable), 'SERVICE_UNAVAILABLE', 'Waking this computer needs the installed desktop app.');
+  return new WakeTimer({ executable: o.appExecutable, platform: o.platform, homeDirectory: o.homeDirectory, uid: o.uid, runner: o.serviceRunner });
+}
+async function startAtLogin(host: ModuleHost): Promise<StartAtLogin> {
+  const o = await options(host);
+  check(typeof o.appExecutable === 'string' && isAbsolute(o.appExecutable), 'SERVICE_UNAVAILABLE', 'Starting at sign-in needs the installed desktop app.');
+  return new StartAtLogin({ executable: o.appExecutable, platform: o.platform, homeDirectory: o.homeDirectory, runner: o.serviceRunner });
+}
+async function readerOptions(host: ModuleHost) {
+  const o = await options(host);
+  // Nothing is bundled outside the installed app (no resources folder): the methods report that plainly.
+  if (typeof o.resourcesPath !== 'string' || !isAbsolute(o.resourcesPath)) return null;
+  const executable = host.services.helper?.options?.executable;
+  return { resourcesPath: o.resourcesPath, pythonExecutable: typeof executable === 'string' ? executable : null, platform: o.platform, arch: o.arch };
 }
 async function bundledPostgres(host: ModuleHost): Promise<BundledPostgres> {
   const o = await options(host);
@@ -147,9 +167,26 @@ export const releaseModule: EngineModule = {
       return keychainStatus({ platform: o.platform ?? process.platform, arch: o.arch ?? process.arch, environment: o.environment ?? process.env,
         resourcesPath: o.resourcesPath ?? '', demo: host.demo });
     } },
+    // The bundled PDF readers (FR-07): connectors-ext's imports.readerStatus and imports.installReader call these.
+    'native.readerBundle': { permission: 'read', async handler(_ctx, _payload, host) {
+      const o = await readerOptions(host);
+      return o ? readerBundle(o) : { present: false, reason: 'RUNTIME_NOT_BUNDLED', python: null, packages: null, tesseract: null, sizeBytes: null, manifestSha256: null };
+    } },
+    'native.installReader': { permission: 'admin', async handler(ctx, _payload, host) {
+      writer(ctx); const o = await readerOptions(host);
+      check(o, 'READER_BUNDLE_MISSING', 'This installation does not include the PDF readers. Install the full release.');
+      return verifyReaderBundle(o);
+    } },
     'native.databaseStatus': { permission: 'admin', async handler(_ctx, _payload, host) {
       return (await bundledPostgres(host)).status();
     } },
+    // OS wake timer behind jobsx.setWake, and start at sign-in (TR-12, SH-07). Experimental: code-only on Windows and macOS.
+    'native.wake.status': { permission: 'admin', async handler(_ctx, _payload, host) { return nativeWakeStatus(await wakeTimer(host)); } },
+    'native.wake.plan': { permission: 'admin', async handler(_ctx, payload, host) { return nativeWakePlan(await wakeTimer(host), payload); } },
+    'native.wake.set': { permission: 'admin', async handler(ctx, payload, host) { writer(ctx); confirmed(payload); return nativeWakeSet(await wakeTimer(host), payload); } },
+    'native.wake.clear': { permission: 'admin', async handler(ctx, payload, host) { writer(ctx); confirmed(payload); return nativeWakeClear(await wakeTimer(host), payload); } },
+    'shell.startAtLogin': { permission: 'read', async handler(_ctx, _payload, host) { return shellStartAtLogin(await startAtLogin(host)); } },
+    'shell.setStartAtLogin': { permission: 'admin', async handler(ctx, payload, host) { writer(ctx); confirmed(payload); return shellSetStartAtLogin(await startAtLogin(host), payload); } },
     'service.status': { permission: 'admin', async handler(_ctx, _payload, host) { return (await backgroundService(host)).status(); } },
     'service.plan': { permission: 'admin', async handler(_ctx, _payload, host) { return (await backgroundService(host)).plan(); } },
     'service.install': { permission: 'admin', async handler(ctx, payload, host) {

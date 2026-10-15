@@ -8,7 +8,7 @@ import { InstallLayout, artifactKind, type InstallPointer, type LaunchDecision }
 import { resolveInstalledLaunch } from './update-service.ts';
 
 /**
- * The resolver behind the launcher stub (scripts/release/launcher/chausar-launcher.sh).
+ * The resolver behind the launcher stubs (scripts/release/launcher/chausar-launcher.sh and, on Windows, chausar-launcher.cmd).
  *
  * The person starts `<installRoot>/chausar-launcher`. The stub runs this file with an installed
  * Chausar executable in Node mode (ELECTRON_RUN_AS_NODE=1), preferring the last committed version
@@ -19,6 +19,7 @@ import { resolveInstalledLaunch } from './update-service.ts';
  *
  *   resolve --install-root <dir> [--executable-name chausar]
  *   adopt   --install-root <dir> --archive <Chausar-x.y.z-linux-x64.tar.gz> --version <x.y.z> [--launcher <chausar-launcher.sh>] [--executable-name chausar]
+ *   (a `.cmd` launcher is placed as `chausar-launcher.cmd`, its default executable name `Chausar.exe`)
  */
 export type LaunchTarget = Readonly<{ decision:LaunchDecision; executable:string }>;
 export type TrialConfirmation = 'confirmed' | 'already-committed' | 'not-installed' | 'other-version';
@@ -81,14 +82,17 @@ export async function adoptArchive(options:{ installRoot:string; archive:string;
   await layout.confirmHealthy(options.version);
   let launcher:string|null = null;
   if (options.launcher) {
-    // The stub's default executable name is set to this build's (for example `chausar-preview`).
-    const name = options.executableName ?? 'chausar', line = 'name=${CHAUSAR_EXECUTABLE_NAME:-chausar}';
+    // The stub's default executable name is set to this build's (for example `chausar-preview`, or `Chausar.exe` on Windows).
+    const windows = options.launcher.toLowerCase().endsWith('.cmd');
+    const name = options.executableName ?? (windows ? 'Chausar.exe' : 'chausar');
+    const line = windows ? 'set "name=Chausar.exe"' : 'name=${CHAUSAR_EXECUTABLE_NAME:-chausar}';
     check(EXECUTABLE.test(name), 'LAUNCH_EXECUTABLE_INVALID', 'Name the app executable plainly.');
     await findAppExecutable(installed.directory, name);
     const text = await readFile(options.launcher, 'utf8');
-    check(text.startsWith('#!/bin/sh\n') && text.split('\n').filter(item => item === line).length === 1, 'LAUNCH_STUB_INVALID', 'The launcher stub is not the expected script.');
-    launcher = join(options.installRoot, 'chausar-launcher');
-    await writeFile(launcher, text.replace(line, `name=\${CHAUSAR_EXECUTABLE_NAME:-${name}}`), { mode: 0o755, flag: 'wx' }); await chmod(launcher, 0o755);
+    check((windows ? text.startsWith('@echo off\r\n') && !/[^\r]\n/.test(text) : text.startsWith('#!/bin/sh\n'))
+      && text.split(windows ? '\r\n' : '\n').filter(item => item === line).length === 1, 'LAUNCH_STUB_INVALID', 'The launcher stub is not the expected script.');
+    launcher = join(options.installRoot, windows ? 'chausar-launcher.cmd' : 'chausar-launcher');
+    await writeFile(launcher, text.replace(line, windows ? `set "name=${name}"` : `name=\${CHAUSAR_EXECUTABLE_NAME:-${name}}`), { mode: 0o755, flag: 'wx' }); await chmod(launcher, 0o755);
   }
   return Object.freeze({ version: installed.version, directory: installed.directory, launcher });
 }

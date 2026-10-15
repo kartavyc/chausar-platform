@@ -5,6 +5,9 @@ import { ConnectorCredentialStore, hostCredentialServices, loadOAuthClients } fr
 import { readHttp } from '../adapters/read-kit.ts';
 import { purgeSources } from '../connectors-ext/state.ts';
 import { imports } from '../connectors-ext/fr07.ts';
+import { recipeHandlers } from '../connectors-ext/recipe-methods.ts';
+import { tallyCompanies, tallyExporter, tallyImportExport, tallyLedgers } from '../connectors-ext/tally-export.ts';
+import { screenExportCollect, screenExportStart } from '../connectors-ext/screen-export.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const connectorsExtModule: EngineModule = {
@@ -32,6 +35,20 @@ export const connectorsExtModule: EngineModule = {
     'connectorsx.credentials.remove': { permission: 'admin', handler: handlers.credentialsRemove },
     'connectorsx.credentials.status': { permission: 'read', handler: handlers.credentialsStatus },
     'connectorsx.schedule': { permission: 'admin', handler: handlers.schedule },
+    // BK-05: answer a recipe question in place, compare versions, reconcile again.
+    'recipes.answer': { permission: 'prepare', handler: recipeHandlers.answer },
+    'recipes.answers': { permission: 'read', handler: recipeHandlers.answers },
+    'recipes.answerRemove': { permission: 'prepare', handler: recipeHandlers.answerRemove },
+    'recipes.upgradeDiff': { permission: 'read', handler: recipeHandlers.upgradeDiff },
+    'recipes.reconcile': { permission: 'prepare', handler: recipeHandlers.reconcile },
+    // BK-03, Tally on another computer.
+    'connectorsx.tally.exporter': { permission: 'prepare', handler: (ctx, payload, host) => tallyExporter(ctx, payload, host) },
+    'connectorsx.tally.importExport': { permission: 'prepare', handler: tallyImportExport },
+    'connectorsx.tally.companies': { permission: 'admin', external: true, handler: tallyCompanies },
+    'connectorsx.tally.ledgers': { permission: 'admin', external: true, handler: tallyLedgers },
+    // Screen export over the driving lane's session.* (experimental).
+    'connectorsx.screenExport.start': { permission: 'prepare', external: true, handler: screenExportStart },
+    'connectorsx.screenExport.collect': { permission: 'prepare', external: true, handler: screenExportCollect },
     // FR-07, Bring a file.
     'imports.preview': { permission: 'prepare', handler: imports.preview },
     'imports.providePassword': { permission: 'prepare', handler: imports.providePassword },

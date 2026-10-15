@@ -381,3 +381,27 @@ test('shell.print shows the system dialog for the trusted window only, with noth
   let prevented = false; window.webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'https://example.com/');
   assert.equal(prevented, true);
 });
+
+// Release lane (round 4): start at login and wake launches.
+test('release lane: --start-at-login starts hidden in the tray, keeps it after the window closes and grants no background jobs', async () => {
+  const d = await desktop(['--start-at-login']); const engine = d.engines[0];
+  assert.equal(d.menus.length, 1); assert.equal(d.windows.length, 0);
+  assert.deepEqual(engine.lifecycle, [{ awake: true, windowOpen: false, backgroundEnabled: false }]);
+  d.menus[0][0].click(); await flush(); assert.equal(d.windows.length, 1);
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
+  d.windows[0].emit('closed'); await flush(); d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0);
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
+  d.app.emit('second-instance', {}, ['chausar', '--start-at-login']); assert.equal(d.windows.length, 1);
+  d.app.emit('second-instance', {}, ['chausar']); assert.equal(d.windows.length, 2);
+  d.menus[0][2].click(); assert.equal(d.app.quits, 1);
+});
+
+test('release lane: a wake or sign-in launch never opens a window in the running instance; an ordinary launch still does', async () => {
+  const d = await desktop(['--background']); assert.equal(d.windows.length, 1); d.windows[0].emit('closed'); await flush();
+  d.app.emit('second-instance', {}, ['chausar', '--background']); assert.equal(d.windows.length, 1);
+  d.app.emit('second-instance', {}, ['chausar', '--start-at-login']); assert.equal(d.windows.length, 1);
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
+  d.app.emit('second-instance', {}, ['chausar']); assert.equal(d.windows.length, 2);
+  const plain = await desktop([]); assert.equal(plain.menus.length, 0); assert.equal(plain.windows.length, 1);
+  plain.windows[0].emit('closed'); plain.app.emit('window-all-closed'); assert.equal(plain.app.quits, 1);
+});

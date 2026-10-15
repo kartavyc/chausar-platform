@@ -17,6 +17,7 @@ const CODES: Readonly<Record<string, string>> = {
   HOSTED_REPLY_INVALID: 'RTT.hosted.replyInvalid', PLAN_REQUIRED: 'RTT.hosted.planRequired', BACKUP_KEY_MISSING: 'RTT.hosted.keyMissing',
   BACKUP_KEY_INVALID: 'RTT.hosted.keyInvalid', HOSTED_BACKUP_INVALID: 'RTT.hosted.backupInvalid', BACKUP_TOO_LARGE: 'RTT.hosted.tooLarge',
   WAKE_TIMER_UNAVAILABLE: 'RTT.vault.wakeUnavailable', SHELL_UNAVAILABLE: 'RTT.vault.loginDesktop', START_AT_LOGIN_UNSUPPORTED: 'RTT.vault.loginUnsupported',
+  START_AT_LOGIN_COMMAND_FAILED: 'RTT.vault.loginFailed', START_AT_LOGIN_PATH_UNSAFE: 'RTT.vault.loginPathUnsafe', SERVICE_UNAVAILABLE: 'RTT.vault.loginDesktop', OPEN_DESKTOP: 'RTT.vault.loginDesktop',
   DRIVE_SIGN_IN_REQUIRED: 'RTT.devices.signInRequired', DRIVE_ALREADY_CONNECTED: 'RTT.devices.alreadyConnected', DRIVE_FOLDER_NOT_FOUND: 'RTT.devices.folderNotFound',
   SYNC_WORKSPACE_MISMATCH: 'RTT.devices.otherWorkspace', SYNC_ACCESS_DENIED: 'RTT.devices.accessDenied', SYNC_UNAVAILABLE: 'RTT.devices.attachment.unavailable',
   SYNC_TRANSPORT_CONFIGURED: 'RTT.devices.attachment.host-transport',

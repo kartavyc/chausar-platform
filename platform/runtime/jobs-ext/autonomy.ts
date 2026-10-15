@@ -4,7 +4,7 @@
  * kind can be undone and stays inside the workspace. The always-waits list has no switch.
  * Auto-run still goes through ActionService: approve exactly this digest, execute once, read back.
  */
-import { audit } from '../contracts.ts';
+import { audit, newId } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import type { PreparedAction } from '../actions.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -71,6 +71,26 @@ export async function kindTable(ctx: Context, host: Pick<ModuleHost, 'services' 
 }
 
 export const today = (host: Pick<ModuleHost, 'services'>) => dayOf(new Date(host.services.jobs.clock()).toISOString());
+/**
+ * The money an action touches, in whole paise: an `amountMinor` on its payload or on writeback's inner payload.
+ * None means zero. A present but unreadable amount is unknown, and an unknown amount never runs on its own.
+ */
+export function actionAmount(action: { payload?: any }): bigint | null {
+  // Any other field that may name money, at any depth, makes the amount unknown: it never runs on its own.
+  let total = 0n; let unknown = false;
+  const walk = (value: unknown, depth: number) => {
+    if (unknown || value === null || typeof value !== 'object') return;
+    if (depth > 8) { unknown = true; return; }
+    for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+      if (key === 'amountMinor') { if (typeof inner === 'string' && /^(0|[1-9]\d{0,17})$/.test(inner)) total += BigInt(inner); else unknown = true; }
+      else if (/amount|total|value|price|sum|money|balance|paise|rupee|inr/i.test(key)) unknown = true;
+      else walk(inner, depth + 1);
+    }
+  };
+  walk(action.payload, 0);
+  return unknown ? null : total;
+}
+export const amountToday = (state: State, kind: string, day: string) => String(peekLane(state).autonomy.runs.filter(run => run.kind === kind && dayOf(run.at) === day).reduce((sum, run) => sum + BigInt(run.amountMinor ?? '0'), 0n));
 export const usedToday = (state: State, kind: string, day: string) => peekLane(state).autonomy.runs.filter(run => run.kind === kind && dayOf(run.at) === day).length;
 
 /** Integer counts of how often a person agreed (approved) or declined (cancelled) each kind, leaving out what the rule ran itself. */
@@ -109,17 +129,25 @@ export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResul
     if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1 || !reminder || reminder.key === undefined || action.idempotencyKey !== reminder.key
       || action.payload?.invoiceId !== reminder.invoiceId || action.createdBy !== reminder.ownerId) continue;
     if (host.store.read().policy.autonomy !== true) break;
+    const amount = actionAmount(action);
     // The daily count is checked and the run recorded in one transaction, so overlapping ticks cannot exceed it.
+    const claim = newId('claim');
     const claimed = await host.store.update(next => {
-      const ns = lane(next); if (usedToday(next, kind, day) >= entry.dailyCount || next.policy.autonomy !== true) return false;
-      ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString() });
+      // Everything is read again inside the transaction: the live switch and limits, and that this action
+      // is still prepared and not already claimed by an overlapping tick.
+      const ns = lane(next); const live = ns.autonomy.kinds[kind]; const current = (next.actions as PreparedAction[]).find(a => a.id === action.id);
+      if (!live?.on || next.policy.autonomy !== true || !current || current.status !== 'prepared' || current.attempts.length !== 0 || ns.autonomy.runs.some(run => run.actionId === action.id)) return false;
+      if (usedToday(next, kind, day) >= live.dailyCount) return false;
+      // The daily amount limit (TR-05): the money this action touches plus what ran today stays within it.
+      if (amount === null || BigInt(amountToday(next, kind, day)) + amount > BigInt(live.dailyAmountMinor ?? '0')) return false;
+      ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString(), claim, ...(amount > 0n ? { amountMinor: String(amount) } : {}) });
       if (ns.autonomy.runs.length > RUNS_LIMIT) ns.autonomy.runs.splice(0, ns.autonomy.runs.length - RUNS_LIMIT);
       audit(next, 'jobsx.autonomy.ran', { actionId: action.id, kind }); return true;
     });
     if (!claimed) continue;
     try {
       try { await host.services.actions.approve(ctx, action.id, action.digest); }
-      catch (error) { await host.store.update(next => { const ns = lane(next); ns.autonomy.runs = ns.autonomy.runs.filter(run => run.actionId !== action.id); }); throw error; }
+      catch (error) { await host.store.update(next => { const ns = lane(next); ns.autonomy.runs = ns.autonomy.runs.filter(run => run.claim !== claim); }); throw error; }
       const done = await host.services.actions.execute(ctx, action.id) as PreparedAction;
       results.push({ actionId: action.id, kind, status: done.status });
     } catch (error) {
