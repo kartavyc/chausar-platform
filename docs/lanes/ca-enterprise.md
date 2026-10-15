@@ -4,8 +4,129 @@
 > is not in the repository. This lane builds from the design extract
 > (`docs/specs/CHAUSAR-APP-DESIGN.md` §13, "the enterprise version and the CA console" parts 1–4
 > and part 9, CA-01..CA-11) and the shell scaffolding already in `app/ui/src/app/places.ts`.
+> Every feature below is labelled **experimental** for that reason, even where it is tested end
+> to end on synthetic data.
 
-(The sections "What was built", "Tests", "Core edits" and "Gaps" are filled in at the end of the lane.)
+## What a person gets
+
+- **A client** (any desktop workspace), in Trust → *Your CA firm* (`trust/cafirm`): link the firm
+  with the code from the firm's guide, read the consent wording, agree or withdraw, make a status
+  card and see every field that would cross (dates, counts, states; no figures), save it as
+  `chausar-status-<month>.json`, unlink. The same page can turn a workspace into a firm's console.
+- **A CA firm** (ca-firm shell: Today, Clients, Work, Reports, Tools, Trust):
+  - CA-01 Clients: the FirmTable with the four-square close strip, filters round-tripping to the
+    engine, paging, "invited, not joined", open a client, add a status card (file or paste), and
+    "fetch from the relay" (refused: no relay).
+  - CA-02 firm Today, CA-04 Hand-over, CA-05 To co-sign, CA-06 Same step for many (results per
+    client, held because messages to outsiders wait and there is no relay), CA-07 Library
+    (structure only), CA-08 *Who opens which client* (`trust/clientaccess`), CA-09 Invite (one-time
+    code shown once, guide in a sandboxed frame), CA-10 Questions, CA-11 Firm's name ("planned" price).
+  - CA-03 inside a client: a banner ("<workspace>, a client of <firm>, seat until date").
+- **An enterprise install** (enterprise shell): the shell kind, administrators and grant list from
+  `caent.shell`; the lens on Today; the company switcher in the workspace menu; Company and its nine
+  sub-places as an "out of service" table; Trust → Channels, Reviews (personas, grants,
+  administrators, access reviews), Teams, Holds; Books → Companies; Trust → Edition (turn the
+  company version on or off; listed in the desktop and enterprise shells). `WhoseControl`
+  (Mine / My team / Everyone, persisted per list) is offered to other lanes' lists; Reviews uses it.
+
+## What was built, item by item (all experimental)
+
+| Item (ROUND4 "ca-enterprise") | Engine | Screen |
+|---|---|---|
+| `clients.*` status-only list (last read, close progress, awaiting, due next) | `clients.list` over imported status cards | CA-01 `clients` (FirmTable) |
+| Stepping into a client with the seat it gave | `clients.open` (seat, ended seat, assignment) | open flow; `workspaces.switch` when the frame has it |
+| Firm Today | `firm.today` | CA-02 bare `today` (ca-firm) |
+| Work: co-sign, many, questions | `firm.cosign`, `firm.many.*`, `firm.questions` | `work/cosign`, `work/many`, `work/questions` |
+| Reports: hand-over | `firm.handover` | `reports/handover` |
+| Tools: library, invite | `firm.library.*`, `clients.add`/`clients.guide` | `tools/library`, `tools/invite` |
+| Trust: people, firm name | `firm.people.*`, `firm.status`/`firm.name.set` | `trust/clientaccess` (lane sub-place), `trust/firmname`; authored `trust/people` stays the firm's own seats |
+| Status crossing, consent | `castatus.*`, `card.ts` (closed schema, HMAC) | `trust/cafirm` |
+| Enterprise lens | `enterprise.lens.*` | Today lens via host wiring |
+| Company switcher | `enterprise.companies`, `company.set`, `group.set` | workspace menu; `books/companies` |
+| Whose | `enterprise.whose.*`, `enterprise.teams.*` | `WhoseControl`; `trust/teams` |
+| Company place sub-places | `company.overview` | `company` and its nine sub-places |
+| Trust access, markings, retention, channels | `enterprise.access.*`, `enterprise.holds.*`, `enterprise.channels.*` | `trust/reviews`, `trust/holds`, `trust/channels`; access/markings/retention stay reports-tools-trust's People/See/Keep screens |
+
+### How the client card is derived (no figures)
+
+From the client's own workspace only: `booksReadAt` from imports, connector captures and
+`connectorsx.freshness`; the close strip from `connectorsx.envelopes` + `connectorsx.freshness`
+for the close month (bank = bank statements; GST = GSTR-1 and GSTR-3B; TDS = 26AS/AIS; trial
+balance always `not-done`, as the engine has no trial-balance source); co-sign counts from
+`books.meanings` drafts, `books.recipes` proposals and `accounts.list` proposed classes; questions
+from the reports lane's "ask a person" files; hand-over from the CA pack in `reportsx.packs`
+(GST match = GSTR-2B page, ageing = ageing page; TB, bank reconciliation and TDS match always
+`not-ready`); due next from `reportsx.due`; seats from trust-ext core seats (no names). Each count
+is `null` ("not known") when its source does not answer. The finished card passes `parseCard`.
+
+## Typed refusals at the founder boundary
+
+| What needs the founder | Refusal |
+|---|---|
+| The client-consent wording | `CA_CONSENT_WORDING_PENDING` until the wording is supplied as a trusted host option (`consentWording` or `consentWordingFile`, env `CHAUSAR_CA_CONSENT_WORDING_FILE`); a demo workspace uses a draft marked `draft-unapproved` |
+| Hosting: a relay that carries status cards and many-client requests | `CA_RELAY_NOT_DEPLOYED` (`clients.statusFetch`; `firm.many.send` holds every row) |
+| Chausar support access to an install | `ENTERPRISE_SUPPORT_ACCESS_NEEDS_FOUNDER` (Company → Support) |
+| The licence | `ENTERPRISE_LICENCE_NEEDS_FOUNDER` (Company → Licence) |
+| The firm's price per client file | shown as "planned" (CA-11) |
+
+Not founder items, but not this lane's to enforce: legal holds refuse `ENTERPRISE_HOLDS_NOT_ENFORCED`
+(retention enforcement is core-data's); the server's sign-in settings are outside the engine
+(`ENTERPRISE_SERVER_ONLY`); combined group figures with eliminations are `not-built`.
+
+## Engine and screen files
+
+- Engine: `platform/runtime/modules/lane-ca-enterprise.ts`, `platform/runtime/ca-enterprise/`
+  (`state.ts`, `card.ts`, `client.ts`, `firm.ts`, `ca-methods.ts`, `enterprise.ts`, `company.ts`,
+  `enterprise-methods.ts`), `app/desktop/module-methods/ca-enterprise.json` (52 methods).
+- Screens: `app/ui/src/places/lane-ca-enterprise.tsx`, `app/ui/src/screens/ca-enterprise/`
+  (`firm/`, `enterprise/`, `host-wiring.ts`), `app/ui/src/places/subplaces/ca-enterprise.ts`,
+  `app/ui/src/text/lanes/ca-enterprise.ts` (firm 334 keys, enterprise 170 keys, English and Hindi;
+  the Hindi has not been checked by a native reader).
+
+## Core edits
+
+1. `app/ui/src/places/registry.ts`: `placeModuleFor` looks up `caEnterpriseFirstPlaces` right after
+   a lane's own sub-place and before lookup order. Authored addresses that exist only in the ca-firm and
+   enterprise shells (`work/cosign`, `work/many`, `work/questions`, `trust/channels`, `books/companies`,
+   bare `today` in ca-firm, `company/*`) were otherwise taken by place-wide modules. Tests prove
+   no desktop address is claimed.
+2. `app/ui/src/host/bootstrap.tsx`: the host reads `caent.shell` (after `todayx.shell` succeeds) and
+   passes the shell kind, administrators, grants, the lens, the company switcher and the CA-03
+   banner to `App`. When the lane methods are missing or refuse, the reply falls back to desktop defaults
+   and the app is unchanged.
+3. `app/desktop/preload.cjs`: the lane's refusal codes on its own `laneRefusals` line (synced to
+   `app/ui/src/bridge/client.ts`).
+
+## Tests
+
+- Engine: `platform/tests/ca-enterprise-{card,client,firm,enterprise,company}.test.ts` (24 tests),
+  including "never a figure": distinctive amounts, customer names, GSTINs, seat names and link
+  codes seeded in the client never appear in the card or in any firm reply.
+- UI contracts: `app/ui/tests/ca-enterprise-*.test.ts` (24 tests): validators, routing, rail gating.
+- React: `frontend-validation/tests/ca-enterprise-*.test.tsx` (51 tests), including the real
+  `mountHost` in the enterprise shell and with no lane methods.
+
+## Gaps
+
+- **CA-03 "Back to clients"**: the action needs a new `BannerKind` (frame-today's
+  `presentation.ts`/`Banner.tsx`) and `workspaces.switch` (frame-today, SH-06). Today the banner
+  reuses the `read-only` kind with its own sentence and no action, and gives way to a real
+  read-only banner.
+- **Stepping into a client** stops at telling the person which workspace to open until
+  `workspaces.switch` exists.
+- The **close strip can never be all done** because the engine has no trial-balance, bank
+  reconciliation or TDS match schedule; those card fields stay `not-done`/`not-ready`.
+- The Strip part has no "in progress" square; it draws as the open "loading" square.
+- **Whose** is offered (`WhoseControl`, `enterprise.whose.members`) but other lanes' lists have not
+  adopted it yet.
+- Not built: the enterprise parts Approval chain, Hidden content, Marking and Live state; role-shaped
+  Today forms (`home` is served but not navigated to); Ask Plans, Work Cases/Agents, Reports
+  Sent/Briefs, Tools Planning (authored, drawn as other lanes' screens or not built).
+- Access-review removals go through `trustx.removeSeat`, which today applies at once and returns
+  no change id, so "waits for the second person" never shows.
+- The persona grant lists are this lane's own choice; the design names homes only.
+- `scripts/check-ui-source.mjs` reports `raw-html` for the guide's `srcDoc` frame (sandboxed, runs
+  nothing); that script is not part of `check.mjs`.
 
 ## The rule this lane rests on
 
