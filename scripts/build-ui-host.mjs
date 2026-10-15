@@ -15,7 +15,7 @@ const outputRoot = await mkdtemp(join(outputParent, 'host-'));
 await build({ ...hostBuildConfig(outputRoot), configFile: false, mode: 'production' });
 const bundle = join(outputRoot, 'bundle');
 const js = await readFile(join(bundle, 'host.js'));
-// Raised from 2,000,000 in round 4: the merged base alone builds to about 2.11 MB with every lane's place modules.
+// Every lane's screens joined by round 4 put the minified host past 2 MB; 2.5 MB is the served limit too (app/desktop/ui-assets.cjs).
 assert.ok(js.length > 0 && js.length <= 2_500_000);
 assert.equal(/\bprocess\.env\b/.test(js.toString('utf8')), false, 'Browser bundle has unresolved Node environment reads.');
 const css = await readFile(join(bundle, 'host.css'));

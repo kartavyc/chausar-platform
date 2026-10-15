@@ -11,6 +11,8 @@
  * - Unknown methods reject with an Error whose `code` is `UNKNOWN_METHOD`, so a place whose
  *   engine method does not exist yet shows "not built yet".
  * - Other lanes add fixture handlers for their own families with `registerFakeMethods`.
+ * - learning-ext's `learningx` family is served by default from `fixtures/learningx.ts` (FR-07
+ *   proposed meanings, FR-10 sharing), after any `learningx` handlers a test registers.
  *
  * Scenarios: `populated` (the default), `empty` (a published dictionary, nothing read yet),
  * `first-run` (no published dictionary), `locked` (the vault is locked; creation unlocks a
@@ -32,6 +34,7 @@ import {
   phoneMessagesReply, shellReply, statusReply, worthReply,
 } from './fixtures/todayx.ts';
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
+import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
 import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
 
@@ -147,6 +150,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   let closingOn = false;
   const store = new Map<string, unknown>();
   const calls: string[] = [];
+  /* Core `learning.sharing`: off until an owner turns it on, as in the engine. */
+  let sharingOn = false;
+  const learningx = learningxFakeHandlers({ demo: () => workspace.demo, sharing: () => sharingOn });
 
   const ready = (async () => {
     if (scenario === 'first-run' || scenario === 'locked') return;
@@ -416,6 +422,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'sources.preview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'sources.workbookPreview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'learning.list': () => [],
+    'learning.sharing': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'An owner must approve this change.');
+      if (typeof payload['enabled'] !== 'boolean') throw fakeRefusal('INVALID_SHARING', 'Set sharing on or off.');
+      sharingOn = payload['enabled']; return { enabled: sharingOn };
+    },
     'activity.list': () => ({ items: populated() ? dayEvents(date).map(event => ({ id: event['id'], kind: event['kind'], at: event['at'] })) : [], modelReceipts: [] }),
     'memory.lessons': () => [],
     'scenarios.discover': () => ({ mode: 'retained-revisions', items: [], nextCursor: null, noAction: true }),
@@ -473,7 +484,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     calls.push(method);
     await ready;
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
-    const handler = options.absent?.includes(method) ? undefined : handlers[method] ?? r4[method] ?? registry.get(method);
+    const handler = options.absent?.includes(method) ? undefined : handlers[method] ?? registry.get(method) ?? r4[method] ?? learningx[method];
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
     if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
@@ -503,6 +514,6 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   return Object.freeze({
     request, scenario, language, calls, todayProducer,
     date: () => date,
-    methods: () => [...Object.keys(handlers), ...Object.keys(r4), ...registry.keys()].filter(method => !options.absent?.includes(method)).sort(),
+    methods: () => [...new Set([...Object.keys(handlers), ...Object.keys(r4), ...registry.keys(), ...Object.keys(learningx)])].filter(method => !options.absent?.includes(method)).sort(),
   });
 }

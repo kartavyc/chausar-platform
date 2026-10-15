@@ -253,7 +253,7 @@ test('FR-10: a demo workspace needs its test switch; with it, consent names the 
 
 test('FR-10: without learning-ext the step says not built and Continue still goes on', async () => {
   const onContinue = vi.fn();
-  inEnglish(<SharingQuestion rpc={createFakeEngine()} onContinue={onContinue} />);
+  inEnglish(<SharingQuestion rpc={createFakeEngine({ absent: ['learningx.intakeStatus', 'learningx.preview', 'learningx.consent', 'learningx.submit'] })} onContinue={onContinue} />);
   await screen.findByText(w('FR-10.notBuilt'));
   fireEvent.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
   expect(onContinue).toHaveBeenCalledOnce();

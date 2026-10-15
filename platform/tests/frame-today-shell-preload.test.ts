@@ -45,9 +45,9 @@ function chain(options: { open?: boolean } = {}) {
   return { api, opened, printed, channels, tick(ms: number) { clock += ms; } };
 }
 
-test('the preload adds only openExternal and print beside the existing bridge', async () => {
+test('the preload adds only openExternal, print and pickFile beside the existing bridge', async () => {
   const { api } = chain();
-  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'openExternal', 'print', 'request', 'requestEnvelope']);
+  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'openExternal', 'pickFile', 'print', 'request', 'requestEnvelope']);
 });
 
 test('the preload refuses non-string, empty and over-long addresses before any IPC, and main refuses the rest', async () => {

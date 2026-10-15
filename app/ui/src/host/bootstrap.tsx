@@ -29,6 +29,8 @@ import type { HostController, HostReceiptSelection, HostState } from './controll
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
 import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { BringFileFlow } from '../screens/first-run/BringFileFlow';
+import { backupPicker, statementPicker } from '../screens/first-run/pick.ts';
 import { AskRecoveryContact, LockFolderChoice } from '../screens/first-run/ThisComputer';
 import { readDeviceChoices, saveDeviceChoices } from '../screens/first-run/this-computer.ts';
 import { LockScreen } from '../app/LockScreen';
@@ -90,9 +92,10 @@ export interface HostMountOptions {
    */
   readonly firstRun?: 'journey';
   /**
-   * The trusted shell (`bridge/shell.ts`): `shell.print` for the recovery kit (FR-04) and
-   * `shell.openExternal` behind the link dialog (SH-10). Absent: Print draws "not built yet"
-   * and places get no `openLink`, so outside addresses stay text.
+   * The trusted shell (`bridge/shell.ts`): `shell.print` for the recovery kit (FR-04),
+   * `shell.openExternal` behind the link dialog (SH-10) and, on the desktop, `imports.pickFile`
+   * (FR-07, BK-04's `bringFile` for places, FR-13's backup). Absent: Print draws "not built yet",
+   * places get no `openLink`, so outside addresses stay text, and files come from a file input.
    */
   readonly shell?: ShellPort;
   /** Every question the ask line sends to Ask, with its "About:" reference as data (SH-04). */
@@ -962,7 +965,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
         rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
         navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
-        ...(openLink !== undefined ? { openLink } : {}), setAbout: askLine.setAboutAt(at) });
+        ...(openLink !== undefined ? { openLink } : {}), setAbout: askLine.setAboutAt(at),
+        // BK-04: the FR-07 flow for a place, over the host's chooser (frame-today).
+        ...(viewer ? {} : { bringFile: (options?: { readonly onTaken?: (() => void) | undefined }) => <BringFileFlow rpc={controller.places} language={language}
+          company={context.workspace.name} pickFile={statementPicker(shell)} onTaken={options?.onTaken} /> }) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
@@ -1151,6 +1157,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
         onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
         saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
         {...(options.shell !== undefined ? { onPrint: () => options.shell!.print('recovery-kit') } : {})}
+        pickFile={statementPicker(options.shell)} pickBackup={backupPicker(options.shell)}
         onOpenFolder={folder => { setLockFolder(folder); setUnlockResult(null); setStartNew(false); }}
         onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
     }

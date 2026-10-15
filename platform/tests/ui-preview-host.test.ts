@@ -70,7 +70,7 @@ test('loopback serves the new UI by default and the legacy renderer only behind 
     ?? policy.find(value => value.startsWith('default-src '));
   assert.match(fontPolicy ?? '', /^(?:font-src|default-src) 'self'$/);
   assert.match(await reply.text(), /\/ui\/shell\.js/);
-  for (const [path, mime, limit] of [['/ui/host.js','text/javascript; charset=utf-8',2000000], ['/ui/host.css','text/css; charset=utf-8',200000]] as const) {
+  for (const [path, mime, limit] of [['/ui/host.js','text/javascript; charset=utf-8',2500000], ['/ui/host.css','text/css; charset=utf-8',200000]] as const) {
     assert.equal((await fetch(standard.origin + path)).status, 200);
     const asset = await fetch(preview.origin + path); assert.equal(asset.status, 200);
     assert.equal(asset.headers.get('content-type'), mime); assert.equal(asset.headers.get('cache-control'), 'no-store');

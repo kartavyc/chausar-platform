@@ -12,9 +12,15 @@
  *
  * A bank statement PDF is offered only when the engine answers `imports.readerStatus` (the
  * connectors-ext `imports.*` family); it is then read by `PdfStatement`, which also asks for the
- * PDF's password. A sheet has no password path: an encrypted workbook (recognised by its first
- * bytes before anything is sent, or `ENCRYPTED_ZIP` from the engine) shows "password needed"
- * with the not-built words and no field.
+ * PDF's password. A sheet has no password path yet: `sources.workbookPreview` takes no `password`
+ * until core-data's encrypted-workbook item lands, so an encrypted workbook (recognised by its
+ * first bytes before anything is sent, or `ENCRYPTED_ZIP` from the engine) shows "password
+ * needed" with the not-built words and no field.
+ *
+ * The desktop chooser (`imports.pickFile`, see `pick.ts`) refuses a file too large for one
+ * request, a kind FR-07 does not read, or an unreadable file; each says so in words. `inPlace`
+ * draws the same flow inside a place (BK-04, Books · Sources), with a plain heading instead of
+ * the journey's step line.
  *
  * The engine reads a file only against agreed meanings. If it answers `DICTIONARY_REQUIRED`
  * the file is held by the journey and read again right after the meanings are agreed.
@@ -27,7 +33,7 @@ import { money } from '../../format/money.ts';
 import { Field } from '../../parts/Field';
 import {
   failureOf, fileProblems, firstRows, formatOf, pickedRecipe, problemsByCode, rupeesToPaise, sourceIdFor, splitCsvLine, unknownLayout, validateImport, validatePreview,
-  validateReaderStatus, type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type SheetPreview,
+  validateReaderStatus, type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type PickedFile, type SheetPreview,
 } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, Status, StepHeader } from './JourneyParts';
 import { ProposedMeanings } from './ProposedMeanings';
@@ -35,10 +41,7 @@ import type { ProposalsOutcome } from './proposals.ts';
 import { PdfStatement } from './PdfStatement';
 import s from './Journey.module.css';
 
-export type PickedFile =
-  | { readonly name: string; readonly format: 'csv'; readonly content: string }
-  | { readonly name: string; readonly format: 'xlsx'; readonly bytesBase64: string }
-  | { readonly name: string; readonly format: 'pdf'; readonly bytesBase64: string };
+export type { PickedFile } from './journey-contracts.ts';
 
 export interface BringFileProps {
   readonly rpc: JourneyPort;
@@ -54,6 +57,8 @@ export interface BringFileProps {
   readonly onWaits: () => void;
   /** FR-07's "Proposed meanings (draft)" after the file is taken. Absent: the list is not drawn. */
   readonly propose?: ((file: PickedFile) => Promise<ProposalsOutcome>) | undefined;
+  /** BK-04: drawn inside a place, not as a first-run step. */
+  readonly inPlace?: boolean | undefined;
 }
 
 type Phase =
@@ -65,7 +70,11 @@ type Phase =
   | { readonly kind: 'password' }
   | { readonly kind: 'pdf' }
   | { readonly kind: 'unsupported' }
+  | { readonly kind: 'pickRefused'; readonly code: string }
   | { readonly kind: 'failed'; readonly failure: JourneyFailure };
+
+/** The chooser's refusals (`imports.pickFile`), each with its own sentence. */
+export const PICK_REFUSED: ReadonlySet<string> = new Set(['FILE_TOO_LARGE', 'FILE_KIND_REFUSED', 'FILE_UNREADABLE', 'PICKER_BUSY']);
 
 const ROLES: readonly ColumnRole[] = ['date', 'customer', 'amount', 'invoice', 'ignore'];
 const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'DMY'];
@@ -94,7 +103,7 @@ async function fromInput(file: File, pdf: boolean): Promise<PickedFile | null> {
   return null;
 }
 
-export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits, propose }: BringFileProps) {
+export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits, propose, inPlace = false }: BringFileProps) {
   const t = useT();
   const inputId = useId();
   const dateName = useId();
@@ -160,7 +169,10 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
   const choose = async () => {
     if (pickFile === undefined) return;
     try { const chosen = await pickFile(); if (chosen !== null) begin(chosen); }
-    catch (error) { setPhase({ kind: 'failed', failure: failureOf(error) }); }
+    catch (error) {
+      const failure = failureOf(error);
+      setPhase(failure.kind === 'refused' && PICK_REFUSED.has(failure.code) ? { kind: 'pickRefused', code: failure.code } : { kind: 'failed', failure });
+    }
   };
 
   const take = async (current: Extract<Phase, { kind: 'previewed' }>) => {
@@ -213,8 +225,10 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
   const columns = file?.format === 'csv' ? splitCsvLine(file.content.replace(/^\uFEFF/, '').split(/\r?\n/)[0] ?? '') : [];
 
   return (
-    <section data-first-run-screen="file">
-      <StepHeader step={4} title="FR-07.title" lede="FR-07.lede" />
+    <section data-first-run-screen="file" data-bring-file={inPlace ? 'place' : 'journey'}>
+      {inPlace
+        ? <><h2 className={s.sectionTitle}>{t('FR-07.title')}</h2><p className={s.lede}>{t('FR-07.lede')}</p></>
+        : <StepHeader step={4} title="FR-07.title" lede="FR-07.lede" />}
       {held !== null && meaningsAgreed && phase.kind === 'reading' && <Status k="FR-07.held" />}
       {phase.kind !== 'taken' && chooser}
       {file !== null && <p className={s.question} data-file-name="">{t('FR-07.name', { name: file.name })}</p>}
@@ -234,6 +248,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
         : <Note k="FR-07.noRows" />)}
       {phase.kind === 'reading' && <Status k="FR-07.reading" />}
       {phase.kind === 'unsupported' && <Note k={pdf ? 'FR-07.notSupported.pdf' : 'FR-07.notSupported'} role="alert" />}
+      {phase.kind === 'pickRefused' && <p className={s.problem} role="alert" data-pick-refused={phase.code}>{t(`FR-07.pick.${phase.code}`)}</p>}
       {phase.kind === 'pdf' && file?.format === 'pdf' && (
         <PdfStatement key={file.name} rpc={rpc} file={file} onTaken={() => { onHold(null); onTaken(); }}
           onNeedsMeanings={() => { if (meaningsAgreed) setPhase({ kind: 'failed', failure: { kind: 'refused', code: 'DICTIONARY_REQUIRED' } }); else { onHold(file); onWaits(); } }} />
@@ -352,7 +367,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
             <li>{t('FR-07.group.refused', { count: count(String(phase.result.coverage.rejectedRows)) })}</li>
           </ul>
           {phase.result.duplicate && <Note k="FR-07.duplicate" />}
-          {file !== null && propose !== undefined && <ProposedMeanings file={file} propose={propose} />}
+          {file !== null && propose !== undefined && <ProposedMeanings file={file} propose={propose} {...(inPlace ? { settle: 'FR-07.proposals.settlePlace' } : {})} />}
           <Actions><Act variant="filled" label="FR.journey.continue.btn" onClick={onTaken} /></Actions>
         </div>
       )}

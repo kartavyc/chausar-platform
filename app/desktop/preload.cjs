@@ -38,7 +38,7 @@ const refusalCodes = new Set([
 const laneRefusals = [
   ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE', 'OPEN_DESKTOP', 'DEMO_EXTERNAL_DISABLED'],
 
-  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY', 'PIN_WRONG', 'PIN_LOCKED_OUT', 'PIN_NOT_SET', 'PIN_INVALID', 'LADDER_INVALID', 'ROUTE_NOT_FOUND', 'TIME_ZONE_INVALID', 'JOIN_EXPIRED', 'JOIN_USED', 'JOIN_CODE_MISMATCH'],
+  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY', 'PIN_WRONG', 'PIN_LOCKED_OUT', 'PIN_NOT_SET', 'PIN_INVALID', 'LADDER_INVALID', 'ROUTE_NOT_FOUND', 'TIME_ZONE_INVALID', 'JOIN_EXPIRED', 'JOIN_USED', 'JOIN_CODE_MISMATCH', 'INVALID_PATH'],
 
   /* ask */ ['ASK_INVALID', 'ASK_NOT_FOUND', 'ASK_NO_DICTIONARY', 'ASK_NO_CALCULATION', 'ASK_STOPPED_BY_RULE', 'ASK_REFUSED', 'ASK_CHANGED', 'ASK_STALE', 'ASK_NOT_GROUPABLE', 'ASK_BRIDGE_NOT_EXACT', 'ASK_CANNOT_REBUILD', 'ASK_NOT_FORECASTABLE', 'ASK_FAILED'],
 
@@ -124,5 +124,25 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   print: async kind => {
     if (kind !== 'recovery-kit' && kind !== 'page') return 'refused';
     try { return await ipcRenderer.invoke('chausar:shell-print', kind) === 'printed' ? 'printed' : 'refused'; } catch { return 'refused'; }
+  },
+  // imports.pickFile (frame-today, FR-07/BK-04/FR-13): the kind only goes to main (app/desktop/file-ipc.cjs); the reply is copied field by field.
+  pickFile: async kind => {
+    const unreadable = Object.freeze({ outcome: 'refused', code: 'FILE_UNREADABLE' });
+    if (kind !== 'statement' && kind !== 'backup') return Object.freeze({ outcome: 'refused', code: 'FILE_KIND_REFUSED' });
+    try {
+      const reply = await ipcRenderer.invoke('chausar:imports-pick-file', kind);
+      if (fields(reply, ['outcome'])?.outcome.value === 'cancelled') return Object.freeze({ outcome: 'cancelled' });
+      const refusal = fields(reply, ['outcome', 'code']);
+      if (refusal?.outcome.value === 'refused') return ['FILE_TOO_LARGE', 'FILE_KIND_REFUSED', 'FILE_UNREADABLE', 'BACKUP_NOT_MANAGED', 'PICKER_BUSY'].includes(refusal.code.value) ? Object.freeze({ outcome: 'refused', code: refusal.code.value }) : unreadable;
+      const name = value => typeof value === 'string' && value.length > 0 && value.length <= 200 && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+      if (kind === 'backup') {
+        const picked = fields(reply, ['outcome', 'name']);
+        return picked?.outcome.value === 'picked' && name(picked.name.value) && /\.backup$/.test(picked.name.value) ? Object.freeze({ outcome: 'picked', name: picked.name.value }) : unreadable;
+      }
+      const picked = fields(reply, ['outcome', 'name', 'bytesBase64']);
+      const bytes = picked?.bytesBase64.value;
+      return picked?.outcome.value === 'picked' && name(picked.name.value) && typeof bytes === 'string' && bytes.length <= 2_000_000 && /^[A-Za-z0-9+/]*={0,2}$/.test(bytes)
+        ? Object.freeze({ outcome: 'picked', name: picked.name.value, bytesBase64: bytes }) : unreadable;
+    } catch { return unreadable; }
   },
 }));

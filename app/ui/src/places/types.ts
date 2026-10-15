@@ -43,6 +43,12 @@ export interface PlaceRenderProps {
    * clears it when the person leaves this place. Absent: the host has no ask line here.
    */
   readonly setAbout?: ((about: { label: string; ref: { kind: string; id: string } } | null) => void) | undefined;
+  /**
+   * BK-04 (frame-today): the FR-07 "Bring a file" flow, bound to the host's file chooser and
+   * engine port. Returns the flow to draw where the place wants it; `onTaken` runs after a file
+   * is taken in. Absent (a viewer seat): draw no "Bring a file" control.
+   */
+  readonly bringFile?: ((options?: { readonly onTaken?: (() => void) | undefined }) => ReactNode) | undefined;
 }
 
 export interface PlaceModule {
