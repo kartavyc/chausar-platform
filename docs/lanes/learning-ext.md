@@ -123,6 +123,31 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
 - **Books account feed.** `learningx.accountsProposals` returns the shape work-books' `accounts.list` already reads.
 - **Canary on the upload.** When core exports `runOutboundChecks` from `gateway.ts` (core-gateway-auth, ROUND4 item 2), the upload runs the same outbound checks as a model send before anything leaves. A block refuses the batch with `CANARY_BLOCKED`. Until then nothing changes.
 
+## Screens
+
+Books → **Learning** (sub-place `{ place: 'books', id: 'learning' }`, named `SH-01.sub.books.learning`). Code is in `app/ui/src/screens/learning/`, the module in `app/ui/src/places/lane-learning-ext.tsx`, and the words (English and Hindi, `LX.*`) in `app/ui/src/text/lanes/learning-ext.ts`.
+
+1. **Dictionary edits.**
+   - A list of edits, from `learningx.edits`, filtered to awaiting review, failed the key, or all.
+   - Each row shows the change in words, the answer key before and after, failing cases, the cases it would break, and a stale mark.
+   - The owner approves or rejects through a sheet naming the exact change, which sends `editApprove` or `editReject` with `{ id, digest }`. Stale edits and edits that failed the key have no approve button.
+   - "Look for edits" calls `editsPropose`.
+2. **First dictionary.**
+   - Proposals come from `dictionaryProposals`, showing the pack, confidence and fields with evidence.
+   - Picking a CSV calls `dictionaryBuild`.
+   - The owner adopts through a sheet (`dictionaryAdopt`). The outcome shows the published version or the failing cases, and `PROPOSAL_STALE` in words.
+3. **Answer key.**
+   - Shows the hand-worked cases. Expected values come through the money formatter, labelled hand-worked.
+   - Rows withheld from people other than the owner are drawn in words.
+   - "Run the key" (owner or co-founder).
+   - The owner can reset to the default key or replace it with a key file, each through a confirm sheet.
+4. **Model asks.**
+   - Route choice: `modelRoute`, `modelRouteSet`, picked from `models.list`.
+   - Accounts and edits follow three separate presses: ask, which shows the exact bytes, endpoint, send level and digest; the owner's approval of exactly those bytes (`models.approve`); then "Send it once" (`accountsAskRun` / `editsAskRun`).
+   - Every "not yet" code is drawn in words.
+
+States: loading, empty, not built (`UNKNOWN_METHOD`, `INVALID_REQUEST`, `METHOD_UNAVAILABLE`), read only for viewers, error (including a reply in an unexpected shape), stale, and three levels of detail across the Simple, Guided and Books views. Tests are in `app/ui/tests/learning-ext-place.test.ts` (seams and words) and `frontend-validation/tests/learning-ext-place.test.tsx` (behaviour, 17 tests).
+
 ## Round 4 contracts
 
 - **`learningx.accountsProposals`** (read, payload `{}`): `{ proposals: [{ name, class, accountClass, at, setId }] }`.
