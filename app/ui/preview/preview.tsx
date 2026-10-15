@@ -6,6 +6,8 @@
  * Query options:  ?scenario=populated|empty|first-run|locked|read-only
  *                 &lang=en|hi  &view=guided|simple|books  &theme=light|dark
  *                 &clock=YYYY-MM-DD  &tiles=0 (do not prepare the three figures)
+ *                 &print=hold (a desktop-like shell whose print waits until the page calls
+ *                 `__chausarPreview.releasePrint()`, so a test can save the print view as a PDF)
  * The hash is the address, as in the app: #/books/sources, #/today?sheet=...
  *
  * `theme` sets `data-theme`, which exists only to fix a theme for pictures. Without it the
@@ -13,7 +15,7 @@
  */
 import { createFakeEngine, FAKE_SCENARIOS } from '../src/bridge/fake.ts';
 import type { FakeScenario } from '../src/bridge/fake.ts';
-import { createHostController, mountHost } from '../src/host/bootstrap';
+import { createHostController, createShellPort, mountHost } from '../src/host/bootstrap';
 import { formatAddress } from '../src/app/routes.ts';
 import { morePlaces, railPlaces } from '../src/app/places.ts';
 import type { Address, Language, View } from '../src/app/presentation.ts';
@@ -30,6 +32,7 @@ const view: View = pick('view', ['guided', 'simple', 'books'] as const, 'guided'
 const theme = pick('theme', ['light', 'dark', 'system'] as const, 'system');
 const clock = query.get('clock');
 const prepareTiles = query.get('tiles') !== '0';
+const holdPrint = query.get('print') === 'hold';
 
 /** Every place and sub-place address of the desktop shell in this view, from the place list itself. */
 function addresses(): { readonly address: string; readonly handledBy: string | null }[] {
@@ -62,6 +65,9 @@ interface PreviewHandle {
   ready: boolean;
   readonly calls: readonly string[];
   setTheme(next: 'light' | 'dark' | 'system'): void;
+  /** With `print=hold`: the kind being printed while a print waits, and the call that ends it. */
+  printing: string | null;
+  releasePrint(): void;
 }
 declare global { interface Window { __chausarPreview?: PreviewHandle } }
 
@@ -74,9 +80,18 @@ async function start() {
   const handle: PreviewHandle = {
     options: { scenario, language, view, theme }, addresses: addresses(), ready: false, calls: engine.calls,
     setTheme(next) { heldTheme = next; applyTheme(); },
+    printing: null,
+    releasePrint() { /* replaced while a print waits */ },
   };
   window.__chausarPreview = handle;
-  mountHost(container, controller, { language, view, firstRun: 'journey' });
+  // The desktop's print returns when the dialog closes; here it returns when the test says so.
+  const shell = holdPrint ? createShellPort({
+    print: kind => new Promise<void>(release => {
+      handle.printing = kind;
+      handle.releasePrint = () => { handle.printing = null; release(); };
+    }),
+  }, null) : undefined;
+  mountHost(container, controller, { language, view, firstRun: 'journey', ...(shell ? { shell } : {}) });
   holdTheme();
   // Prepare the three configured figures once, the way the Prepare button does, so the charts and receipts show.
   let prepared = false;

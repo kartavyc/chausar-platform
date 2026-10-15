@@ -1,6 +1,7 @@
 // Build the side-by-side review page docs/lanes/frame-today-visual.html from the extracted
-// reference pictures (extract.mjs), the preview captures (capture.mjs) and the written notes
-// (notes.json). One self-contained static file: inline CSS, every picture a JPEG data URI
+// reference pictures (extract.mjs), the preview captures (capture.mjs), the pixel comparison
+// (diff.mjs: each picture's difference ratio and diff image, against thresholds.json) and the
+// written notes (notes.json). One self-contained static file: inline CSS, every picture a JPEG data URI
 // (downscaled in Chromium, no other image tool), no external request.
 //
 //   node frontend-validation/visual/page.mjs [--width=1200] [--quality=72] [--out=docs/lanes/frame-today-visual.html]
@@ -13,6 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(here, '../..');
 const referenceDir = resolve(workspaceRoot, 'frontend-validation/dist/visual/reference');
 const captureDir = resolve(workspaceRoot, 'frontend-validation/dist/visual/capture');
+const diffDir = resolve(workspaceRoot, 'frontend-validation/dist/visual/diff');
 const args = new Map(process.argv.slice(2).map(arg => { const [key, ...value] = arg.replace(/^--/, '').split('='); return [key, value.join('=') || true]; }));
 const width = Number(args.get('width') ?? 1200);
 const quality = Number(args.get('quality') ?? 72);
@@ -23,6 +25,9 @@ const references = JSON.parse(readFileSync(resolve(referenceDir, 'manifest.json'
 const captures = JSON.parse(readFileSync(resolve(captureDir, 'manifest.json'), 'utf8'));
 const notes = JSON.parse(readFileSync(resolve(here, 'notes.json'), 'utf8'));
 const captureOf = new Map(captures.pictures.map(entry => [entry.name, entry]));
+const diffs = JSON.parse(readFileSync(resolve(diffDir, 'manifest.json'), 'utf8'));
+const diffOf = new Map(diffs.pictures.map(entry => [entry.name, entry]));
+const percent = value => `${(value * 100).toFixed(1)}%`;
 
 const browser = await launchChromium();
 /** A PNG file as a downscaled JPEG data URI, drawn and encoded by Chromium. */
@@ -51,15 +56,22 @@ for (const picture of references.pictures) {
   for (const theme of ['light', 'dark']) {
     const reference = await jpeg(resolve(referenceDir, picture[theme]), picture.width, picture.height);
     const captured = capture?.captures?.[theme] ? await jpeg(resolve(captureDir, capture.captures[theme]), 1366, 768) : null;
-    themes.push(`<div class="theme"><h3>${theme === 'light' ? 'Light' : 'Dark'}</h3><div class="pair">${figure(reference, `Reference ${picture.name}, ${theme}`)}${figure(captured, captured ? `Preview, ${theme}` : `No capture: ${capture?.reason ?? status}`)}</div></div>`);
+    const compared = diffOf.get(picture.name)?.themes?.[theme];
+    const differenceImage = compared ? await jpeg(resolve(diffDir, compared.diff), 1366, 768) : null;
+    const differenceLabel = compared ? `Difference, ${theme}: ${percent(compared.ratio)} of pixels differ (16 px blocks ${percent(compared.blockRatio)})` : null;
+    themes.push(`<div class="theme"><h3>${theme === 'light' ? 'Light' : 'Dark'}</h3><div class="pair${differenceImage ? ' three' : ''}">${figure(reference, `Reference ${picture.name}, ${theme}`)}${figure(captured, captured ? `Preview, ${theme}` : `No capture: ${capture?.reason ?? status}`)}${differenceImage ? figure(differenceImage, differenceLabel) : ''}</div></div>`);
   }
   const address = capture?.address ? `<code>index.html?${escape(capture.query)}&amp;theme=…${escape(capture.address)}</code>${capture.drive ? ` then the scripted walk <code>${escape(capture.drive)}</code>` : ''}` : '<span class="mute">none</span>';
   const differences = (note.differences ?? []).map(item => `<li>${escape(item)}</li>`).join('');
   const fixed = (note.fixed ?? []).map(item => `<li>${escape(item)}</li>`).join('');
+  const compared = diffOf.get(picture.name);
+  const ratios = compared && Object.keys(compared.themes).length
+    ? `<dt>Pixels differing</dt><dd>${['light', 'dark'].filter(theme => compared.themes[theme]).map(theme => `${theme} <strong>${percent(compared.themes[theme].ratio)}</strong> (blocks ${percent(compared.themes[theme].blockRatio)})`).join(', ')}; allowed ${compared.maxRatio === null ? 'not set' : percent(compared.maxRatio)}${compared.over.length ? ` <strong class="over">over in ${compared.over.join(' and ')}</strong>` : ''}</dd><dt>Why not zero</dt><dd>${escape(compared.reason ?? 'no threshold recorded')}</dd>`
+    : '';
   sections.push(`<section id="${escape(picture.name)}">
 <h2>${escape(picture.name)} <span class="status s-${escape(status.replace(/[^a-z]+/g, '-'))}">${escape(status)}</span></h2>
 <p class="caption">${escape(picture.captions.join(' / '))}</p>
-<dl><dt>Design entries</dt><dd>${picture.sections.map(id => `<code>${escape(id)}</code>`).join(' ')}</dd><dt>Owner</dt><dd>${escape(capture?.lane ?? '-')}</dd><dt>Address</dt><dd>${address}</dd></dl>
+<dl><dt>Design entries</dt><dd>${picture.sections.map(id => `<code>${escape(id)}</code>`).join(' ')}</dd><dt>Owner</dt><dd>${escape(capture?.lane ?? '-')}</dd><dt>Address</dt><dd>${address}</dd>${ratios}</dl>
 ${differences ? `<h3 class="sub">Differences</h3><ul>${differences}</ul>` : capture?.reason ? `<p class="mute">${escape(capture.reason)}</p>` : ''}
 ${fixed ? `<h3 class="sub">Fixed in this round</h3><ul>${fixed}</ul>` : ''}
 ${themes.join('\n')}
@@ -68,6 +80,8 @@ ${themes.join('\n')}
 await browser.close();
 
 const toc = references.pictures.map(picture => `<li><a href="#${escape(picture.name)}">${escape(picture.name)}</a> <span class="mute">${escape(captureOf.get(picture.name)?.status ?? '')}</span></li>`).join('');
+const ratioRows = diffs.pictures.filter(entry => Object.keys(entry.themes).length).map(entry => `<tr><th scope="row"><a href="#${escape(entry.name)}">${escape(entry.name)}</a></th><td>${escape(entry.status)}</td><td class="n">${entry.themes.light ? percent(entry.themes.light.ratio) : '-'}</td><td class="n">${entry.themes.dark ? percent(entry.themes.dark.ratio) : '-'}</td><td class="n">${entry.themes.light ? percent(entry.themes.light.blockRatio) : '-'}</td><td class="n">${entry.themes.dark ? percent(entry.themes.dark.blockRatio) : '-'}</td><td class="n">${entry.maxRatio === null ? '-' : percent(entry.maxRatio)}</td><td>${entry.over.length ? '<strong class="over">over</strong>' : 'within'}</td></tr>`).join('');
+const ratioTable = `<h2>Pixel comparison</h2><p class="intro">Per picture, the share of pixels whose largest colour channel differs by more than ${diffs.tolerance.pixel} of 255 (anti-aliasing and font hinting stay under it), and the share of ${diffs.tolerance.block} px blocks whose mean lightness differs by more than ${percent(diffs.tolerance.blockLuminance)} (layout, little moved by different words). The allowed pixel ratio and its reason are in <code>frontend-validation/visual/thresholds.json</code>; <code>diff.mjs</code> fails when a picture goes over. In the difference images the reference is washed out and every differing pixel is red.</p><div class="scroll"><table><thead><tr><th scope="col">Picture</th><th scope="col">Status</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Blocks light</th><th scope="col">Blocks dark</th><th scope="col">Allowed</th><th scope="col">Result</th></tr></thead><tbody>${ratioRows}</tbody></table></div>`;
 const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -97,7 +111,13 @@ dd { margin: 0; }
 .s-frame-today { color: var(--ok); }
 .s-other-lane, .s-other-lane-not-built-yet { color: var(--other); }
 .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.pair.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 14px; }
+th, td { text-align: start; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.n { font-variant-numeric: tabular-nums; text-align: end; }
+.over { color: #c0322b; }
+@media (max-width: 900px) { .pair, .pair.three { grid-template-columns: minmax(0, 1fr); } }
 figure { margin: 0; min-width: 0; }
 figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
 figcaption { font-size: 13px; color: var(--mute); margin-top: 4px; }
@@ -110,6 +130,7 @@ figcaption { font-size: 13px; color: var(--mute); margin-top: 4px; }
 <h1>Frame and Today against the reference pictures</h1>
 <p class="intro">Each of the design's ${references.pictures.length} reference pictures (docs/specs/Chausar-App-Design.html) beside the fake-engine preview's drawing of the same screen at 1366 x 768, in the same theme, view and language. Generated by <code>frontend-validation/visual/page.mjs</code> on ${escape(captures.capturedAt.slice(0, 10))}; pictures are downscaled JPEG. The preview draws synthetic data from the fake engine, so names and amounts differ from the pictures by design; the notes list the layout differences. Status: <strong>frame-today</strong> is this lane's screen; <strong>other lane</strong> is drawn by another lane's place module; <strong>not built yet</strong> shows the design's not-built state; <strong>not drawable</strong> has no desktop-preview counterpart.</p>
 <nav aria-label="Pictures"><ul>${toc}</ul></nav>
+${ratioTable}
 ${sections.join('\n')}
 </main>
 </body>

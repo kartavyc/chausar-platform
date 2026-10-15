@@ -52,13 +52,27 @@ export function Target({ cx, cy }: { cx: number; cy: number }) {
 /** The missing values of a chart, in words. A gap is never a zero. */
 export function MissingList({ values }: { values: ReadonlyArray<ChartValue> }) {
   const t = useT();
-  const missing = values.filter((v) => !isFigure(v.value));
-  if (missing.length === 0) return null;
+  if (!values.some((v) => !isFigure(v.value))) return null;
+  /* Three or more missing values in a row with the same words read as one run ("Apr to
+     Sep: not sure"), so a chart with nothing known says so once, not once a month. */
+  const items: { key: string; text: string }[] = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    if (isFigure(v.value)) continue;
+    const kind = missingOf(v.value);
+    let end = i;
+    while (end + 1 < values.length && !isFigure(values[end + 1]!.value) && missingOf(values[end + 1]!.value) === kind) end++;
+    const words = t(MISSING_WORDS[kind]);
+    if (end - i >= 2) {
+      items.push({ key: v.id, text: t('CHART.missingRun', { from: v.label, to: values[end]!.label, words }) });
+      i = end;
+    } else items.push({ key: v.id, text: t('CHART.missing', { label: v.label, words }) });
+  }
   return (
     <p className={s.missing}>
-      {missing.map((v) => (
-        <span key={v.id} className={s.missingItem}>
-          {t('CHART.missing', { label: v.label, words: t(MISSING_WORDS[missingOf(v.value)]) })}
+      {items.map((item) => (
+        <span key={item.key} className={s.missingItem}>
+          {item.text}
         </span>
       ))}
     </p>

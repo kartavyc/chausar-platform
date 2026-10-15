@@ -31,6 +31,8 @@ export function auditInPage(input) {
     if (renderedCache.has(el)) return renderedCache.get(el);
     let result = true;
     if (!el.isConnected || el.getClientRects().length === 0) result = false;
+    // The content of a closed <details> keeps its boxes in Chromium (content-visibility: hidden) but is not shown.
+    else if ((el.checkVisibility && !el.checkVisibility()) || el.closest('details:not([open]) > :not(summary)')) result = false;
     else {
       const s = style(el);
       const rect = el.getBoundingClientRect();
@@ -232,10 +234,15 @@ export function auditInPage(input) {
   const sheet = document.querySelector('[data-region="sheet"]');
   const atRestText = page ? `${visibleText(page)} ${visibleText(status)}` : visibleText(document.body);
   const columnPx = parseFloat(style(root).getPropertyValue('--col'));
-  const wide = view === 'guided' && page !== null && page.getBoundingClientRect().width > columnPx + 1;
+  // A wide page (tables, the enterprise home) is what the frame says it is; a page that only
+  // fills a narrow window is not a wide page. Without the frame's mark, the column's width decides.
+  const frameEl = document.querySelector('[data-frame-wide]');
+  const wide = view === 'guided' && page !== null && (frameEl !== null ? frameEl.getAttribute('data-frame-wide') === 'true' : page.getBoundingClientRect().width > columnPx + 1);
   const limitName = view === 'guided' ? (wide ? 'wide' : 'guided') : view;
   const atRest = words(atRestText);
-  if (atRest > rules.words.limits[limitName]) add('words', page ?? document.body, `${atRest} words at rest; the ${limitName} limit is ${rules.words.limits[limitName]}.`);
+  // Under 1024 an open sheet fills the window: the page under it is not on screen, so it is not at rest.
+  const sheetCoversPage = sheet !== null && page !== null && rendered(sheet) && (() => { const sr = sheet.getBoundingClientRect(), pr = page.getBoundingClientRect(); return sr.left <= pr.left + 1 && sr.right >= pr.right - 1 && sr.top <= pr.top + 1 && sr.bottom >= pr.bottom - 1; })();
+  if (atRest > rules.words.limits[limitName] && !sheetCoversPage) add('words', page ?? document.body, `${atRest} words at rest; the ${limitName} limit is ${rules.words.limits[limitName]}.`);
   const sheetWords = sheet ? words(visibleText(sheet)) : 0;
   if (sheet && sheetWords > rules.words.limits.sheet) add('words-sheet', sheet, `${sheetWords} words in the open sheet; the limit is ${rules.words.limits.sheet}.`);
 
@@ -273,6 +280,88 @@ export function auditInPage(input) {
     if (timing && (timing.iterations === Infinity || timing.iterations > 1)) add('animation-repeats', animation.effect?.target ?? null, `A running animation repeats ${timing.iterations} times.`);
   }
 
+  /* ---------------------------------------------------------------- layout at this window width */
+  const layout = policy.rules.layout;
+  if (layout) {
+    const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    const tol = layout.tolerancePx;
+    const scrollsX = s => ['auto', 'scroll'].includes(s.overflowX);
+    const clipsX = s => ['hidden', 'clip'].includes(s.overflowX);
+    const sheetEl = document.querySelector('[data-region="sheet"]');
+    const pageEl = document.querySelector('[data-region="page"]');
+    const railEl = document.querySelector('nav[data-region="rail"]');
+    // The window, and the page's own column, never scroll sideways.
+    const scroller = document.scrollingElement ?? document.documentElement;
+    if (scroller.scrollWidth > vw + tol) add('page-scroll-x', null, `The window scrolls sideways: ${scroller.scrollWidth}px of content in ${vw}px.`);
+    for (const region of [pageEl, sheetEl]) {
+      if (region && rendered(region) && scrollsX(style(region)) && region.scrollWidth > region.clientWidth + tol) add('page-scroll-x', region, `The ${region.getAttribute('data-region')} scrolls sideways: ${region.scrollWidth}px of content in ${region.clientWidth}px.`);
+    }
+    // Nothing reaches past the window unless a box of its own (inside the page or the sheet) scrolls or clips it.
+    const flagged = new Set();
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') continue;
+      if (!rendered(el)) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.right <= vw + tol && rect.left >= -tol) continue;
+      const s = style(el);
+      // An off-screen technique (moved wholly out of the window on purpose) is not an overflow.
+      if ((s.position === 'absolute' || s.position === 'fixed') && (rect.right <= 0 || rect.left >= vw)) continue;
+      let excused = false;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        const as = style(a);
+        if (a === pageEl || a === sheetEl) break;
+        if (scrollsX(as) || clipsX(as)) { const ar = a.getBoundingClientRect(); if (ar.right <= vw + tol && ar.left >= -tol) { excused = true; break; } }
+      }
+      if (excused) continue;
+      if (el.parentElement && flagged.has(el.parentElement)) { flagged.add(el); continue; }
+      flagged.add(el);
+      add('overflow-viewport', el, `Spans ${rect.left.toFixed(0)}-${rect.right.toFixed(0)}px in a ${vw}px window.`);
+    }
+    // The rail: a column at the left from 1024, a bar across the top under it.
+    if (railEl && rendered(railEl)) {
+      const r = railEl.getBoundingClientRect();
+      if (vw < layout.mediumFromPx) {
+        if (r.width < vw - tol || r.left > tol || r.top > vh / 2 || r.height > layout.topBarMaxPx) add('rail-layout', railEl, `Under ${layout.mediumFromPx} the rail is a bar across the top; it is ${r.width.toFixed(0)}x${r.height.toFixed(0)}px at ${r.left.toFixed(0)},${r.top.toFixed(0)}.`);
+      } else {
+        const expected = vw >= layout.asDrawnFromPx ? layout.railPx.asDrawn : layout.railPx.medium;
+        if (Math.abs(r.width - expected) > tol || r.left > tol || r.height < r.width) add('rail-layout', railEl, `At ${vw} the rail is a column ${expected}px wide at the left; it is ${r.width.toFixed(0)}x${r.height.toFixed(0)}px at ${r.left.toFixed(0)},${r.top.toFixed(0)}.`);
+      }
+    }
+    // The sheet: beside the page as drawn, over the list in the medium window, the whole window when narrow.
+    if (sheetEl && rendered(sheetEl) && pageEl && railEl) {
+      const sr = sheetEl.getBoundingClientRect(), pr = pageEl.getBoundingClientRect();
+      if (vw < layout.mediumFromPx) {
+        if (sr.left > tol || sr.top > tol || sr.width < vw - tol || sr.height < vh - tol) add('sheet-layout', sheetEl, `Under ${layout.mediumFromPx} the sheet fills the window; it is ${sr.width.toFixed(0)}x${sr.height.toFixed(0)}px at ${sr.left.toFixed(0)},${sr.top.toFixed(0)}.`);
+      } else if (vw < layout.asDrawnFromPx) {
+        if (sr.right < vw - tol || sr.left >= pr.right - tol) add('sheet-layout', sheetEl, `From ${layout.mediumFromPx} to ${layout.asDrawnFromPx - 1} the sheet covers the list; it spans ${sr.left.toFixed(0)}-${sr.right.toFixed(0)}px and the page ${pr.left.toFixed(0)}-${pr.right.toFixed(0)}px.`);
+      } else if (sr.left < pr.right - tol || Math.abs(sr.width - layout.sheetPx) > tol) add('sheet-layout', sheetEl, `From ${layout.asDrawnFromPx} the sheet sits beside the page, ${layout.sheetPx}px wide; it spans ${sr.left.toFixed(0)}-${sr.right.toFixed(0)}px and the page ends at ${pr.right.toFixed(0)}px.`);
+    }
+    // Under 1024 charts stack: no two side by side.
+    if (vw < layout.mediumFromPx && pageEl) {
+      const charts = [...pageEl.querySelectorAll('[data-stat], svg[role="img"]')]
+        .filter(el => rendered(el) && !(el.tagName.toLowerCase() === 'svg' && el.closest('[data-stat]')) && !el.closest('table'))
+        .map(el => ({ el, rect: el.getBoundingClientRect() })).filter(({ rect }) => rect.width >= 80);
+      for (let i = 0; i < charts.length; i++) {
+        for (let j = 0; j < i; j++) {
+          const a = charts[i].rect, b = charts[j].rect;
+          const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (overlapY > Math.min(a.height, b.height) / 2 && (a.left >= b.right - tol || b.left >= a.right - tol)) { add('charts-stack', charts[i].el, `Beside another chart at ${vw}px (${b.left.toFixed(0)}-${b.right.toFixed(0)} and ${a.left.toFixed(0)}-${a.right.toFixed(0)}px).`); break; }
+        }
+      }
+    }
+    // A table wider than the page scrolls inside its own box.
+    for (const table of document.querySelectorAll('[data-region="page"] table, [data-region="sheet"] table')) {
+      if (!rendered(table)) continue;
+      const region = table.closest('[data-region]');
+      let box = null;
+      for (let a = table.parentElement; a && a !== region; a = a.parentElement) if (scrollsX(style(a))) { box = a; break; }
+      if (box) continue;
+      const tr = table.getBoundingClientRect(), rr = region.getBoundingClientRect();
+      const inner = rr.left + region.clientLeft + region.clientWidth - parseFloat(style(region).paddingRight || '0');
+      if (tr.right > inner + tol || table.scrollWidth > table.clientWidth + tol) add('table-scroll', table, `The table needs ${tr.width.toFixed(0)}px, past the ${region.getAttribute('data-region')}'s edge at ${inner.toFixed(0)}px, and has no scrolling box of its own.`);
+    }
+  }
+
   /* ---------------------------------------------------------------- state */
   const mainText = page ? visibleText(page) : visibleText(document.body);
   return {
@@ -280,6 +369,7 @@ export function auditInPage(input) {
     notBuilt: notBuiltTexts.some(text => mainText.includes(text)),
     sheetOpen: sheet !== null, sheetExpected: !!sheetExpected,
     words: { atRest, limit: limitName, sheet: sheetWords },
+    atRestText,
     theme, title: (document.querySelector('[data-region="page"] h1, main h1, h1')?.textContent ?? '').trim().slice(0, 60),
   };
 }

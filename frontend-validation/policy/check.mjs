@@ -1,10 +1,14 @@
 // UI policy checker. Builds the fake-engine preview, opens it in Chromium and walks every place
 // and sub-place address (from app/places.ts through the preview), first run and the lock screen,
-// in both themes x three views x two languages, applying app/ui/ui-policy.json in the page.
+// in both themes x three views x two languages, applying app/ui/ui-policy.json in the page; then
+// every place at rest, Today with its receipt, first run and the lock screen at each window width in
+// policy.viewports.widths (1315 down to 360), with the layout rules (no sideways scroll, nothing past
+// the window, the rail a bar under 1024, the sheet over the list or the whole window, charts stacked,
+// wide tables scrolling in their own box).
 //
 //   node frontend-validation/policy/check.mjs [--allow-not-built] [--no-build] [--quick]
 //        [--views=guided,simple,books] [--langs=en,hi] [--themes=light,dark] [--only=<regex>] [--out=<file>]
-//        [--no-axe] [--axe-fail=serious|critical|moderate|minor|none]
+//        [--no-axe] [--axe-fail=serious|critical|moderate|minor|none] [--widths=1366,1023,360] [--no-widths] [--widths-only]
 //
 // Every audited state at 1366 x 768 is also run through axe-core (WCAG 2.0/2.1/2.2 A and AA tags).
 // Writes frontend-validation/dist/policy-report.json. Exits 1 on any violation, on any axe
@@ -82,10 +86,12 @@ async function audit(page, meta) {
 async function go(page, address) {
   await page.evaluate(hash => { window.location.hash = hash; }, address);
   await settle(page);
+  // At rest is the top of the page: a scroll left by an earlier state (a receipt opened lower down) is undone.
+  await page.evaluate(() => { document.querySelector('[data-region="page"]')?.scrollTo(0, 0); window.scrollTo(0, 0); });
 }
 
-const viewportFull = policy.viewports.full, viewportMedium = policy.viewports.medium;
-for (const view of views) {
+const viewportFull = policy.viewports.full;
+for (const view of args.has('widths-only') ? [] : views) {
   for (const language of languages) {
     // The populated workspace: every place and sub-place, both themes.
     const { page, context, errors } = await openPage({ scenario: 'populated', view, language, theme: themes[0], viewport: viewportFull });
@@ -124,14 +130,58 @@ for (const view of views) {
     }
   }
 }
-// The 1024 x 768 subset: every place at rest and Today, English, both themes.
-for (const view of views) {
-  for (const theme of themes) {
-    const { page, context } = await openPage({ scenario: 'populated', view, language: 'en', theme, viewport: viewportMedium });
-    const addresses = (await page.evaluate(() => window.__chausarPreview.addresses)).filter(item => !item.address.slice(2).includes('/') || item.address === '#/today/today').filter(item => !only || only.test(item.address));
-    log(`medium ${view} en ${theme}: ${addresses.length} addresses`);
-    for (const { address, handledBy } of addresses) { await go(page, address); await audit(page, { scenario: 'populated', view, language: 'en', theme, viewport: '1024x768', address, handledBy }); }
-    await context.close();
+// Every narrower window width (design part 4): every place at rest, Today with its receipt open,
+// first run, the lock screen, the empty workspace and the viewer seat, both themes x three views x
+// two languages. The window is resized in place; the frame follows its own media queries.
+const widths = list('widths', (quick ? [1200, 1023, 360] : policy.viewports.widths).map(String)).map(Number).filter(width => width !== viewportFull.width || args.has('widths'));
+const sized = width => ({ width, height: policy.viewports.height });
+const atRest = item => !item.address.slice(2).includes('/') || item.address === '#/today/today';
+if (widths.length && !args.has('no-widths')) {
+  for (const view of views) {
+    for (const language of languages) {
+      const { page, context, errors } = await openPage({ scenario: 'populated', view, language, theme: themes[0], viewport: sized(widths[0]) });
+      const addresses = (await page.evaluate(() => window.__chausarPreview.addresses)).filter(atRest).filter(item => !only || only.test(item.address));
+      for (const theme of themes) {
+        await page.evaluate(next => window.__chausarPreview.setTheme(next), theme);
+        log(`widths ${view} ${language} ${theme}: ${addresses.length} addresses x ${widths.length} widths`);
+        for (const width of widths) {
+          await page.setViewportSize(sized(width));
+          for (const { address, handledBy } of addresses) {
+            await go(page, address);
+            const meta = { scenario: 'populated', view, language, theme, viewport: `${width}x${policy.viewports.height}`, address, handledBy };
+            await audit(page, meta);
+            if (address === '#/today/today' || (address === '#/today' && !addresses.some(item => item.address === '#/today/today'))) {
+              const figure = page.locator('[data-region="page"] button.fig').first();
+              if (await figure.count()) {
+                await figure.scrollIntoViewIfNeeded().catch(() => null);
+                await figure.click();
+                await page.waitForSelector('[data-region="sheet"]', { timeout: 3000 }).catch(() => null);
+                await settle(page);
+                await audit(page, { ...meta, address: `${address}?sheet=receipt`, handledBy: 'today', sheet: true });
+                await page.keyboard.press('Escape');
+                await settle(page);
+              }
+            }
+          }
+        }
+      }
+      states.push(...errors.map(message => ({ scenario: 'populated', view, language, theme: 'any', viewport: 'widths', address: '(page)', findings: [{ rule: 'page-error', element: null, detail: message }], warnings: [] })));
+      await context.close();
+      for (const scenario of ['first-run', 'locked', 'empty', 'read-only']) {
+        if (only && !only.test(scenario)) continue;
+        for (const theme of themes) {
+          const opened = await openPage({ scenario, view, language, theme, viewport: sized(widths[0]) });
+          for (const width of widths) {
+            await opened.page.setViewportSize(sized(width));
+            await settle(opened.page);
+            const address = await opened.page.evaluate(() => location.hash || '#/');
+            await audit(opened.page, { scenario, view, language, theme, viewport: `${width}x${policy.viewports.height}`, address, handledBy: scenario });
+          }
+          await opened.context.close();
+        }
+        log(`widths ${scenario} ${view} ${language}`);
+      }
+    }
   }
 }
 await browser.close();
@@ -145,6 +195,8 @@ const count = (items, key) => Object.fromEntries(Object.entries(items.reduce((ac
 const byRule = count(violations, item => item.rule);
 const byRuleAndPlace = {};
 for (const item of violations) { (byRuleAndPlace[item.rule] ??= {}); byRuleAndPlace[item.rule][item.place] = (byRuleAndPlace[item.rule][item.place] ?? 0) + 1; }
+const byRuleAndWidth = {};
+for (const item of violations) { (byRuleAndWidth[item.rule] ??= {}); byRuleAndWidth[item.rule][item.viewport] = (byRuleAndWidth[item.rule][item.viewport] ?? 0) + 1; }
 const distinct = {};
 for (const item of violations) {
   const key = `${item.rule}|${item.element}|${item.detail.replace(/\d+(\.\d+)?/g, '#')}`;
@@ -179,17 +231,19 @@ const axeReport = axeOn ? {
 } : { skipped: true };
 const report = {
   generatedAt: new Date().toISOString(), policy: 'app/ui/ui-policy.json', durationSeconds: Math.round((performance.now() - started) / 1000),
-  matrix: { views, languages, themes, viewports: ['1366x768', '1024x768 (places at rest, English)'], scenarios: ['populated', 'first-run', 'locked', 'empty', 'read-only'] },
-  states: states.length, violations: violations.length, byRule, byRuleAndPlace, warnings, axe: axeReport,
+  matrix: { views, languages, themes, viewports: ['1366x768 (every place and sub-place, axe)', ...widths.map(width => `${width}x${policy.viewports.height} (places at rest, Today with its receipt, first run, lock, empty, viewer)`)], scenarios: ['populated', 'first-run', 'locked', 'empty', 'read-only'] },
+  states: states.length, violations: violations.length, byRule, byRuleAndPlace, byRuleAndWidth, warnings, axe: axeReport,
   notBuilt: { allowed: args.has('allow-not-built'), places: notBuilt },
   distinct: distinctList.slice(0, 400),
-  words: states.map(state => ({ scenario: state.scenario, view: state.view, language: state.language, theme: state.theme, viewport: state.viewport, address: state.address, ...(state.words ?? {}) })).filter(item => item.theme === 'light' && item.viewport === '1366x768'),
+  words: states.map(state => ({ scenario: state.scenario, view: state.view, language: state.language, theme: state.theme, viewport: state.viewport, address: state.address, ...(state.words ?? {}) })).filter(item => item.theme === 'light' && (item.viewport === '1366x768' || item.viewport === '360x768')),
+  // Every page over its word limit, with the words counted, so a person can see what to cut.
+  wordsOver: states.filter(state => state.findings?.some(finding => finding.rule === 'words')).map(state => ({ scenario: state.scenario, view: state.view, language: state.language, theme: state.theme, viewport: state.viewport, address: state.address, ...(state.words ?? {}), text: state.atRestText })),
   samples: violations.slice(0, 2000),
 };
 mkdirSync(dirname(reportPath), { recursive: true });
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 log(`${states.length} states, ${violations.length} violations, ${distinctList.length} distinct. Report: ${reportPath}`);
-for (const [rule, total] of Object.entries(byRule)) log(`  ${rule}: ${total} (${Object.keys(byRuleAndPlace[rule]).length} places)`);
+for (const [rule, total] of Object.entries(byRule)) log(`  ${rule}: ${total} (${Object.keys(byRuleAndPlace[rule]).length} places; by width ${Object.entries(byRuleAndWidth[rule]).map(([width, n]) => `${width.replace(/x\d+$/, '')} ${n}`).join(', ')})`);
 if (axeOn) {
   log(`axe ${axeVersion}: ${axeStates.length} states, ${axeViolations.length} violations (${axeFailures.length} at ${axeFailing.join('/') || 'no failing impact'}), ${axeIncomplete.length} for a person to check`);
   for (const [rule, entry] of Object.entries(axeReport.byRule)) log(`  axe ${rule} [${entry.impact}]: ${entry.total} (${Object.entries(entry.places).map(([place, total]) => `${place} ${total}`).join(', ')})`);

@@ -11,6 +11,7 @@ import { RowList } from '../../parts/RowList';
 import { Stat } from '../../parts/Stat';
 import { DayLine } from '../../parts/DayLine';
 import { MissingWords } from '../../parts/Figure';
+import { State } from '../../patterns/States';
 import { Square } from '../../parts/Square';
 import type { Mark } from '../../app/presentation.ts';
 import { CLOSING_PARTS, type ClosingPart, type ClosingPartState } from '../../bridge/todayx-contract.ts';
@@ -32,6 +33,20 @@ const UPDATE_ROW = 'system:update';
 /** The rows the screen adds for setup and updates. Their words are UI text. A row offers
  *  its action only when the engine offered it and the adapter supplied the callback; with
  *  either one missing the row still says what is true and shows no button. */
+/** Today's state line. A partial scope's note (why the whole count is not known) folds under
+ *  its missing words, one press away, so the rows stay within the words at rest. */
+export function TodayState({ state }: { state: TodayData['state'] }) {
+  if (state.kind !== 'partial' || state.detail === undefined) return <State state={state} />;
+  return (
+    <details className={s.scopeNote}>
+      <summary>
+        <MissingWords missing={state.missing} />
+      </summary>
+      <p className={s.scopeDetail}>{state.detail}</p>
+    </details>
+  );
+}
+
 export function useSystemRows(data: TodayData, intents: TodayIntents): ReadonlyArray<RowItem> {
   const t = useT();
   const rows: RowItem[] = [];

@@ -17,7 +17,7 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
-import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayReviewLink, TodayProducerSections, type TodayScreenProps } from './shared';
+import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayReviewLink, TodayProducerSections, type TodayScreenProps, TodayState } from './shared';
 import { CashVoice } from './CashVoice';
 import { cashWeek } from './cash.ts';
 import s from './Today.module.css';
@@ -53,7 +53,7 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
     <div className={s.today}>
       <div className={s.lead}>
       <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} aside={<TodayReviewLink data={data} intents={intents} />} />
-      <State state={data.state} />
+      <TodayState state={data.state} />
 
       {rows.length === 0 && data.state.kind === 'ready' ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
