@@ -127,3 +127,28 @@ test('round 4 review: a model may only propose a reminder; preview refusals are 
   await ui('jobsx.missed.seen', { ids: notes.map((n: any) => n.id) });
   assert.ok((await ui('jobsx.missed')).filter((n: any) => n.jobId === brief.id).every((n: any) => n.seen === true));
 });
+
+test('jobsx.setWake goes through release’s native.wake.*, passing its refusals through; jobsx.background shows the planned wake', async () => {
+  const { jobsMethods } = await import('../runtime/jobs-ext/methods.ts');
+  const status = { platform: 'linux', mechanism: 'linux-systemd-user-timer', available: true, nextWakeAt: '2026-10-20T06:00:00Z', experimental: true };
+  const calls: { method: string; payload: any }[] = [];
+  const fakeRelease = (behaviour: (method: string, payload: any) => unknown): any => ({ demo: true, options: {}, services: { jobs: { list: () => [] } }, store: { read: () => ({ extensions: {} }) },
+    call: async (method: string, payload: any) => { calls.push({ method, payload }); return behaviour(method, payload); } });
+  const ok = fakeRelease(method => method.startsWith('native.wake.') ? status : null);
+  assert.deepEqual(await jobsMethods['jobsx.setWake'].handler(owner, { at: '2026-10-20T11:30:00+05:30', confirmed: true }, ok),
+    { available: true, mechanism: 'linux-systemd-user-timer', nextWakeAt: '2026-10-20T06:00:00Z', experimental: true });
+  assert.deepEqual(calls.at(-1), { method: 'native.wake.set', payload: { at: '2026-10-20T11:30:00+05:30', confirmed: true } });
+  await jobsMethods['jobsx.setWake'].handler(owner, { clear: true, confirmed: true }, ok);
+  assert.deepEqual(calls.at(-1), { method: 'native.wake.clear', payload: { confirmed: true } });
+  for (const code of ['CONFIRMATION_REQUIRED', 'WAKE_TIME_PAST', 'WAKE_TIME_TOO_FAR', 'WAKE_TIMER_NEEDS_ADMIN', 'WAKE_TIMER_COMMAND_FAILED']) {
+    const refusing = fakeRelease(() => { throw Object.assign(new Error('x'), { code }); });
+    await assert.rejects(Promise.resolve(jobsMethods['jobsx.setWake'].handler(owner, { at: '2026-10-20T06:00:00Z', confirmed: false }, refusing)), { code });
+  }
+  const absent = fakeRelease(() => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); });
+  await assert.rejects(Promise.resolve(jobsMethods['jobsx.setWake'].handler(owner, { at: '2026-10-20T06:00:00Z', confirmed: true }, absent)), { code: 'WAKE_TIMER_UNAVAILABLE' });
+  await assert.rejects(Promise.resolve(jobsMethods['jobsx.setWake'].handler({ ...owner, sourceTainted: true }, { at: '2026-10-20T06:00:00Z', confirmed: true }, ok)), { code: 'APP_APPROVAL_REQUIRED' });
+  const background = await jobsMethods['jobsx.background'].handler(owner, {}, { ...ok, call: async (method: string) => method === 'jobs.types' ? { lifecycle: null } : status }) as any;
+  assert.equal(background.wake.nextWakeAt, '2026-10-20T06:00:00Z'); assert.equal(background.wake.available, true);
+  const backgroundAbsent = await jobsMethods['jobsx.background'].handler(owner, {}, absent) as any;
+  assert.deepEqual(backgroundAbsent.wake, { available: false, code: 'WAKE_TIMER_UNAVAILABLE', nextWakeAt: null, experimental: true });
+});
