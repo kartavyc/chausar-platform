@@ -12,7 +12,7 @@
  * program is not something to learn on a person's books.
  */
 import { check } from '../contracts.ts';
-import { parseChord, type Chord } from './driver.ts';
+import { isActivating, parseChord, type Chord } from './driver.ts';
 
 export type PlanStep =
   | { readonly kind: 'focus'; readonly say: string }
@@ -67,6 +67,8 @@ export function definePlan(input: Record<string, any>): Plan {
   const typed = steps.filter(step => step.kind === 'type-file-name').length, waited = steps.filter(step => step.kind === 'wait-file').length;
   check(produces === 'png' ? steps.some(step => step.kind === 'snapshot') && typed === 0 && waited === 0 : typed === 1 && waited === 1 && steps.findIndex(s => s.kind === 'type-file-name') < steps.findIndex(s => s.kind === 'wait-file'),
     'DRIVING_PLAN_INVALID', 'A file plan types its name once and then waits for that file; a picture plan only takes pictures.');
+  check(steps.every((step, i) => step.kind !== 'keys' || !isActivating(step.chord) || ['type-file-name', 'wait-title'].includes(steps[i - 1]?.kind)),
+    'DRIVING_PLAN_INVALID', 'Enter and Space only follow typing the export name or waiting for a named screen.');
   check(steps[0].kind === 'focus', 'DRIVING_PLAN_INVALID', 'A plan starts by focusing its window.');
   const folders = input.folders ?? [];
   check(Array.isArray(folders) && folders.length <= 8 && folders.every((f: unknown) => typeof f === 'string' && f.length <= 300 && (f.startsWith('/') || /^[A-Za-z]:\\/.test(f))), 'DRIVING_PLAN_INVALID', 'Plan folders are absolute paths.');

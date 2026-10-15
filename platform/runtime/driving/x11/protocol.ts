@@ -63,6 +63,8 @@ type Pending = { resolve(b: Buffer): void; reject(e: Error): void; timer: NodeJS
 export class X11Client {
   setup!: Setup;
   onEvent: (event: XEvent) => void = () => {};
+  /** Told once when the connection ends for any reason. */
+  onClose: () => void = () => {};
   readonly #timeoutMs: number;
   #socket: Socket | null = null; #buf: Buffer = Buffer.alloc(0); #seq = 0; #nextId = 0; #closed = false;
   #pending = new Map<number, Pending>(); #errors = new Map<number, XError | null>();
@@ -154,6 +156,7 @@ export class X11Client {
     for (const p of this.#pending.values()) { clearTimeout(p.timer); p.reject(error); }
     this.#pending.clear();
     this.#socket?.destroy();
+    try { this.onClose(); } catch { /* a listener's fault stays there */ }
   }
   get closed() { return this.#closed; }
   close() { this.#shutdown(new ChausarError('DRIVER_FAILED', 'The display connection closed.')); }

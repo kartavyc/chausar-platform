@@ -29,9 +29,10 @@ const STRIP_WIDTH = 560;
 const STRIP_HEIGHT = 40;
 const ATTACH_INTERVAL_MS = 500;
 const LINK_DEDUPE_MS = 300;
+const STOP_KEYS = Object.freeze(['Ctrl Alt Pause', 'Control Option F15']);
 const STRIP_TEXT = Object.freeze({
   driving: { text: 'Chausar is driving. Ctrl Alt Pause to stop.', links: [['Stop', STOP_URL]] },
-  'paused-by-you': { text: 'You moved the mouse. Paused.', links: [['Continue', CONTINUE_URL], ['Stop', STOP_URL]] },
+  'paused-by-you': { text: 'Chausar paused. Continue or Stop.', links: [['Continue', CONTINUE_URL], ['Stop', STOP_URL]] },
   'sign-in': { text: 'Sign in yourself. Chausar continues after.', links: [['Stop', STOP_URL]] },
 });
 
@@ -41,15 +42,20 @@ function drivingStatus(message) {
   const prototype = Object.getPrototypeOf(message);
   if (prototype !== Object.prototype && prototype !== null) return null;
   const keys = Reflect.ownKeys(message);
-  if (keys.length !== 3 || !['kind', 'state', 'active'].every(key => keys.includes(key))) return null;
+  const named = ['kind', 'state', 'active', 'stopKey'];
+  if (keys.length < 3 || keys.length > 4 || !['kind', 'state', 'active'].every(key => keys.includes(key)) || !keys.every(key => named.includes(key))) return null;
   const { kind, state, active } = message;
   if (kind !== 'driving-status' || typeof state !== 'string' || !STATES.includes(state) || typeof active !== 'boolean') return null;
   if (active !== ACTIVE_STATES.includes(state)) return null;
-  return { state, active };
+  const stopKey = keys.includes('stopKey') ? message.stopKey : 'Ctrl Alt Pause';
+  if (!STOP_KEYS.includes(stopKey)) return null;
+  return { state, active, stopKey };
 }
 
-function stripHtml(state) {
-  const { text, links } = STRIP_TEXT[state];
+function stripHtml(state, stopKey = 'Ctrl Alt Pause') {
+  const { links } = STRIP_TEXT[state];
+  // The stop key comes from a fixed list, never from the message as free text.
+  const text = state === 'driving' ? `Chausar is driving. ${STOP_KEYS.includes(stopKey) ? stopKey : 'Ctrl Alt Pause'} to stop.` : STRIP_TEXT[state].text;
   const anchors = links.map(([label, href]) => `<a href="${href}">${label}</a>`).join('');
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
     + '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'
@@ -61,23 +67,29 @@ function stripHtml(state) {
     + '</style></head><body><main role="status"><p>' + text + '</p>' + anchors + '</main></body></html>';
 }
 
-function stripUrl(state) { return `data:text/html;charset=utf-8,${encodeURIComponent(stripHtml(state))}`; }
+function stripUrl(state, stopKey) { return `data:text/html;charset=utf-8,${encodeURIComponent(stripHtml(state, stopKey))}`; }
 
 function registerDriving({ getEngine, demo, electron = require('electron'), setInterval: every = setInterval, clearInterval: stopEvery = clearInterval, iconPath = join(__dirname, 'icon.png'), now = Date.now }) {
   // Outside an Electron main process (plain Node, where require('electron') is the binary's path) there
   // is nothing to show and no worker to switch on: stay inert.
   if (!electron || typeof electron !== 'object' || !electron.app || typeof electron.app.on !== 'function') {
-    return { drivingMenuItems: () => [], state: () => ({ state: 'idle', active: false }), dispose() {} };
+    return { drivingMenuItems: () => [], state: () => ({ state: 'idle', active: false, stopKey: 'Ctrl Alt Pause' }), dispose() {} };
   }
   const { app, BrowserWindow, Tray, Menu, nativeImage, screen, session } = electron;
   if (!demo) process.env.CHAUSAR_DESKTOP_DRIVER = '1'; else delete process.env.CHAUSAR_DESKTOP_DRIVER; // demo never drives, whatever the shell set
   const attached = new WeakSet();
-  let current = { state: 'idle', active: false };
+  let current = { state: 'idle', active: false, stopKey: 'Ctrl Alt Pause' };
   let strip = null; let stripState = null; let tray = null; let partitionReady = false; let quitting = false; let disposed = false;
 
   function call(method) {
     let engine;
     try { engine = getEngine(); } catch { engine = undefined; }
+    // Straight to the session over the worker channel: a busy or closing engine cannot refuse Stop.
+    const action = method === 'session.stop' ? 'stop' : method === 'session.resume' ? 'resume' : null;
+    try {
+      const worker = engine?.worker;
+      if (action && worker?.connected && typeof worker.send === 'function') { worker.send({ kind: 'driving-control', action }, () => {}); return Promise.resolve(); }
+    } catch { /* fall back to the request below */ }
     if (!engine || typeof engine.request !== 'function') { console.error(`Chausar driving: ${method} failed; code=ENGINE_UNAVAILABLE`); return Promise.resolve(); }
     let pending;
     try { pending = Promise.resolve(engine.request(method, {})); } catch (error) { pending = Promise.reject(error); }
@@ -150,7 +162,7 @@ function registerDriving({ getEngine, demo, electron = require('electron'), setI
     }
     if (stripState !== state) {
       stripState = state;
-      void Promise.resolve(strip.loadURL(stripUrl(state))).catch(error => console.error(`Chausar driving: strip failed; code=${publicError(error).code}`));
+      void Promise.resolve(strip.loadURL(stripUrl(state, current.stopKey))).catch(error => console.error(`Chausar driving: strip failed; code=${publicError(error).code}`));
     }
     if (!strip.isVisible?.()) strip.showInactive();
   }

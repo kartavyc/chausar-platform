@@ -105,7 +105,7 @@ test('the driver switch is set for real workspaces and never set in demo', t => 
 test('outside Electron (plain Node) registration is inert', () => {
   const handle = driving.registerDriving({ getEngine: () => undefined, demo: true, electron: '/path/to/electron' });
   assert.deepEqual(handle.drivingMenuItems(), []);
-  assert.deepEqual(handle.state(), { state: 'idle', active: false });
+  assert.deepEqual(handle.state(), { state: 'idle', active: false, stopKey: 'Ctrl Alt Pause' });
 });
 
 test('an active session shows one top-centre, unfocusable, always-on-top strip with the driving text', async t => {
@@ -132,7 +132,7 @@ test('an active session shows one top-centre, unfocusable, always-on-top strip w
   assert.match(page, /Chausar is driving\. Ctrl Alt Pause to stop\./);
   assert.match(page, /<a href="chausar-driving:stop">Stop<\/a>/);
   assert.doesNotMatch(page, /chausar-driving:continue|<script/);
-  assert.deepEqual(s.handle.state(), { state: 'driving', active: true });
+  assert.deepEqual(s.handle.state(), { state: 'driving', active: true, stopKey: 'Ctrl Alt Pause' });
 });
 
 test('paused shows Continue and Stop in the same strip; sign-in shows Stop only', async t => {
@@ -141,7 +141,7 @@ test('paused shows Continue and Stop in the same strip; sign-in shows Stop only'
   s.send({ kind: 'driving-status', state: 'paused-by-you', active: true });
   assert.equal(s.windows.length, 1);
   const page = html(s.windows[0].urls[1]);
-  assert.match(page, /You moved the mouse\. Paused\./);
+  assert.match(page, /Chausar paused\. Continue or Stop\./);
   assert.match(page, /<a href="chausar-driving:continue">Continue<\/a><a href="chausar-driving:stop">Stop<\/a>/);
   s.send({ kind: 'driving-status', state: 'paused-by-you', active: true });
   assert.equal(s.windows[0].urls.length, 2, 'the same state does not reload the strip');
@@ -172,6 +172,8 @@ test('invalid status messages are ignored', async t => {
   const invalid: unknown[] = [
     null, 'driving', 1, [], ['driving-status', 'driving', true],
     { kind: 'driving-status', state: 'driving', active: true, extra: 1 },
+    { kind: 'driving-status', state: 'driving', active: true, stopKey: '<b>Esc</b>' },
+    { kind: 'driving-status', state: 'driving', active: true, stopKey: 'Ctrl Alt Pause', extra: 1 },
     { kind: 'driving-status', state: 'driving' },
     { kind: 'status', state: 'driving', active: true },
     { kind: 'driving-status', state: 'flying', active: true },
@@ -185,7 +187,7 @@ test('invalid status messages are ignored', async t => {
   for (const message of invalid) { s.send(message); assert.equal(driving.drivingStatus(message), null); }
   assert.equal(s.windows.length, 0);
   assert.equal(s.trays.length, 0);
-  assert.deepEqual(s.handle.state(), { state: 'idle', active: false });
+  assert.deepEqual(s.handle.state(), { state: 'idle', active: false, stopKey: 'Ctrl Alt Pause' });
   s.send({ kind: 'driving-status', state: 'driving', active: true });
   s.send({ kind: 'driving-status', state: 'idle', active: true });
   assert.equal(s.windows[0].closed, false, 'an inconsistent message does not end the session');
@@ -391,4 +393,20 @@ test('Electron smoke: the strip is on top and its Stop and Continue links reach 
   assert.deepEqual([...new Set(result.afterPaused.slice(1))].sort(), ['session.resume', 'session.stop']);
   assert.equal(result.stillOnPage, true);
   assert.equal(result.closed, true);
+});
+
+test('the strip names the stop key of this system, and Stop goes straight to the worker channel', async () => {
+  const s = setup();
+  const sent: unknown[] = [];
+  (s.engine.worker as any).connected = true;
+  (s.engine.worker as any).send = (message: unknown, done?: () => void) => { sent.push(message); done?.(); return true; };
+  for (const tick of s.ticks) tick();
+  s.send({ kind: 'driving-status', state: 'driving', active: true, stopKey: 'Control Option F15' });
+  const strip = s.windows.at(-1)!;
+  assert.match(html(strip.urls.at(-1)!), /Chausar is driving\. Control Option F15 to stop\./);
+  s.handle.drivingMenuItems()[0].click();
+  await flush();
+  assert.deepEqual(sent, [{ kind: 'driving-control', action: 'stop' }]);
+  assert.deepEqual(s.engine.calls, [], 'a busy engine is never asked');
+  s.restore();
 });

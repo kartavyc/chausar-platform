@@ -199,6 +199,7 @@ function run() {
 /** Accessibility on macOS through one osascript (JXA) helper. */
 export class MacAxDriver extends HelperDriver {
   readonly platform = 'macos-ax' as const;
+  readonly stopKey = 'Control Option F15';
   constructor(options: HelperDriverOptions = {}) {
     super(options, { command: '/usr/bin/osascript', args: path => ['-l', 'JavaScript', path], scriptName: 'chausar-helper.js', script: MACOS_HELPER_SCRIPT });
   }

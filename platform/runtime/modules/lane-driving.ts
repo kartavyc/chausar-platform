@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { audit, check, type Context, type State } from '../contracts.ts';
 import { BUILT_IN_PLANS, describePlan, planFor, type Plan } from '../driving/plans.ts';
 import { selectDriver } from '../driving/select.ts';
-import { DrivingController, EXPORT_NAME, STOP_KEY, type DrivingState, type SessionRecord } from '../driving/session.ts';
+import { DrivingController, EXPORT_NAME, type DrivingState, type SessionRecord } from '../driving/session.ts';
 import { moduleState, peekModuleState, type EngineModule, type ModuleHost } from './types.ts';
 
 /**
@@ -74,10 +74,10 @@ async function record(host: ModuleHost, workspaceId: string): Promise<void> {
   await controller(host).sweep(workspaceId, sessionId => kept.has(sessionId) || pending.some(record => record.id === sessionId)).catch(() => 0);
 }
 
-function publicStatus(record: SessionRecord | null) {
-  if (!record) return { state: 'idle' as DrivingState, window: null, steps: [], reason: null, sessionId: null, plan: null, startedAt: null, exports: [], stopKey: STOP_KEY };
+function publicStatus(c: DrivingController, record: SessionRecord | null) {
+  if (!record) return { state: 'idle' as DrivingState, window: null, steps: [], reason: null, sessionId: null, plan: null, startedAt: null, exports: [], stopKey: c.stopKey };
   return { state: record.state, window: { id: record.window.id, title: record.window.title }, steps: record.steps.map(step => ({ ...step })), reason: record.reason,
-    sessionId: record.id, plan: record.plan, startedAt: record.startedAt, exports: record.exports.map(item => ({ id: item.id, name: item.name, bytes: item.bytes })), stopKey: STOP_KEY };
+    sessionId: record.id, plan: record.plan, startedAt: record.startedAt, exports: record.exports.map(item => ({ id: item.id, name: item.name, bytes: item.bytes })), stopKey: c.stopKey };
 }
 /** A session belongs to the workspace it started in: any other open workspace, or none, stops it. */
 function guard(host: ModuleHost, workspaceId: string | null) {
@@ -100,12 +100,27 @@ export const drivingModule: EngineModule = {
   id: 'driving',
   hostOptions({ directory, demo, env }) {
     const exportRoot = join(resolve(directory), 'driving-exports');
-    const notify = (state: DrivingState, active: boolean) => { if (env.CHAUSAR_DESKTOP_DRIVER === '1' && typeof process.send === 'function' && process.connected) process.send({ kind: 'driving-status', state, active }, () => {}); };
+    const desktop = env.CHAUSAR_DESKTOP_DRIVER === '1' && !demo && typeof process.send === 'function';
+    let stopKey = 'Ctrl Alt Pause';
+    const notify = (state: DrivingState, active: boolean) => { if (desktop && process.connected) process.send!({ kind: 'driving-status', state, active, stopKey }, () => {}); };
     const unavailable = demo ? { code: 'DRIVER_UNAVAILABLE', reason: 'Synthetic demo mode keeps driving other programs turned off.' }
       : env.CHAUSAR_DESKTOP_DRIVER !== '1' ? { code: 'DRIVER_UNAVAILABLE', reason: 'Driving works only in the installed desktop app.' } : undefined;
     const driver = unavailable ? null : selectDriver({ platform: process.platform, env, excludePids: [process.pid, process.ppid] });
-    return { controller: new DrivingController({ driver, exportRoot, plans: BUILT_IN_PLANS, notify,
-      unavailable: unavailable ?? (driver ? undefined : { code: 'DRIVER_UNAVAILABLE', reason: 'This computer\'s desktop cannot be driven: it needs X11 on Linux, Windows or macOS.' }) }) };
+    stopKey = driver?.stopKey ?? stopKey;
+    const made = new DrivingController({ driver, exportRoot, plans: BUILT_IN_PLANS, notify,
+      unavailable: unavailable ?? (driver ? undefined : { code: 'DRIVER_UNAVAILABLE', reason: 'This computer\'s desktop cannot be driven: it needs X11 on Linux, Windows or macOS.' }) });
+    if (desktop) {
+      // The strip and tray reach the session directly over the worker channel, so a busy or
+      // closing engine never refuses Stop. Continue is a person's click on the strip or tray.
+      process.on('message', (message: any) => {
+        if (message === null || typeof message !== 'object' || message.kind !== 'driving-control' || Object.keys(message).length !== 2) return;
+        if (message.action === 'stop') made.stop('person');
+        else if (message.action === 'resume') { try { made.resume(); } catch { /* nothing paused */ } }
+      });
+      // The desktop going away stops driving at once.
+      process.on('disconnect', () => made.stop('person'));
+    }
+    return { controller: made };
   },
   purge(state: State, reason) {
     const store = peekModuleState<DrivingStore>(state, 'driving');
@@ -120,11 +135,13 @@ export const drivingModule: EngineModule = {
     'session.driver': { permission: 'read', preVault: true, async handler(_ctx, payload, host) {
       exact(payload, []);
       const c = controller(host); const a = await c.availability();
-      return { platform: c.platform, available: a.ok, code: a.code, reason: a.reason, stopKey: STOP_KEY, rules: RULES };
+      return { platform: c.platform, available: a.ok, code: a.code, reason: a.reason, stopKey: c.stopKey, rules: RULES };
     } },
     /** The windows a person may choose from (never Chausar's own). */
-    'session.windows': { permission: 'read', async handler(_ctx, payload, host) {
+    'session.windows': { permission: 'read', async handler(ctx, payload, host) {
       exact(payload, []);
+      // Window titles on this desktop are for the seats that may start driving.
+      if (!['owner', 'cofounder'].includes(ctx.role)) return { windows: [], available: false, code: 'FORBIDDEN', reason: 'An owner chooses the window.' };
       // No driver here: an empty list with the reason, so the WK-14 screen draws instead of failing.
       const a = await controller(host).availability();
       if (!a.ok) return { windows: [], available: false, code: a.code, reason: a.reason };
@@ -137,7 +154,7 @@ export const drivingModule: EngineModule = {
       const workspaceId = openWorkspace(host);
       guard(host, workspaceId);
       await settle(host, workspaceId);
-      return publicStatus(controller(host).status(workspaceId));
+      return publicStatus(controller(host), controller(host).status(workspaceId));
     } },
     /** Start driving one window, read and export only. Starting is an owner's decision. */
     'session.start': { permission: 'approve', async handler(ctx, payload, host) {
@@ -153,8 +170,8 @@ export const drivingModule: EngineModule = {
       check(workspaceId, 'DRIVING_WORKSPACE_CHANGED', 'Open the workspace first.');
       await settle(host, workspaceId);
       const record = await controller(host).start({ windowId: payload.windowId, plan, workspaceId, memberId: ctx.memberId,
-        probe: () => openWorkspace(host) === workspaceId, finished: done => { pending.push(done); } });
-      return publicStatus(record);
+        probe: () => openWorkspace(host) === workspaceId, finished: done => { pending.push(done); pending.splice(0, Math.max(0, pending.length - 20)); } });
+      return publicStatus(controller(host), record);
     } },
     /** Stop. Anyone at this computer may stop, even before a workspace is open. */
     'session.stop': { permission: 'read', preVault: true, async handler(_ctx, payload, host) {
@@ -162,13 +179,13 @@ export const drivingModule: EngineModule = {
       controller(host).stop('person');
       const workspaceId = openWorkspace(host);
       await settle(host, workspaceId);
-      return publicStatus(controller(host).status(workspaceId));
+      return publicStatus(controller(host), controller(host).status(workspaceId));
     } },
     /** Continue after "You moved the mouse. Paused." or after signing in. */
     'session.resume': { permission: 'approve', async handler(ctx, payload, host) {
       exact(payload, []); person(ctx);
       const workspaceId = openWorkspace(host); guard(host, workspaceId);
-      return publicStatus(controller(host).resume());
+      return publicStatus(controller(host), controller(host).resume());
     } },
     /** What Chausar can export by driving, and from which program. */
     'session.plans': { permission: 'read', async handler(_ctx, payload, host) {

@@ -42,7 +42,7 @@ class FakeDriver implements DesktopDriver {
   async related(id: string) { return [...this.windows.values()].filter(w => w.owner === id).map(({ owner: _o, ...w }) => w); }
   async focus(id: string) { this.focusCalls += 1; if (this.focusSticks) this.focusId = id; }
   async focused(): Promise<FocusInfo> { return { windowId: this.focusId, secret: this.secret }; }
-  async press(chord: Chord) { this.pressed.push(chordText(chord)); this.onPress?.(chordText(chord)); }
+  async press(chord: Chord, _live?: () => boolean) { this.pressed.push(chordText(chord)); this.onPress?.(chordText(chord)); }
   async typeFileName(name: string) { this.typed.push(name); }
   async snapshot(_id: string) { return { width: 4, height: 3, png: png(4, 3) }; }
   async watch(on: (a: Activity) => void) { this.listener = on; return { close: () => { this.listener = null; this.watchClosed += 1; } }; }
@@ -65,10 +65,13 @@ async function open(t: any, setup: (input: { driver: FakeDriver; root: string })
 const start = (engine: Engine, extra: Record<string, unknown> = {}) => engine.request('session.start', { windowId: '0x1', mode: 'read-export', typesSecrets: false, ...extra });
 
 test('chords: navigation and chords pass, typing, deleting and pasting are refused', () => {
-  assert.equal(chordText(parseChord('Ctrl+Alt+E')), 'ctrl+alt+e');
+  assert.equal(chordText(parseChord('Ctrl+E')), 'ctrl+e');
+  assert.equal(chordText(parseChord('ctrl+alt+f5')), 'ctrl+alt+f5');
   assert.equal(chordText(parseChord('shift+alt+f5')), 'alt+shift+f5');
-  for (const refused of ['a', 'shift+a', '7', 'alt+d', 'ctrl+v', 'ctrl+a', 'alt+f4', 'delete', 'backspace', 'ctrl+alt', 'meta+e', 'ctrl+ctrl+e', '']) assert.throws(() => parseChord(refused), code('DRIVING_KEY_REFUSED'), refused);
+  for (const refused of ['a', 'shift+a', '7', 'alt+d', 'ctrl+v', 'ctrl+a', 'alt+f4', 'delete', 'backspace', 'ctrl+alt', 'meta+e', 'ctrl+ctrl+e', '', 'ctrl+alt+q', 'ctrl+alt+2', 'alt+tab', 'alt+escape', 'ctrl+escape', 'alt+shift+d', 'shift+ctrl+v']) assert.throws(() => parseChord(refused), code('DRIVING_KEY_REFUSED'), refused);
   assert.throws(() => definePlan({ id: 'bad.plan', title: 'x', produces: 'png', status: 'experimental', verified: true, steps: [{ kind: 'keys', chord: 'enter', say: 'x' }] }), code('DRIVING_PLAN_INVALID'));
+  // Enter and Space only right after typing the export name or waiting for a named screen.
+  assert.throws(() => definePlan({ id: 'bad.plan', title: 'x', produces: 'png', status: 'experimental', verified: true, steps: [{ kind: 'focus', say: 'x' }, { kind: 'keys', chord: 'space', say: 'y' }, { kind: 'snapshot', say: 'z' }] }), code('DRIVING_PLAN_INVALID'));
   assert.throws(() => definePlan({ id: 'bad.plan', title: 'x', produces: 'csv', status: 'experimental', verified: true, steps: [{ kind: 'focus', say: 'x' }, { kind: 'snapshot', say: 'y' }] }), code('DRIVING_PLAN_INVALID'));
 });
 
@@ -199,11 +202,19 @@ test('a sign-in screen hands over to the person; a password box is never typed i
   driver.person('key'); // the person types their password: expected, not a pause
   assert.deepEqual(driver.pressed, []);
   driver.windows.delete('0x5');
-  // Then a password box gets focus: Chausar waits and types nothing.
+  // The sign-in has gone: Chausar waits for Continue rather than carrying on by itself.
+  await until(async () => (await engine.request('session.status', {})).reason === 'The sign-in has gone. Press Continue when you are ready.');
+  assert.equal((await engine.request('session.status', {})).state, 'paused-by-you');
+  await wait(100); assert.deepEqual(driver.pressed, []);
   driver.secret = true;
+  await engine.request('session.resume', {});
+  // Then a password box gets focus: Chausar waits and types nothing.
   await until(async () => (await engine.request('session.status', {})).reason === 'A password box has focus. Sign in yourself. Chausar continues after.');
   await wait(100); assert.deepEqual(driver.typed, []); assert.deepEqual(driver.pressed, []);
   driver.secret = false;
+  await until(async () => (await engine.request('session.status', {})).state === 'paused-by-you');
+  await wait(100); assert.deepEqual(driver.pressed, []);
+  await engine.request('session.resume', {});
   await controller.settled();
   const done = await engine.request('session.status', {});
   assert.equal(done.state, 'done', JSON.stringify(done));
@@ -229,7 +240,7 @@ test('another window taking focus pauses; a closed window or a missing file fail
   const plan = definePlan({ id: 'synthetic.file', title: 'Synthetic file', app: 'synthbooks', produces: 'csv', status: 'tested-synthetic', verified: true,
     steps: [{ kind: 'focus', say: 'Focus.' }, { kind: 'type-file-name', extension: 'csv', say: 'Type the name.' }, { kind: 'wait-file', say: 'Wait for the file.', timeoutMs: 200 }] });
   const { engine, driver, controller } = await open(t, () => ({ plans: [plan] }));
-  driver.focusSticks = false; driver.focusId = '0x2';
+  driver.focusSticks = false; driver.focusId = '0x2'; driver.secret = false;
   await start(engine, { plan: 'synthetic.file' });
   await until(async () => (await engine.request('session.status', {})).state === 'paused-by-you');
   assert.equal((await engine.request('session.status', {})).reason, 'Another window came to the front. Paused.');
@@ -280,4 +291,43 @@ test('connectors read the plans for a group', async t => {
   const tally = await engine.request('session.plans', { group: 'tally' });
   assert.deepEqual(tally.plans.map((p: any) => [p.id, p.verified, p.produces]), [['tally.report-export', false, 'xml']]);
   assert.equal((await engine.request('session.plans', {})).plans.length, 2);
+});
+
+test('review fixes: stop while starting, only listed windows, no key after stop, no export through a link', async t => {
+  const plan = definePlan({ id: 'synthetic.file', title: 'Synthetic file', app: 'synthbooks', produces: 'csv', status: 'tested-synthetic', verified: true,
+    steps: [{ kind: 'focus', say: 'Focus.' }, { kind: 'keys', chord: 'ctrl+e', say: 'Open export.', settleMs: 0 }, { kind: 'wait-title', pattern: 'export', say: 'Wait.', timeoutMs: 2000 },
+      { kind: 'type-file-name', extension: 'csv', say: 'Type.' }, { kind: 'keys', chord: 'enter', say: 'Send.', settleMs: 0 }, { kind: 'wait-file', say: 'Wait for the file.', timeoutMs: 2000 }] });
+  let saveTo = '';
+  const { engine, driver, controller } = await open(t, ({ root }) => { saveTo = join(root, 'saves'); return { plans: [...BUILT_IN_PLANS, plan], searchFolders: [saveTo] }; });
+  await (await import('node:fs/promises')).mkdir(saveTo);
+  // A stop pressed while the driver is still answering cancels the start; the stop key's watch is never left behind.
+  const slowList = driver.listWindows.bind(driver);
+  driver.listWindows = async () => { await wait(80); return slowList(); };
+  const starting = start(engine);
+  await wait(20); await engine.request('session.stop', {});
+  await assert.rejects(starting, code('DRIVING_STOPPED'));
+  assert.equal(controller.active, null); assert.equal(driver.listener, null);
+  driver.listWindows = slowList;
+  // A window that is not on the list (a dialog, the desktop, Chausar's own) cannot be driven.
+  driver.windows.set('0x7', { id: '0x7', title: 'Owned dialog', app: 'synthbooks', pid: 11, owner: '0x1' });
+  await assert.rejects(start(engine, { windowId: '0x7' }), code('WINDOW_NOT_FOUND'));
+  driver.windows.delete('0x7');
+  // A key in flight when Stop arrives is not sent; the press reports DRIVING_STOPPED to the runner.
+  const press = driver.press.bind(driver);
+  driver.press = async (chord: Chord, live?: () => boolean) => { if (chordText(chord) === 'ctrl+e') { await engine.request('session.stop', {}); } if (live && !live()) { const e: any = new Error('stopped'); e.code = 'DRIVING_STOPPED'; throw e; } return press(chord); };
+  await start(engine, { plan: 'synthetic.file' });
+  await controller.settled();
+  assert.equal((await engine.request('session.status', {})).state, 'stopped');
+  assert.deepEqual(driver.pressed, []); assert.deepEqual(driver.typed, []);
+  // An export name that is a link to another file is never read.
+  driver.press = press;
+  driver.onPress = chord => {
+    if (chord === 'ctrl+e') driver.windows.get('0x1')!.title = 'Synthetic Books Export';
+    if (chord === 'enter') void (async () => { const target = join(saveTo, 'secret.txt'); await writeFile(target, 'not yours'); await (await import('node:fs/promises')).symlink(target, join(saveTo, driver.typed.at(-1)!)); })();
+  };
+  driver.secret = false;
+  await start(engine, { plan: 'synthetic.file' });
+  await controller.settled();
+  const linked = await engine.request('session.status', {});
+  assert.equal(linked.state, 'step-failed'); assert.equal(linked.reason, 'The exported file did not appear.'); assert.equal(linked.exports.length, 0);
 });

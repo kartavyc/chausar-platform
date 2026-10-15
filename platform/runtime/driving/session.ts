@@ -17,11 +17,11 @@
  * copied into a reason, a step or an error.
  */
 import { randomBytes, createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, copyFile, unlink, stat, writeFile, rm } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, unlink, writeFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { check } from '../contracts.ts';
-import { FORBIDDEN_SCREEN, SIGN_IN, type Activity, type DesktopDriver, type DriverPlatform, type WindowInfo } from './driver.ts';
+import { FORBIDDEN_SCREEN, SIGN_IN, isActivating, type Activity, type DesktopDriver, type DriverPlatform, type WindowInfo } from './driver.ts';
 import type { Plan } from './plans.ts';
 
 export const STATES = ['idle', 'driving', 'sign-in', 'paused-by-you', 'stopped-by-key', 'stopped', 'step-failed', 'done'] as const;
@@ -51,6 +51,10 @@ export const REASONS = {
   tooLong: 'The session took too long and stopped.',
   driver: 'The window could not be driven.',
   done: 'Finished.',
+  signedIn: 'The sign-in has gone. Press Continue when you are ready.',
+  unknownBox: 'Chausar cannot tell what box has focus, so it typed nothing. Export it yourself.',
+  interrupted: 'Paused while typing the file name. Start again.',
+  notListed: 'Choose a window from the list.',
 } as const;
 const MEDIA: Readonly<Record<string, string>> = { png: 'image/png', csv: 'text/csv', xml: 'application/xml', json: 'application/json', txt: 'text/plain', html: 'text/html',
   pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel' };
@@ -83,11 +87,13 @@ export class DrivingController {
   #run: Promise<void> | null = null;
   #probe: () => boolean = () => true;
   #finished: ((record: SessionRecord) => void) | null = null;
-  #startedAt = 0;
+  #graceUntil = 0;
+  #starting: { cancelled: boolean } | null = null;
   readonly poll: number; readonly limit: number; readonly options: ControllerOptions;
   constructor(options: ControllerOptions) { this.options = options; this.poll = options.pollMs ?? 250; this.limit = options.sessionLimitMs ?? 15 * 60_000; }
 
   get platform(): DriverPlatform | null { return this.options.driver?.platform ?? null; }
+  get stopKey(): string { return this.options.driver?.stopKey ?? STOP_KEY; }
   async availability(): Promise<{ ok: boolean; code: string | null; reason: string | null }> {
     if (!this.options.driver) return { ok: false, code: this.options.unavailable?.code ?? 'DRIVER_UNAVAILABLE', reason: this.options.unavailable?.reason ?? 'Driving works only in the installed desktop app.' };
     const a = await this.options.driver.available();
@@ -115,19 +121,28 @@ export class DrivingController {
    * records the session once it ends.
    */
   async start(input: { windowId: string; plan: Plan; workspaceId: string; memberId: string; probe: () => boolean; finished: (record: SessionRecord) => void }): Promise<SessionRecord> {
-    check(!this.#current, 'SESSION_ACTIVE', 'Chausar is already driving a window. Stop it first.');
-    const driver = await this.driver();
+    check(!this.#current && !this.#starting, 'SESSION_ACTIVE', 'Chausar is already driving a window. Stop it first.');
     check(input.plan.verified, 'DRIVING_PLAN_UNVERIFIED', 'This plan has not been checked against the real program yet, so Chausar does not run it.');
-    const window = await driver.windowInfo(input.windowId);
-    check(window, 'WINDOW_NOT_FOUND', 'That window is no longer open. Choose it again.');
-    check(input.plan.app === null || input.plan.app.test(window.app), 'DRIVING_PLAN_MISMATCH', 'This plan is for another program.');
-    check(!this.#current, 'SESSION_ACTIVE', 'Chausar is already driving a window. Stop it first.');
+    // A stop pressed while the session is still starting cancels it.
+    const starting = { cancelled: false }; this.#starting = starting;
+    const alive = () => check(!starting.cancelled, 'DRIVING_STOPPED', 'Stopped before it started.');
+    try {
+      const driver = await this.driver(); alive();
+      // Only a window from the list: never the desktop, the screen or Chausar's own windows.
+      const window = (await driver.listWindows()).find(w => w.id === input.windowId); alive();
+      check(window, 'WINDOW_NOT_FOUND', 'That window is no longer open. Choose it again.');
+      check(input.plan.app === null || input.plan.app.test(window.app), 'DRIVING_PLAN_MISMATCH', 'This plan is for another program.');
+      return await this.#begin(driver, window, input, alive);
+    } finally { if (this.#starting === starting) this.#starting = null; }
+  }
+  async #begin(driver: DesktopDriver, window: WindowInfo, input: { plan: Plan; workspaceId: string; memberId: string; probe: () => boolean; finished: (record: SessionRecord) => void }, alive: () => void): Promise<SessionRecord> {
     const record: SessionRecord = { id: `drive_${randomBytes(9).toString('hex')}`, workspaceId: input.workspaceId, memberId: input.memberId, window: { id: window.id, title: window.title, app: window.app },
       plan: input.plan.id, startedAt: new Date().toISOString(), endedAt: null, state: 'driving', reason: null, steps: [], exports: [] };
-    this.#current = record; this.#probe = input.probe; this.#finished = input.finished; this.#startedAt = Date.now();
-    try {
-      this.#watch = await driver.watch(activity => this.#activity(activity));
-    } catch (error) { this.#current = null; throw error; }
+    // The watch (and with it the stop key) is held before the session exists; no watch, no session.
+    const watch = await driver.watch(activity => this.#activity(activity));
+    try { alive(); } catch (error) { watch.close(); throw error; }
+    this.#current = record; this.#probe = input.probe; this.#finished = input.finished; this.#watch = watch;
+    this.#graceUntil = Date.now() + (this.options.startGraceMs ?? 1000);
     this.#notify();
     this.#run = this.#execute(driver, record, input.plan).catch(() => {});
     return record;
@@ -136,7 +151,7 @@ export class DrivingController {
   /** Stop now. Safe to call at any time; the key, strip, tray and screens all come here. */
   stop(by: 'person' | 'key' | 'lock' = 'person'): SessionRecord | null {
     const record = this.#current;
-    if (!record) return null;
+    if (!record) { if (this.#starting) this.#starting.cancelled = true; return null; }
     this.#end(record, by === 'key' ? 'stopped-by-key' : 'stopped', by === 'key' ? REASONS.key : by === 'lock' ? REASONS.locked : REASONS.stopped);
     return record;
   }
@@ -146,6 +161,8 @@ export class DrivingController {
     const record = this.#current;
     check(record && (record.state === 'paused-by-you' || record.state === 'sign-in'), 'SESSION_NOT_PAUSED', 'There is no paused session to continue.');
     record.state = 'driving'; record.reason = null;
+    // The hand leaving Continue is not a new pause; keys wait until the grace is over.
+    this.#graceUntil = Date.now() + (this.options.startGraceMs ?? 1000);
     this.#notify(); this.#wake?.();
     return record;
   }
@@ -157,7 +174,7 @@ export class DrivingController {
     const record = this.#current;
     if (!record) return;
     if (activity.kind === 'stop-key') { this.stop('key'); return; }
-    if (activity.kind === 'pointer' && Date.now() - this.#startedAt < (this.options.startGraceMs ?? 1000)) return;
+    if (activity.kind === 'pointer' && Date.now() < this.#graceUntil) return;
     // While the person signs in, their typing is expected.
     if (record.state === 'driving') this.#pause(record, REASONS.moved);
   }
@@ -203,7 +220,7 @@ export class DrivingController {
       if (record.state === 'sign-in') {
         await this.#screens(record, driver);
         // A password box that no longer has focus means the person has signed in.
-        if (record.state === 'sign-in' && record.reason === REASONS.secret && (await driver.focused()).secret !== true) { record.state = 'driving'; record.reason = null; this.#notify(); continue; }
+        if (record.state === 'sign-in' && record.reason === REASONS.secret && (await driver.focused()).secret !== true) { record.state = 'paused-by-you'; record.reason = REASONS.signedIn; this.#step(record, REASONS.signedIn, 'done'); this.#notify(); continue; }
       }
       await new Promise<void>(accept => { const timer = setTimeout(accept, this.poll); this.#wake = () => { clearTimeout(timer); accept(); }; });
       this.#wake = null;
@@ -218,15 +235,19 @@ export class DrivingController {
     if (titles.some(title => FORBIDDEN_SCREEN.test(title))) { this.#end(record, 'step-failed', REASONS.forbidden); throw new Halt('step-failed', REASONS.forbidden); }
     const signIn = titles.some(title => SIGN_IN.test(title));
     if (signIn && record.state === 'driving') { record.state = 'sign-in'; record.reason = REASONS.signIn; this.#step(record, REASONS.signIn, 'done'); this.#notify(); }
-    else if (!signIn && record.state === 'sign-in' && record.reason === REASONS.signIn) { record.state = 'driving'; record.reason = null; this.#notify(); }
+    else if (!signIn && record.state === 'sign-in' && record.reason === REASONS.signIn) { record.state = 'paused-by-you'; record.reason = REASONS.signedIn; this.#step(record, REASONS.signedIn, 'done'); this.#notify(); }
   }
   /** Before any key: the chosen window (or its dialog) has focus and no password box does. */
-  async #beforeInput(record: SessionRecord, driver: DesktopDriver, deadline: number) {
+  /** `expect`: when the driver cannot tell a password box (`secret: null`), the focused window must show this screen. */
+  async #beforeInput(record: SessionRecord, driver: DesktopDriver, deadline: number, expect: RegExp | null) {
     let tries = 0;
     for (;;) {
       await this.#gate(record, driver, deadline);
+      if (Date.now() < this.#graceUntil) { await this.#sleep(Math.min(this.poll, this.#graceUntil - Date.now())); continue; }
       const focus = await driver.focused();
-      const ours = focus.windowId === record.window.id || (focus.windowId !== null && (await driver.related(record.window.id)).some(w => w.id === focus.windowId));
+      // One window only: the chosen window, or a dialog it owns. Another window of the same program is not enough.
+      const owned = focus.windowId !== null && (await driver.related(record.window.id)).find(w => w.id === focus.windowId && w.owned === true);
+      const ours = focus.windowId === record.window.id || !!owned;
       if (!ours) {
         // Bring the chosen window back once (after Continue, Chausar's own window has focus); then pause.
         if (tries < 3) { tries += 1; if (tries === 1) await driver.focus(record.window.id); await this.#sleep(this.poll); continue; }
@@ -235,6 +256,10 @@ export class DrivingController {
       if (focus.secret === true) {
         if (record.state === 'driving') { record.state = 'sign-in'; record.reason = REASONS.secret; this.#step(record, REASONS.secret, 'done'); this.#notify(); }
         continue;
+      }
+      if (focus.secret === null && expect) {
+        const title = focus.windowId === record.window.id ? (await driver.windowInfo(record.window.id))?.title : owned ? owned.title : undefined;
+        if (!title || !expect.test(title)) { this.#end(record, 'step-failed', REASONS.unknownBox); throw new Halt('step-failed', REASONS.unknownBox); }
       }
       if (record.state === 'driving') return;
     }
@@ -245,25 +270,33 @@ export class DrivingController {
     const folder = this.#folder(record);
     try {
       await mkdir(folder, { recursive: true, mode: 0o700 });
-      let fileName: string | null = null;
+      let fileName: string | null = null; let screen: RegExp | null = null;
+      const live = () => this.#current === record && record.state === 'driving';
       for (const planned of plan.steps) {
         await this.#gate(record, driver, deadline);
         const step = this.#step(record, planned.say, 'running');
         switch (planned.kind) {
           case 'focus': await driver.focus(record.window.id); break;
           case 'keys':
-            await this.#beforeInput(record, driver, deadline);
-            await driver.press(planned.chord);
+            for (;;) {
+              await this.#beforeInput(record, driver, deadline, isActivating(planned.chord) ? screen ?? /^$/ : null);
+              // A key refused because of a pause was never sent, so it is pressed again after Continue.
+              try { await driver.press(planned.chord, live); break; } catch (error) { if ((error as { code?: string })?.code !== 'DRIVING_STOPPED') throw error; }
+            }
             await this.#sleep(planned.settleMs);
             break;
-          case 'wait-title': await this.#until(record, driver, deadline, planned.timeoutMs, async () => {
+          case 'wait-title': screen = planned.pattern; await this.#until(record, driver, deadline, planned.timeoutMs, async () => {
             const titles = [(await driver.windowInfo(record.window.id))?.title ?? '', ...(await driver.related(record.window.id)).map(w => w.title)];
             return titles.some(title => planned.pattern.test(title));
           }); break;
           case 'type-file-name':
             fileName = `chausar-export-${randomBytes(8).toString('hex')}.${planned.extension}`;
-            await this.#beforeInput(record, driver, deadline);
-            await driver.typeFileName(fileName);
+            await this.#beforeInput(record, driver, deadline, screen ?? /^$/);
+            try { await driver.typeFileName(fileName, live); } catch (error) {
+              if ((error as { code?: string })?.code !== 'DRIVING_STOPPED') throw error;
+              if (this.#current === record) this.#end(record, 'step-failed', REASONS.interrupted);
+              throw new Halt('step-failed', REASONS.interrupted);
+            }
             break;
           case 'wait-file': {
             const name = fileName!;
@@ -288,6 +321,7 @@ export class DrivingController {
     } catch (error) {
       if (error instanceof Halt) return;
       const code = (error as { code?: string })?.code;
+      if (code === 'DRIVING_STOPPED' && this.#current !== record) return;
       this.#end(record, 'step-failed', code === 'DRIVER_TIMEOUT' ? REASONS.timeout : code === 'WINDOW_NOT_FOUND' || code === 'DRIVER_WINDOW_GONE' ? REASONS.closed : REASONS.driver);
     }
   }
@@ -312,10 +346,11 @@ export class DrivingController {
     for (const candidate of folders) {
       try {
         const path = join(candidate, name);
-        const first = await stat(path);
+        // Never through a link: a program could point the export name at another file.
+        const first = await lstat(path);
         if (!first.isFile()) continue;
         await this.#sleep(Math.min(this.poll, 300));
-        const second = await stat(path);
+        const second = await lstat(path);
         if (second.size === first.size && second.size > 0) return path;
       } catch { /* not there yet */ }
     }
@@ -325,16 +360,22 @@ export class DrivingController {
   async #keep(record: SessionRecord, from: string, name: string, folder: string): Promise<ExportFile> {
     check(EXPORT_NAME.test(name), 'INVALID_SESSION_REQUEST', 'The export name is not one Chausar made.');
     const path = join(folder, name);
+    const info = await lstat(from);
+    check(info.isFile() && info.size > 0 && info.size <= MAX_EXPORT_BYTES, 'EXPORT_TOO_LARGE', 'The exported file is empty or too large to read in.');
+    let bytes: Buffer;
     if (resolve(from) !== resolve(path)) {
-      try { await rename(from, path); } catch { await copyFile(from, path); await unlink(from).catch(() => {}); }
-    }
-    const info = await stat(path);
-    check(info.size > 0 && info.size <= MAX_EXPORT_BYTES, 'EXPORT_TOO_LARGE', 'The exported file is empty or too large to read in.');
-    const bytes = await readFile(path);
+      // Copy the bytes (no link followed, O_NOFOLLOW) into the session folder, then remove the program's copy.
+      const { open, constants } = await import('node:fs').then(fs => ({ open: fs.promises.open, constants: fs.constants }));
+      const handle = await open(from, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+      try { bytes = await handle.readFile(); } finally { await handle.close(); }
+      check(bytes.length > 0 && bytes.length <= MAX_EXPORT_BYTES, 'EXPORT_TOO_LARGE', 'The exported file is empty or too large to read in.');
+      await writeFile(path, bytes, { mode: 0o600, flag: 'wx' });
+      await unlink(from).catch(() => {});
+    } else bytes = await readFile(path);
     // A session stopped while the file was being kept leaves nothing behind.
     if (this.#current !== record) { await unlink(path).catch(() => {}); throw new Halt(record.state, record.reason ?? REASONS.stopped); }
     const extension = name.slice(name.lastIndexOf('.') + 1);
-    return { id: `export_${randomBytes(9).toString('hex')}`, sessionId: record.id, workspaceId: record.workspaceId, name, mediaType: MEDIA[extension], bytes: info.size,
+    return { id: `export_${randomBytes(9).toString('hex')}`, sessionId: record.id, workspaceId: record.workspaceId, name, mediaType: MEDIA[extension], bytes: bytes.length,
       sha256: createHash('sha256').update(bytes).digest('hex'), at: new Date().toISOString(), path };
   }
 

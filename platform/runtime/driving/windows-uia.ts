@@ -175,7 +175,12 @@ public static class ChausarHelper {
       return true;
     }, IntPtr.Zero);
     var windows = new ArrayList();
-    foreach (var other in found) { var info = Info(other); if (info != null) windows.Add(info); }
+    foreach (var other in found) {
+      var info = Info(other) as Dictionary<string, object>;
+      if (info == null) continue;
+      info["owned"] = GetWindow(other, GW_OWNER) == hwnd;
+      windows.Add(info);
+    }
     return windows;
   }
   static void Focus(IntPtr hwnd) {
@@ -348,11 +353,12 @@ Add-Type -TypeDefinition $source -ReferencedAssemblies $refs | Out-Null
 /** UI Automation on Windows through one PowerShell helper. */
 export class WindowsUiaDriver extends HelperDriver {
   readonly platform = 'windows-uia' as const;
+  readonly stopKey = 'Ctrl Alt Pause';
   constructor(options: HelperDriverOptions = {}) {
     super(options, {
       command: win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
       args: path => ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path],
-      scriptName: 'chausar-helper.ps1', script: WINDOWS_HELPER_SCRIPT,
+      scriptName: 'chausar-helper.ps1', script: WINDOWS_HELPER_SCRIPT, filtersInjected: true,
     });
   }
 }

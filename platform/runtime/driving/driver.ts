@@ -14,7 +14,8 @@
 import { check } from '../contracts.ts';
 
 export type DriverPlatform = 'x11' | 'windows-uia' | 'macos-ax' | 'fake';
-export type WindowInfo = { readonly id: string; readonly title: string; readonly app: string; readonly pid: number | null };
+/** `owned`: in `related()` only, a dialog the window owns (X11 WM_TRANSIENT_FOR, Windows GW_OWNER). Only owned dialogs may take keys. */
+export type WindowInfo = { readonly id: string; readonly title: string; readonly app: string; readonly pid: number | null; readonly owned?: boolean };
 /** The focused window, and whether the focused control is a password field (`null`: cannot tell). */
 export type FocusInfo = { readonly windowId: string | null; readonly secret: boolean | null };
 /**
@@ -38,10 +39,16 @@ export interface DesktopDriver {
   /** Raise and focus the window. */
   focus(id: string): Promise<void>;
   focused(): Promise<FocusInfo>;
-  /** Press one checked chord (see `parseChord`). */
-  press(chord: Chord): Promise<void>;
-  /** Type a Chausar-made file name (see `checkFileName`), never outside text. */
-  typeFileName(name: string): Promise<void>;
+  /**
+   * Press one checked chord (see `parseChord`). `live` is asked before every key event the
+   * driver sends; once it answers false nothing more is sent (held modifiers are released) and
+   * the call refuses `DRIVING_STOPPED`.
+   */
+  press(chord: Chord, live?: () => boolean): Promise<void>;
+  /** Type a Chausar-made file name (see `checkFileName`), never outside text. `live` as for `press`. */
+  typeFileName(name: string, live?: () => boolean): Promise<void>;
+  /** The stop key as the person presses it on this system. */
+  readonly stopKey?: string;
   /** A picture of one window, as PNG. */
   snapshot(id: string): Promise<Snapshot>;
   /**
@@ -80,7 +87,13 @@ export function parseChord(value: unknown): Chord {
   // A bare letter or digit would type text into the program; only chords may use them.
   check(!/^[a-z0-9]$/.test(key) || modifiers.some(m => m !== 'shift'), 'DRIVING_KEY_REFUSED', 'Chausar does not type text into the program.');
   const chord = { modifiers: MODIFIERS.filter(m => modifiers.includes(m)), key };
-  check(!REFUSED.has(chordText(chord)), 'DRIVING_KEY_REFUSED', 'This key can change or delete data, so Chausar never presses it.');
+  // Adding Shift to a refused chord does not make it safe.
+  const unshifted = chordText({ modifiers: chord.modifiers.filter(m => m !== 'shift'), key });
+  check(!REFUSED.has(chordText(chord)) && !REFUSED.has(unshifted), 'DRIVING_KEY_REFUSED', 'This key can change or delete data, so Chausar never presses it.');
+  // Ctrl+Alt with a letter or digit is AltGr on many layouts and types a character.
+  check(!(chord.modifiers.includes('ctrl') && chord.modifiers.includes('alt') && /^[a-z0-9]$/.test(key)), 'DRIVING_KEY_REFUSED', 'Chausar does not type text into the program.');
+  // Chords that switch to another program.
+  check(!(['tab', 'escape'].includes(key) && chord.modifiers.some(m => m === 'alt' || m === 'ctrl')), 'DRIVING_KEY_REFUSED', 'This key moves to another program, so Chausar never presses it.');
   return Object.freeze(chord);
 }
 
@@ -111,6 +124,10 @@ export class OwnInput {
   /** True when an input event seen now could be the driver's own. */
   ours(): boolean { return this.#depth > 0 || this.clock() < this.#until; }
 }
+
+/** Activating keys: they press whatever control has focus. A plan may use them only right after typing the export name or after waiting for a named screen. */
+export const ACTIVATING = new Set(['enter', 'space']);
+export const isActivating = (chord: Chord) => chord.modifiers.length === 0 && ACTIVATING.has(chord.key);
 
 /** A typed driver refusal: a fixed code and a plain sentence. */
 export function refuse(code: string, reason: string): never { check(false, code, reason); throw new Error(reason); }

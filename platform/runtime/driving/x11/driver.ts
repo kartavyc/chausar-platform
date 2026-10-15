@@ -139,7 +139,7 @@ export class X11Driver implements DesktopDriver {
     const num = parseId(id); const c = await this.#conn();
     const base = await this.#describe(c, num);
     if (!base) return [];
-    return (await this.#listed(c)).filter(d => d.num !== num && (d.transientFor === num || (base.pid !== null && d.pid === base.pid))).map(this.#public);
+    return (await this.#listed(c)).filter(d => d.num !== num && (d.transientFor === num || (base.pid !== null && d.pid === base.pid))).map(d => ({ ...this.#public(d), owned: d.transientFor === num }));
   }
 
   async focus(id: string): Promise<void> {
@@ -178,7 +178,8 @@ export class X11Driver implements DesktopDriver {
     } catch (e) { if (isGone(e)) return { windowId: null, secret: null }; throw e; }
   }
 
-  async press(chord: Chord): Promise<void> {
+  readonly stopKey = 'Ctrl Alt Pause';
+  async press(chord: Chord, live: () => boolean = () => true): Promise<void> {
     const checked = parseChord(chordText(chord));
     const c = await this.#conn();
     const mods = await Promise.all(checked.modifiers.map(m => keycodeFor(c, MOD_KEYSYM[m])));
@@ -187,14 +188,16 @@ export class X11Driver implements DesktopDriver {
     const extraShift = key.shift && !checked.modifiers.includes('shift') ? [await keycodeFor(c, MOD_KEYSYM.shift)] : [];
     const held = [...mods, ...extraShift];
     await this.#own.around(async () => {
-      for (const m of held) await c.fakeInput(2, m.code);
-      await c.fakeInput(2, key.code); await c.fakeInput(3, key.code);
-      for (const m of [...held].reverse()) await c.fakeInput(3, m.code);
+      const down: number[] = [];
+      try {
+        for (const m of held) { stillLive(live); await c.fakeInput(2, m.code); down.push(m.code); }
+        stillLive(live); await c.fakeInput(2, key.code); await c.fakeInput(3, key.code);
+      } finally { for (const code of down.reverse()) await c.fakeInput(3, code).catch(() => {}); }
       await c.getInputFocus();
     });
   }
 
-  async typeFileName(name: string): Promise<void> {
+  async typeFileName(name: string, live: () => boolean = () => true): Promise<void> {
     const text = checkFileName(name);
     if (!/^[a-z0-9.-]+$/.test(text)) refuse('DRIVING_TEXT_REFUSED', 'Chausar types only the export file name it made.');
     const c = await this.#conn();
@@ -202,6 +205,7 @@ export class X11Driver implements DesktopDriver {
     const keys = await Promise.all([...text].map(ch => keycodeFor(c, ch.charCodeAt(0))));
     await this.#own.around(async () => {
       for (const k of keys) {
+        stillLive(live);
         if (k.shift) await c.fakeInput(2, shift.code);
         await c.fakeInput(2, k.code); await c.fakeInput(3, k.code);
         if (k.shift) await c.fakeInput(3, shift.code);
@@ -238,6 +242,8 @@ export class X11Driver implements DesktopDriver {
       if (e instanceof Error && 'xcode' in e && e.xcode === BAD_ACCESS) refuse('DRIVER_FAILED', 'Another program holds the stop key.');
       throw e;
     }
+    // A watch that can no longer see the person or hold the stop key ends the session.
+    c.onClose = () => report('stop-key');
     c.onEvent = event => {
       const key = keyEvent(event);
       if (key && event.type === 2 && key.keycode === pause && !event.sent) return report('stop-key');
@@ -247,7 +253,7 @@ export class X11Driver implements DesktopDriver {
     const xi = await c.xiQueryVersion(2, 2).catch(() => null);
     const raw = !!xi && xi.major >= 2 && await c.xiSelectEvents(root, XI.AllMasterDevices, [XI.RawKeyPress, XI.RawButtonPress, XI.RawMotion]).then(() => true, () => false);
     if (!raw) {
-      let last: { x: number; y: number; mask: number; keys: Buffer } | null = null; let busy = false;
+      let last: { x: number; y: number; mask: number; keys: Buffer } | null = null; let busy = false; let failures = 0;
       timer = setInterval(async () => {
         if (busy || closed) return; busy = true;
         try {
@@ -257,13 +263,13 @@ export class X11Driver implements DesktopDriver {
             if ((p.mask & 0x1f00) !== (last.mask & 0x1f00)) report('button');
             if (p.x !== last.x || p.y !== last.y) report('pointer');
           }
-          last = { x: p.x, y: p.y, mask: p.mask, keys };
-        } catch { /* the next poll tries again; close() ends it */ } finally { busy = false; }
+          last = { x: p.x, y: p.y, mask: p.mask, keys }; failures = 0;
+        } catch { if (++failures >= 5) report('stop-key'); } finally { busy = false; }
       }, 50);
     }
     const handle = {
       close: () => {
-        if (closed) return; closed = true; this.#watches.delete(handle);
+        if (closed) return; closed = true; this.#watches.delete(handle); c.onClose = () => {};
         if (timer) clearInterval(timer);
         if (c.closed) return;
         Promise.all(STOP_MODS.map(m => c.ungrabKey(root, pause, m))).catch(() => {}).finally(() => c.close());
@@ -279,3 +285,5 @@ export class X11Driver implements DesktopDriver {
     if (client) await client.then(c => c.close(), () => {});
   }
 }
+
+function stillLive(live: () => boolean) { if (!live()) refuse('DRIVING_STOPPED', 'Chausar stopped before this key.'); }

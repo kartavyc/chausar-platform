@@ -135,7 +135,8 @@ const replyFlag = (value: unknown) => value === null || typeof value === 'boolea
 const replyDone = (value: unknown) => { if (value !== true) invalid(); };
 function replyWindow(value: unknown): WindowInfo {
   if (!plain(value)) invalid();
-  return Object.freeze({ id: replyId(value.id), title: replyText(value.title), app: replyText(value.app), pid: replyPid(value.pid) });
+  const owned = value.owned === undefined ? undefined : typeof value.owned === 'boolean' ? value.owned : invalid();
+  return Object.freeze({ id: replyId(value.id), title: replyText(value.title), app: replyText(value.app), pid: replyPid(value.pid), ...(owned === undefined ? {} : { owned }) });
 }
 function replyWindows(value: unknown): WindowInfo[] {
   if (!Array.isArray(value) || value.length > 4096) invalid();
@@ -164,7 +165,10 @@ export abstract class HelperDriver implements DesktopDriver {
   readonly #client: HelperClient;
   #dir: string | null = null;
 
-  protected constructor(options: HelperDriverOptions, helper: { command: string; args(scriptPath: string): string[]; scriptName: string; script: string }) {
+  /** True when the helper itself drops injected input (Windows low-level hooks): then the person is never muted. */
+  readonly #filtersInjected: boolean;
+  protected constructor(options: HelperDriverOptions, helper: { command: string; args(scriptPath: string): string[]; scriptName: string; script: string; filtersInjected?: boolean }) {
+    this.#filtersInjected = helper.filtersInjected === true;
     this.#exclude = new Set([process.pid, ...(options.excludePids ?? [])]);
     const spawn = options.spawn ?? ((command, args) => nodeSpawn(command, [...args], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }));
     const launch = () => {
@@ -200,12 +204,15 @@ export abstract class HelperDriver implements DesktopDriver {
     if (!plain(result)) invalid();
     return Object.freeze({ windowId: result.windowId === null ? null : replyId(result.windowId), secret: replyFlag(result.secret) });
   }
-  async press(chord: Chord) {
+  // The helper sends a whole chord or name in one go, so `live` is asked just before handing it over.
+  async press(chord: Chord, live: () => boolean = () => true) {
     const checked = parseChord(chordText(chord));
+    check(live(), 'DRIVING_STOPPED', 'Chausar stopped before this key.');
     await this.#own.around(async () => replyDone(await this.#client.request('press', { modifiers: [...checked.modifiers], key: checked.key })));
   }
-  async typeFileName(name: string) {
+  async typeFileName(name: string, live: () => boolean = () => true) {
     const checked = checkFileName(name);
+    check(live(), 'DRIVING_STOPPED', 'Chausar stopped before this key.');
     await this.#own.around(async () => replyDone(await this.#client.request('type', { name: checked })));
   }
   async snapshot(id: string) { return replySnapshot(await this.#client.request('snapshot', { id: windowArg(id) })); }
@@ -229,7 +236,7 @@ export abstract class HelperDriver implements DesktopDriver {
   #shown(window: WindowInfo) { return window.pid === null || !this.#exclude.has(window.pid); }
   #event(kind: EventKind) {
     // Never mute the stop key; mute pointer, key and button while our own input is in flight.
-    if (kind !== 'stop-key' && this.#own.ours()) return;
+    if (kind !== 'stop-key' && !this.#filtersInjected && this.#own.ours()) return;
     this.#emit(kind);
   }
   #emit(kind: EventKind) {
