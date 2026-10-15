@@ -331,3 +331,27 @@ test('review fixes: stop while starting, only listed windows, no key after stop,
   const linked = await engine.request('session.status', {});
   assert.equal(linked.state, 'step-failed'); assert.equal(linked.reason, 'The exported file did not appear.'); assert.equal(linked.exports.length, 0);
 });
+
+test('one contract serves connectors-ext: a connector export starts, finishes and hands over its file', async t => {
+  const { engine, controller } = await open(t);
+  const tally = await engine.request('connectorsx.connect', { group: 'tally', road: 'file', company: 'Synthetic Books' });
+  // Tally's own plan is not checked against Tally yet, so it refuses rather than guessing keys.
+  await assert.rejects(engine.request('session.start', { windowId: '0x1', purpose: 'connector-export', connectionId: tally.id }), code('DRIVING_PLAN_UNVERIFIED'));
+  await assert.rejects(engine.request('session.start', { windowId: '0x1', purpose: 'connector-export', connectionId: 'connection_missing' }), code('CONNECTION_NOT_FOUND'));
+  await assert.rejects(engine.request('session.start', { windowId: '0x1', purpose: 'connector-export' }), code('INVALID_SESSION_REQUEST'));
+  await assert.rejects(engine.request('session.start', { windowId: '0x1', connectionId: tally.id }), code('INVALID_SESSION_REQUEST'));
+  const other = await engine.request('connectorsx.connect', { group: 'restaurant-partners', road: 'file', company: 'Synthetic Books' });
+  const started = await engine.request('session.start', { windowId: '0x1', purpose: 'connector-export', connectionId: other.id });
+  assert.equal(started.plan, 'window.picture');
+  const running = await engine.request('session.status', { sessionId: started.sessionId });
+  assert.ok(['driving', 'done'].includes(running.state));
+  await controller.settled();
+  const done = await engine.request('session.status', { sessionId: started.sessionId });
+  assert.equal(done.state, 'done'); assert.match(done.export.fileName, /^chausar-export-[a-f0-9]{16}\.png$/);
+  assert.equal(Buffer.from(done.export.bytesBase64, 'base64').subarray(1, 4).toString(), 'PNG');
+  // A session from history is still answered by id after a later one.
+  await start(engine); await controller.settled();
+  assert.equal((await engine.request('session.status', { sessionId: started.sessionId })).export.fileName, done.export.fileName);
+  await assert.rejects(engine.request('session.status', { sessionId: 'drive_000000000000000000' }), code('SESSION_NOT_FOUND'));
+  assert.equal((await engine.request('session.history', {})).sessions.length, 2);
+});

@@ -49,8 +49,8 @@ All in module `driving`, listed in `app/desktop/module-methods/driving.json`.
 |---|---|---|---|
 | `session.driver` | read, preVault | `{}` | `{ platform: 'x11'\|'windows-uia'\|'macos-ax'\|'fake'\|null, available: boolean, code: string\|null, reason: string\|null, stopKey: 'Ctrl Alt Pause', rules: { windows: 1, mode: 'read-export', typesSecrets: false } }` |
 | `session.windows` | read | `{}` | `{ windows: [{ id, title, app }], available: boolean, code: string\|null, reason: string\|null }` (empty list with the reason when no driver) |
-| `session.status` | read, preVault | `{}` | `Status` (below). Stops a session whose workspace is locked or changed. |
-| `session.start` | approve | `{ windowId: string, mode: 'read-export', typesSecrets: false, plan?: string }` (plan defaults to `window.picture`) | `Status` |
+| `session.status` | read, preVault | `{ sessionId?: string }` | Without `sessionId`: `Status` (below). With it: that session (running, last, or from history) as `Status & { export: { fileName, bytesBase64 } \| null }`, `export` set once the state is `done` (its first export, checked against its digest); `SESSION_NOT_FOUND` otherwise. Stops a session whose workspace is locked or changed. |
+| `session.start` | approve | `{ windowId: string, mode?: 'read-export', typesSecrets?: false, plan?: string, purpose?: 'report-export' \| 'connector-export', connectionId?: string }`. `connectionId` is required with `purpose: 'connector-export'` and refused otherwise. Without `plan`, a report export uses `window.picture`; a connector export uses the plan for its connection's group (`connectorsx.connections`), else `window.picture`. `mode`/`typesSecrets` may only restate the fixed rules. | `Status` |
 | `session.stop` | read, preVault | `{}` | `Status` (idempotent) |
 | `session.resume` | approve | `{}` | `Status`; `SESSION_NOT_PAUSED` unless paused or signing in |
 | `session.plans` | read | `{ group?: string }` | `{ plans: [{ id, title, app, groups: string[], produces, status: 'experimental'\|'tested-synthetic', verified: boolean, steps: string[] }] }` |
@@ -65,7 +65,7 @@ All in module `driving`, listed in `app/desktop/module-methods/driving.json`.
 
 **For frame-today (SH-03, SH-07):** the driving banner reads `session.status` (active when state is `driving`, `sign-in` or `paused-by-you`). `registerDriving(...)` returns `drivingMenuItems()`: the Electron menu-item templates (Stop, and Continue when paused) to add to your tray menu; until then this lane shows its own tray icon during a session.
 
-**For connectors-ext (screen export, replacing `SCREEN_EXPORT_NOT_BUILT`):** list plans for a group with `session.plans { group }`; the person starts the session on WK-14 (or you call `session.start { windowId, mode: 'read-export', typesSecrets: false, plan }` from a person's desktop request); when `session.status.state === 'done'`, read `status.exports` or `session.exports { sessionId }`, then `session.readExport { exportId }` and pass `text` (or `base64`) to your import preview as outside data; `session.discardExport` after import.
+**For connectors-ext (screen export, replacing `SCREEN_EXPORT_NOT_BUILT` / `SCREEN_DRIVING_NOT_INSTALLED`):** the coordinator's contract is served as is. `session.windows` → choose; `session.start { windowId, purpose: 'connector-export', connectionId }` from a person's desktop request (owner or co-founder; never a tainted context) → `Status` with `sessionId`; poll `session.status { sessionId }` until `state` is `done` (then `export: { fileName, bytesBase64 }`) or ends otherwise (`export: null`, `reason` says why); `session.stop {}` at any time. Treat the bytes as outside data. Also available: `session.plans { group }`, `session.readExport { exportId }` (text for text formats), `session.discardExport` after import. Today TallyPrime's plan refuses `DRIVING_PLAN_UNVERIFIED` (needs a real Tally); groups without a plan get a PNG picture of the window.
 
 ## Refusal codes
 

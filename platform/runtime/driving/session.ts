@@ -32,6 +32,8 @@ export type ExportFile = { id: string; sessionId: string; workspaceId: string; n
 export type SessionRecord = {
   id: string; workspaceId: string; memberId: string; window: { id: string; title: string; app: string }; plan: string;
   startedAt: string; endedAt: string | null; state: DrivingState; reason: string | null; steps: Step[]; exports: ExportFile[];
+  /** Why the session runs: a person exporting a report (WK-14) or a connector's screen export. */
+  purpose: 'report-export' | 'connector-export'; connectionId: string | null;
 };
 export const STOP_KEY = 'Ctrl Alt Pause';
 
@@ -120,7 +122,7 @@ export class DrivingController {
    * Start one session. `probe` answers whether the same workspace is still open; `finished`
    * records the session once it ends.
    */
-  async start(input: { windowId: string; plan: Plan; workspaceId: string; memberId: string; probe: () => boolean; finished: (record: SessionRecord) => void }): Promise<SessionRecord> {
+  async start(input: { windowId: string; plan: Plan; workspaceId: string; memberId: string; purpose?: SessionRecord['purpose']; connectionId?: string | null; probe: () => boolean; finished: (record: SessionRecord) => void }): Promise<SessionRecord> {
     check(!this.#current && !this.#starting, 'SESSION_ACTIVE', 'Chausar is already driving a window. Stop it first.');
     check(input.plan.verified, 'DRIVING_PLAN_UNVERIFIED', 'This plan has not been checked against the real program yet, so Chausar does not run it.');
     // A stop pressed while the session is still starting cancels it.
@@ -135,9 +137,10 @@ export class DrivingController {
       return await this.#begin(driver, window, input, alive);
     } finally { if (this.#starting === starting) this.#starting = null; }
   }
-  async #begin(driver: DesktopDriver, window: WindowInfo, input: { plan: Plan; workspaceId: string; memberId: string; probe: () => boolean; finished: (record: SessionRecord) => void }, alive: () => void): Promise<SessionRecord> {
+  async #begin(driver: DesktopDriver, window: WindowInfo, input: { plan: Plan; workspaceId: string; memberId: string; purpose?: SessionRecord['purpose']; connectionId?: string | null; probe: () => boolean; finished: (record: SessionRecord) => void }, alive: () => void): Promise<SessionRecord> {
     const record: SessionRecord = { id: `drive_${randomBytes(9).toString('hex')}`, workspaceId: input.workspaceId, memberId: input.memberId, window: { id: window.id, title: window.title, app: window.app },
-      plan: input.plan.id, startedAt: new Date().toISOString(), endedAt: null, state: 'driving', reason: null, steps: [], exports: [] };
+      plan: input.plan.id, startedAt: new Date().toISOString(), endedAt: null, state: 'driving', reason: null, steps: [], exports: [],
+      purpose: input.purpose ?? 'report-export', connectionId: input.connectionId ?? null };
     // The watch (and with it the stop key) is held before the session exists; no watch, no session.
     const watch = await driver.watch(activity => this.#activity(activity));
     try { alive(); } catch (error) { watch.close(); throw error; }

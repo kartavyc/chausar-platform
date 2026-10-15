@@ -176,7 +176,7 @@ export const laneRefusalCodes: readonly string[] = [
   'DRIVING_PLAN_INVALID', 'DRIVING_PLAN_NOT_FOUND', 'DRIVING_PLAN_UNVERIFIED', 'DRIVING_PLAN_MISMATCH',
   'DRIVING_WORKSPACE_CHANGED', 'SESSION_ACTIVE', 'SESSION_NOT_PAUSED', 'WINDOW_NOT_FOUND',
   'INVALID_SESSION_REQUEST', 'EXPORT_NOT_FOUND', 'EXPORT_CHANGED', 'EXPORT_TOO_LARGE', 'DRIVER_FOCUS_REFUSED',
-  'DRIVER_SNAPSHOT_FAILED', 'DRIVER_WINDOW_GONE'
+  'DRIVER_SNAPSHOT_FAILED', 'DRIVER_WINDOW_GONE', 'DRIVING_STOPPED', 'SESSION_NOT_FOUND'
 ];
 const laneCode = (value: unknown): string | undefined => typeof value === 'string' && laneRefusalCodes.includes(value) ? value : undefined;
 function desktopFailure(code: string): Error & { code: string } {

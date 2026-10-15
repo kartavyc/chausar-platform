@@ -62,7 +62,7 @@ async function record(host: ModuleHost, workspaceId: string): Promise<void> {
     for (const record of mine) {
       if (store.sessions.some(s => s.id === record.id)) continue;
       const exports = record.exports.map(item => strip(item));
-      store.sessions.unshift({ ...structuredClone({ id: record.id, memberId: record.memberId, window: record.window, plan: record.plan, startedAt: record.startedAt, endedAt: record.endedAt, state: record.state, reason: record.reason, steps: record.steps }), exports });
+      store.sessions.unshift({ ...structuredClone({ id: record.id, memberId: record.memberId, window: record.window, plan: record.plan, startedAt: record.startedAt, endedAt: record.endedAt, state: record.state, reason: record.reason, steps: record.steps, purpose: record.purpose, connectionId: record.connectionId }), exports });
       store.exports.push(...exports);
       audit(state, 'driving.session', { sessionId: record.id, plan: record.plan, state: record.state, exports: exports.length });
     }
@@ -150,26 +150,55 @@ export const drivingModule: EngineModule = {
     } },
     /** The session now. Also stops a session whose workspace has locked or changed. */
     'session.status': { permission: 'read', preVault: true, async handler(_ctx, payload, host) {
-      exact(payload, []);
+      exact(payload, ['sessionId']);
+      check(payload.sessionId === undefined || id(payload.sessionId, 'drive'), REQUEST, 'Name one session.');
       const workspaceId = openWorkspace(host);
       guard(host, workspaceId);
       await settle(host, workspaceId);
-      return publicStatus(controller(host), controller(host).status(workspaceId));
+      const c = controller(host);
+      if (payload.sessionId === undefined) return publicStatus(c, c.status(workspaceId));
+      // One session by id, with its first export's bytes once it is done (the connector export road).
+      check(workspaceId, 'DRIVING_WORKSPACE_CHANGED', 'Open the workspace first.');
+      const live = c.status(workspaceId);
+      const stored = peekModuleState<DrivingStore>(host.store.read(), 'driving')?.sessions.find(s => s.id === payload.sessionId);
+      check(live?.id === payload.sessionId || stored, 'SESSION_NOT_FOUND', 'That session is not known here.');
+      const base = live?.id === payload.sessionId ? publicStatus(c, live) : { ...publicStatus(c, null), state: stored!.state, reason: stored!.reason, sessionId: stored!.id, plan: stored!.plan, startedAt: stored!.startedAt,
+        steps: stored!.steps.map(step => ({ ...step })), window: null, exports: stored!.exports.map(e => ({ id: e.id, name: e.name, bytes: e.bytes })) };
+      const first = base.state === 'done' ? base.exports[0] : undefined;
+      let file: { fileName: string; bytesBase64: string } | null = null;
+      if (first) {
+        try { const item = exportFor(host, first.id); const bytes = await readFile(item.path);
+          if (createHash('sha256').update(bytes).digest('hex') === item.sha256) file = { fileName: item.name, bytesBase64: bytes.toString('base64') };
+        } catch { file = null; }
+      }
+      return { ...base, export: file };
     } },
     /** Start driving one window, read and export only. Starting is an owner's decision. */
     'session.start': { permission: 'approve', async handler(ctx, payload, host) {
-      exact(payload, ['windowId', 'mode', 'typesSecrets', 'plan'], ['windowId', 'mode', 'typesSecrets']);
+      exact(payload, ['windowId', 'mode', 'typesSecrets', 'plan', 'purpose', 'connectionId'], ['windowId']);
       // Demo mode keeps every outside program untouched; only a trusted test host may drive a synthetic window there.
       check(!host.demo || host.options.allowDemo === true, 'DEMO_EXTERNAL_DISABLED', 'Synthetic demo mode keeps driving other programs turned off.');
       person(ctx);
-      check(payload.mode === RULES.mode && payload.typesSecrets === false, REQUEST, 'Chausar only reads and exports, and never types a secret.');
+      // The rules are fixed: a caller may restate them, never change them.
+      check((payload.mode ?? RULES.mode) === RULES.mode && (payload.typesSecrets ?? false) === false, REQUEST, 'Chausar only reads and exports, and never types a secret.');
       check(typeof payload.windowId === 'string' && payload.windowId.length <= 200, REQUEST, 'Choose one window.');
       check(payload.plan === undefined || (typeof payload.plan === 'string' && payload.plan.length <= 64), REQUEST, 'Choose one of the listed plans.');
-      const plan = planFor(plans(host), payload.plan ?? 'window.picture');
+      const purpose = payload.purpose ?? 'report-export';
+      check(purpose === 'report-export' || purpose === 'connector-export', REQUEST, 'Say why Chausar drives this window.');
+      check(purpose === 'connector-export' ? typeof payload.connectionId === 'string' && payload.connectionId.length > 0 && payload.connectionId.length <= 120 : payload.connectionId === undefined, REQUEST, 'A connector export names its connection.');
+      let planId: string = payload.plan ?? 'window.picture';
+      if (purpose === 'connector-export' && payload.plan === undefined) {
+        // The connection's own program decides the plan; a group with no plan exports a picture of the window.
+        const connections: any = await host.call('connectorsx.connections', {});
+        const connection = Array.isArray(connections) ? connections.find((item: any) => item?.id === payload.connectionId) : undefined;
+        check(connection && typeof connection.group === 'string', 'CONNECTION_NOT_FOUND', 'Choose one of your connections.');
+        planId = plans(host).find(p => p.groups.includes(connection.group))?.id ?? 'window.picture';
+      }
+      const plan = planFor(plans(host), planId);
       const workspaceId = openWorkspace(host);
       check(workspaceId, 'DRIVING_WORKSPACE_CHANGED', 'Open the workspace first.');
       await settle(host, workspaceId);
-      const record = await controller(host).start({ windowId: payload.windowId, plan, workspaceId, memberId: ctx.memberId,
+      const record = await controller(host).start({ windowId: payload.windowId, plan, workspaceId, memberId: ctx.memberId, purpose, connectionId: payload.connectionId ?? null,
         probe: () => openWorkspace(host) === workspaceId, finished: done => { pending.push(done); pending.splice(0, Math.max(0, pending.length - 20)); } });
       return publicStatus(controller(host), record);
     } },
