@@ -27,7 +27,8 @@ import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import type { FetchReply } from '../runtime/hosted-link/client.ts';
 import { demoCsv } from '../runtime/ingest.ts';
-import { documentAad, newDocumentKeyPair, openDocument } from '../runtime/hosted-link/documents.ts';
+import { documentAad, documentRoute, documentsPreview, MAX_READ_BYTES, newDocumentKeyPair, openDocument } from '../runtime/hosted-link/documents.ts';
+import { ChausarError } from '../runtime/contracts.ts';
 import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-pg.ts';
 
@@ -394,7 +395,7 @@ test('end to end: the phone document is held for review, previewed as outside da
   await assert.rejects(f.rpc('phone.documents.preview', { documentId: row.documentId }), { code: 'DOCUMENT_NOT_FOUND' });
 });
 
-test('end to end: a flipped byte is refused, a PDF is kept but not previewed, and discard removes it', { skip: pgSkip }, async t => {
+test('end to end: a flipped byte is refused, a PDF needs a route before it is read, and discard removes it', { skip: pgSkip }, async t => {
   const f = await endToEnd(t);
   await f.send('4400000001', { bytes: CSV, mime: 'text/csv' });
   await f.sql.query(`UPDATE relay_documents SET sealed = set_byte(sealed, 69, get_byte(sealed, 69) # 1)`);
@@ -408,11 +409,167 @@ test('end to end: a flipped byte is refused, a PDF is kept but not previewed, an
   await f.rpc('phone.documents.collect');
   const [row] = (await f.rpc('phone.documents.list')).documents;
   assert.equal(row.mediaType, 'application/pdf');
-  await assert.rejects(f.rpc('phone.documents.preview', { documentId: row.documentId }), { code: 'DOCUMENT_PREVIEW_UNAVAILABLE' });
+  await assert.rejects(f.rpc('phone.documents.preview', { documentId: row.documentId }), { code: 'DOCUMENT_ROUTE_REQUIRED', message: 'Choose: a bank statement or a bill.' });
   await assert.rejects(f.rpc('phone.documents.discard', { documentId: '../../etc/passwd' }), { code: 'INVALID_REQUEST' });
   await assert.rejects(f.rpc('phone.documents.discard', { documentId: row.documentId, extra: true }), { code: 'INVALID_REQUEST' });
   assert.deepEqual(await f.rpc('phone.documents.discard', { documentId: row.documentId }), { documentId: row.documentId, discarded: true });
   assert.deepEqual((await f.rpc('phone.documents.list')).documents, []);
   assert.deepEqual(await f.files(), []);
   assert.equal(f.engine.vault!.read().facts.length, 0);
+});
+
+// PH-05 routes for PDFs and photos: a statement through connectors-ext imports.preview, a bill through work-books books.billRead.
+
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('synthetic photo of a bill')]);
+const BIG_PDF = Buffer.concat([PDF, Buffer.alloc(4 * 1024 * 1024, 0x20)]);
+
+test('the route follows the file type and the person\'s choice, before any byte is read', () => {
+  assert.equal(documentRoute('text/csv', undefined), 'csv');
+  assert.throws(() => documentRoute('text/csv', 'bill'), { code: 'DOCUMENT_ROUTE_INVALID' });
+  assert.throws(() => documentRoute('application/pdf', undefined), { code: 'DOCUMENT_ROUTE_REQUIRED', message: 'Choose: a bank statement or a bill.' });
+  assert.equal(documentRoute('application/pdf', 'statement'), 'statement');
+  assert.equal(documentRoute('application/pdf', 'bill'), 'bill');
+  for (const photo of ['image/jpeg', 'image/png'] as const) {
+    assert.equal(documentRoute(photo, 'bill'), 'bill');
+    assert.throws(() => documentRoute(photo, 'statement'), { code: 'DOCUMENT_ROUTE_INVALID' });
+    assert.throws(() => documentRoute(photo, undefined), { code: 'DOCUMENT_ROUTE_REQUIRED' });
+  }
+  for (const odd of ['csv', 'Statement', 1, null, {}]) assert.throws(() => documentRoute('application/pdf', odd), { code: 'INVALID_REQUEST' });
+  assert.equal(MAX_READ_BYTES, 4 * 1024 * 1024);
+});
+
+/** The engine's own module host with `host.call` replaced, so the routing is seen exactly as the callee would see it. */
+function stubbed(f: Awaited<ReturnType<typeof endToEnd>>, reply: (method: string, payload: Record<string, any>) => unknown) {
+  const calls: { method: string; payload: Record<string, any>; options: unknown }[] = [];
+  const host = Object.create(f.engine.moduleHost('hosted-link', owner), { call: { value: async (method: string, payload: Record<string, any>, options?: unknown) => {
+    calls.push({ method, payload, options }); return reply(method, payload);
+  } } });
+  return { calls, preview: (payload: Record<string, unknown>): Promise<any> => f.engine.withContext(owner, () => documentsPreview(owner, payload, host)) };
+}
+
+test('end to end, stubbed readers: each route calls its reader once with the held bytes and returns its reply verbatim with the confirm', { skip: pgSkip }, async t => {
+  const f = await endToEnd(t);
+  await f.send('4500000001', { bytes: PDF, mime: 'application/pdf' });
+  await f.send('4500000002', { bytes: JPEG, mime: 'image/jpeg' });
+  await f.send('4500000003', { bytes: PNG, mime: 'image/png' });
+  await f.send('4500000004', { bytes: CSV, mime: 'text/csv' });
+  await f.rpc('phone.documents.collect');
+  const listed = (await f.rpc('phone.documents.list')).documents;
+  const of = (mediaType: string) => listed.find((d: any) => d.mediaType === mediaType).documentId;
+  const pdf = of('application/pdf'), jpeg = of('image/jpeg'), png = of('image/png'), csv = of('text/csv');
+  const sourceOf = (id: string) => (f.engine.vault!.read().extensions!['hosted-link'] as any).documents.held.find((h: any) => h.localId === id).sourceId;
+  const before = () => { const s = f.engine.vault!.read(); return { facts: s.facts.length, imports: s.imports.length }; };
+  const baseline = before();
+
+  const statementReply = { id: 'envelope-synthetic-1', status: 'accepted', fr07: { state: 'checked', kind: 'bank-statement' }, note: INJECTION };
+  // The shape books.billRead replies with: the reading's id and digest, and the proposal the field-check form starts from.
+  const field = (value: string | null) => ({ value, certainty: 'check-this', region: value === null ? null : { page: 1, line: 2, of: 9 } });
+  const billReply = { readId: 'billread-synthetic-1', digest: 'a'.repeat(64), mime: 'application/pdf', stored: false, expiresAt: '2026-10-14T06:30:00.000Z', untrusted: true,
+    reader: { engine: 'tesseract', version: 'synthetic', pages: 1, confidence: 90 },
+    supplier: field(INJECTION), billNumber: field('B-17'), date: field('2026-10-02'),
+    lines: [{ description: field('Courier'), quantity: field('1'), amount: field('100000') }], tax: [{ name: field('GST'), amount: field('18000') }], total: field('118000'),
+    sums: { linesPlusTax: { minor: '118000' }, total: { minor: '118000' }, equal: true },
+    routes: { zohoBooks: { available: false, connections: [] }, tallyPreview: { available: true } } };
+  const s = stubbed(f, method => method === 'imports.preview' ? statementReply : billReply);
+
+  const statement = await s.preview({ documentId: pdf, as: 'statement' });
+  assert.deepEqual(s.calls.map(c => [c.method, Object.keys(c.payload).sort(), c.options]), [['imports.preview', ['bytesBase64', 'kind', 'sourceId'], undefined]], 'the reader runs as the person, not marked tainted');
+  assert.deepEqual({ sourceId: s.calls[0].payload.sourceId, kind: s.calls[0].payload.kind }, { sourceId: sourceOf(pdf), kind: 'pdf' });
+  assert.ok(Buffer.from(s.calls[0].payload.bytesBase64, 'base64').equals(PDF));
+  assert.equal(statement.route, 'statement'); assert.equal(statement.untrusted, true); assert.equal(statement.documentId, pdf); assert.equal(statement.imported, false);
+  assert.deepEqual(statement.preview, statementReply, 'the reply is passed on verbatim');
+  assert.deepEqual(statement.confirm, { method: 'imports.commit', input: { sourceId: sourceOf(pdf), envelopeId: 'envelope-synthetic-1' } });
+
+  const bill = await s.preview({ documentId: pdf, as: 'bill' });
+  assert.deepEqual([s.calls[1].method, Object.keys(s.calls[1].payload).sort(), s.calls[1].payload.mime], ['books.billRead', ['bytesBase64', 'mime'], 'application/pdf']);
+  assert.equal(bill.route, 'bill'); assert.deepEqual(bill.preview, billReply);
+  assert.deepEqual(bill.confirm, { method: 'books.billConfirm', input: { readId: 'billread-synthetic-1', digest: 'a'.repeat(64) }, add: ['fields'], optional: ['zoho'] });
+  assert.equal(bill.confirmReason, null); assert.equal(statement.confirmReason, null);
+  for (const [id, mime, bytes] of [[jpeg, 'image/jpeg', JPEG], [png, 'image/png', PNG]] as const) {
+    const photo = await s.preview({ documentId: id, as: 'bill' });
+    const call = s.calls.at(-1)!;
+    assert.equal(call.method, 'books.billRead'); assert.equal(call.payload.mime, mime); assert.ok(Buffer.from(call.payload.bytesBase64, 'base64').equals(bytes));
+    assert.equal(photo.route, 'bill');
+  }
+  const callsSoFar = s.calls.length;
+  // Refusals before any reader is called.
+  await assert.rejects(s.preview({ documentId: pdf }), { code: 'DOCUMENT_ROUTE_REQUIRED' });
+  await assert.rejects(s.preview({ documentId: jpeg, as: 'statement' }), { code: 'DOCUMENT_ROUTE_INVALID' });
+  await assert.rejects(s.preview({ documentId: csv, as: 'statement' }), { code: 'DOCUMENT_ROUTE_INVALID' });
+  await assert.rejects(s.preview({ documentId: pdf, as: 'statement', expectedTotals: { rowCount: 1 } }), { code: 'INVALID_REQUEST' });
+  await assert.rejects(s.preview({ documentId: pdf, as: 'invoice' }), { code: 'INVALID_REQUEST' });
+  assert.equal(s.calls.length, callsSoFar);
+  // The CSV route is unchanged and never calls a reader.
+  const sheet = await s.preview({ documentId: csv, expectedTotals: { rowCount: 2, amountMinor: '150000' } });
+  assert.equal(sheet.route, 'csv'); assert.equal(sheet.untrusted, true); assert.equal(sheet.confirm.method, 'sources.import'); assert.equal(s.calls.length, callsSoFar);
+
+  // Only a checked statement can be committed (imports.commit refuses anything else IMPORT_NOT_ACCEPTED): a question,
+  // a refusal or an imported read has no confirm, and says why; a reply without a reading has none either.
+  for (const [state, reason] of [['question', 'statement-question'], ['refused', 'statement-refused'], ['imported', 'statement-imported'], ['unheard-of', 'reply-unrecognised']]) {
+    const read = await stubbed(f, () => ({ id: 'envelope-synthetic-2', status: 'abstained', fr07: { state } })).preview({ documentId: pdf, as: 'statement' });
+    assert.deepEqual([read.confirm, read.confirmReason], [null, reason], state);
+  }
+  const noState = await stubbed(f, () => ({ id: 'envelope-synthetic-3' })).preview({ documentId: pdf, as: 'statement' });
+  assert.deepEqual([noState.confirm, noState.confirmReason], [null, 'reply-unrecognised']);
+  const noReading = await stubbed(f, () => ({ untrusted: true })).preview({ documentId: pdf, as: 'bill' });
+  assert.deepEqual([noReading.confirm, noReading.confirmReason], [null, 'reply-unrecognised']);
+
+  // A missing reader is DOCUMENT_READER_UNAVAILABLE; any other refusal of the reader passes through unchanged.
+  for (const code of ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'])
+    await assert.rejects(stubbed(f, () => { throw new ChausarError(code, 'absent'); }).preview({ documentId: jpeg, as: 'bill' }), { code: 'DOCUMENT_READER_UNAVAILABLE' });
+  for (const code of ['READER_NOT_INSTALLED', 'OCR_DEPENDENCY_UNAVAILABLE', 'PASSWORD_REQUIRED'])
+    await assert.rejects(stubbed(f, () => { throw new ChausarError(code, 'callee words'); }).preview({ documentId: pdf, as: 'statement' }), { code, message: 'callee words' });
+
+  // Nothing was imported or booked, the confirm was never called, and the documents are all still held.
+  assert.deepEqual(before(), baseline);
+  assert.equal((await f.rpc('phone.documents.list')).documents.length, 4);
+  // Done: the person finished with the bill; it is removed and recorded, like a discard.
+  await assert.rejects(f.engine.requestAs({ ...owner, channel: 'phone' }, 'phone.documents.done', { documentId: jpeg }), { code: 'OPEN_DESKTOP' });
+  await assert.rejects(f.rpc('phone.documents.done', { documentId: jpeg, route: 'bill' }), { code: 'INVALID_REQUEST' });
+  assert.deepEqual(await f.rpc('phone.documents.done', { documentId: jpeg }), { documentId: jpeg, done: true });
+  await assert.rejects(f.rpc('phone.documents.done', { documentId: jpeg }), { code: 'DOCUMENT_NOT_FOUND' });
+  assert.equal((await f.rpc('phone.documents.list')).documents.some((d: any) => d.documentId === jpeg), false);
+  assert.equal((await f.files()).length, 3);
+  assert.ok(f.engine.vault!.read().activity.some((entry: any) => entry.event === 'hosted.document.done'));
+});
+
+test('end to end, real readers: the person\'s choice reaches imports.preview and books.billRead, and their reply or refusal is passed on unchanged', { skip: pgSkip }, async t => {
+  const f = await endToEnd(t);
+  await f.send('4600000001', { bytes: PDF, mime: 'application/pdf' });
+  await f.send('4600000002', { bytes: JPEG, mime: 'image/jpeg' });
+  await f.send('4600000003', { bytes: BIG_PDF, mime: 'application/pdf' });
+  const collected = await f.rpc('phone.documents.collect');
+  assert.deepEqual(collected.collected.map((c: any) => c.outcome), ['held', 'held', 'held'], 'the relay takes files up to ten megabytes');
+  const listed = (await f.rpc('phone.documents.list')).documents;
+  const pdf = listed.find((d: any) => d.sizeBytes === PDF.length).documentId, jpeg = listed.find((d: any) => d.mediaType === 'image/jpeg').documentId;
+  const big = listed.find((d: any) => d.sizeBytes === BIG_PDF.length).documentId;
+  const facts = f.engine.vault!.read().facts.length;
+  const sourceId = (f.engine.vault!.read().extensions!['hosted-link'] as any).documents.held.find((h: any) => h.localId === pdf).sourceId;
+
+  /** Through the phone documents route, then the same bytes brought straight to the reader: the same outcome. */
+  const outcome = (work: Promise<any>) => work.then(value => ({ ok: true as const, value, code: null }), (error: any) => ({ ok: false as const, value: null, code: error.code as string }));
+  const routes: [string, string, string, Record<string, unknown>][] = [
+    [pdf, 'statement', 'imports.preview', { sourceId, kind: 'pdf', bytesBase64: PDF.toString('base64') }],
+    [pdf, 'bill', 'books.billRead', { mime: 'application/pdf', bytesBase64: PDF.toString('base64') }],
+    [jpeg, 'bill', 'books.billRead', { mime: 'image/jpeg', bytesBase64: JPEG.toString('base64') }],
+  ];
+  for (const [documentId, as, method, direct] of routes) {
+    const routed = await outcome(f.rpc('phone.documents.preview', { documentId, as }));
+    const straight = await outcome(f.rpc(method, direct));
+    assert.equal(routed.ok, straight.ok, `${as} ${method}: ${JSON.stringify(routed)} ${JSON.stringify(straight)}`);
+    if (!routed.ok) {
+      assert.equal(routed.code, straight.code, `${method} refuses the same way through the phone route`);
+      assert.notEqual(routed.code, 'DOCUMENT_READER_UNAVAILABLE', 'the reader exists in this build');
+    } else {
+      assert.equal(routed.value.route, as); assert.equal(routed.value.untrusted, true);
+      assert.equal(typeof routed.value.preview, 'object');
+      if (as === 'statement' && routed.value.confirm) assert.equal(routed.value.confirm.method, 'imports.commit');
+      if (as === 'bill') assert.equal(routed.value.confirm.method, 'books.billConfirm');
+    }
+  }
+  await assert.rejects(f.rpc('phone.documents.preview', { documentId: big, as: 'statement' }), { code: 'DOCUMENT_TOO_LARGE_TO_READ' });
+  await assert.rejects(f.rpc('phone.documents.preview', { documentId: big, as: 'bill' }), { code: 'DOCUMENT_TOO_LARGE_TO_READ' });
+  await assert.rejects(f.engine.requestAs({ ...owner, channel: 'phone' }, 'phone.documents.preview', { documentId: pdf, as: 'bill' }), { code: 'OPEN_DESKTOP' });
+  assert.equal(f.engine.vault!.read().facts.length, facts, 'reading stores no business facts');
+  assert.equal((await f.rpc('phone.documents.list')).documents.length, 3, 'reading keeps the held documents');
 });

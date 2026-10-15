@@ -19,6 +19,8 @@ import { createMailVerify } from './mail-verify.ts';
 import type { MailConfirmPages } from './mail-verify.ts';
 import { createMailInbound } from './mail-inbound.ts';
 import { createBusinessStatuses } from './business-statuses.ts';
+import { createRecovery } from './recovery.ts';
+import type { RecoveryPages } from './recovery.ts';
 
 export { relayConfig, parseRelayPrices } from './config.ts';
 export type { RelayOptions, RelayPrices } from './config.ts';
@@ -42,6 +44,8 @@ export type RelayModule = HostedModule & {
   readonly buttons: RelayButtons;
   /** The mail address confirmation link page (/v/:token). */
   readonly mailConfirm: MailConfirmPages;
+  /** The recovery contact's confirmation link page (/r/:token). */
+  readonly recoveryPages: RecoveryPages;
   /** Server-side sends (the always-on worker): one fixed template, no offer, on the first channel that is on. */
   notify(accountId: string, event: MessageEvent, idempotencyKey: string): Promise<{ messageId: string; channel: Channel }>;
 };
@@ -488,6 +492,16 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       return queueTemplate(accountId, deviceId, event, channel, key, offer);
     });
 
+    // A desktop whose send got no reply asks, without sending anything, whether the relay received that key.
+    router.add('GET', '/v1/relay/messages/by-key/:idempotencyKey', async request => {
+      const { accountId } = await deps.authenticate(request);
+      const key = request.params.idempotencyKey;
+      check(/^[A-Za-z0-9_-]{8,100}$/.test(key), 'INVALID_REQUEST', 'The idempotency key is not valid.');
+      const { rows: [row] } = await deps.sql.query(`SELECT id, status FROM relay_messages WHERE account_id = $1 AND idempotency_key = $2 AND kind = 'template'`, [accountId, key]);
+      check(row, 'MESSAGE_NOT_FOUND', 'There is no such message.', 404);
+      return ok({ messageId: row.id, status: row.status });
+    });
+
     router.add('GET', '/v1/relay/messages/:messageId', async request => {
       const { accountId } = await deps.authenticate(request);
       const { rows: [row] } = await deps.sql.query(`SELECT * FROM relay_messages WHERE id = $1 AND account_id = $2 AND kind = 'template'`, [request.params.messageId, accountId]);
@@ -539,6 +553,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     });
     mailInbound.routes(router);
     businessStatuses.routes(router);
+    recovery.routes(router);
 
     router.add('POST', '/v1/webhooks/whatsapp', async request => {
       const secret = options.whatsappAppSecret;
@@ -567,9 +582,10 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
   const kit = { sealKey, linkOrigin, mail: options.mail, recipientHash, addressAad, queueReply, arrived, command, ownerOf, boundElsewhere, refuse };
   const mailVerify = createMailVerify(deps, kit), mailInbound = createMailInbound(deps, kit, options.mailInbound ?? {});
   const businessStatuses = createBusinessStatuses(deps, kit, options.apiOrigin);
+  const recovery = createRecovery(deps, { ...kit, whatsapp: options.whatsapp, telegram: options.telegram });
 
   return {
-    id: 'relay', buttons, routes, mailConfirm: mailVerify.pages,
+    id: 'relay', buttons, routes, mailConfirm: mailVerify.pages, recoveryPages: recovery.pages,
     async notify(accountId, event, idempotencyKey) {
       const { rows } = await deps.sql.query(`SELECT channel FROM relay_channels WHERE account_id = $1 AND status = 'on'`, [accountId]);
       const channel = CHANNELS.find(name => adapters[name] && rows.some(row => row.channel === name));
@@ -577,7 +593,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const reply = await queueTemplate(accountId, null, event, channel, idempotencyKey, null);
       return { messageId: (reply.body as { messageId: string }).messageId, channel };
     },
-    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); documents.jobs(worker); mailVerify.jobs(worker); },
+    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); documents.jobs(worker); mailVerify.jobs(worker); recovery.jobs(worker); },
     async sweep() {
       const at = now().toISOString();
       await deps.sql.query('DELETE FROM relay_envelopes WHERE expires_at <= $1', [at]);
@@ -586,7 +602,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       await deps.sql.query('DELETE FROM relay_connect_tokens WHERE expires_at <= $1 OR used_at IS NOT NULL', [at]);
       await deps.sql.query(`UPDATE relay_messages SET reply_recipient_sealed = NULL WHERE kind = 'reply' AND reply_recipient_sealed IS NOT NULL AND window_until <= $1`, [at]);
       await documents.sweep();
-      await mailVerify.sweep(); await mailInbound.sweep(); await businessStatuses.sweep();
+      await mailVerify.sweep(); await mailInbound.sweep(); await businessStatuses.sweep(); await recovery.sweep();
     },
   };
 }

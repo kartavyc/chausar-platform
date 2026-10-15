@@ -3,15 +3,16 @@ import { PhoneClient } from '../../../../platform/runtime/phone/client.ts';
 import { CompanionController } from '../../shared/controller.ts';
 import { createLiveCompanionController } from '../../shared/adapters.ts';
 import type { LiveCompanionAdapters } from '../../shared/adapters.ts';
+import type { PhonePageExperiments } from '../../shared/phone-page.ts';
 import { installPreviewCloneFallback, MemoryPreviewBriefCache, MemoryPreviewCredentials, PreviewPhoneTransport, previewIdentity, previewPicker, previewReceipts, syntheticDocumentCrypto } from '../../shared/preview.ts';
 
 /** Native screen preview with synthetic fixtures. No real pairing, network or device key. */
-export function createNativePreviewController() {
+export function createNativePreviewController(options: { experiments?: PhonePageExperiments } = {}) {
   installPreviewCloneFallback();
   const channel = Platform.OS === 'ios' ? 'ios' : 'android';
   const client = new PhoneClient({ channel, credentials: new MemoryPreviewCredentials(), cache: new MemoryPreviewBriefCache(), transport: new PreviewPhoneTransport(), crypto: syntheticDocumentCrypto });
-  return new CompanionController({ client, identity: previewIdentity(channel), picker: previewPicker, receipts: previewReceipts, crypto: syntheticDocumentCrypto, mode: 'demo' });
+  return new CompanionController({ client, identity: previewIdentity(channel), picker: previewPicker, receipts: previewReceipts, crypto: syntheticDocumentCrypto, mode: 'demo', experiments: { phonePage: options.experiments?.phonePage === true } });
 }
 
 /** Production host supplies protected keys/storage, picker, receipts and the wired relay transport. */
-export const createNativeLiveController = (adapters: LiveCompanionAdapters) => createLiveCompanionController(adapters);
+export const createNativeLiveController = (adapters: LiveCompanionAdapters, experiments: PhonePageExperiments = {}) => createLiveCompanionController(adapters, experiments);

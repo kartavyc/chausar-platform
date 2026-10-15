@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBrief } from './contracts.ts';
+import { PhoneError, copyAuthority, copyBinding, copyApprovalListItem, copyBrief, isApprovalEligibility, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBrief } from './contracts.ts';
 import type { ApprovalChallenge, PhoneErrorCode, RemoteRequest, RequestResult } from './contracts.ts';
 import { phoneRequestCapability } from './host-contracts.ts';
 import type { PhoneCustodyRecord, PhoneHostAuthentication, PhoneHostOperation, PhoneHostPorts, PhoneHostPrincipal, PhoneHostRelease, PhoneRequestScope } from './host-contracts.ts';
@@ -178,8 +178,8 @@ export class PhoneHost {
       case 'approval.list': {
         exact(payload, []); this.capable(principal, 'approval.simple'); requirePhone(this.ports.approvals, 'OPEN_DESKTOP');
         const items = await this.ports.approvals(structuredClone(principal));
-        requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200), 'INVALID_RESPONSE');
-        const safeItems = items.map(item => ({ approvalId: item.approvalId, title: item.title }));
+        requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200 && (item.eligibility === undefined || isApprovalEligibility(item.eligibility))), 'INVALID_RESPONSE');
+        const safeItems = items.map(copyApprovalListItem);
         await this.release(principal, { kind: 'approval-list', approvalIds: safeItems.map(item => item.approvalId) });
         return safeItems;
       }
