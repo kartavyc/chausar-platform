@@ -15,8 +15,10 @@ import s from './Enterprise.module.css';
 
 /** Fact keys this screen has words for. Any other key is shown as the key itself. */
 export const FACT_KEYS = [
-  'provider', 'configured', 'method', 'lastCheckAt', 'lastBackupAt', 'restoreTestedAt', 'keysHeld', 'rotatedAt',
-  'sessions', 'computers', 'open', 'checksPassed', 'checksFailed', 'version', 'channel', 'licensee', 'seats', 'endsOn', 'reason',
+  'workspace', 'sources', 'jobs', 'actions', 'models', 'trust', 'jobs-ext', 'bench',
+  'hosted', 'sync', 'localCopies', 'lastLocalCopyAt', 'hostedConfigured', 'hostedPaired', 'provider', 'helper',
+  'sessionBus', 'qualification', 'syncEnabled', 'syncTransport', 'syncMode', 'devices', 'benchRuns', 'lastBenchAt',
+  'lastBenchPassed', 'version', 'storage', 'channel', 'updatesConfigured', 'vaultCompatible',
 ] as const;
 
 export function factLabel(t: (k: string) => string, key: string): string {
@@ -26,6 +28,8 @@ export function factLabel(t: (k: string) => string, key: string): string {
 export function factValue(t: (k: string) => string, value: FactValue): string {
   if (value === null) return t('ENX-value.unknown');
   if (typeof value === 'boolean') return t(value ? 'ENX-value.yes' : 'ENX-value.no');
+  // Health reports each probed part as "ready", "not-built" or its refusal code.
+  if (value === 'ready' || value === 'not-built') return t(`ENX-company.state.${value}`);
   return String(value);
 }
 

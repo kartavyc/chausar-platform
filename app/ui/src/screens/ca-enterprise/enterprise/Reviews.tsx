@@ -36,7 +36,7 @@ export function ReviewsScreen({ p }: { p: PlaceRenderProps }) {
       {(list) => (
         <>
           <PeopleGroup p={p} list={list} onSaved={(row) => access.replace({ ...list, people: list.people.map((x) => (x.memberId === row.memberId ? row : x)) })} />
-          <ReviewsGroup p={p} whose={whose} />
+          <ReviewsGroup p={p} whose={whose} names={new Map(list.people.map((x) => [x.memberId, x.name] as const))} />
         </>
       )}
     </Frame>
@@ -118,7 +118,7 @@ function PersonRow({ p, person, list, onSaved }: { p: PlaceRenderProps; person: 
   );
 }
 
-function ReviewsGroup({ p, whose }: { p: PlaceRenderProps; whose: WhoseValue }) {
+function ReviewsGroup({ p, whose, names }: { p: PlaceRenderProps; whose: WhoseValue; names: ReadonlyMap<string, string> }) {
   const t = useT();
   const reviews = useRead(p, 'enterprise.access.reviews', validateReviews);
   const start = useSend(p.rpc, validateReview);
@@ -146,7 +146,7 @@ function ReviewsGroup({ p, whose }: { p: PlaceRenderProps; whose: WhoseValue }) 
             <Outcome sent={start.sent} done={() => null} />
           </>
         ) : (
-          <OpenReview p={p} review={shown(open)} edit={edit} onReview={put} />
+          <OpenReview p={p} review={shown(open)} edit={edit} onReview={put} names={names} />
         )}
       </Group>
       <Group title={t('ENX-reviews.past')}>
@@ -170,7 +170,7 @@ function ReviewsGroup({ p, whose }: { p: PlaceRenderProps; whose: WhoseValue }) 
   );
 }
 
-function OpenReview({ p, review, edit, onReview }: { p: PlaceRenderProps; review: Review; edit: boolean; onReview: (r: Review) => void }) {
+function OpenReview({ p, review, edit, onReview, names }: { p: PlaceRenderProps; review: Review; edit: boolean; onReview: (r: Review) => void; names: ReadonlyMap<string, string> }) {
   const t = useT();
   const { sent, send } = useSend(p.rpc, validateReview);
   const decide = async (memberId: string, keep: boolean) => {
@@ -194,7 +194,7 @@ function OpenReview({ p, review, edit, onReview }: { p: PlaceRenderProps; review
                 ) : <span className={s.note}>{t('ENX-reviews.undecided')}</span>
               ) : (
                 <span className={s.note}>
-                  {t(row.decision === 'keep' ? 'ENX-reviews.kept' : 'ENX-reviews.removed', { by: row.decidedBy ?? t('ENX-value.unknown') })}
+                  {t(row.decision === 'keep' ? 'ENX-reviews.kept' : 'ENX-reviews.removed', { by: row.decidedBy === null ? t('ENX-value.unknown') : names.get(row.decidedBy) ?? row.decidedBy })}
                 </span>
               )}
               {row.decision === 'remove' && row.changeId !== null && <span className={s.status} role="status">{t('ENX-reviews.waitsSecond')}</span>}

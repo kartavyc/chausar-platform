@@ -122,8 +122,12 @@ export interface CaEnterpriseShell {
   withToday<T extends { readonly data: TodayData; readonly intents: TodayIntents }>(today: T): T;
 }
 
-/** Reads the lane's shell facts for `key` (the authorized context) and again when it changes. */
-export function useCaEnterpriseShell(rpc: PlaceRpc, key: string, language: Language = 'en'): CaEnterpriseShell {
+/**
+ * Reads the lane's shell facts for `key` (the authorized context) and again when it changes.
+ * `ready` is the host's own frame read (`todayx.shell`) having succeeded: until then nothing is
+ * read and the desktop defaults stand, so a host without a frame makes no lane reads at all.
+ */
+export function useCaEnterpriseShell(rpc: PlaceRpc, key: string, language: Language = 'en', ready = true): CaEnterpriseShell {
   const [facts, setFacts] = useState<ShellFacts>(DESKTOP_FACTS);
   const [lens, setLens] = useState<Lens | null>(null);
   const [group, setGroup] = useState<Companies | null>(null);
@@ -134,6 +138,7 @@ export function useCaEnterpriseShell(rpc: PlaceRpc, key: string, language: Langu
     const mine = ++generation.current;
     const current = () => generation.current === mine;
     setFacts(DESKTOP_FACTS); setLens(null); setGroup(null); setInside(null);
+    if (!ready) return () => { generation.current++; };
     rpc.request('caent.shell', {}).then((reply) => {
       if (!current()) return;
       const checked = validateShellFacts(reply) ?? DESKTOP_FACTS;
@@ -144,7 +149,7 @@ export function useCaEnterpriseShell(rpc: PlaceRpc, key: string, language: Langu
     }, () => { if (current()) setFacts(DESKTOP_FACTS); });
     rpc.request('castatus.inside', {}).then((r) => { if (current()) setInside(validateInside(r)); }, () => {});
     return () => { generation.current++; };
-  }, [rpc, key]);
+  }, [rpc, key, ready]);
 
   const enterprise = facts.kind === 'enterprise';
   const onLens = useCallback((next: Lens) => {

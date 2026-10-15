@@ -1,6 +1,6 @@
 /** Enterprise words used through useT() (lane catalogue). English and Hindi, same keys.
  *  Sub-place names are SH-01.sub.<place>.<id>; every other key starts ENX-. */
-const PAIRS: Readonly<Record<string, readonly [string, string]>> = {
+export const enterpriseWords: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = catalogue({
   'SH-01.sub.trust.reviews': ['Reviews', 'समीक्षाएँ'],
   'SH-01.sub.trust.teams': ['Teams', 'टीमें'],
   'SH-01.sub.trust.holds': ['Holds', 'कानूनी रोक'],
@@ -20,6 +20,12 @@ const PAIRS: Readonly<Record<string, readonly [string, string]>> = {
   'ENX-refusal.reviewSelf': ['You cannot review your own access. Another administrator decides your row.', 'आप अपनी पहुँच की समीक्षा नहीं कर सकते। आपकी पंक्ति कोई दूसरा व्यवस्थापक तय करेगा।'],
   'ENX-refusal.holds': ['Legal holds are recorded only once the engine enforces them; it does not yet.', 'कानूनी रोक तभी दर्ज होती है जब इंजन उसे लागू करे; अभी वह ऐसा नहीं करता।'],
   'ENX-refusal.shellTaken': ['This workspace is already a CA firm’s console, so it cannot also be the company version.', 'यह वर्कस्पेस पहले से एक CA फ़र्म का कंसोल है, इसलिए यह कंपनी संस्करण नहीं बन सकता।'],
+  'ENX-refusal.administersRole': ['Only an active owner or cofounder can administer the installation.', 'इंस्टॉलेशन का व्यवस्थापक केवल सक्रिय मालिक या सह-संस्थापक हो सकता है।'],
+  'ENX-refusal.reviewOpen': ['Finish the open access review first.', 'पहले खुली पहुँच समीक्षा पूरी करें।'],
+  'ENX-refusal.reviewClosed': ['This review is already closed.', 'यह समीक्षा पहले ही बंद हो चुकी है।'],
+  'ENX-refusal.reviewDecided': ['This row is already decided.', 'यह पंक्ति पहले ही तय हो चुकी है।'],
+  'ENX-refusal.companyForbidden': ['This company is outside your companies.', 'यह कंपनी आपकी कंपनियों में नहीं है।'],
+  'ENX-refusal.grantUnknown': ['Grant only the listed sub-places, each once.', 'केवल सूची के उप-स्थानों की अनुमति दें, हर एक एक बार।'],
   'ENX-refusal.invalidReply': ['The engine sent a reply this screen cannot read, so nothing from it is shown.', 'इंजन का जवाब यह स्क्रीन पढ़ नहीं सकती, इसलिए उसमें से कुछ नहीं दिखाया गया।'],
   'ENX-refusal.notBuilt': ['This is not built yet.', 'यह अभी बना नहीं है।'],
   'ENX-refusal.other': ['The engine refused this ({code}).', 'इंजन ने इसे मना किया ({code})।'],
@@ -44,25 +50,37 @@ const PAIRS: Readonly<Record<string, readonly [string, string]>> = {
   'ENX-company.means.not-built': ['This part of the installation is not built yet.', 'इंस्टॉलेशन का यह हिस्सा अभी बना नहीं है।'],
   'ENX-company.means.needs-founder': ['This part waits for a decision or an account only the founder can supply.', 'यह हिस्सा ऐसे फ़ैसले या खाते की प्रतीक्षा में है जो केवल संस्थापक दे सकते हैं।'],
   'ENX-company.means.out-of-service': ['This part is down. Answers from the books still work.', 'यह हिस्सा बंद है। बही-खाते से जवाब अब भी मिलते हैं।'],
-  'ENX-fact.provider': ['Provider', 'प्रदाता'],
-  'ENX-fact.configured': ['Set up', 'सेट किया गया'],
-  'ENX-fact.method': ['Method', 'तरीक़ा'],
-  'ENX-fact.lastCheckAt': ['Last checked', 'आख़िरी जाँच'],
-  'ENX-fact.lastBackupAt': ['Last backup', 'आख़िरी बैकअप'],
-  'ENX-fact.restoreTestedAt': ['Restore last tested', 'वापस लाने की आख़िरी जाँच'],
-  'ENX-fact.keysHeld': ['Keys held', 'रखी गई चाबियाँ'],
-  'ENX-fact.rotatedAt': ['Last rotated', 'आख़िरी बार बदली गई'],
-  'ENX-fact.sessions': ['Open sessions', 'खुले सत्र'],
-  'ENX-fact.computers': ['Computers', 'कंप्यूटर'],
-  'ENX-fact.open': ['Open', 'खुला'],
-  'ENX-fact.checksPassed': ['Checks passed', 'पास हुई जाँचें'],
-  'ENX-fact.checksFailed': ['Checks failed', 'फ़ेल हुई जाँचें'],
+
+  'ENX-fact.workspace': ['Workspace', 'वर्कस्पेस'],
+  'ENX-fact.sources': ['Sources', 'स्रोत'],
+  'ENX-fact.jobs': ['Jobs', 'काम'],
+  'ENX-fact.actions': ['Actions', 'कार्रवाइयाँ'],
+  'ENX-fact.models': ['Models', 'मॉडल'],
+  'ENX-fact.trust': ['Trust rules', 'भरोसे के नियम'],
+  'ENX-fact.jobs-ext': ['Job types', 'काम के प्रकार'],
+  'ENX-fact.bench': ['Model checks', 'मॉडल जाँच'],
+  'ENX-fact.hosted': ['Hosted link', 'होस्टेड लिंक'],
+  'ENX-fact.sync': ['Sync', 'सिंक'],
+  'ENX-fact.localCopies': ['Local copies', 'स्थानीय प्रतियाँ'],
+  'ENX-fact.lastLocalCopyAt': ['Last local copy', 'आख़िरी स्थानीय प्रति'],
+  'ENX-fact.hostedConfigured': ['Hosted backup set up', 'होस्टेड बैकअप सेट'],
+  'ENX-fact.hostedPaired': ['Hosted backup paired', 'होस्टेड बैकअप जुड़ा'],
+  'ENX-fact.provider': ['Key store', 'चाबी भंडार'],
+  'ENX-fact.helper': ['Key helper', 'चाबी सहायक'],
+  'ENX-fact.sessionBus': ['Session bus', 'सत्र बस'],
+  'ENX-fact.qualification': ['Qualification', 'योग्यता जाँच'],
+  'ENX-fact.syncEnabled': ['Sync on', 'सिंक चालू'],
+  'ENX-fact.syncTransport': ['Sync transport set', 'सिंक माध्यम सेट'],
+  'ENX-fact.syncMode': ['Sync mode', 'सिंक तरीक़ा'],
+  'ENX-fact.devices': ['Computers', 'कंप्यूटर'],
+  'ENX-fact.benchRuns': ['Check runs', 'जाँच के दौर'],
+  'ENX-fact.lastBenchAt': ['Last check', 'आख़िरी जाँच'],
+  'ENX-fact.lastBenchPassed': ['Last check passed', 'आख़िरी जाँच पास'],
   'ENX-fact.version': ['Version', 'संस्करण'],
+  'ENX-fact.storage': ['Storage', 'भंडारण'],
   'ENX-fact.channel': ['Release channel', 'रिलीज़ चैनल'],
-  'ENX-fact.licensee': ['Licensed to', 'लाइसेंसधारी'],
-  'ENX-fact.seats': ['Seats', 'सीटें'],
-  'ENX-fact.endsOn': ['Ends on', 'समाप्ति'],
-  'ENX-fact.reason': ['Reason', 'कारण'],
+  'ENX-fact.updatesConfigured': ['Updates set up', 'अपडेट सेट'],
+  'ENX-fact.vaultCompatible': ['Vault compatible', 'वॉल्ट संगत'],
 
   'ENX-channels.intro': ['What Chausar may send on each channel, and as whom.', 'हर चैनल पर Chausar क्या भेज सकता है, और किसके नाम से।'],
   'ENX-channels.none': ['No channels are set up.', 'कोई चैनल सेट नहीं है।'],
@@ -167,8 +185,10 @@ const PAIRS: Readonly<Record<string, readonly [string, string]>> = {
   'ENX-edition.reopenOn': ['Done. The app opens in the company version the next time you sign in or reload.', 'हो गया। अगली बार साइन इन करने या फिर से लोड करने पर ऐप कंपनी संस्करण में खुलेगा।'],
   'ENX-edition.reopenOff': ['Done. The app opens as the desktop app the next time you sign in or reload.', 'हो गया। अगली बार साइन इन करने या फिर से लोड करने पर ऐप डेस्कटॉप ऐप के रूप में खुलेगा।'],
   'ENX-edition.ownerOnly': ['Only the owner turns the company version on or off.', 'कंपनी संस्करण केवल मालिक चालू या बंद करता है।'],
-};
+});
 
-const pick = (i: 0 | 1): Readonly<Record<string, string>> => Object.fromEntries(Object.entries(PAIRS).map(([k, v]) => [k, v[i]]));
-
-export const enterpriseWords: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = { en: pick(0), hi: pick(1) };
+/** English and Hindi from one table of pairs, so a key can never have one language only. */
+function catalogue(pairs: Readonly<Record<string, readonly [string, string]>>): { en: Record<string, string>; hi: Record<string, string> } {
+  const pick = (i: 0 | 1) => Object.fromEntries(Object.entries(pairs).map(([k, v]) => [k, v[i]]));
+  return { en: pick(0), hi: pick(1) };
+}

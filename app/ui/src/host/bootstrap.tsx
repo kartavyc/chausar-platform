@@ -432,7 +432,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
-  const lane = useCaEnterpriseShell(controller.places, contextKey, language);
+  const lane = useCaEnterpriseShell(controller.places, contextKey, language, frame.reads.shell !== null);
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;

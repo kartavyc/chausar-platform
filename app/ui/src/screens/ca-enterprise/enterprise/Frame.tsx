@@ -19,6 +19,12 @@ const REFUSAL_KEY: Readonly<Record<string, string>> = {
   ENTERPRISE_REVIEW_SELF: 'ENX-refusal.reviewSelf',
   ENTERPRISE_HOLDS_NOT_ENFORCED: 'ENX-refusal.holds',
   ENTERPRISE_SHELL_TAKEN: 'ENX-refusal.shellTaken',
+  ENTERPRISE_ADMINISTERS_ROLE: 'ENX-refusal.administersRole',
+  ENTERPRISE_REVIEW_OPEN: 'ENX-refusal.reviewOpen',
+  ENTERPRISE_REVIEW_CLOSED: 'ENX-refusal.reviewClosed',
+  ENTERPRISE_REVIEW_DECIDED: 'ENX-refusal.reviewDecided',
+  ENTERPRISE_COMPANY_FORBIDDEN: 'ENX-refusal.companyForbidden',
+  ENTERPRISE_GRANT_UNKNOWN: 'ENX-refusal.grantUnknown',
   INVALID_REPLY: 'ENX-refusal.invalidReply',
 };
 
