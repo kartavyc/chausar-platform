@@ -3,6 +3,7 @@ import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './co
 import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
 import { assertLearningDecisionRecord, type LearningDecision } from './learning.ts';
 import { coreLifecycleIds, privateSourceExists, privateSourceIds, purgePrivateState } from './private-state-lifecycle.ts';
+import { noteSourceDeletion } from './core-data/deletion-register.ts';
 
 export function sourceAllowed(state: State, context: Context, sourceId: string): boolean {
   const member = state.members.find(m => m.id === context.memberId);
@@ -146,6 +147,7 @@ export class TrustService {
       for (const artifact of [...facts, ...imports]) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: artifact.contentHash || artifact.hash || hash(artifact), sourceId, deletedAt: now() });
       for (const event of refusals) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: event.importIdentity!.contentHash, sourceId, deletedAt: now() });
       state.tombstones.push({ id: newId('tombstone'), kind: 'source', sourceId, deletedAt: now() });
+      noteSourceDeletion(this.store, state, sourceId); // core-data: the deletion register outside the vault (WK-15)
       state.facts = state.facts.filter(f => f.sourceId !== sourceId);
       let removed = facts.length + invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
       for (const key of ['imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'conflicts', 'merges', 'conversations', 'modelReceipts'] as const) {

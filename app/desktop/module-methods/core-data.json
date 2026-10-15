@@ -2,7 +2,14 @@
   "coredata.bankTotals",
   "coredata.gst2bReceipt",
   "coredata.gstr3bTurnover",
+  "decisions.journal.cancel",
+  "deletion.customer",
+  "deletion.customerPlan",
+  "deletion.pending",
+  "deletion.reapply",
   "meanings.releases",
   "meanings.review",
-  "receipts.provenance"
+  "receipts.provenance",
+  "workspace.setTimeZone",
+  "workspace.timeZone"
 ]
