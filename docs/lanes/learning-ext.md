@@ -95,7 +95,7 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
     - At "shape", accounts go only as aliases with Tally group labels and keyword-table words, and dictionaries as field names, types and the structure of each definition.
     - At "samples", names and meanings are added, with identifiers masked.
     - Each call returns the gateway's exact payload preview.
-  - **Approval.** The owner approves that exact payload with `models.approve`. A tainted context cannot approve.
+  - **Approval.** The owner or a co-founder (the gateway's approvers) approves that exact payload with `models.approve`; only the person who asked can send it, so the screen offers Ask only to them. A tainted context cannot approve.
   - **Running it.** `learningx.accountsAskRun` and `learningx.editsAskRun` make a single attempt. Every attempt leaves a gateway receipt.
   - **Checking the output.** The output is checked strictly before anything is applied:
     - Account proposals must have known aliases and classes from the vocabulary. They are then merged as model evidence, so disagreement means a question.

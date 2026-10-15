@@ -311,3 +311,42 @@ test('Hindi renders the place, its sections and its words', async () => {
   expect(await screen.findByText('₹3,000')).toBeTruthy();
   expect(screen.getByText('बिल किया')).toBeTruthy();
 });
+
+test('a lost reply on approve says the outcome is unknown and reads the list again', async () => {
+  const { called } = setup({ handlers: { 'learningx.editApprove': () => { throw Object.assign(new Error('REQUEST_FAILED'), { code: 'REQUEST_FAILED' }); } } });
+  await screen.findByText('Add the field narration (text)');
+  const before = called('learningx.edits').length;
+  fireEvent.click(screen.getByRole('button', { name: 'Review and approve' }));
+  fireEvent.click(within(screen.getByRole('region', { name: 'Approve this dictionary edit' })).getByRole('button', { name: 'Approve this edit' }));
+  expect(await screen.findByText(/the outcome is not known/)).toBeTruthy();
+  await waitFor(() => expect(called('learningx.edits').length).toBeGreaterThan(before));
+});
+
+test('an oversized file is never read or sent', async () => {
+  const { called } = setup();
+  section('First dictionary');
+  const big = new File(['x'], 'big.csv', { type: 'text/csv' }); Object.defineProperty(big, 'size', { value: 6_000_000 });
+  fireEvent.change(await screen.findByLabelText(/CSV/i), { target: { files: [big] } });
+  expect(await screen.findByText('This file is too large to read here. Nothing was read or sent.')).toBeTruthy();
+  expect(called('learningx.dictionaryBuild')).toHaveLength(0);
+});
+
+test('an unreadable answer key still leaves the owner reset and a key file', async () => {
+  setup({ handlers: { 'learningx.answerKey': () => ({ unexpected: true }) } });
+  section('Answer key');
+  expect(await screen.findByText(/The answer key could not be read/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Reset to the default key' })).toBeTruthy();
+  expect(screen.getByLabelText('Replace with a key file (JSON)')).toBeTruthy();
+});
+
+test('a co-founder can ask and approve; an accountant is not offered an ask it could never send', async () => {
+  setup({ role: 'cofounder' });
+  section('Model asks');
+  fireEvent.change(await screen.findByLabelText('Choose a proposal set'), { target: { value: 'acctset_1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask the model' }));
+  expect(await screen.findByRole('button', { name: 'Approve sending exactly these bytes' })).toBeTruthy();
+  cleanup(); setup({ role: 'accountant' });
+  section('Model asks');
+  await screen.findByLabelText('Choose a proposal set');
+  expect(screen.queryByRole('button', { name: 'Ask the model' })).toBeNull();
+});

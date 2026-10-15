@@ -336,3 +336,9 @@ test('counts cannot carry a message: repeated events and events without a times 
   assert.equal((await post(wrap(rawBatch(['{"choice":"accepted","kind":"mapping"}'])))).status, 400);
   assert.equal((await post(wrap(rawBatch([good])))).status, 201);
 });
+
+test('the intake refuses empty lists, so a shape cannot be sent in several forms', async t => {
+  const { post } = await service(t);
+  for (const line of ['{"choice":"accepted","evidence":[],"kind":"mapping","times":"one"}', '{"choice":"accepted","fields":[],"kind":"mapping","times":"one"}', '{"choice":"accepted","kind":"mapping","steps":[],"times":"one"}'])
+    assert.equal((await post(wrap(rawBatch([line])))).status, 400, line);
+});

@@ -14,7 +14,7 @@ import {
   type AccountSet, type NotYet, type Preview,
 } from './contract.ts';
 import {
-  Button, NotYetLine, Part, Refused, day, editText, isOwner, prepares, styles as s, useLx, valueOf, type LearningProps, type Lx,
+  Button, NotYetLine, Part, Refused, admins, day, editText, isOwner, prepares, styles as s, useLx, valueOf, type LearningProps, type Lx,
 } from './shared.tsx';
 
 const classText = (value: string | null, lx: Lx) => value === null ? lx('accounts.noClass') : (ACCOUNT_CLASSES as readonly string[]).includes(value) ? lx(`class.${value}`) : value;
@@ -154,7 +154,8 @@ function AskFlow<D extends { readonly state: 'done' }>({ props, ask, payload, ru
   const lx = useLx();
   const act = useAct(props.rpc);
   const [step, setStep] = useState<Step<D>>({ kind: 'idle' });
-  const owner = isOwner(props);
+  // The gateway lets the owner or a co-founder approve, and only the person who asked can send: so only they ask.
+  const owner = admins(props);
   const start = async () => {
     const reply = await act.run(ask, payload, askReply);
     if (reply.ok) setStep(reply.value.state === 'not-yet' ? { kind: 'not-yet', notYet: reply.value } : { kind: 'preview', preview: reply.value });
@@ -171,7 +172,7 @@ function AskFlow<D extends { readonly state: 'done' }>({ props, ask, payload, ru
   };
   return (
     <div className={s.stack} data-ask={ask}>
-      {(step.kind === 'idle' || step.kind === 'not-yet' || step.kind === 'done') && (
+      {owner && (step.kind === 'idle' || step.kind === 'not-yet' || step.kind === 'done') && (
         <p><Button onClick={() => { void start(); }} disabled={act.busy}>{step.kind === 'idle' ? label : lx('model.askAgain')}</Button></p>
       )}
       {step.kind === 'not-yet' && <NotYetLine value={step.notYet} />}

@@ -31,8 +31,11 @@ export function AnswerKey(props: LearningProps) {
   const [run, setRun] = useState<KeyRun | null>(null);
   const [replace, setReplace] = useState<Replace | null>(null);
   const [badFile, setBadFile] = useState<string | null>(null);
+  const [tooLarge, setTooLarge] = useState(false);
   const value = valueOf(loaded);
   const owner = isOwner(props);
+  // An unreadable key never hides the owner's way out: Reset and Pick stay.
+  const unreadable = owner && loaded.phase === 'refused';
 
   const runKey = async () => {
     const done = await act.run('learningx.answerKey', { run: true }, answerKeyReply);
@@ -43,24 +46,28 @@ export function AnswerKey(props: LearningProps) {
     const payload = replace.kind === 'reset' ? { reset: true } : { key: replace.key };
     const done = await act.run('learningx.answerKeySet', payload, answerKeyReply);
     setReplace(null);
-    if (done.ok) { setRun(done.value.run ?? null); reload(); }
+    if (done.ok) setRun(done.value.run ?? null);
+    reload();
   };
 
   return (
-    <Part title={lx('section.key')} loaded={loaded} reload={reload}>
+    <Part title={lx('section.key')} {...(unreadable ? {} : { loaded })} reload={reload}>
+      {unreadable && <p className={s.amber}>{lx('key.unreadable')}</p>}
       {value && <KeyBody props={props} value={value} />}
-      {value && (
+      {/* The owner keeps Reset and Pick even when the key cannot be read, so a bad key never locks them out. */}
+      {(value || owner) && (
         <div className={s.inline}>
-          {admins(props) && <Button onClick={() => { void runKey(); }} disabled={act.busy}>{lx('key.run')}</Button>}
-          {owner && !value.default && <Button variant="link" onClick={() => setReplace({ kind: 'reset' })} disabled={act.busy}>{lx('key.reset')}</Button>}
-          {owner && <FilePick label={lx('key.pick')} accept=".json,application/json" onText={(name, content) => {
+          {value && admins(props) && <Button onClick={() => { void runKey(); }} disabled={act.busy}>{lx('key.run')}</Button>}
+          {owner && !value?.default && <Button variant="link" onClick={() => setReplace({ kind: 'reset' })} disabled={act.busy}>{lx('key.reset')}</Button>}
+          {owner && <FilePick label={lx('key.pick')} accept=".json,application/json" maxBytes={1_200_000} onTooLarge={() => setTooLarge(true)} onText={(name, content) => {
+            setTooLarge(false);
             const described = describeKeyFile(name, content);
             setBadFile(described === null ? name : null); setReplace(described);
           }} />}
         </div>
       )}
       {badFile !== null && <p className={s.amber}>{lx('key.badFile', { name: badFile })}</p>}
-      <Refused code={act.refusal} />
+      <Refused code={tooLarge ? 'FILE_TOO_LARGE' : act.refusal} />
       {run !== null && <RunResult run={run} />}
       {replace !== null && (
         <ConfirmSheet kind={lx('key.sheetKind')} busy={act.busy}

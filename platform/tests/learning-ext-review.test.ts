@@ -183,3 +183,12 @@ test('smuggling: a batch holds each distinct event once with a times word, never
   assert.equal(preview.count, 19);
   assert.deepEqual(events.filter((event: any) => event.kind === 'action').map((event: any) => [event.reason, event.times]), [['fallback', 'many'], ['routed', 'few'], ['stop-rule', 'one']]);
 });
+
+test('an empty list says nothing: one shape has exactly one form, and a key with control characters is refused', async () => {
+  const { structuralEvent } = await import('../runtime/learning-ext/structure.ts');
+  const { assertAnswerKey, defaultAnswerKey } = await import('../runtime/learning-ext/dictionary-answer-key.ts');
+  const base = { kind: 'action', choice: 'accepted' };
+  for (const variant of [{ evidence: [] }, { steps: [] }, { fields: [] }, { fields: [['private column', 'string']] }]) assert.deepEqual(structuralEvent({ ...base, ...variant }), base);
+  assert.throws(() => assertAnswerKey({ ...defaultAnswerKey, rows: 'date,amount\n2026-09-01,1\u000b00\n' }), { code: 'INVALID_ANSWER_KEY' });
+  assert.equal(assertAnswerKey(structuredClone(defaultAnswerKey)).id, defaultAnswerKey.id);
+});

@@ -61,7 +61,8 @@ export function Part({ title, loaded, reload, children }: { title: string; loade
 const REFUSALS: ReadonlySet<string> = new Set([
   'EDIT_STALE', 'EDIT_CHANGED', 'EDIT_NOT_REVIEWABLE', 'PROPOSAL_STALE', 'PROPOSAL_CHANGED', 'PROPOSAL_DECIDED', 'ANSWER_KEY_FAILED', 'OWNER_REQUIRED',
   'APP_APPROVAL_REQUIRED', 'DICTIONARY_REQUIRED', 'EDITS_PENDING', 'NOT_FOUND', 'INVALID_ANSWER_KEY', 'INVALID_ANSWER_CASE', 'FORBIDDEN', 'ROUTE_NOT_FOUND',
-  'TAINTED_APPROVAL', 'PREVIEW_NOT_FOUND', 'INVALID_REPLY', 'ACCESS_REVOKED', 'ALREADY_DECIDED',
+  'TAINTED_APPROVAL', 'PREVIEW_NOT_FOUND', 'INVALID_REPLY', 'ACCESS_REVOKED', 'ALREADY_DECIDED', 'REQUEST_FAILED', 'NETWORK_WAIT', 'FILE_LIMIT', 'EMPTY_FILE',
+  'FILE_TOO_LARGE', 'PROPOSAL_STALE',
 ]);
 export const REFUSAL_CODES: readonly string[] = [...REFUSALS];
 /** A refused change, in words. A code with no words of its own is named as it came. */
@@ -140,10 +141,12 @@ export function ConfirmSheet({ kind, title, confirm, busy, onConfirm, onClose, c
 }
 
 /** Reads one chosen file as text, in the browser. Nothing is sent until a later press. */
-export function FilePick({ label, accept, onText }: { label: string; accept: string; onText: (name: string, content: string) => void }) {
+export function FilePick({ label, accept, maxBytes, onText, onTooLarge }: { label: string; accept: string; maxBytes: number; onText: (name: string, content: string) => void; onTooLarge: () => void }) {
   const id = useId();
   const [reading, setReading] = useState(false);
   const read = (file: File) => {
+    // A file over the limit is never read or sent.
+    if (file.size > maxBytes) { onTooLarge(); return; }
     setReading(true);
     const done = (content: string) => { setReading(false); onText(file.name, content); };
     if (typeof file.text === 'function') void file.text().then(done, () => done(''));

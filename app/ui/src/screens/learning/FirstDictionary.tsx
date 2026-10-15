@@ -27,6 +27,7 @@ export function FirstDictionary(props: LearningProps) {
   const { loaded, reload } = useReply(props, 'learningx.dictionaryProposals', {}, proposalsReply);
   const act = useAct(props.rpc);
   const [file, setFile] = useState<{ name: string; content: string } | null>(null);
+  const [tooLarge, setTooLarge] = useState(false);
   const [adopting, setAdopting] = useState<Proposal | null>(null);
   const [outcome, setOutcome] = useState<AdoptReply | null>(null);
   const value = valueOf(loaded);
@@ -40,7 +41,8 @@ export function FirstDictionary(props: LearningProps) {
     if (adopting === null) return;
     const done = await act.run('learningx.dictionaryAdopt', { id: adopting.id, digest: adopting.digest }, adoptReply);
     setAdopting(null);
-    if (done.ok) { setOutcome(done.value); reload(); }
+    if (done.ok) setOutcome(done.value);
+    reload();
   };
 
   return (
@@ -48,7 +50,7 @@ export function FirstDictionary(props: LearningProps) {
       <p className={s.note}>{lx('first.intro')}</p>
       {prepares(props) && (
         <div className={s.stack}>
-          <FilePick label={lx('first.pick')} accept=".csv,text/csv" onText={(name, content) => { setOutcome(null); setFile({ name, content }); }} />
+          <FilePick label={lx('first.pick')} accept=".csv,text/csv" maxBytes={5_000_000} onTooLarge={() => { setTooLarge(true); setFile(null); }} onText={(name, content) => { setTooLarge(false); setOutcome(null); setFile({ name, content }); }} />
           {file !== null && (file.content.length === 0
             ? <p className={s.amber}>{lx('first.emptyFile', { name: file.name })}</p>
             : (
@@ -60,7 +62,7 @@ export function FirstDictionary(props: LearningProps) {
           <p className={s.note}>{lx('first.stays')}</p>
         </div>
       )}
-      <Refused code={act.refusal} />
+      <Refused code={tooLarge ? 'FILE_TOO_LARGE' : act.refusal} />
       {outcome !== null && <Outcome outcome={outcome} />}
       {value && (value.items.length === 0
         ? <p className={s.note}>{lx('first.empty')}</p>

@@ -41,7 +41,8 @@ export function Edits(props: LearningProps) {
       ? await act.run('learningx.editApprove', { id: edit.id, digest: edit.digest }, editApproveReply)
       : await act.run('learningx.editReject', { id: edit.id, digest: edit.digest }, editRejectReply);
     setAsking(null);
-    if (!outcome.ok) return;
+    // A refused or lost reply may still have changed the list (a lost reply's outcome is unknown): read it again.
+    if (!outcome.ok) { reload(); return; }
     setSaid(decision === 'approve' ? approvedText(outcome.value as EditApproveReply) : lx('edits.rejected'));
     reload();
   };
