@@ -9,6 +9,7 @@ import { authorize, audit, check, ChausarError, hash, initialState, newId, now, 
 import { ModelGateway, type GatewayOptions, type ModelRequest, type RouteKind } from '../runtime/gateway.ts';
 import { conversationPurpose } from '../runtime/conversation-purpose.ts';
 import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
+import { secondAskGate } from '../runtime/gateway-auth/second-ask.ts';
 
 // In-memory state and authored fake ports only. The VM removes host imports so
 // no native services, user profiles, database or credential helpers can run.
@@ -131,6 +132,8 @@ async function engineVm() {
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
     // No engine modules are installed in this isolated composition.
     engineModules: [], moduleMethods: new Map(),
+    // The core actions' money gate (core-gateway-auth), the real one.
+    secondAskGate,
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
