@@ -11,6 +11,8 @@
  * - Unknown methods reject with an Error whose `code` is `UNKNOWN_METHOD`, so a place whose
  *   engine method does not exist yet shows "not built yet".
  * - Other lanes add fixture handlers for their own families with `registerFakeMethods`.
+ *   hosted-link's recovery through a contact (`fixtures/hosted-recovery.ts`) is registered that way
+ *   by the tests that walk it, and served before the vault is open as the engine serves it.
  * - learning-ext's `learningx` family is served by default from `fixtures/learningx.ts` (FR-07
  *   proposed meanings, FR-10 sharing), after any `learningx` handlers a test registers.
  *
@@ -38,6 +40,7 @@ import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
 import { cashWeekFixture, closeStatusFixture, todayReviewFixture } from './fixtures/today-r4.ts';
 import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
+import { HOSTED_RECOVERY_PRE_VAULT } from './fixtures/hosted-recovery.ts';
 
 export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
@@ -516,7 +519,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
     const handler = options.absent?.includes(method) ? undefined : handlers[method] ?? registry.get(method) ?? r4[method] ?? learningx[method];
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method) && !HOSTED_RECOVERY_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }
