@@ -15,7 +15,7 @@ import type { ReportService } from '../reports.ts';
 import { registerPrivateStatePurgeHook } from '../private-state-lifecycle.ts';
 import { mentions } from '../work-books/books-common.ts';
 import { recordIdsOf, visibleRecordIds } from '../work-books/books-records.ts';
-import { coreScope, deleteCore, erasedIds, factReferences, madeAt, planRows, plainRecordId, rowScope, CORE_STORES, type CoreDeletionRow, type Scope } from './deletion-customer.ts';
+import { coreScope, deleteCore, erasedIds, factReferences, madeAt, planRows, plainRecordId, rowScope, CORE_STORES, type CoreDeletionRow } from './deletion-customer.ts';
 import { addToRegister, bindRegisterDirectory, flushOutbox, peekDataState, registerEntries, registerKey, rowKey, type DeletionKind, type RegisterEntry } from './deletion-register.ts';
 import { preparedExportNames, rememberPreparedExports } from './prepared-exports.ts';
 
@@ -52,7 +52,6 @@ function customerRequest(ctx: Context, payload: unknown, host: ModuleHost, withC
 /** A customer entry with its row list comes back by those rows; one without it (too many rows) by the customer's id. */
 type Comeback = { entry: RegisterEntry; id: string | null };
 const rowKeys = (state: State, entry: RegisterEntry) => { const keys = new Set(entry.rows ?? []), workspace = state.workspace.id; return rowScope(state, keys, id => rowKey(workspace, id)); };
-const anyRows = (scope: Scope) => CORE_STORES.some(s => scope[s].length > 0);
 const REFERENCE_KEYS = new Set(['customerId', 'supplierId', 'itemId', 'recordId']);
 function referenced(value: unknown, into: Set<string>, depth = 0) {
   if (!value || typeof value !== 'object' || depth > 12) return;
@@ -69,7 +68,9 @@ function comebacks(state: State, entries: RegisterEntry[]): Record<DeletionKind,
   for (const merge of state.merges) if (Array.isArray(merge?.entityIds)) for (const id of merge.entityIds) if (typeof id === 'string' && plainRecordId(id)) customers.add(id);
   for (const key of ['receipts', 'answers', 'actions', 'conversations'] as const) for (const row of state[key]) referenced(row, customers);
   const found: Record<DeletionKind, Comeback[]> = { customer: [], source: [] };
-  for (const entry of entries) if (entry.kind === 'customer' && Array.isArray(entry.rows) && anyRows(rowKeys(state, entry))) found.customer.push({ entry, id: null });
+  // Each row id is hashed once; an entry is back when any of its rows is present again.
+  const present = new Set(CORE_STORES.flatMap(key => state[key].map(row => row?.id)).filter((id): id is string => typeof id === 'string' && id.length > 0).map(id => rowKey(workspace, id)));
+  for (const entry of entries) if (entry.kind === 'customer' && Array.isArray(entry.rows) && entry.rows.some(key => present.has(key))) found.customer.push({ entry, id: null });
   for (const id of customers) {
     const entry = wanted.get(`customer:${registerKey(workspace, 'customer', id)}`); if (!entry || Array.isArray(entry.rows)) continue;
     const back = state.facts.some(f => !f.deletedAt && factReferences(f).includes(id) && old(f, entry))
