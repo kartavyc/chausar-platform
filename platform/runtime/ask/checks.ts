@@ -12,7 +12,7 @@ import { check, hash, newId, now, type Context, type State } from '../contracts.
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { CheckItem, CheckReply, ChecksReply, Fingerprint } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
 
 export function fingerprint(state: State, host: ModuleHost): Fingerprint {
   const dictionary = state.ontology?.current ?? (state.ontology?.operations ? state.ontology : null);
@@ -35,7 +35,7 @@ const CHECKS_PER_MEMBER = 200;
 
 export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['receiptId', 'question', 'figureKey'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   const figureKey = request.figureKey === undefined ? headlineKey(receipt) : String(request.figureKey);
   const figure = receipt.figures.find(f => f.key === figureKey);
   check(figure, 'ASK_INVALID', 'Choose a figure that is on this receipt.');

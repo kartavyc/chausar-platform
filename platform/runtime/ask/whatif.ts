@@ -14,7 +14,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { Period } from '../memory.ts';
 import type { PlanReply, WhatIfReply } from './contracts.ts';
-import { businessToday, core, currentDictionary, identifier, input, list, minorString, namedPeriod, period, requireId } from './shared.ts';
+import { businessToday, core, currentDictionary, identifier, input, list, minorString, namedPeriod, period, requireId , openReceipt } from './shared.ts';
 
 function periodFrom(host: ModuleHost, request: Record<string, any>): Period {
   return request.period !== undefined ? period(request.period) : namedPeriod(request.periodId ?? 'last-month', businessToday(host, request.today));
@@ -78,9 +78,9 @@ export async function plan(ctx: Context, payload: unknown, host: ModuleHost): Pr
 }
 
 /** A saved what-if read back from its receipt, under current access. */
-export async function whatIfGet(_ctx: Context, payload: unknown, host: ModuleHost): Promise<WhatIfReply> {
+export async function whatIfGet(ctx: Context, payload: unknown, host: ModuleHost): Promise<WhatIfReply> {
   const request = input(payload, ['receiptId'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   check(receipt.operation === 'scenario' && receipt.period, 'ASK_NOT_FOUND', 'This is not a what-if.');
   return { label: 'what-if', assumption: { name: 'price', beforeBps: '0', afterBps: figure(receipt, 'priceChangeBps') },
     books: { minor: figure(receipt, 'baseline'), receiptId: receipt.id }, withChange: { minor: figure(receipt, 'scenario'), receiptId: receipt.id },

@@ -6,12 +6,12 @@
  * template; a model-written explanation passed to `askx.guard` is kept only when every number in
  * it is on the receipt, and is otherwise replaced by the template, with the page saying so.
  */
-import { check, hash, type Context } from '../contracts.ts';
+import { ChausarError, check, hash, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt, CalculationRequest } from '../calculator.ts';
 import { canSeeFact, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
-import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate } from './shared.ts';
+import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate , openReceipt } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
 import { guardLines } from './guard.ts';
 export { asciiDigits, guardLines } from './guard.ts';
@@ -94,14 +94,14 @@ export async function run(ctx: Context, payload: unknown, host: ModuleHost): Pro
 /** An existing answer, read again under current access. */
 export async function answer(ctx: Context, payload: unknown, host: ModuleHost): Promise<AnswerReply> {
   const request = input(payload, ['receiptId'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   return answerOf(host, ctx, receipt);
 }
 
 /** The number guard over a written explanation (for example a model's). Unmatched numbers replace it. */
 export async function guard(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['receiptId', 'text'], ['receiptId', 'text']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   const written = text(request.text, 8000), lines = guardLines(written, receipt), passed = lines.every(line => line.matched);
   void ctx;
   return { status: passed ? 'passed' as const : 'replaced' as const, lines,
@@ -127,7 +127,7 @@ function conversationFor(host: ModuleHost, ctx: Context, receiptId: string) {
 
 export async function receiptView(ctx: Context, payload: unknown, host: ModuleHost): Promise<ReceiptReply> {
   const request = input(payload, ['receiptId'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   const view = answerOf(host, ctx, receipt), reasons = new Map<string, Set<string>>();
   for (const exclusion of receipt.exclusions) { const set = reasons.get(exclusion.reason) ?? new Set(); set.add(exclusion.rowId); reasons.set(exclusion.reason, set); }
   const conversation = conversationFor(host, ctx, receipt.id);
@@ -167,7 +167,7 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
   catch (error) {
     // The seat's own receipt now holds rows it may not see: show the rows it can, and how many it cannot.
     const own = codeOf(error) === 'RECEIPT_FORBIDDEN' ? host.store.read().receipts.find(r => r?.id === request.receiptId && r.memberId === ctx.memberId && r.epoch === ctx.epoch) as CalculationReceipt | undefined : undefined;
-    if (!own) throw translate(error);
+    if (!own) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.');
     const visible = (id: string) => { const fact = host.store.read().facts.find(f => f.id === id); return !!fact && !fact.deletedAt && canSeeFact(host.store, ctx, fact); };
     const ids = new Set([...own.rowIds, ...own.exclusions.map(e => e.rowId)]);
     const hiddenIds = [...ids].filter(id => !visible(id)); hiddenCount = hiddenIds.length;
@@ -191,7 +191,7 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
 /** The exact words that left the computer for one answer, while retained; then only the fingerprint. */
 export async function sent(ctx: Context, payload: unknown, host: ModuleHost): Promise<SentReply> {
   const request = input(payload, ['receiptId'], ['receiptId']);
-  await core(host, 'receipts.get', { id: requireId(request.receiptId) });
+  await openReceipt(host, ctx, request.receiptId);
   const conversation = conversationFor(host, ctx, request.receiptId);
   if (!conversation) return { kind: 'nothing', why: 'menu' };
   const state = host.store.read(), question = String(conversation.question);

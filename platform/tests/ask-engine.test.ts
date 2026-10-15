@@ -164,9 +164,11 @@ test('a branch-limited seat is stopped by a rule, and a viewer cannot save', asy
   const member = await ask(engine, 'members.add', { id: 'viewer-main', name: 'Branch viewer', role: 'viewer', branches: ['main'] });
   (engine as any).context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
   assert.deepEqual(await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', branch: 'west', today: TODAY }), { kind: 'refused', code: 'ASK_STOPPED_BY_RULE', rule: 'branch' });
-  await assert.rejects(ask(engine, 'askx.receipt', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
-  // Someone else's receipt never opens, not even as a count.
-  await assert.rejects(ask(engine, 'askx.sourceRows', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
+  // Someone else's receipt and an unknown id give the same answer, so an id cannot be probed.
+  for (const method of ['askx.receipt', 'askx.sourceRows', 'askx.sent', 'askx.answer', 'askx.save', 'askx.checks.save']) {
+    await assert.rejects(ask(engine, method, { receiptId: broad.receiptId }), code(method.endsWith('save') ? 'FORBIDDEN' : 'ASK_NOT_FOUND'), method);
+    if (!method.endsWith('save')) await assert.rejects(ask(engine, method, { receiptId: 'receipt_00000000-0000-4000-8000-000000000000' }), code('ASK_NOT_FOUND'), method);
+  }
   const own = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
   assert.equal(own.figures[0].minor, '125025');
   await assert.rejects(ask(engine, 'askx.save', { receiptId: own.receiptId }), code('FORBIDDEN'));
