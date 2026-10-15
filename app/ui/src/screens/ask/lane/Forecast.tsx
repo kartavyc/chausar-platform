@@ -13,7 +13,7 @@ import { Label } from '../../../parts/Label';
 import type { Figure as FigureValue } from '../../../app/presentation.ts';
 import { call, fail, id, int, list, minor, obj, oneOf, optMinor, period, str, type Period } from './client.ts';
 import { AskPage, countWords, fill, missingFigure, moneyFigure, periodText, useAsk, useRead, useWords, type AskView } from './kit';
-import { catalogue, menuChoices, month, monthText, Part, Problem, useRefusal, useSend, type MenuChoices } from './analysis';
+import { catalogue, menuChoices, month, monthText, Part, Problem, StopButton, useRefusal, useSend, type MenuChoices } from './analysis';
 import { ForecastLine } from './parts/ForecastLine';
 import s from './analysis.module.css';
 
@@ -106,7 +106,7 @@ function ForecastRun({ operationId }: { operationId: string }) {
   const [load, retry] = useRead(`forecast|${operationId}`, () => call(ask.rpc, 'askx.forecast', { operationId }, forecastReply));
   const title = load.kind === 'ok' && load.value.state === 'ready' ? load.value.label : w.title;
   return (
-    <AskPage title={title} aside={<Label kind="projection" />} load={load} retry={retry} explain={explain}>
+    <AskPage title={title} aside={<><Label kind="projection" />{load.kind === 'loading' && <StopButton />}</>} load={load} retry={retry} explain={explain}>
       {f => f.state === 'not-enough-history' ? (
         <div data-forecast-state="not-enough-history">
           <p>{w.notEnough}</p>

@@ -15,8 +15,7 @@ const outputRoot = await mkdtemp(join(outputParent, 'host-'));
 await build({ ...hostBuildConfig(outputRoot), configFile: false, mode: 'production' });
 const bundle = join(outputRoot, 'bundle');
 const js = await readFile(join(bundle, 'host.js'));
-// Minified, with every lane's screens and both languages' words, the base of round 4 already built to 2.11 MB; the
-// shipped host is read from the app's own files, never over a network. The limit still stops a runaway bundle.
+// Every lane's screens joined by round 4 put the minified host past 2 MB; 2.5 MB is the served limit too (app/desktop/ui-assets.cjs).
 assert.ok(js.length > 0 && js.length <= 2_500_000);
 assert.equal(/\bprocess\.env\b/.test(js.toString('utf8')), false, 'Browser bundle has unresolved Node environment reads.');
 const css = await readFile(join(bundle, 'host.css'));

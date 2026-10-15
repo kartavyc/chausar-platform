@@ -81,19 +81,17 @@ test('without a crash nothing opens by itself, and Today offers "Update ready" w
   expect(within(sheet).queryByRole('button', { name: 'Update' })).toBeNull();
 });
 
-test('Ask, New says which route cannot answer and why, with no sign-in button while signing in from here is not built', { timeout: 20000 }, async () => {
+test('Ask, New says which route cannot answer and why, probing each route once', { timeout: 20000 }, async () => {
   const shell = bridge('clean');
   const { engine } = await mountOnFake('populated', shell.desktop);
   await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
   expect(screen.queryByText('Update ready. Your data is saved first.')).toBeNull();
   expect(engine.calls).not.toContain('models.probe');
   await act(async () => { window.location.hash = '#/ask/new'; });
-  await screen.findByText('Your Codex tool is signed out. Sign in again.', undefined, { timeout: 5000 });
-  screen.getByText('Skipped: this route would be sent samples, and Send is set to shape only.');
-  screen.getByText('Signing in from here is not built yet. Open Codex tool and sign in there.');
+  // The shared fixture (fixtures/r4.ts) answers that the demo route's version is untested.
+  await screen.findByText('This version of Local demo model has not been tested with Chausar.', undefined, { timeout: 5000 });
   screen.getByText(en['SH-09.no-retry']!);
-  expect(screen.queryByRole('button', { name: en['SH-09.sign-in'] })).toBeNull();
-  expect(screen.queryByText('Local demo model is ready.')).toBeNull();
+  expect(engine.calls.filter(method => method === 'models.probe')).toHaveLength(1);
 });
 
 test('the Updates states say what happened in both languages and never offer Update where it cannot run', () => {
@@ -122,18 +120,24 @@ test('the Updates states say what happened in both languages and never offer Upd
   expect(onUpdate).not.toHaveBeenCalled();
 });
 
-test('a route state row offers Sign in again only when a sign-in method was supplied, and says when a waiting job resumes', async () => {
+test('a route state row offers Sign in again only when a sign-in method was supplied, says why a route was skipped, and when a waiting job resumes', async () => {
   const user = userEvent.setup();
   const onSignIn = vi.fn();
-  const reply = { checkedAt: '2026-09-30T06:00:00.000Z', routes: [
-    { routeId: 'r1', label: 'Codex tool', kind: 'codex-cli', state: 'signed-out' as const, send: null, resumesAt: '2026-09-30T09:30:00.000Z' },
-    { routeId: 'r2', label: 'Old tool', kind: 'claude-cli', state: 'version-not-tested' as const, send: null, resumesAt: null },
-  ] };
-  inText(<RouteStates reply={reply} timeZone="Asia/Kolkata" onSignIn={onSignIn} />);
+  const at = '2026-09-30T06:00:00.000Z';
+  const rows = [
+    { label: 'Codex tool', probe: { routeId: 'r1', state: 'signed-out' as const, checkedAt: at, resumesAt: '2026-09-30T09:30:00.000Z' } },
+    { label: 'Cloud model', probe: { routeId: 'r2', state: 'skipped-by-send' as const, checkedAt: at, send: { route: 'samples' as const, yours: 'shape' as const } } },
+    { label: 'Local model', probe: { routeId: 'r3', state: 'ready' as const, checkedAt: at } },
+  ];
+  const view = inText(<RouteStates rows={rows} timeZone="Asia/Kolkata" onSignIn={onSignIn} />);
   await user.click(screen.getByRole('button', { name: en['SH-09.sign-in'] }));
   expect(onSignIn).toHaveBeenCalledWith('r1');
   screen.getByText(/A job waiting on this route resumes at 15:00/);
-  screen.getByText('This version of Old tool has not been tested with Chausar.');
-  render(<TextProvider language="en"><RouteStates reply="not-built" timeZone={null} /></TextProvider>);
+  screen.getByText('Skipped: this route would be sent samples, and Send is set to shape only.');
+  expect(screen.queryByText('Local model is ready.')).toBeNull();
+  view.rerender(<TextProvider language="en"><RouteStates rows={rows} timeZone={null} /></TextProvider>);
+  screen.getByText('Signing in from here is not built yet. Open Codex tool and sign in there.');
+  expect(screen.queryByRole('button', { name: en['SH-09.sign-in'] })).toBeNull();
+  view.rerender(<TextProvider language="en"><RouteStates rows="not-built" timeZone={null} /></TextProvider>);
   screen.getByText(en['SH-09.not-built']!);
 });

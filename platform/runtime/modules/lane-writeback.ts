@@ -26,12 +26,36 @@ import type { Dialer, SystemId, Transport, WriteCredentials } from '../writeback
 import { audit } from '../contracts.ts';
 import { current } from '../actions.ts';
 import { instant, integer, list, record, text } from '../writeback/validate.ts';
+import { capsView, overview } from '../writeback/overview.ts';
 
 /** Practice connections keep their fake systems for the life of the app, per workspace. */
 const practiceWorlds = new Map<string, Map<SystemId, FakeBundle>>();
 /** Single-use second-ask grants for this app run; never written to the vault. */
 const secondAsks = new Map<string, SecondAsk>();
 const reauthFailures = new Map<string, { count: number; since: number }>();
+/**
+ * Per-member approval secrets (core-gateway-auth), called as the same caller:
+ *   auth.verifyApprovalSecret { secret } → { verified: boolean }
+ * A missing method means the store is not installed: the owner's vault passphrase stays the second ask.
+ */
+const ABSENT = ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'];
+export function memberSecrets(host: ModuleHost) {
+  return {
+    async verify(_ctx: Context, secret: string): Promise<boolean | null> {
+      let reply: unknown;
+      try { reply = await host.call('auth.verifyApprovalSecret', { secret }); }
+      catch (error) {
+        if (error instanceof ChausarError && ABSENT.includes(error.code)) return null;
+        // core-gateway-auth's own lockout reads as writeback's, so screens have one word for it.
+        if (error instanceof ChausarError && error.code === 'SECOND_ASK_LOCKED') throw new ChausarError('REAUTH_LOCKED', 'Too many wrong answers. Wait fifteen minutes.');
+        throw error;
+      }
+      const r = record(reply, ['verified']);
+      check(typeof r.verified === 'boolean', 'WRITE_REPLY_INVALID', 'The approval secret check sent an answer Chausar cannot read.');
+      return r.verified;
+    },
+  };
+}
 /** WhatsApp delivery statuses: a host option, else the hosted relay through hosted.messageStatuses, else none. */
 function statusSource(host: ModuleHost, option: unknown) {
   return async (_ctx: unknown, query: { reference: string; messageId: string | null }): Promise<WhatsAppStatus[]> => {
@@ -51,17 +75,24 @@ function statusSource(host: ModuleHost, option: unknown) {
 /** Practice systems load only when first used, so the app runs without them. */
 let fakes: typeof import('../../fakes/index.ts') | null = null;
 async function practiceKit() { fakes ??= await import('../../fakes/index.ts'); return fakes; }
+/** The write-back day: a trusted host option, else the workspace time zone (core-data), else India. */
+export function writebackZone(host: ModuleHost): string {
+  // An IANA name only (Asia/Kolkata, UTC): offsets such as +05:30 are refused so every screen can read it.
+  const valid = (zone: unknown): zone is string => { if (typeof zone !== 'string' || !/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(zone)) return false; try { new Intl.DateTimeFormat('en', { timeZone: zone }); return true; } catch { return false; } };
+  const option = (host.options as any).timeZone, workspace = (host.store.read().workspace as { timeZone?: unknown }).timeZone;
+  return valid(option) ? option : valid(workspace) ? workspace : 'Asia/Kolkata';
+}
 function services(host: ModuleHost) {
   const o = host.options as Record<string, any>;
   const clock = typeof o.clock === 'function' ? o.clock as () => string : () => new Date().toISOString();
-  const timeZone = typeof o.timeZone === 'string' ? o.timeZone : 'Asia/Kolkata';
+  const timeZone = writebackZone(host);
   let follow: FollowUpHost;
   const service = new WritebackService(host.store, {
     http: (typeof o.http === 'function' ? o.http : realTransport) as Transport, dial: (typeof o.dial === 'function' ? o.dial : realDialer) as Dialer,
     credentials: typeof o.credentials === 'function' ? o.credentials as WriteCredentials : undefined,
     clock, directory: host.directory, demo: host.demo, adapters: installedAdapters({ whatsappStatuses: statusSource(host, o.whatsappStatuses) as any }),
     verifyPassphrase: typeof (host.store as any).verifyPassphrase === 'function' ? (secret: string) => (host.store as any).verifyPassphrase(secret) : typeof o.verifyPassphrase === 'function' ? o.verifyPassphrase as (secret: string) => Promise<boolean> : undefined,
-    secondAsk: secondAsks, reauthFailures,
+    secondAsk: secondAsks, reauthFailures, memberSecrets: memberSecrets(host),
     practice: (workspaceId, connection) => {
       check(fakes, 'PRACTICE_UNAVAILABLE', 'Practice systems are not installed in this app.'); const { fakeFactory } = fakes;
       const world = practiceWorlds.get(workspaceId) ?? new Map<SystemId, FakeBundle>(); practiceWorlds.set(workspaceId, world);
@@ -177,6 +208,11 @@ export const writebackModule: EngineModule = {
     'writeback.credentials.set': { permission: 'admin', handler: credentialsSet },
     'writeback.credentials.remove': { permission: 'admin', handler: credentialsRemove },
     'writeback.credentials.status': { permission: 'read', handler: credentialsStatus },
+    'writeback.overview': { permission: 'read', handler: (ctx, _p, host) => {
+      const store = (host.options as any).credentialStore as ConnectorCredentialStore | undefined;
+      return overview(ws(host), ctx, sourceId => { if (!store) return false; try { return store.has(sourceId).present; } catch { return 'unreadable'; } });
+    } },
+    'writeback.caps': { permission: 'read', handler: (ctx, _p, host) => capsView(ws(host), ctx, writebackZone(host)) },
     'writeback.connections': { permission: 'read', handler: (ctx, _p, host) => ws(host).connections(ctx) },
     'writeback.connect': { permission: 'admin', handler: async (ctx, p, host) => { if (p.environment === 'practice') await practiceKit(); return ws(host).connect(ctx, p); } },
     'writeback.grant': { permission: 'admin', handler: (ctx, p, host) => ws(host).grant(ctx, p) },

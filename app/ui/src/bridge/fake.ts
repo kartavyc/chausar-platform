@@ -11,6 +11,8 @@
  * - Unknown methods reject with an Error whose `code` is `UNKNOWN_METHOD`, so a place whose
  *   engine method does not exist yet shows "not built yet".
  * - Other lanes add fixture handlers for their own families with `registerFakeMethods`.
+ * - learning-ext's `learningx` family is served by default from `fixtures/learningx.ts` (FR-07
+ *   proposed meanings, FR-10 sharing), after any `learningx` handlers a test registers.
  *
  * Scenarios: `populated` (the default), `empty` (a published dictionary, nothing read yet),
  * `first-run` (no published dictionary), `locked` (the vault is locked; creation unlocks a
@@ -32,14 +34,22 @@ import {
   phoneMessagesReply, shellReply, statusReply, worthReply,
 } from './fixtures/todayx.ts';
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
+import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
-import { applyReply, routeProbeReply, stageReply, updatesReply, type FakeUpdates } from './fixtures/frame-r4.ts';
+import { applyReply, stageReply, updatesReply, type FakeUpdates } from './fixtures/frame-r4.ts';
+import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
 
 export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
 export const FAKE_PASSPHRASE = 'synthetic-demo-passphrase';
+/** The second folder's own passphrase: each workspace has its own key (SH-06). Synthetic. */
+export const FAKE_SECOND_PASSPHRASE = 'synthetic-second-passphrase';
+/** The second workspace folder some scenarios hold, and its synthetic workspace. */
+export const FAKE_SECOND_FOLDER = 'second-shop';
+const SECOND_WORKSPACE = Object.freeze({ id: 'workspace_demo_second', name: 'Second Demo shop', demo: true });
 export const FAKE_SCENARIOS: readonly FakeScenario[] = ['populated', 'empty', 'first-run', 'locked', 'read-only'];
-/** Served before the vault is open, as the engine serves them to the trusted local desktop. */
+/** Served before the vault is open, as the engine serves them to the trusted local desktop (the round 4
+ *  fixtures add their owners' own pre-vault methods, `R4_PRE_VAULT`). */
 export const FAKE_PRE_VAULT: readonly string[] = ['todayx.identity.check', 'todayx.diskCheck', 'todayx.device.get', 'todayx.device.set', 'todayx.workspaces', 'todayx.recoveryContact.request'];
 
 export interface FakeEngineOptions {
@@ -49,6 +59,14 @@ export interface FakeEngineOptions {
   readonly clock?: string;
   /** SH-08: a release candidate is ready to install (Today then shows "Update ready"). Off by default. */
   readonly updateReady?: boolean;
+  /** Two workspace folders (main and second-shop), each with its own passphrase. The locked scenario always has two. */
+  readonly twoWorkspaces?: boolean;
+  /** Folders that start with a PIN set (round 4 fixture, `FAKE_PIN`). */
+  readonly pins?: readonly string[];
+  /** The model routes `models.list` serves, in ladder order. Default: the one local demo route when populated. */
+  readonly routes?: readonly Record<string, unknown>[];
+  /** Methods this fake leaves out, so their "not built yet" state can be shown. */
+  readonly absent?: readonly string[];
 }
 
 /** What a registered handler receives besides the payload. */
@@ -117,7 +135,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   let date = options.clock ?? DEMO_CLOCK;
   if (!isDate(date)) throw fakeRefusal('INVALID_REQUEST', 'The demo clock is a YYYY-MM-DD day.');
   let unlocked = scenario !== 'locked';
+  /** The folder open now (meaningful while unlocked). */
+  let folder = 'main';
+  const twoFolders = scenario === 'locked' || options.twoWorkspaces === true;
   let workspace: { id: string; name: string; demo: boolean } = { ...DEMO_WORKSPACE };
+  let timeZone = DEMO_TIME_ZONE;
   const seat: Seat = scenario === 'read-only' ? DEMO_VIEWER : DEMO_OWNER;
   let ontology: { current: Record<string, unknown> | null; history: Record<string, unknown>[] } = { current: null, history: [] };
   const attempts = new Map<string, Attempt>();
@@ -133,6 +155,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const updates: FakeUpdates = { ready: options.updateReady === true, staged: false, applied: false };
   const store = new Map<string, unknown>();
   const calls: string[] = [];
+  /* Core `learning.sharing`: off until an owner turns it on, as in the engine. */
+  let sharingOn = false;
+  const learningx = learningxFakeHandlers({ demo: () => workspace.demo, sharing: () => sharingOn });
 
   const ready = (async () => {
     if (scenario === 'first-run' || scenario === 'locked') return;
@@ -154,10 +179,23 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   async function uiContext() {
     if (!unlocked) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const contextKey = await sha256Hex(JSON.stringify({ kind: 'fake-ui-context', workspace: workspace.id, member: seat.id, role: seat.role, epoch: 1, dictionary: dictionary()?.['hash'] ?? null, attempts: [...attempts.keys()] }));
-    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey, timeZone: DEMO_TIME_ZONE };
+    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey, timeZone };
   }
   const mutating = () => { if (seat.role === 'viewer') throw fakeRefusal('ACCESS_DENIED', 'A viewer seat changes nothing.'); };
   const populated = () => scenario === 'populated' || scenario === 'read-only';
+  let routes: Record<string, unknown>[] = options.routes !== undefined ? options.routes.map(route => ({ ...route })) : populated() ? [{ ...DEMO_ROUTE }] : [];
+  const passphraseOf = (name: string) => name === 'main' ? FAKE_PASSPHRASE : twoFolders && name === FAKE_SECOND_FOLDER ? FAKE_SECOND_PASSPHRASE : null;
+  const openFolder = (name: string) => {
+    if (name !== folder) workspace = name === FAKE_SECOND_FOLDER ? { ...SECOND_WORKSPACE } : { ...DEMO_WORKSPACE };
+    folder = name; unlocked = true; return { workspace: { ...workspace } };
+  };
+  const r4 = r4Handlers({
+    refuse: fakeRefusal, openFolder: () => unlocked ? folder : null, unlock: openFolder,
+    passphraseFits: value => typeof value === 'string' && value === passphraseOf(folder), role: () => seat.role,
+    routeIds: () => routes.map(route => String(route['id'])),
+    setRouteIds: ids => { routes = ids.map(id => routes.find(route => route['id'] === id)!); },
+    setTimeZone: zone => { timeZone = zone; }, now: () => Date.now(),
+  }, { pins: options.pins ?? [] });
 
   /* ------------------------------------------------------------ Today */
   function display(payload: Readonly<Record<string, unknown>>) {
@@ -344,18 +382,20 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
 
   const handlers: Readonly<Record<string, FakeHandler>> = {
     'ui.context': () => uiContext(),
-    'models.list': () => (populated() ? [{ ...DEMO_ROUTE }] : []),
+    'models.list': () => routes.map(route => ({ ...route })),
     'workspace.lock': () => { mutating(); unlocked = false; return { locked: true }; },
     'workspace.open': payload => {
       if (unlocked) throw fakeRefusal('VAULT_OPEN', 'Lock the current workspace first.');
-      if (payload['passphrase'] !== FAKE_PASSPHRASE) throw fakeRefusal('UNLOCK_FAILED', 'Unable to unlock vault.');
-      unlocked = true; return { workspace: { ...workspace } };
+      const name = payload['folder'] ?? 'main';
+      const expected = typeof name === 'string' ? passphraseOf(name) : null;
+      if (expected === null || payload['passphrase'] !== expected) throw fakeRefusal('UNLOCK_FAILED', 'Unable to unlock vault.');
+      return openFolder(name as string);
     },
     'workspace.create': payload => {
       if (unlocked) throw fakeRefusal('ACCESS_DENIED', 'A workspace is already open.');
       if (typeof payload['name'] !== 'string' || payload['name'].trim().length < 2 || payload['dictionaryMode'] !== 'deferred') throw fakeRefusal('INVALID_DICTIONARY_MODE', 'Create a deferred workspace.');
       workspace = { id: 'workspace_demo_created', name: payload['name'].trim().slice(0, 100), demo: false };
-      todayx.clock = { mode: 'real' }; unlocked = true; ontology = { current: null, history: [] };
+      todayx.clock = { mode: 'real' }; unlocked = true; folder = typeof payload['folder'] === 'string' ? payload['folder'] : 'main'; ontology = { current: null, history: [] };
       const kit = `DEMO-KIT-${fakeHash('kit').slice(0, 24).toUpperCase()}`;
       return { workspace: { ...workspace, demo: false }, recoveryKit: kit, recoveryCode: kit };
     },
@@ -387,6 +427,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'sources.preview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'sources.workbookPreview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'learning.list': () => [],
+    'learning.sharing': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'An owner must approve this change.');
+      if (typeof payload['enabled'] !== 'boolean') throw fakeRefusal('INVALID_SHARING', 'Set sharing on or off.');
+      sharingOn = payload['enabled']; return { enabled: sharingOn };
+    },
     'activity.list': () => ({ items: populated() ? dayEvents(date).map(event => ({ id: event['id'], kind: event['kind'], at: event['at'] })) : [], modelReceipts: [] }),
     'memory.lessons': () => [],
     'scenarios.discover': () => ({ mode: 'retained-revisions', items: [], nextCursor: null, noAction: true }),
@@ -419,8 +464,6 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       updates.applied = true; return applyReply();
     },
     'todayx.updates.dismiss': () => updatesReply(updates, date, seat.role === 'owner' || seat.role === 'cofounder'),
-    // SH-09: core-gateway-auth's `models.probe`, served here as a fixture until that lane serves it.
-    'models.probe': () => routeProbeReply(scenario, date),
     'todayx.phoneMessages': () => phoneMessagesReply(scenario),
     'todayx.idea.start': () => { mutating(); return idea.start(`${date}T06:00:00.000Z`); },
     'todayx.idea.get': () => idea.get(),
@@ -435,7 +478,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       return device;
     },
     // Folder names only; the locked scenario has two, so the lock screen asks which.
-    'todayx.workspaces': () => ({ folders: scenario === 'locked' ? [{ folder: 'main', main: true }, { folder: 'second-shop', main: false }] : [{ folder: 'main', main: true }] }),
+    'todayx.workspaces': () => ({ folders: twoFolders ? [{ folder: 'main', main: true }, { folder: FAKE_SECOND_FOLDER, main: false }] : [{ folder: 'main', main: true }] }),
     'todayx.recoveryContact.get': () => { if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner sees the recovery contact.'); return { contact: recoveryContact, confirmation: 'relay-required' }; },
     'todayx.recoveryContact.set': payload => {
       if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner names the recovery contact.');
@@ -460,9 +503,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     calls.push(method);
     await ready;
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
-    const handler = handlers[method] ?? registry.get(method);
+    const handler = options.absent?.includes(method) ? undefined : handlers[method] ?? registry.get(method) ?? r4[method] ?? learningx[method];
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method) && !R4_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }
@@ -490,6 +533,6 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   return Object.freeze({
     request, scenario, language, calls, todayProducer,
     date: () => date,
-    methods: () => [...Object.keys(handlers), ...registry.keys()].sort(),
+    methods: () => [...new Set([...Object.keys(handlers), ...Object.keys(r4), ...registry.keys(), ...Object.keys(learningx)])].filter(method => !options.absent?.includes(method)).sort(),
   });
 }

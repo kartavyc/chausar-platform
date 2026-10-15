@@ -1,9 +1,13 @@
 /**
  * FR-13 Open a vault with the recovery kit. The code and a new passphrase pass straight to
  * the engine's `workspace.recover` once; both passphrase fields and the code field are
- * emptied before the request is awaited. "Choose your backup file" uses the host's own
- * chooser for a managed backup and the engine's `workspace.restore`; without that chooser
- * it says it is not built here yet. After the vault opens, the host reopens its view.
+ * emptied before the request is awaited. "Choose backup file" uses the host's own chooser
+ * (`imports.pickFile` for a backup: the system dialog in the app's managed backups folder,
+ * answered with the managed name only). The chosen name is shown, and that backup's own
+ * passphrase is typed in one uncontrolled field, read once and emptied at once, and passed
+ * with the name to `workspace.restore` (`{ folder, backupFile, passphrase }`). Without the
+ * chooser (the browser) it says it is not built here yet. After the vault opens, the host
+ * reopens its view.
  * "Ask recovery contact" is the second way in; the engine refuses it until the hosted relay
  * exists, and the screen says so.
  */
@@ -36,32 +40,54 @@ function readAndClear(form: HTMLFormElement, name: string): string {
   return value;
 }
 
+const PICK_REFUSED: ReadonlySet<string> = new Set(['BACKUP_NOT_MANAGED', 'FILE_UNREADABLE', 'PICKER_BUSY', 'FILE_KIND_REFUSED']);
+
 export function Recover({ rpc, pickBackup, onReopened, onBack }: RecoverProps) {
   const t = useT();
   const [folder, setFolder] = useState('main');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'none' });
+  /** The managed backup name the chooser answered; never a path. */
+  const [backup, setBackup] = useState<string | null>(null);
 
-  const open = async (form: HTMLFormElement, backupFile: string | null) => {
-    const code = typedRecoveryCode(readAndClear(form, 'recovery-code'));
-    const typed = readAndClear(form, 'passphrase'), repeated = readAndClear(form, 'repeat');
-    if (!FOLDER.test(folder.trim())) { setOutcome({ kind: 'problem', key: 'FR-03.folderBad' }); return; }
-    if ([...typed].length < 12) { setOutcome({ kind: 'problem', key: 'FR-03.short' }); return; }
-    if (typed !== repeated) { setOutcome({ kind: 'problem', key: 'FR-03.mismatch' }); return; }
+  const send = async (request: () => Promise<unknown>) => {
     setOutcome({ kind: 'opening' });
     try {
-      const reply = backupFile === null
-        ? await rpc.request('workspace.recover', { folder: folder.trim(), recoveryCode: code, passphrase: typed })
-        : await rpc.request('workspace.restore', { folder: folder.trim(), backupFile, passphrase: typed });
-      const opened = validateOpened(reply);
+      const opened = validateOpened(await request());
       setOutcome({ kind: 'opened', name: opened.name });
       onReopened?.();
     } catch (error) { setOutcome({ kind: 'failed', failure: failureOf(error) }); }
   };
 
+  const open = async (form: HTMLFormElement) => {
+    const code = typedRecoveryCode(readAndClear(form, 'recovery-code'));
+    const typed = readAndClear(form, 'passphrase'), repeated = readAndClear(form, 'repeat');
+    if (!FOLDER.test(folder.trim())) { setOutcome({ kind: 'problem', key: 'FR-03.folderBad' }); return; }
+    if ([...typed].length < 12) { setOutcome({ kind: 'problem', key: 'FR-03.short' }); return; }
+    if (typed !== repeated) { setOutcome({ kind: 'problem', key: 'FR-03.mismatch' }); return; }
+    await send(() => rpc.request('workspace.recover', { folder: folder.trim(), recoveryCode: code, passphrase: typed }));
+  };
+
+  /** The backup's own passphrase passes once, with the managed name, to `workspace.restore`. */
+  const restore = async (form: HTMLFormElement, backupFile: string) => {
+    const typed = readAndClear(form, 'backup-passphrase');
+    if (!FOLDER.test(folder.trim())) { setOutcome({ kind: 'problem', key: 'FR-03.folderBad' }); return; }
+    if (typed.length === 0) { setOutcome({ kind: 'problem', key: 'FR-13.backup.passphraseNeeded' }); return; }
+    await send(() => rpc.request('workspace.restore', { folder: folder.trim(), backupFile, passphrase: typed }));
+  };
+
+  const choose = () => {
+    if (pickBackup === undefined) return;
+    void pickBackup().then(name => { if (name !== null) { setBackup(name); setOutcome({ kind: 'none' }); } }, (error: unknown) => {
+      const failure = failureOf(error);
+      setOutcome(failure.kind === 'refused' && PICK_REFUSED.has(failure.code) ? { kind: 'problem', key: `FR-13.backup.${failure.code}` } : { kind: 'failed', failure });
+    });
+  };
+  const busy = outcome.kind === 'opening' || outcome.kind === 'opened';
+
   return (
     <section data-first-run-screen="recover">
       <StepHeader step={1} title="FR-13.title" lede="FR-13.lede" />
-      <form onSubmit={event => { event.preventDefault(); void open(event.currentTarget, null); }}>
+      <form onSubmit={event => { event.preventDefault(); void open(event.currentTarget); }}>
         <div className={s.fields}>
           <Field label={t('FR-13.code')} name="recovery-code" autoComplete="off" spellCheck={false} className="fig" />
           <Field label={t('FR-13.folder')} value={folder} onChange={event => setFolder(event.currentTarget.value)} autoComplete="off" spellCheck={false} />
@@ -73,18 +99,20 @@ export function Recover({ rpc, pickBackup, onReopened, onBack }: RecoverProps) {
         {outcome.kind === 'opened' && <Status k="FR-13.opened" values={{ name: outcome.name }} />}
         {outcome.kind === 'failed' && <FailureLine failure={outcome.failure} notBuilt="FR-13.notBuilt" refused="FR-13.refused" />}
         <Actions>
-          <Act variant="filled" submit label="FR-13.open.btn" disabled={outcome.kind === 'opening' || outcome.kind === 'opened'} />
-          {pickBackup !== undefined && (
-            <Act label="FR-13.backup.btn" disabled={outcome.kind === 'opening' || outcome.kind === 'opened'} onClick={event => {
-              const form = event.currentTarget.form;
-              if (form === null) return;
-              void pickBackup().then(file => { if (file !== null) void open(form, file); }, (error: unknown) => setOutcome({ kind: 'failed', failure: failureOf(error) }));
-            }} />
-          )}
+          <Act variant="filled" submit label="FR-13.open.btn" disabled={busy} />
+          {pickBackup !== undefined && <Act label="FR-13.backup.btn" disabled={busy} onClick={choose} />}
           <Act variant="link" label="FR.journey.back.btn" onClick={onBack} disabled={outcome.kind === 'opening'} />
         </Actions>
         {pickBackup === undefined && <Note k="FR-13.backup.notBuilt" />}
       </form>
+      {backup !== null && (
+        <form className={s.section} data-backup-chosen="" onSubmit={event => { event.preventDefault(); void restore(event.currentTarget, backup); }}>
+          <p className={s.question} data-backup-name="">{t('FR-13.backup.chosen', { name: backup })}</p>
+          <Field label={t('FR-13.backup.passphrase')} name="backup-passphrase" type="password" autoComplete="off" />
+          <Note k="FR-13.backup.note" />
+          <Actions><Act variant="filled" submit label="FR-13.backup.open.btn" disabled={busy} /></Actions>
+        </form>
+      )}
       <AskRecoveryContact rpc={rpc} folder={FOLDER.test(folder.trim()) ? folder.trim() : 'main'} />
     </section>
   );

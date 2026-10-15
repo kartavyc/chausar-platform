@@ -21,7 +21,7 @@ const menu = {
     { topic: 'sales', items: [{ operationId: 'sales.invoiced', label: 'Invoiced by customer', type: 'sum', topic: 'sales', needs: ['period'], meaning: null }] },
     { topic: 'collections', items: [{ operationId: 'collections.received', label: 'Money received', type: 'sum', topic: 'collections', needs: ['period'], meaning: 'money in the bank' }] },
   ],
-  gst2b: 'offered', today: '2026-10-14', periods,
+  gst2b: 'offered', today: '2026-10-14', branches: [], periods,
 };
 const suggest = { suggestions: [{ operationId: 'sales.invoiced', label: 'Invoiced by customer', periodId: 'last-month', asked: 4, why: 'asked-before' }] };
 const answer = (receiptId = 'r-1', labels: string[] = []) => ({
@@ -42,7 +42,7 @@ const receipt = {
   versions: { app: '1.0.0', dictionary: 3, dictionaryHash: 'dh', definitionHash: 'defh', recipes: ['h1'], calculator: 'calc-2' },
   allowedBy: { memberId: 'owner-1', role: 'owner', device: 'desktop', at: '2026-10-14T09:00:00.000Z' },
   labels: ['seed'], notCounted: 0, fx: [], sent: { kind: 'model', available: true },
-  meaning: { version: 3, publishedBy: 'owner-1', publishedAt: '2026-10-01T10:00:00.000Z' }, demo: false,
+  meaning: { version: 3, publishedBy: 'owner-1', publishedAt: '2026-10-01T10:00:00.000Z' }, demo: false, provenance: null,
 };
 const rows = (tab: string) => ({
   tab, total: 1, offset: 0, hidden: tab === 'left-out', hiddenCount: null, rule: tab === 'left-out' ? 'branch' : null,

@@ -11,7 +11,7 @@ import { Field } from '../../../parts/Field';
 import { Figure } from '../../../parts/Figure';
 import { KeyValue } from '../../../parts/KeyValue';
 import { Label } from '../../../parts/Label';
-import { call, id, minor, obj, oneOf, optStr, period, type Period } from './client.ts';
+import { call, id, list, minor, obj, oneOf, optStr, period, str, type Period } from './client.ts';
 import { AskPage, bpsFigure, fill, moneyFigure, periodText, useAsk, useRead, useWords, type AskView } from './kit';
 import { catalogue, hundredths, Part, PERIOD_IDS, PERIOD_WORDS, Problem, useRefusal, useSend, type PeriodId } from './analysis';
 import s from './analysis.module.css';
@@ -20,6 +20,8 @@ interface Ref { readonly minor: string; readonly receiptId: string }
 export interface WhatIfValue {
   readonly afterBps: string; readonly books: Ref; readonly withChange: Ref; readonly change: Ref; readonly period: Period; readonly branch: string | null;
 }
+/** The branches this seat can see rows in, from askx.menu (AS-11). */
+export function menuBranches(value: unknown): readonly string[] { return list(obj(value).branches, b => str(b, 200), 200); }
 const ref = (value: unknown): Ref => { const v = obj(value); return { minor: minor(v.minor), receiptId: id(v.receiptId) }; };
 export function whatIfReply(value: unknown): WhatIfValue {
   const v = obj(value), a = obj(v.assumption);
@@ -32,7 +34,7 @@ const WORDS = catalogue({
     title: 'What if', period: 'Period', price: 'Change in prices, in percent', priceHint: 'For example 5 for a rise of 5%, or -2.5 for a fall.',
     badPrice: 'Write a percent with at most two decimals, such as 5 or -2.5.', show: 'Show what if', working: 'Working it out…',
     assumption: 'The assumption changed: prices', before: 'Before', after: 'After', books: 'Your books', withChange: 'With the change',
-    change: 'Difference', periodLine: 'For {period}. Nothing in your books is changed.', branch: 'Branch', save: 'Save', saved: 'Saved.', again: 'Try another change',
+    change: 'Difference', periodLine: 'For {period}. Nothing in your books is changed.', branch: 'Branch', allBranches: 'All branches', save: 'Save', saved: 'Saved.', again: 'Try another change',
     readOnly: 'A what if needs a seat that can work things out.', question: 'What if prices changed by {percent} in {period}?',
     savedNote: 'Saved. These are the figures as they were worked out then.',
   },
@@ -40,7 +42,7 @@ const WORDS = catalogue({
     title: 'अगर ऐसा हो', period: 'अवधि', price: 'कीमतों में बदलाव, प्रतिशत में', priceHint: 'जैसे 5% बढ़ाने के लिए 5, या घटाने के लिए -2.5।',
     badPrice: 'अधिकतम दो दशमलव वाला प्रतिशत लिखें, जैसे 5 या -2.5।', show: 'असर देखें', working: 'निकाला जा रहा है…',
     assumption: 'बदली गई मान्यता: कीमतें', before: 'पहले', after: 'बाद में', books: 'आपके खाते', withChange: 'बदलाव के साथ',
-    change: 'अंतर', periodLine: '{period} के लिए। आपके खातों में कुछ नहीं बदला जाता।', branch: 'शाखा', save: 'सहेजें', saved: 'सहेजा गया।', again: 'कोई और बदलाव आज़माएँ',
+    change: 'अंतर', periodLine: '{period} के लिए। आपके खातों में कुछ नहीं बदला जाता।', branch: 'शाखा', allBranches: 'सभी शाखाएँ', save: 'सहेजें', saved: 'सहेजा गया।', again: 'कोई और बदलाव आज़माएँ',
     readOnly: 'अगर ऐसा हो देखने के लिए ऐसी सीट चाहिए जो गणना चला सके।', question: 'अगर {period} में कीमतें {percent} बदलें तो?',
     savedNote: 'सहेजा गया। ये आँकड़े वैसे ही हैं जैसे तब निकाले गए थे।',
   },
@@ -65,6 +67,9 @@ function WhatIfAsk() {
   const ask = useAsk(), w = useWords(WORDS), periods = useWords(PERIOD_WORDS);
   const [periodId, setPeriodId] = useState<PeriodId>('last-month');
   const [price, setPrice] = useState('');
+  const [branch, setBranch] = useState('');
+  const [menu] = useRead('whatif-branches', () => call(ask.rpc, 'askx.menu', {}, menuBranches));
+  const branches = menu.kind === 'ok' ? menu.value : [];
   const [result, setResult] = useState<WhatIfValue | null>(null);
   const run = useSend();
   const bps = hundredths(price, true);
@@ -75,9 +80,14 @@ function WhatIfAsk() {
       {() => ask.viewer ? <p className={s.note}>{w.readOnly}</p> : (
         <form className={s.form} onSubmit={e => {
           e.preventDefault();
-          if (bps !== null) void run.send('askx.whatIf', { periodId, priceChangeBps: bps }, whatIfReply, setResult);
+          if (bps !== null) void run.send('askx.whatIf', { periodId, priceChangeBps: bps, ...(branch === '' ? {} : { branch: branch.slice(2) }) }, whatIfReply, setResult);
         }}>
           <Choice<PeriodId> label={w.period} options={PERIOD_IDS.map(p => ({ value: p, label: periods[p] }))} value={periodId} onChange={setPeriodId} />
+          {branches.length > 0 && (
+            <div data-whatif-branch="">
+              <Choice label={w.branch} options={[{ value: '', label: w.allBranches }, ...branches.map(b => ({ value: `b:${b}`, label: b }))]} value={branch} onChange={setBranch} />
+            </div>
+          )}
           <div>
             <Field label={w.price} inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} problem={price !== '' && bps === null ? w.badPrice : undefined} />
             <p className={s.note}>{w.priceHint}</p>

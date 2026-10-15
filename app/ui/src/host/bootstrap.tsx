@@ -6,7 +6,7 @@ import { ConversationWorkspace, type ConversationWorkspaceProps, type SavedReadb
 import { PageHeader } from '../app/PageHeader';
 import type { Address, Language, View } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress, withoutSheet, withSheet } from '../app/routes.ts';
-import { TextProvider, useT } from '../app/text';
+import { T, TextProvider, useT } from '../app/text';
 import type { ConversationSavedAnswer } from '../bridge/conversation-host.ts';
 import type { CalculationReceiptEvidence, ReceiptPeriod } from '../bridge/presentation.ts';
 import { projectTodayHostForUi } from '../bridge/today-host.ts';
@@ -29,12 +29,16 @@ import type { HostController, HostReceiptSelection, HostState } from './controll
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
 import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { BringFileFlow } from '../screens/first-run/BringFileFlow';
+import { backupPicker, statementPicker } from '../screens/first-run/pick.ts';
 import { AskRecoveryContact, LockFolderChoice } from '../screens/first-run/ThisComputer';
 import { readDeviceChoices, saveDeviceChoices } from '../screens/first-run/this-computer.ts';
 import { LockScreen } from '../app/LockScreen';
 import { LinkDialog } from '../app/LinkDialog';
 import { externalUrl, type ShellPort } from '../bridge/shell.ts';
 import { UnlockControl, type UnlockResult } from './UnlockControl';
+import { PinUnlock } from '../screens/first-run/Pin';
+import { canSwitch, menuWorkspaces, switchWorkspace, useWorkspaceFolders } from './workspace-switch.ts';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
@@ -43,6 +47,8 @@ import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
 import { FaultReportSheetBody, RouteStatesPanel, UpdatesSheetBody, useCrashPrompt, useUpdates } from './frame-r4.tsx';
 import { todayUpdateRow } from '../app/updates-model.ts';
+import { useHostAskLine } from './ask-line.tsx';
+import type { AskQuestion } from '../bridge/voice-contract.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
 import { statusLine, statusSentences } from '../app/status-line.ts';
 import { HelpSheet } from '../app/HelpSheet';
@@ -88,11 +94,14 @@ export interface HostMountOptions {
    */
   readonly firstRun?: 'journey';
   /**
-   * The trusted shell (`bridge/shell.ts`): `shell.print` for the recovery kit (FR-04) and
-   * `shell.openExternal` behind the link dialog (SH-10). Absent: Print draws "not built yet"
-   * and places get no `openLink`, so outside addresses stay text.
+   * The trusted shell (`bridge/shell.ts`): `shell.print` for the recovery kit (FR-04),
+   * `shell.openExternal` behind the link dialog (SH-10) and, on the desktop, `imports.pickFile`
+   * (FR-07, BK-04's `bringFile` for places, FR-13's backup). Absent: Print draws "not built yet",
+   * places get no `openLink`, so outside addresses stay text, and files come from a file input.
    */
   readonly shell?: ShellPort;
+  /** Every question the ask line sends to Ask, with its "About:" reference as data (SH-04). */
+  readonly onQuestion?: (question: AskQuestion) => void;
 }
 export interface MountedHost {
   /** Detaches the surface while retaining the injected host and any pending attempt. */
@@ -209,7 +218,9 @@ function receiptView(value: CalculationReceiptEvidence, language: Language, time
   try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
 }
 
-function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
+function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc, speak }: {
+  /** "Read it aloud" (SH-05), while voice is on. */
+  speak?: ReactNode;
   selection: HostReceiptSelection;
   language: Language;
   timeZone: string | null;
@@ -227,6 +238,7 @@ function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
   return <Sheet kind={hostMessage(language, 'receipt')} title={selection.id} origin={origin} onClose={onClose}>
     {selection.kind === 'ready' && view !== null ? <>
       <Receipt receipt={view} onReceipt={openEvery} />
+      {speak}
       <details ref={every}><summary>{hostMessage(language, 'receiptEvery')}</summary><ReceiptBody value={selection.value} language={language} /></details>
     </> : selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
       <p role="status">{hostMessage(language, selection.kind === 'loading' ? 'receiptLoading' : 'receiptFailed')}</p>}
@@ -391,8 +403,13 @@ function HostLinkDialog({ url, shell, onClose }: { url: string | null; shell: Sh
   }} />;
 }
 
-function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell }: {
+/** SH-06: switching workspaces from the menu (host/workspace-switch.ts). Null: no list is offered. */
+interface WorkspaceSwitching { readonly open: string | null; readonly marks: ReadonlyMap<string, boolean>; readonly onSwitch: (folder: string) => void }
+
+function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell, switching = null, onQuestion }: {
   shell: ShellPort | null;
+  switching?: WorkspaceSwitching | null;
+  onQuestion?: ((question: AskQuestion) => void) | undefined;
   controller: HostController;
   state: HostState;
   context: UiContext;
@@ -411,6 +428,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     if (typeof url === 'string') setLinkAsked(externalUrl(url) ?? url.slice(0, 2048).replace(/[^\u0021-\u007e]/g, '\ufffd'));
   };
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
+  const switchFolders = useWorkspaceFolders(controller.places, switching !== null, context.contextKey);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
   const consumer = controller.todayConsumer;
   const todayCurrent = useSyncExternalStore(consumer?.subscribe ?? noTodaySubscribe, consumer?.snapshot ?? noTodaySnapshot, consumer?.snapshot ?? noTodaySnapshot);
@@ -437,6 +455,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const updates = useUpdates(controller.places, contextKey);
   const crashed = useCrashPrompt(shell);
   const [crashAnswered, setCrashAnswered] = useState(false);
+  const askLine = useHostAskLine({ rpc: controller.places, language, viewer, owner: context.member.role === 'owner', navigate, current: () => parseAddress(window.location.hash),
+    onSaved: id => { if (conversationEnabled) selectSaved(id); else navigate({ place: 'ask', sub: 'saved' }); }, onQuestion });
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -447,6 +467,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const onAddress = useCallback((address: Address | null) => {
     const previous = active.current;
     active.current = address;
+    askLine.onAddress(address);
     const receipt = controller.snapshot().receipt;
     if (receipt !== null && (address === null || !sameAddress(receipt.address, address))) controller.closeReceipt();
     const current = localSheetRef.current;
@@ -473,7 +494,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     // surface at rest: the sheet opens only from a live press, never from the address alone.
     const owned = current !== null && address !== null && sameAddress(current.address, address);
     if (address !== null && !owned && (address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET || address.sheet?.startsWith('today-'))) navigate(withoutSheet(address));
-  }, [controller]);
+  }, [controller, askLine.onAddress]);
   const stillAuthorized = () => {
     const current = controller.snapshot();
     return current.phase === 'ready' && current.context?.contextKey === context.contextKey && current.selectedRouteId === state.selectedRouteId;
@@ -867,7 +888,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} speak={askLine.speak(state.receipt.id)} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
     content: <TodayDestination timeZone={workspaceZone} receiptDetailRpc={controller.places} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
@@ -919,6 +940,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
       onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
       onReadAgain: () => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); },
+      ...(switching !== null ? {
+        workspaces: menuWorkspaces(switchFolders, { folder: switching.open, name: context.workspace.name }, switching.marks),
+        onSwitchWorkspace: switching.onSwitch, ...(switching.open !== null ? { workspaceId: switching.open } : {}),
+      } : {}),
     },
     ...(frame.reads.shell !== null ? {
       banners: shellBanners(frame.reads.shell, language, {
@@ -931,7 +956,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
     idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
-    ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
+    ask: { ...askLine.ask, onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
     status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
       sources: { text: hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'), address: { place: 'books', sub: 'sources' } },
@@ -954,6 +979,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       onOpenTile: (id, tileOrigin) => launchToday(todayCurrent, 'today-record', tileOrigin, current => consumer.tile(todayCurrent, id, current)),
       onOpenEvent: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.event(todayCurrent, id, current)),
       onSeeAll: () => launchToday(todayCurrent, 'today-review', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.page(todayCurrent, false, current)),
+      ...(askLine.cashVoice !== undefined ? { cashVoice: askLine.cashVoice } : {}),
       ...(viewer ? {} : todayCurrent.phase === 'ready' && consumer.input?.display && consumer.input.configuration ? {
         preparingTiles: todayCurrent.preparing,
         onPrepareTiles: () => {
@@ -964,12 +990,15 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
     } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) } },
-    sheet, onAddress, onHelp: showHelp,
+    sheet: askLine.sheet ?? sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
         rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
         navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
-        ...(openLink !== undefined ? { openLink } : {}) });
+        ...(openLink !== undefined ? { openLink } : {}), setAbout: askLine.setAboutAt(at),
+        // BK-04: the FR-07 flow for a place, over the host's chooser (frame-today).
+        ...(viewer ? {} : { bringFile: (options?: { readonly onTaken?: (() => void) | undefined }) => <BringFileFlow rpc={controller.places} language={language}
+          company={context.workspace.name} pickFile={statementPicker(shell)} onTaken={options?.onTaken} /> }) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
@@ -993,7 +1022,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         // Ask, New at rest: the route picker, then the ask lane's menu of calculations (its "no model" way to ask).
         const ask = placeModules.find(module => module.id === 'ask');
         // SH-09: a route that cannot answer says so under the picker; nothing retries or switches by itself.
-        const routes = <RouteStatesPanel rpc={controller.places} contextKey={contextKey} timeZone={workspaceZone} />;
+        const routes = <RouteStatesPanel rpc={controller.places} contextKey={contextKey} timeZone={workspaceZone}
+          routes={state.routes.filter(route => route.enabled).map(route => ({ id: route.id, label: route.label }))} />;
         return ask === undefined ? <>{routePicker}{routes}</> : <>{routePicker}{routes}{ask.render(placeProps({ place: 'ask', sub: 'new' }))}</>;
       }
       return address.place === 'trust' && address.sub === 'models'
@@ -1076,6 +1106,11 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
   const [lockFolder, setLockFolder] = useState('main');
+  // SH-06: the folder the host itself opened (null when it did not), the demo or real marks seen
+  // this session, and whether the lock screen follows a switch.
+  const [openedFolder, setOpenedFolder] = useState<string | null>(null);
+  const marks = useRef(new Map<string, boolean>());
+  const [switched, setSwitched] = useState(false);
   // SH-06: the language and view saved for this computer, unless the trusted mount fixed them.
   useEffect(() => {
     if (options.firstRun !== 'journey') return;
@@ -1120,6 +1155,13 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  if (authorized && openedFolder !== null) marks.current.set(openedFolder, state.context.workspace.demo);
+  const switching = journeyMode && authorized && canSwitch(state.context.member.role) ? {
+    open: openedFolder, marks: marks.current,
+    onSwitch: (folder: string) => {
+      if (switchWorkspace(controller, folder, openedFolder, chosen => { setLockFolder(chosen); setUnlockResult(null); setSwitched(true); })) setOpenedFolder(null);
+    },
+  } : null;
   /** A person's change of language or view is kept for this computer once a workspace is open. */
   const chooseLanguage = (next: Language) => { setLanguage(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, next, view).catch(() => {}); };
   const chooseView = (next: View) => { setView(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, language, next).catch(() => {}); };
@@ -1128,14 +1170,16 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
       const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: lockFolder, passphrase }).then(
-        () => { setUnlockResult(null); return controller.unlocked(); },
+        () => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); return controller.unlocked(); },
         // A wrong passphrase says so; any other refusal keeps the lock screen and says it could not unlock.
         // Nothing here ever leads to creating or recovering a workspace on its own.
         (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : { kind: 'failed' }); });
       return <TextProvider language={language}>
         <LockScreen workspaceName={lockFolder === 'main' ? hostMessage(language, 'thisWorkspace') : lockFolder}
           unlockControl={<>
+            {switched && <p role="status" data-workspace-switched={lockFolder}><T k="SH-06.switching" values={{ folder: lockFolder }} /></p>}
             <LockFolderChoice rpc={controller.places} folder={lockFolder} onFolder={setLockFolder} />
+            <PinUnlock rpc={controller.places} folder={lockFolder} onUnlocked={() => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); return controller.unlocked(); }} />
             <UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />
             <AskRecoveryContact rpc={controller.places} folder={lockFolder} />
           </>} />
@@ -1146,6 +1190,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
         onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
         saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
         {...(options.shell !== undefined ? { onPrint: () => options.shell!.print('recovery-kit') } : {})}
+        pickFile={statementPicker(options.shell)} pickBackup={backupPicker(options.shell)}
         onOpenFolder={folder => { setLockFolder(folder); setUnlockResult(null); setStartNew(false); }}
         onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
     }
@@ -1172,7 +1217,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
-            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
+            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} switching={switching} onQuestion={options.onQuestion} />
           : <div style={{ padding: 'var(--sp6)' }}>
             <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}

@@ -25,12 +25,15 @@ async function memberOf(engine: Engine, role: 'viewer' | 'accountant'): Promise<
   return { memberId: member.id, role, epoch: member.epoch, channel: 'desktop' };
 }
 
+/** Keys that hold an id or a time: random digits there are not words. */
+const ID_OR_TIME = (key: string) => key === 'id' || key === 'at' || key === 'replaces' || key === 'correctedBy' || /(?:Id|Ids|At)$/.test(key);
+
 /** Every run of digits anywhere in the draft's words, collected from text fields only. */
 function digitRuns(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) for (const item of value) digitRuns(item, out);
   else if (value && typeof value === 'object') {
     for (const [key, item] of Object.entries(value)) {
-      if (['claimId', 'replaces', 'correctedBy', 'at', 'startedAt'].includes(key)) continue;
+      if (ID_OR_TIME(key)) continue;
       if (typeof item === 'string') out.push(...(item.match(/[0-9०-९]+/g) ?? []));
       else digitRuns(item, out);
     }
@@ -95,7 +98,8 @@ test('no number appears that the owner did not type, and nothing is computed fro
   // Every line is the owner's text, unchanged: no margin, no total, no rewritten amount.
   const lines = [...draft.business, ...draft.sale, ...draft.plan, ...draft.unknownsTold, ...draft.unknowns.flatMap((u: any) => u.lines)].map((l: any) => l.text);
   assert.deepEqual(lines.sort(), [...typed].sort());
-  assert.equal(JSON.stringify(draft).includes('270'), false);
+  // The computed margin (450 - 180) appears in no word; ids and times are left out of this walk.
+  assert.equal(shown.some(run => run.includes('270')), false);
 });
 
 test('ranges carry a source and a date or are absent', async t => {

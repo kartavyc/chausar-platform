@@ -39,6 +39,11 @@ import type { IdeaSection, IdeaUnknown, IdentityCard, IdentityField } from '../.
 /* ------------------------------------------------------------------ the port */
 
 export type ImportFormat = 'csv' | 'xlsx' | 'pdf';
+/** A file brought to FR-07: CSV as text, Excel and PDF as base64 bytes. The name is data. */
+export type PickedFile =
+  | { readonly name: string; readonly format: 'csv'; readonly content: string }
+  | { readonly name: string; readonly format: 'xlsx'; readonly bytesBase64: string }
+  | { readonly name: string; readonly format: 'pdf'; readonly bytesBase64: string };
 export interface ExpectedTotals { readonly rowCount: number; readonly amountMinor: string }
 
 /** A typed, data-only mapping recipe (platform/runtime/ingest.ts `validateRecipe`). */
@@ -95,6 +100,8 @@ export type JourneyPayloads = {
   'sources.import': SheetRequest;
   'sources.workbookPreview': WorkbookRequest;
   'sources.workbookImport': WorkbookRequest;
+  /** The workbook's cells as the engine reads them (`readWorkbook`), for proposed meanings of an Excel sheet. */
+  'sources.workbook': { readonly bytesBase64: string; readonly sheet?: string };
   'ontology.get': Record<string, never>;
   'calculation.run': { readonly operation: string };
   'receipts.get': { readonly id: string };
@@ -118,6 +125,16 @@ export type JourneyPayloads = {
   'todayx.device.set': { readonly language: 'en' | 'hi'; readonly view: 'simple' | 'guided' | 'books' };
   'todayx.workspaces': Record<string, never>;
   'todayx.recoveryContact.request': { readonly folder: string };
+  /** Round 4 (bridge/r4-contracts.ts): FR-05 ladder, probe and local models; the time zone; FR-10; FR-14. */
+  'models.setLadder': { readonly routeIds: readonly string[] };
+  'models.probe': { readonly routeId: string };
+  'modelsx.localList': { readonly endpoint?: string };
+  'ui.context': Record<string, never>;
+  'workspace.setTimeZone': { readonly timeZone: string };
+  'learningx.intakeStatus': Record<string, never>;
+  'learningx.preview': { readonly boxes: readonly ('setup-shapes' | 'corrections')[] };
+  'learningx.consent': { readonly previewId: string; readonly digest: string };
+  'devices.join': { readonly joinId?: string };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 
@@ -409,8 +426,11 @@ export function validateReaderStatus(value: unknown): ReaderStatus {
   const status = obj.status === 'installed' || obj.status === 'not-installed' ? obj.status : invalid('reader.status');
   const pdfText = bool(obj.pdfText, 'reader.pdfText'), pdfOcr = bool(obj.pdfOcr, 'reader.pdfOcr');
   const reason = codeOrNull(obj.reason, 'reader.reason');
-  // The size is not known in this build: anything but null is not this contract.
-  only(obj, null, 'sizeBytes', 'reader');
+  // A whole number of bytes when the reader is installed; null otherwise.
+  if (obj.sizeBytes !== null) {
+    if (status !== 'installed') invalid('reader.sizeBytes');
+    whole(obj.sizeBytes, 'reader.sizeBytes');
+  }
   if ((status === 'installed') !== pdfText || (status === 'installed') !== (reason === null)) invalid('reader.status');
   return Object.freeze({ status, pdfText, pdfOcr, reason });
 }

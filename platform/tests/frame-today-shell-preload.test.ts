@@ -45,9 +45,9 @@ function chain(options: { open?: boolean } = {}) {
   return { api, opened, printed, channels, tick(ms: number) { clock += ms; } };
 }
 
-test('the preload adds only the shell calls (openExternal, print, saveText, crash) beside the existing bridge', async () => {
+test('the preload adds only the shell calls (openExternal, print, pickFile, saveText, crash) beside the existing bridge', async () => {
   const { api } = chain();
-  assert.deepEqual(Object.keys(api).sort(), ['crashAnswer', 'crashState', 'onEngineStatus', 'openExternal', 'print', 'request', 'requestEnvelope', 'saveText']);
+  assert.deepEqual(Object.keys(api).sort(), ['crashAnswer', 'crashState', 'onEngineStatus', 'openExternal', 'pickFile', 'print', 'request', 'requestEnvelope', 'saveText']);
 });
 
 test('the preload refuses non-string, empty and over-long addresses before any IPC, and main refuses the rest', async () => {

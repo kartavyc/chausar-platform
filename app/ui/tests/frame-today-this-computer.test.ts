@@ -119,6 +119,13 @@ test('bank statement PDFs: the contract validators take the real shapes and refu
   assert.deepEqual(validateReaderStatus({ status: 'installed', pdfText: true, pdfOcr: false, reason: null, sizeBytes: null }), { status: 'installed', pdfText: true, pdfOcr: false, reason: null });
   assert.deepEqual(validateReaderStatus({ status: 'not-installed', pdfText: false, pdfOcr: false, reason: 'PYTHON_NOT_CONFIGURED', sizeBytes: null }).reason, 'PYTHON_NOT_CONFIGURED');
   assert.equal(validateReaderStatus({ status: 'not-installed', pdfText: false, pdfOcr: false, reason: 'HELPER_EXECUTION_FAILED', sizeBytes: null }).reason, 'HELPER_EXECUTION_FAILED');
+  // sizeBytes: a whole number of bytes when installed, null otherwise.
+  assert.equal(validateReaderStatus({ status: 'installed', pdfText: true, pdfOcr: true, reason: null, sizeBytes: 48_213_504 }).status, 'installed');
+  assert.equal(validateReaderStatus({ status: 'installed', pdfText: true, pdfOcr: false, reason: null, sizeBytes: 0 }).status, 'installed');
+  for (const sizeBytes of [-1, 1.5, '48213504', Number.MAX_SAFE_INTEGER + 1, undefined]) {
+    assert.throws(() => validateReaderStatus({ status: 'installed', pdfText: true, pdfOcr: false, reason: null, sizeBytes }));
+  }
+  assert.throws(() => validateReaderStatus({ status: 'not-installed', pdfText: false, pdfOcr: false, reason: 'PYTHON_NOT_CONFIGURED', sizeBytes: 1024 }));
   assert.throws(() => validateReaderStatus({ state: 'installed' }), 'the assumed shape is gone');
   assert.throws(() => validateReaderStatus({ status: 'not-installed', pdfText: false, pdfOcr: false, reason: 'PYTHON_NOT_CONFIGURED', sizeBytes: 48_200_000 }), 'no size in this build');
   assert.throws(() => validateReaderStatus({ status: 'installed', pdfText: true, pdfOcr: true, reason: 'PDF_LIBRARY_MISSING', sizeBytes: null }));

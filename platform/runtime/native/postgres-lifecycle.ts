@@ -4,7 +4,7 @@ import { createReadStream } from 'node:fs';
 import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { createConnection, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { check } from '../contracts.ts';
 
 /**
@@ -107,11 +107,26 @@ export type BundledPostgresOptions = {
    * runner and to null (not checked) with a substitute runner, which decides how its processes run.
    */
   effectiveUid?: () => number | null;
-  /** Server processes a dead postmaster left running on this data directory. Defaults to a /proc scan on Linux. */
-  orphanedServerProcesses?: (dataDirectory: string) => Promise<number[]>;
-  /** Ends an orphaned server process (SIGKILL by default). */
-  killProcess?: (pid: number) => void;
+  /**
+   * Server processes a dead postmaster left running on this data directory. Defaults to a /proc scan on Linux
+   * (real runner only), `ps` on macOS and PowerShell's Win32_Process on Windows (both through the runner).
+   */
+  orphanedServerProcesses?: (dataDirectory: string, scan: OrphanScan) => Promise<number[]>;
+  /** Ends an orphaned server process: SIGKILL by default, `taskkill /PID n /F` through the runner on Windows. */
+  killProcess?: (pid: number) => void | Promise<void>;
 };
+/** What a sweep may use to prove a process belongs to this cluster. */
+export type OrphanScan = {
+  /** The dead postmaster's PID from the stale lock file, when readable. */
+  postmasterPid: number | null;
+  /** `cluster_name` the lifecycle starts every server with; PostgreSQL puts it in each process title. */
+  clusterName: string;
+  /** Absolute path of the `postgres` executable that served this data directory. */
+  postgresExecutable: string;
+  /** Effective user id (macOS); null when unknown. */
+  uid: number | null;
+};
+export type ProcessRow = { pid: number; ppid: number; uid: number | null; executable: string | null; command: string };
 
 type Executables = { binDirectory: string; postgres: string; initdb: string; pgCtl: string; pgUpgrade: string };
 type ClusterRecord = { schemaVersion: 1; port: number | null; events: PostgresEvent[] };
@@ -179,6 +194,91 @@ export async function linuxOrphanedServerProcesses(dataDirectory: string): Promi
   }
   return found;
 }
+/** Stable per data directory; started as `cluster_name`, so every backend's process title names its cluster. */
+export function postgresClusterName(dataDirectory: string): string {
+  return `chausar-${createHash('sha256').update(resolve(dataDirectory)).digest('hex').slice(0, 16)}`;
+}
+/** Rows of `ps -axww -o pid=,ppid=,uid=,command=`; lines that do not parse are skipped. */
+export function parseDarwinProcessList(text: string): ProcessRow[] {
+  const rows: ProcessRow[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*(\d{1,10})\s+(\d{1,10})\s+(\d{1,10})\s(.*)$/.exec(line);
+    if (match) rows.push({ pid: Number(match[1]), ppid: Number(match[2]), uid: Number(match[3]), executable: null, command: match[4].trimStart() });
+  }
+  return rows;
+}
+/**
+ * macOS: a postmaster killed with SIGKILL leaves its children reparented to launchd (PID 1). A process is this
+ * cluster's only when it runs as the same user, its parent is PID 1, and either its title starts with
+ * `postgres: <cluster_name>: ` or it is the bundled `postgres` executable started with `-D <dataDirectory>`.
+ */
+export function darwinOrphans(rows: ProcessRow[], dataDirectory: string, scan: OrphanScan, selfPid = process.pid): number[] {
+  const title = `postgres: ${scan.clusterName}: `, postmaster = `${scan.postgresExecutable} -D ${dataDirectory} `;
+  return rows.filter(row => row.pid > 1 && row.pid !== selfPid && row.ppid === 1 && scan.uid !== null && row.uid === scan.uid
+    && (row.command.startsWith(title) || row.command.startsWith(postmaster))).map(row => row.pid);
+}
+export async function darwinOrphanedServerProcesses(runner: PostgresRunner, dataDirectory: string, scan: OrphanScan): Promise<number[]> {
+  const listed = await runner.run('/bin/ps', ['-axww', '-o', 'pid=,ppid=,uid=,command='], { timeoutMs: 15_000 });
+  return listed.code === 0 ? darwinOrphans(parseDarwinProcessList(listed.stdout), dataDirectory, scan) : [];
+}
+/** Windows command-line splitting (CommandLineToArgvW rules for quotes and backslashes). */
+export function splitWindowsCommandLine(line: string): string[] {
+  const args: string[] = [];
+  let current = '', quoted = false, started = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '\\') {
+      let count = 0;
+      while (line[index] === '\\') { count += 1; index += 1; }
+      if (line[index] === '"') { current += '\\'.repeat(count >> 1); if (count % 2) current += '"'; else { quoted = !quoted; } }
+      else { current += '\\'.repeat(count); index -= 1; }
+      started = true;
+    } else if (char === '"') { quoted = !quoted; started = true; }
+    else if ((char === ' ' || char === '\t') && !quoted) { if (started) args.push(current); current = ''; started = false; }
+    else { current += char; started = true; }
+  }
+  if (started) args.push(current);
+  return args;
+}
+/** Rows from `ConvertTo-Json` of Win32_Process (one object or an array); anything malformed yields no rows. */
+export function parseWindowsProcessList(text: string): ProcessRow[] {
+  let value: unknown;
+  try { value = text.trim() ? JSON.parse(text) : []; } catch { return []; }
+  const items = Array.isArray(value) ? value : [value];
+  const rows: ProcessRow[] = [];
+  for (const item of items) {
+    if (!item || typeof item !== 'object') return [];
+    const { ProcessId: pid, ParentProcessId: ppid, ExecutablePath: executable, CommandLine: command } = item as Record<string, unknown>;
+    if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(ppid) || (executable !== null && typeof executable !== 'string') || (command !== null && typeof command !== 'string')) return [];
+    rows.push({ pid: pid as number, ppid: ppid as number, uid: null, executable: executable as string | null, command: (command as string | null) ?? '' });
+  }
+  return rows;
+}
+const windowsPath = (path: string) => win32.normalize(path).toLowerCase();
+/**
+ * Windows: there is no reparenting, so a backend forked by the dead postmaster still names it as its parent. A
+ * process is this cluster's only when it is the bundled `postgres.exe` (same executable path) and either it is a
+ * forked child (`--fork…`) whose recorded parent is the dead postmaster from the lock file and is not running,
+ * or it was started with `-D <dataDirectory>`.
+ */
+export function windowsOrphans(rows: ProcessRow[], dataDirectory: string, scan: OrphanScan, alive: (pid: number) => boolean, selfPid = process.pid): number[] {
+  const executable = windowsPath(scan.postgresExecutable), directory = windowsPath(dataDirectory);
+  return rows.filter(row => {
+    if (row.pid <= 4 || row.pid === selfPid || !row.executable || windowsPath(row.executable) !== executable) return false;
+    const args = splitWindowsCommandLine(row.command).slice(1);
+    const forked = args.some(arg => arg.startsWith('--fork'));
+    if (forked) return scan.postmasterPid !== null && row.ppid === scan.postmasterPid && !alive(row.ppid);
+    const flag = args.indexOf('-D');
+    return flag >= 0 && args[flag + 1] !== undefined && windowsPath(args[flag + 1]) === directory;
+  }).map(row => row.pid);
+}
+const systemRoot = () => process.env.SystemRoot && win32.isAbsolute(process.env.SystemRoot) ? process.env.SystemRoot : 'C:\\Windows';
+const WINDOWS_PROCESS_QUERY = "Get-CimInstance -ClassName Win32_Process -Filter \"Name = 'postgres.exe'\" | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress";
+export async function windowsOrphanedServerProcesses(runner: PostgresRunner, dataDirectory: string, scan: OrphanScan, alive: (pid: number) => boolean = defaultProcessAlive): Promise<number[]> {
+  const powershell = win32.join(systemRoot(), 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const listed = await runner.run(powershell, ['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_QUERY], { timeoutMs: 30_000 });
+  return listed.code === 0 ? windowsOrphans(parseWindowsProcessList(listed.stdout), dataDirectory, scan, alive) : [];
+}
 async function sha256File(path: string): Promise<string> {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -202,8 +302,8 @@ export class BundledPostgres {
   private readonly onDiagnostic?: (text: string) => void;
   private readonly now: () => string;
   private readonly effectiveUid: () => number | null;
-  private readonly orphanedServerProcesses: (dataDirectory: string) => Promise<number[]>;
-  private readonly killProcess: (pid: number) => void;
+  private readonly orphanedServerProcesses: (dataDirectory: string, scan: OrphanScan) => Promise<number[]>;
+  private readonly killProcess: (pid: number) => void | Promise<void>;
   private server: PostgresServerProcess | null = null;
   private serverPort: number | null = null;
   private bundledVersionCache: string | null = null;
@@ -235,8 +335,15 @@ export class BundledPostgres {
     this.now = options.now ?? (() => new Date().toISOString());
     const realRunner = this.runner === nodePostgresRunner;
     this.effectiveUid = options.effectiveUid ?? (() => realRunner && typeof process.geteuid === 'function' ? process.geteuid() : null);
-    this.orphanedServerProcesses = options.orphanedServerProcesses ?? (realRunner && this.platform === 'linux' ? linuxOrphanedServerProcesses : async () => []);
-    this.killProcess = options.killProcess ?? (pid => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
+    const runner = this.runner, alive = this.processAlive;
+    this.orphanedServerProcesses = options.orphanedServerProcesses ?? (
+      this.platform === 'linux' ? (realRunner ? linuxOrphanedServerProcesses : async () => [])
+      : this.platform === 'darwin' ? (directory, scan) => darwinOrphanedServerProcesses(runner, directory, scan)
+      : this.platform === 'win32' ? (directory, scan) => windowsOrphanedServerProcesses(runner, directory, scan, alive)
+      : async () => []);
+    this.killProcess = options.killProcess ?? (this.platform === 'win32'
+      ? async pid => { await runner.run(win32.join(systemRoot(), 'System32', 'taskkill.exe'), ['/PID', String(pid), '/F'], { timeoutMs: 15_000 }); }
+      : pid => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   }
 
   /** Read-only summary; never creates files or starts processes other than `postgres --version`. */
@@ -512,12 +619,13 @@ export class BundledPostgres {
   private async recoverLock(): Promise<void> {
     const state = await this.lock();
     check(state.kind !== 'foreign', 'POSTGRES_DATA_IN_USE', 'Another program is using the database folder.');
-    if (state.kind === 'stale') await this.recordEvent('stale-lock-recovered', { pid: state.pid, orphansEnded: await this.endOrphans(this.dataDirectory) });
+    if (state.kind === 'stale') await this.recordEvent('stale-lock-recovered', { pid: state.pid, orphansEnded: await this.endOrphans(this.dataDirectory, state.pid, postgresExecutables(this.runtimeRoot, this.platform).postgres) });
   }
   /** Ends server processes a crashed postmaster left on this data directory, so the new postmaster can start. */
-  private async endOrphans(directory: string): Promise<number> {
-    const orphans = await this.orphanedServerProcesses(directory);
-    for (const pid of orphans) this.killProcess(pid);
+  private async endOrphans(directory: string, postmasterPid: number | null, postgresExecutable: string): Promise<number> {
+    const uid = this.effectiveUid() ?? (typeof process.geteuid === 'function' ? process.geteuid() : null);
+    const orphans = await this.orphanedServerProcesses(directory, { postmasterPid, clusterName: postgresClusterName(directory), postgresExecutable, uid });
+    for (const pid of orphans) await this.killProcess(pid);
     const deadline = Date.now() + Math.min(10_000, this.startTimeoutMs);
     while (orphans.some(pid => this.processAlive(pid)) && Date.now() < deadline) await pause(50);
     check(!orphans.some(pid => this.processAlive(pid)), 'POSTGRES_STALE_PROCESSES', 'Database processes left by a crash are still running. End them, then start again.');
@@ -539,7 +647,7 @@ export class BundledPostgres {
     return port;
   }
   private serverArgs(directory: string, port: number): string[] {
-    return ['-D', directory, '-h', '127.0.0.1', '-p', String(port), '-c', 'unix_socket_directories=', '-c', 'password_encryption=scram-sha-256', '-c', 'fsync=on', '-c', 'synchronous_commit=on', '-c', 'full_page_writes=on'];
+    return ['-D', directory, '-h', '127.0.0.1', '-p', String(port), '-c', `cluster_name=${postgresClusterName(directory)}`, '-c', 'unix_socket_directories=', '-c', 'password_encryption=scram-sha-256', '-c', 'fsync=on', '-c', 'synchronous_commit=on', '-c', 'full_page_writes=on'];
   }
   /**
    * Ready means the postmaster wrote `ready` into its lock file (PostgreSQL 10+, as `pg_ctl -w` checks). An open port
@@ -580,8 +688,8 @@ export class BundledPostgres {
   }
   /** pg_upgrade requires a clean shutdown: replay a crashed old cluster with its own binaries first. */
   private async cleanShutdownWithOld(plan: PostgresUpgradePlan, pid: number | null): Promise<void> {
-    await this.recordEvent('stale-lock-recovered', { pid, orphansEnded: await this.endOrphans(plan.oldDataDirectory) });
     const old = postgresExecutables(this.runtimeRoot, this.platform, `postgres-${plan.fromMajor}`);
+    await this.recordEvent('stale-lock-recovered', { pid, orphansEnded: await this.endOrphans(plan.oldDataDirectory, pid, old.postgres) });
     const [port] = await this.vacantPorts(1);
     await this.launch(old, plan.oldDataDirectory, port);
     await this.stopServer(old, plan.oldDataDirectory);

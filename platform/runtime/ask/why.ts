@@ -14,7 +14,7 @@ import { check, newId, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { WhyRecord, WhyReply } from './contracts.ts';
-import { askState, core, currentDictionary, identifier, input, peekAsk, period, priorPeriod, requireId, signedRows, text } from './shared.ts';
+import { askState, core, currentDictionary, identifier, input, peekAsk, period, priorPeriod, requireId, signedRows, text , openReceipt } from './shared.ts';
 import { operationOf } from './menu.ts';
 
 const BY = ['customer', 'branch', 'source', 'kind'] as const;
@@ -81,8 +81,8 @@ export async function get(ctx: Context, payload: unknown, host: ModuleHost): Pro
   const record = peekAsk(host.store.read()).why.find(w => w.id === id && w.memberId === ctx.memberId);
   check(record, 'ASK_NOT_FOUND', 'This investigation is no longer available.');
   // Permissions are checked again: both receipts must still open for this seat.
-  await core(host, 'receipts.get', { id: record.earlier.receiptId });
-  await core(host, 'receipts.get', { id: record.later.receiptId });
+  await openReceipt(host, ctx, record.earlier.receiptId);
+  await openReceipt(host, ctx, record.later.receiptId);
   return reply(record);
 }
 
@@ -91,7 +91,7 @@ export async function guess(ctx: Context, payload: unknown, host: ModuleHost): P
   const id = requireId(request.whyId), sentence = text(request.text, 1000);
   const ids = (value: unknown) => { check(value === undefined || Array.isArray(value) && value.length <= 20 && value.every(identifier), 'ASK_INVALID', 'Evidence is a short list of receipts.'); return (value ?? []) as string[]; };
   const forIds = ids(request.forReceiptIds), againstIds = ids(request.againstReceiptIds);
-  for (const receiptId of [...forIds, ...againstIds]) await core(host, 'receipts.get', { id: receiptId });
+  for (const receiptId of [...forIds, ...againstIds]) await openReceipt(host, ctx, receiptId);
   let source: WhyRecord['guesses'][number]['source'] = null;
   if (request.source !== undefined) {
     const given = input(request.source, ['name', 'fetchedAt'], ['name', 'fetchedAt']);

@@ -11,8 +11,9 @@
 import { check, hash, newId, now, type Context, type State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
+import { checkStop, stopToken } from './round4.ts';
 import type { CheckItem, CheckReply, ChecksReply, Fingerprint } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
 
 export function fingerprint(state: State, host: ModuleHost): Fingerprint {
   const dictionary = state.ontology?.current ?? (state.ontology?.operations ? state.ontology : null);
@@ -35,7 +36,7 @@ const CHECKS_PER_MEMBER = 200;
 
 export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['receiptId', 'question', 'figureKey'], ['receiptId']);
-  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  const receipt = await openReceipt(host, ctx, request.receiptId);
   const figureKey = request.figureKey === undefined ? headlineKey(receipt) : String(request.figureKey);
   const figure = receipt.figures.find(f => f.key === figureKey);
   check(figure, 'ASK_INVALID', 'Choose a figure that is on this receipt.');
@@ -85,14 +86,16 @@ type Calculate = (request: Record<string, unknown>) => Promise<CalculationReceip
 
 /** Works every check of this member out again as known now, as that member. */
 export async function runChecks(ctx: Context, host: ModuleHost, calculate: Calculate = request => host.call('calculation.run', request) as Promise<CalculationReceipt>): Promise<ChecksReply> {
-  await runFor(ctx, host, calculate, () => true);
+  await runFor(ctx, host, calculate, () => true, stopToken(ctx, host));
   return listChecks(ctx, {}, host);
 }
 
-async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due: (item: CheckItem, current: Fingerprint) => boolean) {
+/** `token` is null for the scheduler's own runs: a person's Stop ends only what they started. */
+async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due: (item: CheckItem, current: Fingerprint) => boolean, token: { key: string; at: number } | null = null) {
   const before = host.store.read(), own = peekAsk(before), current = fingerprint(before, host);
   const results = new Map<string, CheckItem['results'][number]>();
   for (const item of own.checks.filter(c => c.memberId === ctx.memberId && due(c, current))) {
+    checkStop(token);
     const at = now(), because = changedParts(item.fingerprint, current), { asOf: _asOf, ...again } = item.request;
     try {
       const receipt = await calculate(again);

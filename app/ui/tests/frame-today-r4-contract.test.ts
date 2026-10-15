@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  isRouteProbeReply, isShellReply, isUpdateStepReply, isUpdatesReply, ROUTE_STATES, TODAYX_R4_REFUSALS, updateRefusal,
+  isRouteStateProbe, isShellReply, isUpdateStepReply, isUpdatesReply, ROUTE_STATES, TODAYX_R4_REFUSALS, updateRefusal,
   type ShellReply, type UpdatesReply,
 } from '../src/bridge/todayx-contract.ts';
 import { shellBanners } from '../src/app/shell-banners.ts';
@@ -80,15 +80,16 @@ test('release refusal codes become reasons in words, and reach the screen throug
   for (const value of [...TODAYX_R4_REFUSALS, 'NATIVE_INSTALLER_REQUIRED', 'VAULT_NEWER_THAN_APP']) assert.ok(laneRefusalCodes.includes(value), value);
 });
 
-test('route states: every state has words in both languages, and a skipped route must say both send settings', () => {
-  for (const state of ROUTE_STATES) assert.ok(words.en[`SH-09.${state}`] && words.hi[`SH-09.${state}`], state);
-  const row = { routeId: 'r1', label: 'Codex tool', kind: 'codex-cli', state: 'signed-out', send: null, resumesAt: null };
-  assert.equal(isRouteProbeReply({ routes: [row], checkedAt: '2026-09-30T06:00:00.000Z' }), true);
-  assert.equal(isRouteProbeReply({ routes: [{ ...row, state: 'skipped-send' }], checkedAt: '2026-09-30T06:00:00.000Z' }), false);
-  assert.equal(isRouteProbeReply({ routes: [{ ...row, state: 'skipped-send', send: { route: 'samples', yours: 'shape' } }], checkedAt: '2026-09-30T06:00:00.000Z' }), true);
-  assert.equal(isRouteProbeReply({ routes: [{ ...row, send: { route: 'samples', yours: 'shape' } }], checkedAt: '2026-09-30T06:00:00.000Z' }), false);
-  assert.equal(isRouteProbeReply({ routes: [{ ...row, state: 'retrying' }], checkedAt: '2026-09-30T06:00:00.000Z' }), false);
-  assert.equal(isRouteProbeReply({ routes: [{ ...row, token: 'secret' }], checkedAt: '2026-09-30T06:00:00.000Z' }), false);
+test('route states: every state has words in both languages, and only the declared extras ride beside the probe', () => {
+  for (const state of ROUTE_STATES) if (state !== 'skipped-by-send') assert.ok(words.en[`SH-09.${state}`] && words.hi[`SH-09.${state}`], state);
+  for (const key of ['SH-09.skipped-by-send', 'SH-09.skipped-by-send.plain']) assert.ok(words.en[key] && words.hi[key], key);
+  const probe = { routeId: 'r1', state: 'signed-out', checkedAt: '2026-09-30T06:00:00.000Z' };
+  assert.equal(isRouteStateProbe(probe), true, 'The core-gateway-auth shape alone.');
+  assert.equal(isRouteStateProbe({ ...probe, state: 'skipped-by-send', send: { route: 'samples', yours: 'shape' }, resumesAt: null }), true);
+  assert.equal(isRouteStateProbe({ ...probe, state: 'retrying' }), false);
+  assert.equal(isRouteStateProbe({ ...probe, token: 'secret' }), false);
+  assert.equal(isRouteStateProbe({ ...probe, send: { route: 'everything', yours: 'shape' } }), false);
+  assert.equal(isRouteStateProbe({ ...probe, resumesAt: 'soon' }), false);
 });
 
 test('the fake engine serves the round 4 frame methods from fixtures, and refuses Send', async () => {
@@ -101,7 +102,7 @@ test('the fake engine serves the round 4 frame methods from fixtures, and refuse
   assert.equal(isUpdateStepReply(await engine.request('todayx.updates.stage', { confirmed: true })), true);
   assert.equal(isUpdateStepReply(await engine.request('todayx.updates.apply', { confirmed: true })), true);
   assert.equal((await engine.request('todayx.updates', {}) as UpdatesReply).state, 'restart');
-  assert.equal(isRouteProbeReply(await engine.request('models.probe', {})), true);
+  assert.equal(isRouteStateProbe(await engine.request('models.probe', { routeId: 'route_local_demo' })), true, 'The shared fixture fits SH-09 too.');
   await assert.rejects(engine.request('todayx.faultReport.send', {}), (e: any) => e.code === 'FAULT_REPORT_SEND_UNAVAILABLE');
   const viewer = createFakeEngine({ scenario: 'read-only', updateReady: true });
   assert.equal((await viewer.request('todayx.updates', {}) as UpdatesReply).canUpdate, false);

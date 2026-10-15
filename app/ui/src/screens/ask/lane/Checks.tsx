@@ -10,7 +10,7 @@ import { Button } from '../../../parts/Button';
 import { RowList } from '../../../parts/RowList';
 import { bool, call, date, id, list, minor, obj, oneOf, optMinor, optStr, str } from './client.ts';
 import { AskPage, dayText, fill, missingFigure, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
-import { catalogue, Part, Problem, useRefusal, useSend } from './analysis';
+import { catalogue, Part, Problem, StopButton, useRefusal, useSend } from './analysis';
 import s from './analysis.module.css';
 
 export interface CheckResult { readonly at: string; readonly result: 'same' | 'moved' | 'cannot-run'; readonly minor: string | null; readonly receiptId: string | null; readonly code: string | null; readonly because: readonly string[] }
@@ -72,7 +72,7 @@ export function ChecksScreen(_props: { view: Extract<AskView, { kind: 'checks' }
   const run = useSend();
   return (
     <AskPage title={w.title} load={load} retry={retry} explain={explain}
-      aside={!ask.viewer && load.kind === 'ok' && load.value.items.length > 0 ? <Button variant="filled" disabled={run.busy} onClick={() => void run.send('askx.checks.run', {}, checksReply, setRan)}>{run.busy ? w.running : w.runAll}</Button> : undefined}>
+      aside={!ask.viewer && load.kind === 'ok' && load.value.items.length > 0 ? <><Button variant="filled" disabled={run.busy} onClick={() => void run.send('askx.checks.run', {}, checksReply, setRan)}>{run.busy ? w.running : w.runAll}</Button>{run.busy && <StopButton />}</> : undefined}>
       {first => {
         const c = ran ?? first, lang = ask.language;
         const rows: RowItem[] = c.items.map(i => ({

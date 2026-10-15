@@ -21,6 +21,7 @@ export type JourneyScreen =
   /** FR-01 */ | 'welcome'
   /** FR-02 */ | 'identity'
   /** FR-13 */ | 'recover'
+  /** FR-14: join a workspace from another computer. */ | 'join'
   /** FR-03 and FR-04: the host's creation state decides which of the two is drawn. */ | 'vault'
   /** FR-05 */ | 'model'
   /** FR-07 */ | 'file'
@@ -65,6 +66,8 @@ export type JourneyEvent =
   | { readonly type: 'begin'; readonly path: JourneyPath }
   | { readonly type: 'open-recover' }
   | { readonly type: 'close-recover' }
+  | { readonly type: 'open-join' }
+  | { readonly type: 'close-join' }
   | { readonly type: 'identity-held'; readonly identity: HeldIdentity }
   /** The vault exists and its recovery kit was kept: the host is open. */
   | { readonly type: 'vault-open' }
@@ -95,7 +98,7 @@ export function initialJourney(startedAt: number): JourneyState {
 /** The step a screen belongs to. */
 export function stepOf(screen: JourneyScreen): FirstRunStep {
   switch (screen) {
-    case 'welcome': case 'identity': case 'recover': return 'you';
+    case 'welcome': case 'identity': case 'recover': case 'join': return 'you';
     case 'vault': return 'vault';
     case 'model': return 'model';
     case 'file': return 'books';
@@ -180,6 +183,10 @@ export function reduceJourney(state: JourneyState, event: JourneyEvent): Journey
       return state.screen === 'welcome' && !vaultOpen(state) ? next(state, { screen: 'recover' }) : state;
     case 'close-recover':
       return state.screen === 'recover' ? next(state, { screen: 'welcome' }) : state;
+    case 'open-join':
+      return state.screen === 'welcome' && !vaultOpen(state) ? next(state, { screen: 'join' }) : state;
+    case 'close-join':
+      return state.screen === 'join' ? next(state, { screen: 'welcome' }) : state;
     case 'identity-held':
       if (state.screen !== 'identity') return state;
       return next(state, { identity: Object.freeze({ fields: Object.freeze({ ...event.identity.fields }), gstMode: event.identity.gstMode }), local: mark(state, 'you'), screen: 'vault' });

@@ -12,9 +12,11 @@ import { exactKeys, hashRegularFile, readJsonFile, writeJsonAtomic } from './upd
  * and a fingerprint of every file's size, change time and identity; later launches of the same
  * version only re-read that fingerprint and hash again when anything moved.
  *
- * Dotfiles are the one tolerance: electron-builder's resource filters drop names that start with
- * a dot (such as `.gitignore`), so a listed dotfile that is absent is skipped and reported, and an
- * unlisted dotfile is ignored. Every other difference refuses.
+ * Dotfiles are the one tolerance: app/desktop/builder.json's extraResources filter excludes names
+ * that start with a dot (such as `.gitignore`), and scripts/release/stage-runtime.ts no longer lists
+ * them, so a listed dotfile that is absent (a manifest staged before that change) is skipped and
+ * reported, and an unlisted dotfile is ignored. A file inside a dot folder is not a dotfile here and
+ * still refuses when unlisted. Every other difference refuses.
  */
 export type RuntimeManifestFile = { path:string; sha256:string; size:number };
 export type InventoryResult = Readonly<{

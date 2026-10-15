@@ -36,6 +36,9 @@ import { ProposedMeanings } from './ProposedMeanings';
 import { proposalCache, type ProposalsOutcome } from './proposals.ts';
 import { Model, type SaveRouteKey } from './Model';
 import { Recover } from './Recover';
+import { JoinFromNew } from './Join';
+import { SharingQuestion } from './Sharing';
+import { TimeZoneSetting } from './TimeZone';
 import { Vault, type JourneyVaultState } from './Vault';
 import { Welcome } from './Welcome';
 import { blockedOf, createJourneyStore, elapsedSeconds, isDone, journeySteps, leftOf, vaultOpen, type JourneyState } from './journey.ts';
@@ -75,10 +78,14 @@ export interface FirstRunJourneyProps {
   readonly onOpenFolder?: ((folder: string) => void) | undefined;
   /** The clock for the time from the first screen to the first receipt. */
   readonly now?: (() => number) | undefined;
+  /** After the business time zone is saved: the host reads `ui.context` again. */
+  readonly onTimeZone?: ((zone: string) => void) | undefined;
 }
 
-function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCode, dispatch, propose, folders }: {
+function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCode, dispatch, propose, folders, sharingDone, setSharingDone }: {
   state: JourneyState;
+  sharingDone: boolean;
+  setSharingDone: (done: boolean) => void;
   propose: (file: PickedFile) => Promise<ProposalsOutcome>;
   folders: readonly string[];
   identityCode: string;
@@ -97,7 +104,9 @@ function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCo
         openWorkspace={hostState.phase === 'ready' && hostState.context !== null ? hostState.context.workspace.name : null}
         onOpen={() => dispatch({ type: 'resume' })} onBusiness={() => dispatch({ type: 'begin', path: 'business' })}
         onIdea={() => dispatch({ type: 'begin', path: 'idea' })} onRecover={() => dispatch({ type: 'open-recover' })} onDemo={props.onDemo}
-        folders={folders} onOpenFolder={props.onOpenFolder} />;
+        folders={folders} onOpenFolder={props.onOpenFolder} onJoin={() => dispatch({ type: 'open-join' })} />;
+    case 'join':
+      return <JoinFromNew rpc={props.rpc} language={props.language} onBack={() => dispatch({ type: 'close-join' })} onOpenFolder={props.onOpenFolder} />;
     case 'recover':
       return <Recover rpc={props.rpc} pickBackup={props.pickBackup} onReopened={props.onReopened} onBack={() => dispatch({ type: 'close-recover' })} />;
     case 'identity':
@@ -111,6 +120,7 @@ function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCo
           {state.identityWritten === 'saved' && <Note k="FR-02.saved" role="status" />}
           {state.identityWritten === 'not-built' && <Note k="FR-02.saveNotBuilt" role="status" />}
           {state.identityWritten === 'refused' && <Note k="FR-02.saveRefused" values={{ code: identityCode }} role="status" />}
+          <TimeZoneSetting rpc={props.rpc} onSaved={props.onTimeZone} />
           <Model rpc={props.rpc} saveRouteKey={props.saveRouteKey} onDone={outcome => dispatch({ type: 'model-done', outcome })} />
         </>
       );
@@ -131,8 +141,14 @@ function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCo
         </>
       );
     case 'answer':
-      return <FirstAnswer rpc={props.rpc} elapsed={elapsedSeconds(state)} onAnswered={() => dispatch({ type: 'answered', at: now() })}
-        onOpenReceipt={props.onOpenReceipt} onToday={props.onDone} />;
+      return (
+        <>
+          <FirstAnswer rpc={props.rpc} elapsed={elapsedSeconds(state)} onAnswered={() => dispatch({ type: 'answered', at: now() })}
+            onOpenReceipt={props.onOpenReceipt} onToday={props.onDone} />
+          {/* FR-10: asked once, after the first receipt; never at install. */}
+          {state.answeredAt !== null && !sharingDone && <SharingQuestion rpc={props.rpc} onContinue={() => setSharingDone(true)} />}
+        </>
+      );
     case 'idea':
       return <Idea rpc={props.rpc} onDone={() => dispatch({ type: 'idea-done' })} />;
     case 'finished':
@@ -153,6 +169,7 @@ export function FirstRunJourney(props: FirstRunJourneyProps) {
   const hostState = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot);
   const [heldFile, setHeldFile] = useState<PickedFile | null>(null);
   const [identityCode, setIdentityCode] = useState('INVALID_REPLY');
+  const [sharingDone, setSharingDone] = useState(false);
   // One draft per held sheet for the life of the journey, whichever step shows it.
   const propose = useMemo(() => proposalCache(rpc), [rpc]);
   const [folders, setFolders] = useState<readonly string[]>([]);
@@ -234,7 +251,7 @@ export function FirstRunJourney(props: FirstRunJourneyProps) {
     <FirstRunText language={language}>
       <FirstRunStep language={language} onLanguage={onLanguage} steps={journeySteps(state)} blocked={blockedOf(state)} left={leftOf(state)}>
         <div ref={task} tabIndex={-1} data-first-run-journey={state.screen} style={{ outline: 'none' }}>
-          <Task state={state} host={host} hostState={hostState} props={props} heldFile={heldFile} setHeldFile={setHeldFile} identityCode={identityCode} dispatch={store.dispatch} propose={propose} folders={folders} />
+          <Task state={state} host={host} hostState={hostState} props={props} heldFile={heldFile} setHeldFile={setHeldFile} identityCode={identityCode} dispatch={store.dispatch} propose={propose} folders={folders} sharingDone={sharingDone} setSharingDone={setSharingDone} />
         </div>
       </FirstRunStep>
     </FirstRunText>

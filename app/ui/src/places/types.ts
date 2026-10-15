@@ -37,6 +37,18 @@ export interface PlaceRenderProps {
    * its own and the app window never goes there. Absent: draw the address as text only.
    */
   readonly openLink?: ((url: string) => void) | undefined;
+  /**
+   * Set what the ask line is about (SH-04, BK-12 "ask about this record"): it shows "About: <label>"
+   * with a way to clear it, and a question asked then carries `ref` as data. Null clears it. The host
+   * clears it when the person leaves this place. Absent: the host has no ask line here.
+   */
+  readonly setAbout?: ((about: { label: string; ref: { kind: string; id: string } } | null) => void) | undefined;
+  /**
+   * BK-04 (frame-today): the FR-07 "Bring a file" flow, bound to the host's file chooser and
+   * engine port. Returns the flow to draw where the place wants it; `onTaken` runs after a file
+   * is taken in. Absent (a viewer seat): draw no "Bring a file" control.
+   */
+  readonly bringFile?: ((options?: { readonly onTaken?: (() => void) | undefined }) => ReactNode) | undefined;
 }
 
 export interface PlaceModule {

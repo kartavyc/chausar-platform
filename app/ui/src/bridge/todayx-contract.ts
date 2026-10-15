@@ -602,33 +602,29 @@ export function updateRefusal(error: unknown): UpdateRefusal {
 /* ----------------------------------------------------------- Round 4: SH-09 route states */
 
 /**
- * `models.probe` {} (core-gateway-auth; fixture-only until that lane serves it) → each route's state, checked
- * once on request. Never a silent retry and never an automatic switch: the reply only describes.
- * `send` is present only for `skipped-send`: what the route would be sent and the workspace's Send setting.
- * `resumesAt` is when a job waiting on the route tries again, or null.
+ * `models.probe` { routeId } (core-gateway-auth; the shape `bridge/r4-contracts.ts` fixes, fixture-only until that lane
+ * serves it) → one route's state, checked once on request. Never a silent retry and never an automatic switch.
+ * SH-09 reads two optional fields beside it: `send` (for `skipped-by-send`: what the route would be sent and the
+ * workspace's Send setting) and `resumesAt` (when a job waiting on the route tries again). The route's label comes
+ * from the host's own route list, never from the probe.
  */
-export type RouteState = 'ready' | 'signed-out' | 'not-installed' | 'version-not-tested' | 'timed-out' | 'error' | 'chat-only' | 'answers-only' | 'skipped-send';
-export const ROUTE_STATES: readonly RouteState[] = ['ready', 'signed-out', 'not-installed', 'version-not-tested', 'timed-out', 'error', 'chat-only', 'answers-only', 'skipped-send'];
+export type RouteState = 'ready' | 'signed-out' | 'not-installed' | 'version-untested' | 'timed-out' | 'error' | 'chat-only' | 'answers-only' | 'skipped-by-send';
+export const ROUTE_STATES: readonly RouteState[] = ['ready', 'signed-out', 'not-installed', 'version-untested', 'timed-out', 'error', 'chat-only', 'answers-only', 'skipped-by-send'];
 export type SendLevel = 'nothing' | 'shape' | 'samples';
-export interface RouteProbe {
+export interface RouteStateProbe {
   readonly routeId: string;
-  readonly label: string;
-  readonly kind: string;
   readonly state: RouteState;
-  readonly send: { readonly route: SendLevel; readonly yours: SendLevel } | null;
-  readonly resumesAt: string | null;
+  readonly checkedAt: string;
+  readonly send?: { readonly route: SendLevel; readonly yours: SendLevel };
+  readonly resumesAt?: string | null;
 }
-export interface RouteProbeReply { readonly routes: readonly RouteProbe[]; readonly checkedAt: string }
 const SEND_LEVELS: readonly SendLevel[] = ['nothing', 'shape', 'samples'];
-function routeProbe(v: unknown): v is RouteProbe {
-  if (!isRec(v) || !onlyKeys(v, ['routeId', 'label', 'kind', 'state', 'send', 'resumesAt']) || !isName(v['routeId']) || !isName(v['label']) || !isName(v['kind'], 40)) return false;
-  if (!oneOf(ROUTE_STATES)(v['state']) || !(v['resumesAt'] === null || isIsoDate(v['resumesAt']))) return false;
+export function isRouteStateProbe(v: unknown): v is RouteStateProbe {
+  if (!isRec(v) || !onlyKeys(v, ['routeId', 'state', 'checkedAt'], ['send', 'resumesAt']) || !isName(v['routeId']) || !oneOf(ROUTE_STATES)(v['state']) || !isIsoDate(v['checkedAt'])) return false;
+  if (v['resumesAt'] !== undefined && v['resumesAt'] !== null && !isIsoDate(v['resumesAt'])) return false;
   const send = v['send'];
-  if (v['state'] === 'skipped-send') return isRec(send) && onlyKeys(send, ['route', 'yours']) && oneOf(SEND_LEVELS)(send['route']) && oneOf(SEND_LEVELS)(send['yours']);
-  return send === null;
-}
-export function isRouteProbeReply(v: unknown): v is RouteProbeReply {
-  return isRec(v) && onlyKeys(v, ['routes', 'checkedAt']) && Array.isArray(v['routes']) && v['routes'].length <= 50 && v['routes'].every(routeProbe) && isIsoDate(v['checkedAt']);
+  if (send === undefined) return true;
+  return isRec(send) && onlyKeys(send, ['route', 'yours']) && oneOf(SEND_LEVELS)(send['route']) && oneOf(SEND_LEVELS)(send['yours']);
 }
 
 /* ----------------------------------------------------------- Round 4: SH-11 send, refusals */
