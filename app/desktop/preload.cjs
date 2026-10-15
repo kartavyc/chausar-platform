@@ -72,7 +72,7 @@ const laneRefusals = [
 
   /* ca-enterprise */ [],
 
-  /* core-data */ [],
+  /* core-data */ ['ALREADY_REVIEWED', 'RELEASE_NOT_FOUND', 'REVIEW_NEEDS_PERSON', 'REVIEW_SELF'],
 
   /* core-sync-jobs */ [],
 

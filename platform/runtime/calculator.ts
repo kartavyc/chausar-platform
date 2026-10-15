@@ -1,4 +1,4 @@
-import { authorize, audit, check, hash, newId, now, type Context, type Fact, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore } from './contracts.ts';
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
 import { formatMinor } from './currency.ts';
@@ -9,7 +9,18 @@ import { resolveCoreOperationAlias } from './core-operation-aliases.ts';
 export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement; provenance?: ReceiptProvenance };
+/** Who and what stood behind a receipt, recorded when it is made (core-data `receipts.provenance`). Absent on receipts made before it existed. */
+export type ReceiptProvenance = {
+  recipes?: { sourceId: string; recipeId: string; acceptedBy: string | null; acceptedAt: string | null }[];
+  meaning?: { publishedBy: string; reviewedBy: string | null; coSignedBy: string | null; reviewedAt: string | null };
+  forecast?: { method: string; learnedFrom: { from: string; to: string }; testedOn: { from: string; to: string } } | null;
+  allowedBy?: { ruleId: string; check: string; device: 'desktop' | 'phone' | 'mcp'; memberId: string; at: string };
+};
+/** Adds `provenance` to a receipt as it is made, from the calculation's own state snapshot. Must not change any figure. */
+export type ReceiptDecorator = (ctx: Context, receipt: CalculationReceipt, state: State) => void;
+const receiptDecorators = new Set<ReceiptDecorator>();
+export function registerReceiptDecorator(decorator: ReceiptDecorator): void { receiptDecorators.add(decorator); }
 export type CalculatorOptions = {
   /** Trusted publication context only, never a caller-authored calculation parameter. */
   restatement?: ReceiptRestatement;
@@ -207,6 +218,7 @@ export class CalculatorService {
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
+    for (const decorate of receiptDecorators) decorate(structuredClone(ctx), receipt, this.store.read());
     if (this.restatement) receipt.restatement = structuredClone(this.restatement);
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
     assertRequestedAccess();

@@ -2,7 +2,27 @@ import { authorize, audit, check, hash, now, type Context, type State, type Stat
 import { compileSingleSum, type CompiledSingleSum } from './compiled-calculation.ts';
 
 export type FieldType = 'string' | 'money' | 'date' | 'integer' | 'boolean';
-export type Definition = { name: string; label: string; meaning: string; kind: string; field: string; currency: string; nulls: 'exclude' | 'reject'; sign?: 1 | -1 };
+export type Definition = { name: string; label: string; meaning: string; kind: string; field: string; currency: string; nulls: 'exclude' | 'reject'; sign?: 1 | -1; example?: DefinitionExample; usedFrom?: string };
+/** One worked example of a definition (BK-08): a few rows in, each counted or left out with its reason, and the exact result out. Amounts are whole minor units as strings. */
+export type DefinitionExample = { rows: { label: string; amountMinor: string; counted: boolean; reason?: string }[]; resultMinor: string };
+const MINOR = /^-?(?:0|[1-9]\d{0,17})$/;
+/** `usedFrom` is the calendar date (YYYY-MM-DD) the definition came into use. Absent optional fields leave a dictionary's hash unchanged. */
+function checkDefinitionExtras(d: Definition): void {
+  if (Object.hasOwn(d, 'usedFrom')) check(typeof d.usedFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.usedFrom) && new Date(`${d.usedFrom}T00:00:00Z`).toISOString().slice(0, 10) === d.usedFrom, 'INVALID_DEFINITION', 'Give the date used as a calendar date.');
+  if (!Object.hasOwn(d, 'example')) return;
+  const example: unknown = d.example;
+  check(exactKeys(example, ['rows', 'resultMinor']) && Array.isArray(example.rows) && example.rows.length >= 1 && example.rows.length <= 12
+    && typeof example.resultMinor === 'string' && MINOR.test(example.resultMinor), 'INVALID_DEFINITION', 'A worked example needs one to twelve rows and its exact result.');
+  let total = 0n;
+  for (const row of example.rows as unknown[]) {
+    check(exactKeys(row, ['label', 'amountMinor', 'counted'], ['reason']) && typeof row.label === 'string' && row.label.trim().length > 0 && row.label.length <= 80
+      && typeof row.amountMinor === 'string' && MINOR.test(row.amountMinor) && typeof row.counted === 'boolean'
+      && (row.reason === undefined ? row.counted : typeof row.reason === 'string' && row.reason.trim().length > 0 && row.reason.length <= 160),
+    'INVALID_DEFINITION', 'Each example row needs a label, an exact amount, whether it counts, and a reason when it is left out.');
+    if (row.counted) total += BigInt(row.amountMinor as string);
+  }
+  check(String(total * BigInt(d.sign ?? 1)) === example.resultMinor, 'INVALID_DEFINITION', 'The example result must be exactly what the counted rows add up to.');
+}
 export type DictionaryDraft = { pack: string; label: string; currency: string; gstMode: 'regular' | 'composition' | 'unregistered'; fields: Record<string, FieldType>; definitions: Definition[] };
 export type Operation = { id: string; label: string; type: 'sum' | 'margin' | 'aging' | 'change' | 'scenario'; definitions: string[]; parameters: string[] };
 export type Dictionary = DictionaryDraft & { version: number; publishedAt: string; publishedBy: string; hash: string; operations: Operation[]; compiledSums?: CompiledSingleSum[]; schema: Record<string, FieldType>; checks: { required: string[]; currency: string; nullRules: Record<string, string> } };
@@ -199,13 +219,14 @@ export function compileDictionary(draft: DictionaryDraft, version = 1, published
   check(dataRecord(draft.fields) && Object.entries(draft.fields).every(([name, type]) => /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(name) && typeof type === 'string' && ['string', 'money', 'date', 'integer', 'boolean'].includes(type)), 'INVALID_FIELD', 'Dictionary fields must have safe names and supported types.');
   const names = new Set<string>();
   for (const d of draft.definitions) {
-    check(exactKeys(d, ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls'], ['sign']), 'INVALID_DEFINITION', 'Definitions are data only.');
+    check(exactKeys(d, ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls'], ['sign', 'example', 'usedFrom']), 'INVALID_DEFINITION', 'Definitions are data only.');
     check(typeof d.name === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(d.name) && !names.has(d.name), 'INVALID_DEFINITION', 'Measure names must be unique.');
     check(typeof d.label === 'string' && d.label.trim().length > 0, 'INVALID_DEFINITION', 'Give each measure a label.');
     check(typeof d.kind === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(d.kind), 'INVALID_DEFINITION', 'Record kind must be a data identifier.');
     check(typeof d.meaning === 'string' && d.meaning.trim().length > 10, 'INVALID_DEFINITION', 'Explain exactly what this measure counts.');
     check(typeof d.field === 'string' && Object.hasOwn(draft.fields, d.field) && draft.fields[d.field] === 'money' && d.currency === draft.currency, 'INVALID_DEFINITION', 'Measure bindings need an exact money field in the dictionary currency.');
     check(['reject', 'exclude'].includes(d.nulls) && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'INVALID_DEFINITION', 'Define null handling and a valid sign.');
+    checkDefinitionExtras(d);
     names.add(d.name);
   }
   const sumOperations: Operation[] = draft.definitions.map(d => ({ id: d.name, label: d.label, type: 'sum', definitions: [d.name], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] }));
