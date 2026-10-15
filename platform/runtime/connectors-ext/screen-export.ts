@@ -16,7 +16,8 @@ import { peekCx, type Connection } from './state.ts';
 const REQUEST = 'CONNECTOR_REQUEST_INVALID';
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-export const SESSION_STATES = Object.freeze(['running', 'paused', 'stopped', 'done', 'failed'] as const);
+/** The driving lane's session states (docs/lanes/driving.md, Round 4 contracts). */
+export const SESSION_STATES = Object.freeze(['idle', 'driving', 'sign-in', 'paused-by-you', 'stopped-by-key', 'stopped', 'step-failed', 'done'] as const);
 export type SessionState = typeof SESSION_STATES[number];
 /** An exported report is at most 20 MB of text, as base64. */
 export const SCREEN_EXPORT_MAX_BASE64 = 28_000_000;
@@ -37,7 +38,7 @@ function screenConnection(host: ModuleHost, ctx: Context, id: unknown): Connecti
   return item;
 }
 /** The driving lane is optional: its absence is a typed refusal, never a crash. */
-async function session(host: ModuleHost, method: 'session.start' | 'session.status', payload: Record<string, unknown>): Promise<unknown> {
+async function session(host: ModuleHost, method: 'session.start' | 'session.status' | 'session.discardExport', payload: Record<string, unknown>): Promise<unknown> {
   try { return await host.call(method, payload); }
   catch (error) {
     if (error instanceof ChausarError && ABSENT.has(error.code)) throw new ChausarError('SCREEN_DRIVING_NOT_INSTALLED', 'Driving a program on your screen is not installed in this build. Export a file from the program instead.');
@@ -45,20 +46,26 @@ async function session(host: ModuleHost, method: 'session.start' | 'session.stat
   }
 }
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+/** The driving lane's `Status` carries more (window, steps, reason); only the fields read here are trusted, each checked. */
+function exportsOf(value: Record<string, any>): string[] {
+  if (value.exports === undefined) return [];
+  if (!Array.isArray(value.exports) || value.exports.length > 50) throw failed();
+  return value.exports.map((item: unknown) => { if (!plain(item) || typeof item.id !== 'string' || !ID.test(item.id)) throw failed(); return item.id; });
+}
 
-/** `session.start` reply: `{ sessionId, state }`, nothing else. */
+/** `session.start` reply: the driving `Status`, of which the session id and state are used. */
 export function startReply(value: unknown): { sessionId: string; state: SessionState } {
-  if (!plain(value) || !exactKeys(value, ['sessionId', 'state']) || typeof value.sessionId !== 'string' || !ID.test(value.sessionId) || !SESSION_STATES.includes(value.state)) throw failed();
+  if (!plain(value) || typeof value.sessionId !== 'string' || !ID.test(value.sessionId) || !SESSION_STATES.includes(value.state)) throw failed();
   return { sessionId: value.sessionId, state: value.state };
 }
-/** `session.status` reply for the session asked about: `{ sessionId, state, export: { fileName, bytesBase64 } | null }`. */
-export function statusReply(value: unknown, sessionId: string): { state: SessionState; export: { fileName: string; bytesBase64: string } | null } {
-  if (!plain(value) || !exactKeys(value, ['sessionId', 'state', 'export']) || value.sessionId !== sessionId || !SESSION_STATES.includes(value.state)) throw failed();
-  const file = value.export;
-  if (file === null) return { state: value.state, export: null };
+/** `session.status { sessionId }` reply for that session: `Status & { export: { fileName, bytesBase64 } | null }`. */
+export function statusReply(value: unknown, sessionId: string): { state: SessionState; export: { fileName: string; bytesBase64: string } | null; exportIds: string[] } {
+  if (!plain(value) || !Object.hasOwn(value, 'export') || value.sessionId !== sessionId || !SESSION_STATES.includes(value.state)) throw failed();
+  const file = value.export, exportIds = exportsOf(value);
+  if (file === null) return { state: value.state, export: null, exportIds };
   if (!plain(file) || !exactKeys(file, ['fileName', 'bytesBase64']) || typeof file.fileName !== 'string' || file.fileName.length < 1 || file.fileName.length > 255 || /[\u0000-\u001f/\\]/.test(file.fileName)
     || typeof file.bytesBase64 !== 'string' || file.bytesBase64.length < 4 || file.bytesBase64.length > SCREEN_EXPORT_MAX_BASE64 || !BASE64.test(file.bytesBase64)) throw failed();
-  return { state: value.state, export: { fileName: file.fileName, bytesBase64: file.bytesBase64 } };
+  return { state: value.state, export: { fileName: file.fileName, bytesBase64: file.bytesBase64 }, exportIds };
 }
 
 export const screenExport = {
@@ -81,6 +88,10 @@ export const screenExport = {
     const status = statusReply(await session(host, 'session.status', { sessionId: payload.sessionId }), payload.sessionId);
     if (status.state !== 'done') return { state: status.state, read: null };
     if (!status.export) throw failed();
+    // A program with no export plan hands over a picture of its window: Chausar never reads money from a picture.
+    const head = Buffer.from(status.export.bytesBase64.slice(0, 16), 'base64');
+    check(!/\.png$/i.test(status.export.fileName) && !(head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47), 'SCREEN_EXPORT_PICTURE',
+      'The program handed over a picture of its window, not a report file. Export the report as a file instead.');
     const input: Record<string, unknown> = { recipeId: chosen.id, connectionId: item.id, ...(payload.reportTotals !== undefined ? { reportTotals: payload.reportTotals } : {}) };
     if (accepts === 'text') {
       let text: string;
@@ -89,7 +100,10 @@ export const screenExport = {
       input.text = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     } else input.bytesBase64 = status.export.bytesBase64;
     // The exported bytes live only in this call: the envelope keeps checks and a content hash, never the file.
-    return { state: 'done' as const, read: await handlers.importPreview(ctx, input, host, { road: 'screen' }) };
+    const read = await handlers.importPreview(ctx, input, host, { road: 'screen' });
+    // The driving lane keeps the exported file for a day; once read, it is discarded there too. Best effort.
+    for (const exportId of status.exportIds) { try { await session(host, 'session.discardExport', { exportId }); } catch { /* the read stands; the file expires on its own */ } }
+    return { state: 'done' as const, read };
   },
 };
 export const screenExportStart = screenExport.start, screenExportCollect = screenExport.collect;

@@ -456,14 +456,14 @@ Built, experimental (`platform/runtime/connectors-ext/screen-export.ts`), tested
 
 `connectorsx.connect` with `road: 'screen'` is accepted for desktop programs with no interface Chausar can read: Busy, Marg, Vyapar, and Tally when it is not on this computer. `SCREEN_EXPORT_NOT_BUILT` is gone.
 
-What this lane expects from the driving lane:
+Served by the driving lane as written (its "Round 4 contracts", `claude/lane-driving` at `b9cf157`):
 
-- `session.windows({})` returns `{ windows: { id, title, program }[] }`.
-- `session.start({ windowId, purpose: 'connector-export', connectionId })` returns `{ sessionId, state }`.
-- `session.status({ sessionId })` returns `{ sessionId, state: 'running' | 'paused' | 'stopped' | 'done' | 'failed', export: { fileName, bytesBase64 } | null }`.
-- `session.stop({ sessionId })`.
+- `session.windows({})` returns `{ windows: { id, title, app }[], available, code, reason }`, for owners and co-founders only.
+- `session.start({ windowId, purpose: 'connector-export', connectionId })` returns the driving `Status`, with its `sessionId`. The plan comes from the connection's group. A group with no plan exports a PNG picture of the window. TallyPrime's plan refuses `DRIVING_PLAN_UNVERIFIED` until it has run against a real Tally.
+- `session.status({ sessionId })` returns `Status & { export: { fileName, bytesBase64 } | null }`. `state` is one of `idle`, `driving`, `sign-in`, `paused-by-you`, `stopped-by-key`, `stopped`, `step-failed` or `done`.
+- `session.discardExport({ exportId })` is called for each of the session's exports once the file is read. It is best effort: the driving lane's copy expires after a day anyway.
 
-The rules of driving (one window, read and export only, never a password, one-time code or captcha) are the driving lane's.
+The rules of driving (one window, read and export only, never a password, one-time code or captcha) are the driving lane's. Only `sessionId`, `state`, `export` and the export ids are read from a `Status`, and each one is checked.
 
 #### `connectorsx.screenExport.start` (prepare, desktop only)
 
@@ -473,13 +473,13 @@ Request: `{ connectionId, windowId }`. It calls `session.start` and returns `{ s
 
 Request: `{ connectionId, sessionId, recipeId, reportTotals? }`. It calls `session.status`.
 
-- While the session is not done, it returns `{ state, read: null }`.
+- While the session is not `done`, it returns `{ state, read: null }`; a session that ended otherwise (`stopped`, `stopped-by-key`, `step-failed`) never yields a read.
 - When the session is done, its exported file goes through `connectorsx.importPreview` for that connection and recipe, and the reply is `{ state: 'done', read: Envelope }`.
 - The exported bytes are outside data and are never kept beyond the read.
 
 A screen connection takes no settings; any other system with `road: 'screen'` is `CONNECTOR_REQUEST_INVALID`. Every `session.*` reply is checked field by field (exact keys, the asked session id, a known state, a plain file name, bounded base64); anything else is `SCREEN_EXPORT_FAILED`, as is a done session with no export. A text recipe reads the export as UTF-8 (`SOURCE_ENCODING_INVALID` otherwise); a worksheet recipe reads its bytes. The envelope's road is `screen`.
 
-Until `session.*` exists, both methods refuse `SCREEN_DRIVING_NOT_INSTALLED`. Other refusals: `CONNECTION_NOT_FOUND`, `SCREEN_ROAD_REQUIRED`, `SCREEN_EXPORT_FAILED`, `OPEN_DESKTOP`, and `DEMO_EXTERNAL_DISABLED` (both are external).
+When the driving methods are absent, both methods refuse `SCREEN_DRIVING_NOT_INSTALLED`. A picture of the window (a PNG) is refused as `SCREEN_EXPORT_PICTURE`: money is never read from a picture. Other refusals: `CONNECTION_NOT_FOUND`, `SCREEN_ROAD_REQUIRED`, `SCREEN_EXPORT_FAILED`, `OPEN_DESKTOP`, and `DEMO_EXTERNAL_DISABLED` (both are external).
 
 ### Books sub-places drawn by this lane
 
