@@ -76,8 +76,8 @@ export type WritebackPorts = {
   evidence?: Record<string, (context: Context, envelope: Envelope) => Promise<string>>;
   /** Checks the vault passphrase without changing anything (the second ask for money and irreversible changes). */
   verifyPassphrase?: (secret: string) => Promise<boolean>;
-  /** Each approver's own approval secret (core-gateway-auth). `available` false means the store is not installed here. */
-  memberSecrets?: { available(context: Context): Promise<boolean>; verify(context: Context, secret: string): Promise<boolean> };
+  /** Each approver's own approval secret (core-gateway-auth): true or false, or null when the store is not installed here. */
+  memberSecrets?: { verify(context: Context, secret: string): Promise<boolean | null> };
   /** Single-use re-auth grants, kept in memory only and never in the vault. */
   secondAsk?: Map<string, SecondAsk>;
   /** Wrong passphrases per member, in memory: five within fifteen minutes lock the second ask. */
@@ -334,17 +334,18 @@ export class WritebackService {
     check(needsSecondAsk(row), 'REAUTH_NOT_NEEDED', 'This change does not need your passphrase again.');
     check(action.status === 'prepared' && typeof expectedDigest === 'string' && expectedDigest === action.digest, 'PREVIEW_CHANGED', 'The exact action changed. Review its new preview.');
     this.intact(action);
-    // Each approver answers with their own approval secret when the member-secret store is installed;
-    // otherwise only the owner can, with the vault passphrase.
-    const own = this.ports.memberSecrets !== undefined && await this.ports.memberSecrets.available(context);
-    check(own || context.role === 'owner', 'REAUTH_OWNER_ONLY', 'Only the owner can approve money or a change that cannot be undone until each approver has their own approval secret.');
     const failures = this.ports.reauthFailures; const tries = failures?.get(context.memberId);
-    check(!tries || tries.count < 5 || Date.now() - tries.since > 15 * 60 * 1000, 'REAUTH_LOCKED', 'Too many wrong passphrases. Wait fifteen minutes.');
-    check((own || this.ports.verifyPassphrase) && this.ports.secondAsk, 'REAUTH_UNAVAILABLE', 'This app cannot check your passphrase, so money and irreversible changes cannot be approved here.');
+    check(!tries || tries.count < 5 || Date.now() - tries.since > 15 * 60 * 1000, 'REAUTH_LOCKED', 'Too many wrong answers. Wait fifteen minutes.');
+    check(this.ports.secondAsk, 'REAUTH_UNAVAILABLE', 'This app cannot hold a second ask, so money and irreversible changes cannot be approved here.');
+    // Each approver answers with their own approval secret when the member-secret store is installed;
+    // the owner may also answer with the vault passphrase. Without the store, only the owner can.
+    const valid = typeof secret === 'string' && secret.length > 0 && secret.length <= 1024;
+    const own = valid && this.ports.memberSecrets ? await this.ports.memberSecrets.verify(context, secret as string) : null;
+    check(own !== null || context.role === 'owner', 'REAUTH_OWNER_ONLY', 'Only the owner can approve money or a change that cannot be undone until each approver has their own approval secret.');
+    check(own !== null || this.ports.verifyPassphrase, 'REAUTH_UNAVAILABLE', 'This app cannot check your passphrase, so money and irreversible changes cannot be approved here.');
     const asks = this.ports.secondAsk;
     for (const [token, grant] of asks) if (grant.expiresAt <= Date.now()) asks.delete(token);
-    const ok = typeof secret === 'string' && secret.length > 0 && secret.length <= 1024
-      && (own ? await this.ports.memberSecrets!.verify(context, secret) === true : await this.ports.verifyPassphrase!(secret));
+    const ok = valid && (own === true || (context.role === 'owner' && this.ports.verifyPassphrase !== undefined && await this.ports.verifyPassphrase(secret as string)));
     if (!ok) {
       const prior = failures?.get(context.memberId); const fresh = !prior || Date.now() - prior.since > 15 * 60 * 1000;
       failures?.set(context.memberId, { count: fresh ? 1 : prior!.count + 1, since: fresh ? Date.now() : prior!.since });

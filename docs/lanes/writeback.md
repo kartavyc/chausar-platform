@@ -135,7 +135,7 @@ Refusal codes reaching the desktop UI are listed on the writeback line of `laneR
 - **Write connections place (WK-06)**, a Work sub-place `work/write`: connect a system (practice only in demo mode), link it to a read connection, store or remove its own credential, switch read on or off, grant writing action by action (prepare-only rows are never grantable; always-waits rows are marked), run the sandbox recipe test, and disconnect. Write status is shown apart from read status. Read model: `writeback.overview`. **Supported** against the fakes; the sandbox run is **experimental** and refuses until a sandbox account and its credential are supplied.
 - **Limits (WK-12)**, a Work sub-place `work/caps`: approval lifetimes per kind, the reminder caps, the stop words and today's counts, shown in the write-back day and its time zone; owners and co-founders edit them (`writeback.configure`). Read model: `writeback.caps`. **Supported.**
 - **Write-back day.** The day used for reminder caps is the host's trusted option, else the workspace time zone (`state.workspace.timeZone`, core-data), else Asia/Kolkata.
-- **Per-member second ask.** When core-gateway-auth's approval-secret store is installed and the member has set a secret, any approver answers the second ask with their own secret; the token stays bound to that member. Without it, the owner answers with the vault passphrase and others get `REAUTH_OWNER_ONLY`. Lockout after five wrong answers is per member. **Experimental** until core-gateway-auth's methods land (tested against a typed fixture).
+- **Per-member second ask.** When core-gateway-auth's approval-secret store is installed, any approver answers the second ask with their own secret, and the owner may still use the vault passphrase; the token stays bound to that member. Without the store, the owner answers with the vault passphrase and others get `REAUTH_OWNER_ONLY`. Lockout after five wrong answers is per member. **Experimental** until core-gateway-auth's methods land (tested against a typed fixture).
 
 ### Round 4 contracts
 
@@ -152,8 +152,7 @@ Called by writeback (owner lane builds them):
 
 | Method | Owner | Contract | Until it exists |
 |---|---|---|---|
-| `auth.approvalSecret.status {}` | core-gateway-auth | `→ { set: boolean }` for the calling member | `UNKNOWN_METHOD` / `METHOD_UNAVAILABLE`: the store counts as not installed; owner and vault passphrase only |
-| `auth.approvalSecret.verify { secret }` | core-gateway-auth | `→ { verified: boolean }` for the calling member's own secret | not called |
+| `auth.verifyApprovalSecret { secret }` | core-gateway-auth | `→ { verified: boolean }` for the calling member's own secret (false when they have none) | `UNKNOWN_METHOD` / `METHOD_UNAVAILABLE`: the store counts as not installed; owner and vault passphrase only |
 | `hosted.messageStatuses { reference, messageId }` | hosted-link | `→ [{ messageId, status, at, reference }]` | WhatsApp read-back stays not sure |
 | `state.workspace.timeZone` | core-data | an IANA zone name | Asia/Kolkata |
-| Work module `handles` | work-books | must leave `work/write` and `work/caps` to the writeback module | the two sub-places draw as "not built" in the app |
+| Lane sub-place routing (base `6c6b801`) | coordinator | `placeModuleFor` asks the lane that registered `work/write` and `work/caps` first | merged |

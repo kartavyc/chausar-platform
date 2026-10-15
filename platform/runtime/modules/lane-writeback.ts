@@ -35,21 +35,19 @@ const secondAsks = new Map<string, SecondAsk>();
 const reauthFailures = new Map<string, { count: number; since: number }>();
 /**
  * Per-member approval secrets (core-gateway-auth), called as the same caller:
- *   auth.approvalSecret.status {}          → { set: boolean }   (this member has their own secret)
- *   auth.approvalSecret.verify { secret }  → { verified: boolean }
+ *   auth.verifyApprovalSecret { secret } → { verified: boolean }
  * A missing method means the store is not installed: the owner's vault passphrase stays the second ask.
  */
 const ABSENT = ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'];
 export function memberSecrets(host: ModuleHost) {
   return {
-    async available(_ctx: Context) {
-      try { const reply = await host.call('auth.approvalSecret.status', {}); return record(reply, ['set'], []).set === true; }
-      catch (error) { if (error instanceof ChausarError && ABSENT.includes(error.code)) return false; throw error; }
-    },
-    async verify(_ctx: Context, secret: string) {
-      const reply = record(await host.call('auth.approvalSecret.verify', { secret }), ['verified']);
-      check(typeof reply.verified === 'boolean', 'WRITE_REPLY_INVALID', 'The approval secret check sent an answer Chausar cannot read.');
-      return reply.verified;
+    async verify(_ctx: Context, secret: string): Promise<boolean | null> {
+      let reply: unknown;
+      try { reply = await host.call('auth.verifyApprovalSecret', { secret }); }
+      catch (error) { if (error instanceof ChausarError && ABSENT.includes(error.code)) return null; throw error; }
+      const r = record(reply, ['verified']);
+      check(typeof r.verified === 'boolean', 'WRITE_REPLY_INVALID', 'The approval secret check sent an answer Chausar cannot read.');
+      return r.verified;
     },
   };
 }

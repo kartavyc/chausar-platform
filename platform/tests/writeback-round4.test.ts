@@ -25,8 +25,7 @@ function secretStore(secrets: Record<string, string>) {
   const calls: string[] = [];
   const call = async (ctx: Context, method: string, payload: Record<string, unknown>) => {
     calls.push(method);
-    if (method === 'auth.approvalSecret.status') return { set: Object.hasOwn(secrets, ctx.memberId) };
-    if (method === 'auth.approvalSecret.verify') return { verified: secrets[ctx.memberId] === payload.secret };
+    if (method === 'auth.verifyApprovalSecret') return { verified: Object.hasOwn(secrets, ctx.memberId) && secrets[ctx.memberId] === payload.secret };
     throw new ChausarError('UNKNOWN_METHOD', 'Unknown method.');
   };
   return { call, calls };
@@ -64,12 +63,14 @@ test('without the member-secret store, only the owner answers, with the vault pa
   assert.ok((await as(owner).reauth(owner, mine.id, mine.digest, 'owner vault passphrase')).token);
 });
 
-test('a member without their own secret yet falls back to the owner rule; the store answering UNKNOWN_METHOD counts as not installed', async () => {
+test('with the store installed, a member without a secret cannot pass, the owner may still use the vault passphrase, and a missing method counts as not installed', async () => {
   const { as, connection } = await setup({ owner: 'owner secret 1' });
   const prepared: any = await as(co).prepare(co, { connectionId: connection.id, action: 'refund.create', payload: refund, intentId: 'co-3' });
-  await assert.rejects(as(co).reauth(co, prepared.id, prepared.digest, 'x'), { code: 'REAUTH_OWNER_ONLY' });
+  await assert.rejects(as(co).reauth(co, prepared.id, prepared.digest, 'owner vault passphrase'), { code: 'REAUTH_FAILED' });
+  const mine: any = await as(owner).prepare(owner, { connectionId: connection.id, action: 'refund.create', payload: { ...refund, amountMinor: '3000' }, intentId: 'own-3' });
+  assert.ok((await as(owner).reauth(owner, mine.id, mine.digest, 'owner vault passphrase')).token);
   const missing = memberSecrets({ call: async () => { throw new ChausarError('UNKNOWN_METHOD', 'Unknown method.'); } } as any);
-  assert.equal(await missing.available(owner), false);
+  assert.equal(await missing.verify(owner, 's'), null);
   const broken = memberSecrets({ call: async () => ({ verified: 'yes' }) } as any);
   await assert.rejects(broken.verify(owner, 's'), { code: 'WRITE_REPLY_INVALID' });
 });
