@@ -9,12 +9,13 @@ import { createNativePreviewController } from './src/runtime';
 import { TextButton } from './src/ui/components';
 import {
   ActivityScreen, ApprovalsScreen, BriefsScreen, ChatScreen, DeviceScreen,
-  PairingScreen, ReceiptScreen, UploadsScreen,
+  PairingScreen, PhonePageScreen, ReceiptScreen, UploadsScreen,
 } from './src/ui/screens';
 import { colors, styles } from './src/ui/styles';
 import { authorityLabel, hasOnlineAuthority, run } from './src/ui/view-helpers';
 
-type AppProps = { controller?: CompanionScreenController };
+/** `experiments.phonePage` switches on the experimental PH-04 page; it is off by default. */
+type AppProps = { controller?: CompanionScreenController; experiments?: { phonePage?: boolean } };
 const tabs: { screen: CompanionScreen; title: string }[] = [
   { screen: 'briefs', title: 'Briefs' }, { screen: 'chat', title: 'Chat' },
   { screen: 'uploads', title: 'Uploads' }, { screen: 'approvals', title: 'Approvals' },
@@ -22,8 +23,8 @@ const tabs: { screen: CompanionScreen; title: string }[] = [
 ];
 
 /** Production hosts inject their fully wired controller; the default is visibly synthetic. */
-export default function App({ controller }: AppProps) {
-  const [active] = useState(() => controller ?? createNativePreviewController());
+export default function App({ controller, experiments }: AppProps) {
+  const [active] = useState(() => controller ?? createNativePreviewController({ experiments }));
   const subscribe = useCallback((listener: () => void) => active.subscribe(listener), [active]);
   const getSnapshot = useCallback(() => active.getState(), [active]);
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -50,6 +51,8 @@ export default function App({ controller }: AppProps) {
     setReceiptOrigin(state.screen === 'receipt' ? receiptOrigin : state.screen);
     run(() => active.openReceipt(id));
   };
+  // The tab exists only when the controller was built with the page switched on.
+  const visibleTabs = state.phonePage ? [{ screen: 'phone-page' as const, title: 'Phone page' }, ...tabs] : tabs;
   const props = { state, controller: active, now, wide: width >= 700, onReceipt: openReceipt };
   const pending = state.client.requests.filter(request => ['pending', 'unknown', 'cancelling'].includes(request.status)).length;
   const selected = state.screen === 'pairing' || state.screen === 'activity' ? 'device' :
@@ -90,10 +93,11 @@ export default function App({ controller }: AppProps) {
           {state.screen === 'approvals' && <ApprovalsScreen {...props} />}
           {state.screen === 'activity' && <ActivityScreen {...props} />}
           {state.screen === 'device' && <DeviceScreen {...props} />}
+          {state.screen === 'phone-page' && <PhonePageScreen {...props} />}
           {state.screen === 'receipt' && <ReceiptScreen state={state} onBack={() => active.navigate(receiptOrigin)} />}
         </ScrollView>
         <View style={styles.footer}>
-          {tabs.map(tab => <Pressable key={tab.screen} onPress={() => active.navigate(tab.screen)}
+          {visibleTabs.map(tab => <Pressable key={tab.screen} onPress={() => { active.navigate(tab.screen); if (tab.screen === 'phone-page') run(() => active.loadPhonePage()); }}
             accessibilityRole="tab" accessibilityLabel={`Open ${tab.title.toLowerCase()}`}
             accessibilityState={{ selected: selected === tab.screen }}
             style={({ pressed }) => [styles.tab, selected === tab.screen && styles.tabSelected, pressed && styles.buttonPressed]}>

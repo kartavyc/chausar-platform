@@ -37,6 +37,16 @@ export type ApprovalPreview = {
   title: string; summary: string;
   eligibility: 'simple-reversible' | 'open-desktop';
 };
+/**
+ * One inbox row. `eligibility` is an optional, display-only hint from the engine:
+ * it never grants anything. Approval still needs approval.inspect (fresh preview,
+ * single-use token) and approval.submit with the exact digest/revision/version.
+ * A row without the hint is treated as 'open-desktop' by every client.
+ */
+export type ApprovalListItem = { approvalId: string; title: string; eligibility?: ApprovalPreview['eligibility'] };
+export const isApprovalEligibility = (value: unknown): value is ApprovalPreview['eligibility'] => value === 'simple-reversible' || value === 'open-desktop';
+/** Copies only known fields; an unknown or absent hint is dropped. */
+export const copyApprovalListItem = (item: ApprovalListItem): ApprovalListItem => ({ approvalId: item.approvalId, title: item.title, ...(isApprovalEligibility(item.eligibility) ? { eligibility: item.eligibility } : {}) });
 /** Returned once over an authenticated channel. Keep only in memory until a tap. */
 export type ApprovalChallenge = { preview: ApprovalPreview; token?: string };
 export type ApprovalDecision = {
@@ -64,7 +74,7 @@ export type PhoneMethods = {
   'upload.chunk': { input: { uploadId: string; offset: number; bytes: Uint8Array }; output: { nextOffset: number } };
   'upload.finish': { input: { requestId: string; uploadId: string; sha256: string }; output: RemoteRequest<UploadReceipt> };
   'approval.inspect': { input: { approvalId: string }; output: ApprovalChallenge };
-  'approval.list': { input: Record<string, never>; output: { approvalId: string; title: string }[] };
+  'approval.list': { input: Record<string, never>; output: ApprovalListItem[] };
   'approval.submit': { input: ApprovalDecision; output: RemoteRequest<ApprovalReceipt> };
   'request.status': { input: { requestId: string }; output: RemoteRequest<RequestResult> };
   'request.cancel': { input: { requestId: string }; output: RemoteRequest<RequestResult> };

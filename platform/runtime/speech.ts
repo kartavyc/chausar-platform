@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, writeFile, rm } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
@@ -20,7 +20,7 @@ export const SPEECH_DISCLOSURE: Partial<Record<SpeechKind, string>> = {
   'api-upload': 'The approved recording is uploaded once to the transcription endpoint shown.',
   'sarvam-stt': 'The approved recording is uploaded once to Sarvam at the endpoint shown.',
   'bhashini-asr': 'Chausar first asks Bhashini for its compute endpoint without sending audio, then uploads the approved recording once, only if that endpoint is the one shown.',
-  'live-voice': 'Chausar requests a one-minute session secret. Your microphone audio then streams from this app directly to the provider until you stop or the minute cap is reached. Chausar cannot measure the minutes used.',
+  'live-voice': 'Chausar requests a one-minute secret for a transcription-only session. Your microphone audio then streams from this app directly to the provider until you stop, and the app hangs up at the minute cap. Chausar counts the minutes on its own clock and charges at most the cap; it cannot measure what the provider bills.',
 };
 export type SpeechProvider = { id?: string; kind: SpeechKind; label?: string; endpoint?: string; command?: string; model?: string; ratePerMinuteMinor?: string; budgetMinor?: string; credentialEnv?: string; enabled?: boolean; language?: string; pipelineId?: string; serviceId?: string; configEndpoint?: string };
 export type SpeechInput = { providerId: string; audioBase64?: string; mimeType?: string; durationMs?: number; transcript?: string; browserProvider?: string; sourceIds?: string[] };
@@ -39,6 +39,35 @@ function storedProviders(state: State): StoredSpeechProvider[] {
 export type SpeechOptions = { http?: (request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) => Promise<{ status: number; body: string; endpoint?: string; requestId?: string }>; process?: (request: ProcessRequest) => Promise<ProcessResult>; credentialBroker?: (id: string) => string | undefined | Promise<string | undefined>;
   /** Trusted host evidence that its renderer ends a live voice session at the approved minute cap. Without it, live voice is refused. */
   liveVoiceCapEnforced?: boolean };
+/**
+ * Per-call trusted inputs from the engine's own voice family (never from a request payload): `liveCapEnforced` is set only
+ * by `voice.start`, which records the session and closes it at the cap; transports are trusted host options for tests.
+ */
+export type SpeechTrusted = { liveCapEnforced?: boolean; http?: SpeechOptions['http']; process?: SpeechOptions['process'] };
+/** Removes the audio bytes from a preview or receipt, keeping only their digest. */
+export function dropAudio(record: Record<string, any>) { if ('payloadBase64' in record) { delete record.payloadBase64; record.audioDropped = true; } }
+/** Each provider request (and the local whisper run) is given two minutes. */
+export const SPEECH_TIMEOUT_MS = 120000;
+/** A dispatch makes at most two requests (Bhashini), so one still running after this long was cut off by a crash or restart. */
+export const SPEECH_IN_FLIGHT_MS = 2 * SPEECH_TIMEOUT_MS + 60000;
+const SPEECH_DIR = /^chausar-speech-[A-Za-z0-9]{6}$/;
+/**
+ * Removes local whisper working folders (`chausar-speech-*` under `root`) older than `maxAgeMs`: a crash between
+ * writing the recording and the `finally` that deletes it would otherwise leave the audio on disk. Only real
+ * folders with the exact mkdtemp name are removed; links and anything else are left alone. Never throws.
+ */
+export async function removeStaleSpeechDirs(root = tmpdir(), nowMs = Date.now(), maxAgeMs = 3600000): Promise<number> {
+  let removed = 0;
+  try {
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !SPEECH_DIR.test(entry.name)) continue;
+      const path = join(root, entry.name);
+      try { const info = await lstat(path); if (info.isDirectory() && info.mtimeMs + maxAgeMs <= nowMs) { await rm(path, { recursive: true, force: true }); removed++; } } catch { /* gone or unreadable: leave it */ }
+    }
+  } catch { /* no temp folder to read */ }
+  return removed;
+}
+let staleDirsSwept = false;
 
 const AUDIO_EXTENSIONS = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' } as const;
 type AudioMime = keyof typeof AUDIO_EXTENSIONS;
@@ -59,8 +88,14 @@ async function upload(request: { endpoint: string; headers: Record<string, strin
 }
 
 export class SpeechService {
-  store: StateStore; options: SpeechOptions; #credentials = new Map<string, string>();
+  store: StateStore; options: SpeechOptions; #credentials = new Map<string, string>(); #swept = false;
   constructor(store: StateStore, options: SpeechOptions = {}) { this.store = store; this.options = options; }
+  /** First use in this process: audio left in receipts by an older version or a crash is dropped, and stale whisper folders go. */
+  async #firstUse() {
+    if (this.#swept) return; this.#swept = true;
+    await this.expireUnsent(600000);
+    if (!staleDirsSwept) { staleDirsSwept = true; await removeStaleSpeechDirs(); }
+  }
   #provider(id: unknown): StoredSpeechProvider | undefined { return typeof id === 'string' ? storedProviders(this.store.read()).find(p => p.id === id) : undefined; }
   async configure(context: Context, config: SpeechProvider, secret?: string) {
     authorize(this.store, context, 'admin');
@@ -78,7 +113,7 @@ export class SpeechService {
     }
     if (config.kind === 'live-voice') {
       check((config.endpoint ?? LIVE_VOICE_ENDPOINT) === LIVE_VOICE_ENDPOINT, 'LIVE_VOICE_NOT_VERIFIED', 'Only the documented realtime session endpoint is supported for live voice.');
-      check(typeof config.model === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(config.model), 'INVALID_SPEECH_PROVIDER', 'Configure an explicit realtime voice model.');
+      check(typeof config.model === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(config.model), 'INVALID_SPEECH_PROVIDER', 'Configure an explicit realtime transcription model.');
       settings.endpoint = LIVE_VOICE_ENDPOINT;
     }
     if (config.kind === 'sarvam-stt' || config.kind === 'live-voice') check(typeof config.ratePerMinuteMinor === 'string' && /^[1-9]\d{0,29}$/.test(config.ratePerMinuteMinor), 'RATE_REQUIRED', 'Paid speech needs its cost per minute in paise.');
@@ -108,19 +143,19 @@ export class SpeechService {
     return { ...structuredClone(provider), credentialConfigured, experimental: true, verification: 'not-live-verified', network: SPEECH_NETWORK[provider.kind] };
   }
   async providers(context: Context) { authorize(this.store, context); return Promise.all(storedProviders(this.store.read()).map(p => this.#public(p))); }
-  async preview(context: Context, input: SpeechInput) {
-    authorize(this.store, context, 'prepare'); const provider = this.#provider(input.providerId);
+  async preview(context: Context, input: SpeechInput, trusted: SpeechTrusted = {}) {
+    authorize(this.store, context, 'prepare'); await this.#firstUse(); const provider = this.#provider(input.providerId);
     check(provider?.enabled, 'SPEECH_UNAVAILABLE', 'Configure a speech provider first.');
     const sourceIds = input.sourceIds || []; assertSourceAccess(this.store.read(), context, sourceIds);
     if (provider.kind === 'browser-transcript') {
       check(typeof input.transcript === 'string' && input.transcript.length <= 10000, 'INVALID_TRANSCRIPT', 'Supply the transcript returned by the browser.');
-      const record = { id: newId('speech_preview'), kind: 'speech-preview', status: 'preview', createdAt: now(), providerId: provider.id, providerRevision: provider.revision, memberId: context.memberId, epoch: context.epoch, payload: input.transcript, digest: hash(input.transcript), sourceIds, endpoint: 'browser://transcript-received', approvalRequired: false, receiptBoundary: 'browser-transcript-to-application', browserProvider: input.browserProvider || 'unspecified', transcriptProviderVerified: false };
+      const record = { id: newId('speech_preview'), kind: 'speech-preview', status: 'preview', createdAt: now(), providerId: provider.id, providerKind: provider.kind, providerRevision: provider.revision, memberId: context.memberId, epoch: context.epoch, payload: input.transcript, digest: hash(input.transcript), sourceIds, endpoint: 'browser://transcript-received', approvalRequired: false, receiptBoundary: 'browser-transcript-to-application', browserProvider: input.browserProvider || 'unspecified', transcriptProviderVerified: false };
       return this.store.update(state => { authorize(this.store, context, 'prepare'); state.modelReceipts.push(record); return structuredClone(record); });
     }
     const cloud = CLOUD_SPEECH_KINDS.includes(provider.kind); const boundary = `chausar-${newId('audio')}`;
     let bytes: Buffer; let contentType = `multipart/form-data; boundary=${boundary}`; const extra: Record<string, unknown> = {};
     if (provider.kind === 'live-voice') {
-      check(this.options.liveVoiceCapEnforced === true, 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
+      check(this.options.liveVoiceCapEnforced === true || trusted.liveCapEnforced === true, 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
       check(!context.channel || context.channel === 'desktop', 'APP_APPROVAL_REQUIRED', 'Live voice runs only inside the desktop app.');
       check(input.audioBase64 === undefined && input.mimeType === undefined, 'INVALID_AUDIO', 'A live voice preview carries no recording.');
       check(Number.isSafeInteger(input.durationMs) && input.durationMs! > 0 && input.durationMs! <= LIVE_MAX_MS, 'INVALID_LIVE_CAP', 'Give a live voice minute cap, up to thirty minutes.');
@@ -145,7 +180,7 @@ export class SpeechService {
     }
     const digest = hash(bytes.toString('base64')); check(!isNoResend(this.store.read(), digest), 'NO_RESEND', 'This deleted recording cannot be uploaded again.');
     const record = { id: newId('speech_preview'), kind: 'speech-preview', status: 'preview', createdAt: now(), memberId: context.memberId, epoch: context.epoch,
-      providerId: provider.id, providerRevision: provider.revision, sourceIds, trustFingerprint: trustFingerprint(this.store.read(), context, sourceIds), payloadBase64: bytes.toString('base64'), digest,
+      providerId: provider.id, providerKind: provider.kind, providerRevision: provider.revision, sourceIds, trustFingerprint: trustFingerprint(this.store.read(), context, sourceIds), payloadBase64: bytes.toString('base64'), digest,
       endpoint: provider.kind === 'api-upload' ? provider.endpoint || 'https://api.openai.com/v1/audio/transcriptions' : cloud ? provider.endpoint : `local-command://${provider.command}`,
       contentType, mimeType: input.mimeType, durationMs: input.durationMs, ...extra, ...(cloud && provider.kind !== 'api-upload' ? { networkDisclosure: SPEECH_DISCLOSURE[provider.kind] } : {}),
       approvalRequired: cloud, receiptBoundary: provider.kind === 'live-voice' ? 'application-to-provider-session-secret' : provider.kind === 'bhashini-asr' ? 'application-to-provider-http-two-step' : cloud ? 'application-to-provider-http' : 'application-to-local-executable',
@@ -171,12 +206,12 @@ export class SpeechService {
     }
     return provider;
   }
-  async transcribe(context: Context, input: { previewId?: string; approvalId?: string; providerId?: string; transcript?: string; browserProvider?: string }) {
-    authorize(this.store, context, 'prepare');
+  async transcribe(context: Context, input: { previewId?: string; approvalId?: string; providerId?: string; transcript?: string; browserProvider?: string }, trusted: SpeechTrusted = {}) {
+    authorize(this.store, context, 'prepare'); await this.#firstUse();
     if (!input.previewId) {
       const provider = this.#provider(input.providerId); check(provider?.enabled && provider.kind === 'browser-transcript', 'SPEECH_UNAVAILABLE', 'Select browser transcript or create an audio preview.');
       check(typeof input.transcript === 'string' && input.transcript.trim().length > 0 && input.transcript.length <= 10000, 'INVALID_TRANSCRIPT', 'Supply a browser transcript.');
-      return this.store.update(state => { authorize(this.store, context, 'prepare'); const receipt = { id: newId('speech_receipt'), kind: 'speech-receipt', memberId: context.memberId, createdAt: now(), providerId: provider.id, endpoint: 'browser://transcript-received', digest: hash(input.transcript!), transcript: input.transcript, browserProvider: input.browserProvider || 'unspecified', providerVerified: false, networkDisclosure: 'The browser speech provider may process audio remotely. Chausar received text only.', costMeasured: false, actualCostMinor: null, attempts: 0 }; state.modelReceipts.push(receipt); return { transcript: input.transcript!, receipt }; });
+      return this.store.update(state => { authorize(this.store, context, 'prepare'); const receipt = { id: newId('speech_receipt'), kind: 'speech-receipt', memberId: context.memberId, createdAt: now(), providerId: provider.id, providerKind: provider.kind, endpoint: 'browser://transcript-received', digest: hash(input.transcript!), transcript: input.transcript, browserProvider: input.browserProvider || 'unspecified', providerVerified: false, networkDisclosure: 'The browser speech provider may process audio remotely. Chausar received text only.', costMeasured: false, actualCostMinor: null, attempts: 0 }; state.modelReceipts.push(receipt); return { transcript: input.transcript!, receipt }; });
     }
     const preview = structuredClone(this.store.read().modelReceipts.find(r => r.id === input.previewId && r.kind === 'speech-preview'));
     const browser = preview && this.#provider(preview.providerId);
@@ -186,7 +221,7 @@ export class SpeechService {
       return this.store.update(state => { authorize(this.store, context, 'prepare'); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt?.status === 'preview', 'ALREADY_SENT', 'This transcript has already been accepted.'); receipt.status = 'completed'; receipt.transcript = receipt.payload; receipt.costMeasured = false; receipt.actualCostMinor = null; receipt.attempts = 0; return { transcript: receipt.transcript, receipt: structuredClone(receipt) }; });
     }
     check(preview?.status === 'preview', 'PREVIEW_NOT_FOUND', 'Create an unused audio preview first.'); const provider = this.#current(context, preview);
-    if (provider.kind === 'live-voice') check(this.options.liveVoiceCapEnforced === true && (!context.channel || context.channel === 'desktop'), 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
+    if (provider.kind === 'live-voice') check((this.options.liveVoiceCapEnforced === true || trusted.liveCapEnforced === true) && (!context.channel || context.channel === 'desktop'), 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
     const key = this.#credentials.get(provider.id) || (provider.credentialEnv ? process.env[provider.credentialEnv] : undefined) || await this.options.credentialBroker?.(provider.id);
     if (CLOUD_SPEECH_KINDS.includes(provider.kind)) check(key, 'CREDENTIAL_REQUIRED', 'The upload provider needs an API key.');
     await this.store.update(state => {
@@ -196,14 +231,14 @@ export class SpeechService {
         check(approval && !approval.used && approval.previewId === preview.id && approval.digest === preview.digest && approval.endpoint === preview.endpoint && Date.parse(approval.expiresAt) > Date.now() && approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role), 'OUTBOUND_APPROVAL_REQUIRED', 'An owner must approve this exact audio upload.'); approval.used = true; current.approvalId = approval.id;
       }
       const spent = state.modelReceipts.filter(r => r.providerId === provider.id).reduce((sum, r) => sum + BigInt(r.costReservedMinor || '0'), 0n);
-      check(spent + BigInt(preview.estimatedCostMinor) <= BigInt(provider.budgetMinor!), 'BUDGET_EXCEEDED', 'The speech rupee budget is exhausted.'); current.status = 'dispatching'; current.attempts = 1; current.costReservedMinor = preview.estimatedCostMinor;
+      check(spent + BigInt(preview.estimatedCostMinor) <= BigInt(provider.budgetMinor!), 'BUDGET_EXCEEDED', 'The speech rupee budget is exhausted.'); current.status = 'dispatching'; current.dispatchedAt = now(); current.attempts = 1; current.costReservedMinor = preview.estimatedCostMinor;
     });
     let directory: string | undefined;
     try {
       let transcript: string | undefined; let live: { value: string; expiresAt: string } | undefined; const details: Record<string, unknown> = {}; this.#current(context, preview);
       if (provider.kind !== 'local-command') {
         const send = async (endpoint: string, headers: Record<string, string>, body: Uint8Array) => {
-          const result = await (this.options.http || upload)({ endpoint, headers, body, redirect: 'error', timeoutMs: 120000 });
+          const result = await (trusted.http || this.options.http || upload)({ endpoint, headers, body, redirect: 'error', timeoutMs: SPEECH_TIMEOUT_MS });
           check((!result.endpoint || result.endpoint === endpoint) && !(result.status >= 300 && result.status < 400), 'REDIRECT_REFUSED', 'Speech redirects are refused.'); check(result.status >= 200 && result.status < 300, 'SPEECH_FAILED', 'The speech provider failed without a retry.'); return result;
         };
         const payload = Buffer.from(preview.payloadBase64, 'base64');
@@ -221,19 +256,19 @@ export class SpeechService {
         const mimeType: unknown = preview.mimeType; check(isAudioMime(mimeType), 'INVALID_AUDIO', 'Use a supported recording type.');
         directory = await mkdtemp(join(tmpdir(), 'chausar-speech-')); const extension = AUDIO_EXTENSIONS[mimeType]; const audioPath = join(directory, `recording.${extension}`); await writeFile(audioPath, Buffer.from(preview.payloadBase64, 'base64'), { mode: 0o600 });
         this.#current(context, preview);
-        const result = await (this.options.process || defaultProcess)({ command: provider.command!, args: ['-m', provider.model!, '-f', audioPath, '-nt', '-np', '-nf', '-l', 'auto'], cwd: directory, env: { PATH: process.env.PATH || '', SystemRoot: process.env.SystemRoot || '' }, stdin: '', timeoutMs: 120000, schema: {} });
+        const result = await (trusted.process || this.options.process || defaultProcess)({ command: provider.command!, args: ['-m', provider.model!, '-f', audioPath, '-nt', '-np', '-nf', '-l', 'auto'], cwd: directory, env: { PATH: process.env.PATH || '', SystemRoot: process.env.SystemRoot || '' }, stdin: '', timeoutMs: SPEECH_TIMEOUT_MS, schema: {} });
         check(result.exitCode === 0, 'SPEECH_FAILED', 'The local speech command failed without a retry.'); transcript = result.stdout.trim();
       }
       if (live) {
         const secret = live; this.#current(context, preview);
         return await this.store.update(state => { this.#current(context, preview); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt?.status === 'dispatching', 'SPEECH_REVOKED', 'The speech result has been revoked.');
-          receipt.status = 'completed'; receipt.completedAt = now(); receipt.liveSessionExpiresAt = secret.expiresAt; receipt.costMeasured = false; receipt.actualCostMinor = null; audit(state, 'speech.live.session', { receiptId: receipt.id, providerId: provider.id });
+          receipt.status = 'completed'; receipt.completedAt = now(); dropAudio(receipt); receipt.liveSessionExpiresAt = secret.expiresAt; receipt.costMeasured = false; receipt.actualCostMinor = null; audit(state, 'speech.live.session', { receiptId: receipt.id, providerId: provider.id });
           // The secret goes to the renderer in this reply only; state keeps its expiry, never its value.
           return { transcript: null, live: { clientSecret: secret.value, expiresAt: secret.expiresAt, connectEndpoint: LIVE_VOICE_CONNECT, model: provider.model, ratePerMinuteMinor: provider.ratePerMinuteMinor, capMs: preview.durationMs, reservedMinor: preview.estimatedCostMinor, experimental: true, disclosure: SPEECH_DISCLOSURE['live-voice'] }, receipt: structuredClone(receipt) }; });
       }
       this.#current(context, preview); check(typeof transcript === 'string' && transcript.trim().length > 0 && transcript.length <= 10000, 'INVALID_TRANSCRIPT', 'Speech provider returned an invalid transcript.');
-      return this.store.update(state => { this.#current(context, preview); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt?.status === 'dispatching', 'SPEECH_REVOKED', 'The speech result has been revoked.'); receipt.status = 'completed'; receipt.completedAt = now(); receipt.transcript = transcript; Object.assign(receipt, details); receipt.costMeasured = false; receipt.actualCostMinor = null; audit(state, 'speech.transcribed', { receiptId: receipt.id, providerId: provider.id }); return { transcript, receipt: structuredClone(receipt) }; });
-    } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; receipt.errorCode = error instanceof ChausarError ? error.code : 'SPEECH_FAILED'; } }); if (error instanceof ChausarError) throw error; throw new ChausarError('SPEECH_FAILED', 'Speech failed without a retry or fallback.'); }
+      return this.store.update(state => { this.#current(context, preview); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt?.status === 'dispatching', 'SPEECH_REVOKED', 'The speech result has been revoked.'); receipt.status = 'completed'; receipt.completedAt = now(); dropAudio(receipt); receipt.transcript = transcript; Object.assign(receipt, details); receipt.costMeasured = false; receipt.actualCostMinor = null; audit(state, 'speech.transcribed', { receiptId: receipt.id, providerId: provider.id }); return { transcript, receipt: structuredClone(receipt) }; });
+    } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; dropAudio(receipt); receipt.errorCode = error instanceof ChausarError ? error.code : 'SPEECH_FAILED'; } }); if (error instanceof ChausarError) throw error; throw new ChausarError('SPEECH_FAILED', 'Speech failed without a retry or fallback.'); }
     finally { if (directory) await rm(directory, { recursive: true, force: true }); }
   }
   /** Disables a provider durably. Its revision moves on, so every earlier preview is refused, also after a restart. */
@@ -245,6 +280,42 @@ export class SpeechService {
       ns.providers = [...(ns.providers ?? []).filter(p => p.id !== providerId), next]; audit(state, 'speech.provider.revoked', { id: providerId, kind: provider.kind, revision: next.revision }); return next;
     });
     this.#credentials.delete(providerId); return { providerId, enabled: false, revision: revoked.revision };
+  }
+  /**
+   * Gives a cloud provider its key again (after a restart) without changing its settings: the revision stays, so previews
+   * made before stay valid. The key is held in memory only; the audit event names the provider, never the key.
+   */
+  async supplyKey(context: Context, providerId: string, secret: string) {
+    authorize(this.store, context, 'admin'); const provider = this.#provider(providerId);
+    check(provider, 'SPEECH_UNAVAILABLE', 'Speech provider was not found.');
+    check(CLOUD_SPEECH_KINDS.includes(provider.kind), 'INVALID_CREDENTIAL', 'Only cloud speech providers take an API key.');
+    check(typeof secret === 'string' && secret.length > 0 && secret.length <= 8192 && !/[\r\n]/.test(secret) && (provider.kind !== 'bhashini-asr' || /^[^:\s]{1,256}:\S{1,4096}$/.test(secret)), 'INVALID_CREDENTIAL', 'Give the key on one line. Bhashini takes userID:ulcaApiKey.');
+    await this.store.update(state => { authorize(this.store, context, 'admin'); audit(state, 'speech.provider.key-supplied', { id: provider.id, kind: provider.kind, revision: provider.revision }); });
+    this.#credentials.set(provider.id, secret);
+    return { providerId: provider.id, credentialConfigured: true, revision: provider.revision, enabled: provider.enabled };
+  }
+  /**
+   * Keeps raw audio only where it is still needed, digest always kept:
+   * - a preview never sent keeps its bytes for `maxAgeMs`, then becomes `expired`;
+   * - a dispatch still in flight keeps them for SPEECH_IN_FLIGHT_MS; one older was cut off by a crash or restart and becomes
+   *   `failed` (`SPEECH_INTERRUPTED`), its reservation kept;
+   * - every other record (completed, failed, expired, from any version) loses them at once.
+   * Runs on every voice call, on the module tick and on this service's first use, so it is also the migration for older workspaces.
+   */
+  async expireUnsent(maxAgeMs: number, nowMs = Date.now()) {
+    const age = (at: unknown) => { const ms = typeof at === 'string' ? Date.parse(at) : NaN; return Number.isFinite(ms) ? nowMs - ms : Infinity; };
+    const stale = (r: any) => r.kind === 'speech-preview' && 'payloadBase64' in r
+      && (r.status === 'preview' ? age(r.createdAt) >= maxAgeMs : r.status === 'dispatching' ? age(r.dispatchedAt ?? r.createdAt) >= SPEECH_IN_FLIGHT_MS : true);
+    if (!this.store.read().modelReceipts.some(stale)) return 0;
+    return this.store.update(state => {
+      const expired = state.modelReceipts.filter(stale);
+      for (const r of expired) {
+        if (r.status === 'preview') r.status = 'expired';
+        else if (r.status === 'dispatching') { r.status = 'failed'; r.errorCode = 'SPEECH_INTERRUPTED'; }
+        dropAudio(r);
+      }
+      return expired.length;
+    });
   }
   clearCredentials() { this.#credentials.clear(); }
 }

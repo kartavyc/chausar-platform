@@ -22,7 +22,11 @@ Everything here is engine work. There are no screens in this lane. The Trust, To
 | Speech: browser transcript, local whisper.cpp | supported (whisper binary must be installed and checked by the operator) |
 | Speech provider settings kept in the encrypted workspace, revocation | supported |
 | Speech: API upload, Sarvam, Bhashini | experimental |
-| Paid live voice | experimental; refused (`LIVE_VOICE_CAP_NOT_ENFORCED`) unless the host declares its renderer ends the session at the approved minute cap |
+| `voice.*` (SH-05) with the browser transcript and local whisper; confirm, speak, usage | supported |
+| Paid live voice through `voice.start {live:true}`, WebRTC client with the minute cap enforced | experimental (client tested with fakes; needs an OpenAI realtime account) |
+| Remote MCP servers over the MCP protocol (2026-07-28, 2025-11-25, 2025-06-18) through the approved network door | experimental |
+| TL-07 pending requests (`smallapps.pendingRequests`) | supported |
+| `modelsx.price`, `modelsx.localList`, this month's spend and voice minutes on the meters | supported (localList tested with an injected loopback reply) |
 | "What it understood" reader (Hindi traps) | supported |
 | Speech recorded-clip bench | supported as a harness; fixtures are synthetic |
 | Small apps from one line, over the core and write catalogues | experimental (every made app is new) |
@@ -30,7 +34,7 @@ Everything here is engine work. There are no screens in this lane. The Trust, To
 | Plugin file format, signature check, plain-words review | supported |
 | Signed plugins from trusted publishers carrying skills and data | supported |
 | Tool arguments checked against their JSON schema, host doors (`calculate`, `read_published`, `prepare_action`), grants, recipe check hand-off, Network ledger | supported |
-| Plugin network door | experimental (tested only against an injected fake transport) |
+| Plugin network door | experimental (tested against a real local HTTPS server with the production transport; never against a live third-party site) |
 | Wrapped MCP tools, code from an unverified publisher | experimental |
 
 ## How a person uses it
@@ -194,10 +198,10 @@ An adversarial review of the lane found 1 high, 8 medium and 6 low issues. Each 
 ## Cross-lane assumptions
 
 - **hosted-link:** `hosted.allowanceCredential` returns `{endpoint, credential, model?, budgetMinor?}`. Until then, `modelsx.connectAllowance` refuses with `ALLOWANCE_NOT_AVAILABLE`.
-- **writeback:** the contract is assumed and documented at the top of `platform/runtime/smallapps/catalogue-adapter.ts`.
-  - `writeback.catalogue` returns rows of `{system|connector, operation, label|title, tier, alwaysWaits, status|depth, impact?, payloadSchema?}`.
-  - `writeback.prepare({system, operation, payload, idempotencyKey, sourceIds?})` returns `{id, status:'prepared', digest}`.
-  - When writeback is absent, the core catalogue is used.
+- **writeback:** confirmed against merged writeback (commit 1bba591) and documented at the top of `platform/runtime/smallapps/catalogue-adapter.ts`.
+  - `writeback.catalogue` rows are `{system, action, title, tier: 1|2|'prepare-only', kind, alwaysWaits, status, installed, connections[], recipe.requiredFields}`.
+  - `writeback.prepare({connectionId, action, payload, intentId, sourceIds?, sourceTainted?})` returns the action view.
+  - Small apps made outside the local planner press with `sourceTainted: true`. A repeated press of the same card and payload is one intent.
 - **jobs-ext:** reads costs from `modelsx.cost`, `modelsx.meters` and `modelsx.jobCost`.
 - **reports-tools-trust:** draws the screens, and reads plugin network requests from the core audit events `network.request` (and `smallapps.pluginLedger`) for its Network ledger. **ask** also draws its screens over these methods.
 - **The Monday brief:** may read the follow-up book through `smallapps.records.list`.
@@ -217,12 +221,95 @@ An adversarial review of the lane found 1 high, 8 medium and 6 low issues. Each 
 - **Prices.**
   - There is no default FX rate; the owner sets it.
   - The SubQ price comes from a third-party listing and is marked unverified.
-- **Live voice.** The renderer's WebRTC client and enforcement of the minute cap are not built.
-- **Speech keys.** A missing key can only be re-supplied by reconfiguring, which moves the revision on, so earlier previews must be made again.
+- **Live voice.** Built, but tested only with fakes; a real run needs an OpenAI realtime account. Minutes are measured on the engine's clock, not from the provider's bill.
 - **Plugins.**
-  - Remote MCP servers are not spoken to over the MCP protocol itself; a remote tool runs only through declared plain HTTPS requests.
+  - Remote MCP: tools with `x-mcp-header` stay description-only; server questions (`input_required`) are refused; only the first page of `tools/list` is read; no `DELETE` ends an older-version session.
   - Recipe checks need evidence supplied by a person; recipes start as "not checked".
   - A production publisher signing key must be created and held by the founder.
 - **Small apps.**
   - The planner is local software. A model-made descriptor can enter only through `smallapps.validate` and `smallapps.create`.
-  - The writeback contract must be confirmed when that lane merges.
+  - No `writeback.practice` dry run from a press (practice connections work).
+
+## Round 4 contracts
+
+These are stable payload and reply shapes for other lanes. Every reply is plain JSON. Amounts are whole paise as strings, and a missing figure is a missing-state word, never zero. A method that is absent returns `UNKNOWN_METHOD`.
+
+### `voice.*` (SH-05, for frame-today's ask line and Today)
+
+Voice is **off by default**. When it is off, every method except `voice.status`, `voice.usage` and `voice.providers` refuses with `VOICE_OFF`, and the microphone opens Trust · Rules · Send. When Send is `nothing` or `shape`, speech is turned into text on this computer only (browser transcript or local whisper); a cloud provider refuses with `VOICE_LOCAL_ONLY`. No raw audio is kept: once audio is turned into text, the engine drops the bytes and keeps only their digest.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `voice.status` | read | `{}` | `{ enabled, mode: 'off'\|'browser'\|'local'\|'paid', send, localOnly, provider: {id, kind, label, local, ratePerMinuteMinor\|null} \| null, live: {sessionId, startedAt, capMs, endsAt} \| null, speaking: {utteranceId} \| null, usage: <voice.usage month> }` |
+| `voice.setEnabled` | admin, desktop | `{ enabled, providerId? }` | `{ enabled, providerId }` (the TR-08 voice row) |
+| `voice.providers` | read | `{}` | the same rows as `modelsx.speechCatalogue` |
+| `voice.start` | prepare, desktop | `{ providerId?, live?: boolean, capMs? }` | `{ sessionId, capture: 'browser-transcript'\|'record-audio'\|'live-session', provider, capMs, approval?: {previewId, digest, costCapMinor} }`. A paid provider returns `approval`; the owner approves it with `speech.approve` before audio leaves. For `live`, the reply after approval carries `live: {clientSecret, expiresAt, connectEndpoint, model, capMs, endsAt}`, and `voice.start {sessionId, approvalId}` completes it. |
+| `voice.stop` | prepare, desktop | `{ sessionId, transcript? , audioBase64?, mimeType?, durationMs }` | `{ sessionId, heard: string \| null, understood: <modelsx.speechInterpret reply> \| null, needsConfirmation: true, words }`. Nothing caught gives `heard: null` and `words: 'Not sure what was said.'`. For a live session, stop also records the minutes used, ended at the cap at the latest. |
+| `voice.confirm` | prepare | `{ sessionId, digest, text? }` | `{ confirmationId, text, digest }`. `text` is the person's edit, re-read before it is confirmed. Refuses `UNDERSTOOD_CHANGED` when the digest no longer matches. |
+| `voice.dropNote` | prepare, desktop | `{ audioBase64, mimeType, durationMs, providerId? }` | same as `voice.stop` (a recorded note dropped on the ask line) |
+| `voice.speak` | read | `{ receiptId, language?: 'en'\|'hi' }` | `{ utteranceId, language, segments: [{ text, figureKey? }] }`. Every number is read from the receipt's own figures, never from written text. The renderer speaks it locally (browser speech synthesis), and no audio leaves. |
+| `voice.stopSpeaking` | read | `{ utteranceId }` | `{ stopped: true }` |
+| `voice.usage` | read | `{ month?: 'YYYY-MM' }` | `{ month, providers: [{ providerId, kind, minutes, minutesMs, costMinor \| 'not counted', basis }], totals: { minutesMs, costMinor \| 'not counted' } }` |
+
+**Live voice (WebRTC).** `app/ui/src/screens/voice/live-client.ts` exports `startLiveVoice({ live, onTranscript, onEnd })`. It connects to `live.connectEndpoint` with the ephemeral `clientSecret` and **ends the call itself at `endsAt`**. The engine also closes the session at the cap, whether or not `voice.stop` arrives.
+
+### `modelsx.price` (for jobs-ext's `routePrice` adapter)
+
+`{ routeId }` → `{ routeId, unitMinor, basis: 'measured'|'estimate'|'zero', pricedAt }`. One unit is one model request. The value comes from:
+- `measured`: the mean measured cost per answer when the route has any, rounded up;
+- `estimate`: otherwise the route's per-call reservation `maxCostMinor`;
+- `zero`: local Ollama.
+
+Codex and Claude CLI routes refuse `ROUTE_ESTIMATE_UNAVAILABLE`, because they run on a plan, not per request. An unknown route refuses `ROUTE_NOT_FOUND`.
+
+### `modelsx.localList` (FR-05 local model picker)
+
+`{ endpoint? }` → `{ endpoint, models: [{ name, sizeBytes, modifiedAt, family }], reachable: true }`, or `{ reachable: false, words }`. It reads Ollama's `GET /api/tags` on loopback only. It is refused in demo mode.
+
+### Meters (TR-08)
+
+`modelsx.meters` adds `month: { month, spendMinor, measuredMinor, reservedMinor, voiceMinutesMs, voiceCostMinor }` across all routes and speech providers for the current calendar month.
+
+### TL-07 pending requests (for reports-tools-trust's request sheet)
+
+`smallapps.pendingRequests` (read) → `{ requests: [{ id, kind: 'plugin-network'|'plugin-tool'|'mcp-call', pluginId, plugin, tool, site?, method?, question: <untrusted quoted text>, receives: string[], preparedBy, preparedAt, expiresAt, approveWith: { method, previewId, digest } }] }`. A secret is never part of a request, and the sheet never asks for one.
+
+### Round 4 deviations from the contracts above
+
+- **Paid recorded voice (Sarvam, Bhashini, API upload).** The approval comes at stop, not start, because there is no audio to approve at start.
+  1. `voice.stop` (or `voice.dropNote`) returns `heard: null` and `approval: {previewId, digest, costCapMinor}`.
+  2. The owner approves with `speech.approve`.
+  3. `voice.stop {sessionId, approvalId}` sends the recording once.
+- **Extra reply fields.**
+  - `voice.confirm` also returns `understood` and `receiptId`.
+  - `voice.stop` returns `receiptId`, plus `live: {minutesMs, costMinor, closedBy}` for a live session.
+- **`voice.setEnabled`** works while voice is off; it is the way to turn voice on. `providerId` defaults to `browser`.
+- **Live sessions are transcription-only.** The configured model must be a transcription model, for example `gpt-4o-transcribe`.
+- **`modelsx.speechKey`** (admin, desktop, untainted) `{providerId, secret}` → `{providerId, credentialConfigured, revision, enabled}` re-supplies a key without moving the revision. Earlier previews stay valid.
+- **`modelsx.meters`.** `month` also carries `modelSpendMinor`; `spendMinor` is model plus voice.
+- **`smallapps.pluginMcpRefresh`** (prepare, external, desktop) `{id}` prepares an MCP `tools/list`. It is approved and sent through `pluginApproveRemote` and `pluginCallRemote`, and the reply is a review diff. Nothing is installed.
+- **MCP version.** A remote MCP plugin is pinned to one protocol version when it is wrapped. There is no automatic fallback, because a fallback would send requests nobody approved.
+- **`smallapps.pressAction`** adds an optional `connectionId`. The reply's `approval` carries `secondAsk`, `approveWith` and `reauthWith`, or the reply is `{action: null, alreadyDone}`.
+
+### Round 4 review (all fixed, each with a regression test)
+
+An adversarial review of round 4 found 11 issues. Contract effects (all additive):
+- **Voice status.** `voice.status` gains `blocked: 'VOICE_LOCAL_ONLY' | null`, and `provider` gains `words`. `mode` is `'off'` when the chosen provider is blocked.
+- **Browser speech.** It may use the network (Chromium sends audio to its speech service), so when Send is `nothing` or `shape` it is refused unless the host asserts on-device recognition (`browserSpeechOnDevice`). `voice.setEnabled` then picks local whisper, or refuses `VOICE_NO_LOCAL_PROVIDER`.
+- **Live voice.**
+  - It needs the trusted host option `liveVoiceClient`, which the installed desktop worker sets; otherwise it refuses `LIVE_VOICE_CAP_NOT_ENFORCED`.
+  - The approved cap stays reserved against the speech budget.
+  - Measured minutes, timed with a monotonic clock, feed only usage and meters.
+  - Only one live session can be open at a time, even under concurrent starts.
+- **Voice confirm.** `voice.confirm` is desktop-only and refuses a tainted context. It returns `edited`.
+- **Voice speak.**
+  - It announces a stale answer first.
+  - It speaks fixed labels per figure key, never owner text.
+  - Basis points are spoken as basis points, and a non-INR amount is not read aloud.
+- **Audio retention.** Raw audio is dropped from every speech record except a recent in-flight dispatch. A dispatch stuck past 5 minutes becomes `failed` with `SPEECH_INTERRUPTED`, and stale whisper temp folders are removed.
+- **Months.** Voice and model spend share one month function that follows the workspace time zone, with an invalid zone falling back to India.
+- **Small apps.**
+  - An app made from a tainted or off-desktop context is `madeBy: 'outside'`, and a tainted presser always presses tainted.
+  - A repeated press is idempotent only while the earlier action is still prepared. After it is finished it prepares afresh, at most 8 times. While it is approved, executing or unknown, the reply says so: `{ action: null, existing: {id, connector, operation, status, through}, words }`.
+- **`modelsx.localList`.** The `endpoint` override is limited to an owner or cofounder on the desktop and untainted (`LOCAL_ENDPOINT_APP_ONLY`).
+- **`smallapps.pendingRequests`.** The view across members needs an owner or cofounder on the desktop, untainted. Reading never writes.
