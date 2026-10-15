@@ -43,7 +43,7 @@ test('the module draws only its own address and is registered', () => {
   assert.equal(handlesScreenDriving({ place: 'tools', sub: 'screen-driving' }), false);
   assert.deepEqual(DRIVING_ADDRESS, { place: 'work', sub: 'driving' });
   assert.match(source('../src/places/lane-driving.tsx'), /handles: handlesScreenDriving/);
-  assert.match(source('../src/places/registry.ts'), /\.\.\.drivingPlaces/);
+  assert.match(source('../src/places/registry.ts'), /driving: drivingPlaces/);
 });
 
 const driver = { platform: 'x11', available: true, code: null, reason: null, stopKey: 'Ctrl+Alt+Pause', rules: { windows: 1, mode: 'read-export', typesSecrets: false } };
