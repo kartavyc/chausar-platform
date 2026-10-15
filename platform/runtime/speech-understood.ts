@@ -165,6 +165,8 @@ put(['paise', 'paisa', 'paisay', 'पैसे', 'पैसा'], { kind: 'paise
 put(['nahi', 'nahin', 'nahee', 'nahiin', 'nhi', 'nahi̇', 'mat', 'na', 'naa', 'नहीं', 'नही', 'नहिं', 'मत', 'ना', 'न', 'not', 'no', 'never', 'none', 'nothing', 'nobody', 'neither', 'nor', 'cannot', 'dont', 'doesnt', 'didnt', 'isnt', 'arent', 'wasnt', 'werent', 'wont', 'cant', 'shouldnt', 'wouldnt', 'couldnt', 'havent', 'hasnt', 'hadnt', 'mustnt', 'kabhi-nahi'], { kind: 'negation' });
 put(['without', 'except', 'excluding', 'bina', 'binaa', 'sivay', 'sivaay', 'siwa', 'chhodkar', 'chodkar', 'बिना', 'सिवाय', 'सिवा', 'छोड़कर', 'छोडकर'], { kind: 'exclusion' });
 put(['and'], { kind: 'and' });
+/** The first romanised spelling of 0–99, as spoken back by `voice.speak` (speech-spoken.ts). */
+export const HINDI_ROMAN_WORDS: readonly string[] = HINDI_NUMBERS.split('\n').map(line => line.split('|')[1]!.split(',')[0]!);
 const TAG_NA = new Set([key('na'), key('naa'), key('ना')]);
 
 export type Span = { text: string; start: number; end: number };

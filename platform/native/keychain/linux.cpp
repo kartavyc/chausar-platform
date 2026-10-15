@@ -148,9 +148,11 @@ Status read_key(SecretItem* item, SecureBytes<key_size>& key) {
   if (secret.value == nullptr) return Status::unavailable;
   gsize size = 0;
   const auto* data = reinterpret_cast<const unsigned char*>(secret_value_get(secret.value, &size));
-  const auto* content_type = secret_value_get_content_type(secret.value);
-  if (data == nullptr || size != key_size || content_type == nullptr ||
-      std::strcmp(content_type, key_content_type) != 0) return Status::conflict;
+  // The content type is written on create but not compared on read: gnome-keyring
+  // (46.1, real run) returns every stored secret as text/plain, so requiring it made
+  // each helper-written entry read back as a conflict. The exact schema, service and
+  // account attributes plus the fixed 32-byte size identify the entry.
+  if (data == nullptr || size != key_size) return Status::conflict;
   std::memcpy(key.bytes.data(), data, key_size);
   return Status::ok;
 }

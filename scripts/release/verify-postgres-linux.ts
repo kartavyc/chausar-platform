@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../platform/runtime/contracts.ts';
-import { BundledPostgres, linuxOrphanedServerProcesses, type PostgresConnection } from '../../platform/runtime/native/postgres-lifecycle.ts';
+import { BundledPostgres, linuxOrphanedServerProcesses, parseDarwinProcessList, postgresClusterName, type PostgresConnection } from '../../platform/runtime/native/postgres-lifecycle.ts';
 import { loadRuntimeSources, selectRuntimeSources, stageRuntime } from './stage-runtime.ts';
 
 /*
@@ -19,6 +19,9 @@ import { loadRuntimeSources, selectRuntimeSources, stageRuntime } from './stage-
  *
  *   node scripts/release/verify-postgres-linux.ts --stage /tmp/runtime [--old-bin /usr/lib/postgresql/16/bin] [--as-user postgres]
  *   node scripts/release/verify-postgres-linux.ts --runtime /tmp/runtime --old-bin /usr/lib/postgresql/16/bin
+ *   node scripts/release/verify-postgres-linux.ts --runtime /tmp/runtime --old-runtime /tmp/runtime/postgres-16
+ *   (--old-runtime names a staged `postgres-<major>/{bin,lib,share}` folder; when it sits in the runtime root, the
+ *    upgrade runs against that staged root unchanged, exactly as the installed app would)
  *   (--work <dir> puts the data roots in a chosen folder, for example one deeper than the 107-byte socket limit)
  */
 
@@ -30,11 +33,13 @@ export type VerifyReceipt = {
   runtimeRoot: string;
   bundledVersion: string | null;
   oldVersion: string | null;
+  /** Where the older major came from: a distribution bin folder or a staged retained runtime. */
+  oldSource: string | null;
   pins: { component: string; version: string; url: string | null; sha256: string | null; checksumSource: string | null }[];
   steps: VerifyStep[];
   ok: boolean;
 };
-export type VerifyOptions = { runtimeRoot: string; oldBin?: string | null; workRoot?: string; keep?: boolean; portRange?: [number, number]; onStep?: (step: VerifyStep) => void };
+export type VerifyOptions = { runtimeRoot: string; oldBin?: string | null; /** A staged `postgres-<major>` folder (bin, lib, share); used instead of `oldBin`. */ oldRuntime?: string | null; workRoot?: string; keep?: boolean; portRange?: [number, number]; onStep?: (step: VerifyStep) => void };
 
 type PgClient = { on(event: 'error', listener: (error: Error) => void): void; connect(): Promise<void>; query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>; end(): Promise<void> };
 type PgModule = { Client: new (config: Record<string, unknown>) => PgClient };
@@ -115,13 +120,16 @@ async function postmasterPid(dataDirectory: string): Promise<number> {
 /** Runs every real-binary check and returns the receipt; never throws for a failed step. */
 export async function verifyBundledPostgres(options: VerifyOptions): Promise<VerifyReceipt> {
   check(isAbsolute(options.runtimeRoot), 'VERIFY_USAGE', 'Provide the staged runtime root as an absolute path.');
+  check(!(options.oldBin && options.oldRuntime) && (!options.oldRuntime || isAbsolute(options.oldRuntime)), 'VERIFY_USAGE', 'Pass at most one older PostgreSQL, as an absolute path.');
   const runtimeRoot = resolve(options.runtimeRoot);
+  const oldRuntime = options.oldRuntime ? resolve(options.oldRuntime) : null;
+  const oldBin = oldRuntime ? join(oldRuntime, 'bin') : options.oldBin ?? null;
   const kernel = (await run('uname', ['-sr']).catch(() => ({ stdout: '' }))).stdout.trim();
   const receipt: VerifyReceipt = {
     format: 'chausar.postgres-real-run.v1', startedAt: new Date().toISOString(),
     host: { platform: process.platform, arch: process.arch, uid: typeof process.getuid === 'function' ? process.getuid() : null, kernel },
     runtimeRoot, bundledVersion: await versionOf(join(runtimeRoot, 'postgres', 'bin', 'postgres')),
-    oldVersion: options.oldBin ? await versionOf(join(options.oldBin, 'postgres')) : null, pins: [], steps: [], ok: false,
+    oldVersion: oldBin ? await versionOf(join(oldBin, 'postgres')) : null, oldSource: oldRuntime ? `staged ${oldRuntime}` : oldBin ? `bin folder ${oldBin}` : null, pins: [], steps: [], ok: false,
   };
   try {
     const sources = selectRuntimeSources(await loadRuntimeSources(), process.platform, process.arch, { requirePins: false });
@@ -222,6 +230,12 @@ export async function verifyBundledPostgres(options: VerifyOptions): Promise<Ver
       process.kill(pid, 'SIGKILL');
       check(await waitGone(pid), 'VERIFY_KILL', 'The postmaster did not die after SIGKILL.');
       const orphans = await linuxOrphanedServerProcesses(main.dataDirectory);
+      // The macOS sweep's evidence: the orphan's process title carries this cluster's cluster_name. Read it with the
+      // same ps columns the macOS sweep uses (procps accepts them) and apply the macOS title parser.
+      const clusterName = postgresClusterName(main.dataDirectory);
+      const listed = await run('ps', ['-axww', '-o', 'pid=,ppid=,uid=,command=']);
+      const titled = parseDarwinProcessList(listed.stdout).filter(row => row.command.startsWith(`postgres: ${clusterName}: `));
+      check(titled.length > 0 && titled.every(row => orphans.includes(row.pid)), 'VERIFY_TITLES', 'The orphaned backends do not carry the cluster name in their titles.');
       const started = Date.now();
       const connection = await main.start();
       const restartMs = Date.now() - started;
@@ -231,7 +245,7 @@ export async function verifyBundledPostgres(options: VerifyOptions): Promise<Ver
       const recovery = (await main.status()).lastRecovery;
       check(orphans.length > 0 && Number(recovery?.detail.orphansEnded) === orphans.length, 'VERIFY_ORPHANS', 'The busy backend left by the crash was not found and ended.');
       check(count.n === '1001', 'VERIFY_DATA', 'Committed rows did not survive the second crash.');
-      return { killedPid: pid, orphansFound: orphans.length, orphansEnded: recovery?.detail.orphansEnded, busyQuery: outcome, port: connection.port, restartMs, rows: Number(count.n) };
+      return { killedPid: pid, orphansFound: orphans.length, titledWithClusterName: titled.map(row => ({ ppid: row.ppid, title: row.command.slice(0, 80) })), orphansEnded: recovery?.detail.orphansEnded, busyQuery: outcome, port: connection.port, restartMs, rows: Number(count.n) };
     });
     await step('stop-after-recovery', async () => { await main.stop(); return { state: (await main.status()).state }; });
     await step('newer-data-refused', async () => {
@@ -248,25 +262,33 @@ export async function verifyBundledPostgres(options: VerifyOptions): Promise<Ver
       check(!(await exists(join(newer.dataDirectory, 'postmaster.pid'))), 'VERIFY_NEWER', 'A newer cluster was started.');
       return { marker: bundled + 1, state: status.state, refusal: code };
     });
-    if (options.oldBin) {
+    if (oldBin) {
       const oldVersion = receipt.oldVersion ?? '';
       const oldMajor = /^(\d+)/.exec(oldVersion)?.[1] ?? '';
       const oldRoot = join(work, 'runtime-old');
-      const upgradeRoot = join(work, 'runtime-upgrade');
+      // A retained runtime staged inside the runtime root is used in place: no copies of the bundled or old binaries.
+      const inPlace = oldRuntime !== null && dirname(oldRuntime) === runtimeRoot && basename(oldRuntime) === `postgres-${oldMajor}`;
+      const upgradeRoot = inPlace ? runtimeRoot : join(work, 'runtime-upgrade');
       const upgradeData = join(work, 'upgrade');
       const old = make(oldRoot, upgradeData);
       const fresh = make(upgradeRoot, upgradeData);
       live.push(old, fresh);
       await step('upgrade-prepare-old-cluster', async () => {
         check(oldMajor !== '' && receipt.bundledVersion !== null && Number(oldMajor) < Number(/^(\d+)/.exec(receipt.bundledVersion)?.[1]), 'VERIFY_OLD_MAJOR', 'The old PostgreSQL must be an older major than the bundled one.');
-        // A distribution build finds $libdir relative to its bin folder, so the sibling lib/ travels with it.
-        const oldLib = join(dirname(options.oldBin as string), 'lib');
         let oldFiles = 0;
-        for (const component of [join(oldRoot, 'postgres'), join(upgradeRoot, `postgres-${oldMajor}`)]) {
-          oldFiles = await copyTree(options.oldBin as string, join(component, 'bin'));
-          if (await exists(oldLib)) oldFiles += await copyTree(oldLib, join(component, 'lib'));
+        if (oldRuntime) {
+          // The old cluster is created by the same staged binaries (bin, lib and share travel together).
+          oldFiles = await copyTree(oldRuntime, join(oldRoot, 'postgres'));
+          if (!inPlace) { await copyTree(oldRuntime, join(upgradeRoot, `postgres-${oldMajor}`)); await copyTree(join(runtimeRoot, 'postgres'), join(upgradeRoot, 'postgres')); }
+        } else {
+          // A distribution build finds $libdir relative to its bin folder, so the sibling lib/ travels with it.
+          const oldLib = join(dirname(oldBin), 'lib');
+          for (const component of [join(oldRoot, 'postgres'), join(upgradeRoot, `postgres-${oldMajor}`)]) {
+            oldFiles = await copyTree(oldBin, join(component, 'bin'));
+            if (await exists(oldLib)) oldFiles += await copyTree(oldLib, join(component, 'lib'));
+          }
+          await copyTree(join(runtimeRoot, 'postgres'), join(upgradeRoot, 'postgres'));
         }
-        await copyTree(join(runtimeRoot, 'postgres'), join(upgradeRoot, 'postgres'));
         await old.start();
         await query(old, 'create table ledger (id integer primary key, amount_paise text not null)');
         await query(old, "insert into ledger select g, (g * 100)::text from generate_series(1, 500) g");
@@ -275,7 +297,7 @@ export async function verifyBundledPostgres(options: VerifyOptions): Promise<Ver
         check(await waitGone(pid), 'VERIFY_KILL', 'The old postmaster did not die after SIGKILL.');
         const status = await fresh.status();
         check(status.state === 'needs-upgrade', 'VERIFY_NEEDS_UPGRADE', 'The old cluster was not reported as needing an upgrade.');
-        return { oldVersion, oldBinFilesCopied: oldFiles, rows: 500, crashedBeforeUpgrade: true, state: status.state, majorVersion: status.majorVersion, bundledMajor: status.bundledMajor };
+        return { oldVersion, oldSource: receipt.oldSource, upgradeRuntimeRoot: upgradeRoot, upgradeUsesStagedRootInPlace: inPlace, oldFilesCopied: oldFiles, rows: 500, crashedBeforeUpgrade: true, state: status.state, majorVersion: status.majorVersion, bundledMajor: status.bundledMajor };
       });
       await step('upgrade-refusals', async () => {
         const start = await refusal(() => fresh.start());
@@ -314,19 +336,20 @@ export async function verifyBundledPostgres(options: VerifyOptions): Promise<Ver
   return receipt;
 }
 
-type CliOptions = { runtime: string | null; stage: string | null; oldBin: string | null; asUser: string | null; work: string | null; keep: boolean };
+type CliOptions = { runtime: string | null; stage: string | null; oldBin: string | null; oldRuntime: string | null; asUser: string | null; work: string | null; keep: boolean };
 export function parseVerifyArguments(argv: string[]): CliOptions {
   const values = new Map<string, string>();
   let keep = false;
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === '--keep') { keep = true; continue; }
-    check(['--runtime', '--stage', '--old-bin', '--as-user', '--work'].includes(argv[index]) && argv[index + 1] !== undefined && !values.has(argv[index]), 'VERIFY_USAGE', 'Usage: node scripts/release/verify-postgres-linux.ts (--runtime dir | --stage dir) [--old-bin dir] [--as-user name] [--work dir] [--keep]');
+    check(['--runtime', '--stage', '--old-bin', '--old-runtime', '--as-user', '--work'].includes(argv[index]) && argv[index + 1] !== undefined && !values.has(argv[index]), 'VERIFY_USAGE', 'Usage: node scripts/release/verify-postgres-linux.ts (--runtime dir | --stage dir) [--old-bin dir | --old-runtime dir] [--as-user name] [--work dir] [--keep]');
     values.set(argv[index], argv[index += 1]);
   }
   check(values.has('--runtime') !== values.has('--stage'), 'VERIFY_USAGE', 'Pass exactly one of --runtime (reuse a staged runtime) or --stage (stage it first).');
+  check(!(values.has('--old-bin') && values.has('--old-runtime')), 'VERIFY_USAGE', 'Pass at most one of --old-bin or --old-runtime.');
   check(values.get('--as-user') === undefined || /^[a-z_][a-z0-9_-]{0,31}$/.test(values.get('--as-user') as string), 'VERIFY_USAGE', 'The account name is not a plain user name.');
   const absolute = (value: string | undefined) => value === undefined ? null : resolve(value);
-  return { runtime: absolute(values.get('--runtime')), stage: absolute(values.get('--stage')), oldBin: absolute(values.get('--old-bin')), asUser: values.get('--as-user') ?? null, work: absolute(values.get('--work')), keep };
+  return { runtime: absolute(values.get('--runtime')), stage: absolute(values.get('--stage')), oldBin: absolute(values.get('--old-bin')), oldRuntime: absolute(values.get('--old-runtime')), asUser: values.get('--as-user') ?? null, work: absolute(values.get('--work')), keep };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -342,7 +365,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       runtimeRoot = options.stage;
     }
     if (options.asUser && process.getuid?.() === 0) {
-      const args = [process.execPath, fileURLToPath(import.meta.url), '--runtime', runtimeRoot, ...(options.oldBin ? ['--old-bin', options.oldBin] : []), ...(options.work ? ['--work', options.work] : []), ...(options.keep ? ['--keep'] : [])];
+      const args = [process.execPath, fileURLToPath(import.meta.url), '--runtime', runtimeRoot, ...(options.oldBin ? ['--old-bin', options.oldBin] : []), ...(options.oldRuntime ? ['--old-runtime', options.oldRuntime] : []), ...(options.work ? ['--work', options.work] : []), ...(options.keep ? ['--keep'] : [])];
       const child = spawn('runuser', ['-u', options.asUser, '--', ...args], { stdio: ['ignore', 'pipe', 'inherit'], cwd: dirname(fileURLToPath(import.meta.url)), env: { ...process.env, HOME: tmpdir(), TMPDIR: tmpdir() } });
       let output = '';
       child.stdout.on('data', chunk => { output += chunk; });
@@ -351,7 +374,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       console.log(JSON.stringify({ ...receipt, ranAs: options.asUser, staging }, null, 2));
       process.exitCode = code ?? 1;
     } else {
-      const receipt = await verifyBundledPostgres({ runtimeRoot, oldBin: options.oldBin, workRoot: options.work ?? undefined, keep: options.keep, onStep: entry => console.error(`${entry.ok ? 'pass' : 'FAIL'} ${entry.name} (${entry.ms} ms)${entry.error ? ` ${entry.error}` : ''}`) });
+      const receipt = await verifyBundledPostgres({ runtimeRoot, oldBin: options.oldBin, oldRuntime: options.oldRuntime, workRoot: options.work ?? undefined, keep: options.keep, onStep: entry => console.error(`${entry.ok ? 'pass' : 'FAIL'} ${entry.name} (${entry.ms} ms)${entry.error ? ` ${entry.error}` : ''}`) });
       console.log(JSON.stringify({ ...receipt, staging }, null, 2));
       process.exitCode = receipt.ok ? 0 : 1;
     }

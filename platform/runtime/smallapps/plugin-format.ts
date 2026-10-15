@@ -12,13 +12,18 @@ import type { HostFunction, PluginManifest } from '../plugins.ts';
 import { schemaProblems, takesArguments } from './plugin-schema.ts';
 import { NETWORK_LIMITS, placeholdersBound, requestShapeValid } from './plugin-network.ts';
 import type { RequestSpec } from './plugin-network.ts';
+import { endpointShapeValid } from './plugin-mcp.ts';
+import type { McpEndpoint } from './plugin-mcp.ts';
 
 export const PLUGIN_FORMAT = 'chausar.plugin.v1';
 export const DATA_KINDS = ['recipe', 'starterPack', 'languagePack'] as const;
 export type DataKind = typeof DATA_KINDS[number];
 export type SkillEntry = { name: string; description: string; instructions: string; allowedTools: string[]; license: string | null; resources: { path: string; text: string }[] };
-/** `requests` is optional so files signed before the network door keep their exact bytes and digest. */
-export type ToolEntry = { name: string; title: string | null; description: string; inputSchema: Record<string, unknown>; code: string | null; sites: string[]; requests?: RequestSpec[] };
+/**
+ * `requests` and `mcp` are optional so files signed before them keep their exact bytes and digest. A tool has at
+ * most one of them: declared plain HTTPS requests, or the endpoint of the remote MCP server it is called on.
+ */
+export type ToolEntry = { name: string; title: string | null; description: string; inputSchema: Record<string, unknown>; code: string | null; sites: string[]; requests?: RequestSpec[]; mcp?: McpEndpoint };
 export type DataEntry = { kind: DataKind; name: string; digest: string; body: unknown };
 export type CodeEntry = { manifest: unknown; moduleBase64: string; moduleDigest: string };
 export type Doors = { capabilities: string[]; sourceIds: string[]; sites: string[] };
@@ -74,13 +79,16 @@ export function parseDocument(input: unknown): PluginDocument {
   }
   invalid(new Set(skills.map((skill: SkillEntry) => skill.name)).size === skills.length, 'Skill names are unique.');
   for (const tool of tools) {
-    exactKeys(tool, Object.hasOwn(tool ?? {}, 'requests') ? ['name', 'title', 'description', 'inputSchema', 'code', 'sites', 'requests'] : ['name', 'title', 'description', 'inputSchema', 'code', 'sites'], 'A tool has a fixed set of fields.');
+    exactKeys(tool, ['name', 'title', 'description', 'inputSchema', 'code', 'sites', ...['requests', 'mcp'].filter(key => Object.hasOwn(tool ?? {}, key))], 'A tool has a fixed set of fields.');
+    invalid(!(Object.hasOwn(tool, 'requests') && Object.hasOwn(tool, 'mcp')), 'A tool either declares requests or names a remote MCP server, not both.');
     invalid(typeof tool.name === 'string' && TOOL_NAME.test(tool.name) && (tool.title === null || text(tool.title, 200)) && typeof tool.description === 'string', 'A tool needs a safe name and a description.');
     invalid(plain(tool.inputSchema) && tool.inputSchema.type === 'object', 'A tool input schema is a JSON Schema object.');
     invalid((tool.code === null || (typeof tool.code === 'string' && tool.code.length <= 64)) && strings(tool.sites, SITE), 'A tool names its code and the sites it needs.');
     if (Object.hasOwn(tool, 'requests')) invalid(Array.isArray(tool.requests) && tool.requests.length > 0 && tool.requests.length <= NETWORK_LIMITS.requests && tool.requests.every((request: unknown) => requestShapeValid(request) && tool.sites.includes(request.site)), 'A tool declares at most four GET or POST requests to its own named HTTPS sites, with size and time limits.');
+    if (Object.hasOwn(tool, 'mcp')) invalid(endpointShapeValid(tool.mcp) && tool.code === null && tool.sites.length === 1 && tool.sites[0] === tool.mcp.site, 'A remote MCP tool names one https endpoint on its own site, a protocol version, and size and time limits.');
   }
   invalid(new Set(tools.map((tool: ToolEntry) => tool.name)).size === tools.length, 'Tool names are unique.');
+  invalid(new Set(tools.filter((tool: ToolEntry) => tool.mcp).map((tool: ToolEntry) => canonical(tool.mcp))).size <= 1, 'A plugin wraps at most one remote MCP server.');
   for (const item of data) {
     exactKeys(item, ['kind', 'name', 'digest', 'body'], 'A data part has a kind, a name, a digest and a body.');
     invalid(DATA_KINDS.includes(item.kind) && typeof item.name === 'string' && item.name.length <= 64 && SLUG.test(item.name) && typeof item.digest === 'string' && /^[a-f0-9]{64}$/.test(item.digest), 'Data parts are recipes, starter packs or language packs with a digest.');
@@ -131,8 +139,9 @@ export function signatureStatus(doc: PluginDocument, keys: readonly TrustedKey[]
 
 const w = (en: string, hi: string): Words => ({ en, hi });
 /** A tool Chausar can run: it has WebAssembly code, declared requests, or both. */
-export const runnable = (tool: ToolEntry) => tool.code !== null || (tool.requests?.length ?? 0) > 0;
+export const runnable = (tool: ToolEntry) => tool.code !== null || (tool.requests?.length ?? 0) > 0 || tool.mcp !== undefined;
 function toolWords(tool: ToolEntry): Words {
+  if (tool.mcp) return w(`A tool on a remote MCP server at ${tool.mcp.site}, spoken to with MCP ${tool.mcp.protocolVersion}. Chausar sends each call itself, once, only after an owner or cofounder approves exactly the requests it will make, adds any key itself, and logs every request in the Network ledger. The answer comes back to you as outside text.`, `${tool.mcp.site} पर एक रिमोट MCP सर्वर का टूल, MCP ${tool.mcp.protocolVersion} से बात करता है। Chausar हर कॉल खुद, एक बार भेजता है, केवल तब जब मालिक या सह-संस्थापक ठीक उन्हीं अनुरोधों को मंज़ूर करे, चाबी खुद जोड़ता है और हर अनुरोध नेटवर्क बही में लिखता है। जवाब आपको बाहरी लेख के रूप में लौटता है।`);
   if (tool.sites.length && !tool.requests?.length) return w('An MCP tool that needs the internet but declares no request. Chausar never lets plugin code reach the internet itself, so it cannot run.', 'एक MCP टूल जिसे इंटरनेट चाहिए पर कोई अनुरोध घोषित नहीं करता। Chausar प्लगइन कोड को खुद इंटरनेट तक नहीं जाने देता, इसलिए यह नहीं चल सकता।');
   if (tool.requests?.length) return w(`An MCP tool that needs ${tool.requests.length} declared request(s) to named sites. Chausar makes each request itself, once, only to sites you approved, adds any key itself, and logs it in the Network ledger. ${tool.code ? 'The answer goes into WebAssembly code in the locked box as data.' : 'The answer comes back to you as outside text.'}`, `एक MCP टूल जिसे नामित साइटों पर ${tool.requests.length} घोषित अनुरोध चाहिए। Chausar हर अनुरोध खुद, एक बार, केवल आपकी मंज़ूर साइटों पर करता है, चाबी खुद जोड़ता है और नेटवर्क बही में लिखता है। ${tool.code ? 'जवाब बंद डिब्बे के WebAssembly कोड में केवल डेटा के रूप में जाता है।' : 'जवाब आपको बाहरी लेख के रूप में लौटता है।'}`);
   if (tool.code) return w('An MCP tool backed by WebAssembly code that runs in the locked box.', 'एक MCP टूल जिसका WebAssembly कोड बंद डिब्बे में चलता है।');
@@ -199,7 +208,7 @@ export function reviewDocument(doc: PluginDocument, options: { hostFunctions: Re
   };
   const items = [
     ...doc.contents.skills.map(skill => ({ kind: 'skill', name: skill.name, words: w('Task instructions. Shown to you as quoted outside text and never followed as orders.', 'काम के निर्देश। आपको उद्धृत बाहरी लेख के रूप में दिखाए जाते हैं, आदेश की तरह कभी नहीं माने जाते।'), allowedTools: skill.allowedTools.map(tool => untrusted(tool)), allowedToolsWords: skill.allowedTools.length ? w('The instructions mention tools they would like to use. This grants nothing; your own permissions still apply.', 'निर्देश कुछ टूल इस्तेमाल करना चाहते हैं। इससे कोई अनुमति नहीं मिलती; आपकी अपनी अनुमतियाँ ही लागू रहती हैं।') : null, resources: skill.resources.map(resource => untrusted(resource.path)) })),
-    ...doc.contents.tools.map(tool => ({ kind: 'tool', name: tool.name, words: toolWords(tool), code: tool.code, sites: tool.sites, takesArguments: takesArguments(tool.inputSchema), schema: schemaProblems(tool.inputSchema).length ? 'unsupported' as const : 'enforced' as const, requests: (tool.requests ?? []).map(request => ({ method: request.method, site: request.site, path: untrusted(request.path), body: request.body, maxResponseBytes: request.maxResponseBytes, timeoutMs: request.timeoutMs })) })),
+    ...doc.contents.tools.map(tool => ({ kind: 'tool', name: tool.name, words: toolWords(tool), code: tool.code, sites: tool.sites, takesArguments: takesArguments(tool.inputSchema), schema: schemaProblems(tool.inputSchema).length ? 'unsupported' as const : 'enforced' as const, requests: (tool.requests ?? []).map(request => ({ method: request.method, site: request.site, path: untrusted(request.path), body: request.body, maxResponseBytes: request.maxResponseBytes, timeoutMs: request.timeoutMs })), mcp: tool.mcp ? { site: tool.mcp.site, path: untrusted(tool.mcp.path), protocolVersion: tool.mcp.protocolVersion, maxResponseBytes: tool.mcp.maxResponseBytes, timeoutMs: tool.mcp.timeoutMs } : null })),
     ...doc.contents.data.map(item => ({ kind: item.kind, name: item.name, digest: item.digest, words: item.kind === 'recipe' ? w('A recipe, carried as data for the recipe checker. It is never run.', 'एक रेसिपी, रेसिपी जाँचक के लिए केवल डेटा के रूप में। इसे कभी चलाया नहीं जाता।') : item.kind === 'starterPack' ? w('A starter pack, carried as data for review.', 'एक स्टार्टर पैक, समीक्षा के लिए डेटा के रूप में।') : w('A language pack, carried as data for review.', 'एक भाषा पैक, समीक्षा के लिए डेटा के रूप में।') })),
     ...[...manifests.values()].map(manifest => ({ kind: 'code', name: manifest.id, words: w(`WebAssembly code for the locked box: no internet, no files, no keys. At most ${kib(manifest.maxMemoryPages)} KiB of memory and ${manifest.timeoutMs} ms per run. It stays off until you enable its exact digest.`, `बंद डिब्बे के लिए WebAssembly कोड: न इंटरनेट, न फ़ाइलें, न चाबियाँ। हर बार अधिकतम ${kib(manifest.maxMemoryPages)} KiB मेमोरी और ${manifest.timeoutMs} ms। जब तक आप इसके सटीक डाइजेस्ट को चालू न करें, यह बंद रहता है।`) })),
   ];
@@ -213,7 +222,8 @@ export function reviewDocument(doc: PluginDocument, options: { hostFunctions: Re
   const experimentalReasons = [
     ...(doc.contents.code.length && signature.status !== 'verified' ? ['code-from-unverified-publisher'] : []),
     ...(doc.contents.tools.length ? ['wrapped-mcp-tools'] : []),
-    ...(doc.contents.tools.some(tool => tool.requests?.length) ? ['network-door'] : []),
+    ...(doc.contents.tools.some(tool => tool.requests?.length || tool.mcp) ? ['network-door'] : []),
+    ...(doc.contents.tools.some(tool => tool.mcp) ? ['remote-mcp'] : []),
     ...(signature.status === 'unsigned' || signature.status === 'unknown-key' ? ['unverified-publisher'] : []),
   ];
   return {

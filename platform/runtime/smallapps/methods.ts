@@ -11,12 +11,20 @@ import { MODULE_ID, type ModulePart } from '../models-ext/part.ts';
 import type { Dictionary } from '../ontology.ts';
 import { actionRow, checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, usableOperation, validDay, type Card, type Descriptor, type Menu, type PeriodSpec } from './descriptor.ts';
 import { actionNote, plan, WAITS_WORDS } from './planner.ts';
-import { checkPayload, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
+import { checkPayload, grantedConnections, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
 import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, visibleVersions, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
+  /**
+   * 'planner' only when this app's descriptor is exactly what the local planner makes from its line AND it was made
+   * in the untainted desktop app; anything else is outside text and presses as such.
+   */
+  madeBy?: 'planner' | 'outside';
+  /** The app was made or rebuilt by a request that had read outside text, or from outside the desktop app. Never cleared. */
+  creatorTainted?: boolean;
   history: { version: number; digest: string; dictionaryVersion: number; dictionaryHash: string; at: string; by: string; change: 'created' | 'rebuilt' }[];
-  presses: { actionId: string; cardId: string; at: string; by: string }[] };
+  /** `intent` is the derived press intent (card, member, payload); `generation` counts fresh preparations of that intent. */
+  presses: { actionId: string; cardId: string; at: string; by: string; intent?: string; generation?: number }[] };
 type SmallApps = { apps: App[]; book: Entry[] };
 const MAX_APPS = 200, MAX_PRESSES = 200;
 const EMPTY: SmallApps = { apps: [], book: [] };
@@ -70,11 +78,25 @@ function summary(app: App, m: Menu) {
   return { id: app.id, title: app.descriptor.title, version: app.version, createdBy: app.createdBy, createdAt: app.createdAt, updatedAt: app.updatedAt,
     uses: structuredClone(app.descriptor.uses), dictionary: structuredClone(app.descriptor.dictionary), outOfDate: reasons.length > 0, outOfDateReasons: reasons, experimental: true };
 }
-const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(app, m), descriptor: redact(app.descriptor, branches), digest: app.digest, request: app.request, history: structuredClone(app.history),
+const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(app, m), descriptor: redact(app.descriptor, branches), digest: app.digest, request: app.request, madeBy: app.madeBy ?? 'outside', history: structuredClone(app.history),
   actions: actionNotes(app.descriptor, m) });
 function actionNotes(descriptor: Descriptor, m: Menu) {
   return descriptor.cards.flatMap(c => { if (c.kind !== 'action') return []; const row = actionRow(m, `${c.connector}/${c.operation}`); return row ? [{ ...actionNote(c.id, row), available: row.available }] : []; });
 }
+/** A request that has read outside text, or that comes from outside the desktop app, cannot make anything count as the planner's own. */
+const outsideContext = (ctx: Context) => ctx.sourceTainted === true || (ctx.channel !== undefined && ctx.channel !== 'desktop');
+/** Statuses of an earlier action for the same press intent. Prepared: a repeated press is the same intent. Finished: a new press prepares afresh. */
+const FINISHED = new Set(['verified', 'rejected', 'blocked', 'cancelled']);
+const EXISTING_WORDS: Record<string, string> = {
+  approved: 'This exact action was already approved and waits to be done. Nothing new was prepared.',
+  executing: 'This exact action is being done now. Nothing new was prepared.',
+  unknown: 'This exact action was tried and its result is not known yet. Read it back on the approvals list before pressing again. Nothing new was prepared.',
+  verified: 'This exact action was already done. Nothing new was prepared.',
+  rejected: 'This exact action was already decided and did not go through. Nothing new was prepared.',
+  blocked: 'This exact action was already decided and is blocked. Nothing new was prepared.',
+  cancelled: 'This exact action was already dropped. Nothing new was prepared.',
+};
+const MAX_GENERATIONS = 8;
 const requireCurrent = (app: App, m: Menu) => check(staleness(app.descriptor, m).length === 0, 'SMALLAPP_OUT_OF_DATE', 'A definition this app uses changed. Rebuild the app before opening it.');
 
 const WITHHELD = new Set(['FORBIDDEN_BRANCH', 'BRANCH_FORBIDDEN', 'SOURCE_REVOKED', 'RECEIPT_FORBIDDEN', 'FORBIDDEN']);
@@ -127,11 +149,16 @@ const methods: Record<string, MethodSpec> = {
     const input = fields(payload, ['descriptor'], ['request']); const request = requestLine(input.request);
     const m = await menu(host);
     const descriptor = checkAgainstMenu(parseDescriptor(input.descriptor), m, branchesOf(host.store.read(), ctx));
+    const branches = branchesOf(host.store.read(), ctx);
+    const planned = request !== null ? plan(request, m, branches).descriptor : null;
+    const shape = (d: Descriptor) => digest({ ...d, cards: d.cards.map(({ id: _id, ...card }) => card) });
+    const tainted = outsideContext(ctx);
+    const madeBy: App['madeBy'] = !tainted && planned && shape(planned) === shape(descriptor) ? 'planner' : 'outside';
     const app = await host.store.update(state => {
       const ns = mine(state); check(ns.apps.length < MAX_APPS, 'SMALLAPP_LIMIT', 'Remove an app before adding another.');
       check(state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_OUT_OF_DATE', 'The dictionary changed while the app was being saved. Propose it again.');
       const at = now(), d = digest(descriptor);
-      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request,
+      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request, madeBy, ...(tainted ? { creatorTainted: true } : {}),
         history: [{ version: 1, digest: d, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'created' }], presses: [] };
       ns.apps.push(created); audit(state, 'smallapp.created', { appId: created.id }); return structuredClone(created);
     });
@@ -158,9 +185,13 @@ const methods: Record<string, MethodSpec> = {
       else if (card.kind === 'table') { const rows = []; for (const row of card.rows) rows.push({ ...row, value: await figure(host, state, dictionary, row.operation, card.period, card.branch, onDate) }); cards.push({ ...view, rows }); }
       else if (card.kind === 'action') {
         const row = actionRow(m, `${card.connector}/${card.operation}`)!, note = actionNote(card.id, row);
-        cards.push({ ...view, alwaysWaits: note.alwaysWaits, tier: note.tier, available: row.available,
-          press: !row.available ? 'unavailable' : ctx.role === 'viewer' ? 'read-only' : 'prepares-for-approval',
-          words: row.available ? note.words : 'This action is in the catalogue but not available now. Pressing it does nothing.' });
+        // Writeback actions go through a connection with this action granted; a practice connection prepares against Practice systems.
+        const through = grantedConnections(row).map(c => ({ id: c.id, label: c.label, environment: c.environment, practice: c.environment === 'practice' }));
+        const needsConnection = row.origin === 'writeback' && through.length === 0;
+        cards.push({ ...view, alwaysWaits: note.alwaysWaits, tier: note.tier, available: row.available, connections: through,
+          press: !row.available ? 'unavailable' : ctx.role === 'viewer' ? 'read-only' : needsConnection ? 'needs-connection' : 'prepares-for-approval',
+          words: !row.available ? 'This action is in the catalogue but not available now. Pressing it does nothing.'
+            : needsConnection ? 'Connect this system and allow this action on it before pressing. Pressing it now does nothing.' : note.words });
       }
       else cards.push({ ...view, experimental: true, entries: visibleBook(state, ctx).map(latestView).filter(e => e.status === 'open').sort((a, b) => a.when.localeCompare(b.when)) });
     }
@@ -177,6 +208,8 @@ const methods: Record<string, MethodSpec> = {
       const stored = mine(state).apps.find(a => a.id === app.id); check(stored, 'SMALLAPP_NOT_FOUND', 'This small app is unavailable.');
       check(stored.digest === app.digest && state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_CHANGED', 'The app or the dictionary changed during the rebuild. Try again.');
       const at = now(); stored.descriptor = descriptor; stored.digest = digest(descriptor); stored.version += 1; stored.updatedAt = at;
+      // A rebuild keeps the outside-text mark and can only add it: a tainted rebuild marks the app outside from then on.
+      if (outsideContext(ctx)) { stored.madeBy = 'outside'; stored.creatorTainted = true; }
       stored.history.push({ version: stored.version, digest: stored.digest, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'rebuilt' });
       audit(state, 'smallapp.rebuilt', { appId: stored.id, version: stored.version }); return structuredClone(stored);
     });
@@ -191,27 +224,48 @@ const methods: Record<string, MethodSpec> = {
     });
   } },
   'smallapps.pressAction': { permission: 'prepare', async handler(ctx, payload, host) {
-    const input = fields(payload, ['id', 'cardId', 'payload'], ['sourceIds', 'idempotencyKey']);
+    const input = fields(payload, ['id', 'cardId', 'payload'], ['sourceIds', 'idempotencyKey', 'connectionId']);
     const app = findApp(host.store.read(), input.id); const m = await menu(host); requireCurrent(app, m);
     const card = app.descriptor.cards.find(c => c.id === input.cardId);
     check(card?.kind === 'action', 'SMALLAPP_NOT_ACTION_CARD', 'Only an action card can be pressed.');
     const row = actionRow(m, `${card.connector}/${card.operation}`)!;
     check(row.available, 'SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now. Nothing was prepared.');
-    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 64 && input.sourceIds.every((s: unknown) => typeof s === 'string' && s.length <= 200), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
-    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string' && input.idempotencyKey.length <= 200, 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
-    // What the person typed is data: checked against the row's schema, never through the number guard.
-    if (row.payloadSchema) checkPayload(row.payloadSchema, input.payload);
+    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 50 && input.sourceIds.every((s: unknown) => typeof s === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(s)), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
+    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(input.idempotencyKey), 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
+    if (input.connectionId !== undefined) check(typeof input.connectionId === 'string' && input.connectionId.length <= 200, 'SMALLAPP_INVALID', 'Give a plain connection identifier.');
+    // What the person typed is data: its required fields are checked here, its exact shape by the writeback adapter, never by the number guard.
+    if (row.origin === 'writeback') checkPayload(row, input.payload);
     // The one path to an action: prepare. Approval and execution stay with the person.
-    const action = await prepareAction(host, row, { payload: input.payload, ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), idempotencyKey: input.idempotencyKey ?? newId('smallapp') });
+    // A repeated press of the same card with the same payload by the same member is the same intent while its action
+    // still waits; once that action is finished (done, decided, dropped or expired) the next press is a new generation.
+    // Outside text marks the press: an app not made by the local planner, made by a tainted request, or a tainted presser.
+    const tainted = app.madeBy !== 'planner' || app.creatorTainted === true || ctx.sourceTainted === true;
+    const intent = `smallapp:${digest({ app: app.id, card: card.id, member: ctx.memberId, payload: input.payload ?? null }).slice(0, 48)}`;
+    let generation = app.presses.filter(p => p.intent === intent).reduce((g, p) => Math.max(g, p.generation ?? 0), 0);
+    const request = { payload: input.payload, tainted, ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}) };
+    let action = await prepareAction(host, row, { ...request, intentId: input.idempotencyKey ?? `${intent}:${generation}` });
+    while (input.idempotencyKey === undefined && action.status === 'existing' && FINISHED.has(action.state)) {
+      check(++generation < MAX_GENERATIONS, 'SMALLAPP_PREPARE_UNREADABLE', 'This button was pressed many times with the same details. Check the approvals list before trying again.');
+      action = await prepareAction(host, row, { ...request, intentId: `${intent}:${generation}` });
+    }
+    if (action.status === 'already-done') return { action: null, alreadyDone: { connector: action.connector, operation: action.operation, externalId: action.externalId },
+      words: 'This is already in the system. Nothing was prepared and nothing will be sent.' };
+    if (action.status === 'existing') return { action: null, existing: { id: action.id, connector: action.connector, operation: action.operation, status: action.state, through: action.through },
+      words: EXISTING_WORDS[action.state] };
+    const prepared = action;
     await host.store.update(state => {
       const stored = mine(state).apps.find(a => a.id === app.id); if (!stored) return;
-      stored.presses.push({ actionId: action.id, cardId: card.id, at: now(), by: ctx.memberId }); stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
-      audit(state, 'smallapp.pressed', { appId: app.id, actionId: action.id });
+      stored.presses.push({ actionId: prepared.id, cardId: card.id, at: now(), by: ctx.memberId, ...(input.idempotencyKey === undefined ? { intent, generation } : {}) });
+      stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
+      audit(state, 'smallapp.pressed', { appId: app.id, actionId: prepared.id });
     });
-    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through },
-      approval: { waits: true, alwaysWaits: row.alwaysWaits, tier: row.tier, kind: 'action', id: action.id, digest: action.digest },
-      words: row.alwaysWaits ? `Prepared only; nothing was approved or done. ${WAITS_WORDS} This one waits for a person to approve it in the app.`
-        : 'Prepared only. It waits on the normal approval card; nothing was approved or done.' };
+    const writeback = action.through === 'writeback';
+    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through,
+        connectionId: action.connectionId, practice: action.practice, expiresAt: action.expiresAt },
+      approval: { waits: true, alwaysWaits: action.alwaysWaits, tier: row.tier, kind: 'action', id: action.id, digest: action.digest, secondAsk: action.secondAsk,
+        approveWith: writeback ? 'writeback.approve' : 'actions.approve', ...(action.secondAsk ? { reauthWith: 'writeback.reauth' } : {}) },
+      words: `${action.practice ? 'Practice: nothing goes to a real system. ' : ''}${action.alwaysWaits ? `Prepared only; nothing was approved or done. ${WAITS_WORDS} This one waits for a person to approve it in the app.`
+        : 'Prepared only. It waits on the normal approval card; nothing was approved or done.'}${action.secondAsk ? ' Approving it asks for your passphrase again.' : ''}` };
   } },
   'smallapps.records.add': { permission: 'prepare', async handler(ctx, payload, host) {
     const input = fields(payload, ['who', 'when'], ['said', 'customerId', 'status'], 'SMALLAPP_RECORD_INVALID');

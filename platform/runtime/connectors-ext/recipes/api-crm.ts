@@ -50,8 +50,9 @@ export const RECIPES: readonly SourceRecipe[] = [
     exclude: { field: 'amountState', values: ['missing'] },
     outputs: { description: 'name' },
     ignored: ['closedate'],
-    totals: { kind: 'report' },
-    notices: [NOT_REVENUE, NO_AMOUNT, 'HubSpot states how many deals matched, and a read that returns fewer is refused; it does not state their total, so enter it from a HubSpot report.',
+    // The search `total` is HubSpot's count of deals matching exactly the filter read.
+    totals: { kind: 'report', declaredCount: 'accepts' },
+    notices: [NOT_REVENUE, NO_AMOUNT, 'HubSpot states how many deals matched, and a read that returns a different number is refused; it does not state their total, so enter it from a HubSpot report to check the amount as well.',
       'Close dates are read as India Standard Time calendar days.'],
     sensitivity: 'financial',
   },

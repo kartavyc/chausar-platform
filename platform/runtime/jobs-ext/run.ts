@@ -93,7 +93,7 @@ async function calculate(host: ModuleHost, ctx: Context, request: Record<string,
 }
 function figure(receipt: any, key: string): LaneResult['figures'][number] | undefined {
   const item = (receipt.figures as any[]).find(f => f.key === key);
-  return item ? { key: `${receipt.operation}.${key}`, label: item.label, minor: item.minor, display: item.display, receiptId: receipt.id } : undefined;
+  return item ? { key: `${receipt.operation}.${key}`, label: item.label, minor: item.minor, display: item.display, receiptId: receipt.id, ...(typeof item.unit === 'string' && item.unit !== 'money' ? { unit: item.unit } : {}) } : undefined;
 }
 
 /** Hands a case the ready-made rule was not sure of to the full agent, within the step's reservation. */
