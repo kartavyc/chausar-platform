@@ -311,12 +311,12 @@ export function validateCleaned(reply: unknown): Cleaned {
   if (r['uploaded'] !== false) throw new ShapeError('reply.uploaded');
   return { cleaned: str(r['cleaned'], 'reply.cleaned', 400000), hits: list(r['hits'], 'reply.hits', (v, p) => { const h = rec(v, p); return { line: count(h['line'], `${p}.line`), kind: str(h['kind'], `${p}.kind`, 60) }; }, 5000) };
 }
-/** `ended` when the engine says the paid plan ended (`plan: "ended"`); the contract today sends only "planned-not-available". */
-export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string; ended: boolean }
+/** `plan` from `trustx.hosted` (read from hosted-link's cached `hosted.status`): "paid", "ended" (paid once, free now), or "planned-not-available". */
+export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string; ended: boolean; paid: boolean }
 export function validateHosted(reply: unknown): Hosted {
   const r = rec(reply);
-  const plan = oneOf(r['plan'], 'reply.plan', ['planned-not-available', 'ended'] as const);
-  return { ended: plan === 'ended', blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
+  const plan = oneOf(r['plan'], 'reply.plan', ['planned-not-available', 'paid', 'ended'] as const);
+  return { ended: plan === 'ended', paid: plan === 'paid', blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
     jobs: list(r['jobs'], 'reply.jobs', (v, p) => { const j = rec(v, p); if (j['on'] !== false) throw new ShapeError(`${p}.on`); return { id: id(j['id'], `${p}.id`), name: str(j['name'], `${p}.name`, 200) }; }, 50) };
 }
 export interface Agreements { notice: { version: string; en: string; hi: string }; items: { id: string; person: string; purpose: string; at: string; withdrawnAt: string | null }[] }

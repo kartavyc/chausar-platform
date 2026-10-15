@@ -11,6 +11,10 @@ import { RulesScreen } from './Rules';
 import { SeeView } from './See';
 import { SharingScreen } from './Sharing';
 import { VaultScreen } from './Vault';
+// TR-07/12/14 vault-hosted-keys
+import { DevicesScreen } from './Devices';
+import { HostedScreen } from './Hosted';
+import { KeysScreen } from './Keys';
 import { COMMON } from './words.ts';
 
 function place(id: string, subs: readonly (string | undefined)[], draw: (props: PlaceRenderProps) => ReactNode): PlaceModule {
@@ -39,4 +43,9 @@ export const trustPlaces: readonly PlaceModule[] = [
   place('markings', ['markings'], (p) => <SeeView p={p} mode="page" />),
   place('retention', ['retention'], (p) => <KeepView p={p} mode="page" />),
   place('channels', ['channels'], (p) => <Channels {...p} />),
+  // TR-07/12/14 vault-hosted-keys
+  place('keys', ['keys'], (p) => <KeysScreen {...p} />),
+  place('devices', ['devices'], (p) => <DevicesScreen {...p} />),
+  place('hosted', ['hosted'], (p) => <HostedScreen {...p} />),
+  // end TR-07/12/14 vault-hosted-keys
 ];

@@ -31,7 +31,7 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.deleteSource': { permission: 'admin', handler: deleteSource },
   'trustx.deletions': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return deletions(host.store.read()); } },
   'trustx.exportDeletion': { permission: 'admin', handler: exportDeletion },
-  'trustx.hosted': { permission: 'read', handler: (_ctx, payload) => { fields(payload, []); return hostedView(); } },
+  'trustx.hosted': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return hostedView(host); } },
   'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host); } },
   'trustx.withdraw': { permission: 'admin', handler: withdraw },
   // Calls waiting in the MCP record buffer are written first, so the list is never behind.

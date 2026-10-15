@@ -3,7 +3,7 @@ import { check, ChausarError, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { canonicalJson, fields, memberName, newestFirst, tools } from './tools-common.ts';
-import { followUpConsents, phoneChannels } from './adapters.ts';
+import { followUpConsents, hostedAccount, phoneChannels } from './adapters.ts';
 import type { FollowUpConsent } from './adapters.ts';
 
 const PATTERNS: [string, RegExp][] = [
@@ -45,13 +45,23 @@ export async function withdrawSharing(_ctx: Context, payload: Record<string, any
   return sharingView(host.store.read());
 }
 
-export function hostedView() {
+/**
+ * TR-14. The plan comes from hosted-link's cached `hosted.status` (never a call to the server): "paid" while the account
+ * says so; "ended" when an account this workspace once saw on the paid plan now says free; otherwise every paid part is
+ * "planned-not-available" (not set up in this app, demo mode, not paired, never paid, or hosted-link absent).
+ */
+export async function hostedView(host: ModuleHost) {
+  const account = await hostedAccount(host);
+  const seen: string | null = tools(host.store.read()).hosted?.paidSeenAt ?? null;
+  if (account.plan === 'paid' && seen === null) await host.store.update(state => { (tools(state).hosted ??= {}).paidSeenAt ??= now(); });
+  const plan = account.plan === 'paid' ? 'paid' as const : account.plan === 'free' && seen !== null ? 'ended' as const : 'planned-not-available' as const;
   return {
     blind: 'Hosted backup and sync are blind: the server holds only locked files and no key.',
     notBlind: 'Hosted jobs are not blind: the server holds a key for that one job while it works.',
     jobs: [{ id: 'hosted-brief', name: 'Morning brief while this computer is off', on: false as const }, { id: 'hosted-reminders', name: 'Payment reminders while this computer is off', on: false as const }],
-    plan: 'planned-not-available' as const,
+    plan,
     keeps: 'The paid plan keeps a record of your account, payments and the times jobs ran for one year. It keeps no business content.',
+    hosted: { state: account.state, refreshedAt: account.refreshedAt, entitlements: account.entitlements },
   };
 }
 
