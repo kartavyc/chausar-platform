@@ -118,6 +118,16 @@ export type JourneyPayloads = {
   'todayx.device.set': { readonly language: 'en' | 'hi'; readonly view: 'simple' | 'guided' | 'books' };
   'todayx.workspaces': Record<string, never>;
   'todayx.recoveryContact.request': { readonly folder: string };
+  /** Round 4 (bridge/r4-contracts.ts): FR-05 ladder, probe and local models; the time zone; FR-10; FR-14. */
+  'models.setLadder': { readonly routeIds: readonly string[] };
+  'models.probe': { readonly routeId: string };
+  'modelsx.localList': { readonly endpoint?: string };
+  'ui.context': Record<string, never>;
+  'workspace.setTimeZone': { readonly timeZone: string };
+  'learningx.intakeStatus': Record<string, never>;
+  'learningx.preview': { readonly boxes: readonly ('setup-shapes' | 'corrections')[] };
+  'learningx.consent': { readonly previewId: string; readonly digest: string };
+  'devices.join': { readonly joinId?: string };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 
@@ -409,8 +419,11 @@ export function validateReaderStatus(value: unknown): ReaderStatus {
   const status = obj.status === 'installed' || obj.status === 'not-installed' ? obj.status : invalid('reader.status');
   const pdfText = bool(obj.pdfText, 'reader.pdfText'), pdfOcr = bool(obj.pdfOcr, 'reader.pdfOcr');
   const reason = codeOrNull(obj.reason, 'reader.reason');
-  // The size is not known in this build: anything but null is not this contract.
-  only(obj, null, 'sizeBytes', 'reader');
+  // A whole number of bytes when the reader is installed; null otherwise.
+  if (obj.sizeBytes !== null) {
+    if (status !== 'installed') invalid('reader.sizeBytes');
+    whole(obj.sizeBytes, 'reader.sizeBytes');
+  }
   if ((status === 'installed') !== pdfText || (status === 'installed') !== (reason === null)) invalid('reader.status');
   return Object.freeze({ status, pdfText, pdfOcr, reason });
 }

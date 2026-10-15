@@ -25,7 +25,7 @@ Every feature below is labelled **supported** (tested end to end in the app on s
 | Lock screen with the trusted unlock control (`workspace.open`), wrong passphrase without a count, the field cleared at once; `controller.unlocked()` leaves the lock with a fresh read | supported | `app/LockScreen.tsx`, `host/UnlockControl.tsx`, `host/controller.ts` |
 | Idle auto-lock | supported | `app/useIdleLock.ts` |
 | Windows Hello / Touch ID unlock link (drawn only when the host says the device supports it) | experimental: no native provider is wired | `host/UnlockControl.tsx` |
-| Workspace menu: views, languages, Help, Lock now, About, workspace list when more than one | supported (list: experimental, the engine has no workspace list) | `app/WorkspaceMenu.tsx` |
+| Workspace menu: views, languages, Help, Lock now, About, workspace list when more than one, switching (round 4) | supported (switching tested end to end on the fake engine) | `app/WorkspaceMenu.tsx`, `host/workspace-switch.ts` |
 | Keyboard map (one `KEY_MAP` drives the handler and Help) | supported | `app/keys.ts` |
 | Help SH-12 with offline lists from `todayx.help` | supported | `app/HelpSheet.tsx` |
 | Link dialog SH-10, mounted by the host behind `openLink(url)` on `PlaceRenderProps`; opens through `shell.openExternal` only after "Open in your browser"; a refused address keeps the dialog open with the reason | supported (no place module calls `openLink` yet) | `app/LinkDialog.tsx`, `host/bootstrap.tsx`, `places/types.ts` |
@@ -215,6 +215,38 @@ Asked of other lanes:
 - **reports-tools-trust:** `reportsx.weekAhead.late` (read) `{}` → `{ briefId, builtAt, late: boolean } | null`, reading this week's stored brief for the caller without building one. `reportsx.weekAhead` builds a brief when none exists, and a brief built on request is late against the rhythm's hour by construction, so Today cannot use it. Until it exists, no brief-late row.
 - **core-sync-jobs:** record the audit events under `lesson.decided`, `backup.done`, `update.checked`, `lock`, `unlock` (or one of the aliases in `frame-today/activity.ts` TYPES), with `memberId`, and the `subscribe` prop for live refresh.
 
+## Round 4: shell and first-run pieces
+
+| Item | Label | Where |
+|---|---|---|
+| SH-06 `workspaces.switch`: the menu lists this computer's workspace folders (`todayx.workspaces`, names only) to an owner or co-founder; choosing one sets that folder for the lock screen, then locks through the controller's own lock (`workspace.lock`, retried, never failing open); the lock screen says the last workspace is locked and opens the chosen folder only with its own passphrase or PIN. The open workspace shows its own name; a demo or real mark shows once a folder has been opened this session (memory only). Accountant and viewer seats get no list (their lock is local only, so a second workspace could not open) | supported (fake engine with two folders and two passphrases, host end to end) | `host/workspace-switch.ts`, `host/bootstrap.tsx` |
+| SH-02/TR-12 PIN quick unlock: on the lock screen a PIN field only when `workspace.pin.status { folder }` says a PIN is set and still works; uncontrolled field, read once, emptied at once, sent once to `workspace.pin.unlock`; a wrong PIN says so with no count; `PIN_LOCKED_OUT` removes the field and says only the passphrase works. `PinSettings` (export) for Trust · Vault: set with the passphrase (both read once and emptied), remove | supported on the fake fixture; the engine side is core-gateway-auth's (fixture-only until it registers) | `screens/first-run/Pin.tsx` |
+| FR-05/TR-08 route ladder: `RouteLadder` (export; also in first run's Model step when two or more routes exist): Move up/down buttons, Alt with an arrow key on a focused row (focus follows, the new place is announced), Save order → `models.setLadder`, Check → `models.probe` with the SH-09 states in words. Local models: `LocalModels` in the Ollama row, from `modelsx.localList` in models-ext's published shape; picking fills the model name | supported on the fake fixture; ladder and probe fixture-only (core-gateway-auth), local list fixture-only until models-ext merges | `screens/first-run/RouteLadder.tsx`, `Model.tsx` |
+| Business time zone: `TimeZoneSetting` (export) on the step after the vault (first run's Model screen) and for settings; the stored zone from `ui.context.timeZone`, the machine's zone only as a suggestion the person confirms, the runtime's IANA list; `workspace.setTimeZone` (core-data); the host reads `ui.context` again when first run ends, so Activity and receipts use it | supported on the fake fixture; fixture-only until core-data registers | `screens/first-run/TimeZone.tsx` |
+| FR-10 the sharing question, after the first receipt (never at install): two boxes that start empty, the sentence, "See the exact file" (`learningx.preview`, the bytes drawn as text), consent to exactly that file (`learningx.consent`) only when intake is open and the Trust sharing switch is on; closed intake says "Sharing is not open yet. Nothing is sent."; a demo workspace's test inbox needs the "Demo test" switch first; nothing is sent from here and no feature depends on it | supported (learning-ext's real registered methods; fake fixture `learningxSharingHandlers`) | `screens/first-run/Sharing.tsx` |
+| FR-14 join from another computer: Welcome → "Join a workspace" → a short code with its time (15 minutes), Check again, approved → open the folder at its lock screen, expired or used → start again. `JoinRequests` (export) for the computer already in: the code to compare and Approve | supported on the fake fixture; fixture-only until core-sync-jobs registers | `screens/first-run/Join.tsx` |
+
+Words: `app/ui/src/text/lanes/frame-today.ts` (English and Hindi); first run layers them under its own catalogue. Contracts: `app/ui/src/bridge/r4-contracts.ts`; fixtures: `app/ui/src/bridge/fixtures/r4.ts` (served by the fake engine; `absent` leaves any out), `fixtures/learningx.ts` (`learningxSharingHandlers`). Tests: `app/ui/tests/frame-today-r4-shell.test.ts`, `frontend-validation/tests/frame-today-r4-shell.test.tsx`.
+
+### Round 4 contracts
+
+| Method | Payload | Reply | Owner | State |
+|---|---|---|---|---|
+| `workspace.pin.status` (preVault) | `{ folder? }` | `{ set, passphraseOnly }` (no count of tries) | core-gateway-auth | fixture only |
+| `workspace.pin.unlock` (preVault) | `{ folder, pin }` | as `workspace.open`; `PIN_WRONG`, `PIN_LOCKED_OUT`, `PIN_NOT_SET` | core-gateway-auth | fixture only |
+| `workspace.pin.set` (admin) | `{ pin: 4–12 digits, passphrase }` | `{ set, passphraseOnly }`; `PIN_INVALID`, `UNLOCK_FAILED` | core-gateway-auth | fixture only |
+| `workspace.pin.remove` (admin) | `{}` | `{ set, passphraseOnly }` | core-gateway-auth | fixture only |
+| `models.setLadder` (admin) | `{ routeIds }` (every route once) | `{ routeIds }`; `LADDER_INVALID`, `ROUTE_NOT_FOUND`; `models.list` then answers in that order | core-gateway-auth | fixture only |
+| `models.probe` (read) | `{ routeId }` | `{ routeId, state: ready / signed-out / not-installed / version-untested / timed-out / error / skipped-by-send, checkedAt }` | core-gateway-auth | fixture only |
+| `modelsx.localList` (read) | `{ endpoint? }` | `{ endpoint, models: [{ name, sizeBytes, modifiedAt, family }], reachable: true }` or `{ reachable: false, words }` | models-ext | published contract; fixture until merged |
+| `workspace.setTimeZone` (admin) | `{ timeZone }` (IANA) | `{ timeZone }`; `TIME_ZONE_INVALID`; then `ui.context.timeZone` | core-data | fixture only |
+| `devices.join` (preVault, new computer) | `{}` to start, `{ joinId }` to read | `{ joinId, code: dddd-dddd, expiresAt (+15 min), state: waiting / approved / expired / used, folder? }` | core-sync-jobs | fixture only |
+| `seats.inviteVerify` (admin, a computer already in) | `{}` to list, `{ joinId, code }` to approve | `{ requests: [join] }` or the approved join; `JOIN_EXPIRED`, `JOIN_USED`, `JOIN_CODE_MISMATCH` | core-sync-jobs | fixture only |
+| `learningx.intakeStatus` / `learningx.preview` / `learningx.consent` | `{}` / `{ boxes }` / `{ previewId, digest }` | as registered in `platform/runtime/learning-ext/sharing.ts` | learning-ext | present |
+| `workspaces.switch` | none | composed from `workspace.lock` and `workspace.open { folder }` | frame-today | no engine method |
+
+The new refusal codes are on frame-today's `laneRefusals` line (`R4_REFUSALS`), so they reach the screen before their owners add them to their own lines.
+
 ## Adversarial review (round 2)
 
 An independent read-only review covered the IPC surface, CSP and serving, rendering of untrusted engine text, and lock-screen and secret leaks. Findings and what was done:
@@ -229,3 +261,44 @@ An independent read-only review covered the IPC surface, CSP and serving, render
 | Before-the-vault methods answered any member once a vault was open; viewers read the identity card | low | `todayx.workspaces`, `todayx.diskCheck`, `todayx.device.set` need an admin once a vault is open; `todayx.identity.get` needs a preparing seat. A seat's own banner dismissal and reading the idea stay read-level, as designed |
 
 Checked and sound: trusted-sender checks, the shell channels' rate limit and print options, the protocol handler's exact file map, the loopback server's CSP and legacy flag, the disk probe (fixed arguments, no shell), the device file, receipt detail reading as the caller, `react-intl` given catalogue keys only, and no secret in state, storage, logs or the URL. Not fixed (hunches, fail-closed): a cancelled legacy navigation leaves the window refusing IPC until restart; the fault report reads recent activity without filtering by caller (codes only).
+
+## Round 4: the ask line and talking to it (SH-04, SH-05, TD-02)
+
+| Feature | Label | Where |
+|---|---|---|
+| Suggestions while typing: up to five, each with its kind (calculation, customer, place, saved answer); Down/Up/Enter/Esc (combobox and listbox pattern); debounced 180 ms; a place opens its address, a calculation goes to Ask as its question, a saved answer opens Ask, Saved, a customer becomes "About:" | supported | `host/ask-suggestions.ts`, `app/AskLine.tsx` |
+| "About:" a place sets with `setAbout` (new optional `PlaceRenderProps` prop); Clear; cleared on leaving the place; a question asked then carries `{ kind, id }` as data (`AskQuestion`, `HostMountOptions.onQuestion`), never in the question text | supported | `host/ask-line.tsx`, `places/types.ts` |
+| Telling, not asking: a first-person statement ("our year starts in April") opens a "Remember this?" sheet with Confirm and Not now; only Confirm calls `books.memoryPropose` (and `books.memoryConfirm` for the owner); not built when absent | supported | `host/ask-line.tsx` |
+| Voice: hold the microphone or Ctrl Space; words as heard; the question as text; each amount or date shown back large with Yes and Change; "nahi" named as changing the meaning; "Ask this" confirms the text with `voice.confirm` before the question goes anywhere; Change puts the words in the field | supported on fixtures; experimental against the real engine (models-ext `voice.*` is not on this base) | `host/voice-controller.ts`, `host/AskVoicePanel.tsx` |
+| Voice states: off by default (the microphone opens Trust, Rules), paid speech (cost a minute, minutes and cost this month), local speech ("on this computer"), could not hear, Send at nothing/shape (`VOICE_LOCAL_ONLY`), paid approval waiting, not built | supported on fixtures | same |
+| A dropped voice note (`voice.dropNote`); Read it aloud on the receipt sheet (`voice.speak` segments spoken with the browser's speech synthesis) and Stop speaking | experimental (browser capture and speech synthesis are not available in the test DOM; tested with ports) | `host/voice-capture.ts` |
+| Today's cash by voice listener: the host supplies `intents.cashVoice` with `listen` from the same `voice.start`/`voice.stop` plumbing, live when voice is on | supported on fixtures (the Simple row also needs `onSaveClosing`, which this item does not add) | `host/ask-line.tsx` |
+
+No raw audio is kept by the UI: a hold's audio stays inside the capture port until `voice.stop` takes it, and a dropped note is read once into the `voice.dropNote` payload. Nothing typed goes to a model for suggestions.
+
+### Round 4 contracts
+
+| Method | Payload | Reply (fields used) | Owner | State on this base |
+|---|---|---|---|---|
+| `askx.suggest` | `{}` | `{ suggestions: [{ operationId, label, periodId }] }`, matched to the typed text here | ask | present |
+| `askx.search` | `{ query }` | `{ groups: [{ kind: 'saved', hits: [{ id, text }] }] }` | ask | present |
+| `records.search` | `{ kind: 'customer', text }` | `{ records: [{ id, kind, name }] }` | work-books | present |
+| `books.memoryPropose` / `books.memoryConfirm` | `{ text, kind: 'claim' }` / `{ id }` | a memory line `{ id, text, kind, status, source }` | work-books | present |
+| `voice.status` | `{}` | `{ enabled, mode, send, localOnly, provider, live, speaking, usage }` | models-ext | fixture only |
+| `voice.start` | `{}` | `{ sessionId, capture, capMs, approval? }` (live sessions refused here as `LIVE_VOICE_NOT_BUILT`) | models-ext | fixture only |
+| `voice.stop` / `voice.dropNote` | `{ sessionId, transcript? \| audioBase64?, mimeType?, durationMs }` / `{ audioBase64, mimeType, durationMs }` | `{ sessionId, heard, understood (speechInterpret reading), needsConfirmation: true, words }` | models-ext | fixture only |
+| `voice.confirm` | `{ sessionId, digest }` | `{ confirmationId, text, digest }`; `UNDERSTOOD_CHANGED` | models-ext | fixture only |
+| `voice.speak` / `voice.stopSpeaking` | `{ receiptId, language }` / `{ utteranceId }` | `{ utteranceId, language, segments: [{ text, figureKey? }] }` / `{ stopped }` | models-ext | fixture only |
+| `modelsx.speechInterpret` / `speechConfirm` | unchanged (cash by voice) | unchanged | models-ext | present |
+| `setAbout` (place prop) | `{ label, ref: { kind, id } } \| null` | — | frame-today (host), called by work-books BK-12 | present |
+| `AskQuestion` (host hand-off) | `{ text, about: { kind, id } \| null, by }` to `HostMountOptions.onQuestion` | — | frame-today; the ask lane may consume it | present |
+
+Validators: `bridge/voice-contract.ts`. Fixtures: `bridge/fixtures/ask-line.ts` (`registerAskLineFixtures`).
+
+### Still missing (round 4 ask line)
+
+- The conversation request (`models.preview`, core) has no field for the "About:" reference, so with a model route the reference reaches `onQuestion` only, not the engine. The ask lane's own question box does not read `AskQuestion` yet.
+- Paid speech approval is shown as waiting; approving it (`speech.approve`, then `voice.start { sessionId, approvalId }`) from the ask line is not built. Live (WebRTC) voice is not on this base and is refused.
+- Dates are read back from the heard text by a fixed pattern (day and month name, or d/m/y); the speech reading itself has no date field.
+- The ask field is a combobox only while suggestions show, so other tests' `getByRole('combobox')` for route pickers keep working.
+- `npm run build:ui-host` refuses: the base already builds a 2.11 MB `host.js` (limit 2,000,000 bytes); with this work it is 2.14 MB. `app/ui/public/host.*` were not rebuilt.
