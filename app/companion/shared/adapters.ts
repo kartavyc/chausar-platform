@@ -6,13 +6,15 @@ import type { PhoneHostMethod, PhoneHostMethods } from '../../../platform/runtim
 import type { BriefCacheKeyProvider, OpaqueBriefStorage } from '../../../platform/runtime/phone/cache.ts';
 import { CompanionController } from './controller.ts';
 import type { CompanionDeviceIdentity, CompanionDocumentPicker } from './view-contracts.ts';
+import type { PhonePageExperiments } from './phone-page.ts';
 
 export type LiveCompanionAdapters = { channel: AppChannel; transport: PhoneTransport; requestRestoration: PhoneRequestRestoration; credentials: PhoneCredentialStore; cache: BriefCache; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: PhoneReceiptReader; crypto: Crypto; requestId: () => string };
 /** Real hosts explicitly inject each adapter; the live factory never substitutes a demo. */
-export function createLiveCompanionController(adapters: LiveCompanionAdapters) {
+/** `experiments.phonePage` switches on the experimental PH-04 page; omit it to keep the page off. */
+export function createLiveCompanionController(adapters: LiveCompanionAdapters, experiments: PhonePageExperiments = {}) {
   requirePhone(!!adapters && ['ios', 'android', 'web'].includes(adapters.channel) && typeof adapters.transport?.request === 'function' && typeof adapters.requestRestoration?.list === 'function' && typeof adapters.credentials?.load === 'function' && typeof adapters.credentials?.save === 'function' && typeof adapters.credentials?.clear === 'function' && typeof adapters.cache?.put === 'function' && typeof adapters.cache?.read === 'function' && typeof adapters.cache?.clear === 'function' && typeof adapters.identity?.preparePairing === 'function' && typeof adapters.picker?.pick === 'function' && typeof adapters.receipts?.read === 'function' && typeof adapters.crypto?.subtle?.digest === 'function' && typeof adapters.requestId === 'function', 'INVALID_REQUEST');
   const client = new PhoneClient({ channel: adapters.channel, transport: adapters.transport, requestRestoration: adapters.requestRestoration, receiptReader: adapters.receipts, credentials: adapters.credentials, cache: adapters.cache, crypto: adapters.crypto });
-  return new CompanionController({ client, identity: adapters.identity, picker: adapters.picker, receipts: { read: receiptId => client.readReceipt(receiptId) }, crypto: adapters.crypto, requestId: adapters.requestId, mode: 'live' });
+  return new CompanionController({ client, identity: adapters.identity, picker: adapters.picker, receipts: { read: receiptId => client.readReceipt(receiptId) }, crypto: adapters.crypto, requestId: adapters.requestId, mode: 'live', experiments: { phonePage: experiments?.phonePage === true } });
 }
 
 const methods = new Set<PhoneHostMethod>(['pairing.accept', 'session.validate', 'session.revoke', 'brief.list', 'brief.read', 'chat.start', 'upload.begin', 'upload.chunk', 'upload.finish', 'approval.list', 'approval.inspect', 'approval.submit', 'request.status', 'request.cancel', 'request.list', 'receipt.read']);

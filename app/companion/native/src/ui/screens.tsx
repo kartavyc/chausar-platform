@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { requestLabel } from '../../../shared/view-contracts';
 import type { CompanionScreenController, CompanionViewState } from '../../../shared/view-contracts';
+import { phonePageView, phonePageWords } from '../../../shared/phone-page';
 import { Badge, Button, Heading, Metadata, ProofLinks, TextButton } from './components';
 import { colors, styles } from './styles';
 import { approvalCanDecide, canWorkOnline, hasOnlineAuthority, pairingLabel, readableTime, requestControls, run, uploadStatus } from './view-helpers';
@@ -307,5 +308,52 @@ export function ReceiptScreen({ state, onBack }: { state: CompanionViewState; on
           <Metadata label="Coverage" value={receipt.coverage} /></View>
       </>}
     </View> : <View style={styles.card}><Text style={styles.body}>No receipt is available. Return to the brief or chat and try again while connected.</Text></View>}
+  </>;
+}
+
+/** PH-04, EXPERIMENTAL: shown only when the host switches the phone page on. Headlines only. */
+export function PhonePageScreen({ state, controller, now }: ScreenProps) {
+  const view = phonePageView(state, now); const words = phonePageWords.en; const busy = state.busy.length > 0;
+  if (!view) return <View style={[styles.card, styles.empty]}><Text style={styles.body}>This experimental page is off.</Text></View>;
+  return <>
+    <Badge tone="amber">EXPERIMENTAL</Badge>
+    <Heading title={words.title} detail={words.experimental} />
+    {view.readOnly && <Text accessibilityLiveRegion="polite" style={styles.small}>{words.savedReadOnly}</Text>}
+    <TextButton title={words.refresh} disabled={busy} onPress={() => run(() => controller.loadPhonePage())} />
+    <View style={styles.card}>
+      <View style={styles.rowTop}><Text accessibilityRole="header" style={styles.sectionTitle}>{words.awaiting}</Text>
+        {view.review.status === 'loaded' && <Badge tone="neutral">{new Intl.NumberFormat().format(view.review.count ?? 0)}</Badge>}</View>
+      {view.review.status === 'unavailable' && <Text style={styles.body}>{words.reviewUnavailable}</Text>}
+      {view.review.status === 'not-loaded' && <Text style={styles.body}>{words.reviewNotLoaded}</Text>}
+      {view.review.status === 'loaded' && !view.review.rows.length && <Text style={styles.body}>{words.nothingAwaiting}</Text>}
+      {view.review.rows.map(row => {
+        const confirming = view.confirm?.approvalId === row.approvalId;
+        return <View key={row.approvalId} style={styles.section}>
+          <View style={styles.row}>
+            <Text numberOfLines={2} style={[styles.body, styles.grow]}>{row.title}</Text>
+            {row.action === 'approve' && !confirming && <Button title={words.approve} accessibilityLabel={`${words.approve}: ${row.title}`}
+              disabled={busy} onPress={() => run(() => controller.approveOnPhone(row.approvalId))} />}
+            {row.action !== 'approve' && <Badge tone="neutral">{words.inTheApp}</Badge>}
+          </View>
+          {confirming && view.confirm && <View style={[styles.card, styles.cardMuted]}>
+            <Text style={styles.cardTitle}>{words.confirmQuestion}</Text>
+            <Text numberOfLines={2} style={styles.body}>{view.confirm.title}</Text>
+            <Text style={styles.small}>{words.confirmHelp}</Text>
+            <View style={styles.row}><View style={styles.grow}>
+              <Button title={words.notNow} variant="secondary" disabled={busy} onPress={() => controller.dismissPhoneApproval()} />
+            </View><View style={styles.grow}>
+              <Button title={words.confirmApprove} disabled={busy || view.confirm.expired} onPress={() => run(() => controller.confirmPhoneApproval())} />
+            </View></View>
+          </View>}
+        </View>;
+      })}
+    </View>
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{words.weekAhead}</Text>
+      {view.weekAhead.length ? view.weekAhead.map((headline, index) => <Text key={index} style={styles.body}>{headline}</Text>)
+        : <Text style={styles.body}>{words.weekAheadEmpty}</Text>}
+    </View>
+    <Text style={styles.small}>{`${words.laptopSeen}: ${view.lastSeen.known ? readableTime(view.lastSeen.at) : words.notKnown}`}</Text>
+    <Text style={styles.small}>{words.rule}</Text>
   </>;
 }

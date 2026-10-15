@@ -31,6 +31,42 @@ works during the current preview session, and reload requires sample pairing aga
 No approval token, retry body or chat history is persisted. There is no service worker
 or offline app-shell installation; an already-open preview can read saved briefs.
 
+## The phone page (PH-04, experimental)
+
+**Experimental and off by default.** The design leaves PH-04 to the founder's decision;
+it is built so it can ship when they decide, and nothing shows it unless a host switches
+it on: `new CompanionController({ …, experiments: { phonePage: true } })`,
+`createLiveCompanionController(adapters, { phonePage: true })`,
+`createWebPreviewController({ experiments: { phonePage: true } })` or the native
+`<App experiments={{ phonePage: true }} />`. Without the flag there is no tab, no state
+and the controller refuses the page's methods. To try it in the browser:
+
+```text
+node scripts/phone-web-preview.mjs --phone-page
+```
+
+Pair with `DEMO-COMPANION`, then open **Phone page**. The page says it is experimental.
+
+| On the page | Where it comes from |
+| --- | --- |
+| "Awaiting your review": count and rows (a row title may take two lines) | `approval.list` — the count is the length of that list, the same list the Approvals inbox shows |
+| Approve on a row | only when `approval.list` marks the row `eligibility: 'simple-reversible'`, the list is fresh and the session is online. Tapping it calls `approval.inspect` (fresh preview, single-use token kept inside `PhoneClient`), shows "Approve this one small change?" with Approve / Not now, then `approval.submit` with the exact digest, revision and operation version. Expired, changed or used previews are refused with the existing notices; a preview that says `open-desktop` turns the row into "In the app" |
+| "In the app" | every other row, including rows with no hint |
+| "The week ahead" | the titles of the three latest briefs from `brief.list` (offline: saved briefs). Summaries and receipts are never kept. A title with any digit is replaced by fixed words — figures stay on the computer |
+| "Laptop last seen" | `authority.validatedAt` from the last successful `session.validate` (stamped by the engine). Before one exists, or if it is not a valid past time, the page says "Not known" |
+
+Offline, the last loaded rows and saved headlines stay readable, marked read only; there
+is no Approve and any open decision is dropped. Approve comes back only after a fresh
+load online. Fixed words live in `shared/phone-page.ts` (`phonePageWords.en`) and contain no
+digits; the companion has no Hindi catalogue yet, so only English exists.
+
+Protocol addition: `approval.list` items may carry an optional, display-only
+`eligibility` hint (`ApprovalListItem`). It grants nothing; the host and client pass on
+only the two known values and refuse anything else. Known gaps: the desktop engine does
+not yet serve `approval.list` (it answers `OPEN_DESKTOP`, shown as "Your review list is in
+the app on your computer"), and an engine that serves it without the hint shows every row
+as "In the app". The protocol caps the list at one hundred rows.
+
 ## Native preview
 
 See [native/README.md](native/README.md). Dependency manifests and native project sources
