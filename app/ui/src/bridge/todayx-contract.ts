@@ -637,9 +637,11 @@ export function isTodayReviewReply(v: unknown): v is TodayReviewReply {
 /**
  * `todayx.closeStatus` {} → the month's close for Books Today (TD-03): one state per part, from
  * records only. `month` is `YYYY-MM`, the month before the business day. No figure is carried.
+ * `not-sure` (additive): a read behind the part failed, so its state is not known.
  */
 export const CLOSE_STATUS_PARTS = ['bank', 'gstr2b', 'tds', 'trial-balance'] as const;
-export type CloseStatusState = 'done' | 'in-progress' | 'not-started' | 'needs-you' | 'not-applicable' | 'not-loaded-yet';
+export const CLOSE_STATUS_STATES = ['done', 'in-progress', 'not-started', 'needs-you', 'not-applicable', 'not-loaded-yet', 'not-sure'] as const;
+export type CloseStatusState = (typeof CLOSE_STATUS_STATES)[number];
 export interface CloseStatusReply {
   readonly month: string;
   readonly parts: Readonly<Record<(typeof CLOSE_STATUS_PARTS)[number], CloseStatusState>>;
@@ -648,7 +650,7 @@ export interface CloseStatusReply {
 export function isCloseStatusReply(v: unknown): v is CloseStatusReply {
   if (!isRec(v) || !onlyKeys(v, ['month', 'parts'], ['notApplicable']) || !(isStr(v['month']) && /^\d{4}-(0[1-9]|1[0-2])$/.test(v['month']))) return false;
   const parts = v['parts'];
-  if (!isRec(parts) || !onlyKeys(parts, CLOSE_STATUS_PARTS) || !CLOSE_STATUS_PARTS.every(p => oneOf(['done', 'in-progress', 'not-started', 'needs-you', 'not-applicable', 'not-loaded-yet'] as const)(parts[p]))) return false;
+  if (!isRec(parts) || !onlyKeys(parts, CLOSE_STATUS_PARTS) || !CLOSE_STATUS_PARTS.every(p => oneOf(CLOSE_STATUS_STATES)(parts[p]))) return false;
   return v['notApplicable'] === undefined || (oneOf(['composition', 'unregistered'] as const)(v['notApplicable']) && parts['gstr2b'] === 'not-applicable');
 }
 

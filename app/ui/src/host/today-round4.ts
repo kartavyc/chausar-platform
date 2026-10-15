@@ -25,6 +25,7 @@ import {
   type CashWeekReply, type CloseStatusReply, type TodayReviewGroup, type TodayReviewItem, type TodayReviewReply,
 } from '../bridge/todayx-contract.ts';
 import { date } from '../format/dates.ts';
+import { rupeesToPaise as typedRupeesToPaise } from '../screens/first-run/journey-contracts.ts';
 import { money } from '../format/money.ts';
 import { count as countText } from '../format/counts.ts';
 import en from '../text/en.json' with { type: 'json' };
@@ -129,7 +130,7 @@ function queueRows(review: TodayReviewReply, withCore: boolean, language: Langua
 const digits = (value: string | null | undefined): bigint | null => typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value) ? BigInt(value) : null;
 const countOf = (value: bigint): Count => ({ exact: value.toString(), display: countText(value.toString()) });
 
-const CLOSE_MARK: Readonly<Record<CloseStepState, Mark>> = { done: 'cha', 'in-progress': 'busy', 'not-started': 'off', 'needs-you': 'you', 'not-applicable': 'off', 'not-loaded-yet': 'off', failed: 'unsure' };
+const CLOSE_MARK: Readonly<Record<CloseStepState, Mark>> = { done: 'cha', 'in-progress': 'busy', 'not-started': 'off', 'needs-you': 'you', 'not-applicable': 'off', 'not-loaded-yet': 'off', 'not-sure': 'unsure', failed: 'unsure' };
 const CLOSE_OPENS: Readonly<Record<(typeof CLOSE_STATUS_PARTS)[number], Address>> = {
   bank: { place: 'books', sub: 'sources' }, gstr2b: { place: 'ask', sub: 'saved', sheet: 'gst2b' }, tds: { place: 'books', sub: 'sources' }, 'trial-balance': { place: 'books', sub: 'sources' },
 };
@@ -138,7 +139,8 @@ function monthName(month: string, language: Language): string {
 }
 
 function cashOf(cash: CashWeekReply, language: Language): NonNullable<TodayData['cash']> {
-  const figure = (paise: string, entryId: string): Figure => ({ kind: 'money', exact: paise, display: money(paise), receiptId: entryId, labels: [] });
+  // Cash the owner told has no receipt: the figure is drawn with no receipt link, labelled told by owner.
+  const figure = (paise: string, entryId: string): Figure => ({ kind: 'money', exact: paise, display: money(paise), receiptId: entryId, labels: [], told: true });
   const values: ChartValue[] = cash.days.map(d => ({
     id: `cash-${d.day}`, label: String(Number(d.day.slice(8))),
     value: d.paise !== null && d.entryId !== null ? figure(d.paise, d.entryId) : { kind: 'missing', missing: 'cash-not-captured' },
@@ -204,5 +206,10 @@ export function todayRailCount(data: TodayData): Count | undefined {
   return data.review.count?.exact !== null && data.review.count !== undefined ? data.review.count : undefined;
 }
 
-/** Rupees as typed to whole paise; null when it is not a plain amount. No floating point. */
-export { rupeesToPaise } from '../screens/first-run/journey-contracts.ts';
+/** Devanagari digits typed as their ASCII digits, character for character: a lookup, no arithmetic. */
+const DEVANAGARI_DIGITS = '०१२३४५६७८९', ASCII_DIGITS = '0123456789';
+export function asciiDigits(typed: string): string {
+  return typed.replace(/[०-९]/gu, d => ASCII_DIGITS.charAt(DEVANAGARI_DIGITS.indexOf(d)));
+}
+/** Rupees as typed (ASCII or Devanagari digits) to whole paise; null when it is not a plain amount. No floating point. */
+export function rupeesToPaise(typed: string): string | null { return typedRupeesToPaise(asciiDigits(typed)); }

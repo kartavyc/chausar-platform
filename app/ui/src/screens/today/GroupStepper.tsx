@@ -6,8 +6,11 @@
  * that checked reply; Approve sends `approvals.approve` { id, digest } for that one item and Not now
  * sends `approvals.notNow` { id }. Each press moves to the next item. An item that asks again before
  * it goes (money, or a second ask) is never approved from here: it offers "Open in Work", where the
- * full sheet asks. An item that is no longer waiting says so and the stepping goes on. At the end,
- * one line per item says what happened to it. Nothing is approved together.
+ * full sheet asks. An item that is no longer waiting (`INVALID_APPROVAL_STATE`, `NOT_FOUND`,
+ * `APPROVAL_EXPIRED`) says so and the stepping goes on. An item whose preview changed is read again
+ * and its new preview shown, to be approved afresh. Any other refusal says it could not be done,
+ * with its code, and the item stays waiting. At the end, one line per item says what happened to it.
+ * Nothing is approved together.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../../app/presentation.ts';
@@ -23,7 +26,7 @@ import { workWords } from '../work/text.ts';
 import { InvalidReply } from '../work/kit/validate.ts';
 import s from './Today.module.css';
 
-export type StepOutcome = 'approved' | 'later' | 'gone' | 'open-in-work' | 'seen';
+export type StepOutcome = 'approved' | 'later' | 'gone' | 'failed' | 'open-in-work' | 'seen';
 export interface GroupStepperProps {
   readonly ids: readonly string[];
   /** The summary row's words ("3 messages to send"). */
@@ -40,7 +43,11 @@ export interface GroupStepperProps {
   readonly onReceipt: (receiptId: string) => void;
 }
 
-type Load = { readonly phase: 'loading' } | { readonly phase: 'ready'; readonly detail: ApprovalSheetReply } | { readonly phase: 'gone'; readonly code: string };
+type Load = { readonly phase: 'loading' } | { readonly phase: 'ready'; readonly detail: ApprovalSheetReply; readonly changed?: true }
+  | { readonly phase: 'gone'; readonly code: string } | { readonly phase: 'failed'; readonly code: string };
+/** The only refusals that mean the item is no longer waiting. */
+const GONE = new Set(['INVALID_APPROVAL_STATE', 'NOT_FOUND', 'APPROVAL_EXPIRED']);
+const refused = (code: string): Load => GONE.has(code) ? { phase: 'gone', code } : { phase: 'failed', code };
 const codeOf = (error: unknown) => {
   if (error instanceof InvalidReply) return 'INVALID_REPLY';
   const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
@@ -53,26 +60,28 @@ export function GroupStepper(p: GroupStepperProps) {
   const [index, setIndex] = useState(0);
   const [load, setLoad] = useState<Load>({ phase: 'loading' });
   const [outcomes, setOutcomes] = useState<Readonly<Record<string, StepOutcome>>>({});
+  const [codes, setCodes] = useState<Readonly<Record<string, string>>>({});
   const [busy, setBusy] = useState(false);
   const [asks, setAsks] = useState(false);
   const generation = useRef(0);
   const done = index >= p.ids.length;
   const id = p.ids[index];
 
-  const read = useCallback(async (at: string) => {
+  const read = useCallback(async (at: string, changed = false) => {
     const mine = ++generation.current;
     setLoad({ phase: 'loading' }); setAsks(false);
     try {
       const detail = approvalSheet(await p.rpc.request('approvals.get', { id: at }), 'approval');
-      if (mine === generation.current) setLoad(detail.id === at ? { phase: 'ready', detail } : { phase: 'gone', code: 'INVALID_REPLY' });
+      if (mine === generation.current) setLoad(detail.id === at ? { phase: 'ready', detail, ...(changed ? { changed: true as const } : {}) } : { phase: 'failed', code: 'INVALID_REPLY' });
     } catch (error) {
-      if (mine === generation.current) setLoad({ phase: 'gone', code: codeOf(error) });
+      if (mine === generation.current) setLoad(refused(codeOf(error)));
     }
   }, [p.rpc]);
   useEffect(() => { if (id !== undefined) void read(id); return () => { generation.current++; }; }, [id, read]);
 
-  const next = (outcome: StepOutcome) => {
+  const next = (outcome: StepOutcome, code?: string) => {
     if (id === undefined) return;
+    if (code !== undefined) setCodes(current => ({ ...current, [id]: code }));
     setOutcomes(current => ({ ...current, [id]: current[id] === 'approved' || current[id] === 'later' ? current[id]! : outcome }));
     setIndex(i => i + 1);
   };
@@ -84,8 +93,10 @@ export function GroupStepper(p: GroupStepperProps) {
       p.onChanged();
       next(outcome);
     } catch (error) {
-      // A changed or expired item is read again so what is shown is what is current.
-      setLoad({ phase: 'gone', code: codeOf(error) });
+      const code = codeOf(error);
+      // A changed preview is read again so what is shown, and approved, is what is current.
+      if (code === 'PREVIEW_CHANGED' && id !== undefined) void read(id, true);
+      else setLoad(refused(code));
     } finally { setBusy(false); }
   };
 
@@ -97,7 +108,7 @@ export function GroupStepper(p: GroupStepperProps) {
           {p.ids.map((item, i) => (
             <li key={item} data-outcome={outcomes[item] ?? 'seen'}>
               {t('WK-02.groupPosition', { index: String(i + 1), total: String(p.ids.length) })}{' '}
-              {outcomes[item] === 'approved' ? t('FT4.group.approved') : outcomes[item] === 'later' ? t('FT4.group.later') : outcomes[item] === 'gone' ? t('FT4.group.gone') : outcomes[item] === 'open-in-work' ? t('FT4.group.secondAsk') : t('STEPSTATE.waiting-for-you')}
+              {outcomes[item] === 'approved' ? t('FT4.group.approved') : outcomes[item] === 'later' ? t('FT4.group.later') : outcomes[item] === 'gone' ? t('FT4.group.gone') : outcomes[item] === 'failed' ? t('FT4.group.failed', { code: codes[item] ?? 'REQUEST_FAILED' }) : outcomes[item] === 'open-in-work' ? t('FT4.group.secondAsk') : t('STEPSTATE.waiting-for-you')}
             </li>
           ))}
         </ul>
@@ -109,8 +120,11 @@ export function GroupStepper(p: GroupStepperProps) {
   if (load.phase !== 'ready') {
     return (
       <Sheet kind={t('SHEET.kind.approval')} title={p.title} position={position} onClose={p.onClose} onAdjacent={onAdjacent} origin={p.origin}
-        actions={load.phase === 'gone' ? <Button variant="quiet" onClick={() => next('gone')}>{t('FT4.group.next')}</Button> : undefined}>
-        {load.phase === 'loading' ? <State state={{ kind: 'loading' }} /> : <p role="status" data-gone={load.code}>{t('FT4.group.gone')}</p>}
+        actions={load.phase === 'gone' ? <Button variant="quiet" onClick={() => next('gone')}>{t('FT4.group.next')}</Button>
+          : load.phase === 'failed' ? <Button variant="quiet" onClick={() => next('failed', load.code)}>{t('FT4.group.next')}</Button> : undefined}>
+        {load.phase === 'loading' ? <State state={{ kind: 'loading' }} />
+          : load.phase === 'gone' ? <p role="status" data-gone={load.code}>{t('FT4.group.gone')}</p>
+          : <p role="alert" data-failed={load.code}>{t('FT4.group.failed', { code: load.code })}</p>}
       </Sheet>
     );
   }
@@ -118,6 +132,7 @@ export function GroupStepper(p: GroupStepperProps) {
   const approval = { ...toApproval(d, { w, language: p.language, viewer: p.viewer }), group: { index: position.index, total: position.total, canBeUndone: d.tier === 'tier-1' } };
   return (
     <div data-group-step={position.index}>
+      {load.changed && <p className={s.groupAsk} role="status" data-changed="">{t('FT4.group.changed')}</p>}
       <ApprovalSheet approval={approval} position={position} origin={p.origin} onClose={p.onClose} onAdjacent={onAdjacent} onReceipt={p.onReceipt}
         onApprove={() => void act('approvals.approve', { id: d.id, digest: d.digest }, 'approved')}
         onSecondAsk={() => setAsks(true)}

@@ -246,6 +246,29 @@ test('FR-10: a demo workspace needs its test switch; with it, consent names the 
   await user.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
   await screen.findByText(w('FR-10.closed'));
   await user.click(screen.getByLabelText(w('FR-10.demoTest')));
+  // No file was shown for these boxes: Continue shows it first and agrees to nothing.
+  await user.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
+  await screen.findByText(w('FR-10.reviewFirst'));
+  expect(document.querySelector('[data-sharing-file]')).not.toBeNull();
+  expect(engine.calls).not.toContain('learningx.consent');
+  await user.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
+  await screen.findByText(w('FR-10.agreed'));
+  expect(engine.calls.filter(method => method === 'learningx.consent')).toHaveLength(1);
+});
+
+test('FR-10: a file shown for other boxes is not consented to; the file for the ticked boxes is shown first', async () => {
+  const engine = createFakeEngine();
+  cleanups.push(registerFakeMethods('learningx', learningxSharingHandlers({ mode: 'test-inbox', sharingSwitch: true })));
+  inEnglish(<SharingQuestion rpc={engine} onContinue={() => {}} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByLabelText(w('FR-10.demoTest')));
+  // The file for both boxes is shown, then only one box is ticked.
+  await user.click(screen.getByRole('button', { name: w('FR-10.file.btn') }));
+  await waitFor(() => expect(document.querySelector('[data-sharing-file]')).not.toBeNull());
+  await user.click(screen.getByLabelText(w('FR-10.box.corrections')));
+  await user.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
+  await screen.findByText(w('FR-10.reviewFirst'));
+  expect(engine.calls).not.toContain('learningx.consent');
   await user.click(screen.getByRole('button', { name: w('FR-10.continue.btn') }));
   await screen.findByText(w('FR-10.agreed'));
   expect(engine.calls.filter(method => method === 'learningx.consent')).toHaveLength(1);
@@ -266,11 +289,18 @@ test('FR-14: the new computer shows a code; the computer already in compares it 
   const user = userEvent.setup();
   expect((await screen.findAllByText(FAKE_JOIN_CODE)).length).toBe(1);
   await screen.findByText(w('FR-14.waiting'));
-  // On the computer already in, the same code to compare, with Approve.
+  // On the computer already in: no code is shown there; the person types the one the new computer shows.
   const requests = render(<TextProvider language="en"><JoinRequests rpc={engine} /></TextProvider>);
-  const approve = await within(requests.container).findByRole('button', { name: `${w('FR-14.approve.btn')}: ${FAKE_JOIN_CODE}` });
-  expect(within(requests.container).getByText(w('FR-14.requests.code', { code: FAKE_JOIN_CODE }))).toBeTruthy();
-  await user.click(approve);
+  const field = await within(requests.container).findByRole('textbox', { name: w('FR-14.requests.field') });
+  expect(requests.container.textContent).not.toContain(FAKE_JOIN_CODE);
+  // A typed code that differs is refused with its words; nothing is approved.
+  await user.type(field, '0000-0000');
+  await user.click(within(requests.container).getByRole('button', { name: w('FR-14.approve.btn') }));
+  await within(requests.container).findByText(w('FR-14.mismatch'));
+  const typed = await within(requests.container).findByRole('textbox', { name: w('FR-14.requests.field') });
+  await user.clear(typed);
+  await user.type(typed, FAKE_JOIN_CODE);
+  await user.click(within(requests.container).getByRole('button', { name: w('FR-14.approve.btn') }));
   await within(requests.container).findByText(w('FR-14.approve.done'));
   await user.click(screen.getByRole('button', { name: w('FR-14.check.btn') }));
   await screen.findByText(w('FR-14.approved'));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFakeEngine } from '../src/bridge/fake.ts';
+import { createFakeEngine, registerFakeMethods } from '../src/bridge/fake.ts';
 import { fakeReading, registerAskLineFixtures } from '../src/bridge/fixtures/ask-line.ts';
 import {
   isVoiceConfirm, isVoiceHeard, isVoiceStatus, readAskAbout, readAskSearch, readAskSuggest, readMemoryLine, readRecordsSearch, readVoiceSpeak, readVoiceStart,
@@ -93,7 +93,8 @@ test('voice: a hold is heard, every amount is read back, and nothing is confirme
     assert.equal(heard.kind, 'heard');
     if (heard.kind !== 'heard') return;
     assert.equal(heard.text, 'do lakh nahi mila');
-    assert.deepEqual(heard.readBacks, [{ kind: 'amount', paise: '20000000' }]);
+    // No rupees or paise were said: the number is shown back as its words, never as money.
+    assert.deepEqual(heard.readBacks, [{ kind: 'number', text: 'do lakh' }]);
     assert.deepEqual(heard.flips, ['nahi']);
     // Not yet answered: Ask this does nothing and nothing is confirmed.
     assert.equal(await voice.confirm(), null);
@@ -103,6 +104,41 @@ test('voice: a hold is heard, every amount is read back, and nothing is confirme
     assert.ok(engine.calls.includes('voice.confirm'));
     assert.equal(voice.snapshot().phase.kind, 'idle');
   } finally { fixtures.undo(); }
+});
+
+test('voice: only rupees or paise are read back as money; confirm asks with the text seen and refuses other words', async () => {
+  const number = (unit: 'rupees' | 'paise' | null, paise: string | null) => ({ text: 'do lakh', integer: '200000', unit, paise, display: '2,00,000' });
+  const reading = (numbers: unknown[]) => ({ sessionId: 's', heard: 'x', needsConfirmation: true as const, words: 'x', understood: { ...(fakeReading('x') as object), numbers } as never });
+  assert.deepEqual(readBacksOf(reading([number(null, null)])), [{ kind: 'number', text: 'do lakh' }]);
+  assert.deepEqual(readBacksOf(reading([number('rupees', '20000000')])), [{ kind: 'amount', paise: '20000000' }]);
+  assert.deepEqual(readBacksOf(reading([number('paise', '200000')])), [{ kind: 'amount', paise: '200000' }]);
+
+  const fixtures = registerAskLineFixtures({ enabled: true, mode: 'browser' });
+  const sent: Record<string, unknown>[] = [];
+  let undo = () => {};
+  try {
+    const engine = createFakeEngine();
+    const voice = createVoiceController(engine, fakeCapture('paanch hazaar rupaye mila'), null, () => 'hi');
+    voice.start(); await settle(); await settle(); await voice.stop();
+    const p = voice.snapshot().phase;
+    assert.ok(p.kind === 'heard');
+    if (p.kind !== 'heard') return;
+    undo = registerFakeMethods('voice', { confirm: payload => { sent.push({ ...payload }); return { confirmationId: 'voice_confirmation_x', text: 'das hazaar rupaye mila', digest: p.digest }; } });
+    voice.answer(0, true);
+    assert.equal(await voice.confirm(), null, 'other words are never used');
+    assert.equal(sent[0]?.['text'], p.text, 'the text the person saw is sent');
+    assert.deepEqual(voice.snapshot().phase, { kind: 'failed', code: 'UNDERSTOOD_CHANGED' });
+  } finally { undo(); fixtures.undo(); }
+});
+
+test('voice: live false is not live; live true or the live details object is', () => {
+  const start = { sessionId: 's1', capture: 'browser-transcript', capMs: 1000 };
+  assert.equal(readVoiceStart({ ...start, live: false })?.live, false);
+  assert.equal(readVoiceStart(start)?.live, false);
+  assert.equal(readVoiceStart({ ...start, live: null })?.live, false);
+  assert.equal(readVoiceStart({ ...start, live: true })?.live, true);
+  assert.equal(readVoiceStart({ ...start, live: { clientSecret: 'x', expiresAt: '2026-10-15T00:00:00.000Z' } })?.live, true);
+  assert.equal(readVoiceStart({ ...start, capture: 'live-session' })?.live, true);
 });
 
 test('voice: could not hear, voice off, local only, and not built', async () => {

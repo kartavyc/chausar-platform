@@ -79,6 +79,9 @@ export interface Figure {
   readonly labels: ReadonlyArray<FigureLabel>;
   /** Another currency as written in the source; shown beside the rupee value. */
   readonly asWritten?: string;
+  /** Something the owner said (today's cash): it has no receipt to open, so it is drawn with no
+   *  receipt link and labelled told by owner. `receiptId` then names the entry, not a receipt. */
+  readonly told?: true;
 }
 
 export interface MissingFigure {

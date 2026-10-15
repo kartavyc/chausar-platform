@@ -100,7 +100,8 @@ export function readVoiceStart(v: unknown): VoiceStart | null {
   return {
     sessionId: v['sessionId'], capture: v['capture'], capMs: v['capMs'],
     approval: isRec(a) ? { previewId: a['previewId'] as string, digest: a['digest'] as string, costCapMinor: a['costCapMinor'] as string } : null,
-    live: v['capture'] === 'live-session' || v['live'] !== undefined && v['live'] !== null,
+    // `live: false` is not live; `live: true` or the live details object (models-ext contract) is.
+    live: v['capture'] === 'live-session' || v['live'] === true || isRec(v['live']),
   };
 }
 export function isVoiceHeard(v: unknown, sessionId?: string): v is VoiceHeard {
