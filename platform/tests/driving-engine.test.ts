@@ -29,7 +29,7 @@ function png(width: number, height: number) {
 /** A scripted desktop: windows, focus and the person's input, all synthetic. */
 class FakeDriver implements DesktopDriver {
   readonly platform = 'fake' as const;
-  windows = new Map<string, WindowInfo & { owner?: string }>([
+  windows = new Map<string, { id: string; title: string; app: string; pid: number | null; owner?: string }>([
     ['0x1', { id: '0x1', title: 'Synthetic Books Ledger', app: 'synthbooks', pid: 11 }],
     ['0x2', { id: '0x2', title: 'Synthetic Notes', app: 'notes', pid: 12 }],
   ]);

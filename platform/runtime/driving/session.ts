@@ -288,7 +288,7 @@ export class DrivingController {
     } catch (error) {
       if (error instanceof Halt) return;
       const code = (error as { code?: string })?.code;
-      this.#end(record, 'step-failed', code === 'DRIVER_TIMEOUT' ? REASONS.timeout : code === 'WINDOW_NOT_FOUND' ? REASONS.closed : REASONS.driver);
+      this.#end(record, 'step-failed', code === 'DRIVER_TIMEOUT' ? REASONS.timeout : code === 'WINDOW_NOT_FOUND' || code === 'DRIVER_WINDOW_GONE' ? REASONS.closed : REASONS.driver);
     }
   }
   async #until(record: SessionRecord, driver: DesktopDriver, deadline: number, timeoutMs: number, test: () => Promise<boolean>, failure: string = REASONS.timeout) {

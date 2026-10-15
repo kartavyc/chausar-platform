@@ -243,7 +243,7 @@ test('the tray offers Stop while driving and Continue while paused, and drivingM
   tray.menu.template[1].click(); tray.menu.template[0].click();
   s.handle.drivingMenuItems()[0].click();
   await flush();
-  assert.deepEqual(s.engine.calls.map(([method]) => method), ['session.resume', 'session.stop', 'session.stop']);
+  assert.deepEqual(s.engine.calls.map(([method]: any[]) => method), ['session.resume', 'session.stop', 'session.stop']);
   s.send({ kind: 'driving-status', state: 'sign-in', active: true });
   assert.deepEqual(tray.menu.template.map((item: any) => item.label), ['Stop Chausar driving']);
 });
@@ -363,7 +363,7 @@ test('Electron smoke: the strip is on top and its Stop and Continue links reach 
   assert.ok(existsSync(`/tmp/.X11-unix/X${display}`), 'Xvfb started');
   const script = join(directory, 'main.cjs');
   await writeFile(script, smokeScript);
-  const environment = { ...process.env, DISPLAY: `:${display}`, CHAUSAR_DRIVING_MODULE: modulePath };
+  const environment: Record<string, string | undefined> = { ...process.env, DISPLAY: `:${display}`, CHAUSAR_DRIVING_MODULE: modulePath };
   delete environment.ELECTRON_RUN_AS_NODE; delete environment.CHAUSAR_DESKTOP_DRIVER; delete environment.NODE_TEST_CONTEXT; delete environment.NODE_OPTIONS;
   const output = await new Promise<string>((accept, reject) => {
     const child = spawn(electronBinary, ['--no-sandbox', script], { env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
