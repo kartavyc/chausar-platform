@@ -6,6 +6,10 @@ import { PhonePlace } from './Phone';
 import { PluginsPlace } from './Plugins';
 import { SmallAppsPlace } from './SmallApps';
 import { toolsWords } from './shared';
+// TL tools
+import { PluginRemotePlace } from './PluginRemote';
+import { ToolRequestsPlace } from './ToolRequests';
+import { WrapPlace } from './WrapTool';
 
 export { ToolRequestSheet } from './ToolRequestSheet';
 
@@ -31,4 +35,8 @@ export const toolsPlaces: readonly PlaceModule[] = [
   place('assistants', (props) => <AssistantsPlace {...props} />),
   place('phone', (props) => <PhonePlace {...props} />),
   place('planning', (props) => <PlanningPlace {...props} />),
+  // TL tools: round-4 sub-places (places/subplaces/reports-tools-trust.ts)
+  place('wrap', (props) => <WrapPlace {...props} />),
+  place('requests', (props) => <ToolRequestsPlace {...props} />),
+  place('remote', (props) => <PluginRemotePlace {...props} />),
 ];

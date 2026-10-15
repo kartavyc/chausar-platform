@@ -249,27 +249,49 @@ test('small apps not built: smallapps.list unknown shows the not built state', a
 
 // ---- TL-02 ----
 
-test('a small app draws its cards in the locked frame; labels are text; every figure opens its receipt; missing is words; an action only prepares', async () => {
+test('a small app runs in a sandboxed, separate-origin frame; the host acts only on checked messages; an action only prepares', async () => {
   const d = draw({ place: 'tools', sub: 'smallapps', sheet: 'smallapp_cash' }, { handlers: withHandlers({
     'smallapps.pressAction': () => ({ action: { id: 'act-9', connector: 'local', operation: 'remind', status: 'prepared', impact: 'reversible', digest: 'x', through: 'actions' },
       approval: { waits: true, alwaysWaits: false, tier: null, kind: 'action', id: 'act-9', digest: 'x' }, words: 'Prepared only.' }),
   }) });
-  const frame = await waitFor(() => { const f = document.querySelector('[data-sandbox="locked"]'); if (!f || !within(f as HTMLElement).queryByText(SCRIPT)) throw new Error('no frame'); return f as HTMLElement; });
+  const frame = await waitFor(() => { const f = document.querySelector('[data-sandbox="locked"] iframe'); if (!f) throw new Error('no frame'); return f as HTMLIFrameElement; });
+  expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+  const doc = frame.getAttribute('srcdoc') ?? '';
+  expect(doc).toContain('/ui/smallapp-frame.js');
+  expect(doc).not.toContain('12,345');
+  expect(doc).not.toContain('Sharma');
   expect(document.querySelector('script')).toBeNull();
   expect((window as unknown as { hacked?: boolean }).hacked).toBeUndefined();
-  await userEvent.click(within(frame).getByRole('button', { name: /12,345/ }));
+  const channel = /data-channel="([a-f0-9]{32})"/.exec(doc)![1]!;
+  await new Promise((resolve) => setTimeout(resolve, 50)); // let the srcdoc document settle in its window
+  const win = frame.contentWindow!;
+  const posted = vi.spyOn(win, 'postMessage').mockImplementation(() => undefined);
+  const from = (data: unknown, source: MessageEventSource | null = win, origin = 'null') => window.dispatchEvent(new MessageEvent('message', { data, source, origin }));
+  from({ channel, type: 'ready' });
+  await waitFor(() => expect(posted).toHaveBeenCalled());
+  const render = posted.mock.calls[0]![0] as { type: string; channel: string; view: { cards: { kind: string; label: string }[] } };
+  expect(render.type).toBe('render'); expect(render.channel).toBe(channel);
+  expect(render.view.cards.map((c) => c.kind)).toEqual(['metric', 'chart', 'action', 'records']);
+  expect(render.view.cards[0]!.label).toBe(SCRIPT);
+  expect(JSON.stringify(render.view)).toContain('12,345');
+  expect(JSON.stringify(render.view)).toContain('Sharma Traders, by 9 Oct 2026');
+  // Ignored: another channel, another origin, another window, an unknown receipt, extra keys.
+  from({ channel: 'f'.repeat(32), type: 'receipt', receiptId: 'rc-cash' });
+  from({ channel, type: 'receipt', receiptId: 'rc-cash' }, win, 'https://frontend-fixture.invalid');
+  from({ channel, type: 'receipt', receiptId: 'rc-cash' }, window);
+  from({ channel, type: 'receipt', receiptId: 'rc-other' });
+  from({ channel, type: 'receipt', receiptId: 'rc-cash', extra: 1 });
+  expect(d.openReceipt).not.toHaveBeenCalled();
+  from({ channel, type: 'receipt', receiptId: 'rc-cash' });
   expect(d.openReceipt).toHaveBeenCalledWith('rc-cash');
-  await userEvent.click(within(frame).getByRole('button', { name: /5,000/ }));
-  expect(d.openReceipt).toHaveBeenCalledWith('rc-pune');
-  expect(within(frame).getByText(en.partial)).toBeTruthy();
-  expect(within(frame).getByText(/not loaded/i)).toBeTruthy();
-  expect(within(frame).getByText('Sharma Traders, by 9 Oct 2026')).toBeTruthy();
-  await userEvent.click(within(frame).getByRole('button', { name: 'Remind Sharma Traders' }));
-  expect(await within(frame).findByText(en.prepared)).toBeTruthy();
+  from({ channel, type: 'press', cardId: 'card-c', fields: {} });
+  expect(await screen.findByText(en.prepared)).toBeTruthy();
   expect(d.sent('smallapps.pressAction')).toEqual([{ method: 'smallapps.pressAction', payload: { id: 'smallapp_cash', cardId: 'card-c', payload: {} } }]);
+  expect(posted.mock.calls.some(([m]) => (m as { type: string; words?: string }).type === 'pressed' && (m as { words: string }).words === en.prepared)).toBe(true);
+  from({ channel, type: 'book', cardId: 'card-d' });
+  expect(d.navigate).toHaveBeenCalledWith({ place: 'tools', sub: 'smallapps', sheet: 'follow-up-book' });
   expect(screen.getByText(en.runsWith)).toBeTruthy();
   expect(screen.getByText('show cash this week')).toBeTruthy();
-  expect(screen.getAllByText('Remind Sharma Traders').length).toBe(2);
   expect(d.sent('smallapps.get')[0]!.payload).toEqual({ id: 'smallapp_cash' });
   expect(d.sent('smallapps.open')[0]!.payload).toEqual({ id: 'smallapp_cash' });
 });
@@ -558,7 +580,7 @@ test('phone: relay sentence, test mode, three channels, agreement date, exact me
   expect(screen.getByText(en.testMode)).toBeTruthy();
   expect((await screen.findAllByText(en['channel.telegram']))[0]).toBeTruthy();
   expect(within(lineOf(en['channel.mail'])).getByText('You agreed on 3 Oct 2026.')).toBeTruthy();
-  expect(within(lineOf(en['channel.mail'])).getByText(en.mailNotChecked)).toBeTruthy();
+  expect(within(lineOf(en['channel.mail'])).getByRole('button', { name: 'Check the mail address' })).toBeTruthy();
   expect(within(lineOf(en['channel.whatsapp'])).getByText(en.notVerified)).toBeTruthy();
   expect(within(lineOf(en['channel.whatsapp'])).getByText(PREVIEW.channels[0]!.optInText)).toBeTruthy();
   expect(screen.getByText(en.staleNever)).toBeTruthy();
@@ -812,7 +834,7 @@ test('Books: ids, digests, versions, message ids, engine replies and the count p
   draw({ place: 'tools', sub: 'phone' }, { view: 'books' });
   expect(await screen.findByText(PREVIEW.replies.help)).toBeTruthy();
   expect(screen.getAllByText('review-ready').length).toBe(3);
-  expect(await screen.findByText('WhatsApp: 10')).toBeTruthy();
+  expect(await screen.findByText('WhatsApp: 10 messages, cost per channel not counted')).toBeTruthy();
   cleanup();
   draw({ place: 'tools', sub: 'assistants' }, { view: 'books' });
   await screen.findByText(en.rule);

@@ -2,9 +2,11 @@
  * TL-09 Phone (tools/phone), over hosted-link's methods through adapters/phone.ts.
  * Guided and Books: your phone number with Verify (hosted-link pairs this computer with a code
  * sent to it); WhatsApp, Telegram and mail, each with its switch, which turns on only after the
- * exact opt-in text is agreed to; your mail address (hosted-link does not check a mail address
- * with a code, and the screen says so); the exact text of every message; your agreement with its
- * date; messages this month against 30 and what they cost; what may be approved from the phone;
+ * exact opt-in text is agreed to; your mail address, with Check (`phone.verify {channel:'mail'}`:
+ * confirmed once the link in the confirmation mail was used) and the same check for WhatsApp; the
+ * exact text of every message; your agreement with its date; messages this month against 30, what
+ * they cost, and one line per channel with its count and, as the engine gives them, its cost and
+ * price per message (otherwise words, never zero); what may be approved from the phone;
  * HELP and STOP. Books adds message ids, the engine's own reply texts and the count per channel.
  * Simple: two switches, WhatsApp and mail, the count, HELP and STOP, and a link that opens the
  * exact messages (nothing is hidden for good). The relay sentence shows whenever the
@@ -19,8 +21,9 @@ import { Field } from '../../parts/Field';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { rupees } from '../trust/kit/figure.ts';
 import { Group, Note, Screen } from '../trust/kit/Screen';
-import { CHANNEL_IDS, MESSAGE_BUDGET, PAIR_CODE, PHONE, PHONE_NUMBER, channels, counts, pairStarted, paired, preview, status,
-  type Channel, type ChannelId, type Preview, type Status } from './adapters/phone.ts';
+import { CHANNEL_IDS, MESSAGE_BUDGET, PAIR_CODE, PHONE, PHONE_NUMBER, VERIFIABLE, channels, counts, pairStarted, paired, preview, relayCode, status, verified,
+  type Channel, type ChannelId, type Counts, type Preview, type Status } from './adapters/phone.ts';
+import { LaneSent, laneSay, type Say } from './lane';
 import { Line, Lines, Names, Part, Quoted, SentLine, Warn, day, isAdmin, toolsWords, type Words } from './shared';
 import { anyObject } from './validate.ts';
 import { fill } from './words.ts';
@@ -46,8 +49,9 @@ function ChannelLine({ c, optInText, st, props, w, simple, onChanged }: {
   const notes = [
     relay === null ? (c.on ? w.on : w.off) : w[`relay.${relay}`],
     agreedAt === null ? w.notAgreed : fill(w.agreedOn, { date: day(agreedAt, props.language) }),
-    c.id === 'mail' ? (simple ? null : w.mailNotChecked) : st.paired ? null : w.notVerified,
+    c.id === 'mail' ? null : st.paired ? null : w.notVerified,
   ];
+  const verifiable = (VERIFIABLE as readonly string[]).includes(c.id) && !simple && !props.viewer;
   const saveAddress = (e: FormEvent) => {
     e.preventDefault();
     const typed = address.trim();
@@ -80,8 +84,27 @@ function ChannelLine({ c, optInText, st, props, w, simple, onChanged }: {
         </form>
       ))}
       {c.id === 'mail' && !simple && !admin && c.relay?.address != null && <p className={s.note}>{c.relay.address}</p>}
+      {verifiable && <VerifyAddress channel={c.id as (typeof VERIFIABLE)[number]} props={props} w={w} />}
       <SentLine sent={change.sent} done={done} w={w} />
     </Line>
+  );
+}
+
+/**
+ * TL-09 Verify: asks hosted-link whether this channel's address is confirmed (`phone.verify`). Mail
+ * is confirmed once the link in its confirmation mail was used; nothing is sent until it is. A relay
+ * that is absent, unconfigured or unpaired reads as the relay sentence (RELAY_NOT_AVAILABLE).
+ */
+function VerifyAddress({ channel, props, w }: { channel: (typeof VERIFIABLE)[number]; props: PlaceRenderProps; w: Words }) {
+  const say = laneSay(props.language);
+  const check = useSend(props.rpc, verified);
+  return (
+    <div className={s.agree}>
+      <div><Button disabled={check.sent.kind === 'sending'} onClick={() => { void check.send(PHONE.verify, { channel }); }}>{say(`phone.verify.${channel}`)}</Button></div>
+      {check.sent.kind === 'done'
+        ? <p className={s.note} role="status">{check.sent.value.verified ? say(`phone.verified.${channel}`) : say(`phone.notVerified.${channel}`)}</p>
+        : <LaneSent sent={check.sent} say={say} w={w} map={relayCode} />}
+    </div>
   );
 }
 
@@ -148,15 +171,24 @@ function Messages({ value, w, books }: { value: Preview; w: Words; books: boolea
   );
 }
 
+/** One line per channel: its messages, and its cost and price per message as the engine gives them. */
+function costLine(x: Counts['byChannel'][number], w: Words, say: Say): string {
+  const cost = x.costPaise === undefined ? say('phone.costNotGiven') : x.costPaise === null ? say('phone.costUnknown') : rupees(x.costPaise);
+  const line = say('phone.costLine', { channel: w[`channel.${x.id}`], sent: count(String(x.sent)), cost });
+  return x.perMessagePaise === undefined || x.perMessagePaise === null ? line : say('phone.costLinePrice', { line, price: rupees(x.perMessagePaise) });
+}
+
 function Month({ props, w, books }: { props: PlaceRenderProps; w: Words; books: boolean }) {
   const month = useEngine(props.rpc, PHONE.counts, {}, counts);
+  const say = laneSay(props.language);
+  const detail = books || props.view === 'guided';
   return (
     <Part loaded={month.state} w={w}>
       {(m) => (
         <>
           <p className={s.p}>{fill(w.usage, { sent: count(String(m.sent)), budget: count(String(m.budget)), month: m.month })}</p>
           <p className={s.note}>{m.costPaise === null ? w.costUnknown : fill(w.cost, { cost: rupees(m.costPaise) })}</p>
-          {books && m.byChannel.length > 0 && <Names names={m.byChannel.map((x) => fill(w.perChannel, { channel: w[`channel.${x.id}`], sent: count(String(x.sent)) }))} w={w} />}
+          {detail && m.byChannel.length > 0 && <Names names={m.byChannel.map((x) => costLine(x, w, say))} w={w} />}
         </>
       )}
     </Part>

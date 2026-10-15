@@ -247,7 +247,6 @@ const en = {
   agreeTo: 'I agree to this text for {channel}',
   addressWhileOn: 'Turn mail off to change its address.',
   badAddress: 'Type a mail address, like name@example.com.',
-  mailNotChecked: 'A mail address is not checked with a code: messages go to the address you type.',
   turnedOn: 'Turned on.', turnedOff: 'Turned off.',
   yourPhone: 'Your phone number',
   'field.phone': 'Your phone number, starting with +91',
@@ -262,7 +261,6 @@ const en = {
   noDigits: 'Each message is a headline and a link, and carries no number.',
   stale: 'The relay could not be reached. This is what was known on {date}.',
   staleNever: 'The relay could not be reached. This is what this computer knows.',
-  perChannel: '{channel}: {sent}',
   budgetLine: 'Up to {budget} messages a month.',
   mailNoApprove: 'Mail never carries Approve or Not now, because a forwarded mail cannot be told apart from you.',
 } as const;
@@ -501,7 +499,6 @@ const hi: Readonly<Record<ToolsWord, string>> = {
   agreeTo: '{channel} के लिए मैं इस लिखावट से सहमत हूँ',
   addressWhileOn: 'पता बदलने के लिए मेल बंद कीजिए।',
   badAddress: 'मेल पता लिखिए, जैसे name@example.com।',
-  mailNotChecked: 'मेल पता किसी कोड से जाँचा नहीं जाता: संदेश उसी पते पर जाते हैं जो आप लिखते हैं।',
   turnedOn: 'चालू हो गया।', turnedOff: 'बंद हो गया।',
   yourPhone: 'आपका फ़ोन नंबर',
   'field.phone': 'आपका फ़ोन नंबर, +91 से शुरू',
@@ -516,7 +513,6 @@ const hi: Readonly<Record<ToolsWord, string>> = {
   noDigits: 'हर संदेश एक शीर्षक और एक लिंक है, और उसमें कोई संख्या नहीं होती।',
   stale: 'रिले तक पहुँचा नहीं जा सका। यह वह है जो {date} को पता था।',
   staleNever: 'रिले तक पहुँचा नहीं जा सका। यह वह है जो यह कंप्यूटर जानता है।',
-  perChannel: '{channel}: {sent}',
   budgetLine: 'महीने में ज़्यादा से ज़्यादा {budget} संदेश।',
   mailNoApprove: 'मेल में कभी "मंज़ूर" या "अभी नहीं" नहीं होता, क्योंकि आगे भेजे गए मेल को आपसे अलग पहचाना नहीं जा सकता।',
 };

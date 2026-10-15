@@ -13,6 +13,7 @@ import { id, optWhen, when } from '../validate.ts';
 export const PHONE = {
   status: 'hosted.status', pairStart: 'hosted.pair.start', pairFinish: 'hosted.pair.finish',
   channels: 'phone.channels.list', set: 'phone.channels.set', preview: 'phone.templates.preview', counts: 'phone.messages.counts',
+  verify: 'phone.verify',
 } as const;
 /** The monthly message budget the design fixes. */
 export const MESSAGE_BUDGET = 30;
@@ -90,7 +91,19 @@ export function preview(value: unknown): Preview {
 
 export interface Counts {
   readonly month: string; readonly sent: number; readonly budget: number; readonly costPaise: string | null;
-  readonly byChannel: readonly { readonly id: ChannelId; readonly sent: number }[];
+  /** Per channel: messages this month, and, when the engine gives them, that channel's cost and its
+   *  price per message in whole paise (`undefined`: the engine does not give it; `null`: unknown). */
+  readonly byChannel: readonly { readonly id: ChannelId; readonly sent: number; readonly costPaise?: string | null; readonly perMessagePaise?: string | null }[];
+}
+/** An optional per-channel paise map: absent, or each named channel a digit string or null. */
+function paiseByChannel(value: unknown, path: string): Partial<Record<ChannelId, string | null>> | undefined {
+  if (value === undefined) return undefined;
+  const r = rec(value, path), out: Partial<Record<ChannelId, string | null>> = {};
+  for (const k of Object.keys(r)) {
+    const c = oneOf(k, `${path}.${k}`, CHANNEL_IDS);
+    out[c] = r[k] === null ? null : digits(r[k], `${path}.${k}`, false);
+  }
+  return out;
 }
 export function counts(value: unknown): Counts {
   const r = rec(value), by = rec(r['byChannel'], 'reply.byChannel');
@@ -101,12 +114,13 @@ export function counts(value: unknown): Counts {
   if (known === 'unknown' && r['costPaise'] !== null) throw new ShapeError('reply.costPaise');
   const month = str(r['month'], 'reply.month', 7);
   if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)) throw new ShapeError('reply.month');
+  const cost = paiseByChannel(r['costByChannel'], 'reply.costByChannel'), price = paiseByChannel(r['perMessagePaise'], 'reply.perMessagePaise');
   return {
     month, sent, budget, costPaise,
     byChannel: CHANNEL_IDS.filter((c) => by[c] !== undefined).map((c) => {
       const n = int(by[c], `reply.byChannel.${c}`);
       if (n < 0) throw new ShapeError(`reply.byChannel.${c}`);
-      return { id: c, sent: n };
+      return { id: c, sent: n, ...(cost === undefined ? {} : { costPaise: cost[c] ?? null }), ...(price === undefined ? {} : { perMessagePaise: price[c] ?? null }) };
     }),
   };
 }
@@ -119,4 +133,16 @@ export function pairStarted(value: unknown): PairStarted {
 export function paired(value: unknown): { readonly paired: true } {
   if (rec(value)['paired'] !== true) throw new ShapeError('reply.paired');
   return { paired: true };
+}
+
+// ---- TL tools: is a channel's address verified (`phone.verify`) ----
+
+/** Refusals that mean the hosted relay is absent, unconfigured or unpaired: shown as the relay sentence. */
+export const RELAY_ABSENT: ReadonlySet<string> = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED']);
+export function relayCode(code: string): string { return RELAY_ABSENT.has(code) ? 'RELAY_NOT_AVAILABLE' : code; }
+export const VERIFIABLE = ['mail', 'whatsapp'] as const;
+export function verified(value: unknown): { readonly verified: boolean } {
+  const r = rec(value);
+  if (Object.keys(r).some((k) => k !== 'verified')) throw new ShapeError('reply');
+  return { verified: bool(r['verified'], 'reply.verified') };
 }

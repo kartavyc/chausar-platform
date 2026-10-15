@@ -25,6 +25,8 @@
   "trustx.deletions",
   "trustx.explain",
   "trustx.exportDeletion",
+  "trustx.followUpDelete",
+  "trustx.followUpExport",
   "trustx.hosted",
   "trustx.inspectPlugin",
   "trustx.installPlugin",

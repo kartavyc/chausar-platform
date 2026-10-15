@@ -14,4 +14,9 @@ export const subPlaces: readonly LaneSubPlace[] = [
   { place: 'trust', id: 'devices' },
   { place: 'trust', id: 'hosted' },
   // end TR-07/12/14 vault-hosted-keys
+  // TL tools
+  { place: 'tools', id: 'wrap' },
+  { place: 'tools', id: 'requests' },
+  { place: 'tools', id: 'remote' },
+  // end TL tools
 ];

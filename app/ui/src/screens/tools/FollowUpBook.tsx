@@ -1,9 +1,11 @@
 /**
  * TL-03 The follow-up book (tools/smallapps?sheet=follow-up-book), over models-ext's
  * `smallapps.records.*`: who to follow up, the day it was written, what was said and the next
- * date, as a table; "Add an entry"; "Mark done" (one change, against the version read); and each
- * entry's history. What was typed is data, sent as typed and shown as text. Simple keeps the
- * table and Add; Books adds versions.
+ * date, as a table; "Add an entry"; "Mark done" (one change, against the version read); each
+ * entry's history; Delete (asks once by name, then this lane's `trustx.followUpDelete` against the
+ * version read: the entry goes with its history) and Export (`trustx.followUpExport`: a CSV on this
+ * computer, not encrypted). What was typed is data, sent as typed and shown as text. Simple keeps the
+ * table, Add and Export; Books adds versions and the exported file's path and digest.
  */
 import { useState, type FormEvent } from 'react';
 import { withoutSheet } from '../../app/routes.ts';
@@ -15,8 +17,9 @@ import { Sheet } from '../../parts/Sheet';
 import { State } from '../../patterns/States';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { screenState } from '../trust/kit/Screen';
-import { SMALLAPPS, book, entryChanged, history, type Entry } from './adapters/smallapps.ts';
-import { SentLine, day, toolsWords, type Words } from './shared';
+import { FOLLOW_UP, SMALLAPPS, book, entryChanged, followUpDeleted, followUpExported, history, type Entry } from './adapters/smallapps.ts';
+import { LaneSent, laneSay, type Say } from './lane';
+import { SentLine, day, isAdmin, toolsWords, type Words } from './shared';
 import { fill } from './words.ts';
 import s from './FollowUpBook.module.css';
 
@@ -62,7 +65,11 @@ function History({ id, props, w }: { id: string; props: PlaceRenderProps; w: Wor
 function Row({ r, props, w, onChanged }: { r: Entry; props: PlaceRenderProps; w: Words; onChanged: () => void }) {
   const simple = props.view === 'simple', books = props.view === 'books';
   const [open, setOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
   const done = useSend(props.rpc, entryChanged);
+  const remove = useSend(props.rpc, followUpDeleted);
+  const say = laneSay(props.language);
+  const mayDelete = !props.viewer && (isAdmin(props) || r.createdBy === props.member.id);
   return (
     <>
       <tr>
@@ -79,7 +86,19 @@ function Row({ r, props, w, onChanged }: { r: Entry; props: PlaceRenderProps; w:
               }}>{w.markDone}</Button>
             )}
             <Button variant="link" onClick={() => setOpen((o) => !o)}>{open ? w.hideHistory : w.history}</Button>
+            {mayDelete && !asking && <Button variant="link" onClick={() => setAsking(true)}>{say('book.delete')}</Button>}
+            {mayDelete && asking && (
+              <span role="group" aria-label={say('book.deleteAsk', { name: r.who })}>
+                <span className={s.note}>{say('book.deleteAsk', { name: r.who })}</span>{' '}
+                <Button danger disabled={remove.sent.kind === 'sending'} onClick={async () => {
+                  setAsking(false);
+                  if (await remove.send(FOLLOW_UP.delete, { id: r.id, expectedVersion: r.version }) !== null && props.live(props.address)) onChanged();
+                }}>{say('book.deleteYes', { name: r.who })}</Button>
+                <Button variant="link" onClick={() => setAsking(false)}>{say('book.keep')}</Button>
+              </span>
+            )}
             <SentLine sent={done.sent} w={w} />
+            <LaneSent sent={remove.sent} say={say} w={w} />
           </td>
         )}
       </tr>
@@ -102,6 +121,24 @@ function Table({ rows, props, w, onChanged }: { rows: readonly Entry[]; props: P
   );
 }
 
+/** Export: the entries you may see, as a CSV on this computer. */
+function ExportBook({ props, w, say }: { props: PlaceRenderProps; w: Words; say: Say }) {
+  const out = useSend(props.rpc, followUpExported);
+  const books = props.view === 'books';
+  return (
+    <div className={s.form} aria-label={say('book.export')}>
+      <div><Button disabled={out.sent.kind === 'sending'} onClick={() => { void out.send(FOLLOW_UP.export, {}); }}>{say('book.export')}</Button></div>
+      <p className={s.note}>{say('book.exportNote')}</p>
+      {out.sent.kind === 'done' ? (
+        <>
+          <p className={s.note} role="status">{say('book.exported', { n: count(String(out.sent.value.rows)), name: out.sent.value.name })}</p>
+          {books && <p className={[s.note, 'fig'].join(' ')}>{say('book.exportedTech', { path: out.sent.value.path, digest: out.sent.value.sha256 })}</p>}
+        </>
+      ) : <LaneSent sent={out.sent} say={say} w={w} />}
+    </div>
+  );
+}
+
 export function FollowUpBookSheet({ props }: { props: PlaceRenderProps }) {
   const w = toolsWords(props.language);
   const { state, reload } = useEngine(props.rpc, SMALLAPPS.records, {}, book);
@@ -111,6 +148,7 @@ export function FollowUpBookSheet({ props }: { props: PlaceRenderProps }) {
         {state.kind === 'ready' ? <Table rows={state.value} props={props} w={w} onChanged={reload} /> : <State state={screenState(state)} />}
         <p className={s.note}>{w.bookNote}</p>
         {state.kind === 'ready' && !props.viewer && <AddEntry props={props} w={w} onAdded={reload} />}
+        {state.kind === 'ready' && !props.viewer && <ExportBook props={props} w={w} say={laneSay(props.language)} />}
       </div>
     </Sheet>
   );
