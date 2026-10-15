@@ -102,6 +102,7 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - `procedures.runs` shows the share of routed cases and the cost of routed and fallback cases.
 - **Autonomy** (`jobs-ext/autonomy.ts`):
   - A kind can be switched on only if it is reversible and its name contains no always-waits word.
+  - Each kind also has a daily amount limit in whole paise (`dailyAmountMinor`, default `0`). An action's money is its `amountMinor`, on the payload or on writeback's inner payload. An action whose amount cannot be read never runs on its own, and the day's total plus this action must stay within the limit, checked in the same transaction as the count.
   - Outside the workspace's own local connector, a kind also needs the writeback catalogue to say explicitly that it can be undone and need not wait. An unknown or renamed connector has no switch.
   - The tick auto-approves and executes only actions that meet every one of these:
     - prepared by one of this lane's jobs, and exactly as the job recorded it: its private per-job key, its invoice and the job owner as author. Work prepared by hand, by a plugin, a small app or an assistant always waits;
@@ -118,6 +119,25 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - lane jobs, cases, time lines, results, questions, steps for a person, proposals and reminders;
   - procedure runs, and any procedure derived from a removed run;
   - a customer's recorded agreement, once no live record names that customer.
+
+## Screens (round 4)
+
+Two Work sub-places, drawn by `app/ui/src/places/lane-jobs-ext.tsx` from `app/ui/src/screens/jobs-ext/`, with words in `app/ui/src/text/lanes/jobs-ext.ts` (English and Hindi):
+
+- **Work · Procedures** (`work/procedures`):
+  - The owner's procedures, each with its state, version, "N of M cases routed", and the cost of routed and fallback cases.
+  - "Propose a procedure" for each ready-made job, with plain sentences for its refusals.
+  - A sheet with the typed steps: calculations, the question with its rule buckets and confidence, actions that wait for your yes, and lookups that need a model. It also lists the runs, and the agent's note as a quote.
+  - Approve sends the exact digest shown; a changed card is read again.
+  - Reject takes a reason; an approved procedure can be retired.
+- **Work · Job controls** (`work/job-controls`): for each lane job,
+  - the budget meters (rupees from paise; a model cost shown as an estimate, or priced at zero with its minutes; clock time; money exposure);
+  - the stop rules, with the failed-run limit editable from 1 to 10;
+  - "Show SKILL.md", with copy and save on this computer;
+  - "Find repeating work" (`jobsx.detect`), then the new proposals;
+  - the missed-run notes, with "Mark as read".
+
+Both screens draw loading, empty, not built, read only (viewer), locked and error states, in the three views.
 
 ## Engine methods (45)
 
