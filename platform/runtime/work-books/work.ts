@@ -23,7 +23,7 @@ import { acceptResult, approveProposal, dismissProposal, sendBack, SENT_BACK } f
 import type { ApprovalDetail, Env, WorkState, Amount, ActionView } from './work-queue.ts';
 import { findView, wbDetail, wbActionView, reminderOf, practiceReply, changedPayload, parseView, SYSTEM_TITLES, REMINDER_BLOCKS } from './work-writeback.ts';
 import { exportPrepared } from './work-writeback-export.ts';
-import { childTasks, corePractice, coreRoutes, coreSecondAsk, grantSecondAsk, ownSecret, workR4Methods } from './work-r4.ts';
+import { cameBack, childTasks, corePractice, coreRoutes, coreSecondAsk, grantSecondAsk, ownSecret, workR4Methods } from './work-r4.ts';
 import { installed, isLaneJob } from './work-jobs-sheet.ts';
 
 const FAST_MS = 2000, PACE_KEEP = 20, WANTED_MAX = 500, GROUP_MAX = 10, RESERVATION_MS = 15 * 60000;
@@ -376,7 +376,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     // Each note is a fixed line of this lane; `noteKeys` names them in order so a screen says them in its own language.
     const keyed = [...(items.length ? [['closed-until-checked', 'Sending stays closed until every action below is checked.']] : []), ...(journalled.size ? [['may-have-gone-out', 'Some of these may already have gone out after the backup was made. Chausar will look before doing anything.']] : []), ...(hidden ? [['hidden-being-checked', 'Some actions you cannot see are still being checked.']] : [])] as [string, string][];
     // WK-15: deleting again what the restore brought back is core-data's `deletion.reapply` (never probed).
-    return { sendingClosed: open.length > 0, items, notes: keyed.map(([, line]) => line), noteKeys: keyed.map(([k]) => k), deletions: { available: await installed(host, 'deletion.reapply') } };
+    return { sendingClosed: open.length > 0, items, notes: keyed.map(([, line]) => line), noteKeys: keyed.map(([k]) => k), deletions: { available: await installed(host, 'deletion.reapply'), ...(await cameBack(host)) } };
   } },
   'approvals.exportPrepared': { permission: 'prepare', async handler(ctx, payload, host) {
     const id = idOf(payload);

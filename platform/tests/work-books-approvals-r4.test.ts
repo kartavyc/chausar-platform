@@ -197,13 +197,19 @@ test('WK-12: the reminders view lists mail and WhatsApp connections, write-backâ
 test('WK-15: deleting again what a restore brought back goes to core-data, and says not built without it', async () => {
   const none = fixture();
   assert.deepEqual((await none.request(owner, 'approvals.afterRestore')).deletions, { available: false });
-  await assert.rejects(none.request(owner, 'approvals.reapplyDeletions'), code('DELETION_REAPPLY_NOT_BUILT'));
-  const f = fixture({ 'deletion.reapply': () => ({ reapplied: 2 }) });
-  assert.deepEqual((await f.request(owner, 'approvals.afterRestore')).deletions, { available: true });
-  assert.deepEqual(await f.request(owner, 'approvals.reapplyDeletions'), { reapplied: 2 });
+  await assert.rejects(none.request(owner, 'approvals.reapplyDeletions', { confirmation: 'Synthetic shop' }), code('DELETION_REAPPLY_NOT_BUILT'));
+  const sent: any[] = [];
+  const f = fixture({ 'deletion.pending': () => ({ registered: 3, kinds: [{ kind: 'customer', cameBack: 2 }], total: 2 }),
+    'deletion.reapply': (p: any) => { sent.push(p); return { at: '2026-10-15T15:00:00.000Z', complete: false, kinds: [{ kind: 'customer', cameBack: 2, deleted: 1, remaining: 1, state: 'pending', reason: 'One row is held by a running job.' }] }; } });
+  assert.deepEqual((await f.request(owner, 'approvals.afterRestore')).deletions, { available: true, cameBack: 2 });
+  await assert.rejects(f.request(owner, 'approvals.reapplyDeletions'), code('INVALID_APPROVAL'), 'the workspace name must be typed');
+  const again = await f.request(owner, 'approvals.reapplyDeletions', { confirmation: 'Synthetic shop' });
+  assert.deepEqual(sent, [{ confirmation: 'Synthetic shop' }]);
+  assert.deepEqual([again.reapplied, again.remaining, again.complete], [1, 1, false]);
+  assert.equal(again.kinds[0].reason, 'One row is held by a running job.');
   const bad = fixture({ 'deletion.reapply': () => ({ reapplied: -1 }) });
-  await assert.rejects(bad.request(owner, 'approvals.reapplyDeletions'), code('INVALID_DELETION_REPLY'));
-  await assert.rejects(f.request(owner, 'approvals.reapplyDeletions', { all: true }), code('INVALID_APPROVAL'));
+  await assert.rejects(bad.request(owner, 'approvals.reapplyDeletions', { confirmation: 'x' }), code('INVALID_DELETION_REPLY'));
+  await assert.rejects(f.request(owner, 'approvals.reapplyDeletions', { confirmation: 'x', all: true }), code('INVALID_APPROVAL'));
 });
 
 test('WK-08/WK-16: child task results, a core person step done, the review date, named actions and per-route meters for a core job', async () => {

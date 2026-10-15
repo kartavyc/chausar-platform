@@ -63,5 +63,6 @@ export const customerRecord = object({ id, name: nullable(short), timeline: list
 export const customerInvoices = object({ id, name: nullable(short), invoices: list(short, 5000) });
 
 /** WK-15: deleting again what a restore brought back. */
-export const restoreR4 = object({}, { deletions: object({ available: bool }) });
-export const reapplied = object({ reapplied: count });
+export const restoreR4 = object({}, { deletions: object({ available: bool }, { cameBack: count }) });
+export const reapplied = object({ reapplied: count }, { remaining: count, complete: bool,
+  kinds: list(object({ kind: text(40), cameBack: count, deleted: count, remaining: count, state: text(40) }, { reason: nullable(text(400)) }), 20) });

@@ -1071,3 +1071,12 @@ New refusal code on the work-books line: `CORE_DELETION_NEEDS_FULL_ACCESS`. New 
 - `secondAsk.grant {target:{kind:'action', id, digest}, secret}` → `{granted:true, expiresAt}` is called just before
   the approval; the secret is never kept.
 
+### WK-15 re-apply after a restore (core-data, final shapes)
+
+- `deletion.pending {}` (read) → `{ registered, kinds: { kind, cameBack }[], total }`: `approvals.afterRestore.deletions`
+  adds `cameBack: total` when it is installed.
+- `deletion.reapply { confirmation }` (approve; `confirmation` is the workspace name) → `{ at, complete, kinds: { kind,
+  cameBack, deleted, remaining, state, reason }[] }`. `approvals.reapplyDeletions { confirmation }` passes the typed name
+  through and replies `{ reapplied, remaining, complete, at, kinds }` (`reapplied` is the sum of `deleted`). The screen
+  asks for the workspace name before the button works and states every kind that still remains, with core-data's reason.
+

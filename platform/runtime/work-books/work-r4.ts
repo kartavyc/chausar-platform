@@ -169,6 +169,11 @@ export async function grantSecondAsk(host: ModuleHost, raw: string, digest: stri
 
 export type CapsDay = { timeZone: string | null; today: string | null; preparedToday: number | null; sentToday: number | null; perCustomer: number | null; perDay: number | null };
 const zoneOk = (zone: unknown): zone is string => { if (!str(zone, 64)) return false; try { new Intl.DateTimeFormat('en', { timeZone: zone }); return true; } catch { return false; } };
+/** WK-15: how many deleted records came back with the backup (core-data `deletion.pending`, read). */
+export async function cameBack(host: ModuleHost): Promise<{ cameBack?: number }> {
+  if (!(await installed(host, 'deletion.pending'))) return {};
+  try { const reply = await host.call('deletion.pending', {}); return record(reply) && count(reply.total) ? { cameBack: reply.total as number } : {}; } catch { return {}; }
+}
 /** `writeback.caps` (read): `{ settings: { reminderCapPerCustomer, reminderCapPerDay }, timeZone, today, now, counts: { preparedToday, sentToday, customersToday } }`. */
 export async function capsDay(host: ModuleHost): Promise<CapsDay | null> {
   if (!(await installed(host, 'writeback.caps'))) return null;
@@ -262,13 +267,21 @@ export const workR4Methods: Readonly<Record<string, MethodSpec>> = {
     const items = e.wb.views.filter(v => isReminderView(e.state, v)).map(v => rowOf(wbDetail(e, v))).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 200);
     return { available: true as const, connections, caps: await capsDay(host), items };
   } },
-  /** WK-15: delete again what a restore brought back (core-data `deletion.reapply`). Never probed. */
+  /**
+   * WK-15: delete again what a restore brought back. core-data `deletion.reapply { confirmation }` (the workspace name)
+   * → `{ at, complete, kinds: { kind, cameBack, deleted, remaining, state, reason }[] }`. Never probed.
+   */
   'approvals.reapplyDeletions': { permission: 'approve', async handler(ctx, payload, host) {
-    empty(payload);
+    check(record(payload) && Object.keys(payload).every(k => k === 'confirmation') && typeof payload.confirmation === 'string' && payload.confirmation.length >= 1 && payload.confirmation.length <= 200,
+      'INVALID_APPROVAL', 'Type the workspace name to delete them again.');
     check(!ctx.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot delete anything.');
     if (!(await installed(host, 'deletion.reapply'))) throw new ChausarError('DELETION_REAPPLY_NOT_BUILT', 'Deleting again what a restore brought back is not built yet.');
-    const reply = await host.call('deletion.reapply', {});
-    check(record(reply) && count(reply.reapplied), 'INVALID_DELETION_REPLY', 'The deletions could not be read back.');
-    return { reapplied: reply.reapplied as number };
+    const reply = await host.call('deletion.reapply', { confirmation: payload.confirmation });
+    check(record(reply) && typeof reply.at === 'string' && typeof reply.complete === 'boolean' && Array.isArray(reply.kinds) && reply.kinds.length <= 20, 'INVALID_DELETION_REPLY', 'The deletions could not be read back.');
+    const kinds = (reply.kinds as unknown[]).map(k => {
+      check(record(k) && str(k.kind, 40) && count(k.cameBack) && count(k.deleted) && count(k.remaining) && str(k.state, 40), 'INVALID_DELETION_REPLY', 'The deletions could not be read back.');
+      return { kind: k.kind as string, cameBack: k.cameBack as number, deleted: k.deleted as number, remaining: k.remaining as number, state: k.state as string, reason: str(k.reason, 400) ? k.reason as string : null };
+    });
+    return { reapplied: kinds.reduce((n, k) => n + k.deleted, 0), remaining: kinds.reduce((n, k) => n + k.remaining, 0), complete: reply.complete, at: reply.at, kinds };
   } },
 };

@@ -203,11 +203,17 @@ test('WK-12: "Record the agreement" opens the exact Books record when write-back
 });
 
 test('WK-15: after a restore, delete again what came back when core-data serves it', async () => {
-  const { rpc } = show({ 'approvals.afterRestore': () => ({ sendingClosed: false, items: [], notes: [], noteKeys: [], deletions: { available: true } }), 'approvals.reapplyDeletions': () => ({ reapplied: 2 }) },
+  const { rpc } = show({ 'approvals.afterRestore': () => ({ sendingClosed: false, items: [], notes: [], noteKeys: [], deletions: { available: true, cameBack: 3 } }),
+    'approvals.reapplyDeletions': () => ({ reapplied: 2, remaining: 1, complete: false, kinds: [{ kind: 'customer', cameBack: 3, deleted: 2, remaining: 1, state: 'pending', reason: 'One row is held by a running job.' }] }) },
     { place: 'work', sub: 'after-restore' });
-  await userEvent.click(await screen.findByRole('button', { name: 'Delete again what came back' }));
+  expect(await screen.findByText('3 deleted records came back with the backup.')).toBeTruthy();
+  const button = await screen.findByRole('button', { name: 'Delete again what came back' });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  await userEvent.type(screen.getByLabelText('Type the workspace name to confirm'), 'Synthetic shop');
+  await userEvent.click(button);
   expect(await screen.findByText('2 customer records deleted again.')).toBeTruthy();
-  expect(rpc.request).toHaveBeenCalledWith('approvals.reapplyDeletions', {});
+  expect(screen.getByText('1 could not be deleted again yet: One row is held by a running job.')).toBeTruthy();
+  expect(rpc.request).toHaveBeenCalledWith('approvals.reapplyDeletions', { confirmation: 'Synthetic shop' });
   cleanup();
   show({ 'approvals.afterRestore': () => ({ sendingClosed: false, items: [], notes: [], noteKeys: [], deletions: { available: true } }) }, { place: 'work', sub: 'after-restore' }, { role: 'viewer' });
   expect(await screen.findByText(/Customer records you deleted after the backup came back/)).toBeTruthy();
