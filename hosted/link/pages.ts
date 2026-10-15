@@ -1,14 +1,15 @@
 import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import type { HostedResponse, Router } from '../shared/http.ts';
-import { BUTTONS, LINK_PAGE } from '../shared/templates.ts';
+import { BUTTONS, LINK_PAGE, RECOVERY_TEXT } from '../shared/templates.ts';
 import type { RelayButtons } from '../relay/relay.ts';
 import type { MailConfirmPages } from '../relay/mail-verify.ts';
+import type { RecoveryPages } from '../relay/recovery.ts';
 import { checkLinkOrigin } from '../relay/relay.ts';
 
 /**
  * The link pages: plain HTML with the wordmark and one line. They hold no data and run no script.
  * GET never consumes anything (mail scanners prefetch links); only POST /b/:token decides, through the relay's single-use path,
- * and only POST /v/:token confirms a mail address.
+ * only POST /v/:token confirms a mail address, and only POST /r/:token confirms or declines a recovery.
  */
 export const LINK_PAGE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   'content-type': 'text/html; charset=utf-8',
@@ -29,7 +30,7 @@ export function linkPage(line: string, action: string = ''): string {
 const page = (status: number, line: string, action?: string): HostedResponse => ({ status, headers: { ...LINK_PAGE_HEADERS }, body: linkPage(line, action) });
 const gone = () => page(410, LINK_PAGE.gone);
 
-export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons, mailConfirm?: MailConfirmPages): HostedModule {
+export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons, mailConfirm?: MailConfirmPages, recovery?: RecoveryPages): HostedModule {
   checkLinkOrigin(deps.linkOrigin);
   return {
     id: 'link',
@@ -58,6 +59,18 @@ export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons, ma
       router.add('POST', '/v/:token', async request => {
         const confirmed = mailConfirm ? await mailConfirm.confirm(request.params.token) : false;
         return confirmed ? page(200, LINK_PAGE.addressConfirmed) : gone();
+      }, { maxBody: 4096 });
+      // The recovery contact's page: Confirm or I did not ask, once; a day long; nothing about the person or the workspace.
+      router.add('GET', '/r/:token', async request => {
+        if (!recovery || !await recovery.peek(request.params.token)) return gone();
+        return page(200, RECOVERY_TEXT.pageAsk, `<form method="post"><button type="submit" name="choice" value="confirm">${RECOVERY_TEXT.confirm}</button> `
+          + `<button type="submit" name="choice" value="decline">${RECOVERY_TEXT.decline}</button></form>`);
+      });
+      router.add('POST', '/r/:token', async request => {
+        const choice = new URLSearchParams(request.body.toString('utf8')).get('choice');
+        if (!recovery || (choice !== 'confirm' && choice !== 'decline')) return gone();
+        const decided = await recovery.decide(request.params.token, choice);
+        return decided === 'confirmed' ? page(200, RECOVERY_TEXT.pageConfirmed) : decided === 'declined' ? page(200, RECOVERY_TEXT.pageDeclined) : gone();
       }, { maxBody: 4096 });
     },
   };

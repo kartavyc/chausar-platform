@@ -34,5 +34,11 @@
   "phone.documents.list",
   "phone.documents.preview",
   "phone.documents.discard",
-  "phone.documents.done"
+  "phone.documents.done",
+  "hosted.recovery.enrol",
+  "hosted.recovery.status",
+  "hosted.recovery.remove",
+  "hosted.recovery.request",
+  "hosted.recovery.check",
+  "hosted.recovery.complete"
 ]
