@@ -114,7 +114,8 @@ test('record markings hide a record\'s facts and field markings withhold the fie
   const receipt = await f.as(accountant, 'calculation.run', { operation: 'billed' });
   assert.equal(receipt.totalMinor, '2000');
   assert.deepEqual(receipt.exclusions.filter((e: any) => e.reason === 'withheld').map((e: any) => e.rowId), ['f3']);
-  assert.equal(receipt.coverage.completeness, 'partial'); assert.ok(receipt.coverage.gaps.some((g: string) => /missing amounts are not zero/.test(g)));
+  assert.equal(receipt.coverage.completeness, 'partial'); assert.ok(receipt.coverage.gaps.some((g: string) => /withheld from your seat by a marking/.test(g)));
+  assert.ok(!receipt.coverage.gaps.some((g: string) => /excluded by the dictionary/.test(g)));
   // The owner always sees everything.
   const owner = await f.rpc('calculation.run', { operation: 'billed' }); assert.equal(owner.totalMinor, '15000'); assert.equal(owner.coverage.completeness === 'partial', false);
   assert.equal((await f.rpc('memory.list', {})).facts.find((x: Fact) => x.id === 'f2').fields.phone, '+91 90000 00002');

@@ -267,7 +267,9 @@ export class CalculatorService {
     const allReconciled = rows.every(r => state.imports.some(i => i.coverage?.reconciled && i.rowIds?.includes(r.id)));
     const gaps: string[] = []; if (!allReconciled && rows.length) gaps.push('Some selected facts were entered directly and are not reconciled to a source report.');
     if (conflictIds.size) gaps.push('Unresolved source conflicts were excluded from this total.');
-    if (missingMeasures.size) gaps.push('Some selected amounts are unknown and were excluded by the dictionary. This total is partial; missing amounts are not zero.');
+    const withheldRows = new Set(excluded.filter(e => e.reason === 'withheld').map(e => e.rowId));
+    if ([...missingMeasures].some(id => !withheldRows.has(id))) gaps.push('Some selected amounts are unknown and were excluded by the dictionary. This total is partial; missing amounts are not zero.');
+    if (withheldRows.size) gaps.push('Some amounts are withheld from your seat by a marking and were not counted. This total is partial; withheld amounts are not zero.');
     if (!rows.length) gaps.push('No visible facts were counted. An empty selection is not proof that the business activity was zero.');
     if (notCounted.size) gaps.push(NOT_COUNTED_GAP);
     if (operation.type === 'stock' && units(figures) > 1) gaps.push('Items are in different units, so there is no stock total across all items.');

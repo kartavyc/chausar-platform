@@ -6,6 +6,7 @@
  * - keep periods for model receipts, activity, briefs, exports and the learning log remove what is older, through the retention
  *   clean-up, a daily module tick and `keep.enforce`. Evidence something else still needs is held, and the reply says what and why.
  */
+import { rememberPreparedExports } from './prepared-exports.ts';
 import { lstat, readdir, rmdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { authorize, audit, check, hash, newId, registerCoreHook } from '../contracts.ts';
@@ -124,6 +125,8 @@ export function keepState(state: State, at: number): { rows: KeepRow[]; removedI
   const open = state.modelReceipts.filter(r => r?.status === 'preview' || r?.status === 'dispatching');
   const approvals = new Set(open.map(r => r.approvalId).filter(Boolean));
   state.modelReceipts = sweep('modelReceipts', state.modelReceipts, dateOf, r => open.includes(r) || approvals.has(r?.id) ? 'open' : today(dateOf(r)).slice(0, 7) === month ? 'month' : null);
+  // Prepared exports are named only in activity; remember them first so a workspace delete still removes the files.
+  rememberPreparedExports(state);
   // Activity: what the record chain links, the invitation behind a seat, and the entries of a change still held stay.
   const linked = new Set(((peekLane(state)?.tools?.record?.links ?? []) as { id: string }[]).map(link => link.id));
   const members = new Set(state.members.map(m => m.id)); const actions = new Set(state.actions.map(a => a?.id));
