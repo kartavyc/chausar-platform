@@ -941,6 +941,62 @@ This supersedes, in "Still missing" above: "BK-09: publishing a copy uses the pr
 
 Core edits (shared files, additive): `platform/runtime/helper.ts` allows `words` for `pdf.ocr`; `platform/helpers/analytics.py` returns word boxes and page sizes when asked. Tests: `platform/tests/work-books-books-r4b-engine.test.ts`, `frontend-validation/tests/work-books-books-r4b.test.tsx`; the round-2 hand-built hosts (`work-books-books-r2b-engine.test.ts`, `work-books-review2.test.ts`) now declare their stubs as the installed methods (`hasMethod`) instead of reading the merged registry.
 
+### Books, round 4: aligned with core-data's published contracts (BK-20, BK-08, rates)
+
+Read from `docs/lanes/core-data.md` "Engine methods (Round 4 contracts)" and its code on branch
+`claude/lane-core-data` (`platform/runtime/core-data/data.ts`, `deletion-customer.ts`, `ontology.ts`), not merged here.
+Every core-data method is used only when the method registry (or a trusted host's `hasMethod`) lists it; none is
+probed. Tests use a fake shaped exactly like core-data's (`platform/tests/work-books-core-data-fake.ts`).
+This supersedes the assumed `deletion.customer { customerId, recordIds, confirmation }` above and review 4 #8's
+full-access rule.
+
+**core-data shapes used (exact):**
+
+- `deletion.customerPlan` (read) `{ id }` →
+  `{ recordId; canDelete; stores: { store: 'facts' | 'receipts' | 'answers' | 'actions' | 'conversations'; count; waiting; state: 'can-delete' | 'pending' | 'nothing-held'; reason: string | null }[] }`.
+- `deletion.customer` (approve) `{ id, confirmation }` with `confirmation === id` →
+  `{ recordId; at; complete; rows: { store; count; remaining; state: 'deleted' | 'pending' | 'not-possible' | 'nothing-held'; reason }[];
+  elsewhere: { store: 'source-files' | 'decisions'; count; state: 'not-possible' | 'nothing-held'; reason }[];
+  derived: { staleMarked; modelReceiptsRemoved; privateRemoved } }`.
+  Refusals: `TAINTED_APPROVAL`, `CONFIRMATION_REQUIRED`, `RECORD_NOT_FOUND`, `INVALID_DELETION_REQUEST`,
+  `DELETION_REGISTER_FULL`, `DELETION_REGISTER_INVALID`, `DELETION_REGISTER_UNAVAILABLE`.
+- `Definition.example?: { rows: { label: string (1–80); amountMinor: string (whole minor units); counted: boolean; reason?: string (1–160, required when not counted) }[] (1–12); resultMinor: string }`
+  (`resultMinor` is exactly the counted rows' sum times `sign`), `Definition.usedFrom?: 'YYYY-MM-DD'` (a real date).
+  Bad values refuse `INVALID_DEFINITION`.
+
+**What changed in this lane:**
+
+| Method | Change |
+|---|---|
+| `records.deletionPlan` | With `deletion.customerPlan` installed, the core stores' rows are core-data's: its `count`, `state` (`pending` when every row is an action it must wait for), `reason`, and `waiting` (additive field on those rows only). `coreDeletion` is now `{ available; planFrom: 'core' \| 'here' }` (`everyRow` and `fullAccess` are gone). A refused plan (or a reply not in core-data's shape: `INVALID_DELETION_REPLY`) leaves the core stores `needs-owner` with the code in `reason`, and nothing in the core is deleted. With only `deletion.customer` installed, the stores counted here are offered, as before. Without either, unchanged. |
+| `records.delete` | Calls `deletion.customer { id, confirmation: id }` once, after this lane's own stores, when a core store is `can-delete`. The review-4 recount stays: each core store is `deleted` only when the exact rows counted before are gone **and** core-data's own row has `remaining: 0`; otherwise `pending` with core-data's reason (or the refusal code, or "still found"). The report adds `elsewhere` and `derived` from core-data (`null` when the core was not called; older stored reports have neither). |
+| `books.draft` | `definition` takes optional `example` and `usedFrom`, checked with core-data's rules. The draft keeps them in `after`; `change` says "Adds a worked example." / "It is used from …". The draft adds `extras: 'published-with' \| 'draft-only'` when `after` carries them. |
+| `books.publish` | Passes them to the dictionary only when this build's `compileDictionary` accepts them (read once by compiling a small synthetic dictionary with and without them, in a try: `books-definition-extras.ts`). The base refuses them today, so they are left out of what is compiled and published (`extras: 'draft-only'`) and publishing never breaks; once core-data merges they are published with the word. A change to the example or date alone refuses `NO_CHANGE` while they would not be published. |
+
+**Full-access decision.** Review 4 required a member with every branch (`'*'`) because the assumed core deletion would
+remove every row about the customer. core-data's `coreScope` chooses exactly the rows `holdingsOf` counts for the
+caller: facts the caller can see (`canSeeFact`), the caller's own receipts, answers and conversations, and actions
+under the action service's access rule; `deletion.customerPlan` answers `RECORD_NOT_FOUND` for a record the caller
+neither sees nor holds rows about. So the rule is dropped: a branch-limited approver deletes only what they can see,
+and the screen says so ("The core deletes only the rows you can see."). `CORE_DELETION_NEEDS_FULL_ACCESS` is no longer
+raised (it stays on the refusal line for older screens).
+
+**Rates and staleness (gap).** core-data exposes no hook or method to mark answers stale when a rate changes
+(`registerRateSource` only reads rates; its doc lists "`books.setRate` does not mark earlier answers stale" as
+missing). `books.setRate` / `books.removeRate` therefore do not mark earlier answers stale; this lane does not edit
+core answers itself. Needs a core-data method (for example `answers.markStale { currency, on }`).
+
+**Not changed here:** `deletion.reapply` now takes `{ confirmation }` (the workspace name) and replies
+`{ at, complete, kinds }`, not the `{ reapplied }` assumed by `approvals.reapplyDeletions` (WK-15 row above); that
+adapter still needs aligning.
+
+Screens: Records' Delete draws core-data's waiting actions in the plan, the "held elsewhere" table and the
+derived line in the report; the meaning sheet draws a worked example (rows, counted or left out with reason, result)
+and the date used for the word and the draft, and says when they are kept on the draft only; the draft form adds
+"Used from" and example rows (the result is worked out from the counted rows). English and Hindi.
+New refusal codes on the work-books line: `DELETION_REGISTER_FULL`, `DELETION_REGISTER_INVALID`,
+`DELETION_REGISTER_UNAVAILABLE`, `INVALID_DELETION_REQUEST`.
+
 ### Work, round 4
 
 What Work calls in other lanes this round, with the exact shape assumed. Every method is used only when the

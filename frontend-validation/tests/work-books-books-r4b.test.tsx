@@ -185,19 +185,69 @@ test('BK-19: the not-counted count from receipts, each opening its receipt; BK-2
   expect(await screen.findByText(/deleted through the core too/)).toBeTruthy();
 });
 
-test('BK-20 (review 4): the plan says the core deletes every row, and that it needs every branch when the person lacks one', async () => {
-  setup({ address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: { 'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: true, sourceDeletion: { available: false },
-    coreDeletion: { available: true, everyRow: true, fullAccess: true }, stores: [{ store: 'facts', count: 12, state: 'can-delete', reason: null }] }) } });
+test('BK-20 (core-data round 4): the plan shows core-data\'s waiting actions before the yes; the report shows what is held elsewhere and what changed around it', async () => {
+  const waitingReason = 'An action that is executing or unsure is checked first. It is kept until it is settled, then it can be deleted.';
+  const report = { id: 'deletion-1', recordId: 'rec-1', at: '2026-10-15T10:00:00.000Z', by: 'Owner', complete: false,
+    rows: [{ store: 'facts', count: 12, state: 'deleted', reason: null }, { store: 'actions', count: 2, state: 'pending', reason: waitingReason }],
+    elsewhere: [{ store: 'source-files', count: 1, state: 'not-possible', reason: 'The original file kept with its import still holds these rows.' }, { store: 'decisions', count: 0, state: 'nothing-held', reason: null }],
+    derived: { staleMarked: 3, modelReceiptsRemoved: 1, privateRemoved: 0 } };
+  const { calls } = setup({ address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: {
+    'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: true, sourceDeletion: { available: false }, coreDeletion: { available: true, planFrom: 'core' },
+      stores: [{ store: 'facts', count: 12, state: 'can-delete', reason: null, waiting: 0 }, { store: 'actions', count: 2, state: 'can-delete', reason: waitingReason, waiting: 1 }] }),
+    'records.delete': () => report } });
   fireEvent.click(await screen.findByRole('button', { name: /Delete/ }));
-  expect(await screen.findByText('The core deletes every row about this customer, including rows you cannot see here.')).toBeTruthy();
-  cleanup();
-  const reason = 'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.';
-  setup({ address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: { 'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: false, sourceDeletion: { available: false },
-    coreDeletion: { available: true, everyRow: true, fullAccess: false }, stores: [{ store: 'facts', count: 12, state: 'needs-owner', reason }, { store: 'memory', count: 1, state: 'can-delete', reason: null }] }) } });
-  fireEvent.click(await screen.findByRole('button', { name: /Delete/ }));
-  expect((await screen.findAllByText(reason)).length).toBeGreaterThan(0);
-  expect(screen.queryByText(/deleted through the core too/)).toBeNull();
-  expect(screen.queryByLabelText(/Type the customer id/)).toBeNull();
+  expect(await screen.findByText(/1 of these actions are being sent or their result is unsure/)).toBeTruthy();
+  expect(screen.getByText('The core deletes only the rows you can see. Rows you cannot see here stay.')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText(/Type the customer id/), { target: { value: 'rec-1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  expect(await screen.findByRole('heading', { name: 'Held elsewhere' })).toBeTruthy();
+  expect(screen.getByText('Original files kept with imports')).toBeTruthy();
+  expect(screen.getByText(/3 other answers or receipts marked out of date · 1 model receipts removed · 0 private copies removed/)).toBeTruthy();
+  expect(calls.filter(c => c.method === 'records.delete').map(c => c.payload)).toEqual([{ id: 'rec-1', confirmation: 'rec-1' }]);
+});
+
+test('BK-20: in Hindi the waiting actions and the held-elsewhere list are in Hindi', async () => {
+  setup({ language: 'hi', address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: {
+    'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: true, sourceDeletion: { available: false }, coreDeletion: { available: true, planFrom: 'core' },
+      stores: [{ store: 'actions', count: 2, state: 'can-delete', reason: null, waiting: 1 }] }) } });
+  fireEvent.click(await screen.findByRole('button', { name: 'हमारे पास जो है उसे हटाएँ' }));
+  expect(await screen.findByText(BOOKS_R4B.hi['del.waiting'].replace('{n}', '1'))).toBeTruthy();
+});
+
+// ---------------------------------------------------------------- BK-08 worked example and date used
+
+const definitionWith = { label: 'Billed', meaning: 'Invoice value by invoice date.', kind: 'invoice', field: 'amountMinor', nulls: 'exclude', name: 'billed', currency: 'INR',
+  usedFrom: '2026-04-01', example: { rows: [{ label: 'Invoice I1', amountMinor: '100000', counted: true }, { label: 'Payment P1', amountMinor: '5000', counted: false, reason: 'A payment is not billed.' }], resultMinor: '100000' } };
+const meaningWith = (extras: string) => ({ word: definitionWith, origin: 'you', history: [], draft: { id: 'draft-1', name: 'billed', author: 'Owner', createdAt: '2026-10-01T10:00:00.000Z', state: 'draft',
+  before: null, after: definitionWith, change: 'Adds a worked example.', affects: { calculations: ['billed'], savedAnswers: 0 }, reviews: [], checks: { ok: true, code: null }, digest: 'd1', extras } });
+
+test('BK-08: the meaning sheet draws the worked example, its result and the date used; a draft-only example says so', async () => {
+  setup({ address: { place: 'books', sub: 'meanings', sheet: sheetOf('billed') }, handlers: {
+    'books.meanings': () => ({ dictionary: null, words: [], drafts: [] }), 'books.gst': () => ({ gstMode: null, rates: { available: true } }), 'books.meaning': () => meaningWith('draft-only') } });
+  expect((await screen.findAllByText('Used from 2026-04-01')).length).toBe(2);
+  expect(screen.getAllByText('A payment is not billed.').length).toBe(2);
+  expect(screen.getAllByText('Left out').length).toBeGreaterThan(0);
+  expect(screen.getByText(/kept on this draft/)).toBeTruthy();
+});
+
+test('BK-08: the draft form sends the worked example in core-data\'s shape, with the result the counted rows add up to', async () => {
+  const { calls } = setup({ address: { place: 'books', sub: 'meanings' }, handlers: {
+    'books.meanings': () => ({ dictionary: null, words: [], drafts: [] }), 'books.gst': () => ({ gstMode: null, rates: { available: true } }),
+    'books.draft': () => meaningWith('published-with').draft } });
+  const form = await screen.findByRole('form', { name: 'Start a draft' });
+  const f = within(form);
+  for (const [label, value] of [['Word (short name)', 'billed'], ['Label', 'Billed'], ['Meaning in plain words', 'Invoice value by invoice date.'], ['Kind of record it counts', 'invoice'], ['Field it reads', 'amountMinor']] as const)
+    fireEvent.change(f.getByLabelText(label), { target: { value } });
+  fireEvent.change(f.getByLabelText(/Used from/), { target: { value: '2026-04-01' } });
+  fireEvent.click(f.getByRole('button', { name: 'Add an example row' }));
+  fireEvent.change(f.getByLabelText('Example row'), { target: { value: 'Invoice I1' } });
+  fireEvent.change(f.getByLabelText('Amount in paise'), { target: { value: '100000' } });
+  expect(f.getByText(/The example adds up to/)).toBeTruthy();
+  fireEvent.submit(form);
+  await waitFor(() => expect(calls.some(c => c.method === 'books.draft')).toBe(true));
+  const sent = calls.find(c => c.method === 'books.draft')!.payload as any;
+  expect(sent.definition.usedFrom).toBe('2026-04-01');
+  expect(sent.definition.example).toEqual({ rows: [{ label: 'Invoice I1', amountMinor: '100000', counted: true }], resultMinor: '100000' });
 });
 
 // ---------------------------------------------------------------- bill photo

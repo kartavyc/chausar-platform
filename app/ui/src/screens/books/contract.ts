@@ -53,9 +53,14 @@ export const unmappedReply = object({
   }, { origin: oneOf(['file', 'connector']), recipeId: nullable(name), mappable: bool })),
 });
 
+/** BK-08, core-data's Definition fields: a worked example (rows in, each counted or left out, the exact result) and the date it came into use. */
+export const definitionExample = object({
+  rows: list(object({ label: text(80), amountMinor: integerString, counted: bool }, { reason: text(160) }), 12), resultMinor: integerString,
+});
+export type DefinitionExample = ReturnType<typeof definitionExample>;
 export const definition = object(
   { label: name, meaning: line, kind: name, field: name, nulls: oneOf(['exclude', 'reject']) },
-  { name, currency: name, sign: either(literal(1), literal(-1)) },
+  { name, currency: name, sign: either(literal(1), literal(-1)), example: definitionExample, usedFrom: isoDate },
 );
 export type Definition = ReturnType<typeof definition>;
 
@@ -65,7 +70,7 @@ export const draft = object({
   affects: object({ calculations: list(name), savedAnswers: count }),
   reviews: list(object({ kind: oneOf(['cosign', 'ai-opinion']), by: name, role: name, at: when })),
   checks: object({ ok: bool, code: nullable(code) }), digest: text(200),
-});
+}, { extras: oneOf(['published-with', 'draft-only']) });
 export type Draft = ReturnType<typeof draft>;
 
 const origin = oneOf(['core', 'pack', 'you']);
@@ -206,12 +211,17 @@ export const removeRateReply = object({ currency: text(3), on: isoDate, removed:
 
 export const deletionPlanReply = object({
   recordId: id, canDelete: bool, sourceDeletion: object({ available: bool }),
-  stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'nothing-held']), reason: nullable(line) }), 50),
-}, { coreDeletion: object({ available: bool }, { everyRow: bool, fullAccess: bool }) });
+  // Round 4: `pending` and `waiting` come from core-data's plan (actions it must wait for); `planFrom` says whose plan the core stores are.
+  stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'pending', 'nothing-held']), reason: nullable(line) }, { waiting: count }), 50),
+}, { coreDeletion: object({ available: bool }, { planFrom: oneOf(['core', 'here']) }) });
 export type DeletionPlan = ReturnType<typeof deletionPlanReply>;
 export const deletionReport = object({
   id, recordId: id, at: when, by: name, complete: bool,
   rows: list(object({ store: name, count, state: oneOf(['deleted', 'pending', 'not-possible', 'nothing-held']), reason: nullable(line) }), 50),
+}, {
+  // Round 4, core-data's deletion: copies outside the five stores, and what it changed around them (null when the core was not called).
+  elsewhere: nullable(list(object({ store: oneOf(['source-files', 'decisions']), count, state: oneOf(['not-possible', 'nothing-held']), reason: nullable(line) }), 10)),
+  derived: nullable(object({ staleMarked: count, modelReceiptsRemoved: count, privateRemoved: count })),
 });
 export type DeletionReport = ReturnType<typeof deletionReport>;
 export const deletionsReply = object({ reports: list(deletionReport, 500) });

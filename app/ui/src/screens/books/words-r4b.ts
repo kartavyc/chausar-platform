@@ -2,7 +2,7 @@
  * Words added in round 4 of the Books screens, in English and Hindi: publish strategies of a
  * copy (BK-09), reminders and notes on a record's time line and asking about it (BK-12), the
  * demo clock on History (BK-15), the not-counted count from receipts (BK-19), the core deletion
- * (BK-20) and the outline of every page of a bill (WK-13/BK-18).
+ * (BK-20), a meaning's worked example and date used (BK-08) and the outline of every page of a bill (WK-13/BK-18).
  */
 import type { Language } from '../../app/presentation.ts';
 import { words, type Catalogue } from '../../places/types.ts';
@@ -42,8 +42,27 @@ const en = {
   'rates.receiptsWait': 'Receipts do not carry this count yet. The count above is over the books.',
   // BK-20
   'del.core': 'Facts, receipts, answers, actions and conversations are deleted through the core too, and each is counted again after.',
-  'del.coreEveryRow': 'The core deletes every row about this customer, including rows you cannot see here.',
-  'del.coreNeedsFull': 'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.',
+  'del.coreVisible': 'The core deletes only the rows you can see. Rows you cannot see here stay.',
+  'del.waiting': '{n} of these actions are being sent or their result is unsure. They are kept until they are settled.',
+  'del.elsewhere': 'Held elsewhere',
+  'del.elsewhere.source-files': 'Original files kept with imports',
+  'del.elsewhere.decisions': 'Decisions',
+  'del.derived': 'Also: {stale} other answers or receipts marked out of date · {model} model receipts removed · {private} private copies removed.',
+  // BK-08
+  'ex.title': 'Worked example',
+  'ex.col.row': 'Row', 'ex.col.amount': 'Amount', 'ex.col.counted': 'Counted', 'ex.col.reason': 'Why left out',
+  'ex.yes': 'Counted', 'ex.no': 'Left out',
+  'ex.result': 'Result: {amount}',
+  'ex.usedFrom': 'Used from {date}',
+  'ex.draftOnly': 'The worked example and date used are kept on this draft. This version does not publish them with the word yet.',
+  'ex.form.usedFrom': 'Used from (YYYY-MM-DD, optional)',
+  'ex.form.label': 'Example row',
+  'ex.form.amount': 'Amount in paise',
+  'ex.form.counted': 'Counted?',
+  'ex.form.reason': 'Why it is left out',
+  'ex.form.add': 'Add an example row',
+  'ex.form.remove': 'Remove this row',
+  'ex.form.result': 'The example adds up to {amount}.',
   // Bill photo
   'bill.pageOf': 'Page {n} of {of}',
   'bill.outlineNote': 'Each field is outlined where its words were read. Faint boxes are the other words on the page.',
@@ -81,8 +100,26 @@ const hi: Readonly<Record<Key, string>> = {
   'rates.receiptsNone': 'किसी रसीद में दर न होने से छूटी पंक्तियाँ नहीं हैं।',
   'rates.receiptsWait': 'रसीदों में यह गिनती अभी नहीं आती। ऊपर की गिनती बहीखातों पर है।',
   'del.core': 'तथ्य, रसीदें, जवाब, कार्रवाइयाँ और बातचीत भी कोर के ज़रिए मिटाई जाती हैं, और हर एक को बाद में फिर गिना जाता है।',
-  'del.coreEveryRow': 'कोर इस ग्राहक की हर पंक्ति मिटाता है, उन पंक्तियों समेत जो आपको यहाँ नहीं दिखतीं।',
-  'del.coreNeedsFull': 'कोर के ज़रिए मिटाने से इस ग्राहक की हर पंक्ति मिटती है, उन पंक्तियों समेत जो आपको नहीं दिखतीं। यह सिर्फ़ हर शाखा वाला व्यक्ति कर सकता है।',
+  'del.coreVisible': 'कोर सिर्फ़ वही पंक्तियाँ मिटाता है जो आपको दिखती हैं। जो आपको यहाँ नहीं दिखतीं, वे बनी रहती हैं।',
+  'del.waiting': 'इनमें से {n} कार्रवाइयाँ भेजी जा रही हैं या उनका नतीजा पक्का नहीं है। निपटने तक वे रखी जाती हैं।',
+  'del.elsewhere': 'कहीं और रखा है',
+  'del.elsewhere.source-files': 'आयात के साथ रखी मूल फ़ाइलें',
+  'del.elsewhere.decisions': 'फ़ैसले',
+  'del.derived': 'साथ ही: {stale} दूसरे जवाब या रसीदें पुरानी चिह्नित · {model} मॉडल रसीदें हटाई गईं · {private} निजी प्रतियाँ हटाई गईं।',
+  'ex.title': 'हल किया उदाहरण',
+  'ex.col.row': 'पंक्ति', 'ex.col.amount': 'रकम', 'ex.col.counted': 'गिना गया', 'ex.col.reason': 'क्यों छोड़ा',
+  'ex.yes': 'गिना गया', 'ex.no': 'छोड़ा गया',
+  'ex.result': 'नतीजा: {amount}',
+  'ex.usedFrom': '{date} से इस्तेमाल में',
+  'ex.draftOnly': 'हल किया उदाहरण और इस्तेमाल की तारीख़ इस मसौदे पर रखी हैं। यह संस्करण अभी उन्हें शब्द के साथ प्रकाशित नहीं करता।',
+  'ex.form.usedFrom': 'कब से इस्तेमाल में (YYYY-MM-DD, वैकल्पिक)',
+  'ex.form.label': 'उदाहरण की पंक्ति',
+  'ex.form.amount': 'रकम पैसे में',
+  'ex.form.counted': 'गिनी जाए?',
+  'ex.form.reason': 'क्यों छोड़ी गई',
+  'ex.form.add': 'उदाहरण की पंक्ति जोड़ें',
+  'ex.form.remove': 'यह पंक्ति हटाएँ',
+  'ex.form.result': 'उदाहरण का जोड़ {amount} है।',
   'bill.pageOf': 'पन्ना {n}, कुल {of}',
   'bill.outlineNote': 'हर खाने के चारों ओर वहाँ घेरा है जहाँ उसके शब्द पढ़े गए। हल्के घेरे पन्ने के बाकी शब्द हैं।',
   'bill.omitted': 'इस पन्ने के {n} और शब्दों पर घेरा नहीं है।',

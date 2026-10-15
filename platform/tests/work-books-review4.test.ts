@@ -12,6 +12,7 @@ import { workMethods } from '../runtime/work-books/work.ts';
 import { bookRecordOf } from '../runtime/work-books/work-r4.ts';
 import { impactOf } from '../runtime/work-books/books-trial-r4b.ts';
 import { learningExtModule } from '../runtime/modules/lane-learning-ext.ts';
+import { fakeCoreDeletion } from './work-books-core-data-fake.ts';
 
 // Review 4 of the work-books lane: the reviewer's reproductions, kept as regression tests. Synthetic data only.
 // Other lanes are stubbed in a hand-built host, except learning-ext, whose real handlers run on the same store.
@@ -159,9 +160,10 @@ test('review 4 #7: approvals.reapplyDeletions refuses a tainted request before c
   assert.deepEqual(await call(owner, 'approvals.reapplyDeletions', {}), { reapplied: 1 });
 });
 
-// ---------------------------------------------------------------- 8. BK-20 recount and full access
+// ---------------------------------------------------------------- 8. BK-20 recount (and, after core-data's round 4, no full-access rule)
 
-const coreDelete: Stub = { 'deletion.customer': (p: any, st: TestStore) => st.update(s => { for (const f of s.facts) if (f.fields.customerId === p.customerId) f.deletedAt = new Date().toISOString(); return { customerId: p.customerId, stores: [] }; }) };
+// core-data in its exact contract shape, except that it leaves receipts behind while reporting them deleted.
+const coreDelete: Stub = fakeCoreDeletion({ leave: ['receipts'] });
 
 test('review 4 #8: after a core deletion the exact receipts counted before are counted again; one left is never "deleted"', async () => {
   const { store, services, call } = await setup(coreDelete);
@@ -169,24 +171,24 @@ test('review 4 #8: after a core deletion the exact receipts counted before are c
   await services.calculator.calculate(owner, { operation: 'aging', customerId: 'c-1' });
   assert.equal(store.read().receipts.length, 1);
   const plan = await call(owner, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: true, everyRow: true, fullAccess: true });
+  assert.deepEqual(plan.coreDeletion, { available: true, planFrom: 'core' });
   assert.equal(plan.stores.find((s: any) => s.store === 'receipts').count, 1);
   const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
   const row = (store: string) => report.rows.find((r: any) => r.store === store);
   assert.equal(row('facts').state, 'deleted');
-  assert.equal(row('receipts').state, 'pending', 'the receipt the core left behind is still counted');
+  assert.equal(row('receipts').state, 'pending', 'core-data said deleted, but the receipt counted before is still here');
   assert.equal(report.complete, false);
 });
 
-test('review 4 #8: core deletion removes every row, so only an approver with every branch may start it', async () => {
-  const { services, call, calls } = await setup(coreDelete);
+test('review 4 #8, round 4: core-data deletes only the rows the caller can see, so a member with one branch may delete', async () => {
+  const { services, call, calls } = await setup(fakeCoreDeletion());
   await services.memory.append(owner, [fact('inv-1', 'books', { customerId: 'c-1', amountMinor: '50000', invoiceId: 'inv-1' })]);
   const plan = await call(branchCof, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: true, everyRow: true, fullAccess: false });
-  const facts = plan.stores.find((s: any) => s.store === 'facts');
-  assert.equal(facts.state, 'needs-owner'); assert.match(facts.reason, /including rows you cannot see/); assert.equal(plan.canDelete, false);
-  await assert.rejects(call(branchCof, 'records.delete', { id: 'c-1', confirmation: 'c-1' }), code('CORE_DELETION_NEEDS_FULL_ACCESS'));
-  assert.ok(!calls.includes('deletion.customer'), 'the core was never asked');
+  assert.deepEqual(plan.coreDeletion, { available: true, planFrom: 'core' });
+  assert.equal(plan.stores.find((s: any) => s.store === 'facts').state, 'can-delete'); assert.equal(plan.canDelete, true);
+  const report = await call(branchCof, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
+  assert.equal(report.rows.find((r: any) => r.store === 'facts').state, 'deleted');
+  assert.equal(calls.filter(c => c === 'deletion.customer').length, 1);
 });
 
 // ---------------------------------------------------------------- 9. preserved receipts the caller can read

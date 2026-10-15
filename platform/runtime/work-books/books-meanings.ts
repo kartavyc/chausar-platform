@@ -8,6 +8,7 @@ import { authorize, check, hash, newId, now, type Context, type State } from '..
 import { compileDictionary, OntologyService, starterPacks, type Definition, type Dictionary, type DictionaryDraft } from '../ontology.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { canonical, input, member, peekBooks, text, writeBooks, type BooksState, type Draft, type DraftMeta } from './books-common.ts';
+import { extrasAccepted, extrasInput, hasExtras, withoutExtras, type DefinitionExtras } from './books-definition-extras.ts';
 
 const NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const open = (draft: Draft) => draft.state === 'draft' || draft.state === 'cosigned';
@@ -22,8 +23,10 @@ function ontology(host: ModuleHost): OntologyService { return host.services.onto
 function current(host: ModuleHost, ctx: Context): Dictionary | null { return ontology(host).current(ctx); }
 function draftOf(dictionary: Dictionary, name: string, after: Definition | null): DictionaryDraft {
   const index = dictionary.definitions.findIndex(d => d.name === name);
-  const definitions = dictionary.definitions.filter(d => d.name !== name).map(d => structuredClone(d));
-  if (after) definitions.splice(index < 0 ? definitions.length : index, 0, structuredClone(after));
+  // BK-08: the worked example and date used go to the dictionary only when this build's compiler takes them.
+  const keep = extrasAccepted(); const ready = (d: Definition) => keep ? structuredClone(d) : withoutExtras(structuredClone(d));
+  const definitions = dictionary.definitions.filter(d => d.name !== name).map(ready);
+  if (after) definitions.splice(index < 0 ? definitions.length : index, 0, ready(after));
   return { pack: dictionary.pack, label: dictionary.label, currency: dictionary.currency, gstMode: dictionary.gstMode, fields: structuredClone(dictionary.fields), definitions };
 }
 /** The change in plain words, built only from the field differences. */
@@ -38,6 +41,9 @@ export function describeChange(before: Definition | null, after: Definition | nu
   if (before.nulls !== after.nulls) parts.push(after.nulls === 'exclude' ? 'A missing amount is left out and reported, instead of stopping the calculation.' : 'A missing amount now stops the calculation, instead of being left out.');
   if ((before.sign ?? 1) !== (after.sign ?? 1)) parts.push(after.sign === -1 ? 'The amount is now subtracted.' : 'The amount is now added.');
   if (before.meaning !== after.meaning) parts.push('The written meaning changes.');
+  const b = before as Definition & DefinitionExtras, a = after as Definition & DefinitionExtras;
+  if (canonical(b.example ?? null) !== canonical(a.example ?? null)) parts.push(!a.example ? 'The worked example is removed.' : b.example ? 'The worked example changes.' : 'Adds a worked example.');
+  if ((b.usedFrom ?? null) !== (a.usedFrom ?? null)) parts.push(a.usedFrom ? `It is used from ${a.usedFrom}.` : 'The date used is removed.');
   return parts.join(' ') || 'No change.';
 }
 function checksOf(dictionary: Dictionary, name: string, after: Definition | null, by: string): { ok: boolean; code: string | null; compiled: Dictionary | null } {
@@ -54,10 +60,11 @@ function findDraft(books: BooksState, draftId: unknown): Draft {
   const draft = typeof draftId === 'string' ? books.drafts.find(d => d.id === draftId) : undefined; check(draft, 'DRAFT_NOT_FOUND', 'This draft was not found.'); return draft;
 }
 function definitionInput(value: unknown, name: string, currency: string): Definition {
-  const d = input(value, ['label', 'meaning', 'kind', 'field', 'nulls', 'sign'], ['label', 'meaning', 'kind', 'field', 'nulls']);
+  const d = input(value, ['label', 'meaning', 'kind', 'field', 'nulls', 'sign', 'example', 'usedFrom'], ['label', 'meaning', 'kind', 'field', 'nulls']);
   check(text(d.label, 80) && text(d.meaning, 1000) && typeof d.kind === 'string' && NAME.test(d.kind) && typeof d.field === 'string' && /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(d.field)
     && ['exclude', 'reject'].includes(d.nulls) && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'INVALID_DEFINITION', 'Give the word a label, a meaning, a record kind, an amount field, null handling and an optional sign.');
-  return { name, label: d.label, meaning: d.meaning, kind: d.kind, field: d.field, currency, nulls: d.nulls, ...(d.sign !== undefined ? { sign: d.sign } : {}) };
+  const extras = extrasInput(d, d.sign);
+  return { name, label: d.label, meaning: d.meaning, kind: d.kind, field: d.field, currency, nulls: d.nulls, ...(d.sign !== undefined ? { sign: d.sign } : {}), ...extras } as Definition;
 }
 const APPROVER_ROLES = ['owner', 'cofounder', 'accountant'];
 function activeApprovers(state: State): number { return state.members.filter(m => m.active && APPROVER_ROLES.includes(m.role)).length; }
@@ -119,6 +126,9 @@ export const meaningMethods: Record<string, MethodSpec> = {
     const after = request.definition === null ? null : definitionInput(request.definition, name, dictionary.currency);
     check(before || after, 'WORD_NOT_FOUND', 'This word is not in the dictionary, so there is nothing to remove.');
     check(!same(before, after), 'NO_CHANGE', 'The new definition is the same as the published one.');
+    // BK-08: a change to the example or date alone publishes nothing while this build's dictionary does not keep them.
+    const extras = hasExtras(after) ? (extrasAccepted() ? 'published-with' as const : 'draft-only' as const) : null;
+    check(extras !== 'draft-only' || !same(before && withoutExtras(before), after && withoutExtras(after)), 'NO_CHANGE', 'Only the worked example or the date used changed, and this version does not publish them yet.');
     const author = member(host.store.read(), ctx);
     const checks = checksOf(dictionary, name, after, ctx.memberId);
     const calculations = [...new Set([...dictionary.operations, ...(checks.compiled?.operations ?? [])].filter(o => o.definitions.includes(name)).map(o => o.id))].sort();
@@ -137,7 +147,8 @@ export const meaningMethods: Record<string, MethodSpec> = {
       check(!books.drafts.some(d => d.name === name && open(d)), 'DRAFT_OPEN', 'This word already has an open draft. Publish or discard it first.');
       const id = newId('draft');
       const draft: Draft = { id, name, author: author.name, createdAt: now(), state: 'draft', before: structuredClone(before), after: structuredClone(after), change: describeChange(before, after),
-        affects: { calculations, savedAnswers: savedAnswersUsing(state, name) }, reviews: [], checks: { ok: checks.ok, code: checks.code }, digest: draftDigest({ id, name, before, after }, dictionary.hash) };
+        affects: { calculations, savedAnswers: savedAnswersUsing(state, name) }, reviews: [], checks: { ok: checks.ok, code: checks.code }, digest: draftDigest({ id, name, before, after }, dictionary.hash),
+        ...(extras ? { extras } : {}) };
       books.drafts.push(draft); books.draftMeta.push({ draftId: id, authorId: ctx.memberId, baseHash: dictionary.hash, cosignerIds: [], publishedVersion: null });
       return structuredClone(draft);
     });

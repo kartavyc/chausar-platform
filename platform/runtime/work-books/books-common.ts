@@ -14,7 +14,9 @@ export type Draft = { id: string; name: string; author: string; createdAt: strin
   before: Definition | null; after: Definition | null; change: string;
   affects: { calculations: string[]; savedAnswers: number };
   reviews: { kind: 'cosign' | 'ai-opinion'; by: string; role: string; at: string }[];
-  checks: { ok: boolean; code: string | null }; digest: string };
+  checks: { ok: boolean; code: string | null }; digest: string;
+  /** BK-08: present when `after` carries a worked example or date used: published with the word, or kept on the draft only (the dictionary does not take them yet). */
+  extras?: 'published-with' | 'draft-only' };
 /** Private bookkeeping for a draft, kept apart so `drafts` matches the contract's Draft exactly. */
 export type DraftMeta = { draftId: string; authorId: string; baseHash: string; cosignerIds: string[]; publishedVersion: number | null;
   /** Set while a release of this draft is under way; the draft then cannot be discarded, replaced or co-signed. */
