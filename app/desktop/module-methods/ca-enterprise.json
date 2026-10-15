@@ -1,1 +1,24 @@
-[]
+[
+  "caent.shell",
+  "enterprise.setup",
+  "enterprise.lens.get",
+  "enterprise.lens.set",
+  "enterprise.companies",
+  "enterprise.company.set",
+  "enterprise.group.set",
+  "enterprise.whose.get",
+  "enterprise.whose.set",
+  "enterprise.whose.members",
+  "enterprise.teams.list",
+  "enterprise.teams.set",
+  "enterprise.access.list",
+  "enterprise.access.set",
+  "enterprise.access.review.start",
+  "enterprise.access.review.decide",
+  "enterprise.access.reviews",
+  "enterprise.channels.get",
+  "enterprise.channels.set",
+  "enterprise.holds.list",
+  "enterprise.holds.place",
+  "company.overview"
+]
