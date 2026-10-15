@@ -141,7 +141,11 @@ export class WritebackService {
   }
 
   // ── Connections and grants ───────────────────────────────────────────────────────────────────
-  connections(context: Context) { authorize(this.store, context); return structuredClone(readState(this.store.read()).connections); }
+  /** Connections the caller may see: a connection linked to another branch's or a withheld source's sign-in is left out. */
+  connections(context: Context) {
+    const member = authorize(this.store, context), state = this.store.read(), allowed = state.policy.allowedSources;
+    return structuredClone(readState(state).connections.filter(c => !c.link || ((member.branches.includes('*') || member.branches.includes(c.link.branch)) && (allowed.includes('*') || allowed.includes(c.link.sourceId)))));
+  }
   async connect(context: Context, input: Record<string, unknown>) {
     const p = record(input, ['system', 'label', 'environment', 'account'], ['linkTo']);
     const system = oneOf(p.system, SYSTEMS), environment = oneOf(p.environment, ['live', 'sandbox', 'practice'] as const);

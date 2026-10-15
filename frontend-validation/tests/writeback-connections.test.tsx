@@ -273,3 +273,22 @@ test('the real registry sends work/write and work/caps to the writeback module, 
   expect(placeModuleFor({ place: 'work', sub: 'approvals' })?.id).not.toBe('writeback');
   expect(placeModuleFor({ place: 'work' })?.id).not.toBe('writeback');
 });
+
+test('review: the read switch sends only read; a blank name is caught before sending; a validation refusal reads as words', async () => {
+  const { called } = setup({ address: sheetOf('connection-2'), handlers: { 'writeback.grant': () => ({ id: 'connection-2' }) } });
+  fireEvent.click(await screen.findByLabelText(en['wb4.read.switch']));
+  await waitFor(() => expect(called('writeback.grant')).toHaveLength(1));
+  expect(Object.keys(called('writeback.grant')[0]!.payload).sort()).toEqual(['connectionId', 'read']);
+  cleanup();
+  const second = setup({ address: WRITE, handlers: { 'writeback.connect': refuse('INVALID_WRITE_PAYLOAD') } });
+  fireEvent.click(await screen.findByRole('button', { name: en['wb4.connect.open'] }));
+  fireEvent.change(screen.getByLabelText(en['wb4.connect.label']), { target: { value: '   ' } });
+  fireEvent.change(screen.getByLabelText(en['wb4.field.smtpHost']), { target: { value: 'h' } });
+  fireEvent.change(screen.getByLabelText(en['wb4.field.from']), { target: { value: 'f' } });
+  fireEvent.submit(screen.getByRole('button', { name: en['wb4.connect.send'] }).closest('form')!);
+  expect(await screen.findByText(en['wb4.connect.labelBlank'])).toBeTruthy();
+  expect(second.called('writeback.connect')).toHaveLength(0);
+  fireEvent.change(screen.getByLabelText(en['wb4.connect.label']), { target: { value: 'Mail' } });
+  fireEvent.click(screen.getByRole('button', { name: en['wb4.connect.send'] }));
+  expect(await screen.findByText(en['wb4.code.INVALID_WRITE_PAYLOAD'])).toBeTruthy();
+});

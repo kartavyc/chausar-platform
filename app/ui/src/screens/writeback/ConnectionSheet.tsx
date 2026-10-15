@@ -7,7 +7,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { KeyValue } from '../../parts/KeyValue';
 import { useAct } from '../work/kit/reply.ts';
-import { dayTime } from '../work/kit/format.ts';
+import { localTime } from './shared.tsx';
 import { pageStyles } from '../work/kit/Page';
 import { changed, credentialStored, qualification, type Connection, type Qualification } from './contract.ts';
 import { Button, Note, Refused, Section, fieldLabel, known, say, systemName, type WbProps } from './shared.tsx';
@@ -24,7 +24,7 @@ export function accountPairs(p: WbProps, c: Connection) {
     { name: w['wb4.sheet.env'], value: w[`wb4.env.${c.environment}`] },
     ...Object.entries(c.account).map(([name, value]) => ({ name: fieldLabel(w, name), value })),
     { name: w['wb4.sheet.link'], value: link },
-    ...(p.view === 'simple' ? [] : [{ name: w['wb4.sheet.created'], value: dayTime(c.createdAt, p.language) }]),
+    ...(p.view === 'simple' ? [] : [{ name: w['wb4.sheet.created'], value: localTime(c.createdAt, p.language) }]),
   ];
 }
 
@@ -89,9 +89,9 @@ function CredentialBlock({ p, c, reload }: { p: WbProps; c: Connection; reload: 
 function ReadBlock({ p, c, reload }: { p: WbProps; c: Connection; reload: () => void }) {
   const { w } = p;
   const act = useAct(p.rpc);
-  const saved = c.actions.filter(a => a.granted).map(a => a.action);
+  // Only the read switch is sent: another person's grants made meanwhile are never overwritten from here.
   const toggle = async (next: boolean) => {
-    const out = await act.run('writeback.grant', { connectionId: c.id, read: next, write: saved }, changed);
+    const out = await act.run('writeback.grant', { connectionId: c.id, read: next }, changed);
     if (out.ok) reload();
   };
   return (
@@ -213,7 +213,7 @@ function QualifyBlock({ p, c, reload }: { p: WbProps; c: Connection; reload: () 
         </ul>
       )}
       {view !== 'simple' && c.sandboxRuns.map(r => (
-        <p key={`${r.action}-${r.at}`} className={s.meta}>{say(w, 'wb4.q.earlier', { action: title(r.action), score: r.score, date: dayTime(r.at, p.language) })}</p>
+        <p key={`${r.action}-${r.at}`} className={s.meta}>{say(w, 'wb4.q.earlier', { action: title(r.action), score: r.score, date: localTime(r.at, p.language) })}</p>
       ))}
     </Section>
   );
@@ -249,7 +249,7 @@ export function ConnectionBody({ p, c, reload, onGone }: { p: WbProps; c: Connec
       <KeyValue pairs={accountPairs(p, c)} onReceipt={p.openReceipt} />
       <CredentialBlock p={p} c={c} reload={reload} />
       <ReadBlock p={p} c={c} reload={reload} />
-      <GrantBlock p={p} c={c} reload={reload} />
+      <GrantBlock key={c.actions.filter(a => a.granted).map(a => a.action).join(',')} p={p} c={c} reload={reload} />
       <QualifyBlock p={p} c={c} reload={reload} />
       {p.admin && <DisconnectBlock p={p} c={c} onGone={onGone} />}
     </div>

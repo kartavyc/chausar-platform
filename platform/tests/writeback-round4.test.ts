@@ -118,3 +118,20 @@ test('caps: today counted in the write-back day, from the workspace time zone un
   assert.deepEqual(view.counts, { preparedToday: 0, sentToday: 0, customersToday: 0 });
   assert.equal(view.settings.reminderCapPerCustomer, 1);
 });
+
+test('review: writeback.connections hides connections linked to another branch; offset zones fall back; core lockout reads as REAUTH_LOCKED', async () => {
+  const store = new Store(); const directory = mkdtempSync(join(tmpdir(), 'chausar-r4-rev-'));
+  store.state.members.push({ id: 'north', name: 'North', role: 'cofounder', active: true, epoch: 1, branches: ['north'] });
+  (store.state.extensions ??= {})['connectors-ext'] = { version: 1, connections: [{ id: 'cx-main', group: 'zoho-books', sourceId: 'src-main', branch: 'main', status: 'active' }], envelopes: [], signIns: [] };
+  const host: any = { store, services: {}, demo: false, directory, call: async () => null, options: {} };
+  const m = writebackModule.methods;
+  await m['writeback.connect'].handler(owner, { system: 'zoho-books', label: 'Main books', environment: 'live', account: { organizationId: '60012345678', dataCenter: 'in' }, linkTo: 'cx-main' }, host);
+  await m['writeback.connect'].handler(owner, { system: 'mail', label: 'Mail', environment: 'live', account: { smtpHost: 'smtp.example.test', smtpPort: '587', smtpSecurity: 'starttls', from: 'a@example.test' } }, host);
+  assert.equal((await m['writeback.connections'].handler(owner, {}, host) as any[]).length, 2);
+  const seen: any[] = await m['writeback.connections'].handler({ memberId: 'north', role: 'cofounder', epoch: 1, channel: 'desktop' }, {}, host) as any;
+  assert.deepEqual(seen.map(c => c.label), ['Mail']);
+  (store.state.workspace as any).timeZone = '+05:30';
+  assert.equal(writebackZone(host), 'Asia/Kolkata');
+  const locked = memberSecrets({ call: async () => { throw new ChausarError('SECOND_ASK_LOCKED', 'Locked.'); } } as any);
+  await assert.rejects(locked.verify(owner, 's'), { code: 'REAUTH_LOCKED' });
+});

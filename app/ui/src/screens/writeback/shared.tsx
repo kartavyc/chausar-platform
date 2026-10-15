@@ -29,6 +29,11 @@ export function refusalWords(w: Words, code: string): string {
   return known(w, `wb4.code.${code}`) ?? say(w, 'wb4.code.other', { code });
 }
 
+/** A stored instant shown in this computer's own time zone, with the zone named. */
+export function localTime(iso: string, language: Language): string {
+  const at = new Date(iso); if (!Number.isFinite(at.getTime())) return iso;
+  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }).format(at);
+}
 export function systemName(w: Words, system: string): string { return known(w, `wb4.sys.${system}`) ?? system; }
 export function fieldLabel(w: Words, name: string): string { return known(w, `wb4.field.${name}`) ?? name; }
 

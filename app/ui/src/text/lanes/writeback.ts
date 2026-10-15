@@ -201,6 +201,14 @@ const EN = {
   'wb4.code.INVALID_REPLY': 'The answer from the engine could not be read.',
   'wb4.code.REQUEST_FAILED': 'It did not go through. Try again.',
   'wb4.code.other': 'It was refused. Code {code}.',
+  'wb4.code.INVALID_WRITE_PAYLOAD': 'A field is empty, too long or not in its expected form. Check each field.',
+  'wb4.code.INVALID_AMOUNT': 'Money is whole paise, written as digits.',
+  'wb4.code.INVALID_DATE': 'Use a calendar date written as YYYY-MM-DD.',
+  'wb4.code.SOURCE_REVOKED': 'Access to that source was taken away.',
+  'wb4.code.ACCESS_REVOKED': 'Your access changed. Sign in again.',
+  'wb4.code.FORBIDDEN_BRANCH': 'That read connection belongs to a branch outside your access.',
+  'wb4.code.REAUTH_LOCKED': 'Too many wrong answers. Wait fifteen minutes.',
+  'wb4.connect.labelBlank': 'Give the connection a name.',
 } as const;
 
 export type Wb4Key = keyof typeof EN;
@@ -402,6 +410,14 @@ const HI: Readonly<Record<Wb4Key, string>> = {
   'wb4.code.INVALID_REPLY': 'इंजन का जवाब पढ़ा नहीं जा सका।',
   'wb4.code.REQUEST_FAILED': 'यह पूरा नहीं हुआ। फिर कोशिश करें।',
   'wb4.code.other': 'मना किया गया। कोड {code}।',
+  'wb4.code.INVALID_WRITE_PAYLOAD': 'कोई फ़ील्ड ख़ाली है, बहुत लंबी है या सही रूप में नहीं है। हर फ़ील्ड जाँचें।',
+  'wb4.code.INVALID_AMOUNT': 'रकम पूरे पैसे में, अंकों में लिखें।',
+  'wb4.code.INVALID_DATE': 'तारीख़ YYYY-MM-DD के रूप में लिखें।',
+  'wb4.code.SOURCE_REVOKED': 'उस स्रोत तक पहुँच हटा दी गई।',
+  'wb4.code.ACCESS_REVOKED': 'आपकी पहुँच बदल गई है। फिर से साइन-इन करें।',
+  'wb4.code.FORBIDDEN_BRANCH': 'वह पढ़ने वाला कनेक्शन आपकी पहुँच से बाहर की शाखा का है।',
+  'wb4.code.REAUTH_LOCKED': 'बहुत बार ग़लत जवाब। पंद्रह मिनट रुकें।',
+  'wb4.connect.labelBlank': 'कनेक्शन को एक नाम दें।',
 };
 
 export const wb4Catalogue: Catalogue<Wb4Key> = { en: EN, hi: HI };

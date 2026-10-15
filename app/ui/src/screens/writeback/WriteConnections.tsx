@@ -24,7 +24,8 @@ const HEAD: Readonly<Record<Column, 'wb4.col.label' | 'wb4.col.system' | 'wb4.co
 };
 
 export function grantCount(p: WbProps, c: Connection): string {
-  return say(p.w, 'wb4.grants.count', { n: c.actions.filter(a => a.granted).length, total: c.actions.length });
+  const grantable = c.actions.filter(a => a.grantable);
+  return say(p.w, 'wb4.grants.count', { n: grantable.filter(a => a.granted).length, total: grantable.length });
 }
 
 function ConnectForm({ p, o, onDone }: { p: WbProps; o: Overview; onDone: (id: string) => void }) {
@@ -35,6 +36,7 @@ function ConnectForm({ p, o, onDone }: { p: WbProps; o: Overview; onDone: (id: s
   const [open, setOpen] = useState(false);
   const [system, setSystem] = useState<SystemId>(first);
   const [label, setLabel] = useState('');
+  const [blank, setBlank] = useState(false);
   const [environment, setEnvironment] = useState<Environment>(environments[0] ?? 'practice');
   const [account, setAccount] = useState<Record<string, string>>({});
   const [linkTo, setLinkTo] = useState('');
@@ -44,6 +46,8 @@ function ConnectForm({ p, o, onDone }: { p: WbProps; o: Overview; onDone: (id: s
   const pickSystem = (next: string) => { const found = o.systems.find(x => x.system === next); if (found) { setSystem(found.system); setAccount({}); setLinkTo(''); } };
   const send = async (event: FormEvent) => {
     event.preventDefault();
+    if (label.trim() === '') { setBlank(true); return; }
+    setBlank(false);
     const fields: Record<string, string> = {};
     for (const f of spec?.fields ?? []) { const v = (account[f.name] ?? '').trim(); if (v) fields[f.name] = v; }
     const link = linkable.some(l => l.id === linkTo) ? { linkTo } : {};
@@ -59,6 +63,7 @@ function ConnectForm({ p, o, onDone }: { p: WbProps; o: Overview; onDone: (id: s
         </select>
       </label>
       <label>{w['wb4.connect.label']}<input value={label} required maxLength={100} onChange={e => setLabel(e.currentTarget.value)} /></label>
+      {blank && <p role="alert">{w['wb4.connect.labelBlank']}</p>}
       <label>{w['wb4.connect.env']}
         <select value={environment} onChange={e => { const next = environments.find(x => x === e.currentTarget.value); if (next) { setEnvironment(next); if (next === 'practice') setLinkTo(''); } }}>
           {environments.map(x => <option key={x} value={x}>{w[`wb4.env.${x}`]}</option>)}

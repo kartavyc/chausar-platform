@@ -44,7 +44,12 @@ export function memberSecrets(host: ModuleHost) {
     async verify(_ctx: Context, secret: string): Promise<boolean | null> {
       let reply: unknown;
       try { reply = await host.call('auth.verifyApprovalSecret', { secret }); }
-      catch (error) { if (error instanceof ChausarError && ABSENT.includes(error.code)) return null; throw error; }
+      catch (error) {
+        if (error instanceof ChausarError && ABSENT.includes(error.code)) return null;
+        // core-gateway-auth's own lockout reads as writeback's, so screens have one word for it.
+        if (error instanceof ChausarError && error.code === 'SECOND_ASK_LOCKED') throw new ChausarError('REAUTH_LOCKED', 'Too many wrong answers. Wait fifteen minutes.');
+        throw error;
+      }
       const r = record(reply, ['verified']);
       check(typeof r.verified === 'boolean', 'WRITE_REPLY_INVALID', 'The approval secret check sent an answer Chausar cannot read.');
       return r.verified;
@@ -72,7 +77,8 @@ let fakes: typeof import('../../fakes/index.ts') | null = null;
 async function practiceKit() { fakes ??= await import('../../fakes/index.ts'); return fakes; }
 /** The write-back day: a trusted host option, else the workspace time zone (core-data), else India. */
 export function writebackZone(host: ModuleHost): string {
-  const valid = (zone: unknown): zone is string => { if (typeof zone !== 'string' || zone.length > 64) return false; try { new Intl.DateTimeFormat('en', { timeZone: zone }); return true; } catch { return false; } };
+  // An IANA name only (Asia/Kolkata, UTC): offsets such as +05:30 are refused so every screen can read it.
+  const valid = (zone: unknown): zone is string => { if (typeof zone !== 'string' || !/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(zone)) return false; try { new Intl.DateTimeFormat('en', { timeZone: zone }); return true; } catch { return false; } };
   const option = (host.options as any).timeZone, workspace = (host.store.read().workspace as { timeZone?: unknown }).timeZone;
   return valid(option) ? option : valid(workspace) ? workspace : 'Asia/Kolkata';
 }
