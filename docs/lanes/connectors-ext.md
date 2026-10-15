@@ -270,3 +270,204 @@ Request: `{}`. Always refuses `READER_INSTALL_UNAVAILABLE` in this build: no dow
 ### Not built here
 
 `imports.pickFile` (the native file dialog belongs to the frame) and `dictionary.proposals` (learning-ext).
+
+## Round 4 contracts
+
+These are written before the code, so other lanes can build against them. Every method is in this lane's engine module and in `app/desktop/module-methods/connectors-ext.json`; every refusal code is on this lane's `laneRefusals` line. Money is whole minor units (paise) as strings; a figure the engine does not have is `null`, never `0`.
+
+### For work-books BK-05: answering a recipe question, the version diff, reconcile
+
+An envelope that abstained now carries its question with the choices the engine will accept:
+
+```
+question: null | { reason: 'ambiguous_field' | 'unknown_value' | 'date_format' | 'currency' | 'sign_convention',
+                   field: string, sample: string | null, choices: string[] }
+```
+
+- `ambiguous_field`: `choices` are the column headings that could hold the field.
+- `unknown_value`: `sample` is the source's value (outside text, shown as data). `choices` are the recipe's own words for that column (for example `invoice`, `credit_note`), plus `leave-out` when the recipe can exclude rows by that column, plus `no-status` for a status column.
+- `date_format`: `choices` are the formats the field allows (`DMY`, `MDY`, …).
+- `currency`: `choices` are ISO codes (`INR`, `USD`, `EUR`, `GBP`, `AED`, `SGD`, `AUD`, `CAD`, `JPY`). An answer is used only for rows whose currency cell is empty.
+- `sign_convention`: `sample` is the word; `choices` are `in` and `out`.
+
+#### `recipes.answer` (prepare, desktop only)
+
+Request: `{ envelopeId, choice }`. `choice` must be one of the envelope's `question.choices`.
+
+Reply: `{ answer: Answer, read: Envelope | null, readAgain: 'not-needed' | 'bring-the-file-again' | 'read-again' }`.
+
+```
+Answer = { id, sourceId, recipeId, recipeVersion, reason, field, sample: string | null, choice,
+           answeredBy: { memberId, name, role, at }, envelopeId }
+```
+
+- The answer belongs to one source and one recipe version. It is never applied to another source or to a later recipe version.
+- From then on it applies to every read of that source with that recipe: file previews, interface reads, scheduled reads and database reads.
+- The recipe with its answers is compiled again, as data, before it runs. Its digest changes, so imports dedupe correctly.
+- Where the engine still holds the input that abstained, it reads it again at once and `read` is the new envelope. That envelope may ask the next question.
+- The held input is kept in memory only, for at most 6 hours. It is dropped when the workspace is locked or closed, and is never written down. When it is gone, `read` is `null` and `readAgain` says what the person does.
+- Refusals: `ENVELOPE_NOT_FOUND`, `RECIPE_QUESTION_NONE` (the read asked nothing), `RECIPE_ANSWER_INVALID` (not an offered choice), `RECIPE_ANSWER_STALE` (the recipe changed version since that read), `ANSWER_LIMIT`, `OPEN_DESKTOP`.
+- A caller who cannot see the envelope's branch or source gets `ENVELOPE_NOT_FOUND`.
+
+#### `recipes.answers` (read)
+
+Request: `{ recipeId?, sourceId? }`. Reply: `{ answers: Answer[] }`, newest first, limited to sources the caller can see. This is the "who accepted" record for an answered recipe: `answeredBy.role` grades it.
+
+#### `recipes.answerRemove` (prepare, desktop only)
+
+Request: `{ answerId }`. Reply: `{ removed: true, answerId }`. Later reads ask the question again. Facts already imported stay. Refusals: `ANSWER_NOT_FOUND`, `OPEN_DESKTOP`.
+
+#### `recipes.upgradeDiff` (read)
+
+Request: `{ recipeId, envelopeId? , sourceId? }`.
+
+- `envelopeId`: compares the recipe that read was made with against the current recipe with that source's answers.
+- `sourceId` alone: compares the registered seed recipe against the seed with that source's answers.
+- Neither: compares the seed with itself, so `same` is `true`.
+
+Reply:
+
+```
+{ recipeId, available: boolean, reason: null | 'OLD_VERSION_NOT_KEPT',
+  from: { version, digest, label: 'read-with' | 'seed' }, to: { version, digest, label: 'current' | 'with-answers' },
+  same: boolean,
+  changes: { path: string, change: 'added' | 'removed' | 'changed', before: string | null, after: string | null,
+             effect: 'columns' | 'meaning' | 'dates' | 'amount' | 'check' | 'identity' | 'other' }[] }
+```
+
+- `path` names the place in the recipe, for example `fields.amount.from`, `kind.values.Credit Note`, `totals.kind` or `measure.currency`.
+- From this round, the engine keeps the exact recipe each read used, by digest; at most 200 recipes are kept. Reads made before this round, or recipes pushed out of that store, have `available: false` and `reason: 'OLD_VERSION_NOT_KEPT'`.
+- Refusals: `RECIPE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`.
+
+#### `recipes.reconcile` (prepare)
+
+Request: `{ envelopeId, reportTotals? }`. `reportTotals` is `{ total: '<minor units>', rowCount?: number | null }`, as typed from the system's own report.
+
+Reply:
+
+```
+{ envelopeId, importId: string | null, at, by: { memberId, name, role },
+  status: 'matches' | 'differs' | 'rows-changed' | 'not-imported' | 'no-source-total',
+  theirs: { total: string | null, rowCount: number | null, reference: string, provenance: string } | null,
+  ours: { total: string | null, rowCount: number, live: number, changed: number },
+  measure: 'money' | 'count', unit }
+```
+
+- The import's facts are re-totalled now, using only live facts, exact BigInt sums in the engine.
+- They are compared with the source's own total: the one the read was checked against, or `reportTotals` when given.
+- `changed` counts facts from that import that were since deleted or superseded. Any such fact makes the status `rows-changed`.
+- When the read was not imported, `ours.total` is `null` and the status is `not-imported`.
+- The latest 10 reconciliations are kept on the envelope and listed as `reconciliations` in `connectorsx.envelopes`. A `matches` result made by a named person is what grades a recipe "reconciled".
+- Refusals: `ENVELOPE_NOT_FOUND`, `INVALID_SOURCE_TOTALS`.
+
+### Tally on another computer (BK-03)
+
+#### `connectorsx.tally.exporter` (prepare, desktop only)
+
+Request: `{ connectionId, register: 'sales' | 'purchase', period: { from, to }, ledgers: string[], baseCurrency }`. The connection is a Tally connection; its `company` is the Tally company.
+
+Reply: `{ exportId, fileName, script, guideFileName, guide: { en, hi }, expiresAt }`.
+
+- `script` is a Windows PowerShell file.
+- The person runs it on the computer where Tally is open. It sends the same read-only export requests Chausar would send to `http://127.0.0.1:9000`: the register, and the Sales Accounts or Purchase Accounts movement.
+- It writes one answer file beside itself. It changes nothing in Tally and sends nothing anywhere else.
+- `guide` is the one-page guide as plain text, in English and Hindi.
+- The engine remembers the request (not the answer) for 30 days, so the answer file can be checked against the export Chausar made.
+- Refusals: `CONNECTION_NOT_FOUND`, `TALLY_CONNECTION_REQUIRED`, `CONFIG_INVALID`, `COMPANY_REQUIRED`, `OPEN_DESKTOP`.
+
+#### `connectorsx.tally.importExport` (prepare)
+
+Request: `{ connectionId, text }`, where `text` is the answer file the script wrote.
+
+Reply: the envelope, as `connectorsx.importPreview` returns it, on the `file` road.
+
+- The file's answers are replayed through the same Tally register reader and recipe, so the check against Tally's own group movement applies unchanged.
+- Refusals:
+  - `TALLY_EXPORT_UNKNOWN`: no export with that id, or it expired.
+  - `TALLY_EXPORT_MISMATCH`: the file answers other requests than the ones made.
+  - `TALLY_EXPORT_INVALID`: not an answer file.
+  - The Tally reader's own codes, for example `TALLY_SOURCE_ERROR`.
+
+#### `connectorsx.tally.companies` and `connectorsx.tally.ledgers` (admin, external, desktop only)
+
+Request: `{ connectionId }` for a Tally connection on the `interface` road (this computer).
+
+Replies:
+- companies: `{ companies: { name, booksFrom }[] }`, the companies open in Tally now;
+- ledgers: `{ ledgers: { name, parent }[] }`, for choosing the register's ledgers.
+
+This answers BK-03 "Which company?". Refusals: `READ_NOT_AVAILABLE`, the read kit's fixed codes, `DEMO_EXTERNAL_DISABLED`.
+
+### Zoho Books net reads split automatically
+
+`connectorsx.read` for `zoho-books` / `invoices-net` no longer refuses a period with more than 59 invoices:
+
+- It halves the period by date and reads each part, one after another, until every part fits one read.
+- The parts' records are joined; the declared count is the sum of the parts' counts, and is checked as before.
+- At most 8 parts and 400 requests in total. A single day with more invoices than one read allows still refuses `ZOHO_DETAIL_BUDGET`.
+- The envelope's `read` gains `parts: number`.
+
+### Declared counts without a typed total
+
+The recipes for these reads:
+- Zoho Books invoices (gross and net),
+- Xero and QuickBooks invoices,
+- WooCommerce orders,
+- HubSpot deals.
+
+Each states the system's own record count for exactly the filter read. When no report total is typed:
+
+- The read is accepted on the count alone. `checks` holds `source-row-count: passed` and `source-total: unavailable`.
+- `sourceTotals.provenance` is `source-declared-count`, and a notice says the amount was not checked against a report.
+- A typed report total, when given, is still checked in full.
+- A count that differs still refuses `SOURCE_ROW_MISMATCH`.
+- Because these reads now carry a total from the system, they can repeat on a schedule.
+
+Recipes whose system states no count still need a typed total.
+
+### FR-07 additions
+
+- `imports.readerStatus.sizeBytes` is the size on disk of the PDF reader the helper found (the pdfplumber, pypdf, pypdfium2 and PIL package folders, plus the tesseract program and its English data), as a whole number of bytes. It is `null` when nothing is installed.
+- `imports.preview` with `kind: 'xlsx'` passes the password held by `imports.providePassword` to core-data's `sources.workbookPreview` as `password`. The password is used once and then wiped.
+  - core-data's refusals for an encrypted workbook are mapped to `PASSWORD_REQUIRED` and `WRONG_PASSWORD`.
+  - If the core does not accept `password` yet, the refusal is `WORKBOOK_PASSWORD_NOT_SUPPORTED`; the password is never sent to a method that does not take it.
+- `imports.commit` for an xlsx preview: `{ sourceId, kind: 'xlsx', bytesBase64, sheet?, recipe?, expectedTotals? }`.
+  - It delegates to `sources.workbookImport` with the same rule.
+  - The person gives the password again for the import, because it was wiped after the preview.
+
+### Screen export over the driving lane (needs `session.*`)
+
+`connectorsx.connect` with `road: 'screen'` is accepted for desktop programs with no interface Chausar can read: Busy, Marg, Vyapar, and Tally when it is not on this computer. `SCREEN_EXPORT_NOT_BUILT` is gone.
+
+What this lane expects from the driving lane:
+
+- `session.windows({})` returns `{ windows: { id, title, program }[] }`.
+- `session.start({ windowId, purpose: 'connector-export', connectionId })` returns `{ sessionId, state }`.
+- `session.status({ sessionId })` returns `{ sessionId, state: 'running' | 'paused' | 'stopped' | 'done' | 'failed', export: { fileName, bytesBase64 } | null }`.
+- `session.stop({ sessionId })`.
+
+The rules of driving (one window, read and export only, never a password, one-time code or captcha) are the driving lane's.
+
+#### `connectorsx.screenExport.start` (prepare, desktop only)
+
+Request: `{ connectionId, windowId }`. It calls `session.start` and returns `{ sessionId, state }`.
+
+#### `connectorsx.screenExport.collect` (prepare, desktop only)
+
+Request: `{ connectionId, sessionId, recipeId, reportTotals? }`. It calls `session.status`.
+
+- While the session is not done, it returns `{ state, read: null }`.
+- When the session is done, its exported file goes through `connectorsx.importPreview` for that connection and recipe, and the reply is `{ state: 'done', read: Envelope }`.
+- The exported bytes are outside data and are never kept beyond the read.
+
+Until `session.*` exists, both methods refuse `SCREEN_DRIVING_NOT_INSTALLED`. Other refusals: `CONNECTION_NOT_FOUND`, `SCREEN_ROAD_REQUIRED`, `SCREEN_EXPORT_FAILED`, `OPEN_DESKTOP`, and `DEMO_EXTERNAL_DISABLED` (both are external).
+
+### Books sub-places drawn by this lane
+
+These sub-places are drawn by this lane's place module (`app/ui/src/places/lane-connectors-ext.tsx`):
+
+- `#/books/scheduled`: repeating reads over `connectorsx.connections`, `connectorsx.freshness` and `connectorsx.schedule`.
+- `#/books/database`: the database road over `connectorsx.connections`, `connectorsx.plainDb.tables` and `connectorsx.plainDb.read`, with import through `connectorsx.importCommit`.
+- `#/books/tally-export`: Tally on another computer, over `connectorsx.tally.exporter` and `connectorsx.tally.importExport`.
+
+One thing is needed from work-books. `booksPlace.handles` currently answers every `books` address, and its module comes first in the lookup order. It must leave these three ids to this lane: `!['scheduled', 'database', 'tally-export'].includes(address.sub)`, or a general rule that skips every lane sub-place in `laneSubPlaces` for `books`.
