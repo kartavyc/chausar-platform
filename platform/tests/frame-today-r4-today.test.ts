@@ -230,6 +230,25 @@ test('close status: each part from a record or not loaded yet, states only, neve
   assert.equal(real.parts.gstr2b, 'not-loaded-yet', 'no GSTR-2B lines are loaded');
 });
 
+test('close status: a probable match or a line left out needs you, a failed read is not sure, bank statements outside the month do not count', async () => {
+  const probable = await closeStatus(OWNER, stubHost({ 'sources.list': [], 'askx.gst2b': { state: 'ready', leftOut: 0, groups: [{ group: 'matched', count: 4 }, { group: 'probable', count: 1 }] } }));
+  assert.equal(probable.parts.gstr2b, 'needs-you');
+  const leftOut = await closeStatus(OWNER, stubHost({ 'sources.list': [], 'askx.gst2b': { state: 'ready', leftOut: 2, groups: [{ group: 'matched', count: 4 }] } }));
+  assert.equal(leftOut.parts.gstr2b, 'needs-you');
+  const failed = Object.assign(new Error('x'), { code: 'STORE_BUSY' });
+  const unsure = await closeStatus(OWNER, stubHost({ 'sources.list': failed, 'askx.gst2b': failed, 'connectorsx.envelopes': failed }));
+  assert.ok(isCloseStatusReply(unsure), JSON.stringify(unsure));
+  assert.deepEqual(unsure.parts, { bank: 'not-sure', gstr2b: 'not-sure', tds: moduleMethods.has('connectorsx.envelopes') ? 'not-sure' : 'not-loaded-yet', 'trial-balance': 'not-loaded-yet' });
+  const outside = await closeStatus(OWNER, stubHost({ 'sources.list': [{ format: 'bank-csv', period: { from: '2001-01-01', to: '2001-01-31' }, coverage: { reconciled: false } }] }));
+  assert.equal(outside.parts.bank, 'not-loaded-yet', 'a statement for another month does not count');
+  const inside = await closeStatus(OWNER, stubHost({ 'sources.list': [{ format: 'bank-csv', period: { from: '1990-01-01', to: '2999-12-31' }, coverage: { reconciled: true } }] }));
+  assert.equal(inside.parts.bank, 'in-progress');
+  const undated = await closeStatus(OWNER, stubHost({ 'sources.list': [{ format: 'bank-csv', coverage: { reconciled: true } }] }));
+  assert.equal(undated.parts.bank, 'in-progress', 'a statement with no dates is counted as it is');
+  assert.equal(isCloseStatusReply({ month: '2026-09', parts: { bank: 'not-sure', gstr2b: 'done', tds: 'not-loaded-yet', 'trial-balance': 'not-loaded-yet' } }), true);
+  assert.equal(isCloseStatusReply({ month: '2026-09', parts: { bank: 'maybe', gstr2b: 'done', tds: 'not-loaded-yet', 'trial-balance': 'not-loaded-yet' } }), false);
+});
+
 /* ------------------------------------------------------------------ cash */
 
 test('cash told by the owner: saved for a day, seven bars, the closing cash part and receipts for a period with none', async t => {
@@ -262,6 +281,9 @@ test('cash told by the owner: saved for a day, seven bars, the closing cash part
     await assert.rejects(engine.request('todayx.cash.save', bad), code('INVALID_TODAYX_REQUEST'), JSON.stringify(bad));
   const viewer = await seat(engine, 'r4-cash-viewer', 'viewer');
   await assert.rejects(engine.requestAs(viewer, 'todayx.cash.save', { day: today, paise: '1' }), code('FORBIDDEN'));
+  // Only the owner or a cofounder tells the cash, so "told by owner" stays true: an accountant who may prepare is refused.
+  const accountant = await seat(engine, 'r4-cash-accountant', 'accountant');
+  await assert.rejects(engine.requestAs(accountant, 'todayx.cash.save', { day: today, paise: '1' }), code('FORBIDDEN'));
   assert.ok(isCashWeekReply(await engine.requestAs(viewer, 'todayx.cash.week', {})));
   // Told cash is a statement in Activity, not a fact: no fact or source was added.
   const sources = await engine.request('sources.list', {});

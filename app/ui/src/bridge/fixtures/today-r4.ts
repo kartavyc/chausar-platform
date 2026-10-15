@@ -77,20 +77,20 @@ export function approvalsTodayFixture(): Readonly<Record<string, FakeHandler>> {
   const known = (id: unknown): id is string => typeof id === 'string' && ((DEMO_REMINDER_IDS as readonly string[]).includes(id) || id === DEMO_MONEY_ID);
   return {
     get: (payload, context) => {
-      if (!known(payload['id'])) throw context.refuse('APPROVAL_NOT_FOUND', 'No approval has that id.');
+      if (!known(payload['id'])) throw context.refuse('NOT_FOUND', 'No approval has that id.');
       return detail(payload['id'], context.date, decided(context).has(payload['id']) ? 'approved' : 'prepared');
     },
     approve: (payload, context) => {
       const id = payload['id'];
       if (context.role !== 'owner' && context.role !== 'cofounder') throw context.refuse('FORBIDDEN', 'An owner must approve this change.');
-      if (!known(id)) throw context.refuse('APPROVAL_NOT_FOUND', 'No approval has that id.');
+      if (!known(id)) throw context.refuse('NOT_FOUND', 'No approval has that id.');
       if (payload['digest'] !== DIGEST(id)) throw context.refuse('PREVIEW_CHANGED', 'The prepared request changed.');
       if (id === DEMO_MONEY_ID && payload['secondAsk'] !== true) throw context.refuse('SECOND_ASK_REQUIRED', 'Money asks again.');
       decided(context).add(id);
       return detail(id, context.date, 'approved');
     },
     notNow: (payload, context) => {
-      if (!known(payload['id'])) throw context.refuse('APPROVAL_NOT_FOUND', 'No approval has that id.');
+      if (!known(payload['id'])) throw context.refuse('NOT_FOUND', 'No approval has that id.');
       decided(context).add(payload['id']);
       return { id: payload['id'], snoozedUntil: `${context.date}T23:59:00.000Z` };
     },

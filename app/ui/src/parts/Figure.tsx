@@ -5,6 +5,8 @@
  * without a receipt id. The exact value and the receipt id sit in the title; the amount
  * in words is the accessible name when the format module supplied it. All of the
  * figure's labels are shown beside it, outside the button, so they are still read.
+ * A figure the owner told (`told`) has no receipt: it is drawn without a button, labelled
+ * told by owner.
  */
 
 import type { FigureOrMissing, Missing, StatementLabel } from '../app/presentation.ts';
@@ -50,6 +52,19 @@ export function Figure({ value, size = 'row', onReceipt, tabStop = true, stateme
 
   if (!isFigure(value)) {
     return <MissingWords missing={missingOf(value)} className={cls} />;
+  }
+
+  if (value.told) {
+    return (
+      <span className={cls} data-told="">
+        <span className="fig" title={t('FIGURE.told', { exact: value.exact })}>{value.display}</span>
+        {value.labels.map((label) => (
+          <Label key={label} kind={label} className={s.label} />
+        ))}
+        <Label kind="told-by-owner" className={s.label} />
+        {statement !== undefined && statement !== 'told-by-owner' && <Label kind={statement} className={s.label} />}
+      </span>
+    );
   }
 
   return (
