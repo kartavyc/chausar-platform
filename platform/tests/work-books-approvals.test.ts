@@ -254,7 +254,8 @@ test('catalogue lists the core rows when writeback is absent; practice and rever
   await assert.rejects(f.request(owner, 'approvals.catalogueEntry', { system: 'books-app', action: 'fly' }), code('NOT_FOUND'));
   const note = await f.prepare('note', { customerId: 'customer-a', text: 'Prefers mail' });
   const practice = await f.request(owner, 'approvals.practice', { id: `action:${note.id}` });
-  assert.deepEqual(practice, { practice: true, available: false, steps: ['prepared', 'approved', 'done', 'read-back', 'recorded'].map(name => ({ name, state: 'not-reached', at: null })), wouldSend: null, code: 'WRITEBACK_NOT_BUILT' });
+  // Round 4 (WK-02): a core action is checked by its own validate on a copy, never run.
+  assert.deepEqual({ ...practice, steps: practice.steps.map((s: any) => s.state) }, { practice: true, available: true, mode: 'checked-not-run', outcome: 'checked-not-run', steps: ['done', 'done', 'not-reached', 'not-reached', 'not-reached'], wouldSend: null, requests: 0, request: { customerId: 'customer-a', text: 'Prefers mail' } });
   assert.equal(f.fake.executions, 0);
   await f.request(owner, 'approvals.approve', { id: `action:${note.id}`, digest: note.digest });
   await f.request(owner, 'approvals.execute', { id: `action:${note.id}` });
@@ -288,7 +289,7 @@ test('real writeback catalogue rows merge over core rows with their status, scor
   assert.equal(tally.grants, 1); assert.deepEqual(tally.connections.map((c: any) => [c.label, c.write]), [['Practice Tally', true], ['Office Tally', false]]); assert.equal(tally.undo, 'Alter or delete the voucher in Tally.');
   const prepared = await f.prepare('note', { customerId: 'customer-a', text: 'Prefers mail' }); const id = `action:${prepared.id}`;
   const practice = await f.request(owner, 'approvals.practice', { id });
-  assert.equal(practice.available, false); assert.equal(practice.code, 'PRACTICE_NOT_AVAILABLE', 'write-back practises only its own actions'); assert.equal(f.fake.executions, 0);
+  assert.equal(practice.available, true); assert.equal(practice.outcome, 'checked-not-run', 'a core action is checked, never run'); assert.equal(f.fake.executions, 0);
   await f.request(owner, 'approvals.approve', { id, digest: prepared.digest });
   await assert.rejects(f.request(owner, 'approvals.reverse', { id }), code('REVERSAL_NOT_AVAILABLE'), 'only a verified action can be reversed');
   const done = await f.request(owner, 'approvals.execute', { id }); assert.deepEqual(done.can, ['reverse']);
@@ -450,7 +451,8 @@ test('a writeback catalogue row that always waits makes the item tier-2, never g
   assert.equal((await f.request(owner, 'approvals.get', { id: `action:${other.id}` })).tier, 'tier-1');
   await assert.rejects(f.request(owner, 'approvals.group', { ids: [`action:${unnote.id}`, `action:${other.id}`] }), code('GROUP_NOT_ALLOWED'));
   const grouped = await f.request(owner, 'approvals.approveGroup', { items: [{ id: `action:${unnote.id}`, digest: unnote.digest }] });
-  assert.deepEqual(grouped.results, [{ id: `action:${unnote.id}`, ok: false, code: 'GROUP_NOT_ALLOWED' }]);
+  assert.deepEqual(grouped.results.map(({ steps, ...r }: any) => r), [{ id: `action:${unnote.id}`, ok: false, code: 'GROUP_NOT_ALLOWED' }]);
+  assert.deepEqual(grouped.results[0].steps.map((s: any) => s.state), ['done', 'waiting-for-you', 'not-reached', 'not-reached', 'not-reached'], 'a refused item keeps its own five steps');
   // An unsure message closes sending for the catalogue's tier-2 action too.
   const remind = await f.prepare('remind', { to: 'customer-b', text: 'Due.' });
   await f.request(owner, 'approvals.approve', { id: `action:${remind.id}`, digest: remind.digest });
@@ -492,7 +494,7 @@ test('after restore lists only actions the caller can see, but still says sendin
   const hidden = await f.actions.prepare(owner, { connector: 'books-app', operation: 'remind', payload: { to: 'x', text: 'Due.' }, idempotencyKey: 'private-1', sourceIds: [] });
   await f.request(owner, 'approvals.approve', { id: `action:${hidden.id}`, digest: hidden.digest });
   f.fake.lose = true; await f.request(owner, 'approvals.execute', { id: `action:${hidden.id}` });
-  assert.deepEqual(await f.request(viewer, 'approvals.afterRestore'), { sendingClosed: true, items: [], notes: ['Some actions you cannot see are still being checked.'], noteKeys: ['hidden-being-checked'] });
+  assert.deepEqual(await f.request(viewer, 'approvals.afterRestore'), { sendingClosed: true, items: [], notes: ['Some actions you cannot see are still being checked.'], noteKeys: ['hidden-being-checked'], deletions: { available: false } });
   const mine = await f.request(owner, 'approvals.afterRestore');
   assert.deepEqual(mine.items.map((i: any) => i.id), [`action:${hidden.id}`]); assert.deepEqual(mine.notes, ['Sending stays closed until every action below is checked.']);
 });

@@ -8,6 +8,7 @@ import { BooksPage, BooksSheet, Link, Table, fill, idOf, prepares, sheetOf, styl
 import { Say, TwoTotals } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
 import { useAuditWords } from './words-audit.ts';
+import { LaneLinks, RecipeMore } from './r4a-parts.tsx';
 
 export function Recipes(props: BooksProps) {
   const r = useR2(props.language);
@@ -37,6 +38,7 @@ export function Recipes(props: BooksProps) {
           </Section>
         </>
       )}
+      <LaneLinks props={props} lanes={['learning-ext']} />
       {open?.startsWith('r:') && <RecipeSheet props={props} recipeId={open.slice(2)} proposals={value?.proposals ?? []} />}
       {open?.startsWith('p:') && <ProposalSheet props={props} id={open.slice(2)} onChanged={reload} />}
     </BooksPage>
@@ -96,6 +98,7 @@ function RecipeSheet({ props, recipeId, proposals }: { props: BooksProps; recipe
               </>
             )}
           </Section>
+          <RecipeMore props={props} recipeId={recipeId} checkEnvelopeId={v.check?.envelopeId ?? null} />
           {v.newer && <p className={s.amber}>{fill(r.newer, { old: v.newer.readWith, now: v.newer.current })}</p>}
           {v.notices.length > 0 && <Section title={r.notices}><ul className={s.list}>{v.notices.map(n => <li key={n}>{n}</li>)}</ul></Section>}
           {/* BK-05 to BK-09: a change to this recipe's sources, proposed from a field, can be tried on a copy from here. */}

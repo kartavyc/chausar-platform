@@ -181,8 +181,11 @@ test('accounts: proposals from parent groups, unsure without a group, decisions 
   assert.equal((await call(owner, 'accounts.decide', { name: 'Buyer', decision: 'yes' })).decided.class, 'receivable');
   const refused = await call(owner, 'accounts.decide', { name: 'Goods sales', decision: 'no' });
   assert.deepEqual([refused.state, refused.proposed, refused.decided], ['unsure', null, null]);
-  const learned = await call(owner, 'accounts.list', {}, { 'learningx.accountsProposals': () => ({ proposals: [{ name: 'Shop fittings', class: 'asset' }, { name: 'Output GST', class: 'bogus' }] }) });
-  assert.deepEqual(learned.proposals, { available: true });
+  const sets = { sets: [{ id: 'accounts_1', at: '2026-10-15T00:00:00.000Z', proposals: [
+    { accountId: 'a1', name: 'Shop fittings', accountClass: 'fixed-assets', confidence: 'medium', needsQuestion: false, evidence: [] },
+    { accountId: 'a2', name: 'Output GST', accountClass: 'bogus', confidence: 'low', needsQuestion: false, evidence: [] }] }] };
+  const learned = await call(owner, 'accounts.list', {}, { 'learningx.accountsList': () => sets });
+  assert.deepEqual(learned.proposals, { available: true, sortedAt: '2026-10-15T00:00:00.000Z' });
   assert.deepEqual([learned.accounts.find((a: any) => a.name === 'Shop fittings').proposed, learned.accounts.find((a: any) => a.name === 'Shop fittings').state], ['asset', 'proposed']);
 });
 

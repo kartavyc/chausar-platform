@@ -15,6 +15,8 @@ import { catalogueEntryFull, catalogueFull, type CatalogueEntryFull } from './co
 import { wbSay, wbWords, type WbKey } from './writeback-text.ts';
 import { Frame, type WorkProps } from './shared.tsx';
 import type { WorkWords } from './text.ts';
+import { LanePageLinks } from './R4Parts.tsx';
+import { r4Words } from './text-r4.ts';
 import s from './work.module.css';
 
 export function entryPairs(e: CatalogueEntry, w: WorkWords, language: 'en' | 'hi') {
@@ -131,6 +133,7 @@ export function CanDoPage({ p }: { p: WorkProps }) {
             )}
             {!c.writeback.available && <Note>{w['cando.writebackMissing']}</Note>}
             {view !== 'simple' && <Note>{w['cando.readApart']}</Note>}
+            <LanePageLinks p={p} lanes={['writeback']} title={r4Words(p.language)['links.cando']} />
             {!p.viewer && <Wanted p={p} />}
           </div>
           {opened !== null && opened.length === 2 && (

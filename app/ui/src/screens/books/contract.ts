@@ -6,6 +6,7 @@
 import { amount, bool, count, either, id, instant, integerString, InvalidReply, isoDate, list, literal, month, nullable, object, oneOf, record, text, type Check } from '../work/kit/validate.ts';
 
 import { connectionWithOperations, envelopeView } from './contract-r2.ts';
+import { box, outline, receiptsNotCounted } from './contract-r4b.ts';
 export * from './contract-r2.ts';
 
 const name = text(400);
@@ -52,9 +53,14 @@ export const unmappedReply = object({
   }, { origin: oneOf(['file', 'connector']), recipeId: nullable(name), mappable: bool })),
 });
 
+/** BK-08, core-data's Definition fields: a worked example (rows in, each counted or left out, the exact result) and the date it came into use. */
+export const definitionExample = object({
+  rows: list(object({ label: text(80), amountMinor: integerString, counted: bool }, { reason: text(160) }), 12), resultMinor: integerString,
+});
+export type DefinitionExample = ReturnType<typeof definitionExample>;
 export const definition = object(
   { label: name, meaning: line, kind: name, field: name, nulls: oneOf(['exclude', 'reject']) },
-  { name, currency: name, sign: either(literal(1), literal(-1)) },
+  { name, currency: name, sign: either(literal(1), literal(-1)), example: definitionExample, usedFrom: isoDate },
 );
 export type Definition = ReturnType<typeof definition>;
 
@@ -64,7 +70,7 @@ export const draft = object({
   affects: object({ calculations: list(name), savedAnswers: count }),
   reviews: list(object({ kind: oneOf(['cosign', 'ai-opinion']), by: name, role: name, at: when })),
   checks: object({ ok: bool, code: nullable(code) }), digest: text(200),
-});
+}, { extras: oneOf(['published-with', 'draft-only']) });
 export type Draft = ReturnType<typeof draft>;
 
 const origin = oneOf(['core', 'pack', 'you']);
@@ -104,7 +110,8 @@ export const accountRow = object({
     { group: name, under: name, side: oneOf(['debit', 'credit']), cls: name }), 20),
 });
 export type AccountRow = ReturnType<typeof accountRow>;
-export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }) });
+export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }, { sortedAt: instant }) });
+export const accountsProposed = object({ setId: id, accounts: count });
 export const classesReply = object({ classes: list(accountClass, 20) });
 
 const recordKind = oneOf(['customer', 'supplier', 'item']);
@@ -165,7 +172,8 @@ export const anyObject: Check<Readonly<Record<string, unknown>>> = (value, path)
 
 export const CERTAINTY = ['sure', 'check-this', 'could-not-read'] as const;
 export type Certainty = typeof CERTAINTY[number];
-const region = object({ page: count, line: count, of: count });
+// Round 4, additive: the words the field was read from, per mille of the page.
+const region = object({ page: count, line: count, of: count }, { box });
 export const billField = object({ value: nullable(text(200)), certainty: oneOf(CERTAINTY), region: nullable(region) });
 export type BillField = ReturnType<typeof billField>;
 export const billReadReply = object({
@@ -176,7 +184,7 @@ export const billReadReply = object({
   tax: list(object({ name: billField, amount: billField }), 50),
   sums: object({ linesPlusTax: amount, total: amount, equal: nullable(bool) }),
   routes: object({ zohoBooks: object({ available: bool, connections: list(object({ id, label: name }), 50) }), tallyPreview: object({ available: literal(true) }) }),
-});
+}, { outline });
 export type BillRead = ReturnType<typeof billReadReply>;
 const voucher = object({ type: name, number: nullable(name), date: isoDate, lines: list(object({ ledger: name, debit: nullable(amount), credit: nullable(amount) }), 200), note: literal('prepare-only') });
 export const billView = object({
@@ -198,17 +206,22 @@ export type BeliefLine = ReturnType<typeof beliefLineReply>;
 const positive: Check<string> = (value, path) => { const v = integerString(value, path); if (!/^[1-9]\d*$/.test(v)) throw new InvalidReply(path); return v; };
 export const rateRow = object({ currency: text(3), on: isoDate, rate: object({ units: positive, per: positive }), source: line, enteredBy: name, at: when });
 export type RateRow = ReturnType<typeof rateRow>;
-export const ratesReply = object({ rates: list(rateRow, 5000), notCounted: list(object({ currency: text(3), rows: count }), 200) });
+export const ratesReply = object({ rates: list(rateRow, 5000), notCounted: list(object({ currency: text(3), rows: count }), 200) }, { fromReceipts: receiptsNotCounted });
 export const removeRateReply = object({ currency: text(3), on: isoDate, removed: literal(true) });
 
 export const deletionPlanReply = object({
   recordId: id, canDelete: bool, sourceDeletion: object({ available: bool }),
-  stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'nothing-held']), reason: nullable(line) }), 50),
-});
+  // Round 4: `pending` and `waiting` come from core-data's plan (actions it must wait for); `planFrom` says whose plan the core stores are.
+  stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'pending', 'nothing-held']), reason: nullable(line) }, { waiting: count }), 50),
+}, { coreDeletion: object({ available: bool }, { planFrom: oneOf(['core', 'here']) }) });
 export type DeletionPlan = ReturnType<typeof deletionPlanReply>;
 export const deletionReport = object({
   id, recordId: id, at: when, by: name, complete: bool,
   rows: list(object({ store: name, count, state: oneOf(['deleted', 'pending', 'not-possible', 'nothing-held']), reason: nullable(line) }), 50),
+}, {
+  // Round 4, core-data's deletion: copies outside the five stores, and what it changed around them (null when the core was not called).
+  elsewhere: nullable(list(object({ store: oneOf(['source-files', 'decisions']), count, state: oneOf(['not-possible', 'nothing-held']), reason: nullable(line) }), 10)),
+  derived: nullable(object({ staleMarked: count, modelReceiptsRemoved: count, privateRemoved: count })),
 });
 export type DeletionReport = ReturnType<typeof deletionReport>;
 export const deletionsReply = object({ reports: list(deletionReport, 500) });

@@ -16,6 +16,7 @@ import { billReadReply, billView, billsReply, type BillField, type BillRead, typ
 import { BooksPage, Recorded, Table, approves, styles as s, valueOf, type BooksProps } from './shared.tsx';
 import { useMoreWords, type MoreKey } from './words-more.ts';
 import b from './BillPhoto.module.css';
+import { FirstPageRegions, LaterPages } from './BillOutline.tsx';
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const MIMES = ['application/pdf', 'image/png', 'image/jpeg'] as const;
@@ -125,10 +126,6 @@ function BillForm({ props, read, url, mime, onDone }: { props: BooksProps; read:
   const ready = form.supplier.trim() !== '' && form.billNumber.trim() !== '' && /^\d{4}-\d{2}-\d{2}$/.test(form.date) && form.lines.length > 0
     && form.lines.every(l => l.description.trim() !== '' && /^[1-9]\d*$/.test(l.quantity)) && form.tax.every(t => t.name.trim() !== '')
     && amounts.every(a => paiseOf(a) !== null) && (route === 'tally' || (connection !== '' && vendor.trim() !== ''));
-  const regions: { key: string; field: BillField }[] = [
-    { key: 'supplier', field: read.supplier }, { key: 'billNumber', field: read.billNumber }, { key: 'date', field: read.date }, { key: 'total', field: read.total },
-    ...read.lines.flatMap((l, i) => [{ key: `line-${i}`, field: l.amount }]), ...read.tax.map((t, i) => ({ key: `tax-${i}`, field: t.amount })),
-  ];
   const submit = async (e: FormEvent) => {
     e.preventDefault(); if (!ready) return;
     const fields = { supplier: form.supplier.trim(), billNumber: form.billNumber.trim(), date: form.date, totalMinor: paiseOf(form.total)!,
@@ -140,17 +137,15 @@ function BillForm({ props, read, url, mime, onDone }: { props: BooksProps; read:
   const sums = read.sums.equal === true ? w['bill.sumsEqual'] : read.sums.equal === false ? w['bill.sumsDiffer'] : w['bill.sumsUnknown'];
   return (
     <div className={b.split}>
+      <div className={s.stack}>
       <figure className={b.page} aria-label={w['bill.page']}>
         {url && mime === 'application/pdf' && <object data={url} type="application/pdf" aria-label={w['bill.page']} />}
         {url && mime !== 'application/pdf' && <img src={url} alt={w['bill.page']} />}
-        <svg className={b.regions} viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={w['bill.regions']}>
-          {regions.filter(r => r.field.region && r.field.region.page === 1 && r.field.region.of > 0).map(r => {
-            const g = r.field.region!; const h = 100 / g.of;
-            return <rect key={r.key} data-region={r.key} x={1} y={(g.line - 1) * h} width={98} height={h}
-              className={active === r.key ? b.regionActive : r.field.certainty === 'sure' ? b.region : b.regionAmber} />;
-          })}
-        </svg>
+        {/* Round 4: each field outlined by its words where the reader sent boxes, else the line band; later pages below. */}
+        <FirstPageRegions read={read} active={active} label={w['bill.regions']} />
       </figure>
+      <LaterPages read={read} active={active} language={props.language} />
+      </div>
       <form className={s.form} aria-label={w['bill.form']} onSubmit={e => { void submit(e); }}>
         <Note>{w['bill.untrusted']}</Note>
         <Read label={w['bill.supplier']} value={form.supplier} onChange={v => set({ supplier: v })} read={read.supplier} w={w} active={focus('supplier')} />

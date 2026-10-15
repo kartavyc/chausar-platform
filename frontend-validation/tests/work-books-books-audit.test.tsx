@@ -204,3 +204,14 @@ test('BK-01 in Simple: not connected, paused and a failed read stay beside the n
   expect(within(zoho).getByText('last read failed')).toBeTruthy();
   expect(within(sheet).getAllByText(/experimental/i).length).toBeGreaterThan(0);
 });
+
+test('BK-11 round 4: Sort the accounts asks learning-ext through accounts.propose and reads again; a viewer has no button', async () => {
+  const { called } = setup({ address: { place: 'books', sub: 'accounts' }, handlers: { 'accounts.propose': () => ({ setId: 'accounts_1', accounts: 3 }) } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Sort the accounts' }));
+  await waitFor(() => expect(called('accounts.propose')).toHaveLength(1));
+  await waitFor(() => expect(called('accounts.list').length).toBeGreaterThan(1));
+  cleanup();
+  setup({ address: { place: 'books', sub: 'accounts' }, viewer: true, role: 'viewer' });
+  await screen.findByText(/their names never leave this computer/);
+  expect(screen.queryByRole('button', { name: 'Sort the accounts' })).toBeNull();
+});

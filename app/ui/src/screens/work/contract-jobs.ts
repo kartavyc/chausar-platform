@@ -33,7 +33,7 @@ export const schedule = either(
 );
 export type Schedule = ReturnType<typeof schedule>;
 const way = oneOf(['jobsx', 'core', 'not-built'] as const);
-export const manage = object({ edit: way, delete: oneOf(['jobsx', 'cancel'] as const), missedRule: way, personStep: oneOf(['jobsx', 'not-built'] as const) },
+export const manage = object({ edit: way, delete: oneOf(['jobsx', 'cancel'] as const), missedRule: way, personStep: oneOf(['jobsx', 'core', 'not-built'] as const) },
   { answer: oneOf(['jobsx', 'not-built'] as const), accept: oneOf(['jobsx', 'core'] as const) });
 export type Manage = ReturnType<typeof manage>;
 
@@ -98,15 +98,15 @@ const rules = object({ windows: literal(1), mode: literal('read-export'), typesS
 const drivingStatusShape = object({
   state: oneOf(DRIVING_STATES), window: nullable(object({ id, title: short })),
   steps: list(object({ at: instant, text: long, state: oneOf(['done', 'running', 'failed'] as const) }), 200), reason: nullable(short),
-});
+}, { exports: list(object({ id, name: short, bytes: count }), 50) });
 export type DrivingStatus = ReturnType<typeof drivingStatusShape>;
 const drivingWindow = object({ id, title: short, app: short });
 export type DrivingWindow = ReturnType<typeof drivingWindow>;
-export type Driving = { readonly available: false } | { readonly available: true; readonly status: DrivingStatus; readonly windows?: readonly DrivingWindow[] };
+export type Driving = { readonly available: false } | { readonly available: true; readonly status: DrivingStatus; readonly windows?: readonly DrivingWindow[]; readonly driver?: { readonly available: boolean; readonly code: string | null } };
 export const driving: Check<Driving> = (value, path) => {
   const head = object({ available: bool, rules })(value, path);
   if (!head.available) return Object.freeze({ available: false as const });
-  const body = object({ status: drivingStatusShape }, { windows: list(drivingWindow, 100) })(value, path);
+  const body = object({ status: drivingStatusShape }, { windows: list(drivingWindow, 100), driver: object({ available: bool, code: nullable(short) }) })(value, path);
   return Object.freeze({ available: true as const, ...body });
 };
 

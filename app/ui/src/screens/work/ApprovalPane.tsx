@@ -22,6 +22,10 @@ import { jobWords } from './text-jobs.ts';
 import { ReminderBlock, SavedFiles, WbNotices, wbPairs } from './WritebackParts.tsx';
 import { wbKnown, wbSay, wbWords } from './writeback-text.ts';
 import { ActionPane } from './ActionPane.tsx';
+import { practiceR4, type PracticeR4 } from './contract-r4.ts';
+import { CorePracticeBlock } from './R4Parts.tsx';
+import { r4Words, sayR4 } from './text-r4.ts';
+import { sheetOf as bookSheet } from '../books/shared.tsx';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { KeyValue } from '../../parts/KeyValue';
 import { expiryNote, fieldName, fieldValue, money, rowTitle, say, stepItems, type WorkProps } from './shared.tsx';
@@ -86,6 +90,8 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
   const [dropping, setDropping] = useState(false);
   const [after, setAfter] = useState<ActionRecord | null>(null);
   const [tried, setTried] = useState<ReturnType<typeof practiceRun> | null>(null);
+  const [practised, setPractised] = useState<PracticeR4 | null>(null);
+  const r4 = r4Words(language);
   const [passphrase, setPassphrase] = useState<string | null>(null);
   const [saved, setSaved] = useState<Exported | null>(null);
   const [saving, setSaving] = useState(false);
@@ -159,7 +165,18 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
     const out = await act.run('approvals.practice', { id: d.id }, practiceRun);
     if (out.ok) setTried(out.value);
   };
+  /** WK-02: a core action's practice: checked by its own operation, never run. */
+  const practiseCore = async () => {
+    const out = await act.run('approvals.practice', { id: d.id }, practiceR4);
+    if (out.ok) setPractised(out.value);
+  };
   const passphraseAsked = d.secondAsk?.by === 'passphrase';
+  // The owner's vault passphrase, or the approver's own approval secret (core-gateway-auth), as the engine says.
+  const ownSecret = d.secondAsk?.whose === 'own-secret';
+  // core-gateway-auth: no secret set yet, or locked after wrong tries. Neither offers the field.
+  const setFirst = d.secondAsk?.setFirst === true, lockedUntil = d.secondAsk?.lockedUntil ?? null;
+  const reminderRecord = d.reminder?.recordId ?? null;
+  const zone = d.reminder?.caps?.timeZone ?? null;
   const confirmPassphrase = (event: FormEvent) => {
     event.preventDefault();
     if (!passphrase) { setNotice(null); return; }
@@ -175,12 +192,14 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
       {warn !== null && <Note>{say(w, 'pace.warn', { n: warn })}</Note>}
       <ApprovalSheet approval={toApproval(d, p)} origin={origin} onClose={onClose} onReceipt={p.openReceipt}
         onApprove={() => void approve(false)}
-        onSecondAsk={() => { if (d.practice && d.source !== 'writeback') void approve(false); else if (passphraseAsked) { setNotice(null); setPassphrase(''); } else { setNotice(null); setConfirming(true); } }}
+        onSecondAsk={() => { if (d.practice && d.source !== 'writeback') void approve(false); else if (passphraseAsked && (setFirst || lockedUntil !== null)) { setNotice(null); } else if (passphraseAsked) { setNotice(null); setPassphrase(''); } else { setNotice(null); setConfirming(true); } }}
         onNotNow={() => void notNow()}
         onChange={d.change.asWritten !== undefined ? () => setEditing(d.change.asWritten ?? '') : undefined}
         onDrop={() => setDropping(true)}
         onDownloadPrepared={() => void download()}
         onCheckUnknown={(approvalId, result) => void resolve(approvalId, result)} />
+      {passphraseAsked && setFirst && <Note>{r4['secret.setFirst']}</Note>}
+      {passphraseAsked && lockedUntil !== null && <Note>{sayR4(r4, 'secret.locked', { time: dayTime(lockedUntil, language) })}</Note>}
       {notice !== null && <p className={s.meta} role="status">{w[notice]}</p>}
       <Refusal code={act.refusal} language={language} />
       {saving && <p className={s.meta} role="status">{ww['file.saving']}</p>}
@@ -194,14 +213,21 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
           )}
         </div>
       )}
-      {d.reminder && <ReminderBlock reminder={d.reminder} ww={ww} language={language} onReceipt={p.openReceipt} onRecord={p.viewer ? undefined : () => p.navigate({ place: 'books', sub: 'customers' })} />}
+      {d.source === 'action' && d.state === 'prepared' && !p.viewer && !d.readOnly && !d.prepareOnly && (
+        <Actions><Button variant="link" disabled={act.busy} onClick={() => void practiseCore()}>{r4['practice.try']}</Button></Actions>
+      )}
+      {practised && (practised.available ? <CorePracticeBlock tried={practised} language={language} r={r4} /> : <Note>{w['practice.unavailable']}</Note>)}
+      {d.reminder && <ReminderBlock reminder={d.reminder} ww={ww} language={language} onReceipt={p.openReceipt}
+        recordLabel={reminderRecord !== null ? r4['rem.openRecord'] : undefined}
+        zoneLine={zone !== null && d.reminder.caps?.day ? sayR4(r4, 'rem.capsZone', { day: day(d.reminder.caps.day, language), zone }) : undefined}
+        onRecord={p.viewer ? undefined : () => p.navigate(reminderRecord !== null ? { place: 'books', sub: 'customers', sheet: bookSheet(reminderRecord) } : { place: 'books', sub: 'customers' })} />}
 
       {passphrase !== null && (
-        <form className={[s.block, s.form].join(' ')} role="dialog" aria-label={ww['pass.title']} onSubmit={confirmPassphrase}>
-          <h3 className={s.h}>{ww['pass.title']}</h3>
-          <Note>{ww['pass.note']}</Note>
-          <label>{ww['pass.field']}
-            <input type="password" value={passphrase} autoComplete="current-password" onChange={e => setPassphrase(e.currentTarget.value)} aria-label={ww['pass.field']} />
+        <form className={[s.block, s.form].join(' ')} role="dialog" aria-label={ownSecret ? r4['secret.title'] : ww['pass.title']} onSubmit={confirmPassphrase}>
+          <h3 className={s.h}>{ownSecret ? r4['secret.title'] : ww['pass.title']}</h3>
+          <Note>{ownSecret ? r4['secret.note'] : ww['pass.note']}</Note>
+          <label>{ownSecret ? r4['secret.field'] : ww['pass.field']}
+            <input type="password" value={passphrase} autoComplete="current-password" onChange={e => setPassphrase(e.currentTarget.value)} aria-label={ownSecret ? r4['secret.field'] : ww['pass.field']} />
           </label>
           <Actions>
             <Button submit variant="quiet" disabled={act.busy || passphrase.length === 0}>{ww['pass.go']}</Button>

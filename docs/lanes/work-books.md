@@ -333,6 +333,7 @@ SourceRow = { sourceId; system: string; way: 'files' | 'signed-in' | 'this-compu
 | `accounts.decide` | prepare | `{ name, decision: 'yes' \| 'no' \| 'change', class? }` | the account row |
 | `records.search` | read | `{ kind?: 'customer' \| 'supplier' \| 'item'; text?: string }` | `{ records: { id; kind; name: string \| null; sources: string[]; facts: number }[] }` |
 | `records.get` | read | `{ id }` | `RecordView` |
+| `records.invoices` | read | `{ id }` | `{ id; name: string \| null; invoices: string[] }`: the customer's invoice references, calculated from nothing (review 4). Same visibility as `records.get`. |
 | `records.setOptIn` | prepare | `{ id, channel: 'mail' \| 'whatsapp', answer: 'yes' \| 'no', source: string, on: 'YYYY-MM-DD' }` | `RecordView`. Refuses `TAINTED_CONSENT` from a tainted context and `LIST_FULL` at 10000 entries. |
 | `records.stop` | prepare | `{ id, on: 'YYYY-MM-DD' }` | `RecordView` (the customer sent the stop word). Refuses `TAINTED_CONSENT` from a tainted context and `LIST_FULL` at 10000 entries. Review 2: a Books stop also stops write-back reminders (see the reminder sheet). |
 | `records.matches` | read | `{}` | `{ pairs: { left; right; relation; evidence: string[]; reason: string; state: 'open' \| 'joined' \| 'not-same'; mergeId: string \| null }[] }` |
@@ -724,25 +725,24 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
   For a core job, Edit and the missed-run rule work only for typed jobs; a read-only brief
   says not built, and Delete cancels it (the record is kept).
-- jobs-ext is merged. Proposals from one sentence are tested through the real engine; questions, person steps, edit, the missed-run rule and lane accept are tested against stubs copied from that lane's source.
+- jobs-ext is merged. Round 4: ready-made lane jobs, questions, person steps, edit, the missed-run rule and lane accept are tested through the real merged engine (`work-books-jobs-r4-engine.test.ts`).
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works
   out what customers owe (`aging`, with its receipt); it does not write a narrative brief.
 - `approvals.get` (the approval sheet's job card) reads the missed-run rule from the interval
   catch-up; `approvals.job` reads a calendar's own rule.
-- WK-14 shows "not built yet": no lane provides `session.*`.
+- WK-14: checked against the driving lane's real `session.*` (round 4); without that lane it shows "not built yet".
 - Today rows (an expired approval as "worth a look", "3 runs were missed while this computer
   slept") and live refresh through `events.subscribe` belong to frame-today; place modules have
   no event seam.
 - WK-12: `approvals.prepareReminder` has no screen entry point of its own. "Record the
   agreement" opens Customers and suppliers, not the exact record: write-back's customer id is
   the connected system's, not a Chausar record id. Changing the caps belongs to Trust.
-- Core (non-write-back) money actions keep the typed-amount second ask: the core has no passphrase check. Write-back changes use the passphrase through `writeback.reauth`.
+- Core money actions keep the typed-amount second ask until core-gateway-auth's `secondAsk.grant` is installed (round 4 adapter; see "Round 4 contracts"). Write-back changes use the passphrase or the approver's own secret through `writeback.reauth`.
 - Files written by `approvals.exportPrepared` are not removed when the workspace is deleted (the
   engine's purge of `exports/` matches only its own vault copies; widening it is a core edit).
-- The caps line counts reminders prepared on the reminder's own day; the screen does not know
-  write-back's configured time zone.
+- The caps line counts reminders prepared on the reminder's own day and, with `writeback.caps`, says write-back's time zone (round 4).
 - Bill photo: the helper's `pdf.ocr` returns text lines with a page confidence, not word
   boxes, so a region is the line's band across the page. Only the first page is outlined.
   Parsing is fixed patterns for Indian bill layouts; anything else is left for the person.
@@ -754,13 +754,16 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   foreign-currency row stays "not counted" and the count is on `books.rates`, not on each receipt.
 - BK-20 Delete cannot remove core facts, receipts, answers, actions or conversations for one
   customer: the core has no such method, and `trustx.deleteSource` removes whole sources only.
-- BK-02: where refused files are kept, the sign-in path before pressing the button and the
-  data's age are not drawn. BK-03: "Which company?" is a typed name (`connectorsx` cannot list
-  Tally companies); the exporter and guide for Tally on another computer are not built.
+- BK-03 (round 4): the companies open in Tally are listed only through a Tally connection that
+  already exists (`connectorsx.tally.companies` takes a `connectionId`), so the first Tally
+  company is still a typed name. The exporter and guide for Tally on another computer are
+  connectors-ext's own Books place (`#/books/tally-export`).
 - BK-04 (bring a file) is the first-run screen FR-07, owned by frame-today; it needs the host's
   file picker.
-- BK-05: answering a recipe question in place has no method; a newer version names the
-  versions, not the difference; registered recipes have no "who accepted" (they are seeds).
+- BK-05 (round 4): tax registration (GSTIN) in a recipe's scope is drawn only when a read
+  carries a `gstin` field; connectors-ext's round-4 contract does not provide one yet, so it
+  stays "unknown". Answering, the version diff and reconcile are drawn over connectors-ext's
+  `recipes.*` and show "not built yet" until that lane is merged.
 - BK-08 has no worked-example drawing and no "date used": a definition carries neither.
 - BK-09: publishing a copy uses the prospective strategy only.
 - BK-12: asking about the record from the ask line needs frame-today's ask line to accept an
@@ -802,10 +805,10 @@ engine is now said from codes.
 | Screen | Shows | States | You can | Rules | Views/languages | Status |
 |---|---|---|---|---|---|---|
 | BK-01 Sources | One row per source and scope, with the way in, the last read, twelve month squares and what to look at. "N fields no recipe covers" is under the table. | Loaded, loading, not loaded yet, refused (amber) and failed (amber ring and the word). Not connected. An experimental label on each source. | Open a source; add a source | An open square is never a zero. | Simple keeps the name, the last read and the squares. Audit fix: not connected, paused and a failed read now stay beside the name in Simple, which drops the "what to look at" column. Hindi. | done |
-| BK-02 One source | The way in, the last read, the months, what is loaded per kind, reads with their totals, refusals with codes, unmapped fields, the connection and the history of reads. | Loading, refused, not built (no connectors lane) | Read now, Import or Set aside, Pause or Resume, Sign in again (the address is shown as text), Remove | Remove asks again. | All three views; Hindi | partial: "where refused files are kept" is not drawn, and neither is the sign-in path before Sign in again is pressed. How old the data is shows as the last read plus the stale word, not as an age. |
-| BK-03 Add a source | Systems with full, read or import; tested or experimental; evidence counts; tier. A table per operation, then the way in, and for Tally where it lives. | Planned, not available yet. This network and another computer are labelled experimental. Sign-in happens in the browser. | Connect | A claim is per operation, never per logo. | All three views (the operation table never drops columns in Simple); Hindi | partial: "Which company?" is a typed name, because connectors-ext has no list of the companies open in Tally. The exporter and one-page guide for Tally on another computer are not built (connectors-ext). |
+| BK-02 One source | The way in, the last read, the months, what is loaded per kind, reads with their totals, refusals with codes, unmapped fields, the connection and the history of reads. | Loading, refused, not built (no connectors lane) | Read now, Import or Set aside, Pause or Resume, Sign in again (the address is shown as text), Remove | Remove asks again. | All three views; Hindi | done (round 4): where refused files are kept (not kept; the file's own place as text), the sign-in path before Sign in again is pressed, and the data's age in days (`books.sourceMore`). |
+| BK-03 Add a source | Systems with full, read or import; tested or experimental; evidence counts; tier. A table per operation, then the way in, and for Tally where it lives. | Planned, not available yet. This network and another computer are labelled experimental. Sign-in happens in the browser. | Connect | A claim is per operation, never per logo. | All three views (the operation table never drops columns in Simple); Hindi | partial (round 4): "Which company?" lists the companies open in Tally through an existing Tally connection (`books.tallyCompanies`); the first company is still typed. Tally on another computer is connectors-ext's own Books place, linked from here. |
 | BK-04 Bring a file | The FR-07 screen | none | none | none | none | not possible here: FR-07 (`screens/first-run/BringFile.tsx`) needs the host's file picker and the journey port, and a place module receives neither. Sources only says "Bring a file" in its empty state. frame-today would need to expose FR-07 to places. |
-| BK-05 A recipe | The state, the scope in five fields, bindings with who accepted them and their grade, and the check as two totals | Questions with one of the five reasons and their choices; totals that do not match (amber); a newer version | Audit fix: the recipe lists the proposed changes to its own sources, each with "try it on a copy" (BK-09) | A binding says "proposed" until a named person accepts it. | All three views; Hindi | partial: a question cannot be answered in place (there is no method; the person reads again). A newer version names the versions, not what changes. Tax registration in the scope is unknown. |
+| BK-05 A recipe | The state, the scope in five fields, bindings with who accepted them and their grade, and the check as two totals | Questions with one of the five reasons and their choices; totals that do not match (amber); a newer version | Audit fix: the recipe lists the proposed changes to its own sources, each with "try it on a copy" (BK-09) | A binding says "proposed" until a named person accepts it. | All three views; Hindi | partial (round 4): answered in place, who answered, reconcile and the version diff over connectors-ext's `recipes.*` (`books.recipeMore` and friends). Tax registration in the scope stays unknown until a read carries it. |
 | BK-06 Fields no recipe covers | Field, type, how often it is filled | Empty. A connector field points to its recipe. | Map this field (file imports) | Nothing is lost silently. | All three views; Hindi | done (a connector recipe's field cannot be mapped here: connectors-ext owns those recipes) |
 | BK-07 Meanings | Word, meaning, where it came from, state | A clash is shown in amber. | Open a word; start a draft | none | All three views; Hindi | done |
 | BK-08 A meaning | What counts; the old rule struck through beside the new one; the change; what it affects; checks; reviews; "try it on a copy" | Draft; AI opinion; not reviewed; co-signed by name; checks failed, with the code | Publish, Co-sign, Discard, change the word | A release switches on everywhere at once. | All three views; Hindi | partial: there is no worked example drawing and no "date used" line, because a definition carries no example or date field. The release history names who published, not who reviewed. |
@@ -848,3 +851,262 @@ language; every word this lane writes itself is in both catalogues. "Fixed in th
 | WK-14 Chausar is driving | The choice of one window, the banner with Ctrl Alt Pause and Stop, the steps. | Sign in yourself; you moved the mouse, paused, with Continue and Stop; stopped by your key; a step failed; not built. | Choose a window, Start, Continue, Stop. | One window, read and export only, never types a password, one-time code or captcha (the rules are sent with the start and checked in the reply). | All views; both languages. | not possible: no lane provides `session.*`; the screen shows "not built yet" and is tested only with a stub. The always-on-top strip and the tray Stop belong to the desktop shell. |
 | WK-15 After a restore | The actions that may have gone out after the backup, each with Check; sending closed while any is unsure; the engine's notes, now said in Hindi by their keys (fixed in this audit). | Sending closed / open; nothing to check; a note that deletions after the backup are not checked here yet (fixed in this audit). | Check one (read back first). | Sending stays closed until the list is empty (`SENDING_CLOSED` in `approvals.execute`). | Simple hides touches, amount and dots and the deletions note. Both languages. | partial: re-applying deletions (`deletion.reapply`, "2 customer records came back") is not possible here: no method exists in core or trust, and the screen says so. The core `actions.execute` does not check the gate (a core edit). |
 | WK-16 A step for a person | In the job's time line, open person steps first with your square or the person's name, and Done. | Waits; done on / by; not yours; not built. | Done (only through `jobsx.personStep.done`, only the job's pinned owner). | The job waits; nothing marks the step done by itself. | All views; both languages. | partial: for a core job the step is shown from its plan, but Done is not built (no core method). |
+
+## Round 4 contracts
+
+### Books sources and recipes (BK-02, BK-03, BK-05), round 4a
+
+Over connectors-ext's round-4 contracts (branch `claude/lane-connectors-ext`, `docs/lanes/connectors-ext.md`
+"Round 4 contracts", commit ed792ac, read before their code). Another lane's method is used only when
+the method registry (or a trusted host's `hasMethod`) lists it; it is never probed. Every reply is
+checked field by field and copied (`platform/runtime/work-books/books-r4a.ts`). Experimental, like
+every connector read.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `books.tallyCompanies` | admin, external | `{ sourceId? }` | `{ available; reason: null \| 'connectors-not-installed' \| 'not-built' \| 'no-connection'; sourceId; current: string \| null; currentOpen: boolean \| null; companies: { name; booksFrom: string \| null }[] }`. Calls `connectorsx.tally.companies { connectionId }` for the named (or first) Tally connection on the `interface` road. A named source that is not one refuses `TALLY_CONNECTION_REQUIRED`; connectors-ext refusals (`READ_NOT_AVAILABLE`, `DEMO_EXTERNAL_DISABLED`, `OPEN_DESKTOP`, the read kit's codes) pass through. Repeated names are listed once. |
+| `books.sourceMore` | read | `{ sourceId }` | `{ sourceId; refused: { at; origin: 'file' \| 'connector'; what: string \| null; code: string \| null; envelopeId: string \| null }[] (newest first, ≤ 50); kept: { file: 'not-kept'; where: string \| null }; signIn: { method: 'browser' \| 'key' \| 'none'; note; endpoint: string \| null } \| null; age: { lastRead: string \| null; stale: boolean; schedule: { everyHours; freshnessTargetHours } \| null }; connectors: { available } }`. `refused` joins core file refusals (reason class only) and connector reads that were refused, failed or asked a question. No file is kept: `where` is the file or database connection's own `path` setting, as text, never opened. `signIn` (interface connections only) is `connectorsx.systems`' sign-in entry for the group, read before anything is pressed; for Tally, `endpoint` is the connection's `endpoint` setting or `http://127.0.0.1:9000`. `lastRead` is the newest of the source's imports, accepted reads and `connectorsx.freshness.lastRead`; the screen turns it into "read 3 days ago" (whole days from the timestamp, words only). |
+| `books.recipeMore` | read | `{ recipeId }` | `{ recipeId; questions: { envelopeId; sourceId; at; reason: 'ambiguous_field' \| 'unknown_value' \| 'date_format' \| 'currency' \| 'sign_convention'; field; sample: string \| null; choices: string[] }[]; answers: AnswerView[]; reconciliations: ReconcileView[] (≤ 20, newest first); reconciled: { by; role; at; envelopeId } \| null; gstin: string \| null; can: { answer; answers; remove; diff; reconcile } }`. Questions come from the envelope's `question` (abstained reads only). `reconciled` is the latest `matches` by a named person: it grades the recipe "reconciled". `can` is read from the registry. `sample` is outside text, drawn as data. |
+| `books.recipeAnswer` | prepare | `{ envelopeId, choice }` | `{ answer: AnswerView; read: EnvelopeView \| null; next: Question \| null; readAgain: 'not-needed' \| 'bring-the-file-again' \| 'read-again' }` from `recipes.answer`. The read must be one the caller can see (`ENVELOPE_NOT_FOUND` first). Without `recipes.answer`: `RECIPE_ANSWER_NOT_BUILT`. connectors-ext's `RECIPE_QUESTION_NONE`, `RECIPE_ANSWER_INVALID`, `RECIPE_ANSWER_STALE`, `ANSWER_LIMIT`, `OPEN_DESKTOP` pass through. |
+| `books.recipeAnswerRemove` | prepare | `{ answerId }` | `{ removed: true; answerId }`. The answer must be listed by `recipes.answers` for a source the caller can see (`ANSWER_NOT_FOUND`). Without the methods: `RECIPE_ANSWER_NOT_BUILT`. |
+| `books.recipeDiff` | read | `{ recipeId, envelopeId? \| sourceId? }` | `{ available: boolean; diff: { recipeId; available; reason: 'OLD_VERSION_NOT_KEPT' \| null; from: { version; digest; label: 'read-with' \| 'seed' }; to: { version; digest; label: 'current' \| 'with-answers' }; same; changes: { path; change: 'added' \| 'removed' \| 'changed'; before; after; effect: 'columns' \| 'meaning' \| 'dates' \| 'amount' \| 'check' \| 'identity' \| 'other' }[] } \| null }` from `recipes.upgradeDiff` (an unknown effect reads `other`). Without the method: `{ available: false, diff: null }`. |
+| `books.recipeReconcile` | prepare | `{ envelopeId, reportTotals?: { total: '<paise>', rowCount? } }` | `ReconcileView` from `recipes.reconcile`. Without the method: `RECIPE_RECONCILE_NOT_BUILT`; `INVALID_SOURCE_TOTALS` passes through. |
+
+```
+AnswerView = { id; sourceId; recipeId; recipeVersion; reason; field; sample: string | null; choice;
+  answeredBy: { name; role; at }; envelopeId: string | null }          // connectors-ext's memberId is not copied
+ReconcileView = { envelopeId; importId: string | null; at; by: { name; role };
+  status: 'matches' | 'differs' | 'rows-changed' | 'not-imported' | 'no-source-total';
+  theirs: { total: string | null; rowCount: number | null; reference: string | null; provenance: string | null } | null;
+  ours: { total: string | null; rowCount: number | null; live: number | null; changed: number | null }; measure: 'money' | 'count'; unit: string | null }
+  // Review 4: a count or text the reply did not carry stays null (missing is words, never 0 or ''); the screen says "unknown".
+```
+
+Screens: the source sheet draws the data's age, "How sign-in works here" before Sign in again is
+pressed, and "Where refused files are kept" with the refused reads; a Tally connection's sheet lists
+the companies open in Tally and says when its own company is not open. Add a source offers the
+list beside "Which company?" (Use this company fills the field). A recipe's sheet answers its
+question in place with the offered choices, lists who answered (with Remove), reconciles the latest
+checked read with an optional report total, and shows what changes between versions. All three views,
+English and Hindi.
+
+**Links to other lanes' Books places.** `booksPlace.handles` leaves every Books sub-place another
+lane lists in `app/ui/src/places/subplaces/<lane>.ts` to that lane (connectors-ext: `scheduled`,
+`database`, `tally-export`; learning-ext: whatever ids it registers). Sources and Add a source link to
+connectors-ext's Books sub-places; Recipes, Meanings and Accounts link to learning-ext's. Each link is
+read from `laneSubPlaces` and named by that lane's `SH-01.sub.books.<id>` words, so a lane that has
+registered none draws no link.
+
+**Assumed contracts** (connectors-ext round 4, written before their code):
+- `connectorsx.tally.companies { connectionId } → { companies: { name, booksFrom }[] }`;
+- `recipes.answer { envelopeId, choice } → { answer, read, readAgain }`; `recipes.answers { recipeId?, sourceId? } → { answers }`;
+  `recipes.answerRemove { answerId } → { removed: true, answerId }`; `recipes.upgradeDiff`; `recipes.reconcile` as in their doc;
+- envelopes from `connectorsx.envelopes` carry `question` (abstained reads) and `reconciliations` (latest 10);
+- `connectorsx.connections` returns each connection's non-secret `settings` (`path`, `endpoint`), as in the base;
+- a read may carry `gstin` (a valid GSTIN) for the recipe's tax registration; until one does, the scope says "unknown".
+
+Refusal codes added to the work-books line of `laneRefusals`: `RECIPE_ANSWER_NOT_BUILT`,
+`RECIPE_RECONCILE_NOT_BUILT`, `TALLY_CONNECTION_REQUIRED`, and connectors-ext's `RECIPE_QUESTION_NONE`,
+`RECIPE_ANSWER_INVALID`, `RECIPE_ANSWER_STALE`, `ANSWER_LIMIT` (so a screen can say them before that lane's line lists them).
+### Books, round 4 (r4b): publish strategies, the rest of the time line, demo clock, rates from receipts, core deletion, word boxes, time zone
+
+Methods this lane serves (additive to the tables above):
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `books.trial`, `books.trialRead` | as before | as before | `TrialView` gains `impacts: StrategyImpact[]`, one per strategy core `trials.promote` takes, in this order: `prospective`, `retrospective`. `StrategyImpact = { strategy; digest: string \| null; affectedAnswers; rebuild; activeWork; preserved; code: string \| null }`, read with `trials.impact { trialId, strategy }` (a read; nothing is published). A strategy core refuses (for example `TRIAL_REBUILD_REQUIRED`, `TRIAL_IMPACT_SCOPE_REQUIRED`) has `digest: null` and its `code`. `impact` stays the prospective one. (BK-09) |
+| `books.trialPublish` | approve | `{ trialId, evaluationDigest, impactDigest, strategy?: 'prospective' \| 'retrospective' }` (prospective when left out) | as before, plus `strategy`. `trials.promote` runs with the named strategy and the impact digest reviewed for that strategy; a digest from the other strategy refuses `TRIAL_IMPACT_NOT_ACKNOWLEDGED` (core). Retrospective publishing restates each saved answer as a new receipt for its own date; the original receipts stay. The screen does not offer a strategy while jobs or actions are open (`activeWork > 0`; core refuses `TRIAL_ACTIVE_WORK`). |
+| `records.timelineMore` | read | `{ id }` | `{ recordId; entries: { at; type: 'reminder' \| 'action' \| 'reminder-sent' \| 'payment-noted' \| 'note'; what: string \| null; status: string \| null; source: 'actions' \| 'writeback-journal' \| 'memory'; ref: string \| null }[]; omitted; journal: { available } }`, oldest first, at most 200 (BK-12). Actions (core reminder drafts included) whose payload names the record or an id joined with it, under core's action access rule; `writeback.followUp.journal` entries (`sent`, `paid`) whose `customerId` is exactly one of those ids; memory lines that name the record as a whole word and that the caller sees. Refuses `RECORD_NOT_FOUND`. |
+| `records.deletionPlan` | read | as before | adds `coreDeletion: { available }`. When core-data's one-customer deletion is installed (read from the method registry, never by calling it), the core stores that hold something are `can-delete`. (BK-20) |
+| `records.delete` | approve | as before (`confirmation` must equal `id`; not tainted) | as before. After this lane's own stores, and only when core-data's deletion is installed and a core store holds something, it calls `deletion.customer` once. Every store is counted again afterwards (`records.holdings` rules); only a store found empty is `deleted`. A core refusal leaves its stores `pending` with the code in `reason`. (BK-20) |
+| `books.rates` | read | as before | adds `fromReceipts: { available; receipts: { receiptId; operation; at; notCounted: { currency; rows }[] }[] }`: the caller's own receipts that carry the not-counted count, newest first, at most 20 with something not counted. `available` once any of the caller's receipts carries the field. Rates stay entered by the owner here; this lane converts nothing. (BK-19) |
+| `books.billRead` | prepare | as before | each field's `region` may carry `box: { x, y, w, h }`, per mille of its page (0..1000): the words the field was read from (an amount: its last word with a digit; otherwise the words its value contains, else the whole line). Adds `outline: { page; width; height; boxes: Box[]; omitted }[]`, every page read with all its word boxes. A reader without word boxes: no `box`, `outline: []`. (WK-13/BK-18) |
+
+Shared helper, additive (`platform/runtime/helper.ts`, `platform/helpers/analytics.py`): `pdf.ocr` accepts `words: boolean` (default false; any other type refuses `INVALID_HELPER_INPUT`). With `words: true` each page also has `width` and `height` (the rendered image in pixels), `words: { text; line; left; top; width; height; confidence }[]` from the same tesseract TSV (`line` is the 1-based line of that page's `text`), at most 1500 a page, and `wordsOmitted`. Without it the reply is exactly as before. The in-memory rules and limits are unchanged (pipes only, no files, 4 MB, page and text limits, the 25 s deadline).
+
+Screens: Trial draws "How to publish" with both strategies and their impacts (Simple hides the kept-receipts count); a record draws "Reminders and notes" with each entry's source and "Ask about this record"; History and the belief line draw the demo clock state; Rates draws "Not counted, as receipts say", each line opening its receipt; Delete says when the core stores are deleted too; Bill photo outlines fields by their words and draws a panel for every later page. Dates on Records and History that are instants are shown in the workspace time zone when `ui.context` serves one; a plain date is never shifted.
+
+Contracts assumed from other lanes (adapters in this lane; each missing piece shows its typed "not built yet" state or the earlier behaviour):
+
+- core-data, BK-20: `deletion.customer` (permission approve), payload `{ customerId: string; recordIds: string[]; confirmation: string }` with `confirmation === customerId`; reply `{ customerId; stores: { store: 'facts' \| 'receipts' \| 'answers' \| 'actions' \| 'conversations'; count }[] }`. The reply is not trusted for the report. Adapter: `platform/runtime/work-books/books-deletion-r4b.ts`.
+- core-data, BK-19: each calculation receipt carries `coverage.notCounted: { currency: string (three letters); rows: number }[]` once the calculator applies rates. The calculator reads the owner's rates from `books.rates` (`rates[]`: `currency`, `on`, `rate: { units, per }`, exact integer strings) or from this lane's state (`extensions['work-books'].books.rates`). Adapter: `books-rates-r4b.ts`.
+- core-data / engine: `ui.context.timeZone` (an IANA zone or null), already served by the engine; Books reads it through `rpc`.
+- frame-today, BK-12: `PlaceRenderProps.setAbout?: (about: { kind: 'record'; id: string; name: string } \| null) => void` puts "About: <name>" on the ask line; the frame clears it on its own (its clear button, navigation). Read in `app/ui/src/screens/books/r4b-parts.tsx` without assuming it exists.
+- frame-today, BK-15: `todayx.shell` → `{ workspace: { demo }, clock: { mode: 'demo', date } \| { mode: 'real' } }` (the demo clock is set and moved by `todayx.clock.set` / `todayx.clock.advance`). Books only reads it.
+- writeback, BK-12: `writeback.followUp.journal` → `{ kind: 'sent' \| 'paid'; invoiceId; customerId; at; … }[]`.
+
+Supported or experimental: BK-09 strategies experimental (as the copy is); BK-12 reminders and notes supported, "ask about this record" experimental until the frame's seam is merged; BK-15 demo clock state supported; BK-19 count from receipts supported once core-data's receipts carry it; BK-20 core deletion supported through core-data's method; bill photo word boxes and every page experimental (tested with a real tesseract 5.3.4 run where installed); time zone on dates supported.
+
+This supersedes, in "Still missing" above: "BK-09: publishing a copy uses the prospective strategy only"; "BK-12: … the time line shows invoices and payments, not reminders or notes" (asking about the record now waits only on frame-today's `setAbout`); "Bill photo: … not word boxes … Only the first page is outlined … no real OCR run was made" (tesseract-ocr 5.3.4 was installed in the build container and a real run is tested; the test is skipped where tesseract is absent); the BK-19 and BK-20 bullets, once core-data's receipt field and `deletion.customer` are merged. Still missing: write-back names customers by the connected system's id, so journal entries match a record only when the ids are equal; the time line's reminders do not include core `invoiceFollowUp.*` mandates; BillPhoto's PDF view shows page 1 under the outline and later pages as outline panels (no page images are rendered in the screen).
+
+Core edits (shared files, additive): `platform/runtime/helper.ts` allows `words` for `pdf.ocr`; `platform/helpers/analytics.py` returns word boxes and page sizes when asked. Tests: `platform/tests/work-books-books-r4b-engine.test.ts`, `frontend-validation/tests/work-books-books-r4b.test.tsx`; the round-2 hand-built hosts (`work-books-books-r2b-engine.test.ts`, `work-books-review2.test.ts`) now declare their stubs as the installed methods (`hasMethod`) instead of reading the merged registry.
+
+### Books, round 4: aligned with core-data's published contracts (BK-20, BK-08, rates)
+
+Read from `docs/lanes/core-data.md` "Engine methods (Round 4 contracts)" and its code on branch
+`claude/lane-core-data` (`platform/runtime/core-data/data.ts`, `deletion-customer.ts`, `ontology.ts`), not merged here.
+Every core-data method is used only when the method registry (or a trusted host's `hasMethod`) lists it; none is
+probed. Tests use a fake shaped exactly like core-data's (`platform/tests/work-books-core-data-fake.ts`).
+This supersedes the assumed `deletion.customer { customerId, recordIds, confirmation }` above and review 4 #8's
+full-access rule.
+
+**core-data shapes used (exact):**
+
+- `deletion.customerPlan` (read) `{ id }` →
+  `{ recordId; canDelete; stores: { store: 'facts' | 'receipts' | 'answers' | 'actions' | 'conversations'; count; waiting; state: 'can-delete' | 'pending' | 'nothing-held'; reason: string | null }[] }`.
+- `deletion.customer` (approve) `{ id, confirmation }` with `confirmation === id` →
+  `{ recordId; at; complete; rows: { store; count; remaining; state: 'deleted' | 'pending' | 'not-possible' | 'nothing-held'; reason }[];
+  elsewhere: { store: 'source-files' | 'decisions'; count; state: 'not-possible' | 'nothing-held'; reason }[];
+  derived: { staleMarked; modelReceiptsRemoved; privateRemoved } }`.
+  Refusals: `TAINTED_APPROVAL`, `CONFIRMATION_REQUIRED`, `RECORD_NOT_FOUND`, `INVALID_DELETION_REQUEST`,
+  `DELETION_REGISTER_FULL`, `DELETION_REGISTER_INVALID`, `DELETION_REGISTER_UNAVAILABLE`.
+- `Definition.example?: { rows: { label: string (1–80); amountMinor: string (whole minor units); counted: boolean; reason?: string (1–160, required when not counted) }[] (1–12); resultMinor: string }`
+  (`resultMinor` is exactly the counted rows' sum times `sign`), `Definition.usedFrom?: 'YYYY-MM-DD'` (a real date).
+  Bad values refuse `INVALID_DEFINITION`.
+
+**What changed in this lane:**
+
+| Method | Change |
+|---|---|
+| `records.deletionPlan` | With `deletion.customerPlan` installed, the core stores' rows are core-data's: its `count`, `state` (`pending` when every row is an action it must wait for), `reason`, and `waiting` (additive field on those rows only). `coreDeletion` is now `{ available; planFrom: 'core' \| 'here' }` (`everyRow` and `fullAccess` are gone). A refused plan (or a reply not in core-data's shape: `INVALID_DELETION_REPLY`) leaves the core stores `needs-owner` with the code in `reason`, and nothing in the core is deleted. With only `deletion.customer` installed, the stores counted here are offered, as before. Without either, unchanged. |
+| `records.delete` | Calls `deletion.customer { id, confirmation: id }` once, after this lane's own stores, when a core store is `can-delete`. The review-4 recount stays: each core store is `deleted` only when the exact rows counted before are gone **and** core-data's own row has `remaining: 0`; otherwise `pending` with core-data's reason (or the refusal code, or "still found"). The report adds `elsewhere` and `derived` from core-data (`null` when the core was not called; older stored reports have neither). |
+| `books.draft` | `definition` takes optional `example` and `usedFrom`, checked with core-data's rules. The draft keeps them in `after`; `change` says "Adds a worked example." / "It is used from …". The draft adds `extras: 'published-with' \| 'draft-only'` when `after` carries them. |
+| `books.publish` | Passes them to the dictionary only when this build's `compileDictionary` accepts them (read once by compiling a small synthetic dictionary with and without them, in a try: `books-definition-extras.ts`). The base refuses them today, so they are left out of what is compiled and published (`extras: 'draft-only'`) and publishing never breaks; once core-data merges they are published with the word. A change to the example or date alone refuses `NO_CHANGE` while they would not be published. |
+
+**Full-access decision.** Review 4 required a member with every branch (`'*'`) because the assumed core deletion would
+remove every row about the customer. core-data's `coreScope` chooses exactly the rows `holdingsOf` counts for the
+caller: facts the caller can see (`canSeeFact`), the caller's own receipts, answers and conversations, and actions
+under the action service's access rule; `deletion.customerPlan` answers `RECORD_NOT_FOUND` for a record the caller
+neither sees nor holds rows about. So the rule is dropped: a branch-limited approver deletes only what they can see,
+and the screen says so ("The core deletes only the rows you can see."). `CORE_DELETION_NEEDS_FULL_ACCESS` is no longer
+raised (it stays on the refusal line for older screens).
+
+**Rates and staleness (gap).** core-data exposes no hook or method to mark answers stale when a rate changes
+(`registerRateSource` only reads rates; its doc lists "`books.setRate` does not mark earlier answers stale" as
+missing). `books.setRate` / `books.removeRate` therefore do not mark earlier answers stale; this lane does not edit
+core answers itself. Needs a core-data method (for example `answers.markStale { currency, on }`).
+
+**Not changed here:** `deletion.reapply` now takes `{ confirmation }` (the workspace name) and replies
+`{ at, complete, kinds }`, not the `{ reapplied }` assumed by `approvals.reapplyDeletions` (WK-15 row above); that
+adapter still needs aligning.
+
+Screens: Records' Delete draws core-data's waiting actions in the plan, the "held elsewhere" table and the
+derived line in the report; the meaning sheet draws a worked example (rows, counted or left out with reason, result)
+and the date used for the word and the draft, and says when they are kept on the draft only; the draft form adds
+"Used from" and example rows (the result is worked out from the counted rows). English and Hindi.
+New refusal codes on the work-books line: `DELETION_REGISTER_FULL`, `DELETION_REGISTER_INVALID`,
+`DELETION_REGISTER_UNAVAILABLE`, `INVALID_DELETION_REQUEST`.
+
+### Work, round 4
+
+What Work calls in other lanes this round, with the exact shape assumed. Every method is used only when the
+method registry (or a trusted host's `hasMethod`) lists it; a mutating method is never probed. Until it lands,
+the part answers a typed "not built" state. Engine code: `platform/runtime/work-books/work-r4.ts`; screens:
+`app/ui/src/screens/work/{Reminders,R4Parts}.tsx`, `contract-r4.ts`, `text-r4.ts`. Tests:
+`platform/tests/work-books-approvals-r4.test.ts` (stubs), `platform/tests/work-books-jobs-r4-engine.test.ts` (real
+merged engine with jobs-ext, demo mode), `frontend-validation/tests/work-books-work-r4.test.tsx`.
+
+### Work
+
+| Item | Owner | Contract assumed (exact) | Until it lands |
+|---|---|---|---|
+| WK-09 | jobs-ext (merged, read from `platform/runtime/jobs-ext/methods.ts`) | `jobsx.types {}` → `{ templates: { id, title, goal, finishedWhen, steps: { kind, title, needsModel }[], intervalMs, stepsPerDelivery, missedRule: 'skip'\|'once'\|'all', budgetMinor, allowedActions, experimental, skillPath, available, code?, reason? }[], activeJobs, activeJobCap }`; `jobsx.propose { template, overrides?: { budgetMinor?, missedRule? } }` → `Proposal { id, status: 'proposed', digest, card, … }`; `jobsx.card { proposalId }` → `{ card, digest, proposal }` (digest must equal the proposal's). | `approvals.jobTemplates.lane = { available: false, … }`; `approvals.proposeJob { laneTemplate }` refuses `LANE_TEMPLATES_NOT_BUILT`. |
+| WK-02 second ask | core-gateway-auth (coordinator's contract; not on its branch yet) | `secondAsk.status {}` (caller only) → `{ expects: 'passphrase' \| 'member-secret' }`; `secondAsk.grant { target: { kind: 'action', id, digest }, secret }` → `{ granted: true, expiresAt }`, single use, five minutes; refusals (`SECOND_ASK_LOCKED`, a wrong secret) pass through. Once merged, core `actions.approve` on money refuses `SECOND_ASK_REQUIRED` without a fresh grant. | The typed amount (`secondAsk.by: 'typed-amount'`). |
+| WK-02 / writeback second ask | core-gateway-auth via writeback (writeback branch `lane-writeback.ts`) | writeback reads `auth.approvalSecret.status {}` → `{ set }` and `auth.approvalSecret.verify { secret }` → `{ verified }` and accepts a member's own secret in place of `REAUTH_OWNER_ONLY`. Work passes `reauth` through unchanged and reads `auth.approvalSecret.status` only to word the field (`secondAsk.whose`). | `whose: 'vault-passphrase'`. |
+| WK-12 caps | writeback (branch `writeback/overview.ts`) | `writeback.caps {}` → `{ settings: { reminderCapPerCustomer, reminderCapPerDay, … }, timeZone, today: 'YYYY-MM-DD', now, counts: { preparedToday, sentToday, customersToday } }`; `writeback.connections {}` → `[{ id, system, label, environment, write, revokedAt? }]`. | Caps line without its time zone (`timeZone: null`). |
+| WK-12 record link | work-books (own) | Review 4: resolved from the facts the caller sees (`recordIdOf`, the `records.get` lookup without its aging calculation), so reading an approval writes nothing; found → `reminder.recordId`. | Customers and suppliers. |
+| WK-15 | core-data (not on its branch yet) | `deletion.reapply {}` (a person's press only) → `{ reapplied: number }` (customer records deleted again). | `afterRestore.deletions.available: false`; `approvals.reapplyDeletions` refuses `DELETION_REAPPLY_NOT_BUILT`. |
+| WK-08 child results | core-sync-jobs (not on its branch yet) | `jobs.children { id }` → `{ items: { id, title, state, result: { done: string[], open: string[], receiptIds: string[] } \| null }[] }`. | `children: { available: false }`. |
+| WK-16 core person step | core-sync-jobs (not on its branch yet) | `jobs.personStep.done { id: jobId, stepId }`; the core ledger then carries `{ event: 'person-step-done', stepId, by: memberId }` (read back). | `manage.personStep: 'not-built'`, `PERSON_STEP_NOT_BUILT`. |
+| WK-08 meters, WK-09 card | core-sync-jobs (not on its branch yet) | Ledger entries carry `durationMs` and `actionId`; a job carries `actionIds: string[]` and `reviewDate: 'YYYY-MM-DD'`. | Clock and exposure "not counted"; review date "none". |
+| WK-08 routes | jobs-ext (merged) | `jobsx.get` `facts.budget.meters.model[] = { routeId, costMinor, minutes, steps, basis: 'measured'\|'estimate'\|'zero' }`, `testedRoutes`, `stoppedBy: { rule: 'untested-route', at, reason }`. A core job: `state.routes[].kind === 'ollama'` is a local model at zero. | — |
+| Live refresh | core-sync-jobs (frame host) | `PlaceRenderProps.subscribe?(kinds: readonly string[], onEvent: (event) => void): () => void`; kinds Work follows: `approvals`, `actions`, `jobs`, `writeback`. | No subscription; pages re-read after each change. |
+| WK-14 | driving (branch `modules/lane-driving.ts`, checked) | `session.status {}` → `{ state, window, steps, reason, sessionId, plan, startedAt, exports: { id, name, bytes }[], stopKey }`; `session.windows {}` → `{ windows, available, code, reason }` (`DRIVER_UNAVAILABLE` where this computer cannot be driven); `session.start { windowId, mode: 'read-export', typesSecrets: false }` (approve, desktop and untainted only); `session.resume` (approve); `session.stop` (read). Work adds `driver: { available, code }` and `status.exports`. | "not built yet". |
+| Links | jobs-ext, writeback (sub-places not registered yet) | Any sub-place those lanes add under `work` in `places/subplaces/<lane>.ts`, named by their `SH-01.sub.work.<id>` words (jobs-ext plans `procedures` and `job-controls`). Jobs links to jobs-ext's, What it can do to writeback's. | Nothing drawn. |
+
+Methods added: `approvals.reminders` (read) → `{ available: false } | { available: true, connections: { id, label, system: 'mail'|'whatsapp', environment }[], caps: { timeZone, today, preparedToday, sentToday, perCustomer, perDay } | null, items: ApprovalRow[] }`;
+`approvals.reapplyDeletions` (approve) `{}` → `{ reapplied }`. Changed, additively: `approvals.jobTemplates` adds `lane`; `approvals.proposeJob` takes
+`{ laneTemplate, budgetMinor?, missedRun?: 'skip'|'run-once-on-wake'|'run-all' }` → `{ id: 'proposal:<id>', proposal: { id, digest }, laneTemplate }`; `approvals.practice` on a prepared
+`action:` answers `{ practice: true, available: true, mode: 'checked-not-run', outcome: 'would-create-local-draft'|'checked-not-run'|'refused', code?, steps, wouldSend, requests: 0, request }`
+(the operation's own `validate` on a copy; `execute` is never called, because a registered operation acts on the real store or system and cannot be pointed at a copy);
+`approvals.approveGroup` results carry `steps`; `approvals.get` adds `secondAsk.whose: 'own-secret'|'vault-passphrase'`, and for a core money action `secondAsk.by: 'passphrase'` when
+`secondAsk.grant` is installed (then `approvals.approve` needs `reauth`); `reminder.caps.timeZone/today` and `reminder.recordId`; `approvals.job` adds `routes`, `untestedStop`, `children`
+and `manage.personStep: 'core'`; `approvals.afterRestore` adds `deletions: { available }`; `approvals.drivingStatus` adds `driver` and `status.exports`. A new Work sub-place
+`work/reminders` (Reminders) is registered in `places/subplaces/work-books.ts`.
+
+Status: WK-09 done (supported; experimental templates labelled); WK-02 practice for core actions done (checked, not run, labelled practice); WK-03 done; WK-08 routes done, child
+results and core meters adapters (not built until core-sync-jobs); WK-12 entry point, exact record and time zone done; core second ask adapter (typed amount until core-gateway-auth);
+WK-15 reapply adapter (not built until core-data); WK-16 core step adapter; live refresh adapter; WK-14 checked against the driving lane (experimental). gst-matching's sources must be
+chosen in jobs-ext (`GST_SOURCES_REQUIRED` is said in words); Work does not pick them.
+
+## Review 4 fixes
+
+Each has a regression test in `platform/tests/work-books-review4.test.ts` (the reviewer's reproductions) or the
+named lane test. Reply shapes change additively only.
+
+| # | What changed | Supported |
+|---|---|---|
+| 1 | Reading never calculates. `approvals.get` resolves a reminder's Books record with `recordIdOf(host, ctx, id)` (books-records.ts, the `collectRecords` visibility), not `records.get`, which runs the aging calculator and writes a receipt. New read method `records.invoices { id }` → `{ id; name: string \| null; invoices: string[] }` (a customer's invoice references, sorted; `[]` for a supplier or item; `RECORD_NOT_FOUND` as `records.get`). The Reminders form lists invoices with it. | supported |
+| 2 | `accounts.propose` sends one `learningx.accountsPropose` per source: every account in that source, each with that `sourceId`. An account read from several sources is sent once per source; an account is never sent without its source (a source id learning-ext cannot take is left out). Reply adds `setIds: string[]` (`setId` is the last). `accounts.list` reads the newest learning-ext set for each exact source set and takes, per account name, the proposal of the newest set that names it; `proposals.sortedAt` is the newest of those. | supported |
+| 3 | `accounts.decide` keeps the person's decision first; the learning-ext mirror (`learningx.accountsDecide`, every latest set holding the account) is best effort. Reply adds `learning: { recorded: boolean; code?: string }` (a refusal such as `ALREADY_DECIDED` is reported, never thrown) and `repeated: boolean`: the same decision and class again by the same member right after their own is kept once and not mirrored again. | supported |
+| 4 | `records.timelineMore` shows a write-back journal entry only when the caller passes `sourceAccess` for its `sourceIds` (none listed: shown; not a list of strings: hidden). | supported |
+| 5 | Reminders: the caps line says today's counts only when `sentToday` is known too; otherwise it keeps to the limits (never "0 sent"). | supported |
+| 6 | `ReconcileView` counts, unit, reference and provenance are nullable (see Round 4 contracts); the reconcile line says "unknown" for each. | supported |
+| 7 | `approvals.reapplyDeletions` refuses `TAINTED_APPROVAL` from a tainted context before calling core-data. | supported |
+| 8 | BK-20: `records.delete` snapshots the exact rows it counted in each core store (by id) before `deletion.customer` and counts those rows again afterwards, with a fresh count; a receipt left behind after its facts were deleted stays `pending`. Core deletion removes every row about the customer, including rows the approver cannot see, so it needs a member with every branch (`'*'`): without, the core stores are `needs-owner` with that reason, `canDelete` is false while a core store holds something, and `records.delete` refuses `CORE_DELETION_NEEDS_FULL_ACCESS`. `records.deletionPlan.coreDeletion` adds `everyRow: true` and `fullAccess: boolean`; the screen says both before the yes. | supported |
+| 9 | `StrategyImpact.preserved` counts only the preserved receipts the caller can read (their own, current epoch). | supported |
+| 10 | `books.recipeMore` survives a refused `recipes.answers`: `answers: []` and the new `answersRead: { available: boolean; code?: string }` names the code (the screen says it instead of "no answers"). The array `answers` keeps its shape, so the refusal is reported beside it. | supported |
+
+New refusal code on the work-books line: `CORE_DELETION_NEEDS_FULL_ACCESS`. New method: `records.invoices` (read).
+
+### Core second ask, final shapes (core-gateway-auth, b3f0b93)
+
+- `secondAsk.status {}` → `{ by, expects, secretSet, lockedUntil }` for the caller only. `expects` is
+  `'passphrase'` (owner), `'member-secret'` (a co-founder with a secret) or `'none'`.
+- `approvals.get` on a core money action carries `secondAsk: { by: 'passphrase', whose, setFirst?: true, lockedUntil? }`.
+  `setFirst` (from `expects: 'none'`): the sheet says to set the approval secret in Trust first and offers no
+  field; `approvals.approve` refuses `APPROVAL_SECRET_NOT_SET` without asking for a grant. `lockedUntil` (a future
+  ISO time): the sheet says the second ask is locked until then; approve refuses `SECOND_ASK_LOCKED` before any
+  secret is sent. A lock time in the past is ignored.
+- `secondAsk.grant {target:{kind:'action', id, digest}, secret}` → `{granted:true, expiresAt}` is called just before
+  the approval; the secret is never kept.
+
+### WK-15 re-apply after a restore (core-data, final shapes)
+
+- `deletion.pending {}` (read) → `{ registered, kinds: { kind, cameBack }[], total }`: `approvals.afterRestore.deletions`
+  adds `cameBack: total` when it is installed.
+- `deletion.reapply { confirmation }` (approve; `confirmation` is the workspace name) → `{ at, complete, kinds: { kind,
+  cameBack, deleted, remaining, state, reason }[] }`. `approvals.reapplyDeletions { confirmation }` passes the typed name
+  through and replies `{ reapplied, remaining, complete, at, kinds }` (`reapplied` is the sum of `deleted`). The screen
+  asks for the workspace name before the button works and states every kind that still remains, with core-data's reason.
+
+
+### Core-data merged (base 652a84d5): tested against the real methods
+
+`platform/tests/work-books-core-data-engine.test.ts` runs the merged engine in demo mode with synthetic rows:
+
+- BK-20: `records.deletionPlan` reads core-data's own plan (`coreDeletion.planFrom: 'core'`); `records.delete` with a
+  wrong confirmation is refused; with the id typed it calls the real `deletion.customer`, the facts row is `deleted`
+  after the recount, `derived` is present, and `records.search` keeps only the other customer.
+- BK-08: `books.draft` with `example` and `usedFrom` replies `extras: 'published-with'` (the merged
+  `compileDictionary` accepts both); after `books.publish`, `books.meaning` shows the date used and the example.
+- WK-14: `approvals.drivingStatus` against driving's real `session.*`: the rules sent with a start (one window,
+  read and export only, never types a secret), `driver.available: false` with its code in this container, no windows;
+  a start is refused and stop returns to idle. The screen export path reads `status.exports` from the same reply.
+
+This supersedes, above: "BK-08 has no worked-example drawing and no date used", the BK-20 bullet that core stores are
+"not possible here", the WK-14 row "not possible: no lane provides `session.*`", and the round-4 note that
+`deletion.reapply`'s adapter still needed aligning (done; see "WK-15 re-apply"). Supported or experimental: BK-20
+core deletion supported; BK-08 example and date supported; WK-14 stays experimental (no computer that can be driven
+was available to test a real start). Still missing: `books.setRate` does not mark earlier answers stale (no core-data
+method for it).
+
+### Core-gateway-auth merged (base 86662c2f): the second ask against the real methods
+
+`platform/tests/work-books-second-ask-engine.test.ts` runs Work's queue through the merged engine with a production-like
+local vault and a synthetic money connector that never runs. The owner's sheet says `{ by: 'passphrase', whose:
+'vault-passphrase' }`; approving without an answer refuses `REAUTH_REQUIRED`, a wrong one `SECOND_ASK_FAILED` (nothing
+approved), and the passphrase approves exactly that action with one `secondAsk.granted` entry and no secret kept. A
+cofounder with no approval secret gets `setFirst` and `APPROVAL_SECRET_NOT_SET` (no grant asked); after
+`secondAsk.setSecret` the sheet says `own-secret` and only their own secret approves. Five wrong answers show
+`lockedUntil` on the sheet and refuse `SECOND_ASK_LOCKED`. WK-02's second ask is supported.

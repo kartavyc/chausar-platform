@@ -43,6 +43,7 @@ const en = {
   'because.recipe': 'The import recipe treats it as {cls}.', 'because.learned': 'Proposed from earlier decisions in this workspace.',
   'because.said-no': 'You said no to the proposed class.', 'because.accountant': 'Corrected by an accountant.',
   namesStay: 'Customer and supplier accounts are sorted by their group only; their names never leave this computer.',
+  sortAsk: 'Sort the accounts', sortedAt: 'Sorted on {date}. A class Chausar proposes waits for your yes.',
   // BK-01
   'src.paused': 'paused', 'src.failedRead': 'last read failed',
 } as const;
@@ -78,6 +79,7 @@ const hi: Readonly<Record<Key, string>> = {
   'because.recipe': 'आयात की रेसिपी इसे {cls} मानता है।', 'because.learned': 'इस कार्यक्षेत्र के पहले के फ़ैसलों से प्रस्तावित।',
   'because.said-no': 'आपने प्रस्तावित वर्ग को ना कहा।', 'because.accountant': 'लेखाकार ने सुधारा।',
   namesStay: 'ग्राहक और आपूर्तिकर्ता खाते सिर्फ़ उनके समूह से छाँटे जाते हैं; उनके नाम इस कंप्यूटर से बाहर नहीं जाते।',
+  sortAsk: 'खाते छाँटें', sortedAt: '{date} को छाँटा गया। चौसर का सुझाया वर्ग आपकी हाँ का इंतज़ार करता है।',
   'src.paused': 'रुका हुआ', 'src.failedRead': 'पिछला पढ़ना विफल',
 };
 

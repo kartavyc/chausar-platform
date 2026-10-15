@@ -6,9 +6,13 @@ import { Label } from '../../parts/Label';
 import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { dayTime } from '../work/kit/format.ts';
-import { discardReply, draft as draftCheck, gstReply, meaningReply, meaningsReply, packsReply, publishReply, type Definition, type Draft } from './contract.ts';
+import { discardReply, draft as draftCheck, gstReply, meaningReply, meaningsReply, packsReply, publishReply, type Definition, type DefinitionExample, type Draft } from './contract.ts';
 import { useR2 } from './words-r2.ts';
-import { BooksPage, BooksSheet, Link, Table, approves, fill, idOf, sheetOf, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
+import { LaneLinks } from './r4a-parts.tsx';
+import { useR4 } from './words-r4a.ts';
+import { BooksPage, BooksSheet, Link, Recorded, Table, approves, fill, idOf, sheetOf, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
+import { useR4bWords, type R4bWords } from './words-r4b.ts';
+import { paise } from '../work/kit/format.ts';
 
 const ORIGIN = { core: 'origin.core', pack: 'origin.pack', you: 'origin.you' } as const;
 const WORD_STATE = { published: 'state.published', draft: 'state.draft', clash: 'state.clash' } as const;
@@ -47,6 +51,7 @@ export function Meanings(props: BooksProps) {
           <Gst props={props} />
         </>
       )}
+      <LaneLinks props={props} lanes={['learning-ext']} title={useR4(props.language).moreForMeanings} />
       {open !== null && <MeaningSheet props={props} name={open} onChanged={reload} />}
     </BooksPage>
   );
@@ -54,6 +59,24 @@ export function Meanings(props: BooksProps) {
 
 function definitionText(d: Definition, w: W): string {
   return fill(w.definitionLine, { meaning: d.meaning, kind: d.kind, field: d.field, nulls: d.nulls === 'exclude' ? w['nulls.exclude'] : w['nulls.reject'] });
+}
+
+/** BK-08: a definition's worked example (each row counted or left out, with its reason) and the date it came into use. */
+function Extras({ d, props }: { d: Definition; props: BooksProps }) {
+  const k = useR4bWords(props.language);
+  if (!d.example && !d.usedFrom) return null;
+  return (
+    <div className={s.stack} data-definition-extras>
+      {d.usedFrom && <Note>{fill(k['ex.usedFrom'], { date: d.usedFrom })}</Note>}
+      {d.example && (
+        <>
+          <Table view={props.view} caption={k['ex.title']} columns={[{ head: k['ex.col.row'], simple: true }, { head: k['ex.col.amount'], num: true, simple: true }, { head: k['ex.col.counted'], simple: true }, { head: k['ex.col.reason'] }]}
+            rows={d.example.rows.map((r, i) => ({ key: `${i}`, cells: [r.label, <Recorded value={{ minor: r.amountMinor }} language={props.language} />, <span data-counted={r.counted}>{r.counted ? k['ex.yes'] : k['ex.no']}</span>, r.reason ?? ''] }))} />
+          <p>{fill(k['ex.result'], { amount: paise(d.example.resultMinor) })}</p>
+        </>
+      )}
+    </div>
+  );
 }
 
 function Reviews({ d, w }: { d: Draft; w: W }) {
@@ -64,7 +87,7 @@ function Reviews({ d, w }: { d: Draft; w: W }) {
 }
 
 function MeaningSheet({ props, name, onChanged }: { props: BooksProps; name: string; onChanged: () => void }) {
-  const w = useWords(props.language), r2 = useR2(props.language);
+  const w = useWords(props.language), r2 = useR2(props.language), k = useR4bWords(props.language);
   const { loaded, reload } = useReply(props, 'books.meaning', { name }, meaningReply, name);
   const act = useAct(props.rpc);
   const [note, setNote] = useState<string | null>(null);
@@ -91,7 +114,7 @@ function MeaningSheet({ props, name, onChanged }: { props: BooksProps; name: str
       {loaded.phase === 'loading' && !value && <Note>{w.reading}</Note>}
       {value && (
         <div className={s.stack}>
-          {value.word ? <p>{definitionText(value.word, w)}</p> : <Note>{w['word.none']}</Note>}
+          {value.word ? <><p>{definitionText(value.word, w)}</p><Extras d={value.word} props={props} /></> : <Note>{w['word.none']}</Note>}
           {value.origin && <Note>{w[ORIGIN[value.origin]]}</Note>}
           {d && (
             <Section title={fill(w.draftState, { state: w[`draft.${d.state}`] })}>
@@ -99,6 +122,8 @@ function MeaningSheet({ props, name, onChanged }: { props: BooksProps; name: str
                 <div><Note>{w.oldRule}</Note><p className={s.struck}>{d.before ? definitionText(d.before, w) : w.noRule}</p></div>
                 <div><Note>{w.newRule}</Note><p>{d.after ? definitionText(d.after, w) : w.removesWord}</p></div>
               </div>
+              {d.after && <Extras d={d.after} props={props} />}
+              {d.extras === 'draft-only' && <p className={s.amber}>{k['ex.draftOnly']}</p>}
               <p>{d.change}</p>
               <Note>{fill(w.affects, { n: d.affects.savedAnswers })}</Note>
               {d.affects.calculations.length > 0 && <ul className={s.list}>{d.affects.calculations.map(c => <li key={c}>{c}</li>)}</ul>}
@@ -136,11 +161,16 @@ function DraftForm({ props, name: fixedName, start, onDone }: { props: BooksProp
   const [field, setField] = useState(start?.field ?? '');
   const [nulls, setNulls] = useState<'exclude' | 'reject'>(start?.nulls ?? 'exclude');
   const [sent, setSent] = useState(false);
-  const ready = [name, label, meaning, kind, field].every(v => v.trim().length > 0);
+  const k = useR4bWords(props.language);
+  const [usedFrom, setUsedFrom] = useState(start?.usedFrom ?? '');
+  const [rows, setRows] = useState<ExampleRow[]>(() => (start?.example?.rows ?? []).map(r => ({ label: r.label, amountMinor: r.amountMinor, counted: r.counted, reason: r.reason ?? '' })));
+  const example = exampleOf(rows);
+  const ready = [name, label, meaning, kind, field].every(v => v.trim().length > 0) && (rows.length === 0 || example !== null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!ready) return;
-    const outcome = await act.run('books.draft', { name: name.trim(), definition: { label: label.trim(), meaning: meaning.trim(), kind: kind.trim(), field: field.trim(), nulls } }, draftCheck);
+    const extras = { ...(usedFrom.trim() ? { usedFrom: usedFrom.trim() } : {}), ...(example ? { example } : {}) };
+    const outcome = await act.run('books.draft', { name: name.trim(), definition: { label: label.trim(), meaning: meaning.trim(), kind: kind.trim(), field: field.trim(), nulls, ...extras } }, draftCheck);
     if (outcome.ok) { setSent(true); onDone(); }
   };
   return (
@@ -152,11 +182,42 @@ function DraftForm({ props, name: fixedName, start, onDone }: { props: BooksProp
         <Field label={w['f.kind']} value={kind} onChange={e => setKind(e.target.value)} />
         <Field label={w['f.field']} value={field} onChange={e => setField(e.target.value)} />
         <Choice<'exclude' | 'reject'> label={w['f.nulls']} options={[{ value: 'exclude', label: w['nulls.exclude'] }, { value: 'reject', label: w['nulls.reject'] }]} value={nulls} onChange={setNulls} />
+        <Field label={k['ex.form.usedFrom']} value={usedFrom} onChange={e => setUsedFrom(e.target.value)} placeholder="2026-04-01" />
+        <ExampleRows k={k} rows={rows} setRows={setRows} />
+        {example && <Note>{fill(k['ex.form.result'], { amount: paise(example.resultMinor) })}</Note>}
         <Actions><Button submit disabled={!ready || act.busy}>{w.saveDraft}</Button></Actions>
         {sent && <p role="status">{w.draftSaved}</p>}
         <Refusal code={act.refusal} language={props.language} />
       </form>
     </Section>
+  );
+}
+
+type ExampleRow = { label: string; amountMinor: string; counted: boolean; reason: string };
+const MINOR = /^-?(?:0|[1-9]\d{0,17})$/;
+/** The worked example as core-data takes it, or null while a row is not complete. The result is what the counted rows add up to. */
+function exampleOf(rows: readonly ExampleRow[]): DefinitionExample | null {
+  if (rows.length === 0 || rows.length > 12) return null;
+  if (!rows.every(r => r.label.trim().length > 0 && r.label.length <= 80 && MINOR.test(r.amountMinor.trim()) && (r.counted || (r.reason.trim().length > 0 && r.reason.length <= 160)))) return null;
+  const total = rows.filter(r => r.counted).reduce((sum, r) => sum + BigInt(r.amountMinor.trim()), 0n);
+  return { rows: rows.map(r => ({ label: r.label.trim(), amountMinor: r.amountMinor.trim(), counted: r.counted, ...(!r.counted ? { reason: r.reason.trim() } : {}) })), resultMinor: String(total) };
+}
+function ExampleRows({ k, rows, setRows }: { k: R4bWords; rows: ExampleRow[]; setRows: (rows: ExampleRow[]) => void }) {
+  const change = (i: number, patch: Partial<ExampleRow>) => setRows(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
+  return (
+    <fieldset className={s.stack} data-example-rows>
+      <legend>{k['ex.title']}</legend>
+      {rows.map((r, i) => (
+        <div key={i} className={s.stack}>
+          <Field label={k['ex.form.label']} value={r.label} onChange={e => change(i, { label: e.target.value })} />
+          <Field label={k['ex.form.amount']} value={r.amountMinor} inputMode="numeric" onChange={e => change(i, { amountMinor: e.target.value })} />
+          <Choice<'yes' | 'no'> label={k['ex.form.counted']} options={[{ value: 'yes', label: k['ex.yes'] }, { value: 'no', label: k['ex.no'] }]} value={r.counted ? 'yes' : 'no'} onChange={v => change(i, { counted: v === 'yes' })} />
+          {!r.counted && <Field label={k['ex.form.reason']} value={r.reason} onChange={e => change(i, { reason: e.target.value })} />}
+          <Button variant="link" onClick={() => setRows(rows.filter((_, j) => j !== i))}>{k['ex.form.remove']}</Button>
+        </div>
+      ))}
+      {rows.length < 12 && <Button variant="link" onClick={() => setRows([...rows, { label: '', amountMinor: '', counted: true, reason: '' }])}>{k['ex.form.add']}</Button>}
+    </fieldset>
   );
 }
 

@@ -19,6 +19,7 @@ import { peekBooks } from './books-common.ts';
 import { recordIdsOf } from './books-records.ts';
 import type { Amount, ApprovalDetail, ApprovalRow, ActionView, CatalogueEntry, CatalogueKind, CatalogueRow, Env, Step, StepState } from './work-queue.ts';
 import { finish, flatten, isoAt, isReadOnly, steps, expired } from './work-queue.ts';
+import { bookRecordOf, capsDay } from './work-r4.ts';
 
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, max = 400): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
@@ -280,11 +281,15 @@ export type Reminder = {
   notes: PaymentNote[] | null;
   agreement: { channel: 'email' | 'whatsapp'; answer: 'yes' | 'no' | 'not-asked'; source: string | null; on: string | null }[];
   stoppedOn: string | null;
-  caps: { perCustomer: number; perDay: number; day: string | null; preparedOnDay: number; customerOnDay: number; reached: boolean; customerReached: boolean } | null;
+  caps: { perCustomer: number; perDay: number; day: string | null; preparedOnDay: number; customerOnDay: number; reached: boolean; customerReached: boolean;
+    /** Round 4: write-back's own day (`writeback.caps`), so the line says which time zone "today" is in. Null when write-back does not say. */
+    timeZone?: string | null; today?: string | null } | null;
   blocked: { code: string; reason: string } | null;
+  /** Round 4: the Books record the customer id names, when `records.get` finds it (else null: the screen opens Customers). */
+  recordId?: string | null;
 };
 const LINK = /https:\/\/[^\s<>"']{1,500}/;
-const isReminderView = (state: State, view: WbView) => {
+export const isReminderView = (state: State, view: WbView) => {
   const e = envelope(state, view.id);
   return (record(e.evidence) && e.evidence.kind === FOLLOW_UP) || (view.system === 'zoho-books' && view.action === 'invoice.paymentReminder');
 };
@@ -316,7 +321,8 @@ export async function reminderOf(e: Env, view: WbView): Promise<Reminder | undef
       && record(a.payload) && record((a.payload as any).evidence) && (a.payload as any).evidence.kind === FOLLOW_UP && (a.payload as any).evidence.detail?.day === day);
     const preparedOnDay = day ? live.length : 0, customerOnDay = day ? live.filter(a => (a.payload as any).evidence.detail.customerId === customerId).length : 0;
     const perDay = settings.value.reminderCapPerDay as number, perCustomer = settings.value.reminderCapPerCustomer as number;
-    caps = { perCustomer, perDay, day, preparedOnDay, customerOnDay, reached: preparedOnDay >= perDay, customerReached: customerOnDay >= perCustomer };
+    const zone = await capsDay(e.host);
+    caps = { perCustomer, perDay, day, preparedOnDay, customerOnDay, reached: preparedOnDay >= perDay, customerReached: customerOnDay >= perCustomer, timeZone: zone?.timeZone ?? null, today: zone?.today ?? null };
   }
   // A stop word recorded in Books (records.stop) also stops reminders. Write-back's follow-up names the customer by the
   // same customerId the facts carry, which is the Books record id; a stop counts when it names that id exactly or a
@@ -329,7 +335,7 @@ export async function reminderOf(e: Env, view: WbView): Promise<Reminder | undef
     customerId, invoiceId: text(detail.invoiceId, 100) ? detail.invoiceId : null, channel, asWritten, invoiceLink: asWritten ? LINK.exec(asWritten)?.[0] ?? null : null,
     outstanding: minor(detail.outstandingMinor),
     notes: e.ctx.role === 'owner' ? PAYMENT_NOTES.map(n => ({ id: n.id, text: { en: n.text.en, hi: n.text.hi }, source: n.source, checkedOn: n.checkedOn, notLegalAdvice: true as const })) : null,
-    agreement, stoppedOn: finalStoppedOn, caps, blocked,
+    agreement, stoppedOn: finalStoppedOn, caps, blocked, recordId: bookRecordOf(e.host, e.ctx, customerId),
   };
 }
 /** The latest Books stop word for this customer that no later Books agreement on the channel has lifted. */

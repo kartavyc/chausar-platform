@@ -1,6 +1,6 @@
 /**
  * The Work place (WK-01..WK-16) through the place-module seam. Sub-places: approvals (the
- * default), jobs, actions, cando, after-restore. A sheet is the address's `sheet`, an
+ * default), jobs, actions, cando, after-restore, driving, bill, reminders (round 4). A sheet is the address's `sheet`, an
  * engine id encoded so it fits an address (contract.ts, sheetOf).
  */
 import type { PlaceModule, PlaceRenderProps } from '../../places/types.ts';
@@ -12,6 +12,7 @@ import { CanDoPage } from './CanDo.tsx';
 import { JobsPage } from './Jobs.tsx';
 import { AfterRestorePage } from './AfterRestore.tsx';
 import { DrivingPage } from './Driving.tsx';
+import { RemindersPage } from './Reminders.tsx';
 import { BillPhotoBody } from '../books/BillPhoto.tsx';
 import { kitWords } from './kit/words.ts';
 
@@ -33,6 +34,7 @@ function WorkPlace(props: PlaceRenderProps) {
     case 'cando': return <CanDoPage p={p} />;
     case 'after-restore': return <AfterRestorePage p={p} />;
     case 'driving': return <DrivingPage p={p} />;
+    case 'reminders': return <RemindersPage p={p} />;
     // WK-13: the same reading and form as BK-18, reached from Work.
     case 'bill': return <Page place="work" sub="bill" subs={SUBS} title={kitWords(props.language)['sub.bill']} language={props.language} navigate={props.navigate}><BillPhotoBody props={props} /></Page>;
   }

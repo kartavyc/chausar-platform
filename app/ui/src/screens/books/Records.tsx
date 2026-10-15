@@ -14,6 +14,9 @@ import type { DeletionReport } from './contract.ts';
 import { BooksPage, BooksSheet, Link, Money, Recorded, Table, approves, fill, idOf, isOwner, prepares, sheetOf, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 import { useAuditWords, type AuditKey, type AuditWords } from './words-audit.ts';
 import { orderSheet } from './Trial.tsx';
+import { AskAbout, TimelineMore } from './RecordMore.tsx';
+import { dayIn, useZone } from './r4b-parts.tsx';
+import { useR4bWords } from './words-r4b.ts';
 import type { MatchPair } from './contract.ts';
 
 type Kind = 'all' | 'customer' | 'supplier' | 'item';
@@ -50,9 +53,9 @@ export function Customers(props: BooksProps) {
 const ANSWER = { yes: 'answer.yes', no: 'answer.no', 'not-asked': 'answer.not-asked' } as const;
 
 function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
-  const w = useWords(props.language), a = useAuditWords(props.language);
+  const w = useWords(props.language);
   const { loaded, reload } = useReply(props, 'records.get', { id }, recordView, id);
-  const value = valueOf(loaded);
+  const value = valueOf(loaded); const zone = useZone(props);
   return (
     <BooksSheet props={props} sub="customers" kind={w['sheet.record']} title={value ? value.name ?? w.noName : w['sheet.record']}>
       {loaded.phase === 'refused' && <Refusal code={loaded.code} language={props.language} />}
@@ -60,8 +63,8 @@ function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
       {value && (
         <div className={s.stack}>
           {value.stoppedOn !== null && <p className={s.amber}>{fill(w.stopped, { when: day(value.stoppedOn, props.language) })}</p>}
-          {/* BK-12 "ask about this record": the frame's ask line has no way to carry a record yet (frame-today). */}
-          <Note>{a.askAboutNotBuilt}</Note>
+          {/* BK-12 "ask about this record": through the frame's setAbout when it offers one (round 4); otherwise not built yet. */}
+          <AskAbout props={props} id={value.id} name={value.name ?? value.id} />
           <Section title={w['rec.details']}>
             {value.details.length === 0 ? <Note>{w['empty.details']}</Note> : (
               <Table view={props.view} caption={w['rec.details']} columns={[{ head: w['col.field'], simple: true }, { head: w['col.value'], simple: true }, { head: w['col.source'] }]}
@@ -75,9 +78,10 @@ function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
             {value.timeline.length === 0 ? <Note>{w['empty.timeline']}</Note> : (
               <Table view={props.view} caption={w['rec.timeline']} columns={[
                 { head: w['col.when'], simple: true }, { head: w['col.kind'], simple: true }, { head: w['col.amount'], num: true, simple: true }, { head: w['col.source'] }, { head: w['col.ref'] },
-              ]} rows={value.timeline.map((t, i) => ({ key: `${t.at}-${i}`, cells: [day(t.at, props.language), t.kind, <Recorded value={t.amount} language={props.language} />, t.sourceId, t.ref ?? w.none] }))} />
+              ]} rows={value.timeline.map((t, i) => ({ key: `${t.at}-${i}`, cells: [dayIn(t.at, props.language, zone), t.kind, <Recorded value={t.amount} language={props.language} />, t.sourceId, t.ref ?? w.none] }))} />
             )}
           </Section>
+          <TimelineMore props={props} id={value.id} zone={zone} />
           <Section title={w['rec.optIn']}>
             <Table view={props.view} caption={w['rec.optIn']} columns={[{ head: w['col.channel'], simple: true }, { head: w['col.answer'], simple: true }, { head: w['col.source'] }, { head: w['col.when'] }]}
               rows={value.optIn.map(o => ({ key: o.channel, cells: [w[`channel.${o.channel}`], w[ANSWER[o.answer]], o.source ?? w.none, o.on ? day(o.on, props.language) : w.none] }))} />
@@ -136,7 +140,7 @@ function Holdings({ props, id }: { props: BooksProps; id: string }) {
  * waits for a person), then the report per store. Stores the lane cannot empty say who can.
  */
 function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
-  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const w = useWords(props.language); const m = useMoreWords(props.language); const k = useR4bWords(props.language);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [report, setReport] = useState<DeletionReport | null>(null);
@@ -148,16 +152,25 @@ function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
       <p className={report.complete ? s.note : s.amber}>{report.complete ? m['del.complete'] : m['del.partial']}</p>
       <Table view={props.view} caption={m['del.report']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
         rows={report.rows.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : `del.${r.state}` as const]}</span>, r.reason ?? ''] }))} />
+      {report.elsewhere && report.elsewhere.length > 0 && (
+        <div data-deletion-elsewhere>
+          <h4>{k['del.elsewhere']}</h4>
+          <Table view={props.view} caption={k['del.elsewhere']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+            rows={report.elsewhere.map(r => ({ key: r.store, cells: [k[`del.elsewhere.${r.store}`], String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : 'del.not-possible']}</span>, r.reason ?? ''] }))} />
+        </div>
+      )}
+      {report.derived && <Note>{fill(k['del.derived'], { stale: report.derived.staleMarked, model: report.derived.modelReceiptsRemoved, private: report.derived.privateRemoved })}</Note>}
     </div>
   );
   return <DeletePlan props={props} id={id} typed={typed} setTyped={setTyped} busy={act.busy} refusal={act.refusal} onCancel={() => setOpen(false)}
     onDelete={async () => { const outcome = await act.run('records.delete', { id, confirmation: typed }, deletionReport); if (outcome.ok) setReport(outcome.value); }} />;
 }
 
+const CORE_STORE_NAMES: readonly string[] = ['facts', 'receipts', 'answers', 'actions', 'conversations'];
 function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDelete }: {
   props: BooksProps; id: string; typed: string; setTyped: (v: string) => void; busy: boolean; refusal: string | null; onCancel: () => void; onDelete: () => Promise<void>;
 }) {
-  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const w = useWords(props.language); const m = useMoreWords(props.language); const k = useR4bWords(props.language);
   const { loaded, reload } = useReply(props, 'records.deletionPlan', { id }, deletionPlanReply, id);
   const plan = valueOf(loaded);
   if (loaded.phase === 'refused') return loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>
@@ -167,9 +180,11 @@ function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDel
     <div className={s.stack} data-deletion-plan>
       <h3>{m['del.plan']}</h3>
       <Table view={props.view} caption={m['del.plan']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
-        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>, r.reason ?? ''] }))} />
+        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>,
+          <>{r.reason ?? ''}{r.waiting !== undefined && r.waiting > 0 && <span data-waiting={r.waiting}>{r.reason ? ' ' : ''}{fill(k['del.waiting'], { n: r.waiting })}</span>}</>] }))} />
       {!plan.canDelete && plan.stores.some(r => r.state === 'needs-owner') && <p className={s.amber}>{m['del.notAvailable']}</p>}
       {plan.stores.some(r => r.state === 'needs-owner') && plan.sourceDeletion.available && <Note>{m['del.sourceDeletion']}</Note>}
+      {plan.coreDeletion?.available === true && plan.canDelete && plan.stores.some(r => r.state === 'can-delete' && CORE_STORE_NAMES.includes(r.store)) && <><Note>{k['del.core']}</Note><Note>{k['del.coreVisible']}</Note></>}
       {plan.canDelete && (
         <form className={s.form} aria-label={m['del.start']} onSubmit={(e: FormEvent) => { e.preventDefault(); if (typed === id) void onDelete(); }}>
           <Note>{m['del.waits']}</Note>

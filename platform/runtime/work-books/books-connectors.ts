@@ -79,7 +79,9 @@ export function envelopeOf(raw: unknown): EnvelopeView | null {
   const unit = str(observed.unit, 40) ?? '';
   const refusal = plain(raw.refusal) && str(raw.refusal.code, 64) ? { code: raw.refusal.code as string, reason: str(raw.refusal.reason, 400) ?? '' } : null;
   const abstention = plain(raw.abstention) && str(raw.abstention.reason, 64)
-    ? { reason: raw.abstention.reason as string, field: str(raw.abstention.field, 200) ?? '', question: str(raw.abstention.question, 600) ?? '', options: strings(raw.abstention.options, 20) } : null;
+    ? { reason: raw.abstention.reason as string, field: str(raw.abstention.field, 200) ?? '', question: str(raw.abstention.question, 600) ?? '',
+        // The choices the engine accepts are the envelope's `question.choices`; `abstention.options` may hold only the source's own value.
+        options: plain(raw.question) && Array.isArray(raw.question.choices) ? strings(raw.question.choices, 40) : strings(raw.abstention.options, 20) } : null;
   const committed = plain(raw.committed) && str(raw.committed.at, 40) ? { at: raw.committed.at as string, rows: int(raw.committed.rows), duplicate: raw.committed.duplicate === true } : null;
   return { id, sourceId, at, operation: str(raw.operation, 120) ?? '', recipeId: str(raw.recipeId, 200) ?? '', recipeVersion: str(raw.recipeVersion, 40) ?? '', status, refusal, abstention,
     period: period(raw.period) ?? period(raw.requestedPeriod), rows: int(observed.rowCount), excludedRows: int(raw.excludedRows),

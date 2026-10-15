@@ -1,7 +1,8 @@
 /**
- * Chausar is driving (WK-14, experimental). A thin pass-through to the `session.*` methods of the
- * lane that drives a program's window. No lane provides them yet, so every method answers
- * `{ available: false }` and the screen shows "not built yet". Nothing here drives anything.
+ * Chausar is driving (WK-14, experimental). A thin pass-through to the driving lane's `session.*`
+ * (`platform/runtime/modules/lane-driving.ts` on `claude/lane-driving`: status, windows, start,
+ * resume, stop). Without that lane every method answers `{ available: false }` and the screen
+ * shows "not built yet". Nothing here drives anything.
  *
  * The rules travel with every start request and are checked again on every reply: one window
  * only, read and export only, never a password, a one-time code or a captcha.
@@ -14,7 +15,9 @@ const STATES = ['idle', 'driving', 'sign-in', 'paused-by-you', 'stopped-by-key',
 const STEP_STATES = ['done', 'running', 'failed'] as const;
 export type DrivingState = typeof STATES[number];
 export type DrivingStep = { at: string; text: string; state: typeof STEP_STATES[number] };
-export type DrivingStatus = { state: DrivingState; window: { id: string; title: string } | null; steps: DrivingStep[]; reason: string | null };
+export type DrivingStatus = { state: DrivingState; window: { id: string; title: string } | null; steps: DrivingStep[]; reason: string | null;
+  /** Round 4, the driving lane's real `session.status`: the files the session exported (kept a day for the connectors lane). */
+  exports?: { id: string; name: string; bytes: number }[] };
 export type DrivingWindow = { id: string; title: string; app: string };
 export const DRIVING_RULES = Object.freeze({ windows: 1, mode: 'read-export', typesSecrets: false } as const);
 
@@ -34,7 +37,9 @@ function status(value: unknown): DrivingStatus {
     check(record(s) && instant(s.at) && text(s.text, 1000) && (STEP_STATES as readonly unknown[]).includes(s.state), 'INVALID_SESSION_REPLY', 'The driving session sent a reply that does not fit.');
     return { at: s.at, text: s.text, state: s.state };
   });
-  return { state: value.state, window: w ? { id: w.id, title: w.title } : null, steps, reason: text(value.reason) ? value.reason : null };
+  const exports = (Array.isArray(value.exports) ? value.exports : []).filter((x: unknown) => record(x) && text(x.id, 200) && text(x.name, 200) && Number.isSafeInteger(x.bytes) && (x.bytes as number) >= 0)
+    .slice(0, 50).map((x: any) => ({ id: x.id as string, name: x.name as string, bytes: x.bytes as number }));
+  return { state: value.state, window: w ? { id: w.id, title: w.title } : null, steps, reason: text(value.reason) ? value.reason : null, ...(exports.length ? { exports } : {}) };
 }
 function windows(value: unknown): DrivingWindow[] {
   check(record(value) && Array.isArray(value.windows) && value.windows.length <= 100, 'INVALID_SESSION_REPLY', 'The driving session sent a reply that does not fit.');
@@ -56,7 +61,10 @@ export const workDrivingMethods: Readonly<Record<string, MethodSpec>> = {
     const now = await optionalCall(host, 'session.status', {});
     if (!now.available) return absent;
     const list = await optionalCall(host, 'session.windows', {});
-    return { available: true as const, rules: DRIVING_RULES, status: status(now.value), windows: list.available ? windows(list.value) : [] };
+    // The driving lane answers `{ windows: [], available: false, code, reason }` where this computer cannot be driven (DRIVER_UNAVAILABLE).
+    const driver = list.available && record(list.value) && list.value.available === false
+      ? { available: false as const, code: text(list.value.code, 80) && /^[A-Z][A-Z0-9_]*$/.test(list.value.code) ? list.value.code : 'DRIVER_UNAVAILABLE' } : { available: true as const, code: null };
+    return { available: true as const, rules: DRIVING_RULES, status: status(now.value), windows: list.available ? windows(list.value) : [], driver };
   } },
   /** Start driving one window, read and export only. Starting is the owner's decision. */
   'approvals.drivingStart': { permission: 'approve', async handler(_ctx, payload, host) {

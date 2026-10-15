@@ -14,7 +14,7 @@ import type { Step } from './contract.ts';
 import { known, workWords, type WorkKey, type WorkWords } from './text.ts';
 import type { ApprovalRow } from './contract.ts';
 
-export const SUBS = ['approvals', 'jobs', 'actions', 'cando', 'after-restore', 'driving', 'bill'] as const;
+export const SUBS = ['approvals', 'jobs', 'actions', 'cando', 'after-restore', 'driving', 'bill', 'reminders'] as const;
 export type WorkSub = typeof SUBS[number];
 
 export interface WorkProps extends PlaceRenderProps { readonly w: WorkWords; readonly host: ReplyHost; readonly sub: WorkSub }

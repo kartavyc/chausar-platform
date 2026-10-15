@@ -19,6 +19,7 @@ import { hasAllBranches, input, LIMITS, member, plainId, room, text, isoDay, wri
 import { parseBill, type BillProposal, type OcrPage } from './books-bill-parse.ts';
 import { imageAsPdf } from './books-bill-image.ts';
 import { peekSection } from './state.ts';
+import { outlineOf, withBoxes, wordsOf, type WordsPage } from './books-bill-r4b.ts';
 
 export const MAX_BILL_BYTES = 4 * 1024 * 1024;
 const MIMES = ['application/pdf', 'image/png', 'image/jpeg'] as const;
@@ -77,11 +78,12 @@ export function billView(bill: StoredBill) {
 }
 
 /** The helper reads the page; a missing reader is a typed refusal, never an empty form. */
-async function ocr(host: ModuleHost, pdfBase64: string): Promise<{ pages: OcrPage[]; version: string }> {
+async function ocr(host: ModuleHost, pdfBase64: string): Promise<{ pages: OcrPage[]; version: string; words: WordsPage[] | null }> {
   const helper = host.services.helper as { run(operation: string, input: unknown): Promise<{ result: any }> } | undefined;
   check(helper && typeof helper.run === 'function', 'OCR_DEPENDENCY_UNAVAILABLE', 'No local reader is installed on this computer.');
   let result: any;
-  try { result = (await helper.run('pdf.ocr', { pdfBase64, maxPages: MAX_PAGES })).result; }
+  // Round 4: word boxes and the page size for every page (an additive helper option).
+  try { result = (await helper.run('pdf.ocr', { pdfBase64, maxPages: MAX_PAGES, words: true })).result; }
   catch (error) {
     const code = (error as { code?: unknown })?.code;
     if (typeof code === 'string' && OCR_CODES.has(code)) throw new ChausarError('OCR_DEPENDENCY_UNAVAILABLE', 'The local reader (tesseract) is not installed on this computer.');
@@ -91,7 +93,7 @@ async function ocr(host: ModuleHost, pdfBase64: string): Promise<{ pages: OcrPag
   const pages = Array.isArray(result?.pages) ? result.pages : [];
   check(pages.length > 0 && pages.every((p: any) => Number.isInteger(p?.page) && p.page >= 1 && typeof p.text === 'string' && Number.isInteger(p.confidence) && p.confidence >= 0 && p.confidence <= 100),
     'BILL_READ_FAILED', 'The bill could not be read.');
-  return { pages: pages.map((p: any) => ({ page: p.page, text: p.text, confidence: p.confidence })), version: typeof result.engineVersion === 'string' ? result.engineVersion.slice(0, 40) : 'unknown' };
+  return { pages: pages.map((p: any) => ({ page: p.page, text: p.text, confidence: p.confidence })), version: typeof result.engineVersion === 'string' ? result.engineVersion.slice(0, 40) : 'unknown', words: wordsOf(result) };
 }
 
 /** Zoho Books connections that may book a bill: listed by writeback, not revoked, granted this action. */
@@ -206,13 +208,13 @@ export const billMethods: Record<string, MethodSpec> = {
       check(pdf.length <= MAX_BILL_BYTES, 'BILL_TOO_LARGE', 'The picture is too large to read here.');
     }
     const read = await ocr(host, pdf.toString('base64'));
-    const proposal = parseBill(read.pages);
+    const proposal = withBoxes(parseBill(read.pages), read.words);
     const sha256 = createHash('sha256').update(bytes).digest('hex'); const readId = newId('billread');
     const readDigest = digest({ proposal, sha256 }); const expires = Date.now() + READ_TTL_MS;
     remember(readId, { workspaceId: state.workspace.id, memberId: ctx.memberId, expires, digest: readDigest, proposal, mime, sha256 });
     return { readId, digest: readDigest, mime, stored: false as const, expiresAt: new Date(expires).toISOString(), untrusted: true as const,
       reader: { engine: 'tesseract' as const, version: read.version, pages: read.pages.length, confidence: Math.min(...read.pages.map(p => p.confidence)) },
-      ...proposal, routes: { zohoBooks: await zohoConnections(host), tallyPreview: { available: true as const } } };
+      ...proposal, routes: { zohoBooks: await zohoConnections(host), tallyPreview: { available: true as const } }, outline: outlineOf(read.words) };
   } },
   'books.billConfirm': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['readId', 'fields', 'digest', 'zoho'], ['readId', 'fields', 'digest']);

@@ -49,6 +49,17 @@ export function visibleRecordIds(host: ModuleHost, ctx: Context, records = colle
   for (const fact of host.store.read().facts) if (!fact.deletedAt && canSeeFact(host.store, ctx, fact)) for (const [, id] of references(fact)) ids.add(id);
   return ids;
 }
+/**
+ * The Books record id `id` names for this caller, or null: the same lookup `records.get` makes, without its
+ * calculation. A read path (an approval's detail, a reminder's invoice list) resolves a record with this,
+ * so reading never runs the aging calculator and never writes receipts, answers or audit lines.
+ */
+export function recordIdOf(host: ModuleHost, ctx: Context, id: unknown): string | null {
+  if (!plainId(id)) return null;
+  try { return collectRecords(host, ctx).get(id)?.id ?? null; } catch { return null; }
+}
+const invoiceRefs = (entry: RecordEntry) => [...new Set(entry.facts.filter(f => f.kind === 'invoice').map(f => str(f.fields.invoiceId) ? f.fields.invoiceId : f.entityId))]
+  .filter(ref => ref.length <= 200).sort();
 const nameOf = (entry: RecordEntry) => { const field = `${entry.kind}Name`; return (entry.facts.map(f => f.fields[field]).find(str) as string | undefined) ?? null; };
 function findRecord(host: ModuleHost, ctx: Context, id: unknown): RecordEntry {
   check(plainId(id), 'INVALID_BOOKS_REQUEST', 'Name the record.'); const entry = collectRecords(host, ctx).get(id); check(entry, 'RECORD_NOT_FOUND', 'This record is not available to you.'); return entry;
@@ -206,6 +217,11 @@ export const recordMethods: Record<string, MethodSpec> = {
       .sort((a, b) => a.id.localeCompare(b.id)).map(r => ({ id: r.id, kind: r.kind, name: nameOf(r), sources: [...new Set(r.facts.map(f => f.sourceId))].sort(), facts: r.facts.length })) };
   } },
   'records.get': { permission: 'read', handler(ctx, payload, host) { const { id } = input(payload, ['id'], ['id']); return recordView(host, ctx, id); } },
+  /** A customer's invoice references, without calculating anything (the reminders form lists these). */
+  'records.invoices': { permission: 'read', handler(ctx, payload, host) {
+    const { id } = input(payload, ['id'], ['id']); const entry = findRecord(host, ctx, id);
+    return { id: entry.id, name: nameOf(entry), invoices: entry.kind === 'customer' ? invoiceRefs(entry) : [] };
+  } },
   'records.setOptIn': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'channel', 'answer', 'source', 'on'], ['id', 'channel', 'answer', 'source', 'on']);
     check(['mail', 'whatsapp'].includes(request.channel) && ['yes', 'no'].includes(request.answer) && text(request.source, 300) && isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the channel, the answer, where it came from and the date.');
@@ -274,11 +290,29 @@ export const recordMethods: Record<string, MethodSpec> = {
 };
 
 /** Every store that holds something about one record, counted only as far as the caller can see. */
-export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store: string; count: number }[] {
-  { const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
+export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown, recount = false): { store: string; count: number }[] {
+  return holdingRowsOf(host, ctx, id, recount).map(({ store, count }) => ({ store, count }));
+}
+/** A core row's key for a recount: its id, else its whole content. */
+export const rowKey = (row: unknown) => { const id = (row as { id?: unknown } | null)?.id; return typeof id === 'string' ? `id:${id}` : `row:${JSON.stringify(row)}`; };
+/** Each core row a key names that is still held: present, and for facts not marked deleted. */
+export function stillHeld(state: State, store: string, keys: ReadonlySet<string>): Set<string> {
+  const rows: unknown[] = store === 'facts' ? state.facts.filter(f => !f.deletedAt) : store === 'receipts' ? state.receipts : store === 'answers' ? state.answers
+    : store === 'actions' ? state.actions : store === 'conversations' ? state.conversations : [];
+  return new Set(rows.map(rowKey).filter(k => keys.has(k)));
+}
+/**
+ * As `holdingsOf`, with the exact keys of the core rows counted (facts, receipts, answers, actions, conversations).
+ * BK-20 snapshots these before a core deletion and recounts those very rows after it: once the facts are gone, a
+ * receipt can no longer be found through them, so a fresh count alone would call it deleted.
+ */
+export function holdingRowsOf(host: ModuleHost, ctx: Context, id: unknown, recount = false): { store: string; count: number; keys: Set<string> | null }[] {
+  // Round 4 (BK-20): `recount` counts again after a deletion, when the record may no longer be in any fact.
+  { const entry = recount && plainId(id) ? { id } : findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
     const ids = recordIdsOf(state, entry.id);
     const about = (value: unknown) => [...ids].some(i => mentions(value, i));
-    const factIds = new Set(state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i))).map(f => f.id));
+    const facts = state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i)));
+    const factIds = new Set(facts.map(f => f.id));
     // Only what the caller can see is counted: own receipts, answers and conversations, actions under core's access rule, visible memory lines and matches.
     const ownReceipts = state.receipts.filter(r => r?.memberId === ctx.memberId);
     const receipts = ownReceipts.filter(r => about(r.rows) || (r.rowIds ?? []).some((rid: string) => factIds.has(rid)));
@@ -292,14 +326,15 @@ export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store
       } catch { return false; }
     };
     const visible = visibleRecordIds(host, ctx);
+    const core = (store: string, rows: unknown[]) => ({ store, count: rows.length, keys: new Set(rows.map(rowKey)) });
     return [
-      { store: 'facts', count: factIds.size }, { store: 'receipts', count: receipts.length },
-      { store: 'answers', count: state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request))).length },
-      { store: 'actions', count: (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a)).length },
-      { store: 'conversations', count: state.conversations.filter(c => c?.memberId === ctx.memberId && about(c)).length },
-      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l, host) && lineNames(l, ids)).length },
-      { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length },
-      { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length },
+      core('facts', facts), core('receipts', receipts),
+      core('answers', state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request)))),
+      core('actions', (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a))),
+      core('conversations', state.conversations.filter(c => c?.memberId === ctx.memberId && about(c))),
+      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l, host) && lineNames(l, ids)).length, keys: null },
+      { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length, keys: null },
+      { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length, keys: null },
     ];
   }
 }

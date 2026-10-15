@@ -44,7 +44,7 @@ export type ApprovalDetail = ApprovalRow & {
   /** Write-back items only: the system, the catalogue's own reason, the connection and the notices. */
   writeback?: WbExtra;
   /** How the second ask is drawn: the typed amount, or a passphrase when write-back asks for one. */
-  secondAsk?: { by: 'typed-amount' | 'passphrase' };
+  secondAsk?: { by: 'typed-amount' | 'passphrase'; whose?: 'own-secret' | 'vault-passphrase'; setFirst?: true; lockedUntil?: string };
   /** WK-12: a reminder to a customer, with its agreement, limits and (owner only) payment notes. */
   reminder?: Reminder;
   /** After approving a jobs-ext proposal: the queue id of the job it made. */
@@ -305,10 +305,12 @@ export function jobCard(state: State, job: Job): JobCard {
   return {
     id: job.id, goal: job.goal, doneWhen: 'When its owner accepts the result.', owner: memberName(state, job.ownerId) ?? job.ownerId,
     budget: { minor: job.budgetMinor }, reserve: { minor: job.reserveMinor }, spent: { minor: job.spentMinor }, stopRule: { maxRuns: job.stopRule.maxRuns, deadline: job.stopRule.deadline },
-    actions: [...(job.allowedActions ?? [])], testedRoutes: [...(job.testedRoutes ?? [])], reviewOn: null, missedRun: job.catchup === 'skip' ? 'skip' : 'run-once-on-wake', runsOn: 'this-computer',
+    // Round 4 (core-sync-jobs): a review date on the core job (`reviewDate`, YYYY-MM-DD) when the core serves one.
+    actions: [...(job.allowedActions ?? [])], testedRoutes: [...(job.testedRoutes ?? [])], reviewOn: reviewDateOf(job), missedRun: job.catchup === 'skip' ? 'skip' : 'run-once-on-wake', runsOn: 'this-computer',
     runs: job.runs, lastRunAt: last?.at ?? null, nextRunAt: terminal ? null : job.nextRunAt, untrustedInstructions: false, digest: job.digest, revision: job.revision,
   };
 }
+const reviewDateOf = (job: Job): string | null => { const d = (job as { reviewDate?: unknown }).reviewDate; return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null; };
 /**
  * The exact reference core `jobs.accept` checks: the job's objective digest and revision plus the
  * digest of the stored deliverable. The deliverable is read from workspace state (the caller's job

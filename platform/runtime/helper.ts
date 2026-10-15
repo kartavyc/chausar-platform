@@ -29,7 +29,7 @@ function withoutPassword(input: unknown): unknown { if (!input || typeof input !
 function validateInput(operation: HelperOperation, input: unknown) {
   check(OPERATIONS.has(operation),'HELPER_OPERATION_UNSUPPORTED','Only registered analytical helpers can run.');
   jsonData(input); check(input && typeof input === 'object' && !Array.isArray(input),'INVALID_HELPER_INPUT','Provide an analytical input object.');
-  const allowed = operation === 'pdf.extract' ? ['pdfBase64','maxPages','password'] : operation === 'pdf.ocr' ? ['pdfBase64','maxPages','language','password'] : operation === 'pdf.status' ? [] : operation === 'forecast' ? ['months','currency'] : ['budgetMinor','currency','items'];
+  const allowed = operation === 'pdf.extract' ? ['pdfBase64','maxPages','password'] : operation === 'pdf.ocr' ? ['pdfBase64','maxPages','language','password','words'] : operation === 'pdf.status' ? [] : operation === 'forecast' ? ['months','currency'] : ['budgetMinor','currency','items'];
   check(Object.keys(input).every(key => allowed.includes(key)),'INVALID_HELPER_INPUT','Arbitrary paths, code and shell options are not analytical inputs.');
 }
 

@@ -13,6 +13,7 @@ import { input, peekBooks, plainId, writeBooks, type Amount, type BooksState } f
 import { assertPublishable, metaOf } from './books-meanings.ts';
 import { peekR2, r2 } from './books-recipes.ts';
 import { sourceVisible } from './books-sources.ts';
+import { impactsOf, STRATEGIES, type Strategy } from './books-trial-r4b.ts';
 
 type Raw = Record<string, unknown>;
 const plain = (value: unknown): value is Raw => !!value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
@@ -47,7 +48,7 @@ function cellOf(outcome: unknown): Cell {
 const same = (a: Amount, b: Amount) => 'minor' in a && 'minor' in b ? a.minor === b.minor : false;
 
 /** The Books view of one trial summary from core, with the live receipt of each saved question. */
-async function trialView(host: ModuleHost, summary: unknown, record: { draftId: string | null; proposalId: string | null; precedence?: Precedence | null } | null) {
+async function trialView(host: ModuleHost, ctx: Context, summary: unknown, record: { draftId: string | null; proposalId: string | null; precedence?: Precedence | null } | null) {
   check(plain(summary) && str(summary.trialId, 200), 'TRIAL_REPLY_INVALID', 'The copy answered in an unexpected shape.');
   const trialId = summary.trialId as string, questions = (await savedQuestions(host)).items;
   const evaluation = plain(summary.evaluation) ? summary.evaluation : null;
@@ -60,21 +61,18 @@ async function trialView(host: ModuleHost, summary: unknown, record: { draftId: 
       now: { ...now, receiptId: q?.receiptId ?? null }, withChange: { ...changed, receiptId: null },
       differs: !same(now.value, changed.value) || now.refused !== changed.refused };
   });
-  let impact: { digest: string; strategy: 'prospective'; affectedAnswers: number; rebuild: number; activeWork: number } | null = null, impactCode: string | null = null;
-  if (evaluation) {
-    try {
-      const raw = await host.call('trials.impact', { trialId, strategy: 'prospective' });
-      const count = (v: unknown) => Array.isArray(v) ? v.length : 0;
-      if (plain(raw) && str(raw.digest, 200)) impact = { digest: raw.digest as string, strategy: 'prospective', affectedAnswers: count(raw.affectedSavedAnswerIds), rebuild: count(raw.rebuildArtifactIds), activeWork: count(raw.activeWorkIds) };
-    } catch (error) { impactCode = str((error as { code?: unknown })?.code, 64) ?? 'TRIAL_IMPACT_FAILED'; }
-  }
+  // Round 4 (BK-09): every strategy core offers, each with its impact preview; `impact` stays the prospective one.
+  const impacts = evaluation ? await impactsOf(host, ctx, trialId) : [];
+  const forward = impacts.find(i => i.strategy === 'prospective');
+  const impact = forward && forward.digest !== null ? { digest: forward.digest, strategy: 'prospective' as const, affectedAnswers: forward.affectedAnswers, rebuild: forward.rebuild, activeWork: forward.activeWork } : null;
+  const impactCode = forward && forward.digest === null ? forward.code : null;
   const change = plain(summary.change) ? summary.change : {}, cost = plain(summary.cost) ? summary.cost : {};
   const n = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
   return { trialId, draftId: record?.draftId ?? null, proposalId: record?.proposalId ?? null, precedence: record?.precedence ? structuredClone(record.precedence) : null, experimental: true as const,
     status: summary.status === 'evaluated' ? 'evaluated' as const : 'created' as const,
     change: { type: str(change.type, 40) ?? 'definition', target: str(change.target, 200) ?? '' },
     cost: { preparationMs: n(cost.preparationElapsedMs), diskBytes: n(cost.totalDiskBytes) },
-    evaluationDigest: str(summary.evaluationDigest, 200), rows, impact, impactCode,
+    evaluationDigest: str(summary.evaluationDigest, 200), rows, impact, impactCode, impacts,
     limitations: (evaluation && Array.isArray(evaluation.limitations) ? evaluation.limitations : []).map(l => str(l, 600)).filter((l): l is string => l !== null).slice(0, 10) };
 }
 
@@ -137,7 +135,7 @@ export const trialMethods: Record<string, MethodSpec> = {
       if (list.length > 200) list.splice(0, list.length - 200);
     });
     const evaluated = await host.call('trials.evaluate', { trialId });
-    return trialView(host, evaluated, made);
+    return trialView(host, ctx, evaluated, made);
   } },
   'books.trialRead': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['trialId', 'draftId', 'proposalId', 'precedence']);
@@ -149,11 +147,14 @@ export const trialMethods: Record<string, MethodSpec> = {
     let summary: unknown;
     try { summary = await host.call('trials.get', { trialId: record.trialId }); }
     catch { return { trial: null }; }   // discarded or no longer readable by this person: there is no copy to show
-    return { trial: await trialView(host, summary, record) };
+    return { trial: await trialView(host, ctx, summary, record) };
   } },
   'books.trialPublish': { permission: 'approve', async handler(ctx, payload, host) {
-    const request = input(payload, ['trialId', 'evaluationDigest', 'impactDigest'], ['trialId', 'evaluationDigest', 'impactDigest']);
+    const request = input(payload, ['trialId', 'evaluationDigest', 'impactDigest', 'strategy'], ['trialId', 'evaluationDigest', 'impactDigest']);
     check(plainId(request.trialId) && typeof request.evaluationDigest === 'string' && typeof request.impactDigest === 'string', REQUEST, 'Publish the copy you reviewed.');
+    // Round 4 (BK-09): the strategy the person chose, with the impact digest they reviewed for it. Prospective when not named.
+    check(request.strategy === undefined || (STRATEGIES as readonly unknown[]).includes(request.strategy), REQUEST, 'Choose prospective or retrospective publishing.');
+    const strategy: Strategy = request.strategy ?? 'prospective';
     const state = host.store.read(), record = recordFor(state, ctx, request.trialId);
     check(record, 'TRIAL_NOT_FOUND', 'This copy was not found.');
     if (record.draftId) {
@@ -188,7 +189,7 @@ export const trialMethods: Record<string, MethodSpec> = {
     const release = async () => { if (record.draftId) await writeBooks(host.store, ctx, 'approve', books => { const meta = books.draftMeta.find(m => m.draftId === record.draftId); if (meta) meta.publishing = null; }).catch(() => undefined); };
     let promoted: unknown;
     try {
-      promoted = await host.call('trials.promote', { trialId: request.trialId, evaluationDigest: request.evaluationDigest, strategy: 'prospective', acknowledgedImpactDigest: request.impactDigest });
+      promoted = await host.call('trials.promote', { trialId: request.trialId, evaluationDigest: request.evaluationDigest, strategy, acknowledgedImpactDigest: request.impactDigest });
       check(plain(promoted) && str(promoted.publicationId, 200), 'TRIAL_REPLY_INVALID', 'The copy answered in an unexpected shape.');
     } catch (error) { await release(); throw error; }
     const version = host.services.ontology.current(ctx)?.version ?? null;
@@ -203,7 +204,7 @@ export const trialMethods: Record<string, MethodSpec> = {
         proposal.state = 'published';
       }
     });
-    return { trialId: request.trialId, status: 'promoted' as const, publicationId: (promoted as { publicationId: string }).publicationId, draftId: record.draftId, proposalId: record.proposalId, precedence: record.precedence ?? null };
+    return { trialId: request.trialId, status: 'promoted' as const, publicationId: (promoted as { publicationId: string }).publicationId, draftId: record.draftId, proposalId: record.proposalId, precedence: record.precedence ?? null, strategy };
   } },
   'books.trialDiscard': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['trialId'], ['trialId']); check(plainId(request.trialId), REQUEST, 'Name the copy.');
