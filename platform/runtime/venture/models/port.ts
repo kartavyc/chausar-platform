@@ -317,14 +317,20 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       }
       const views: ConnectionView[] = newestFirst(connections).map(connection => {
         const spec = presetSpec(connection.presetId);
-        return { ...structuredClone(connection), keyLoaded: spec.needsKey && secrets.has(SECRET(spec.id)), ...usableOf(connection, spec, state) };
+        return {
+          ...structuredClone(connection), verification: spec.verification, verificationNote: spec.verificationNote,
+          keyLoaded: spec.needsKey && secrets.has(SECRET(spec.id)), ...usableOf(connection, spec, state),
+        };
       });
       const tiers = {} as ModelStatusView['tiers'];
       for (const tier of TIERS) {
         const route = resolveTier(state, venture?.id ?? null, tier);
         tiers[tier] = route.kind === 'template'
-          ? { presetId: 'built-in-templates', model: null, usable: true, reason: MESSAGES.templatesServe }
-          : { presetId: route.spec.id, model: route.connection.model, ...usableOf(route.connection, route.spec, state) };
+          ? { presetId: 'built-in-templates', model: null, usable: true, reason: MESSAGES.templatesServe, verification: 'built-in', verificationNote: null }
+          : {
+            presetId: route.spec.id, model: route.connection.model, ...usableOf(route.connection, route.spec, state),
+            verification: route.spec.verification, verificationNote: route.spec.verificationNote,
+          };
       }
       const spentText = String(spent);
       return {

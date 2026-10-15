@@ -23,8 +23,23 @@ export const TEMPLATE_CONSENT_TEXT = 'Chausar will use its built-in templates. N
 /** A preset without its live availability. port.presets() adds availability as of now. */
 export type PresetSpec = Omit<ModelPreset, 'availability' | 'availabilityReason'>;
 
-function spec(fields: Omit<PresetSpec, 'consentDigest'>): PresetSpec {
-  return Object.freeze({ ...fields, consentDigest: digest(fields.consentText) });
+/**
+ * What the screen says next to 'ready' or 'unverified'. No preset here has been tried against a live account by
+ * Chausar, so none claims it: a key option says it was not checked with a live key, a command-line option that it
+ * was not tried on a real task.
+ */
+export const VERIFICATION_NOTES = Object.freeze({
+  key: 'Not yet checked with a live key.',
+  cli: 'Not yet checked on a real task.',
+});
+
+function verificationNoteOf(fields: Omit<PresetSpec, 'consentDigest' | 'verificationNote'>): string | null {
+  if (fields.verification === 'built-in') return null;
+  return fields.needsKey ? VERIFICATION_NOTES.key : VERIFICATION_NOTES.cli;
+}
+
+function spec(fields: Omit<PresetSpec, 'consentDigest' | 'verificationNote'>): PresetSpec {
+  return Object.freeze({ ...fields, verificationNote: verificationNoteOf(fields), consentDigest: digest(fields.consentText) });
 }
 
 export const PRESETS: readonly PresetSpec[] = Object.freeze([
@@ -70,7 +85,7 @@ export function presetSpec(id: ModelPresetId): PresetSpec {
 }
 
 export const AVAILABILITY_REASONS = Object.freeze({
-  anthropic: 'Uses your Anthropic key.',
+  anthropic: 'Uses your Anthropic key. Not yet checked with a live key.',
   luna: 'Not yet tried on a real account, and a past probe failed. Type the model id your account shows. Costs are estimates.',
   claudeMissing: 'Install Claude Code and sign in. Chausar checks for it when you connect.',
   claudeFound: 'Found on this computer. Not yet tried on a real task.',

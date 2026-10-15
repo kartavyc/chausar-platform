@@ -343,6 +343,12 @@ export type ModelPreset = {
   consentText: string; // exactly what is sent and what is never sent
   consentDigest: string; // digest(consentText)
   verification: 'not-live-verified' | 'built-in';
+  /**
+   * Shown next to availability: 'Not yet checked with a live key.' (key presets) or 'Not yet checked on a real task.'
+   * (command-line presets) for 'not-live-verified'; null for 'built-in'. Always set by the engine; optional only so
+   * older fixtures still type.
+   */
+  verificationNote?: string | null;
   availability: ModelAvailability;
   availabilityReason: string;
 };
@@ -358,10 +364,12 @@ export type ModelConnectionRecord = RecordBase<'venture-model-connection'> & {
   monthlyCapMicros: MicroString; // in USD micros; '0' for templates
   status: 'connected' | 'disconnected';
 };
-export type ModelConnectionView = ModelConnectionRecord & { keyLoaded: boolean; usable: boolean; reason: string };
+/** The preset's verification, copied onto every status line so the screen can say it next to 'ready'. Always set by the engine. */
+export type ModelVerificationView = { verification?: ModelPreset['verification']; verificationNote?: string | null };
+export type ModelConnectionView = ModelConnectionRecord & ModelVerificationView & { keyLoaded: boolean; usable: boolean; reason: string };
 export type ModelStatusView = {
   connections: ModelConnectionView[];
-  tiers: Record<ModelTier, { presetId: ModelPresetId; model: string | null; usable: boolean; reason: string }>;
+  tiers: Record<ModelTier, ModelVerificationView & { presetId: ModelPresetId; model: string | null; usable: boolean; reason: string }>;
   spentThisMonthMicros: MicroString;
   spentThisMonthDisplay: string; // e.g. 'USD 0.0042', or 'USD 0.0042 (estimate, price unconfirmed)'
   estimate: boolean; // true when any cost this month came from an unconfirmed price table

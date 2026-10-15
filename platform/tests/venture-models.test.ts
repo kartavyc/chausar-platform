@@ -176,6 +176,16 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
   assert.equal(byId['anthropic-haiku-5-5'].priceTable?.inputMicrosPerMillion, '100000');
   assert.equal(byId['anthropic-sonnet-5-5'].priceTable?.outputMicrosPerMillion, '10000000');
   assert.equal(byId['built-in-templates'].availability, 'ready');
+  // Haiku and Sonnet read 'ready' (a key is all they need) but say beside it that no live key has checked them yet.
+  for (const id of ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5'] as const) {
+    assert.equal(byId[id].verification, 'not-live-verified');
+    assert.equal(byId[id].verificationNote, 'Not yet checked with a live key.');
+    assert.equal(byId[id].availabilityReason, 'Uses your Anthropic key. Not yet checked with a live key.');
+  }
+  assert.equal(byId['openai-gpt-6-luna'].verificationNote, 'Not yet checked with a live key.');
+  assert.equal(byId['claude-code-cli'].verificationNote, 'Not yet checked on a real task.');
+  assert.equal(byId['codex-cli'].verificationNote, 'Not yet checked on a real task.');
+  assert.equal(byId['built-in-templates'].verificationNote, null);
   assert.equal(byId['built-in-templates'].consentText, 'Chausar will use its built-in templates. Nothing is sent to any AI service.');
   assert.match(byId['anthropic-haiku-5-5'].consentText, /to Anthropic with your key/);
   assert.match(byId['codex-cli'].consentText, /^Chausar will run Codex on this computer/);
@@ -324,7 +334,9 @@ test('tiers: Haiku serves fast purposes and Sonnet main ones; templates serve wh
   assert.equal(bare.rec.http.length, 0);
   assert.equal(calls(bare.store).length, 0);
   const bareStatus = bare.deps.models.status(owner);
-  assert.deepEqual(bareStatus.tiers.fast, { presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates' });
+  assert.deepEqual(bareStatus.tiers.fast, {
+    presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates', verification: 'built-in', verificationNote: null,
+  });
 
   const { deps, rec } = await setup();
   await connect(deps, 'anthropic-haiku-5-5', { tiers: ['fast'] });
@@ -333,6 +345,18 @@ test('tiers: Haiku serves fast purposes and Sonnet main ones; templates serve wh
   assert.equal(status.tiers.fast.presetId, 'anthropic-haiku-5-5');
   assert.equal(status.tiers.main.presetId, 'anthropic-sonnet-5-5');
   assert.equal(status.tiers.main.usable, true);
+  // The status the screens read says beside 'ready' that no live key has checked these presets; it claims no check.
+  for (const tier of ['fast', 'main'] as const) {
+    assert.equal(status.tiers[tier].verification, 'not-live-verified');
+    assert.equal(status.tiers[tier].verificationNote, 'Not yet checked with a live key.');
+    assert.equal(status.tiers[tier].reason, 'Uses your Anthropic key. Not yet checked with a live key.');
+  }
+  assert.equal(status.connections.length, 2);
+  for (const connection of status.connections) {
+    assert.equal(connection.verification, 'not-live-verified');
+    assert.equal(connection.verificationNote, 'Not yet checked with a live key.');
+    assert.equal(connection.usable, true);
+  }
   for (const purpose of MODEL_PURPOSES) {
     const result = await deps.models.generate(owner, wordsTask({ purpose }));
     const expected = PURPOSE_TIER[purpose] === 'fast' ? 'claude-haiku-5-5' : 'claude-sonnet-5-5';
