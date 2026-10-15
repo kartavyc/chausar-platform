@@ -1,0 +1,74 @@
+{
+  "label": "synthetic recording",
+  "responses": {
+    "/repos/demo-owner/ledger-cafe-books": {
+      "status": 200,
+      "etag": "\"repo-1\"",
+      "body": {
+        "full_name": "demo-owner/ledger-cafe-books",
+        "private": true,
+        "default_branch": "main",
+        "html_url": "https://github.com/demo-owner/ledger-cafe-books",
+        "pushed_at": "2026-10-15T09:58:00Z"
+      }
+    },
+    "/repos/demo-owner/ledger-cafe-books/commits?sha=main&per_page=20": {
+      "status": 200,
+      "etag": "\"commits-1\"",
+      "body": [
+        {
+          "sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+          "commit": {
+            "author": {
+              "name": "gpt-engineer-app[bot]",
+              "date": "2026-10-15T09:58:00Z"
+            },
+            "message": "Add plans page"
+          },
+          "author": {
+            "login": "lovable-dev[bot]"
+          }
+        }
+      ]
+    },
+    "/repos/demo-owner/ledger-cafe-books/branches?per_page=100": {
+      "status": 200,
+      "etag": "\"branches-1\"",
+      "body": [
+        {
+          "name": "main"
+        }
+      ]
+    },
+    "/repos/demo-owner/ledger-cafe-books/contents/AGENTS.md?ref=a1b2c3d4e5f60718293a4b5c6d7e8f9012345678": {
+      "status": 200,
+      "etag": null,
+      "body": "chausar-brief-id: {{briefId}}\nMoney numbers come from Chausar. Do not compute totals or tax.\n"
+    },
+    "/repos/demo-owner/ledger-cafe-books/contents/.github/workflows/ui-lint.yml?ref=a1b2c3d4e5f60718293a4b5c6d7e8f9012345678": {
+      "status": 200,
+      "etag": null,
+      "body": "name: UI lint\non:\n  push:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ui:\n    runs-on: ubuntu-latest\n"
+    },
+    "/repos/demo-owner/ledger-cafe-books/actions/runs?head_sha=a1b2c3d4e5f60718293a4b5c6d7e8f9012345678&per_page=5": {
+      "status": 200,
+      "etag": null,
+      "body": {
+        "total_count": 1,
+        "workflow_runs": [
+          {
+            "name": "UI lint",
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+          }
+        ]
+      }
+    },
+    "/repos/demo-owner/ledger-cafe-books/deployments?per_page=5": {
+      "status": 200,
+      "etag": null,
+      "body": []
+    }
+  }
+}

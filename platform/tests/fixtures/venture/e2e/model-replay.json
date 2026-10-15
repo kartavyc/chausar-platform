@@ -1,0 +1,191 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written responses shaped like the Anthropic Messages API for the venture end-to-end test. Not captured from a live account. No paid call was made.",
+  "responses": [
+    {
+      "purpose": "interview",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "id": "msg_synthetic_interview",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"serviceType\":\"bookkeeping\",\"questions\":[{\"field\":\"customer\",\"kind\":\"choice\",\"text\":\"Who will your first clients be?\",\"choices\":[\"Cafes and small restaurants\",\"Small shops\",\"Freelancers\"]},{\"field\":\"channel\",\"kind\":\"text\",\"text\":\"How will clients send you their bills and statements?\",\"choices\":[]}]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 812,
+          "output_tokens": 164
+        }
+      }
+    },
+    {
+      "purpose": "blueprint",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "Cafes and small restaurants"
+      ],
+      "body": {
+        "id": "msg_synthetic_blueprint",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Ledger Cafe Books\",\"oneLiner\":\"Monthly books for cafes and small shops, drafted with AI help and checked by you.\",\"customer\":\"Cafe and small shop owners who want tidy books without chasing receipts.\",\"offers\":[{\"id\":\"offer_1\",\"name\":\"Monthly books\",\"description\":\"Bank matching, bill sorting and a short monthly report.\"},{\"id\":\"offer_2\",\"name\":\"Catch up clean up\",\"description\":\"A one time tidy up of past months before the monthly service starts.\"}],\"steps\":[{\"id\":\"step_1\",\"title\":\"Collect bills and bank statements\"},{\"id\":\"step_2\",\"title\":\"Sort and match every entry\"},{\"id\":\"step_3\",\"title\":\"Draft the monthly report for review\"},{\"id\":\"step_4\",\"title\":\"Send the report to the client\"}],\"approvals\":[\"Every monthly report before it reaches a client\",\"Any message that asks a client for money\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1430,
+          "output_tokens": 402
+        }
+      }
+    },
+    {
+      "purpose": "brief",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "Ledger Cafe Books"
+      ],
+      "body": {
+        "id": "msg_synthetic_brief",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"whatToBuild\":\"A simple website for a bookkeeping service for cafes, with plans, a way to book a call and a private page where clients upload bills.\",\"whoItIsFor\":\"Cafe and small shop owners who read on a phone and want plain words.\",\"pages\":[{\"title\":\"Home\",\"purpose\":\"Say what the service does and show one button to book a call.\"},{\"title\":\"Plans\",\"purpose\":\"Show the plans and prices exactly as given.\"},{\"title\":\"How it works\",\"purpose\":\"Explain the steps from upload to report.\"},{\"title\":\"Book a call\",\"purpose\":\"A short form that saves the request.\"},{\"title\":\"Client uploads\",\"purpose\":\"A private page where a client uploads bills and statements.\"}],\"lookAndFeel\":\"Calm and plain. Lots of white space, one accent colour and large readable text.\",\"doneMeans\":[\"Every page works on a phone\",\"Prices match the brief exactly\",\"The booking form saves a request\",\"Uploads are private to each client\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1210,
+          "output_tokens": 377
+        }
+      }
+    },
+    {
+      "purpose": "client-sim",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [],
+      "body": {
+        "id": "msg_synthetic_client",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"message\":\"Hi, I run a small cafe. Can you sort out my books for last month? I have bank statements and a pile of bills.\",\"asksForPerson\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 520,
+          "output_tokens": 61
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "offer_1.total"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_rehearsal",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Your monthly books plan\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"Thanks for the details. Here is how we will close your books for last month, and what we need from you first.\",\"ref\":\"\"}]},{\"heading\":\"What we will do\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once your bank statement and bills arrive, we will sort the bills, match each one to a bank entry and list any entry that needs your answer. Your plan price is below.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"offer_1.total\"}]},{\"heading\":\"What we need from you\",\"parts\":[{\"kind\":\"text\",\"text\":\"Please send last month's bank statement and photos of your bills, including the card payments.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"When the files arrive we will prepare a short report for you to review before anything is final.\",\"ref\":\"\"}]}],\"questionsForClient\":[\"Which bank account do you use for the cafe?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1690,
+          "output_tokens": 512
+        }
+      }
+    },
+    {
+      "purpose": "judge",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [],
+      "body": {
+        "id": "msg_synthetic_judge",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"answers\":[{\"question\":\"goal-met\",\"answer\":\"yes\",\"reason\":\"The draft says what will happen and asks for what is missing.\"},{\"question\":\"tone-fits\",\"answer\":\"yes\",\"reason\":\"Plain and friendly for a busy cafe owner.\"},{\"question\":\"policy-followed\",\"answer\":\"yes\",\"reason\":\"No price was invented and nothing was promised outside the plan.\"},{\"question\":\"no-unbacked-claims\",\"answer\":\"yes\",\"reason\":\"It describes the work ahead and never claims finished work.\"}]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 940,
+          "output_tokens": 118
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "Please close my September books"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_order",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Plan for your September books\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"Thanks for asking us to close your September books. Here is what happens next and what we need from you.\",\"ref\":\"\"}]},{\"heading\":\"What we will do\",\"parts\":[{\"kind\":\"text\",\"text\":\"We will sort the bills you shared, match them to the bank statement and flag anything unclear for you. The price for this month comes from your plan.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"order.total\"}]},{\"heading\":\"What we need from you\",\"parts\":[{\"kind\":\"text\",\"text\":\"Please confirm the shared folder holds every September bill, including card payments.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once you confirm, we will prepare the report for your review and send it with your invoice after you approve.\",\"ref\":\"\"}]}],\"questionsForClient\":[\"Were there any cash payments in September?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1720,
+          "output_tokens": 455
+        }
+      }
+    }
+  ]
+}
