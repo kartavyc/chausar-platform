@@ -23,6 +23,8 @@ globalThis.ChausarLaunch = Object.freeze({
     const OUTLINE_LINE = "Template outline. No AI wrote this and it doesn't read the client's request.";
     const PRACTICE_LINE = 'Practice draft. Not for the client.';
     const RECORDING_LINE = 'AI answers here come from a synthetic recording.';
+    // Built-in templates say so wherever they wrote the words, as the Add your AI sheet promises.
+    const TEMPLATE_LINE = 'Written from built-in templates, not by AI.';
     const PASSPHRASE_LINE = 'Chausar locks your business with this passphrase. Nobody can reset it, so keep the recovery code you see next.';
     const TEN_YEARS_LINE = 'Chausar keeps your records for ten years, as tax rules expect.';
     const RECOMMENDED = 'Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans: one Anthropic key';
@@ -99,6 +101,8 @@ globalThis.ChausarLaunch = Object.freeze({
     // ---------------------------------------------------------------------------------------------
     let fieldCount = 0;
     let openSheet = null;
+    let lastActor = null;
+    let sheetOpener = null; // the button behind the newest owner action, so a sheet it opened can hand focus back
 
     const note = (value, cls = 'launch-note') => h('p', { class: cls }, value);
     const square = kind => h('span', { class: `launch-sq ${kind}`, 'aria-hidden': 'true' });
@@ -164,7 +168,7 @@ globalThis.ChausarLaunch = Object.freeze({
     function showError(host, error, retry) { if (host) host.replaceChildren(...errorNodes(error, retry)); }
     /** Runs one owner action: the button waits, errors appear as words where the action was, nothing toasts. */
     async function act(button, status, work, retry) {
-      if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+      if (button) { lastActor = button; button.disabled = true; button.setAttribute('aria-busy', 'true'); }
       if (status) status.replaceChildren();
       try { return await work(); }
       catch (error) { showError(status, error, retry); return undefined; }
@@ -189,13 +193,46 @@ globalThis.ChausarLaunch = Object.freeze({
       finally { if (timer !== null && typeof clearTimeout === 'function') clearTimeout(timer); }
     }
 
+    /** Enough to find a control again after its page is drawn anew: its order, if any, and its words. */
+    function focusKey(node) {
+      if (!node || typeof node.closest !== 'function') return null;
+      return { order: node.closest('[data-order]')?.getAttribute('data-order') || null, words: plain(node.textContent).trim() };
+    }
+    function findByFocusKey(key) {
+      const host = key && document.getElementById('page-content');
+      if (!host || typeof host.querySelectorAll !== 'function') return null;
+      const order = key.order ? Array.from(host.querySelectorAll('[data-order]')).find(node => node.getAttribute('data-order') === key.order) : null;
+      if (order && !order.open) return order.querySelector('summary');
+      const controls = Array.from((order || host).querySelectorAll('button, summary'));
+      const match = controls.find(node => plain(node.textContent).trim() === key.words);
+      if (match) return match;
+      return order ? order.querySelector('summary') : null;
+    }
     function closeSheet() { const current = openSheet; openSheet = null; if (current) current.close(); }
-    /** One sheet at a time, on the right. Esc or Close shuts it. */
+    /** One sheet at a time, on the right. Esc or Close shuts it. It opens with focus on its title, so nothing is ringed at rest. */
     function sheet(title, body, onClose) {
+      // A sheet that replaces another keeps the first one's opener; otherwise the opener is what has focus, or the button that acted.
+      const inherited = openSheet ? sheetOpener : null;
+      const active = typeof document.activeElement === 'object' && document.activeElement !== document.body ? document.activeElement : null;
+      const opener = inherited || active || (lastActor?.isConnected ? lastActor : null);
+      lastActor = null;
       closeSheet();
+      sheetOpener = opener;
       const dialog = h('dialog', { class: 'launch-sheet', 'aria-label': title });
-      dialog.append(h('div', { class: 'launch-sheet-head' }, h('h2', { class: 'launch-sheet-title' }, title), link('Close', () => dialog.close())), h('div', { class: 'launch-sheet-body' }, body));
-      dialog.addEventListener('close', () => { if (openSheet === dialog) openSheet = null; dialog.remove(); if (onClose) onClose(); });
+      dialog.append(h('div', { class: 'launch-sheet-head' }, h('h2', { class: 'launch-sheet-title', tabindex: '-1', autofocus: true }, title), link('Close', () => dialog.close())), h('div', { class: 'launch-sheet-body' }, body));
+      const openerKey = focusKey(opener);
+      dialog.addEventListener('close', () => {
+        if (openSheet === dialog) openSheet = null;
+        dialog.remove();
+        // Focus goes back to what opened the sheet, or to its copy when the page was drawn again meanwhile.
+        const refocus = () => {
+          if (openSheet) return;
+          const target = opener?.isConnected ? opener : findByFocusKey(openerKey);
+          if (target && typeof target.focus === 'function') target.focus();
+        };
+        const after = onClose ? onClose() : undefined;
+        if (after && typeof after.then === 'function') after.then(refocus, refocus); else refocus();
+      });
       document.body.append(dialog);
       openSheet = dialog;
       dialog.showModal();
@@ -255,6 +292,12 @@ globalThis.ChausarLaunch = Object.freeze({
         class: index === at ? 'now' : index < at ? 'done' : '', 'aria-current': index === at ? 'step' : null,
       }, square(index === at ? 'now' : index < at ? 'you' : 'off'), words)));
     }
+    /** Puts the cursor in the field on a computer with a mouse; a phone keeps its keyboard closed until the owner taps. */
+    function focusOnDesk(control) {
+      try {
+        if (typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(pointer: fine)').matches) control.focus();
+      } catch { /* focus is a convenience */ }
+    }
     function browserRegion() {
       try {
         if (typeof navigator === 'undefined') return null;
@@ -286,9 +329,10 @@ globalThis.ChausarLaunch = Object.freeze({
       const other = ob.vaultOpen
         ? link('Open the back office', () => { state.page = 'conversation'; renderShell(); })
         : link('I already have a business in Chausar', () => renderSetup());
-      frame('idea', head(null, 'What service business do you want to start?'), field('Your idea', idea),
+      frame(null, head(null, 'What service business do you want to start?'), field('Your idea', idea),
         note('For example: monthly bookkeeping for cafes in Pune', 'launch-example'), countryLine, actions(show, other), status,
         note('Nothing is saved until you keep it.'));
+      focusOnDesk(idea);
       if (!ob.countries) {
         try { ob.countries = await request('venture.countries'); }
         catch (error) { countryLine.replaceChildren(...errorNodes(error, showIdea)); }
@@ -367,20 +411,25 @@ globalThis.ChausarLaunch = Object.freeze({
         await onKeep();
       }));
       return h('div', { class: 'launch-plan' },
-        head(inVault ? 'Your plan, not kept yet' : 'Your plan, not saved yet', preview.serviceLabel),
+        head(inVault ? 'Your plan from built-in templates, not kept yet' : 'Your plan from built-in templates, not saved yet', preview.serviceLabel),
         h('p', { class: 'launch-lead' }, preview.oneLiner.value, ' ', tag(preview.oneLiner)),
         section("Who it's for", h('p', {}, preview.customer.value, ' ', tag(preview.customer))),
+        // At rest the plan shows names, steps, the price and the tax assumption; the longer words wait in folds, as on the kept plan.
         section('Offers', rows(...preview.offers.map(offer => row({
           mark: 'off', title: offer.name.value, label: LABEL_WORDS[offer.name.label] || 'assumption',
-          extra: h('p', { class: 'launch-row-more' }, offer.description.value),
-        }))), priceBlock),
+        }))), fold('About the offers', false, ...preview.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`))), priceBlock),
         section('Steps', stepRows(preview.deliverySteps)),
-        section('You approve', approvalLines(preview.approvals)),
-        section('Back office', h('p', {}, `Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`),
-          h('p', {}, taxChip, ' ', link('Change', () => { taxBody.hidden = !taxBody.hidden; })), taxBody),
-        section(null, link('Tell us more (optional)', () => { extraBody.hidden = !extraBody.hidden; }), extraBody),
+        fold('You approve', false, approvalLines(preview.approvals, 'launch-note launch-approval')),
+        fold('Back office', false, note(`Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`)),
+        h('p', { class: 'launch-tax-line' }, taxChip, ' ', toggle('Change', taxBody)), taxBody,
+        section(null, toggle('Tell us more (optional)', extraBody), extraBody),
         actions(keep, quiet('Start over', () => { ob.preview = null; ob.tax = null; ob.rate = null; ob.price = ''; ob.extra = {}; void showIdea(); })),
         status);
+    }
+    /** A quiet link that shows or hides the part under it, and says which. */
+    function toggle(words, part) {
+      const control = link(words, () => { part.hidden = !part.hidden; control.setAttribute('aria-expanded', part.hidden ? 'false' : 'true'); }, { 'aria-expanded': 'false' });
+      return control;
     }
     /** One line per approval, each with its own label. */
     function approvalLines(approvals, cls = 'launch-approval') { return (approvals || []).map(item => h('p', { class: cls }, item.value, ' ', tag(item))); }
@@ -526,7 +575,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const receipts = blueprintView.offerReceipts || {};
       const country = view.venture.country;
       const backOffice = plan.backOffice;
-      const open = mode === 'onboarding';
+      const open = false; // the folds stay shut at rest, in onboarding and in the place alike
       const status = statusLine();
       const refresh = () => paintPlan(host, mode);
 
@@ -575,8 +624,8 @@ globalThis.ChausarLaunch = Object.freeze({
       return h('div', { class: 'launch-plan-body' },
         head(`Plan, version ${plan.version}, ${plan.status === 'accepted' ? 'accepted' : 'not accepted yet'}`, plan.name.value),
         h('p', { class: 'launch-lead' }, plan.oneLiner.value, ' ', tag(plan.oneLiner)),
-        h('p', {}, h('span', { class: 'launch-label' }, 'For'), ' ', plan.customer.value, ' ', tag(plan.customer)),
-        plan.source === 'model' ? recordingNote(models) : null,
+        h('p', {}, h('span', { class: 'launch-label' }, 'for'), ' ', plan.customer.value, ' ', tag(plan.customer)),
+        plan.source === 'model' ? recordingNote(models) : note(TEMPLATE_LINE),
         section('Offers', rows(...offerRows), fold('About the offers', open, ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)))),
         section('Steps', stepRows(plan.deliverySteps), fold('How each step works', open, ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`)))),
         missing,
@@ -820,11 +869,11 @@ globalThis.ChausarLaunch = Object.freeze({
         out.push(
           section('Your brief', h('p', { class: 'launch-brief' }, openingLines(brief.markdown)),
             h('p', { class: 'launch-note' }, briefState(brief), ' ', link('See all', () => openBriefSheet(brief)), ' ', again),
-            brief.wordsBy === 'model' ? recordingNote(models) : null, briefStatus),
+            brief.wordsBy === 'model' ? recordingNote(models) : note(TEMPLATE_LINE), briefStatus),
           section('Builders',
             actions(lovable, replit, copy, quiet('Save brief', () => saveText('brief.md', brief.markdown, 'text/markdown'))),
             note('Replit receives your brief as soon as its page opens.'), notesHost, handoffStatus,
-            status.handoffs?.length ? rows(...status.handoffs.slice(0, 4).map(handoff => row({
+            status.handoffs?.length ? h('div', { class: 'launch-rows launch-handoffs' }, ...status.handoffs.slice(0, 4).map(handoff => row({
               mark: handoff.openedAt ? 'you' : 'off', title: BUILDER_NAMES[handoff.builder] || handoff.builder,
               note: handoff.openedAt ? `opened ${timeText(handoff.openedAt)}` : 'prepared, not opened',
             }))) : null));
@@ -886,7 +935,7 @@ globalThis.ChausarLaunch = Object.freeze({
     async function openAiSheet(onDone) {
       let connected = false;
       const body = h('div', { class: 'launch-ai' }, outline(6));
-      sheet('Which AI should do the work?', body, () => { if (connected && onDone) void onDone(); });
+      sheet('Which AI should do the work?', body, () => (connected && onDone ? onDone() : undefined));
       let presets, status;
       try { [presets, status] = await Promise.all([request('venture.models.presets'), modelStatus()]); }
       catch (error) { body.replaceChildren(...errorNodes(error, () => openAiSheet(onDone))); return; }
@@ -983,12 +1032,22 @@ globalThis.ChausarLaunch = Object.freeze({
       if (!view) return noVenture();
       const [runs, invoices, books, events] = await Promise.all([
         settle(request('venture.delivery.list')), settle(request('venture.invoice.list')), settle(request('venture.books.summary', {})), settle(lastEvents(6))]);
-      const waiting = [];
+      // Like items share one row, so four waiting drafts read as one line with how many there are.
+      const kinds = [
+        ['waiting', 'A draft reply waits for your approval', 'draft replies wait for your approval', 'agents'],
+        ['practice', 'A practice draft is ready to review', 'practice drafts are ready to review', 'agents'],
+        ['ready', 'A draft reply is ready to review', 'draft replies are ready to review', 'agents'],
+        ['invoice', 'A draft invoice is ready to issue', 'draft invoices are ready to issue', 'clients'],
+      ];
+      const counts = { waiting: 0, practice: 0, ready: 0, invoice: 0 };
       for (const run of runs.value || []) {
-        if (run.status === 'waiting-for-you') waiting.push(row({ mark: 'wait', title: 'A draft reply waits for your approval', side: quiet('Review', () => navigate('agents')) }));
-        else if (run.status === 'ready-for-review') waiting.push(row({ mark: 'wait', title: run.practice ? 'A practice draft is ready to review' : 'A draft reply is ready to review', side: quiet('Review', () => navigate('agents')) }));
+        if (run.status === 'waiting-for-you') counts.waiting++;
+        else if (run.status === 'ready-for-review') counts[run.practice ? 'practice' : 'ready']++;
       }
-      for (const invoice of invoices.value || []) if (invoice.status === 'draft') waiting.push(row({ mark: 'wait', title: 'A draft invoice is ready to issue', side: quiet('Review', () => navigate('clients')) }));
+      for (const invoice of invoices.value || []) if (invoice.status === 'draft') counts.invoice++;
+      const waiting = kinds.filter(([kind]) => counts[kind] > 0).map(([kind, one, many, place]) => row({
+        mark: 'wait', title: counts[kind] === 1 ? one : `${counts[kind]} ${many}`, side: quiet('Review', () => navigate(place)),
+      }));
       const shown = waiting.slice(0, 4);
       if (view.next) shown.push(row({ mark: 'now', title: view.next.label, note: 'next step', side: quiet('Open', () => goToItem({ id: view.next.item, place: view.next.place })) }));
       const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -1148,7 +1207,7 @@ globalThis.ChausarLaunch = Object.freeze({
         body.replaceChildren(...parts);
       };
       paint(view);
-      dialog = sheet(view.invoice.number ? `Invoice ${view.invoice.number}` : 'Draft invoice', body, () => { if (onLaunchPage()) void navigate(state.page); });
+      dialog = sheet(view.invoice.number ? `Invoice ${view.invoice.number}` : 'Draft invoice', body, () => (onLaunchPage() ? navigate(state.page) : undefined));
     }
 
     async function renderAgents() {
@@ -1211,16 +1270,20 @@ globalThis.ChausarLaunch = Object.freeze({
     }
     function paintRehearsal(host, scenarioId, title, run, entry) {
       if (!run) {
-        host.replaceChildren(row({ mark: entry?.passed ? 'cha' : 'off', title, note: entry?.runId ? (entry.passed ? 'passed' : 'failed') : 'not rehearsed yet' }));
+        const unjudged = entry?.runId && entry.judged === false;
+        host.replaceChildren(row({ mark: entry?.passed && !unjudged ? 'cha' : 'off', title, note: !entry?.runId ? 'not rehearsed yet' : unjudged ? 'template outline, not judged' : entry.passed ? 'passed' : 'failed' }));
         return;
       }
       const episodes = (run.episodes || []).filter(episode => episode.scenarioId === scenarioId);
       const passed = episodes.length ? episodes.every(episode => episode.passed) : run.passed;
       const failure = episodes.find(episode => !episode.passed)?.firstFailure;
+      // A template outline was never judged, so it gets no pass or fail word and no cost: nothing was sent.
+      const outlineOnly = run.modelMode === 'template';
       host.replaceChildren(row({
-        mark: passed ? 'cha' : 'unsure', title, note: passed ? 'passed' : `failed: ${failure || 'a check failed'}`,
-        side: h('span', { class: 'launch-fig' }, run.costDisplay),
-        extra: run.modelMode === 'template' ? h('p', { class: 'launch-row-more' }, 'Template outline, not judged') : null,
+        mark: outlineOnly ? 'off' : passed ? 'cha' : 'unsure', title,
+        note: outlineOnly ? null : passed ? 'passed' : `failed: ${failure || 'a check failed'}`,
+        side: outlineOnly ? null : h('span', { class: 'launch-fig' }, run.costDisplay),
+        extra: outlineOnly ? h('p', { class: 'launch-row-more' }, 'Template outline, not judged') : null,
       }));
     }
     async function recoverRehearsal(host, scenarioId, title) {
@@ -1299,7 +1362,7 @@ globalThis.ChausarLaunch = Object.freeze({
         fill(body, ...parts);
       };
       paint(run);
-      sheet(`Draft reply for ${client}`, body, () => { if (onLaunchPage()) void navigate(state.page); });
+      sheet(`Draft reply for ${client}`, body, () => (onLaunchPage() ? navigate(state.page) : undefined));
     }
     function reviewControls(run, status, paint) {
       const editHost = h('div');

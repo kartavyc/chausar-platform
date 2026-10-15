@@ -59,3 +59,28 @@ The full description of the screens and the method table is the Launch section o
 - The engine has no `workspace.list`, so the folder name is the owner's only way back in. The launch screens now show it on Keep it safe and in the recovery kit. The old open form still starts at `main`; if that should start at the last folder this browser created, `renderSetup` would need to read it from per-viewer storage, which is outside the 10.1 edits.
 
 **Not verified in this run.** The Electron window itself (no `node_modules`; the IPC path is covered by the real preload and contract in the tests). Opening Lovable, Replit or a vendor site in a real browser: the walk avoided opening outside sites, and the link opener is covered by tests. The pixel look was checked only partly, because the browser pane was hidden for most of the walk and drew only parts of the page; layout facts were checked through the page's own measurements instead.
+
+## UI pass, 16 October
+
+The whole demo script from section 12.7 was walked again in local web mode (replay switch on, a scratch vault outside the repo), then once more with no variables and built-in templates only. Each place was captured in light and dark, at 1280 px and at 375 px, in [`screens/`](screens/) (`NN-place-light.png`, `NN-place-dark.png`, `NN-place-375-light.png`, `NN-place-375-dark.png`; 01 to 24 are the replay demo, 25 to 29 the template walk). Nothing overflows at 375 px; the only elements past the edge are the closed side menu's, which slides in.
+
+What changed in `launch.js` and `styles.css`:
+
+- The first screen is the question alone: the steps line starts at the plan, and the cursor waits in the idea field on a computer with a mouse (a phone keeps its keyboard closed until tapped).
+- Labels such as `assumption`, `told by you` and `planned: agent` are grey lower case words, not capitals.
+- The first plan rests at about 130 words instead of 180: offer details, approvals and the back office sentence sit in folds, as on the kept plan, while the steps, the price and the tax assumption with Change stay in view. The kept plan's folds are shut at rest in onboarding too.
+- Built-in templates now say so where they wrote the words: "Your plan from built-in templates" above the first plan, and "Written from built-in templates, not by AI." under a template plan and a template brief. The Add your AI sheet already promised this.
+- A template rehearsal no longer says "passed" or shows a cost: it was never judged and nothing was sent. It reads "Template outline, not judged".
+- Today puts like items on one row with how many there are ("4 draft replies wait for your approval") instead of four identical rows.
+- The recovery kit, drawn by `app.js`, takes the launch look on the launch screens (no green boxes, no serif, dark when the computer is dark). The back office keeps its own look.
+- Focus is an ink ring, not the back office green. A sheet opens with focus on its title, so nothing is ringed at rest, and on Esc or Close focus goes back to what opened it, even when the page was drawn again meanwhile.
+- Orders show the fold arrow, keep their figure on the right and give their buttons room; two links side by side get a gap that does not indent when they wrap; handoff rows sit apart from the note above; the day line is one column on a phone; the steps line fits one line at 375 px; the recovery code breaks anywhere instead of at its first hyphen; the open side menu darkens with grey, not green.
+
+Checked afterwards: `node --check` on the renderer files; `venture-launch-renderer` (37 of 37); `desktop-renderer`, `decision-journal-renderer`, `conversation-acceptance`, `conversation-continuation-renderer`, `conversation-synthesis-renderer`, `definition-disclosure-renderer`, `workspace-backup-renderer`, `phone-web-preview`, `desktop-harness`, `desktop-ipc-methods` (155 of 155); `desktop-main`, `server`, `desktop-packaging` (27 of 27).
+
+Left as they are, for the founder to decide:
+
+- The pairing screen (shown only when the browser has no pairing link) and the back office keep their older, greener look and stay light in dark mode.
+- The first plan is still above the 120 word page limit (about 130 with the steps line), because every step and approval carries its own label. Folding the steps too would bring it under.
+- "Why reject it" shows its picker at rest under every draft reply; it could fold behind a Reject link.
+- The waiting outline appears under the brief while it is rewritten, rather than in its place.
