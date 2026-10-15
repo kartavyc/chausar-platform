@@ -1,0 +1,130 @@
+// Chausar venture launcher, delivery package (P5): the launch ladder.
+// rehearsal -> shadow (practice drafts) -> approve each draft. Approving a sample and auto with spot checks are planned.
+// Each stage changes what the owner can do; shadow needs a passing rehearsal that a real model wrote and a judge answered.
+import { check, type Context, type State } from '../../contracts.ts';
+import { digest, exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
+import { LAUNCH_STAGES } from '../contracts.ts';
+import type { ImprovementReadiness, LaunchStage, LaunchStatus, SimulationRunRecord, VentureDeps, VentureRecord } from '../contracts.ts';
+import { playbookSteps } from './playbook.ts';
+import { scenariosFor } from './scenarios.ts';
+import { acceptedBlueprintOrNull, newestFirst, readAs, serviceTypeOf } from './shared.ts';
+
+export const REASON_CONNECT_AI = "Connect an AI and rehearse with it first. Template outlines can't be judged.";
+export const REASON_REHEARSE_ALL = 'Rehearse all three practice clients with the current playbook.';
+export const REASON_SAMPLE_PLANNED = 'Planned. Needs a sampling rule first.';
+export const REASON_AUTO_PLANNED = 'Planned. Not in this build.';
+const PLANNED_STAGES: readonly LaunchStage[] = ['approve-sample', 'auto-spot-check'];
+const DAY_MS = 86_400_000;
+
+type Row = LaunchStatus['rehearsal'][number];
+
+/** Whether one scenario's episodes in a run were written by a model and answered by a judge. */
+function scenarioJudged(run: SimulationRunRecord, scenarioId: string): boolean {
+  if (run.modelMode === 'template') return false;
+  const episodes = run.episodes.filter(episode => episode.scenarioId === scenarioId);
+  if (!episodes.length) return false;
+  return episodes.every(episode => {
+    const agentTurns = episode.turns.filter(turn => turn.by === 'agent');
+    return agentTurns.length > 0 && agentTurns.every(turn => turn.author === 'model')
+      && episode.judge.length > 0 && episode.judge.every(answer => answer.answer !== 'not-judged');
+  });
+}
+
+function rehearsalRows(state: State, venture: VentureRecord): Row[] {
+  const blueprint = acceptedBlueprintOrNull(state, venture);
+  const type = serviceTypeOf(state, venture);
+  let currentHash: string | null = null;
+  // A plan without a drafting step has no playbook, so no rehearsal counts for it.
+  try { currentHash = blueprint ? digest(playbookSteps(blueprint)) : null; } catch { currentHash = null; }
+  const runs = newestFirst(listRecords(state, 'venture-simulation-run', venture.id)).filter(run => currentHash !== null && run.playbookHash === currentHash);
+  return scenariosFor(type).map(scenario => {
+    const run = runs.find(item => item.scenarioIds.includes(scenario.id));
+    if (!run) return { scenarioId: scenario.id, runId: null, passed: null, judged: false };
+    const episodes = run.episodes.filter(episode => episode.scenarioId === scenario.id);
+    return { scenarioId: scenario.id, runId: run.id, passed: episodes.length > 0 && episodes.every(episode => episode.passed), judged: scenarioJudged(run, scenario.id) };
+  });
+}
+
+function improvement(state: State, ventureId: string, now: Date): ImprovementReadiness {
+  const verdicts = listRecords(state, 'venture-delivery-run', ventureId).filter(run => run.verdict !== null).map(run => run.verdict!);
+  const judged = verdicts.length;
+  const rejectedOrEdited = verdicts.filter(verdict => verdict.choice !== 'accepted').length;
+  const first = verdicts.map(verdict => verdict.at).sort()[0];
+  const longEnough = first !== undefined && now.getTime() - Date.parse(first) >= 14 * DAY_MS;
+  const due = (judged >= 10 && rejectedOrEdited >= 3) || (judged >= 1 && longEnough);
+  return {
+    judged, rejectedOrEdited, due, status: 'planned',
+    reason: due
+      ? 'There are enough reviewed drafts to improve the playbook. The improvement loop is planned, not in this build.'
+      : 'The improvement loop is planned. It needs more reviewed drafts first.',
+  };
+}
+
+/** The ladder as of now, worked out from the vault only. Never writes. */
+export function computeLaunchStatus(state: State, venture: VentureRecord, now: Date): LaunchStatus {
+  const rows = rehearsalRows(state, venture);
+  const rehearsedWithAi = rows.every(row => row.passed === true && row.judged);
+  const withRuns = rows.filter(row => row.runId !== null);
+  const blockedReason = withRuns.length > 0 && withRuns.every(row => !row.judged) ? REASON_CONNECT_AI : REASON_REHEARSE_ALL;
+  const current = LAUNCH_STAGES.indexOf(venture.launchStage);
+  const stages: LaunchStatus['stages'] = LAUNCH_STAGES.map((stage, index) => {
+    if (stage === 'approve-sample') return { stage, allowed: false, reason: REASON_SAMPLE_PLANNED, status: 'planned' };
+    if (stage === 'auto-spot-check') return { stage, allowed: false, reason: REASON_AUTO_PLANNED, status: 'planned' };
+    if (stage === 'rehearsal') return { stage, allowed: true, reason: 'Made-up clients only. A real order gets a template outline, not an agent draft.', status: 'available' };
+    if (index <= current) {
+      return { stage, allowed: true, reason: stage === 'shadow' ? 'Agent drafts for real orders are practice drafts that cannot reach a client.' : 'You approve each draft before you copy it to a client.', status: 'available' };
+    }
+    if (stage === 'shadow') {
+      return rehearsedWithAi
+        ? { stage, allowed: true, reason: 'Agent drafts for real orders are practice drafts that cannot reach a client.', status: 'available' }
+        : { stage, allowed: false, reason: blockedReason, status: 'available' };
+    }
+    if (!rehearsedWithAi) return { stage, allowed: false, reason: blockedReason, status: 'available' };
+    if (current < LAUNCH_STAGES.indexOf('shadow')) return { stage, allowed: false, reason: 'Move to shadow first.', status: 'available' };
+    return { stage, allowed: true, reason: 'You approve each draft before you copy it to a client.', status: 'available' };
+  });
+  const runs = newestFirst(listRecords(state, 'venture-simulation-run', venture.id));
+  const deliveries = listRecords(state, 'venture-delivery-run', venture.id);
+  return {
+    stage: venture.launchStage,
+    stages,
+    rehearsal: rows,
+    lastRunId: runs[0]?.id ?? null,
+    lastRunPassed: runs[0]?.passed ?? null,
+    acceptedDeliveries: deliveries.filter(run => run.verdict?.choice === 'accepted' && run.servedBy === 'model' && !run.practice).length,
+    improvement: improvement(state, venture.id, now),
+  };
+}
+
+export async function launchStatusHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<LaunchStatus> {
+  exactPayload(payload, []);
+  const { state, venture } = readAs(deps, ctx, 'read');
+  return computeLaunchStatus(state, venture, deps.clock());
+}
+
+/** venture.launch.advance: down any time; up one allowed stage at a time; the planned stages never. */
+export async function launchAdvanceHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<LaunchStatus> {
+  requireAppChannel(ctx, 'venture.launch.advance');
+  const body = exactPayload(payload, ['to'], ['to']);
+  check(typeof body.to === 'string' && (LAUNCH_STAGES as readonly string[]).includes(body.to), 'INVALID_VENTURE_REQUEST', 'Choose a launch stage.');
+  const to = body.to as LaunchStage;
+  check(!PLANNED_STAGES.includes(to), 'STAGE_PLANNED', to === 'approve-sample' ? REASON_SAMPLE_PLANNED : REASON_AUTO_PLANNED);
+  readAs(deps, ctx, 'approve');
+  return ventureAction(deps, ctx, 'approve', 'launch.advance', tx => {
+    const venture = tx.venture!;
+    const now = new Date(tx.now);
+    const from = venture.launchStage;
+    if (from === to) return computeLaunchStatus(tx.state, venture, now);
+    const before = computeLaunchStatus(tx.state, venture, now);
+    const fromIndex = LAUNCH_STAGES.indexOf(from), toIndex = LAUNCH_STAGES.indexOf(to);
+    if (toIndex > fromIndex) {
+      check(toIndex === fromIndex + 1, 'LAUNCH_STAGE_BLOCKED', 'Move up one stage at a time.');
+      const target = before.stages.find(stage => stage.stage === to)!;
+      check(target.allowed, 'LAUNCH_STAGE_BLOCKED', target.reason);
+    }
+    const status = to === 'approve-each' ? 'live' : venture.status === 'live' ? 'rehearsal' : venture.status;
+    const updated = tx.touch({ launchStage: to, status });
+    tx.emit('launch-stage-changed', { from, to });
+    return computeLaunchStatus(tx.state, updated, now);
+  });
+}

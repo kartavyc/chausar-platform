@@ -1,0 +1,23 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written draft reply that claims finished work the agent cannot have done. It must fail the no-done-claims check. Not captured from a live account.",
+  "output": {
+    "title": "Your books for last month",
+    "sections": [
+      { "heading": "Summary", "parts": [
+        { "kind": "text", "text": "Thanks for sending everything over.", "ref": "" }
+      ] },
+      { "heading": "What we will do", "parts": [
+        { "kind": "text", "text": "We matched each bank entry to a bill and your books are reconciled.", "ref": "" },
+        { "kind": "figure", "text": "", "ref": "offer_1.total" }
+      ] },
+      { "heading": "What we need from you", "parts": [
+        { "kind": "text", "text": "Nothing more for now.", "ref": "" }
+      ] },
+      { "heading": "Next steps", "parts": [
+        { "kind": "text", "text": "Let us know if anything looks wrong to you.", "ref": "" }
+      ] }
+    ],
+    "questionsForClient": []
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written draft reply to a real order for the venture delivery tests. It describes work ahead and never claims it is done. Not captured from a live account.",
+  "output": {
+    "title": "Plan for your September books",
+    "sections": [
+      { "heading": "Summary", "parts": [
+        { "kind": "text", "text": "Thanks for asking us to close your September books. Your order came in on", "ref": "" },
+        { "kind": "date", "text": "", "ref": "order.created" }
+      ] },
+      { "heading": "What we will do", "parts": [
+        { "kind": "text", "text": "We will sort the bills you shared, match them to the bank statement and flag anything unclear for you. The price for this month comes from your plan.", "ref": "" },
+        { "kind": "figure", "text": "", "ref": "order.total" }
+      ] },
+      { "heading": "What we need from you", "parts": [
+        { "kind": "text", "text": "Please confirm the shared folder holds every September bill, including card payments.", "ref": "" }
+      ] },
+      { "heading": "Next steps", "parts": [
+        { "kind": "text", "text": "Once you confirm, we will prepare the report for your review and send it with your invoice after you approve.", "ref": "" }
+      ] }
+    ],
+    "questionsForClient": ["Were there any cash payments in September?"]
+  }
+}

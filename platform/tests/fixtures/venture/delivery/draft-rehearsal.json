@@ -1,0 +1,25 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written practice draft reply for the venture delivery tests. It describes work ahead and never claims it is done. Not captured from a live account.",
+  "output": {
+    "title": "Your monthly books plan",
+    "sections": [
+      { "heading": "Summary", "parts": [
+        { "kind": "text", "text": "Thanks for the details. Here is how we will close your books for last month, and what we need from you first.", "ref": "" }
+      ] },
+      { "heading": "What we will do", "parts": [
+        { "kind": "text", "text": "Once your bank statement and bills arrive, we will sort the bills, match each one to a bank entry and list any entry that needs your answer. Your plan price is below.", "ref": "" },
+        { "kind": "figure", "text": "", "ref": "offer_1.total" }
+      ] },
+      { "heading": "What we need from you", "parts": [
+        { "kind": "text", "text": "Please send last month's bank statement and photos of your bills, including the card payments.", "ref": "" }
+      ] },
+      { "heading": "Next steps", "parts": [
+        { "kind": "text", "text": "We can start as soon as the files arrive. This plan is dated", "ref": "" },
+        { "kind": "date", "text": "", "ref": "today" },
+        { "kind": "text", "text": "and we will prepare a short report for you to review before anything is final.", "ref": "" }
+      ] }
+    ],
+    "questionsForClient": ["Which bank account do you use for the cafe?"]
+  }
+}
