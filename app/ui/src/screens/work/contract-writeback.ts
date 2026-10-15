@@ -3,7 +3,7 @@
  * Work"). Every field here is optional on the base shapes in contract.ts, so a reply without
  * them still draws; a field that is present must be valid.
  */
-import { amount, bool, count, id, isoDate, list, literal, nullable, object, oneOf, text, type Check } from './kit/validate.ts';
+import { amount, bool, count, id, instant, isoDate, list, literal, nullable, object, oneOf, text, type Check } from './kit/validate.ts';
 import { actionView, approvalDetail, catalogueEntry, catalogueRow, practice, type ActionView, type ApprovalDetail, type CatalogueEntry, type CatalogueRow, type Practice } from './contract.ts';
 
 const short = text(400);
@@ -33,7 +33,7 @@ export const reminder = object({
 }, { recordId: nullable(id) });
 export type Reminder = ReturnType<typeof reminder>;
 
-const sheetExtra = object({}, { writeback: wbExtra, secondAsk: object({ by: oneOf(['typed-amount', 'passphrase'] as const) }, { whose: oneOf(['own-secret', 'vault-passphrase'] as const) }), reminder });
+const sheetExtra = object({}, { writeback: wbExtra, secondAsk: object({ by: oneOf(['typed-amount', 'passphrase'] as const) }, { whose: oneOf(['own-secret', 'vault-passphrase'] as const), setFirst: literal(true), lockedUntil: instant }), reminder });
 /** The approval sheet with its write-back additions. */
 export const approvalSheet: Check<ApprovalDetail & ReturnType<typeof sheetExtra>> = (value, path) => Object.freeze({ ...approvalDetail(value, path), ...sheetExtra(value, path) });
 export type ApprovalSheetReply = ReturnType<typeof approvalSheet>;

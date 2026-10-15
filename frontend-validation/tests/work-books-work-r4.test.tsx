@@ -107,6 +107,26 @@ test('second ask: a core money action asks for the approver’s own secret, sent
   await waitFor(() => expect(rpc.request).toHaveBeenCalledWith('approvals.approve', { id: 'action:a1', digest: 'digest-a1', secondAsk: true, reauth: 'synthetic secret' }));
 });
 
+test('second ask: a seat with no approval secret is told to set one first, and no field is offered', async () => {
+  const { rpc } = show({ 'approvals.list': LIST, 'approvals.pace': () => ({ fastStreak: 0, warn: false }), 'approvals.get': () => detail({ secondAsk: { by: 'passphrase', whose: 'own-secret', setFirst: true } }) },
+  { place: 'work', sub: 'approvals', sheet: sheetOf('action:a1') });
+  expect(await screen.findByText(/Set your approval secret in Trust first/)).toBeTruthy();
+  const approve = await screen.findAllByRole('button', { name: /Approve/ });
+  await userEvent.click(approve[0]!);
+  expect(screen.queryByRole('dialog', { name: 'Approve with your approval secret' })).toBeNull();
+  expect(rpc.request).not.toHaveBeenCalledWith('approvals.approve', expect.anything());
+});
+
+test('second ask: a locked second ask says until when, and offers no field', async () => {
+  const { rpc } = show({ 'approvals.list': LIST, 'approvals.pace': () => ({ fastStreak: 0, warn: false }), 'approvals.get': () => detail({ secondAsk: { by: 'passphrase', whose: 'vault-passphrase', lockedUntil: '2099-10-15T12:30:00.000Z' } }) },
+  { place: 'work', sub: 'approvals', sheet: sheetOf('action:a1') });
+  expect(await screen.findByText(/The second ask is locked until/)).toBeTruthy();
+  const approve = await screen.findAllByRole('button', { name: /Approve/ });
+  await userEvent.click(approve[0]!);
+  expect(screen.queryByRole('dialog', { name: 'Approve with your passphrase' })).toBeNull();
+  expect(rpc.request).not.toHaveBeenCalledWith('approvals.approve', expect.anything());
+});
+
 test('WK-03: after Approve, each grouped item draws its own five steps', async () => {
   const item = (id: string) => detail({ id, kind: 'record-change', tier: 'tier-1', title: `Note ${id}`, amount: null, needsSecondAsk: false, change: { fields: [{ name: 'text', before: '', after: 'Prefers mail' }] } });
   // The group sheet is opened from the queue's ticks; here it is drawn directly through its pane.

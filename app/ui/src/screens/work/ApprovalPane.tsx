@@ -173,6 +173,8 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
   const passphraseAsked = d.secondAsk?.by === 'passphrase';
   // The owner's vault passphrase, or the approver's own approval secret (core-gateway-auth), as the engine says.
   const ownSecret = d.secondAsk?.whose === 'own-secret';
+  // core-gateway-auth: no secret set yet, or locked after wrong tries. Neither offers the field.
+  const setFirst = d.secondAsk?.setFirst === true, lockedUntil = d.secondAsk?.lockedUntil ?? null;
   const reminderRecord = d.reminder?.recordId ?? null;
   const zone = d.reminder?.caps?.timeZone ?? null;
   const confirmPassphrase = (event: FormEvent) => {
@@ -190,12 +192,14 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
       {warn !== null && <Note>{say(w, 'pace.warn', { n: warn })}</Note>}
       <ApprovalSheet approval={toApproval(d, p)} origin={origin} onClose={onClose} onReceipt={p.openReceipt}
         onApprove={() => void approve(false)}
-        onSecondAsk={() => { if (d.practice && d.source !== 'writeback') void approve(false); else if (passphraseAsked) { setNotice(null); setPassphrase(''); } else { setNotice(null); setConfirming(true); } }}
+        onSecondAsk={() => { if (d.practice && d.source !== 'writeback') void approve(false); else if (passphraseAsked && (setFirst || lockedUntil !== null)) { setNotice(null); } else if (passphraseAsked) { setNotice(null); setPassphrase(''); } else { setNotice(null); setConfirming(true); } }}
         onNotNow={() => void notNow()}
         onChange={d.change.asWritten !== undefined ? () => setEditing(d.change.asWritten ?? '') : undefined}
         onDrop={() => setDropping(true)}
         onDownloadPrepared={() => void download()}
         onCheckUnknown={(approvalId, result) => void resolve(approvalId, result)} />
+      {passphraseAsked && setFirst && <Note>{r4['secret.setFirst']}</Note>}
+      {passphraseAsked && lockedUntil !== null && <Note>{sayR4(r4, 'secret.locked', { time: dayTime(lockedUntil, language) })}</Note>}
       {notice !== null && <p className={s.meta} role="status">{w[notice]}</p>}
       <Refusal code={act.refusal} language={language} />
       {saving && <p className={s.meta} role="status">{ww['file.saving']}</p>}

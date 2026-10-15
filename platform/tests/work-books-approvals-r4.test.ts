@@ -154,6 +154,25 @@ test('second ask: a core money action asks for a secret through secondAsk.grant 
   const member = fixture({ 'secondAsk.status': () => ({ expects: 'member-secret' }), 'secondAsk.grant': () => ({ granted: true }) });
   const pay2 = await member.prepare('pay', { customerId: 'supplier-b', amountMinor: '1' });
   assert.deepEqual((await member.request(owner, 'approvals.get', { id: `action:${pay2.id}` })).secondAsk, { by: 'passphrase', whose: 'own-secret' });
+  // core-gateway-auth's final status: `expects: 'none'` means this seat has no approval secret yet: no field, set it first.
+  const unset = fixture({ 'secondAsk.status': () => ({ by: 'none', expects: 'none', secretSet: false, lockedUntil: null }), 'secondAsk.grant': () => ({ granted: true }) });
+  const pay3 = await unset.prepare('pay', { customerId: 'supplier-c', amountMinor: '1' });
+  const unsetSheet = await unset.request(owner, 'approvals.get', { id: `action:${pay3.id}` });
+  assert.equal(unsetSheet.secondAsk.setFirst, true);
+  await assert.rejects(unset.request(owner, 'approvals.approve', { id: `action:${pay3.id}`, digest: unsetSheet.digest, secondAsk: true, reauth: 'anything' }), code('APPROVAL_SECRET_NOT_SET'));
+  assert.equal(unset.calls.filter(c => c.method === 'secondAsk.grant').length, 0, 'no grant is asked for a secret that does not exist');
+  // Locked: the sheet says until when, and approving refuses before any secret is sent.
+  const until = new Date(Date.now() + 15 * 60_000).toISOString();
+  const lockedF = fixture({ 'secondAsk.status': () => ({ by: 'passphrase', expects: 'passphrase', secretSet: true, lockedUntil: until }), 'secondAsk.grant': () => ({ granted: true }) });
+  const pay4 = await lockedF.prepare('pay', { customerId: 'supplier-d', amountMinor: '1' });
+  const lockedSheet = await lockedF.request(owner, 'approvals.get', { id: `action:${pay4.id}` });
+  assert.equal(lockedSheet.secondAsk.lockedUntil, until);
+  await assert.rejects(lockedF.request(owner, 'approvals.approve', { id: `action:${pay4.id}`, digest: lockedSheet.digest, secondAsk: true, reauth: 'synthetic passphrase' }), code('SECOND_ASK_LOCKED'));
+  assert.equal(lockedF.calls.filter(c => c.method === 'secondAsk.grant').length, 0);
+  // A lock in the past is no lock.
+  const past = fixture({ 'secondAsk.status': () => ({ by: 'passphrase', expects: 'passphrase', secretSet: true, lockedUntil: '2020-01-01T00:00:00.000Z' }), 'secondAsk.grant': () => ({ granted: true }) });
+  const pay5 = await past.prepare('pay', { customerId: 'supplier-e', amountMinor: '1' });
+  assert.deepEqual((await past.request(owner, 'approvals.get', { id: `action:${pay5.id}` })).secondAsk, { by: 'passphrase', whose: 'vault-passphrase' });
 });
 
 test('WK-12: the reminders view lists mail and WhatsApp connections, write-back’s day in its own time zone, and the reminders', async () => {

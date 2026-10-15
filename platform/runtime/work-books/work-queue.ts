@@ -44,7 +44,7 @@ export type ApprovalDetail = ApprovalRow & {
   /** Write-back items only: the system, the catalogue's own reason, the connection and the notices. */
   writeback?: WbExtra;
   /** How the second ask is drawn: the typed amount, or a passphrase when write-back asks for one. */
-  secondAsk?: { by: 'typed-amount' | 'passphrase'; whose?: 'own-secret' | 'vault-passphrase' };
+  secondAsk?: { by: 'typed-amount' | 'passphrase'; whose?: 'own-secret' | 'vault-passphrase'; setFirst?: true; lockedUntil?: string };
   /** WK-12: a reminder to a customer, with its agreement, limits and (owner only) payment notes. */
   reminder?: Reminder;
   /** After approving a jobs-ext proposal: the queue id of the job it made. */

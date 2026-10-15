@@ -95,7 +95,11 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
   const ownAsk = source === 'action' && item.secondAsk?.by === 'passphrase';
   if (source !== 'writeback' && !ownAsk) check(payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
   // The single-use grant for exactly this action and digest is asked just before the approval; the secret is never kept.
-  if (ownAsk) await grantSecondAsk(host, raw, payload.digest, payload.reauth);
+  if (ownAsk) {
+    check(!item.secondAsk?.setFirst, 'APPROVAL_SECRET_NOT_SET', 'Set your approval secret in Trust before approving money.');
+    check(!item.secondAsk?.lockedUntil, 'SECOND_ASK_LOCKED', 'Too many wrong secrets. The second ask is locked for now.');
+    await grantSecondAsk(host, raw, payload.digest, payload.reauth);
+  }
   if (source === 'action') await host.services.actions.approve(ctx, raw, payload.digest);
   else if (source === 'writeback') await approveWriteback(host, raw, item, payload);
   else if (source === 'job') await host.call('jobs.approve', { id: raw, digest: payload.digest });

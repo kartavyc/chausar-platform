@@ -1002,3 +1002,16 @@ named lane test. Reply shapes change additively only.
 | 10 | `books.recipeMore` survives a refused `recipes.answers`: `answers: []` and the new `answersRead: { available: boolean; code?: string }` names the code (the screen says it instead of "no answers"). The array `answers` keeps its shape, so the refusal is reported beside it. | supported |
 
 New refusal code on the work-books line: `CORE_DELETION_NEEDS_FULL_ACCESS`. New method: `records.invoices` (read).
+
+### Core second ask, final shapes (core-gateway-auth, b3f0b93)
+
+- `secondAsk.status {}` → `{ by, expects, secretSet, lockedUntil }` for the caller only. `expects` is
+  `'passphrase'` (owner), `'member-secret'` (a co-founder with a secret) or `'none'`.
+- `approvals.get` on a core money action carries `secondAsk: { by: 'passphrase', whose, setFirst?: true, lockedUntil? }`.
+  `setFirst` (from `expects: 'none'`): the sheet says to set the approval secret in Trust first and offers no
+  field; `approvals.approve` refuses `APPROVAL_SECRET_NOT_SET` without asking for a grant. `lockedUntil` (a future
+  ISO time): the sheet says the second ask is locked until then; approve refuses `SECOND_ASK_LOCKED` before any
+  secret is sent. A lock time in the past is ignored.
+- `secondAsk.grant {target:{kind:'action', id, digest}, secret}` → `{granted:true, expiresAt}` is called just before
+  the approval; the secret is never kept.
+

@@ -136,18 +136,23 @@ export async function ownSecret(host: ModuleHost): Promise<boolean> {
  * instead of the typed amount: the owner's vault passphrase or a co-founder's own approval secret, as
  * `secondAsk.status` (caller only) says. Without `secondAsk.grant` the typed amount stays.
  */
-export async function coreSecondAsk(host: ModuleHost, ctx: Context): Promise<{ by: 'typed-amount' | 'passphrase'; whose?: 'own-secret' | 'vault-passphrase' }> {
+export type CoreSecondAsk = { by: 'typed-amount' | 'passphrase'; whose?: 'own-secret' | 'vault-passphrase'; setFirst?: true; lockedUntil?: string };
+export async function coreSecondAsk(host: ModuleHost, ctx: Context): Promise<CoreSecondAsk> {
   if (!(await installed(host, 'secondAsk.grant'))) return { by: 'typed-amount' };
   let whose: 'own-secret' | 'vault-passphrase' = ctx.role === 'owner' ? 'vault-passphrase' : 'own-secret';
+  let setFirst = false, lockedUntil: string | null = null;
   if (await installed(host, 'secondAsk.status')) {
     try {
+      // `{ by, expects, secretSet, lockedUntil }` for the caller only; `expects: 'none'` means this seat has no secret yet.
       const reply = await host.call('secondAsk.status', {});
-      const said = record(reply) ? reply.expects ?? reply.kind : undefined;
+      const said = record(reply) ? reply.expects ?? reply.by ?? reply.kind : undefined;
       if (said === 'passphrase' || said === 'vault-passphrase') whose = 'vault-passphrase';
       else if (said === 'member-secret' || said === 'approval-secret' || said === 'own-secret') whose = 'own-secret';
+      else if (said === 'none') setFirst = true;
+      if (record(reply) && typeof reply.lockedUntil === 'string' && Number.isFinite(Date.parse(reply.lockedUntil)) && Date.parse(reply.lockedUntil) > Date.now()) lockedUntil = new Date(Date.parse(reply.lockedUntil)).toISOString();
     } catch { /* the role decides */ }
   }
-  return { by: 'passphrase', whose };
+  return { by: 'passphrase', whose, ...(setFirst ? { setFirst: true as const } : {}), ...(lockedUntil ? { lockedUntil } : {}) };
 }
 /**
  * `secondAsk.grant { target: { kind: 'action', id, digest }, secret }` → `{ granted: true, expiresAt }`: a single-use,
