@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PlaceModule } from '../../places/types.ts';
+import { laneSubPlaces } from '../../places/subplaces/index.ts';
 import { MORE_SUBS, SUBS, type BooksProps, type Sub } from './shared.tsx';
 import { Sources, Unmapped } from './Sources.tsx';
 import { Meanings, Packs } from './Meanings.tsx';
@@ -22,10 +23,16 @@ const SCREENS: Readonly<Record<Sub, (props: BooksProps) => ReactNode>> = {
 const EXTRA: Readonly<Record<string, (props: BooksProps) => ReactNode>> = { bill: BillPhoto, rates: Rates, belief: BeliefPage };
 const isSub = (value: string | undefined): value is Sub => ([...SUBS, ...MORE_SUBS] as readonly string[]).includes(value ?? '');
 
+/** True for a Books sub-place another lane registered in places/subplaces. */
+const otherLaneSub = (sub: string | undefined): boolean => sub !== undefined
+  && Object.entries(laneSubPlaces).some(([lane, subs]) => lane !== 'work-books' && subs.some(x => x.place === 'books' && x.id === sub));
+
 /** The books place module: BK-01..BK-20 over the `books.*`, `accounts.*`, `records.*` and `history.*` contract. */
 export const booksPlace: PlaceModule = {
   id: 'books',
-  handles: address => address.place === 'books',
+  // A Books sub-place another lane added (connectors-ext's scheduled reads, database road, Tally export;
+  // learning-ext's places) is that lane's to draw: this module leaves it alone.
+  handles: address => address.place === 'books' && !otherLaneSub(address.sub),
   render: props => {
     const extra = props.address.sub !== undefined && Object.hasOwn(EXTRA, props.address.sub) ? EXTRA[props.address.sub] : undefined;
     if (extra) { const Extra = extra; return <Extra key={`${props.address.sub}:${props.language}`} {...props} />; }

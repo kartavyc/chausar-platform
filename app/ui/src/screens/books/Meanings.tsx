@@ -8,6 +8,8 @@ import { useAct, useReply } from '../work/kit/reply.ts';
 import { dayTime } from '../work/kit/format.ts';
 import { discardReply, draft as draftCheck, gstReply, meaningReply, meaningsReply, packsReply, publishReply, type Definition, type Draft } from './contract.ts';
 import { useR2 } from './words-r2.ts';
+import { LaneLinks } from './r4a-parts.tsx';
+import { useR4 } from './words-r4a.ts';
 import { BooksPage, BooksSheet, Link, Table, approves, fill, idOf, sheetOf, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
 
 const ORIGIN = { core: 'origin.core', pack: 'origin.pack', you: 'origin.you' } as const;
@@ -47,6 +49,7 @@ export function Meanings(props: BooksProps) {
           <Gst props={props} />
         </>
       )}
+      <LaneLinks props={props} lanes={['learning-ext']} title={useR4(props.language).moreForMeanings} />
       {open !== null && <MeaningSheet props={props} name={open} onChanged={reload} />}
     </BooksPage>
   );

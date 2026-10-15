@@ -9,6 +9,7 @@ import { connectionView, systemsReply, type SystemRow } from './contract.ts';
 import { BooksPage, BooksSheet, Link, Table, approves, fill, idOf, sheetOf, styles as s, valueOf, type BooksProps } from './shared.tsx';
 import { Say } from './r2-parts.tsx';
 import { useR2, type R2, type R2Key } from './words-r2.ts';
+import { LaneLinks, TallyCompaniesPart } from './r4a-parts.tsx';
 
 const depthWord = (row: SystemRow, r: R2) => row.depth === null ? r['depth.none'] : r[`depth.${row.depth}`];
 const evidence = (e: SystemRow['evidence'], r: R2) => fill(r.evidenceLine, { s: e.synthetic, m: e.madeToOrder, r: e.realWithConsent });
@@ -33,6 +34,7 @@ export function AddSource(props: BooksProps) {
           row.tier === 'experimental' ? <Label kind="experimental" /> : r[`tier.${row.tier}`],
         ] }))} />
       ))}
+      <LaneLinks props={props} lanes={['connectors-ext']} />
       {chosen && <SystemSheet props={props} row={chosen} />}
     </BooksPage>
   );
@@ -90,6 +92,8 @@ function WayIn({ props, row }: { props: BooksProps; row: SystemRow }) {
         )}
         <Field label={tally ? r.whichCompany : r.company} value={company} onChange={e => setCompany(e.target.value)} />
         {tally && <Note>{r.companyTally}</Note>}
+        {/* BK-03 Which company?: the companies open in Tally, read through a Tally connection on this computer. */}
+        {tally && way === 'interface' && where === 'here' && <TallyCompaniesPart props={props} onPick={setCompany} />}
         {keys.map(key => (
           <Field key={key} label={(Object.hasOwn(r, `set.${key}`) ? r[`set.${key}` as R2Key] : key)} value={settings[key] ?? ''} onChange={e => setSettings({ ...settings, [key]: e.target.value })} />
         ))}

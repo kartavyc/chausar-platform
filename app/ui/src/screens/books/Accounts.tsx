@@ -6,6 +6,7 @@ import { day } from '../work/kit/format.ts';
 import { accountRow, accountsProposed, accountsReply, classesReply, ACCOUNT_CLASSES, type AccountClass, type AccountRow } from './contract.ts';
 import { BooksPage, Table, fill, prepares, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
 import { useAuditWords, type AuditWords } from './words-audit.ts';
+import { LaneLinks } from './r4a-parts.tsx';
 
 type Because = NonNullable<AccountRow['because']>[number];
 /** One reason in the person's language. A class the recipe names is shown as it came. */
@@ -83,6 +84,7 @@ export function Accounts(props: BooksProps) {
         ] }))} />
       ))}
       <Refusal code={act.refusal} language={props.language} />
+      <LaneLinks props={props} lanes={['learning-ext']} />
     </BooksPage>
   );
 }

@@ -754,13 +754,16 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   foreign-currency row stays "not counted" and the count is on `books.rates`, not on each receipt.
 - BK-20 Delete cannot remove core facts, receipts, answers, actions or conversations for one
   customer: the core has no such method, and `trustx.deleteSource` removes whole sources only.
-- BK-02: where refused files are kept, the sign-in path before pressing the button and the
-  data's age are not drawn. BK-03: "Which company?" is a typed name (`connectorsx` cannot list
-  Tally companies); the exporter and guide for Tally on another computer are not built.
+- BK-03 (round 4): the companies open in Tally are listed only through a Tally connection that
+  already exists (`connectorsx.tally.companies` takes a `connectionId`), so the first Tally
+  company is still a typed name. The exporter and guide for Tally on another computer are
+  connectors-ext's own Books place (`#/books/tally-export`).
 - BK-04 (bring a file) is the first-run screen FR-07, owned by frame-today; it needs the host's
   file picker.
-- BK-05: answering a recipe question in place has no method; a newer version names the
-  versions, not the difference; registered recipes have no "who accepted" (they are seeds).
+- BK-05 (round 4): tax registration (GSTIN) in a recipe's scope is drawn only when a read
+  carries a `gstin` field; connectors-ext's round-4 contract does not provide one yet, so it
+  stays "unknown". Answering, the version diff and reconcile are drawn over connectors-ext's
+  `recipes.*` and show "not built yet" until that lane is merged.
 - BK-08 has no worked-example drawing and no "date used": a definition carries neither.
 - BK-09: publishing a copy uses the prospective strategy only.
 - BK-12: asking about the record from the ask line needs frame-today's ask line to accept an
@@ -802,10 +805,10 @@ engine is now said from codes.
 | Screen | Shows | States | You can | Rules | Views/languages | Status |
 |---|---|---|---|---|---|---|
 | BK-01 Sources | One row per source and scope, with the way in, the last read, twelve month squares and what to look at. "N fields no recipe covers" is under the table. | Loaded, loading, not loaded yet, refused (amber) and failed (amber ring and the word). Not connected. An experimental label on each source. | Open a source; add a source | An open square is never a zero. | Simple keeps the name, the last read and the squares. Audit fix: not connected, paused and a failed read now stay beside the name in Simple, which drops the "what to look at" column. Hindi. | done |
-| BK-02 One source | The way in, the last read, the months, what is loaded per kind, reads with their totals, refusals with codes, unmapped fields, the connection and the history of reads. | Loading, refused, not built (no connectors lane) | Read now, Import or Set aside, Pause or Resume, Sign in again (the address is shown as text), Remove | Remove asks again. | All three views; Hindi | partial: "where refused files are kept" is not drawn, and neither is the sign-in path before Sign in again is pressed. How old the data is shows as the last read plus the stale word, not as an age. |
-| BK-03 Add a source | Systems with full, read or import; tested or experimental; evidence counts; tier. A table per operation, then the way in, and for Tally where it lives. | Planned, not available yet. This network and another computer are labelled experimental. Sign-in happens in the browser. | Connect | A claim is per operation, never per logo. | All three views (the operation table never drops columns in Simple); Hindi | partial: "Which company?" is a typed name, because connectors-ext has no list of the companies open in Tally. The exporter and one-page guide for Tally on another computer are not built (connectors-ext). |
+| BK-02 One source | The way in, the last read, the months, what is loaded per kind, reads with their totals, refusals with codes, unmapped fields, the connection and the history of reads. | Loading, refused, not built (no connectors lane) | Read now, Import or Set aside, Pause or Resume, Sign in again (the address is shown as text), Remove | Remove asks again. | All three views; Hindi | done (round 4): where refused files are kept (not kept; the file's own place as text), the sign-in path before Sign in again is pressed, and the data's age in days (`books.sourceMore`). |
+| BK-03 Add a source | Systems with full, read or import; tested or experimental; evidence counts; tier. A table per operation, then the way in, and for Tally where it lives. | Planned, not available yet. This network and another computer are labelled experimental. Sign-in happens in the browser. | Connect | A claim is per operation, never per logo. | All three views (the operation table never drops columns in Simple); Hindi | partial (round 4): "Which company?" lists the companies open in Tally through an existing Tally connection (`books.tallyCompanies`); the first company is still typed. Tally on another computer is connectors-ext's own Books place, linked from here. |
 | BK-04 Bring a file | The FR-07 screen | none | none | none | none | not possible here: FR-07 (`screens/first-run/BringFile.tsx`) needs the host's file picker and the journey port, and a place module receives neither. Sources only says "Bring a file" in its empty state. frame-today would need to expose FR-07 to places. |
-| BK-05 A recipe | The state, the scope in five fields, bindings with who accepted them and their grade, and the check as two totals | Questions with one of the five reasons and their choices; totals that do not match (amber); a newer version | Audit fix: the recipe lists the proposed changes to its own sources, each with "try it on a copy" (BK-09) | A binding says "proposed" until a named person accepts it. | All three views; Hindi | partial: a question cannot be answered in place (there is no method; the person reads again). A newer version names the versions, not what changes. Tax registration in the scope is unknown. |
+| BK-05 A recipe | The state, the scope in five fields, bindings with who accepted them and their grade, and the check as two totals | Questions with one of the five reasons and their choices; totals that do not match (amber); a newer version | Audit fix: the recipe lists the proposed changes to its own sources, each with "try it on a copy" (BK-09) | A binding says "proposed" until a named person accepts it. | All three views; Hindi | partial (round 4): answered in place, who answered, reconcile and the version diff over connectors-ext's `recipes.*` (`books.recipeMore` and friends). Tax registration in the scope stays unknown until a read carries it. |
 | BK-06 Fields no recipe covers | Field, type, how often it is filled | Empty. A connector field points to its recipe. | Map this field (file imports) | Nothing is lost silently. | All three views; Hindi | done (a connector recipe's field cannot be mapped here: connectors-ext owns those recipes) |
 | BK-07 Meanings | Word, meaning, where it came from, state | A clash is shown in amber. | Open a word; start a draft | none | All three views; Hindi | done |
 | BK-08 A meaning | What counts; the old rule struck through beside the new one; the change; what it affects; checks; reviews; "try it on a copy" | Draft; AI opinion; not reviewed; co-signed by name; checks failed, with the code | Publish, Co-sign, Discard, change the word | A release switches on everywhere at once. | All three views; Hindi | partial: there is no worked example drawing and no "date used" line, because a definition carries no example or date field. The release history names who published, not who reviewed. |
@@ -848,3 +851,59 @@ language; every word this lane writes itself is in both catalogues. "Fixed in th
 | WK-14 Chausar is driving | The choice of one window, the banner with Ctrl Alt Pause and Stop, the steps. | Sign in yourself; you moved the mouse, paused, with Continue and Stop; stopped by your key; a step failed; not built. | Choose a window, Start, Continue, Stop. | One window, read and export only, never types a password, one-time code or captcha (the rules are sent with the start and checked in the reply). | All views; both languages. | not possible: no lane provides `session.*`; the screen shows "not built yet" and is tested only with a stub. The always-on-top strip and the tray Stop belong to the desktop shell. |
 | WK-15 After a restore | The actions that may have gone out after the backup, each with Check; sending closed while any is unsure; the engine's notes, now said in Hindi by their keys (fixed in this audit). | Sending closed / open; nothing to check; a note that deletions after the backup are not checked here yet (fixed in this audit). | Check one (read back first). | Sending stays closed until the list is empty (`SENDING_CLOSED` in `approvals.execute`). | Simple hides touches, amount and dots and the deletions note. Both languages. | partial: re-applying deletions (`deletion.reapply`, "2 customer records came back") is not possible here: no method exists in core or trust, and the screen says so. The core `actions.execute` does not check the gate (a core edit). |
 | WK-16 A step for a person | In the job's time line, open person steps first with your square or the person's name, and Done. | Waits; done on / by; not yours; not built. | Done (only through `jobsx.personStep.done`, only the job's pinned owner). | The job waits; nothing marks the step done by itself. | All views; both languages. | partial: for a core job the step is shown from its plan, but Done is not built (no core method). |
+
+## Round 4 contracts
+
+### Books sources and recipes (BK-02, BK-03, BK-05), round 4a
+
+Over connectors-ext's round-4 contracts (branch `claude/lane-connectors-ext`, `docs/lanes/connectors-ext.md`
+"Round 4 contracts", commit ed792ac, read before their code). Another lane's method is used only when
+the method registry (or a trusted host's `hasMethod`) lists it; it is never probed. Every reply is
+checked field by field and copied (`platform/runtime/work-books/books-r4a.ts`). Experimental, like
+every connector read.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `books.tallyCompanies` | admin, external | `{ sourceId? }` | `{ available; reason: null \| 'connectors-not-installed' \| 'not-built' \| 'no-connection'; sourceId; current: string \| null; currentOpen: boolean \| null; companies: { name; booksFrom: string \| null }[] }`. Calls `connectorsx.tally.companies { connectionId }` for the named (or first) Tally connection on the `interface` road. A named source that is not one refuses `TALLY_CONNECTION_REQUIRED`; connectors-ext refusals (`READ_NOT_AVAILABLE`, `DEMO_EXTERNAL_DISABLED`, `OPEN_DESKTOP`, the read kit's codes) pass through. Repeated names are listed once. |
+| `books.sourceMore` | read | `{ sourceId }` | `{ sourceId; refused: { at; origin: 'file' \| 'connector'; what: string \| null; code: string \| null; envelopeId: string \| null }[] (newest first, ≤ 50); kept: { file: 'not-kept'; where: string \| null }; signIn: { method: 'browser' \| 'key' \| 'none'; note; endpoint: string \| null } \| null; age: { lastRead: string \| null; stale: boolean; schedule: { everyHours; freshnessTargetHours } \| null }; connectors: { available } }`. `refused` joins core file refusals (reason class only) and connector reads that were refused, failed or asked a question. No file is kept: `where` is the file or database connection's own `path` setting, as text, never opened. `signIn` (interface connections only) is `connectorsx.systems`' sign-in entry for the group, read before anything is pressed; for Tally, `endpoint` is the connection's `endpoint` setting or `http://127.0.0.1:9000`. `lastRead` is the newest of the source's imports, accepted reads and `connectorsx.freshness.lastRead`; the screen turns it into "read 3 days ago" (whole days from the timestamp, words only). |
+| `books.recipeMore` | read | `{ recipeId }` | `{ recipeId; questions: { envelopeId; sourceId; at; reason: 'ambiguous_field' \| 'unknown_value' \| 'date_format' \| 'currency' \| 'sign_convention'; field; sample: string \| null; choices: string[] }[]; answers: AnswerView[]; reconciliations: ReconcileView[] (≤ 20, newest first); reconciled: { by; role; at; envelopeId } \| null; gstin: string \| null; can: { answer; answers; remove; diff; reconcile } }`. Questions come from the envelope's `question` (abstained reads only). `reconciled` is the latest `matches` by a named person: it grades the recipe "reconciled". `can` is read from the registry. `sample` is outside text, drawn as data. |
+| `books.recipeAnswer` | prepare | `{ envelopeId, choice }` | `{ answer: AnswerView; read: EnvelopeView \| null; next: Question \| null; readAgain: 'not-needed' \| 'bring-the-file-again' \| 'read-again' }` from `recipes.answer`. The read must be one the caller can see (`ENVELOPE_NOT_FOUND` first). Without `recipes.answer`: `RECIPE_ANSWER_NOT_BUILT`. connectors-ext's `RECIPE_QUESTION_NONE`, `RECIPE_ANSWER_INVALID`, `RECIPE_ANSWER_STALE`, `ANSWER_LIMIT`, `OPEN_DESKTOP` pass through. |
+| `books.recipeAnswerRemove` | prepare | `{ answerId }` | `{ removed: true; answerId }`. The answer must be listed by `recipes.answers` for a source the caller can see (`ANSWER_NOT_FOUND`). Without the methods: `RECIPE_ANSWER_NOT_BUILT`. |
+| `books.recipeDiff` | read | `{ recipeId, envelopeId? \| sourceId? }` | `{ available: boolean; diff: { recipeId; available; reason: 'OLD_VERSION_NOT_KEPT' \| null; from: { version; digest; label: 'read-with' \| 'seed' }; to: { version; digest; label: 'current' \| 'with-answers' }; same; changes: { path; change: 'added' \| 'removed' \| 'changed'; before; after; effect: 'columns' \| 'meaning' \| 'dates' \| 'amount' \| 'check' \| 'identity' \| 'other' }[] } \| null }` from `recipes.upgradeDiff` (an unknown effect reads `other`). Without the method: `{ available: false, diff: null }`. |
+| `books.recipeReconcile` | prepare | `{ envelopeId, reportTotals?: { total: '<paise>', rowCount? } }` | `ReconcileView` from `recipes.reconcile`. Without the method: `RECIPE_RECONCILE_NOT_BUILT`; `INVALID_SOURCE_TOTALS` passes through. |
+
+```
+AnswerView = { id; sourceId; recipeId; recipeVersion; reason; field; sample: string | null; choice;
+  answeredBy: { name; role; at }; envelopeId: string | null }          // connectors-ext's memberId is not copied
+ReconcileView = { envelopeId; importId: string | null; at; by: { name; role };
+  status: 'matches' | 'differs' | 'rows-changed' | 'not-imported' | 'no-source-total';
+  theirs: { total: string | null; rowCount: number | null; reference; provenance } | null;
+  ours: { total: string | null; rowCount; live; changed }; measure: 'money' | 'count'; unit }
+```
+
+Screens: the source sheet draws the data's age, "How sign-in works here" before Sign in again is
+pressed, and "Where refused files are kept" with the refused reads; a Tally connection's sheet lists
+the companies open in Tally and says when its own company is not open. Add a source offers the
+list beside "Which company?" (Use this company fills the field). A recipe's sheet answers its
+question in place with the offered choices, lists who answered (with Remove), reconciles the latest
+checked read with an optional report total, and shows what changes between versions. All three views,
+English and Hindi.
+
+**Links to other lanes' Books places.** `booksPlace.handles` leaves every Books sub-place another
+lane lists in `app/ui/src/places/subplaces/<lane>.ts` to that lane (connectors-ext: `scheduled`,
+`database`, `tally-export`; learning-ext: whatever ids it registers). Sources and Add a source link to
+connectors-ext's Books sub-places; Recipes, Meanings and Accounts link to learning-ext's. Each link is
+read from `laneSubPlaces` and named by that lane's `SH-01.sub.books.<id>` words, so a lane that has
+registered none draws no link.
+
+**Assumed contracts** (connectors-ext round 4, written before their code):
+- `connectorsx.tally.companies { connectionId } → { companies: { name, booksFrom }[] }`;
+- `recipes.answer { envelopeId, choice } → { answer, read, readAgain }`; `recipes.answers { recipeId?, sourceId? } → { answers }`;
+  `recipes.answerRemove { answerId } → { removed: true, answerId }`; `recipes.upgradeDiff`; `recipes.reconcile` as in their doc;
+- envelopes from `connectorsx.envelopes` carry `question` (abstained reads) and `reconciliations` (latest 10);
+- `connectorsx.connections` returns each connection's non-secret `settings` (`path`, `endpoint`), as in the base;
+- a read may carry `gstin` (a valid GSTIN) for the recipe's tax registration; until one does, the scope says "unknown".
+
+Refusal codes added to the work-books line of `laneRefusals`: `RECIPE_ANSWER_NOT_BUILT`,
+`RECIPE_RECONCILE_NOT_BUILT`, `TALLY_CONNECTION_REQUIRED`, and connectors-ext's `RECIPE_QUESTION_NONE`,
+`RECIPE_ANSWER_INVALID`, `RECIPE_ANSWER_STALE`, `ANSWER_LIMIT` (so a screen can say them before that lane's line lists them).

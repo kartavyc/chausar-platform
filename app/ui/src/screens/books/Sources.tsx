@@ -12,6 +12,7 @@ import { BooksPage, BooksSheet, ConfirmButton, Link, MonthSquares, Recorded, Tab
 import { EnvelopeCard, Say, TotalText, r2Styles } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
 import { useAuditWords } from './words-audit.ts';
+import { LaneLinks, SourceMore, TallyCompaniesPart } from './r4a-parts.tsx';
 
 const WAY = { files: 'way.files', 'signed-in': 'way.signed-in', 'this-computer': 'way.this-computer' } as const;
 
@@ -57,6 +58,8 @@ export function Sources(props: BooksProps) {
         <p className={s.note}><Link onPress={() => props.navigate({ place: 'books', sub: 'unmapped' })}>{fill(w.unmappedLink, { n: value.unmappedFields })}</Link></p>
       )}
       {value && !value.freshness.available && <Note>{fill(w.notBuiltNamed, { what: w.freshness })}</Note>}
+      {/* Round 4: scheduled reads, the database road and Tally on another computer are connectors-ext's own Books places. */}
+      <LaneLinks props={props} lanes={['connectors-ext']} />
       {open !== null && <SourceSheet props={props} sourceId={open} onChanged={reload} />}
     </BooksPage>
   );
@@ -81,6 +84,7 @@ function SourceSheet({ props, sourceId, onChanged }: { props: BooksProps; source
         <div className={s.stack}>
           <Note>{w[WAY[value.row.way]]} · {value.row.lastReadAt ? fill(w.lastReadOn, { when: dayTime(value.row.lastReadAt, props.language) }) : w.neverRead}</Note>
           <MonthSquares months={value.row.months} language={props.language} />
+          <SourceMore props={props} sourceId={sourceId} />
           {conn && <ConnectionPart props={props} conn={conn} onChanged={() => { reload(); onChanged(); }} onRemoved={() => { onChanged(); if (value.kinds.length === 0) close(); else reload(); }} />}
           <Section title={w['src.kinds']}>
             {value.kinds.length === 0 ? <Note>{w['empty.kinds']}</Note> : (
@@ -198,6 +202,7 @@ function ConnectionPart({ props, conn, onChanged, onRemoved }: { props: BooksPro
           {signIn.note && <Note>{signIn.note}</Note>}
         </div>
       ) : <p>{signIn.instruction}</p>)}
+      {conn.group === 'tally' && conn.road === 'interface' && <TallyCompaniesPart props={props} sourceId={conn.sourceId} />}
       {note && <p role="status">{note}</p>}
       <Say code={act.refusal} language={props.language} />
     </Section>
