@@ -1,1 +1,11 @@
-[]
+[
+  "devices.list",
+  "devices.pen",
+  "devices.handOver",
+  "devices.takePen",
+  "devices.remove",
+  "devices.read",
+  "devices.join",
+  "seats.inviteVerify",
+  "sync.setup"
+]
