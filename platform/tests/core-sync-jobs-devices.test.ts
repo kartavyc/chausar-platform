@@ -196,3 +196,16 @@ test('a join request that nobody approved in time expires on the new computer', 
   assert.equal((await b.request('devices.join', { step: 'finish' })).state, 'expired');
   assert.equal(await readPendingJoin(f.laptop), null);
 });
+
+test('the installed app gets sync options only on an enrolled computer, never in demo', async t => {
+  const f = await fixture(t);
+  assert.equal(await desktopSyncOptions(f.office, false), undefined, 'no enrolment: the app starts as before');
+  const a = await f.start(f.office, false);
+  await a.request('workspace.create', { name: 'Synthetic Worker Options', passphrase, demo: false, pack: 'ecommerce' });
+  await a.request('sync.setup', { transport: 'drive', deviceName: 'Office desk' });
+  assert.equal(await desktopSyncOptions(f.office, true), undefined, 'demo never syncs');
+  const options = (await desktopSyncOptions(f.office, false))!;
+  assert.equal(options.enabled, false); assert.equal(options.transport, undefined, 'Drive is attached later by hosted-link');
+  assert.equal(options.deviceId, (await deviceIdentity(f.office))!.identity.deviceId); assert.equal(options.signerId, options.deviceId);
+  assert.equal(options.writerAdmission?.workspaceId, a.vault!.read().workspace.id); assert.equal(options.writerAdmission?.vaultId, a.vault!.vaultId);
+});
