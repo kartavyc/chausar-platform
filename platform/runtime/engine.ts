@@ -1517,7 +1517,7 @@ export class Engine {
       case 'sources.fetch': return s.connectors.fetch(ctx, payload);
       case 'sources.recipe': return s.connectors.proposeRecipe(ctx, payload);
       case 'sources.accept': return s.connectors.acceptRecipe(ctx, payload);
-      case 'sources.workbook': return readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
+      case 'sources.workbook': return readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet, password: payload.password }); // core-data: one-time workbook password
       case 'sources.workbookPreview': return s.imports.preview(ctx, this.workbookInput(payload));
       case 'sources.workbookImport': return s.imports.commit(ctx, this.workbookInput(payload));
       case 'ontology.packs': return s.ontology.packs();
@@ -1850,7 +1850,8 @@ export class Engine {
     return Buffer.from(value, 'base64');
   }
   private workbookInput(payload: any) {
-    const workbook = readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
+    // core-data: the one-time password opens the workbook only; the input built below never carries it.
+    const workbook = readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet, password: payload.password });
     check(workbook.sheets.length === 1 || typeof payload.sheet === 'string', 'SHEET_REQUIRED', 'Choose the exact worksheet to import.');
     const sheet = payload.sheet ? workbook.sheets.find(item => item.name === payload.sheet) : workbook.sheets[0];
     check(sheet, 'SHEET_REQUIRED', 'The selected worksheet is missing.');

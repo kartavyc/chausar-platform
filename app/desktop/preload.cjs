@@ -72,7 +72,7 @@ const laneRefusals = [
 
   /* ca-enterprise */ [],
 
-  /* core-data */ [],
+  /* core-data */ ['PASSWORD_REQUIRED', 'WRONG_PASSWORD', 'WORKBOOK_PASSWORD_INVALID', 'WORKBOOK_INTEGRITY_FAILED', 'WORKBOOK_ENCRYPTION_UNSUPPORTED', 'WORKBOOK_ENCRYPTION_INVALID', 'WORKBOOK_CFB_INVALID'],
 
   /* core-sync-jobs */ [],
 
