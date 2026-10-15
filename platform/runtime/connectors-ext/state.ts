@@ -21,7 +21,8 @@ export type Envelope = {
   status: 'accepted' | 'refused' | 'abstained' | 'failed'; refusal: Refusal | null; abstention: Abstention | null; checks: Check[];
   observed: { rowCount: number; total: string; unit: string }; sourceTotals: SourceTotals | null; balances?: { opening: string | null; closing: string | null } | null; unmappedFields: string[]; excludedRows: number;
   contentHash: string; sensitivity: 'financial' | 'personal' | 'operational'; notices: string[];
-  read: { pages: number; requests: number; bytes: number } | null;
+  /** `parts`: how many reads the period was split into (1 when it fit one read). */
+  read: { pages: number; requests: number; bytes: number; parts: number } | null;
   /** Held only until the person commits or the envelope expires; cleared afterwards. */
   pending: { records: CanonicalRecord[]; measure: 'money' | 'count'; expiresAt: string } | null;
   committed: { importId: string; at: string; rows: number; duplicate: boolean } | null;

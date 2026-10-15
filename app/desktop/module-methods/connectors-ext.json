@@ -30,6 +30,8 @@
   "connectorsx.tally.importExport",
   "connectorsx.tally.companies",
   "connectorsx.tally.ledgers",
+  "connectorsx.screenExport.start",
+  "connectorsx.screenExport.collect",
   "imports.preview",
   "imports.providePassword",
   "imports.commit",

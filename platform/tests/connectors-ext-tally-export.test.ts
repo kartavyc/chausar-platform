@@ -91,7 +91,7 @@ test('an answer file round-trips through the register reader and the recipe, che
   assert.equal(envelope.observed.total, '1500050'); assert.equal(envelope.observed.rowCount, 2); assert.equal(envelope.excludedRows, 1);
   assert.equal(envelope.sourceTotals.provenance, 'source-declared'); assert.equal(envelope.sourceTotals.total, '1500050');
   assert.ok(envelope.checks.some((c: any) => c.status === 'passed' && c.expected === '1500050'), JSON.stringify(envelope.checks));
-  assert.deepEqual(envelope.requestedPeriod, april); assert.deepEqual(envelope.read, { pages: 2, requests: 2, bytes: Buffer.byteLength(fx('sales-vouchers.xml')) + Buffer.byteLength(fx('sales-total.xml')) });
+  assert.deepEqual(envelope.requestedPeriod, april); assert.deepEqual(envelope.read, { pages: 2, requests: 2, parts: 1, bytes: Buffer.byteLength(fx('sales-vouchers.xml')) + Buffer.byteLength(fx('sales-total.xml')) });
   assert.equal(envelope.pendingRows, 2);
   // A byte order mark from an editor is tolerated; the answers are the same.
   assert.equal((await tallyImportExport(owner, { connectionId: file.id, text: `﻿${text}` }, host) as any).status, 'accepted');

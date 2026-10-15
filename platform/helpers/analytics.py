@@ -190,7 +190,101 @@ def pdf_status(data):
         tesseract = True
     except Exception:
         tesseract = False
-    return {"pdfText": found["pdfplumber"], "pdfOcr": found["pypdfium2"] and found["PIL"] and tesseract, "tesseract": tesseract}
+    pdf_text = found["pdfplumber"]
+    pdf_ocr = found["pypdfium2"] and found["PIL"] and tesseract
+    size = reader_size_bytes(tesseract) if (pdf_text or pdf_ocr) else None
+    return {"pdfText": pdf_text, "pdfOcr": pdf_ocr, "tesseract": tesseract, "sizeBytes": size}
+
+
+READER_PACKAGES = ("pdfplumber", "pdfminer", "pypdf", "pypdfium2", "PIL")
+READER_SIZE_FILE_LIMIT = 50000
+
+
+def tree_bytes(root, budget):
+    """Bytes of regular files under one folder. Symbolic links are neither followed nor counted."""
+    import os
+    import stat
+    total = 0
+    for folder, folders, files in os.walk(root, followlinks=False):
+        folders[:] = [name for name in folders if not os.path.islink(os.path.join(folder, name))]
+        for name in files:
+            budget[0] -= 1
+            if budget[0] < 0:
+                return total
+            try:
+                info = os.lstat(os.path.join(folder, name))
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
+                total += info.st_size
+    return total
+
+
+def file_bytes(path):
+    import os
+    import stat
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return 0
+    if stat.S_ISLNK(info.st_mode):
+        try:
+            info = os.stat(path)
+        except OSError:
+            return 0
+    return info.st_size if stat.S_ISREG(info.st_mode) else 0
+
+
+def tessdata_candidates(program):
+    import glob
+    import os
+    here = os.path.dirname(os.path.realpath(program))
+    places = [os.path.join(here, "tessdata"), os.path.join(here, "..", "share", "tessdata"), "/usr/share/tessdata", "/usr/local/share/tessdata",
+              "/opt/homebrew/share/tessdata", "/opt/local/share/tessdata"]
+    places += sorted(glob.glob("/usr/share/tesseract-ocr/*/tessdata")) + sorted(glob.glob(os.path.join(here, "..", "share", "tesseract-ocr", "*", "tessdata")))
+    prefix = os.environ.get("TESSDATA_PREFIX")
+    if prefix:
+        places.insert(0, prefix)
+        places.insert(1, os.path.join(prefix, "tessdata"))
+    return places
+
+
+def reader_size_bytes(tesseract):
+    """
+    Size on disk of the PDF reader this helper found: the importable reader package folders (found
+    without importing them), plus the tesseract program and its English data when OCR is present.
+    Opens no file; reads sizes only.
+    """
+    import importlib.util
+    import os
+    total = 0
+    budget = [READER_SIZE_FILE_LIMIT]
+    seen = set()
+    for name in READER_PACKAGES:
+        try:
+            spec = importlib.util.find_spec(name)
+        except (ImportError, ValueError):
+            spec = None
+        if spec is None:
+            continue
+        roots = list(spec.submodule_search_locations or [])
+        if roots:
+            for root in roots:
+                real = os.path.realpath(root)
+                if real not in seen and os.path.isdir(real):
+                    seen.add(real)
+                    total += tree_bytes(real, budget)
+        elif spec.origin and os.path.isfile(spec.origin):
+            total += file_bytes(spec.origin)
+    if tesseract:
+        program = ocr_tesseract()
+        total += file_bytes(program)
+        for folder in tessdata_candidates(program):
+            path = os.path.join(folder, "eng.traineddata")
+            if os.path.isfile(path):
+                total += file_bytes(path)
+                break
+    return int(total)
 
 
 OCR_DPI = 300

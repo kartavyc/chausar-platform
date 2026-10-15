@@ -109,7 +109,7 @@ export type HeldRead = {
   base: SourceRecipe; input: DecoderInput; options: RunOptions; ocrNotice: string | null;
   connectionId: string | null; target: { sourceId: string; company: string; branch: string };
   road: 'interface' | 'file' | 'screen' | 'database'; requestedPeriod: { from: string; to: string } | null;
-  read: { pages: number; requests: number; bytes: number; parts?: number } | null;
+  read: { pages: number; requests: number; bytes: number; parts: number } | null;
 };
 /**
  * The input of a read that asked a question, so the answer can be tried at once. Keyed by the open

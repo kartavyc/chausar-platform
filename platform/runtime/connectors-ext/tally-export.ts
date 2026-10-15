@@ -202,7 +202,7 @@ export async function tallyImportExport(ctx: Context, payload: Record<string, an
   const meta: Record<string, string> = declared ? { ...(declared.rowCount != null ? { declaredRowCount: String(declared.rowCount) } : {}), ...(declared.amount != null ? { declaredAmount: declared.amount, declaredAmountUnit: declared.amountUnit ?? 'major' } : {}), declaredReference: declared.reference ?? 'tally-declared' } : {};
   const use = answered(host, item.sourceId, recipe), input = { records: result.records, meta };
   const outcome = runCompiled(use.recipe, input);
-  return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: use.recipe, road: 'file', requestedPeriod: period, read: { pages: result.pages, requests: result.requests, bytes: result.bytes },
+  return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: use.recipe, road: 'file', requestedPeriod: period, read: { pages: result.pages, requests: result.requests, bytes: result.bytes, parts: 1 },
     answerIds: use.applied, hold: { base: recipe, input, options: {}, ocrNotice: null } }));
 }
 
