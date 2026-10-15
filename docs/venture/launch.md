@@ -1,0 +1,59 @@
+# Venture launcher: the launch screens (P7)
+
+This package is the renderer side of the venture launcher. A new person sees one question, "What service business do you want to start?", types one sentence and sees a plan at once, with nothing saved and no key asked for. After that it is one clear step at a time: keep the plan in an encrypted vault, accept it, hand the brief to a builder, then run the business from seven places. The twelve original views stay reachable, unchanged, under "Back office". The same files run in the desktop window and in the paired local browser.
+
+The full description of the screens and the method table is the Launch section of [../frontend.md](../frontend.md).
+
+## What P7 made
+
+| Path | What it is |
+| --- | --- |
+| `app/renderer/launch.js` | The launch screens: onboarding, the seven places, the Add your AI sheet, receipt, invoice and draft reply sheets. One frozen global factory, no work at load. |
+| `app/renderer/app.js` | Small additive edits (section 10.1): `state.venture` and `state.onboarding`; the four evidence methods in `evidenceChanges`; `backOfficeViews`, `allPages()` and `pageTitle()`; the launch rail with a "Back office" group; `applyWorkspaceStatus` and the vault form hand over to `launch`; `showRecoveryKit(kit, result, next)`; `EXTERNAL_ORIGINS` and `openExternal(url)`; a "Your business's AI connections" panel in the back office Models view; the `launch` factory just before `boot();`. |
+| `app/renderer/styles.css` | The looping spinner is now a still mark. A `/* launch */` section is appended. |
+| `app/renderer/index.html` | One `<script defer src="./launch.js">` before the module. |
+| `platform/tests/venture-launch-renderer.test.ts` | 30 tests: the real `launch.js` and `app.js` in one `vm` context, the real preload and IPC contract, a fake DOM whose `innerHTML` setter throws. |
+| `platform/tests/fixtures/venture/renderer/results.ts` | Sample RPC results typed against the venture contracts (a synthetic recording). |
+| `docs/frontend.md` | The Launch section and its method table. |
+
+## How the screens behave
+
+- **Onboarding.** Idea, then the plan from templates (price and tax set inline), then Keep it safe (working name and passphrase), then the recovery kit, then the setup calls in the spec's order, then the plan in the vault and Build. An open vault with no business resumes at the idea and skips the passphrase.
+- **Your business.** The plan with a label on every line, receipt totals that open the receipt sheet, "Set your price", tax invoice details for a registered owner in a tax invoice country, "Change plan", "Rewrite with AI" (opens Add your AI when no model serves the main tier), "Accept plan" with the exact digest. Every change quotes the priced offers again, because a new plan version has a new digest.
+- **Build.** The opening words of the brief come first, then its size and check state, then "Open in Lovable", "Open in Replit" (with "Replit receives your brief as soon as its page opens."), "Copy brief" and "Save brief", then GitHub. "Write it again" writes a new brief version, for when the plan changed after the brief.
+- **Clients.** Clients and orders. Each order opens to "Draft a reply", "Mark delivered" and "Prepare invoice" (or "Open invoice"). The invoice sheet shows the engine's document text, its notes, the experimental notice, and "Issue invoice" behind a box that names the exact total.
+- **Agents.** The AI in use, rehearsal rows (one practice client per `venture.simulation.run` request), the launch ladder with one "Move to …" button or the blocked reason, draft replies, and folded rows for the playbook and what agents can do today. A waiting draft shows "This is exactly what will be sent to {model}" and the payload, with "Approve and send" behind a box. A practice draft shows "Practice draft. Not for the client." and has no Accept, Copy or Save.
+- **Money.** The three books figures with their receipts, the first note, the experimental notice, open invoices, and a link to the back office.
+- **Connections.** Starter cards first, then twelve folded groups. "Open" only for an available handoff: Lovable and Replit go to Build, Bolt and v0 copy the brief. "Visit site" opens a vendor page. A planned chip has no button.
+- **Add your AI.** The recommended pair (Haiku for quick work, Sonnet for plans, one key, two `venture.models.connect` calls), then every preset cheapest first with one word of state and its reason. The consent text is shown word for word with an unticked "I agree" box that gates the button. GPT-6 Luna has a model id field prefilled `gpt-6-luna`; the CLI rows say "Uses your own sign-in on this computer"; "Keep using templates" connects the built-in templates.
+
+## How it was checked
+
+- `node --check` on `launch.js`, `app.js`, the test and the fixture module.
+- The pinned compiler (`typescript@5.9.3`, scratch install outside the repo) on the test and the fixtures, filtered to these paths: no errors.
+- `node --test platform/tests/venture-launch-renderer.test.ts`: 30 of 30 pass. Words at rest with the fixtures: Today 94, Your business 107, Build 110, Clients 20, Agents 101, Money 72, Connections 94 (the limit is 120).
+- Run unchanged because they load the real `app.js`: `desktop-harness`, `desktop-ipc-methods`, `desktop-renderer`, `decision-journal-renderer`, `conversation-acceptance`, `conversation-continuation-renderer`, `conversation-synthesis-renderer`, `definition-disclosure-renderer`, `workspace-backup-renderer`, `phone-web-preview`, `desktop-main`, `server`, `desktop-packaging`: 145 of 145 pass. Also `answer-recovery-independent-public-acceptance`, `answer-recovery-public`, `conversation-continuation-acceptance`, `conversation-continuation-engine`, `conversation-refresh-intent`, `conversation-synthesis-public-acceptance`, `conversation-synthesis-public-negative`, `workspace-backup-public`: 70 of 70 pass.
+- A walk in local web mode against the real packages as they stood on this branch, with the replay switch and the demo recordings, a scratch vault folder outside the repo, in the app's built-in browser: idea, India, plan, price 2499, GST yes at 18, Keep it safe, recovery kit, the plan with `INR 2,948.82 per month`, GSTIN and SAC (plan version 2, "Ready for tax invoices"), Add your AI with the recommended pair, Rewrite with AI (version 3, "AI answers here come from a synthetic recording."), Accept plan, the brief, Follow on GitHub and its status, Today, Connections (64 cards), Agents (Rehearse passed for all three, Move to shadow), Clients (client, order with its receipt total, Draft a reply, Approve and send, the practice draft), the tax invoice issued as `INV-0001`, a payment of 2948.82 (balance INR 0.00), Money, and the back office Models panel. The walk found ten small faults, all fixed and covered by tests: the currency code alignment, the offer label style, the page background in dark mode, the arrow on folded rows, the India state order, the words for a refused copy, the repo name's case, the invoice sheet title after issue, the date fields' day, and the back office group opening.
+
+## Hand-off note
+
+**Done.** Everything in section 10 of the build spec: the owned files, the `app.js` edits, the styles, the script tag, the eleven tests (as 30 test cases), the fixtures and these docs.
+
+**Choices made where the spec left room** (the integrator or the founder can reverse any):
+
+- `renderSetup` also hands over to `launch.afterOpen` after a vault opens there, so "I already have a business in Chausar" lands on Today (or back at the idea when the vault has no business). This is one more edit than the list in 10.1; without `launch.js` it does exactly what it did before.
+- The top bar's avatar letter comes from the workspace name with or without `launch.js` (it was a hard-coded "K").
+- The back office footer line ("Every result comes from your local engine.") is not drawn on launch places, to keep their word count.
+- "Keep using templates" shows the templates' consent text as a line and needs no box: nothing is sent anywhere. Every connection that can send words needs the box.
+- Dark mode covers the onboarding screens, the seven places and the launch sheets. The back office keeps its light look, because its stylesheet has about 190 fixed light colours; a token sweep would bring it along. When the owner opens a back office view, the rail and top bar turn light too, so one screen never mixes the two.
+- Date fields (delivered on, received on) start at today's date as the engine counts it (UTC), because the engine's books periods and invoice dates are UTC. Between midnight and 05:30 in India that is yesterday's date; the owner can change it.
+- When a pending request runs past 100 ms the area shows the still outline and one line of words. Under 100 ms nothing changes.
+
+**For the integrator.**
+
+- **Contract change needed.** In `contracts.ts`, `ModelConnectionRecord` and `ModelCallRecord` both declare `kind` twice: `RecordBase` sets it to the record kind (`'venture-model-connection'`, `'venture-model-call'`), and the record adds `kind: ModelRouteKind`. TypeScript reduces each type to `never`, so no literal satisfies `ModelStatusView['connections'][number]` or `ModelCallRecord`. Rename the route field, for example `route: ModelRouteKind`, in both types and in the packages that read it. The renderer does not read that field. The renderer fixture types its two connections through `unknown` until then.
+- In a browser, `openExternal` clicks a temporary link after `venture.build.handoff` returns. Browsers allow that only within a few seconds of the owner's click; the local engine answers well inside that. A refused link shows its error and sends nothing.
+- In the built-in browser used for the walk, `navigator.clipboard.writeText` was refused ("Write permission denied"), so Bolt's Open showed "This window could not copy. Use Save instead." and did not mark the handoff opened, as designed. `main.cjs` denies every permission check, so copying may be refused in the Electron window too. "Save brief" and "Save invoice" always work. If copying matters on the desktop, `main.cjs` could allow the `clipboard-sanitized-write` permission for the trusted document only.
+- `launch.js` keeps literal copies of `INDIA_STATES`, and `app.js` of `EXTERNAL_ORIGINS` and `EVIDENCE_METHODS`. Tests compare each with the contracts, so a contract change shows up as a failing renderer test.
+
+**Not verified in this run.** The Electron window itself (no `node_modules`; the IPC path is covered by the real preload and contract in the tests). Opening Lovable, Replit or a vendor site in a real browser: the walk avoided opening outside sites, and the link opener is covered by tests. The pixel look was checked only partly, because the browser pane was hidden for most of the walk and drew only parts of the page; layout facts were checked through the page's own measurements instead.
