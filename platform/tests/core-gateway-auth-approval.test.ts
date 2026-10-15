@@ -208,3 +208,45 @@ test('a cofounder answers with their own approval secret; the owner can clear it
   const locked = f.engine.vault!.read().activity.filter((a: any) => a.event === 'secondAsk.locked');
   assert.equal(locked.length, 1); assert.deepEqual(Object.keys(locked[0].details).sort(), ['memberId', 'until']);
 });
+
+test('the approvals queue answers a core money action’s second ask with the typed passphrase', async t => {
+  const f = await workspace(t);
+  const pay = await f.prepare('queue-pay-1'); const id = `action:${pay.id}`;
+  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest }), code('SECOND_ASK_REQUIRED'));
+  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true }), code('REAUTH_REQUIRED'));
+  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: 'not the passphrase' }), code('SECOND_ASK_FAILED'));
+  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: passphrase }, { ...owner, sourceTainted: true }), code('TAINTED_APPROVAL'));
+  assert.equal(f.engine.vault!.read().actions.find((a: any) => a.id === pay.id).status, 'prepared');
+  await f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: passphrase });
+  assert.equal(f.engine.vault!.read().actions.find((a: any) => a.id === pay.id).status, 'approved');
+  // A reversible action still takes no passphrase.
+  const note = await f.prepare('queue-note-1', owner, 'note');
+  await assert.rejects(f.rpc('approvals.approve', { id: `action:${note.id}`, digest: note.digest, reauth: passphrase }), code('INVALID_APPROVAL'));
+});
+
+test('auth.verifyApprovalSecret checks the caller’s own secret for another lane and changes nothing else', async t => {
+  const f = await workspace(t);
+  const before = f.engine.vault!.read().revision;
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: passphrase }), { verified: true });
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: 'not the passphrase' }), { verified: false });
+  assert.equal(f.engine.vault!.read().revision, before, 'Nothing is written for a right or a wrong answer.');
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase, extra: 1 }), code('INVALID_REQUEST'));
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: '' }), code('INVALID_REQUEST'));
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, { ...owner, sourceTainted: true }), code('TAINTED_APPROVAL'));
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, { ...owner, channel: 'phone' }), code('OPEN_DESKTOP'));
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, { ...owner, channel: 'mcp' }), code('APP_APPROVAL_REQUIRED'));
+  const seat = await f.rpc('members.add', { name: 'Synthetic accountant', role: 'accountant', branches: ['*'] });
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, { memberId: seat.id, role: 'accountant', epoch: seat.epoch, channel: 'desktop' }), code('FORBIDDEN'));
+  const added = await f.rpc('members.add', { name: 'Synthetic cofounder', role: 'cofounder', branches: ['*'] });
+  const cofounder: Context = { memberId: added.id, role: 'cofounder', epoch: added.epoch, channel: 'desktop' };
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, cofounder), code('SECOND_ASK_SECRET_NOT_SET'));
+  await f.rpc('secondAsk.setSecret', { secret: 'cofounder own words' }, cofounder);
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: passphrase }, cofounder), { verified: false }, 'The owner passphrase is not the cofounder’s answer.');
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: 'cofounder own words' }, cofounder), { verified: true });
+  // A right answer clears the owner's earlier wrong one; five wrong answers then lock the owner's ask.
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: passphrase }), { verified: true });
+  for (let n = 0; n < 5; n++) assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: `guess ${n}` }), { verified: false });
+  await assert.rejects(f.rpc('auth.verifyApprovalSecret', { secret: passphrase }), code('SECOND_ASK_LOCKED'));
+  assert.ok(Date.parse((await f.rpc('secondAsk.status')).lockedUntil) > Date.now());
+  assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: 'cofounder own words' }, cofounder), { verified: true }, 'The owner’s lock is the owner’s alone.');
+});

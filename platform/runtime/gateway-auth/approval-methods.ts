@@ -78,6 +78,17 @@ export const approvalMethods: Record<string, MethodSpec> = {
     dropGrants(result.workspaceId, payload.memberId);
     return { cleared: result.cleared };
   } },
+  /**
+   * `{ secret }` → `{ verified }`: checks the caller's own approval secret (the owner's vault passphrase, a cofounder's own secret)
+   * for another lane's own second ask (write-back calls it as the same caller). It grants nothing and changes nothing but the
+   * caller's own failure count; locked out it refuses SECOND_ASK_LOCKED (the end of the lock is in `secondAsk.status`).
+   */
+  'auth.verifyApprovalSecret': { permission: 'approve', handler: async (ctx, payload, host) => {
+    fields(payload, ['secret']);
+    askerGate(host.store.read(), ctx);
+    check(secretText(payload.secret, 1), 'INVALID_REQUEST', 'Type your passphrase or approval secret.');
+    return { verified: await verifySecondAskSecret(host.store, ctx, payload.secret) };
+  } },
   /** `{}` → `{ by, secretSet, lockedUntil }` for the caller only: how they answer a second ask, and whether it is locked. */
   'secondAsk.status': { permission: 'read', handler: (ctx, payload, host: ModuleHost) => {
     fields(payload, []);
