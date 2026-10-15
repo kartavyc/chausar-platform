@@ -183,7 +183,7 @@ Checked and found sound: origin allowlists including next-page and queued reques
 - **Live accounts**: no Tally installation, Zoho organisation or other account was available; all reads are recorded-response tested.
 - **Google Calendar**: `calendar.readonly` needs Google's app verification.
 - **E-invoice / e-way bill live reads** need a licensed GST service provider.
-- **Screen-driving export** needs the driving lane's `session.*`; until it exists both `connectorsx.screenExport.*` methods refuse `SCREEN_DRIVING_NOT_INSTALLED`.
+- **Screen-driving export** runs over the driving lane's `session.*` (on `claude/lane-driving`, not yet in the base); without it, both `connectorsx.screenExport.*` methods refuse `SCREEN_DRIVING_NOT_INSTALLED`. No program has been driven for this lane against a real Busy, Marg, Vyapar or Tally window: Tally's plan refuses `DRIVING_PLAN_UNVERIFIED`, and programs without a plan give only a picture, which is refused.
 - **Hidden businesses and the bench** decide what moves to supported.
 
 ## Known gaps
