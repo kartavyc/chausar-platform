@@ -49,7 +49,17 @@ export interface PlaceRenderProps {
    * is taken in. Absent (a viewer seat): draw no "Bring a file" control.
    */
   readonly bringFile?: ((options?: { readonly onTaken?: (() => void) | undefined }) => ReactNode) | undefined;
+  /**
+   * Live refresh (core-sync-jobs, round 4): call `onEvent` when the workspace records an event of one of these kinds,
+   * so the screen re-reads what it shows. An event names only its type code and kinds, never values. Returns the
+   * unsubscribe function; call it when the screen goes. Absent: the host offers no live refresh.
+   */
+  readonly subscribe?: ((kinds: readonly LiveEventKind[], onEvent: (event: LiveEvent) => void) => () => void) | undefined;
 }
+
+/** The kinds of change a screen can listen for (`events.subscribe`). Every event is `activity`. */
+export type LiveEventKind = 'activity' | 'approvals' | 'actions' | 'jobs' | 'sources' | 'books' | 'answers' | 'trust' | 'devices' | 'workspace' | 'lessons';
+export interface LiveEvent { readonly id: string; readonly at: string; readonly type: string; readonly kinds: readonly LiveEventKind[] }
 
 export interface PlaceModule {
   readonly id: string;

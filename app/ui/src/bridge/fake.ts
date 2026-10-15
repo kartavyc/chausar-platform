@@ -451,6 +451,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.capabilities': () => capabilitiesReply(),
     'todayx.worthALook': () => worthReply(scenario, date),
     'todayx.activity': payload => activityReply(scenario, date, payload),
+    // core-sync-jobs (round 4): live refresh. The fake records no live events.
+    'events.subscribe': () => ({ cursor: 'fake', events: [], more: false }),
     'todayx.firstRun.status': () => firstRunStatusReply(scenario, ontology.current !== null),
     'todayx.identity.check': payload => identityCheck(isRecord(payload['fields']) ? payload['fields'] : {}),
     'todayx.identity.save': payload => identitySave(payload),
