@@ -98,10 +98,12 @@ export function recipesOf(state: State, receipt: Pick<CalculationReceipt, 'sourc
 function ruleOf(state: State, sourceIds: string[]): string {
   if (!sourceIds.length) return 'member-access';
   const grants = state.sourceRules.filter(r => typeof r?.sourceId === 'string' && sourceIds.includes(r.sourceId) && typeof r.id === 'string').map(r => r.id as string).sort();
-  if (grants.length) return `source-grant:${grants.slice(0, 8).join(',')}${grants.length > 8 ? ',…' : ''}`;
+  // An identifier (letters, digits and _ . : + -), at most four grant ids, so readers can show it as a rule id.
+  if (grants.length) return `source-grant:${grants.slice(0, 4).map(id => id.replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 40)).join('+')}${grants.length > 4 ? '+more' : ''}`;
   return state.policy?.allowedSources?.includes('*') ? 'policy.allowed-sources:all' : 'policy.allowed-sources:listed';
 }
-const CHECK_STEP = 'source access check passed; number guard passed';
+/** The deciding check steps, as an identifier: source access passed, then the number guard passed. */
+const CHECK_STEP = 'source-access+number-guard';
 
 /** The calculator's receipt decorator: records what can only be known when the receipt is made. */
 export function decorateReceipt(ctx: Context, receipt: CalculationReceipt, state: State): void {
