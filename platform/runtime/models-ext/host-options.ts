@@ -48,6 +48,9 @@ export function pluginCredentialBroker(raw: unknown, env: () => Env) {
 export function modelsExtHostOptions(input: { readonly directory: string; readonly demo: boolean; readonly env: Env }): Readonly<Record<string, unknown>> {
   if (input.demo) return {};
   const env = input.env, options: Record<string, unknown> = {};
+  // The installed desktop app runs this engine as its Electron worker (app/desktop/main.cjs sets ELECTRON_RUN_AS_NODE);
+  // its renderer is the live voice client that hangs up at the approved cap (app/ui/src/screens/voice/live-client.ts).
+  if (env.ELECTRON_RUN_AS_NODE === '1') options.liveVoiceClient = true;
   if (env.CHAUSAR_BENCH_TRANSCRIPTS && isAbsolute(env.CHAUSAR_BENCH_TRANSCRIPTS)) options.benchTranscripts = env.CHAUSAR_BENCH_TRANSCRIPTS;
   const clips = jsonFile(env.CHAUSAR_SPEECH_BENCH_FIXTURES, 16 * 1024 * 1024);
   if (clips !== undefined) options.speechBench = clips;
