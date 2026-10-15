@@ -265,3 +265,11 @@ test('limits refuse an out-of-range value before sending, and read only for othe
   expect(await screen.findByText(en['wb4.caps.customers'])).toBeTruthy();
   expect(screen.queryByRole('button', { name: en['wb4.caps.edit'] })).toBeNull();
 });
+
+test('the real registry sends work/write and work/caps to the writeback module, and leaves the rest of Work to work-books', async () => {
+  const { placeModuleFor } = await import('../../app/ui/src/places/registry.ts');
+  expect(placeModuleFor({ place: 'work', sub: 'write' })?.id).toBe('writeback');
+  expect(placeModuleFor({ place: 'work', sub: 'caps' })?.id).toBe('writeback');
+  expect(placeModuleFor({ place: 'work', sub: 'approvals' })?.id).not.toBe('writeback');
+  expect(placeModuleFor({ place: 'work' })?.id).not.toBe('writeback');
+});
