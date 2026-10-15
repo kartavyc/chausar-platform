@@ -1,0 +1,30 @@
+/* The enterprise screens. Every size and colour is a token. */
+.screen { display: flex; flex-direction: column; gap: var(--sp5); }
+.group { display: flex; flex-direction: column; gap: var(--sp2); }
+.heading { font-size: var(--fs-read); font-weight: 500; margin: 0; color: var(--fg); }
+.note { font-size: var(--fs-note2); color: var(--mute); margin: 0; }
+.status { margin: 0; font-size: var(--fs-note2); color: var(--fg); }
+.stack { display: flex; flex-direction: column; gap: var(--sp3); }
+.line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp2) var(--sp3); }
+.text { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.mono { font-family: var(--fm); font-size: var(--fs-note2); color: var(--fg2); overflow-wrap: anywhere; }
+.list { margin: 0; padding: 0; list-style: none; border-top: var(--hair) solid var(--line2); }
+.item {
+  display: flex; flex-direction: column; gap: var(--sp2); padding: var(--sp3) 0;
+  border-bottom: var(--hair) solid var(--line); font-size: var(--fs-read); color: var(--fg);
+}
+.itemHead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp2); }
+.name { font-weight: var(--fw-medium); }
+.table { border-collapse: collapse; width: 100%; font-size: var(--fs-note2); color: var(--fg); }
+.table th, .table td { text-align: start; padding: var(--sp1) var(--sp2); border-bottom: var(--hair) solid var(--line); vertical-align: top; }
+.table th { font-weight: var(--fw-medium); color: var(--fg2); }
+.caption { caption-side: top; text-align: start; font-size: var(--fs-label); letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--mute); padding-bottom: var(--sp1); }
+.label {
+  font-family: var(--fm); font-size: var(--fs-label); letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--mute);
+}
+.down { color: var(--amber-t); }
+.facts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--sp1); }
+.checks { display: flex; flex-wrap: wrap; gap: var(--sp2) var(--sp4); border: 0; margin: 0; padding: 0; }
+.checks legend { font-size: var(--fs-note2); color: var(--fg2); padding: 0; margin-bottom: var(--sp1); }
+.check { display: inline-flex; align-items: center; gap: var(--sp1); font-size: var(--fs-note2); color: var(--fg); }
+.form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp3); }

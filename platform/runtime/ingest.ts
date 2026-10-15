@@ -316,7 +316,7 @@ export class ImportService {
       authorize(this.store, ctx, 'prepare'); for (const f of preview.facts) currentAccess(this.store, ctx, f.branch, f.sourceId);
       const prior = state.imports.find(i => i.contentHash === preview.contentHash && i.recipeHash === preview.recipeHash && i.sourceId === input.sourceId);
       if (prior) return { ...importPublicRecord(prior), duplicate: true };
-      insertFacts(state, preview.facts, now());
+      insertFacts(state, preview.facts, now(), ctx.memberId);
       // A source export includes unchanged claims as well as newly appended versions.
       // Keep its complete lineage while preserving insertFacts' no-op deduplication.
       const latestByIdentity = new Map(state.facts.filter(f => f.sourceId === input.sourceId).map(f => [JSON.stringify([f.kind, f.entityId]), f] as const));

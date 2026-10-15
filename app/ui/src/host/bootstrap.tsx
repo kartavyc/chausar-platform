@@ -50,6 +50,7 @@ import { todayUpdateRow } from '../app/updates-model.ts';
 import { useTodayRound4Host, ROUND4_SHEETS, type Round4SheetKind } from './today-round4-host.tsx';
 import { useHostAskLine } from './ask-line.tsx';
 import type { AskQuestion } from '../bridge/voice-contract.ts';
+import { useCaEnterpriseShell } from '../screens/ca-enterprise/host-wiring.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
 import { statusLine, statusSentences } from '../app/status-line.ts';
 import { HelpSheet } from '../app/HelpSheet';
@@ -465,6 +466,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   // core-sync-jobs (round 4): one live-refresh source per controller, disposed with it; places receive its `subscribe`.
   const [liveEvents, setLiveEvents] = useState<LiveEvents | null>(null);
   useEffect(() => { const created = createLiveEvents(controller.places, desktopWake()); setLiveEvents(created); return () => created.dispose(); }, [controller]);
+  const lane = useCaEnterpriseShell(controller.places, contextKey, language, frame.reads.shell !== null);
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -951,7 +953,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     </Sheet>,
   };
   const app: AppProps = {
-    shellKind: 'desktop', view, language,
+    shellKind: lane.kind, administers: lane.administers, allowed: lane.allowed, view, language,
     menu: {
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
@@ -961,15 +963,16 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         workspaces: menuWorkspaces(switchFolders, { folder: switching.open, name: context.workspace.name }, switching.marks),
         onSwitchWorkspace: switching.onSwitch, ...(switching.open !== null ? { workspaceId: switching.open } : {}),
       } : {}),
+      ...lane.menu,
     },
     ...(frame.reads.shell !== null ? {
-      banners: shellBanners(frame.reads.shell, language, {
+      banners: [...shellBanners(frame.reads.shell, language, {
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
         update: () => showFrameSheet('updates'),
         // The driving lane's own stop (`session.stop`); the banner is read again whatever the reply.
         stopDriving: () => { void controller.places.request('session.stop', {}).then(frame.reread, frame.reread); },
-      }),
+      }), ...lane.banners],
     } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
     idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
@@ -986,7 +989,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     ],
     capabilities: {},
     counts: round4.counts(data),
-    today: { data, intents: { ...(viewer ? {} : { onUpdate: () => showFrameSheet('updates') }), ...round4.intents(consumer !== null && todayCurrent !== null ? {
+    today: lane.withToday({ data, intents: { ...(viewer ? {} : { onUpdate: () => showFrameSheet('updates') }), ...round4.intents(consumer !== null && todayCurrent !== null ? {
       onReview: (id, rowOrigin) => {
         const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
         const row = rows[Number(id.replace(/^review-/, ''))];
@@ -1007,7 +1010,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         },
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
-    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) } },
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) } }),
     sheet: askLine.sheet ?? sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,

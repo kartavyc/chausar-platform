@@ -25,7 +25,7 @@ Each kind of sharing is a separate box. Every box starts empty. You can tick som
 
 Before anything is sent, you can open the exact file. It is made only of words from a fixed published list, such as "mapping", "accepted", "date", "decimal", "bank-statement" and "sales". It holds:
 
-- no numbers of any kind;
+- no numbers of any kind. How often a kind of choice happened is given only as "one", "few" or "many", and each kind appears once;
 - no amounts, prices, balances or dates;
 - no names of customers, suppliers, staff, accounts or your business;
 - no GST numbers, PAN, phone numbers, mail addresses, bank account or IFSC codes, or UPI ids;

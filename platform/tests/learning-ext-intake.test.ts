@@ -32,15 +32,15 @@ const desktopBatch = (boxes: DesktopBatch['boxes'] = ['setup-shapes', 'correctio
   schema: 'chausar.learning.v1', boxes,
   events: [
     structuralEvent({ kind: 'mapping', choice: 'accepted', reason: 'type-match', system: 'tally', shape: 'ledger',
-      fields: [{ name: 'invoiceId', type: 'string' }, { name: 'amount_minor', type: 'money' }, ['date', 'date'], ['due date', 'date'], ['private_column', 'string']] }),
-    structuralEvent({ kind: 'accounts-label', choice: 'corrected', accountClass: 'bank', proposedClass: 'cash', confidence: 'medium', evidence: ['parent-group', 'name-keyword'] }),
-    structuralEvent({ kind: 'procedure', choice: 'proposed', steps: ['question', 'calculator'] }),
+      fields: [{ name: 'invoiceId', type: 'string' }, { name: 'amount_minor', type: 'money' }, ['date', 'date'], ['due date', 'date'], ['private_column', 'string']], times: 'few' }),
+    structuralEvent({ kind: 'accounts-label', choice: 'corrected', accountClass: 'bank', proposedClass: 'cash', confidence: 'medium', evidence: ['parent-group', 'name-keyword'], times: 'one' }),
+    structuralEvent({ kind: 'procedure', choice: 'proposed', steps: ['question', 'calculator'], times: 'many' }),
   ],
 });
 const wrap = (batchText: string, publicName: string | null = null) => `{"batch":${batchText},"contributor":{"publicName":${JSON.stringify(publicName)}}}`;
 const header = (boxes = '["corrections"]') => `{"schema":"chausar.learning.v1","boxes":${boxes},"events":[`;
 const rawBatch = (lines: string[], boxes?: string) => [header(boxes), ...lines.map((line, index) => index < lines.length - 1 ? `${line},` : line), ']}'].join('\n');
-const good = '{"choice":"accepted","kind":"mapping"}';
+const good = '{"choice":"accepted","kind":"mapping","times":"one"}';
 
 async function service(t: TestContext, options: Partial<IntakeOptions> = {}) {
   const store = options.store ?? new MemoryIntakeStore();
@@ -111,7 +111,7 @@ for (const kind of ['memory', 'postgres'] as const) {
     const store: IntakeStore = kind === 'memory' ? new MemoryIntakeStore() : new PostgresIntakeStore(new FakePostgres());
     const { url, post } = await service(t, { store });
     const [a, b, c] = [token(), token(), token()];
-    const one = rawBatch([good]), two = rawBatch([good, good]);
+    const one = rawBatch([good]), two = rawBatch([good, good.replace('accepted', 'rejected')]);
     assert.equal((await post(wrap(one, 'Zoya'), {}, a)).status, 201);
     assert.equal((await post(wrap(two, null), {}, b)).status, 201);
     assert.equal((await post(wrap(one, "Dev O'Neil-Shah"), {}, c)).status, 201);
@@ -328,4 +328,17 @@ test('smuggling: the intake takes only a desktop batch key and an ASCII public n
   const { validatePublicName } = await import('../../hosted/learning-intake/src/validate.ts');
   assert.throws(() => validatePublicName('रवि कुमार')); assert.throws(() => validatePublicName('Ravi 54000')); assert.throws(() => validatePublicName('á̂̃̄'));
   assert.equal(validatePublicName('Asha Rao'), 'Asha Rao');
+});
+
+test('counts cannot carry a message: repeated events and events without a times word are refused', async t => {
+  const { post } = await service(t);
+  assert.equal((await post(wrap(rawBatch([good, good])))).status, 400);
+  assert.equal((await post(wrap(rawBatch(['{"choice":"accepted","kind":"mapping"}'])))).status, 400);
+  assert.equal((await post(wrap(rawBatch([good])))).status, 201);
+});
+
+test('the intake refuses empty lists, so a shape cannot be sent in several forms', async t => {
+  const { post } = await service(t);
+  for (const line of ['{"choice":"accepted","evidence":[],"kind":"mapping","times":"one"}', '{"choice":"accepted","fields":[],"kind":"mapping","times":"one"}', '{"choice":"accepted","kind":"mapping","steps":[],"times":"one"}'])
+    assert.equal((await post(wrap(rawBatch([line])))).status, 400, line);
 });

@@ -1,6 +1,8 @@
 import { inflateRawSync } from 'node:zlib';
 import { posix } from 'node:path';
 import { check, ChausarError } from './contracts.ts';
+import { isCompoundFile } from './core-data/cfb.ts';
+import { checkWorkbookPassword, decryptWorkbook } from './core-data/ecma376.ts';
 
 const MAX_COMPRESSED = 2 * 1024 * 1024;
 const MAX_UNCOMPRESSED = 25 * 1024 * 1024;
@@ -54,7 +56,7 @@ function safePath(name: string) {
 function unzipWorkbook(input: Uint8Array): Map<string, Uint8Array> {
   check(input.byteLength <= MAX_COMPRESSED, 'WORKBOOK_LIMIT', 'Workbooks may be at most 2 MiB compressed.');
   const bytes = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  check(bytes.length >= 22 && bytes.readUInt32LE(0) === 0x04034b50, 'UNSUPPORTED_WORKBOOK', 'Only read-only XLSX ZIP workbooks are supported. Binary XLS, XLSB, encrypted Office documents and PDF/OCR are unavailable.');
+  check(bytes.length >= 22 && bytes.readUInt32LE(0) === 0x04034b50, 'UNSUPPORTED_WORKBOOK', 'Only read-only XLSX ZIP workbooks, plain or password-encrypted, are supported. Binary XLSB and PDF/OCR are unavailable.');
   let eocd = -1;
   for (let index = bytes.length - 22; index >= Math.max(0, bytes.length - 65557); index--) if (bytes.readUInt32LE(index) === 0x06054b50 && index + 22 + bytes.readUInt16LE(index + 20) === bytes.length) { eocd = index; break; }
   check(eocd >= 0, 'INVALID_ZIP', 'The workbook ZIP directory is missing or truncated.');
@@ -104,9 +106,11 @@ function coordinates(reference: string): [number, number] {
 }
 
 export type WorkbookResult = { sheets: { name: string; rows: string[][] }[]; coverage: { format: 'xlsx'; sheetCount: number; selectedSheetCount: number; nonEmptyCells: number; allocatedCells: number; formulaCells: 0; readOnly: true }; warnings: string[] };
-export function readWorkbook(input: Uint8Array, options: { sheet?: string } = {}): WorkbookResult {
-  check(input instanceof Uint8Array, 'INVALID_WORKBOOK', 'Provide the original XLSX bytes.'); check(options.sheet === undefined || (typeof options.sheet === 'string' && options.sheet.length <= 200), 'INVALID_SHEET', 'Select a sheet by its exact name.');
-  const files = unzipWorkbook(input); const documents = new Map<string, XmlNode>();
+/** `password` opens an agile-encrypted (OLE) workbook once; it is never kept, returned or put in a message. */
+export function readWorkbook(input: Uint8Array, options: { sheet?: string; password?: string } = {}): WorkbookResult {
+  check(input instanceof Uint8Array, 'INVALID_WORKBOOK', 'Provide the original XLSX bytes.'); check(options.sheet === undefined || (typeof options.sheet === 'string' && options.sheet.length <= 200), 'INVALID_SHEET', 'Select a sheet by its exact name.'); checkWorkbookPassword(options.password);
+  // The decrypted package passes the same ZIP, size and bomb limits as a plain one.
+  const files = unzipWorkbook(isCompoundFile(input) ? decryptWorkbook(input, options.password, parseXml, MAX_COMPRESSED) : input); const documents = new Map<string, XmlNode>();
   for (const [name, bytes] of files) if (/\.(?:xml|rels)$/i.test(name)) {
     const node = parseXml(bytes); documents.set(name, node);
     if (local(node.name) === 'worksheet') { const stack = [node]; while (stack.length) { const element = stack.pop()!; check(local(element.name) !== 'f', 'FORMULA_WORKBOOK_REFUSED', 'Formula cells are refused in every sheet. Export literal values before importing.'); stack.push(...element.children); } }
@@ -157,4 +161,4 @@ export function readWorkbook(input: Uint8Array, options: { sheet?: string } = {}
 export function workbookSheetToCSV(sheet: WorkbookResult['sheets'][number]): string {
   return sheet.rows.map(row => row.map(value => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value).join(',')).join('\n');
 }
-export class WorkbookReader { read(input: Uint8Array, options: { sheet?: string } = {}) { return readWorkbook(input, options); } }
+export class WorkbookReader { read(input: Uint8Array, options: { sheet?: string; password?: string } = {}) { return readWorkbook(input, options); } }

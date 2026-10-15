@@ -163,6 +163,9 @@ export async function saveScenario(f: Fixture) {
 
 export function receiptContent(receipt: CalculationReceipt) {
   const { id: _id, createdAt: _createdAt, ...content } = receipt;
+  // Provenance (who accepted, reviewed and allowed it, and when) is issuance metadata read from ledgers a
+  // private trial copy deliberately leaves out; the replayed evidence is everything else.
+  delete content.provenance;
   return content;
 }
 

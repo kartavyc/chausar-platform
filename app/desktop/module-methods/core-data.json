@@ -1,1 +1,16 @@
-[]
+[
+  "coredata.bankTotals",
+  "coredata.gst2bReceipt",
+  "coredata.gstr3bTurnover",
+  "decisions.journal.cancel",
+  "deletion.customer",
+  "deletion.customerPlan",
+  "deletion.pending",
+  "deletion.reapply",
+  "keep.enforce",
+  "meanings.releases",
+  "meanings.review",
+  "receipts.provenance",
+  "workspace.setTimeZone",
+  "workspace.timeZone"
+]
