@@ -41,6 +41,7 @@ import type { Brief, ChatAnswer } from './phone/contracts.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
 import { ActionService, digest } from './actions.ts';
+import { secondAskGate } from './gateway-auth/second-ask.ts';
 import { JobService } from './jobs.ts';
 import { InvoiceFollowUpHost, invoiceJobType, invoiceConnectorId, type InvoiceHostOptions } from './invoice-follow-up.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
@@ -743,7 +744,8 @@ export class Engine {
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault, requireWriterAdmission: true });
-    this.services.actions = new ActionService(store, this.builtinActions(store));
+    // core-gateway-auth: money approved through the core actions needs a second ask first.
+    this.services.actions = new ActionService(store, this.builtinActions(store), { secondAsk: secondAskGate });
     this.services.jobs = new JobService(store, { clock: this.options.durableJobs?.clock,
       calendarRules: this.options.jobCalendar?.rules, calendarBounds: this.options.jobCalendar?.bounds,
       deliverableGuard: (ctx: Context, job: any, candidateView?: StateStore) => {

@@ -11,6 +11,7 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { audit, check, newId, now, type Context, type State } from '../contracts.ts';
 import { canonical, current, digest } from '../actions.ts';
+import { guardOutbound } from '../plugins.ts'; // core-gateway-auth: canary
 import { parseCsv } from '../ingest.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { area, peekArea } from './state.ts';
@@ -109,10 +110,12 @@ export function intakeStatus(state: State, host: ModuleHost) {
   };
 }
 
-async function send(host: ModuleHost, batch: Batch, publicName: string | null, contributor: string) {
+async function send(host: ModuleHost, batch: Batch, publicName: string | null, contributor: string, ctx: Context) {
   const options = intakeOf(host);
   check(options, 'INTAKE_NOT_OPEN', 'Sharing is not open yet. Nothing is sent.');
   const body = `{"batch":${batch.bytes.replace(/\n/g, '')},"contributor":${JSON.stringify({ publicName })}}`;
+  // core-gateway-auth: canary. The exact body is checked before it leaves; a protected value throws CANARY_BLOCKED and nothing is sent.
+  await guardOutbound(host.store, ctx, { channel: 'learning', receiptId: batch.id, endpoint: '/v1/batches', payload: body });
   const response = await transportOf(options)({ method: 'POST', path: '/v1/batches', headers: { 'content-type': 'application/json', 'idempotency-key': batch.id, authorization: `Bearer ${contributor}`, 'x-deletion-token': batch.deletionToken }, body });
   if (response.status === 200 || response.status === 201) {
     const reply = JSON.parse(response.body);
@@ -137,7 +140,8 @@ async function deliver(ctx: Context, host: ModuleHost, batchId: string) {
   });
   let outcome: { status: 'sent' | 'refused' | 'unknown'; reference?: string; credits?: number; refusal?: string };
   if (reserved.batch.mode === 'test-inbox') outcome = { status: 'sent', reference: `test-inbox:${reserved.batch.id}` };
-  else { try { outcome = await send(host, reserved.batch, reserved.publicName, reserved.contributor); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = { status: 'unknown' }; } }
+  // core-gateway-auth: canary. A blocked batch never left, so it is settled as refused with CANARY_BLOCKED (not unknown) and is never sent again.
+  else { try { outcome = await send(host, reserved.batch, reserved.publicName, reserved.contributor, ctx); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = (error as any)?.code === 'CANARY_BLOCKED' ? { status: 'refused', refusal: 'CANARY_BLOCKED' } : { status: 'unknown' }; } }
   return host.store.update(state => {
     const area = sharing(state), batch = area.batches.find(item => item.id === batchId)!;
     batch.status = outcome.status; batch.settledAt = now();

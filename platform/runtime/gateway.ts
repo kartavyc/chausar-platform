@@ -20,6 +20,8 @@ import type { ConversationSynthesisCodec, GatewaySynthesisAuthority, GroundedSyn
 export type OutboundCheck = (store: StateStore, context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }) => void | Promise<void>;
 const outboundChecks = new Set<OutboundCheck>();
 export function registerOutboundCheck(outbound: OutboundCheck): void { outboundChecks.add(outbound); }
+/** core-gateway-auth: runs every registered check on the exact outgoing bytes of a call that does not go through the model gateway (plugins, learning upload, allowance); throwing sends nothing. */
+export async function runOutboundChecks(store: StateStore, context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }): Promise<void> { for (const outbound of outboundChecks) await outbound(store, context, outgoing); }
 export const DEFAULT_OPERATIONS = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'order-margin', 'aging', 'change', 'scenario'];
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama' | 'managed' | 'anthropic-messages' | 'subq-snap';
 export type RouteConfig = {

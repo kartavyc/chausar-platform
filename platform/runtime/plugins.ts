@@ -4,6 +4,7 @@ import { ChausarError, authorize, audit, check, newId, now } from './contracts.t
 import type { Context, State, StateStore } from './contracts.ts';
 import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
+import { runOutboundChecks } from './gateway.ts';
 
 export type PluginManifest = { id: string; name: string; version: string; runtime: 'wasm'; entrypoint: 'run'; capabilities: string[]; sourceIds: string[]; maxMemoryPages: number; timeoutMs: number };
 export type HostFunction = { description: string; sourceIds?: string[]; value: (context: Context, state: State) => number; bound?: boolean };
@@ -153,4 +154,22 @@ export class PluginService {
     });
     return { schema: 'chausar.miniapp.v1', title: input.title, cards, iframe: { sandbox: '', allow: '', referrerPolicy: 'no-referrer', csp: "default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'" }, executableCode: false };
   }
+}
+
+/** core-gateway-auth: the caller of an outbound call that has no person behind it at that point (the allowance route
+ *  client is built from the module host alone). It authorizes nothing and counts as touched by outside text, so a
+ *  check that looks at the caller can only refuse, never grant. */
+export const UNATTRIBUTED_OUTBOUND: Context = Object.freeze({ memberId: 'unattributed-outbound', role: 'viewer', epoch: -1, sourceTainted: true });
+export type OutboundCall = { channel: 'plugin' | 'learning' | 'allowance'; receiptId: string; endpoint: string; payload: string };
+/**
+ * core-gateway-auth: the last check on the exact bytes of a call that leaves this computer outside the model gateway
+ * (plugin network requests, the learning upload, the hosted allowance). It runs every registered outbound check, so the
+ * trust lane's planted value, and any GSTIN, mail address or phone number from the books, stops the call with
+ * CANARY_BLOCKED before anything is sent. Call it outside `store.update` (a check may record the block), after the
+ * request is fully built and before any approval is spent or any byte leaves.
+ */
+export async function guardOutbound(store: StateStore, context: Context, outgoing: OutboundCall): Promise<void> {
+  check(outgoing && ['plugin', 'learning', 'allowance'].includes(outgoing.channel) && typeof outgoing.receiptId === 'string' && outgoing.receiptId.length > 0 && outgoing.receiptId.length <= 200
+    && typeof outgoing.endpoint === 'string' && outgoing.endpoint.length <= 65536 && typeof outgoing.payload === 'string', 'INVALID_OUTBOUND', 'An outbound check needs the exact call.');
+  await runOutboundChecks(store, context, { receiptId: outgoing.receiptId, endpoint: outgoing.endpoint, payload: outgoing.payload });
 }

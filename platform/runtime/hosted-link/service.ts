@@ -20,6 +20,7 @@ import { newKey, openIntent, sealIntent, unwrapBackup, wrapBackup } from './seal
 import { confirmationPreview, isMailAddress } from './relay-extras.ts';
 import type { Decision } from './seal.ts';
 import { registerAfterPairing } from './documents.ts';
+import { guardOutbound, UNATTRIBUTED_OUTBOUND } from '../plugins.ts'; // core-gateway-auth: canary
 
 export const MODULE_ID = 'hosted-link';
 export const LABELS = Object.freeze({
@@ -434,8 +435,11 @@ export class AllowanceRouteClient {
   readonly #client: HostedClient;
   readonly #token: () => string | Promise<string>;
   readonly #clock: () => Date;
-  constructor(options: { client: HostedClient; sessionToken: () => string | Promise<string>; clock?: () => Date }) {
+  /** core-gateway-auth: canary. Awaited on the exact JSON body before it is sent; throwing (CANARY_BLOCKED) sends nothing. */
+  readonly #guard: ((body: string, requestId: string) => void | Promise<void>) | undefined;
+  constructor(options: { client: HostedClient; sessionToken: () => string | Promise<string>; clock?: () => Date; guard?: (body: string, requestId: string) => void | Promise<void> }) {
     this.#client = options.client; this.#token = options.sessionToken; this.#clock = options.clock ?? (() => new Date());
+    this.#guard = options.guard;
   }
   async complete(request: Omit<AllowanceRequest, 'requestId'> & { requestId?: string }): Promise<AllowanceCompletion> {
     const r = input(request as Record<string, any>, ['route', 'model', 'messages', 'maxOutputTokens'], ['requestId', 'system']);
@@ -447,6 +451,7 @@ export class AllowanceRouteClient {
     'INVALID_REQUEST', 'The model request is not in the allowance form.');
     const body: AllowanceRequest = { requestId, route: r.route, model: r.model, ...(r.system === undefined ? {} : { system: r.system }),
       messages: r.messages.map((m: any) => ({ role: m.role, content: m.content })), maxOutputTokens: r.maxOutputTokens };
+    if (this.#guard) await this.#guard(JSON.stringify(body), requestId); // core-gateway-auth: canary (the client sends exactly JSON.stringify(body))
     const { reply, sent, received } = await this.#client.complete(await this.#token(), body);
     return { text: reply.text, usage: { ...reply.usage }, costPaise: reply.costPaise, receipt: { route: 'chausar-allowance', requestId, requestBody: sent, replyBody: received, at: this.#clock().toISOString() } };
   }
@@ -456,7 +461,10 @@ export function allowanceRouteFor(host: ModuleHost): AllowanceRouteClient {
   const { client, c } = connected(host);
   return new AllowanceRouteClient({ client, clock: c.clock, sessionToken: () => {
     const pairing = view(host).pairing; check(pairing, 'HOSTED_NOT_PAIRED', 'Pair this computer with Chausar first.'); return pairing.sessionToken;
-  } });
+  },
+  // core-gateway-auth: canary. No person is behind the route here, so the check runs as UNATTRIBUTED_OUTBOUND: the trust lane's
+  // leak check reads only the workspace's planted and guarded values; any check that looks at the caller can only refuse.
+  guard: (body, requestId) => guardOutbound(host.store, UNATTRIBUTED_OUTBOUND, { channel: 'allowance', receiptId: requestId, endpoint: '/v1/allowance/complete', payload: body }) });
 }
 export async function workerStatus(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   input(payload, []);

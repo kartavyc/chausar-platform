@@ -54,8 +54,11 @@ export type PrepareAction = { connector: string; operation: string; payload: unk
 export class ActionService {
   store: StateStore; registry: Map<string, Connector>;
   active = new Set<string>();
-  constructor(store: StateStore, connectors: Connector[] = []) {
+  /** Optional money gate (core-gateway-auth's second ask): throws unless the approver answered it for exactly this action. */
+  readonly secondAsk?: (state: State, context: Context, action: PreparedAction) => void;
+  constructor(store: StateStore, connectors: Connector[] = [], options?: { secondAsk?: (state: State, context: Context, action: PreparedAction) => void }) {
     this.store = store; this.registry = new Map();
+    this.secondAsk = options?.secondAsk;
     for (const connector of connectors) {
       check(!this.registry.has(connector.id) && /^[a-z][a-z0-9-]{0,63}$/.test(connector.id), 'INVALID_CONNECTOR', 'Connector IDs must be unique.');
       for (const operation of Object.values(connector.operations)) check(operation.idempotency && operation.readback && typeof operation.execute === 'function' && typeof operation.reconcile === 'function', 'INVALID_CONNECTOR', 'Every operation needs an idempotency and readback contract.');
@@ -107,6 +110,7 @@ export class ActionService {
       check(context.channel !== 'phone' || op.impact === 'message', 'APP_APPROVAL_REQUIRED', 'Money and other actions must be approved inside the app.');
       check(action.status === 'prepared' && action.attempts.length === 0, 'INVALID_ACTION_STATE', 'Only a prepared, unattempted action can be approved.');
       check(expectedDigest === action.digest && action.digest === this.identity(action), 'PREVIEW_CHANGED', 'The exact action changed. Review its new preview.');
+      if (this.secondAsk && (action.impact === 'money' || op.impact === 'money')) this.secondAsk(state, context, action);
       action.approval = { memberId: context.memberId, role: context.role, epoch: context.epoch, digest: expectedDigest, revision: action.revision, workspaceRevision: state.revision, at: now() }; action.status = 'approved'; audit(state, 'action.approved', { actionId: id, digest: expectedDigest, memberId: context.memberId }); return structuredClone(action);
     });
   }

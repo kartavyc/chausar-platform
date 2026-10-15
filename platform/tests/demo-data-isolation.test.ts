@@ -17,6 +17,7 @@ import { conversationPurpose } from '../runtime/conversation-purpose.ts';
 import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
 import type { ConnectorService, HttpRequest } from '../runtime/connectors.ts';
 import type { Engine, EngineOptions } from '../runtime/engine.ts';
+import { secondAskGate } from '../runtime/gateway-auth/second-ask.ts';
 
 // Actual Engine/legacy connector source with in-memory custody and authored
 // ports only. Host imports are removed from the VM; no network, database,
@@ -72,6 +73,8 @@ async function engineVm() {
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
     // No engine modules are installed in this isolated composition.
     engineModules: [], moduleMethods: new Map(),
+    // The core actions' money gate (core-gateway-auth), the real one.
+    secondAskGate,
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
