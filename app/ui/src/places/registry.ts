@@ -13,9 +13,10 @@ import { hostedLinkPlaces } from './lane-hosted-link.tsx';
 import { modelsExtPlaces } from './lane-models-ext.tsx';
 import { releasePlaces } from './lane-release.tsx';
 import { drivingPlaces } from './lane-driving.tsx';
-import { caEnterprisePlaces } from './lane-ca-enterprise.tsx';
+import { caEnterpriseFirstPlaces, caEnterprisePlaces } from './lane-ca-enterprise.tsx';
 
-export const placeModules: readonly PlaceModule[] = [...frameTodayPlaces, ...askPlaces, ...workBooksPlaces, ...reportsToolsTrustPlaces,
+// ca-enterprise: addresses that exist only in the ca-firm and enterprise shells are looked up first.
+export const placeModules: readonly PlaceModule[] = [...caEnterpriseFirstPlaces, ...frameTodayPlaces, ...askPlaces, ...workBooksPlaces, ...reportsToolsTrustPlaces,
   ...connectorsExtPlaces, ...writebackPlaces, ...jobsExtPlaces, ...learningExtPlaces, ...hostedLinkPlaces, ...modelsExtPlaces, ...releasePlaces, ...drivingPlaces, ...caEnterprisePlaces];
 
 export function placeModuleFor(address: Address, list: readonly PlaceModule[] = placeModules): PlaceModule | null {
