@@ -56,9 +56,9 @@ test('company.overview answers one entry per Company sub, each from what the eng
   assert.equal(recovery.localCopies, 1); assert.ok(!Number.isNaN(Date.parse(recovery.lastLocalCopyAt))); assert.equal(recovery.hostedPaired, false);
   // Without the installed app's resources the custody helper report is refused: out of service with the release lane's code.
   assert.deepEqual(by.keys, { id: 'keys', state: 'out-of-service', code: 'KEYCHAIN_STATUS_INVALID', facts: [] });
-  // No device list exists yet (core-sync-jobs): not built, with this computer's sync switch.
-  assert.equal(by.computers.state, 'not-built'); assert.equal(by.computers.code, 'UNKNOWN_METHOD');
-  assert.deepEqual(by.computers.facts, [{ key: 'syncEnabled', value: false }, { key: 'syncTransport', value: false }, { key: 'syncMode', value: 'single-writer' }]);
+  // core-sync-jobs' device list answers: this computer's sync switch, and no machines while sync is off.
+  assert.deepEqual(by.computers, { id: 'computers', state: 'ready', code: null, facts: [{ key: 'syncEnabled', value: false }, { key: 'syncTransport', value: false },
+    { key: 'syncMode', value: 'single-writer' }, { key: 'devices', value: 0 }] });
   assert.deepEqual(by.quality, { id: 'quality', state: 'ready', code: null, facts: [{ key: 'benchRuns', value: 0 }, { key: 'lastBenchAt', value: null }, { key: 'lastBenchPassed', value: null }] });
   assert.equal(by.build.state, 'ready');
   assert.deepEqual(by.build.facts, [{ key: 'version', value: '0.1.0-preview.1' }, { key: 'storage', value: 'experimental-file' }, { key: 'channel', value: 'stable' },
