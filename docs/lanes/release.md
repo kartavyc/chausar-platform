@@ -212,3 +212,36 @@ Dotfiles: electron-builder's resource filters drop dotfiles such as `runtime-bin
 - The final `builder.json` still lists only `AppImage` for Linux; the launcher needs `tar.gz` there too (a one-line change plus its assertion in `release-build-config.test.ts`).
 - macOS and Windows launchers; a launch as a non-root desktop user with the Chromium sandbox.
 - A window-title check (no `xdotool` or `wmctrl`); screenshots were checked instead.
+
+## Round 4: wake timer and start at login
+
+SH-07 and TR-12 ("This computer"): waking the computer for jobs and starting at sign-in. Both are per-user OS mechanisms in `platform/runtime/native/`, with injectable runner, home folder, uid and clock, and handler-ready functions for the release module (methods `native.wake.status`, `native.wake.set`, `native.wake.clear`, `shell.startAtLogin`, `shell.setStartAtLogin`; registered in `lane-release.ts` separately).
+
+### What changed
+
+| Piece | Files | Label |
+|---|---|---|
+| Wake timer: one pending wake, ISO time with an explicit offset, rounded down to the minute, at least a minute and at most seven days ahead, confirmation required. Windows: Task Scheduler task `Chausar\Wake` (TimeTrigger in UTC, `WakeToRun`, InteractiveToken, LeastPrivilege, action = app `--background`) via `schtasks /Create /XML`. macOS: `pmset schedule wake "<MM/dd/yyyy HH:mm:ss>" Chausar` (local time; pmset has no offset syntax), refused `WAKE_TIMER_NEEDS_ADMIN` unless root, with the exact command in the plan, never a password prompt. Linux: `chausar-wake.timer` (`OnCalendar=<UTC> UTC`, `WakeSystem=true`, `Persistent=false`) + `chausar-wake.service` (app `--background`), daemon-reload, enable, restart; refused `WAKE_TIMER_UNAVAILABLE` without `/sys/class/rtc/rtc0/wakealarm` and `WAKE_TIMER_NEEDS_ADMIN` unless the user manager holds `cap_wake_alarm` (`systemctl show user@<uid>.service -p AmbientCapabilities`; root's always does) | `wake-timer.ts`, `os-integration.ts` | **experimental** |
+| Start at login (off by default): Windows HKCU `...\CurrentVersion\Run` value `Chausar` = `"<exe>" --start-at-login` via `reg.exe add/delete/query` (no PowerShell); macOS LaunchAgent `in.chausar.login.plist` (RunAtLoad, no KeepAlive, never loaded or booted out by Chausar, so it neither starts a second copy nor stops the running one); Linux XDG autostart `~/.config/autostart/in.chausar.desktop` (Exec quoted per the Desktop Entry spec, `X-GNOME-Autostart-enabled=true`; an entry the session turned off reads as disabled). Status reports `matches` when the entry points to another executable | `start-at-login.ts`, `os-integration.ts` | **supported** (Linux), **experimental** (Windows, macOS: code only) |
+| Desktop main process: `--start-at-login` starts hidden in the tray (no window until Open; closing the window keeps the tray) and grants nothing else (background jobs still need `--background`). A later launch with `--background` (the wake timer) or `--start-at-login` only wakes the running instance and never opens a window | `app/desktop/main.cjs` (delimited release-lane block + 4 one-line changes) | **supported** |
+
+Electron's `app.setLoginItemSettings` was not used: the engine runs in a worker process and cannot call Electron APIs, it has no Linux implementation, and the OS-level mechanism is testable with an injected runner and a temporary home.
+
+Notes for other lanes: the release refusal line in `preload.cjs` does not yet list `WAKE_TIMER_NEEDS_ADMIN`, `WAKE_TIMER_UNAVAILABLE`, `WAKE_TIME_INVALID`, `WAKE_TIME_PAST`, `WAKE_TIME_TOO_FAR`, `START_AT_LOGIN_UNSUPPORTED` (to be added with the method registration). The dev launcher (`desktopLaunchArguments`) does not accept `--start-at-login`; only installed launches use it. The host should pass the launcher path (not a versioned executable) as `executable` once in-place updates are used, or `matches` turns false after an update.
+
+### Results
+
+| Run | Command | Result |
+|---|---|---|
+| Typecheck, check, tests | `npm run typecheck`; `node scripts/check.mjs`; `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/desktop-*.test.ts` | pass; pass (1162 files); 337 tests, 334 pass, 0 fail, 3 skipped (env-gated real-PostgreSQL tests) |
+| New tests | `release-wake-timer.test.ts` (12), `release-login.test.ts` (7), two new cases in `desktop-main.test.ts` | pass: generated XML/units/plists/commands, escaping, rounding, past/too-far/offset-less times, confirmation, macOS non-root and Linux no-capability refusals before any write, symlink refusals, Windows UTF-16 task file removed after `/Create` |
+| Real Linux start at login | `release-login.test.ts` "real Linux" case | pass: the autostart entry was written, read back (Exec parsed back to the exact executable, mode 0644, no temporary file), detected as disabled when edited to `X-GNOME-Autostart-enabled=false`, and removed, in a temporary HOME |
+| Real Linux wake status | default runner, this container | `available: false`, `WAKE_TIMER_UNAVAILABLE` (no `/sys/class/rtc`; no user bus); `set` refused with nothing written |
+| Generated units | `systemd-analyze verify` on the timer and service; `systemd-analyze calendar "2026-10-16 01:30:00 UTC"` | pass; normalized form unchanged |
+| Generated XML | `xmllint --noout` on the Windows task and the login plist | pass |
+
+### Could not run
+
+- A real wake on any OS (needs a machine that sleeps and an RTC; this container has neither).
+- Windows `schtasks /Create /XML` and `reg.exe`; macOS `pmset` and launchd at sign-in: code and recorded-command tests only.
+- A Linux user manager with `cap_wake_alarm` (`systemctl --user` has no bus here), and a real desktop session reading the autostart entry.
