@@ -83,6 +83,51 @@ function envelopeFor(host: ModuleHost, id: unknown): Envelope {
   return found;
 }
 
+/** Core refusals that say a workbook is encrypted. `ENCRYPTED_ZIP` is today's core; the rest are core-data's password path. */
+const WORKBOOK_LOCKED = new Set(['PASSWORD_REQUIRED', 'WORKBOOK_ENCRYPTED', 'ENCRYPTED', 'ENCRYPTED_WORKBOOK', 'WORKBOOK_PASSWORD_REQUIRED', 'ENCRYPTED_ZIP']);
+/** Refusals only a core that reads workbook passwords gives: the sign that `password` may be sent. */
+const TAKES_PASSWORD = new Set(['PASSWORD_REQUIRED', 'WORKBOOK_ENCRYPTED', 'ENCRYPTED', 'ENCRYPTED_WORKBOOK', 'WORKBOOK_PASSWORD_REQUIRED']);
+/** Refusals of a request shape or a file the core cannot open: with a password sent, the core does not take one. */
+const NO_PASSWORD_FIELD = new Set(['UNSUPPORTED_WORKBOOK', 'INVALID_REQUEST', 'INVALID_WORKBOOK_REQUEST', 'INVALID_SOURCES_REQUEST', 'UNEXPECTED_FIELD', 'INVALID_PAYLOAD', 'PAYLOAD_INVALID']);
+const OLE = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), ENCRYPTION_INFO = Buffer.from('EncryptionInfo', 'utf16le');
+/** An Office password-protected workbook is an OLE container holding an EncryptionInfo stream (ECMA-376 encryption). */
+function encryptedOffice(bytesBase64: unknown): boolean {
+  if (typeof bytesBase64 !== 'string' || bytesBase64.length > 5_600_000 || !BASE64.test(bytesBase64)) return false;
+  const bytes = Buffer.from(bytesBase64, 'base64');
+  return bytes.length > OLE.length && bytes.subarray(0, OLE.length).equals(OLE) && bytes.includes(ENCRYPTION_INFO);
+}
+const codeOf = (error: unknown) => error instanceof ChausarError ? error.code : typeof (error as any)?.code === 'string' ? (error as any).code as string : null;
+const NEEDS_PASSWORD = () => new ChausarError('PASSWORD_REQUIRED', 'This workbook has a password. Enter it to read the file once on this computer.');
+const WRONG = () => new ChausarError('WRONG_PASSWORD', 'That password did not open the file.');
+const NOT_SUPPORTED = () => new ChausarError('WORKBOOK_PASSWORD_NOT_SUPPORTED', 'Workbooks with a password cannot be opened in this version. Save a copy without its password, then bring that copy.');
+/**
+ * XLSX through core `sources.workbookPreview` / `sources.workbookImport`. The held password is
+ * taken (and so wiped) every time. It is sent only to a core that has shown it reads workbook
+ * passwords: the workbook goes first without it, and only a core-data password refusal brings a
+ * second call with it. A core that cannot open encrypted workbooks never receives the password.
+ */
+async function workbook(ctx: Context, host: ModuleHost, method: 'sources.workbookPreview' | 'sources.workbookImport', payload: Record<string, any>) {
+  const password = take(host, ctx, payload.sourceId);
+  const base = { sourceId: payload.sourceId, bytesBase64: payload.bytesBase64, ...(payload.sheet ? { sheet: payload.sheet } : {}), ...(payload.recipe ? { recipe: payload.recipe } : {}), ...(payload.expectedTotals ? { expectedTotals: payload.expectedTotals } : {}) };
+  let first: string | null;
+  try { return await host.call(method, base); }
+  catch (error) {
+    first = codeOf(error);
+    if (first === 'WRONG_PASSWORD') throw WRONG();
+    const locked = (first !== null && WORKBOOK_LOCKED.has(first)) || (first === 'UNSUPPORTED_WORKBOOK' && encryptedOffice(payload.bytesBase64));
+    if (!locked) throw error;
+    if (!password) throw NEEDS_PASSWORD();
+    if (!TAKES_PASSWORD.has(first!)) throw NOT_SUPPORTED();
+  }
+  try { return await host.call(method, { ...base, password }); }
+  catch (error) {
+    const code = codeOf(error);
+    if (code === 'WRONG_PASSWORD' || (code !== null && WORKBOOK_LOCKED.has(code))) throw WRONG();
+    if (code !== null && NO_PASSWORD_FIELD.has(code)) throw NOT_SUPPORTED();
+    throw error;
+  }
+}
+
 export const imports = {
   providePassword(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     trusted(ctx); shape(payload, ['sourceId', 'password'], ['sourceId', 'password']);
@@ -96,7 +141,7 @@ export const imports = {
     shape(payload, ['sourceId', 'kind', 'bytesBase64', 'content', 'sheet', 'recipe', 'expectedTotals', 'company', 'branch'], ['sourceId', 'kind']);
     check(typeof payload.sourceId === 'string' && SOURCE.test(payload.sourceId), REQUEST, 'Name the file.');
     if (payload.kind === 'csv') return host.call('sources.preview', { sourceId: payload.sourceId, format: 'csv', content: payload.content, ...(payload.recipe ? { recipe: payload.recipe } : {}), ...(payload.expectedTotals ? { expectedTotals: payload.expectedTotals } : {}) });
-    if (payload.kind === 'xlsx') return host.call('sources.workbookPreview', { sourceId: payload.sourceId, bytesBase64: payload.bytesBase64, ...(payload.sheet ? { sheet: payload.sheet } : {}), ...(payload.recipe ? { recipe: payload.recipe } : {}), ...(payload.expectedTotals ? { expectedTotals: payload.expectedTotals } : {}) });
+    if (payload.kind === 'xlsx') return workbook(ctx, host, 'sources.workbookPreview', payload);
     check(payload.kind === 'pdf', REQUEST, 'Bring a PDF, CSV or XLSX file.');
     check(typeof payload.bytesBase64 === 'string' && payload.bytesBase64.length > 0 && payload.bytesBase64.length <= 5_600_000 && BASE64.test(payload.bytesBase64), 'INVALID_PDF', 'Choose a PDF statement smaller than four megabytes.');
     const password = take(host, ctx, payload.sourceId);
@@ -112,6 +157,12 @@ export const imports = {
     return { ...envelope, fr07: fr07Result(envelopeFor(host, envelope.id)) };
   },
   async commit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    if (plain(payload) && payload.kind === 'xlsx') {
+      trusted(ctx);
+      shape(payload, ['sourceId', 'kind', 'bytesBase64', 'sheet', 'recipe', 'expectedTotals'], ['sourceId', 'kind', 'bytesBase64']);
+      check(typeof payload.sourceId === 'string' && SOURCE.test(payload.sourceId), REQUEST, 'Name the file.');
+      return workbook(ctx, host, 'sources.workbookImport', payload);
+    }
     shape(payload, ['sourceId', 'envelopeId'], ['sourceId', 'envelopeId']);
     const envelope = envelopeFor(host, payload.envelopeId);
     check(envelope.sourceId === payload.sourceId, REQUEST, 'This read belongs to another file.');
@@ -130,8 +181,10 @@ export const imports = {
     if (!configured) return { status: 'not-installed', pdfText: false, pdfOcr: false, reason: 'PYTHON_NOT_CONFIGURED', sizeBytes: null };
     try {
       const { result } = await helper.run('pdf.status', {});
+      // The helper's answer is checked, never trusted: a size is a whole number of bytes, or unknown.
+      const sizeBytes = (result.pdfText === true || result.pdfOcr === true) && Number.isSafeInteger(result.sizeBytes) && result.sizeBytes >= 0 ? result.sizeBytes as number : null;
       return { status: result.pdfText === true ? 'installed' : 'not-installed', pdfText: result.pdfText === true, pdfOcr: result.pdfOcr === true,
-        reason: result.pdfText === true ? null : 'PDF_LIBRARY_MISSING', sizeBytes: null };
+        reason: result.pdfText === true ? null : 'PDF_LIBRARY_MISSING', sizeBytes };
     } catch (error) {
       return { status: 'not-installed', pdfText: false, pdfOcr: false, reason: typeof (error as any)?.code === 'string' ? (error as any).code : 'HELPER_EXECUTION_FAILED', sizeBytes: null };
     }

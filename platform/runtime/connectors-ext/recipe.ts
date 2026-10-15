@@ -18,10 +18,14 @@ export type TotalsSpec =
   | { kind: 'declared' }
   /** Bank statements: opening plus every entry must equal each running balance and the closing balance. */
   | { kind: 'running-balance'; balanceField: string }
-  /** The person types the total shown by the system's own report. */
-  | { kind: 'report' };
+  /**
+   * The person types the total shown by the system's own report. `declaredCount: 'accepts'`: the
+   * system states its own record count for exactly the filter read, so with no typed total the read
+   * is accepted on that count alone (the amount is then unchecked, and says so).
+   */
+  | { kind: 'report'; declaredCount?: 'accepts' };
 export type MeasureSpec =
-  | { type: 'money'; amount: { field: string } | { credit: string; debit: string }; currency: { constant: string } | { field: string }; unit: 'major' | 'minor' }
+  | { type: 'money'; amount: { field: string } | { credit: string; debit: string }; currency: { constant: string } | { field: string; default?: string }; unit: 'major' | 'minor' }
   | { type: 'count'; field: string; unit: string };
 export type SourceRecipe = {
   id: string; version: string; group: string; operation: string; title: string;
@@ -80,7 +84,7 @@ export function compileRecipe(recipe: SourceRecipe, decoders: ReadonlyMap<string
   const m = copy.measure;
   if (m.type === 'money') {
     check(['major', 'minor'].includes(m.unit) && ('field' in m.amount ? known(m.amount.field, ['money']) : known(m.amount.credit, ['money']) && known(m.amount.debit, ['money'])), 'RECIPE_MEASURE_INVALID', 'The amount must be a money field.');
-    check('constant' in m.currency ? /^[A-Z]{3}$/.test(m.currency.constant) : known(m.currency.field, ['text']), 'RECIPE_CURRENCY_REQUIRED', 'State the currency or the field that holds it.');
+    check('constant' in m.currency ? /^[A-Z]{3}$/.test(m.currency.constant) : known(m.currency.field, ['text']) && (m.currency.default === undefined || /^[A-Z]{3}$/.test(m.currency.default)), 'RECIPE_CURRENCY_REQUIRED', 'State the currency or the field that holds it.');
   } else check(m.type === 'count' && known(m.field, ['integer']) && /^[a-z][a-z_]{0,30}$/.test(m.unit), 'RECIPE_MEASURE_INVALID', 'A count needs an integer field and a unit.');
   check('constant' in copy.kind ? KIND.test(copy.kind.constant) : known(copy.kind.field) && Object.keys(copy.kind.values).length > 0 && Object.values(copy.kind.values).every(v => KIND.test(v)), 'RECIPE_KIND_INVALID', 'Map every source record type to a dictionary kind.');
   if (copy.status) check(known(copy.status.field) && Object.keys(copy.status.values).length > 0 && Object.values(copy.status.values).every(v => STATUS.test(v)), 'RECIPE_STATUS_INVALID', 'Map every source status to a dictionary status.');
@@ -91,6 +95,8 @@ export function compileRecipe(recipe: SourceRecipe, decoders: ReadonlyMap<string
   check(t && ['footer-row', 'declared', 'running-balance', 'report'].includes(t.kind), 'RECIPE_TOTALS_REQUIRED', 'A recipe without its check against the source\'s own totals does not compile.');
   if (t.kind === 'footer-row') check(known(t.labelField) && t.labels.length > 0 && t.amountFields.length > 0 && t.amountFields.every(f => known(f, m.type === 'money' ? ['money'] : ['integer'])) && (!t.countField || known(t.countField, ['integer'])), 'RECIPE_TOTALS_REQUIRED', 'The total row names its label and amount columns.');
   if (t.kind === 'running-balance') check(m.type === 'money' && known(t.balanceField, ['money']), 'RECIPE_TOTALS_REQUIRED', 'A running balance needs a money balance column.');
+  if (t.kind === 'report') check(Object.keys(t).every(key => ['kind', 'declaredCount'].includes(key)) && (t.declaredCount === undefined || (t.declaredCount === 'accepts' && decoders.get(copy.decoder)!.accepts === 'records')),
+    'RECIPE_TOTALS_REQUIRED', 'Only a recipe over records a system read can accept the system\'s own count.');
   if (copy.records) check(Array.isArray(copy.records) && copy.records.every(step => typeof step === 'string' && step.length > 0 && step.length <= 80 && !['__proto__', 'prototype', 'constructor'].includes(step)), 'RECIPE_INVALID', 'A record path holds plain keys.');
   return Object.freeze(copy);
 }
@@ -110,6 +116,7 @@ const QUESTIONS: Record<Abstention['reason'], string> = {
 };
 const ask = (reason: Abstention['reason'], field: string, options: string[]): never => abstain({ reason, field, question: QUESTIONS[reason], options: options.slice(0, 20) });
 
+export const DECLARED_COUNT_NOTICE = 'Checked against the system\'s own record count only; the amount was not checked against a report.';
 /** Run one recipe over decoded rows and check the result against the source's own totals. */
 export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: DecoderInput, options: RunOptions = {}): RecipeOutcome {
   const contentHash = hash(input.text ?? JSON.stringify(input.rows ?? input.records ?? []));
@@ -136,6 +143,8 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       if (m.type !== 'money') return '';
       if ('constant' in m.currency) return m.currency.constant;
       const value = cell(row, m.currency.field).toUpperCase();
+      // A source answer ("this file is in INR") fills only empty currency cells, never a stated one.
+      if (!value && m.currency.default) return m.currency.default;
       if (!value) ask('currency', m.currency.field, []);
       if (!/^[A-Z]{3}$/.test(value)) refuse('INVALID_CURRENCY', 'A currency is not an ISO code.', row.line);
       return value;
@@ -297,7 +306,21 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       outcome.balances = { opening: outcome.balances?.opening ?? null, closing: closingMinor };
       if (!passed) refuse('BALANCE_CLOSING_MISMATCH', 'Opening balance plus every entry does not equal the closing balance. The statement may be cut short.');
     } else {
-      const report = options.reportTotals;
+      const report = options.reportTotals, declared = table!.declared;
+      // Every record the system returned for the filter, before exclusions and repeats: what its own count counts.
+      const declaredCount = t.declaredCount === 'accepts' && declared && declared.rowCount !== null ? declared.rowCount : null, returned = body.length;
+      if (declaredCount !== null && !report) {
+        outcome.sourceTotals = { rowCount: declaredCount, total: null, reference: declared!.reference, provenance: 'source-declared-count' };
+        outcome.checks.push({ id: 'source-total', status: 'unavailable', expected: null, observed: String(total) });
+        outcome.checks.push({ id: 'source-row-count', status: declaredCount === returned ? 'passed' : 'failed', expected: declaredCount, observed: returned });
+        if (declaredCount !== returned) refuse('SOURCE_ROW_MISMATCH', 'The record count differs from the system\'s own count. The read may be cut short or filtered.');
+        outcome.notices.push(DECLARED_COUNT_NOTICE);
+        return outcome;
+      }
+      if (declaredCount !== null) {
+        outcome.checks.push({ id: 'source-declared-count', status: declaredCount === returned ? 'passed' : 'failed', expected: declaredCount, observed: returned });
+        if (declaredCount !== returned) refuse('SOURCE_ROW_MISMATCH', 'The record count differs from the system\'s own count. The read may be cut short or filtered.');
+      }
       if (!report) { outcome.checks.push({ id: 'source-total', status: 'unavailable' }); refuse('SOURCE_TOTALS_REQUIRED', 'Enter the total from the system\'s own report before this file can count.'); }
       check(typeof report!.total === 'string' && /^-?\d{1,30}$/.test(report!.total) && (report!.rowCount === null || (Number.isSafeInteger(report!.rowCount) && report!.rowCount >= 0)), 'INVALID_SOURCE_TOTALS', 'Report totals are a whole minor-unit amount and an optional row count.');
       compare(report!.rowCount, report!.total, { rowCount: report!.rowCount, total: report!.total, reference: 'report-entered-by-person', provenance: 'user-entered-report' });

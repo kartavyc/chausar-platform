@@ -38,7 +38,11 @@ export function recipe(id: string): SourceRecipe {
   return recipeMap.get(id)!;
 }
 export function runRegistered(id: string, input: DecoderInput, options: RunOptions = {}): RecipeOutcome {
-  const selected = recipe(id), decoder = decoderMap.get(selected.decoder)!;
+  return runCompiled(recipe(id), input, options);
+}
+/** Run a compiled recipe (a registered one, or one with a source's answers) on the input its decoder takes. */
+export function runCompiled(selected: SourceRecipe, input: DecoderInput, options: RunOptions = {}): RecipeOutcome {
+  const decoder = decoderMap.get(selected.decoder)!;
   check(decoder.accepts === 'text' ? typeof input.text === 'string' : decoder.accepts === 'rows' ? Array.isArray(input.rows) : Array.isArray(input.records),
     'RECIPE_INPUT_MISMATCH', 'This recipe reads a different kind of input.');
   return runRecipe(selected, decoder, input, options);

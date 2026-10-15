@@ -100,7 +100,8 @@ test('FR-07: refused statements carry the fixed reasons; a picture and a missing
   await assert.rejects(engine.request('imports.preview', { sourceId: 'statement-picture', kind: 'pdf', bytesBase64: blank }), code('PICTURE_ONLY'));
   const status = await engine.request('imports.readerStatus', {});
   assert.equal(status.status, 'installed'); assert.equal(status.pdfText, true);
-  assert.throws(() => imports.installReader(owner, {}), code('READER_INSTALL_UNAVAILABLE'));
+  // Without a bundled reader the install refuses (the release lane installs one when the bundle exists).
+  await assert.rejects(async () => (imports.installReader as any)(owner, {}, hostOf(engine)), code('READER_INSTALL_UNAVAILABLE'));
   await assert.rejects(engine.request('imports.installReader', {}), code('DEMO_EXTERNAL_DISABLED'));
 });
 
