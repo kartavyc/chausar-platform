@@ -9,7 +9,7 @@ const en = {
   // WK-13 / BK-18
   'bill.title': 'A photo of a bill', 'bill.experimental': 'Experimental. Read on this computer; you check every field before anything is prepared.',
   'bill.choose': 'Choose a bill (PDF, PNG or JPEG, up to 4 MB)', 'bill.tooLarge': 'This file is larger than 4 MB.', 'bill.wrongType': 'Choose a PDF, a PNG or a JPEG.',
-  'bill.reading': 'Reading the bill on this computer…', 'bill.page': 'The bill', 'bill.regions': 'Where each field was read (approximate band of the line)',
+  'bill.reading': 'Reading the bill on this computer…', 'bill.page': 'The bill', 'bill.regions': 'Where each field was read (its words, or the band of its line)',
   'bill.form': 'What the bill says', 'bill.supplier': 'Supplier', 'bill.number': 'Bill number', 'bill.date': 'Date', 'bill.lines': 'Lines',
   'bill.description': 'What it is', 'bill.quantity': 'Quantity', 'bill.amount': 'Amount (₹)', 'bill.tax': 'Tax', 'bill.taxName': 'Tax name', 'bill.total': 'Total (₹)',
   'bill.addLine': 'Add a line', 'bill.addTax': 'Add a tax', 'bill.removeRow': 'Remove',
@@ -59,7 +59,7 @@ const en = {
 const hi: Record<keyof typeof en, string> = {
   'bill.title': 'बिल की फ़ोटो', 'bill.experimental': 'प्रयोग में। इसी कंप्यूटर पर पढ़ा जाता है; कुछ भी तैयार होने से पहले आप हर खाना जाँचते हैं।',
   'bill.choose': 'बिल चुनें (PDF, PNG या JPEG, 4 MB तक)', 'bill.tooLarge': 'यह फ़ाइल 4 MB से बड़ी है।', 'bill.wrongType': 'PDF, PNG या JPEG चुनें।',
-  'bill.reading': 'इसी कंप्यूटर पर बिल पढ़ा जा रहा है…', 'bill.page': 'बिल', 'bill.regions': 'हर खाना कहाँ से पढ़ा गया (पंक्ति की अनुमानित पट्टी)',
+  'bill.reading': 'इसी कंप्यूटर पर बिल पढ़ा जा रहा है…', 'bill.page': 'बिल', 'bill.regions': 'हर खाना कहाँ से पढ़ा गया (उसके शब्द, या उसकी पंक्ति की पट्टी)',
   'bill.form': 'बिल में क्या लिखा है', 'bill.supplier': 'विक्रेता', 'bill.number': 'बिल नंबर', 'bill.date': 'तारीख़', 'bill.lines': 'पंक्तियाँ',
   'bill.description': 'क्या है', 'bill.quantity': 'मात्रा', 'bill.amount': 'रक़म (₹)', 'bill.tax': 'टैक्स', 'bill.taxName': 'टैक्स का नाम', 'bill.total': 'कुल (₹)',
   'bill.addLine': 'पंक्ति जोड़ें', 'bill.addTax': 'टैक्स जोड़ें', 'bill.removeRow': 'हटाएँ',

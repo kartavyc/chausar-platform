@@ -14,6 +14,7 @@ import { connectorMethods } from './books-connectors.ts';
 import { recipeMethods, r2Purge } from './books-recipes.ts';
 import { trialMethods } from './books-trial.ts';
 import { r4aMethods } from './books-r4a.ts';
+import { recordR4bMethods } from './books-records-r4b.ts';
 
 /** books, accounts, records and history methods of the work-books lane (BK-01..BK-20). */
 export const booksMethods: Readonly<Record<string, MethodSpec>> = {
@@ -21,6 +22,7 @@ export const booksMethods: Readonly<Record<string, MethodSpec>> = {
   ...billMethods, ...rateMethods, ...deletionMethods,
   ...connectorMethods, ...recipeMethods, ...trialMethods,
   ...r4aMethods,
+  ...recordR4bMethods,
 };
 
 /**

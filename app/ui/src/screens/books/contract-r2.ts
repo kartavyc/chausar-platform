@@ -4,6 +4,7 @@
  * and is drawn only after it has passed its check here.
  */
 import { amount, bool, count, either, id, instant, isoDate, list, literal, nullable, object, oneOf, text, type Check } from '../work/kit/validate.ts';
+import { STRATEGIES, strategyImpact } from './contract-r4b.ts';
 
 const name = text(400);
 const line = text(4000);
@@ -101,10 +102,12 @@ export const trialView = object({
 }, {
   // Audit, additive: a source order tried on a copy (BK-14 to BK-09).
   precedence: nullable(object({ kind: name, sourceIds: list(name, 64) })),
+  // Round 4, additive: every publish strategy with its own impact preview (BK-09).
+  impacts: list(strategyImpact, 2),
 });
 export type TrialView = ReturnType<typeof trialView>;
 export const trialReadReply = object({ trial: nullable(trialView) });
 export const trialQuestionsReply = object({ available: bool, questions: list(object({ id, receiptId: id, operation: name, period, stale: bool }), 500) });
 export const trialPublishReply = object({ trialId: id, status: literal('promoted'), publicationId: id, draftId: nullable(id), proposalId: nullable(id) },
-  { precedence: nullable(object({ kind: name, sourceIds: list(name, 64) })) });
+  { precedence: nullable(object({ kind: name, sourceIds: list(name, 64) })), strategy: oneOf(STRATEGIES) });
 export const trialDiscardReply = object({ trialId: id, status: literal('discarded'), cleanupComplete: bool });

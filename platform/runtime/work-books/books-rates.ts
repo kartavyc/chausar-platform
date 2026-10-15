@@ -9,6 +9,7 @@ import { canSeeFact } from '../memory.ts';
 import type { MethodSpec } from '../modules/types.ts';
 import { input, isoDay, member, text, writeBooks, type BooksState } from './books-common.ts';
 import { peekSection } from './state.ts';
+import { receiptsNotCounted } from './books-rates-r4b.ts';
 
 export type RateEntry = { currency: string; on: string; units: string; per: string; source: string; enteredBy: string; memberId: string; at: string };
 const CURRENCY = /^[A-Z]{3}$/;
@@ -41,6 +42,8 @@ export const rateMethods: Record<string, MethodSpec> = {
     return {
       rates: [...rates].sort((a, b) => b.on.localeCompare(a.on) || a.currency.localeCompare(b.currency)).map(view),
       notCounted: [...missing.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([currency, rows]) => ({ currency, rows })),
+      // Round 4 (BK-19): the count as core-data's receipts carry it, once they do.
+      fromReceipts: receiptsNotCounted(state, ctx),
     };
   } },
   'books.setRate': { permission: 'admin', async handler(ctx, payload, host) {

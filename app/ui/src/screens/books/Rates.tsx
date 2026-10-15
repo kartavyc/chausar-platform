@@ -11,6 +11,8 @@ import { day } from '../work/kit/format.ts';
 import { rateRow, ratesReply, removeRateReply, type RateRow } from './contract.ts';
 import { BooksPage, ConfirmButton, Link, Table, approves, fill, styles as s, valueOf, type BooksProps } from './shared.tsx';
 import { useMoreWords } from './words-more.ts';
+import { useR4bWords } from './words-r4b.ts';
+import { dayIn, useZone } from './r4b-parts.tsx';
 
 /** "83.2150" → { units: '832150', per: '10000' }, by text only. */
 export function rateOf(text: string): { units: string; per: string } | null {
@@ -45,6 +47,7 @@ export function Rates(props: BooksProps) {
         <>
           {value.notCounted.length === 0 ? <Note>{w['rates.allCounted']}</Note>
             : value.notCounted.map(n => <p key={n.currency} className={s.amber} data-not-counted={n.currency}>{fill(w['rates.notCounted'], { rows: n.rows, currency: n.currency })}</p>)}
+          {value.fromReceipts && <FromReceipts props={props} value={value.fromReceipts} />}
           {value.rates.length === 0 ? <Note>{w['rates.empty']}</Note> : (
             <Table view={props.view} caption={w['rates.title']} columns={[
               { head: w['rates.col.currency'], simple: true }, { head: w['rates.col.on'], simple: true }, { head: w['rates.col.rate'], num: true, simple: true },
@@ -59,6 +62,21 @@ export function Rates(props: BooksProps) {
       <Refusal code={act.refusal} language={props.language} />
       {admin && <RateForm props={props} onDone={reload} />}
     </BooksPage>
+  );
+}
+
+/** BK-19, round 4: the not-counted count as receipts carry it, once core-data puts it there. Each line opens its receipt. */
+function FromReceipts({ props, value }: { props: BooksProps; value: NonNullable<ReturnType<typeof ratesReply>['fromReceipts']> }) {
+  const k = useR4bWords(props.language); const zone = useZone(props);
+  return (
+    <Section title={k['rates.fromReceipts']}>
+      {!value.available ? <Note>{k['rates.receiptsWait']}</Note> : value.receipts.length === 0 ? <Note>{k['rates.receiptsNone']}</Note> : (
+        <ul className={s.list}>{value.receipts.flatMap(r => r.notCounted.map(n => (
+          <li key={`${r.receiptId}-${n.currency}`} data-receipt-not-counted={r.receiptId}>
+            <Link onPress={() => props.openReceipt(r.receiptId)}>{fill(k['rates.receiptLine'], { operation: r.operation, when: dayIn(r.at, props.language, zone), rows: n.rows, currency: n.currency })}</Link>
+          </li>)))}</ul>
+      )}
+    </Section>
   );
 }
 

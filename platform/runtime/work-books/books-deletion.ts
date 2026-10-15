@@ -12,6 +12,7 @@ import { input, member, peekBooks, plainId, seesEverything, text, writeBooks, ty
 import { holdingsOf, lineNames, recordIdsOf, visibleRecordIds } from './books-records.ts';
 import { visibleMemoryLine } from './books-memory.ts';
 import { peekSection } from './state.ts';
+import { CORE_STORES, coreDeletionInstalled, deleteCoreRows } from './books-deletion-r4b.ts';
 
 type RowState = 'deleted' | 'pending' | 'not-possible' | 'nothing-held';
 export type DeletionRow = { store: string; count: number; state: RowState; reason: string | null };
@@ -32,10 +33,12 @@ const NEEDS_OWNER: Readonly<Record<string, string>> = {
 };
 const MAX_REPORTS = 500;
 
-function plan(host: ModuleHost, ctx: Context, id: unknown) {
+/** `core`: core-data's one-customer deletion is installed (round 4), so the core stores can be deleted too. */
+function plan(host: ModuleHost, ctx: Context, id: unknown, core = false) {
+  const can = (store: string) => OURS.has(store) || (core && CORE_STORES.has(store));
   return holdingsOf(host, ctx, id).map(({ store, count }) => ({
-    store, count, state: count === 0 ? 'nothing-held' as const : OURS.has(store) ? 'can-delete' as const : 'needs-owner' as const,
-    reason: count > 0 && !OURS.has(store) ? NEEDS_OWNER[store] ?? 'This store has no delete for one customer.' : null,
+    store, count, state: count === 0 ? 'nothing-held' as const : can(store) ? 'can-delete' as const : 'needs-owner' as const,
+    reason: count > 0 && !can(store) ? NEEDS_OWNER[store] ?? 'This store has no delete for one customer.' : null,
   }));
 }
 function reportsOf(books: BooksState): StoredReport[] {
@@ -46,16 +49,16 @@ function reportsOf(books: BooksState): StoredReport[] {
 
 export const deletionMethods: Record<string, MethodSpec> = {
   'records.deletionPlan': { permission: 'read', async handler(ctx, payload, host) {
-    const { id } = input(payload, ['id'], ['id']); const stores = plan(host, ctx, id);
+    const { id } = input(payload, ['id'], ['id']); const core = await coreDeletionInstalled(host); const stores = plan(host, ctx, id, core);
     const sources = await optionalCall(host, 'trustx.deletions', {});
-    return { recordId: id as string, stores, canDelete: stores.some(s => s.state === 'can-delete'), sourceDeletion: { available: sources.available } };
+    return { recordId: id as string, stores, canDelete: stores.some(s => s.state === 'can-delete'), sourceDeletion: { available: sources.available }, coreDeletion: { available: core } };
   } },
   'records.delete': { permission: 'approve', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'confirmation'], ['id', 'confirmation']);
     check(plainId(request.id), 'INVALID_BOOKS_REQUEST', 'Name the record.');
     check(!ctx.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot delete anything.');
     check(text(request.confirmation, 200) && request.confirmation === request.id, 'CONFIRMATION_REQUIRED', 'Type the customer id exactly to delete.');
-    const before = plan(host, ctx, request.id);
+    const core = await coreDeletionInstalled(host); const before = plan(host, ctx, request.id, core);
     check(before.some(s => s.state === 'can-delete') || before.every(s => s.state === 'nothing-held'), 'DELETION_NOT_AVAILABLE',
       'Chausar cannot delete these records itself. Facts, receipts, answers, actions and conversations need the owner to remove the source.');
     const ids = recordIdsOf(host.store.read(), request.id); const who = member(host.store.read(), ctx); const at = now();
@@ -70,11 +73,13 @@ export const deletionMethods: Record<string, MethodSpec> = {
       books.matches = books.matches.filter(m => !deletable(m));
       for (const line of books.memory) if (visibleLines.has(line.id)) { line.text = null; line.earlier = []; line.deletedAt = at; }
     });
-    const after = new Map(holdingsOf(host, ctx, request.id).map(s => [s.store, s.count]));
+    // Round 4: the core stores through core-data's one-customer deletion, once, only when it is installed and holds something.
+    const coreCall = core && before.some(s => CORE_STORES.has(s.store) && s.state === 'can-delete') ? await deleteCoreRows(host, ctx, request.id, [...ids], request.confirmation) : null;
+    const after = new Map(holdingsOf(host, ctx, request.id, true).map(s => [s.store, s.count]));
     const rows: DeletionRow[] = before.map(s => s.state === 'nothing-held' ? { store: s.store, count: 0, state: 'nothing-held', reason: null }
       : s.state === 'needs-owner' ? { store: s.store, count: s.count, state: 'not-possible', reason: s.reason }
       : (after.get(s.store) ?? 0) === 0 ? { store: s.store, count: s.count, state: 'deleted', reason: null }
-      : { store: s.store, count: s.count, state: 'pending', reason: 'Some of it was still found after deleting. It was not reported deleted.' });
+      : { store: s.store, count: s.count, state: 'pending', reason: CORE_STORES.has(s.store) && coreCall?.code ? `The core deletion refused (${coreCall.code}). Nothing here was reported deleted.` : 'Some of it was still found after deleting. It was not reported deleted.' });
     const report: StoredReport = { id: newId('deletion'), recordId: request.id, at, by: who.name, complete: rows.every(r => r.state === 'deleted' || r.state === 'nothing-held'), rows, memberId: ctx.memberId };
     await writeBooks(host.store, ctx, 'approve', books => { const reports = reportsOf(books); reports.push(report); if (reports.length > MAX_REPORTS) reports.splice(0, reports.length - MAX_REPORTS); });
     return shown(report);

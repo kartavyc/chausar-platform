@@ -17,6 +17,9 @@ import { BooksPage, Money, Table, approves, fill, idOf, prepares, sheetOf, style
 import { useAuditWords } from './words-audit.ts';
 import { Say, r2Styles as t } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
+import { TrialStrategies } from './TrialStrategies.tsx';
+import type { StrategyImpact } from './contract-r4b.ts';
+import { useR4bWords } from './words-r4b.ts';
 
 type Order = { kind: string; sourceIds: string[] };
 type Target = { draftId: string } | { proposalId: string } | { precedence: Order };
@@ -87,7 +90,7 @@ function CellValue({ cell, differs, language, r }: { cell: TrialCell; differs: b
 }
 
 function Compare({ props, trial, onDone }: { props: BooksProps; trial: TrialView; onDone: () => void }) {
-  const r = useR2(props.language);
+  const r = useR2(props.language), k = useR4bWords(props.language);
   const act = useAct(props.rpc);
   const [shown, setShown] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -95,6 +98,12 @@ function Compare({ props, trial, onDone }: { props: BooksProps; trial: TrialView
     if (!trial.evaluationDigest || !trial.impact) return;
     if ((await act.run('books.trialPublish', { trialId: trial.trialId, evaluationDigest: trial.evaluationDigest, impactDigest: trial.impact.digest }, trialPublishReply)).ok) setNote(r.publishedCopy);
   };
+  // Round 4 (BK-09): publish one chosen way, naming its own impact digest.
+  const publishAs = async (impact: StrategyImpact) => {
+    if (!trial.evaluationDigest || impact.digest === null) return;
+    if ((await act.run('books.trialPublish', { trialId: trial.trialId, evaluationDigest: trial.evaluationDigest, impactDigest: impact.digest, strategy: impact.strategy }, trialPublishReply)).ok) setNote(fill(k['strat.published'], { name: k[`strat.name.${impact.strategy}`] }));
+  };
+  const strategies = (trial.impacts ?? []).length > 0;
   const discard = async () => { if ((await act.run('books.trialDiscard', { trialId: trial.trialId }, trialDiscardReply)).ok) { setNote(r.discardedCopy); onDone(); } };
   const open = trial.rows.find(x => x.answerId === shown);
   return (
@@ -119,11 +128,12 @@ function Compare({ props, trial, onDone }: { props: BooksProps; trial: TrialView
           <span>{fill(r.coverage, { what: open.withChange.receipt.completeness })}</span>
         </div>
       )}
-      {trial.impact ? <p>{fill(r.impact, { n: trial.impact.affectedAnswers, r: trial.impact.rebuild })}</p> : trial.impactCode && <p className={s.amber}>{fill(r.impactUnknown, { code: trial.impactCode })}</p>}
+      {strategies && !note && <TrialStrategies props={props} impacts={trial.impacts ?? []} canPublish={trial.evaluationDigest !== null} busy={act.busy} onPublish={i => { void publishAs(i); }} />}
+      {!strategies && (trial.impact ? <p>{fill(r.impact, { n: trial.impact.affectedAnswers, r: trial.impact.rebuild })}</p> : trial.impactCode && <p className={s.amber}>{fill(r.impactUnknown, { code: trial.impactCode })}</p>)}
       {trial.limitations.length > 0 && <Section title={r.limitations}><ul className={s.list}>{trial.limitations.map(l => <li key={l}>{l}</li>)}</ul></Section>}
       {!note && (
         <Actions>
-          {approves(props) && trial.impact && trial.evaluationDigest && <Button variant="filled" onClick={() => { void publish(); }} disabled={act.busy}>{r.publish}</Button>}
+          {!strategies && approves(props) && trial.impact && trial.evaluationDigest && <Button variant="filled" onClick={() => { void publish(); }} disabled={act.busy}>{r.publish}</Button>}
           {prepares(props) && <Button danger onClick={() => { void discard(); }} disabled={act.busy}>{r.discard}</Button>}
         </Actions>
       )}
