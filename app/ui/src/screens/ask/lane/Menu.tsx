@@ -487,7 +487,7 @@ function SideBySide({ choices, periodId }: { choices: readonly MeaningChoice[]; 
           else if (reply.value.kind === 'refused') body = <Refusal code={reply.value.code} rule={reply.value.rule} />;
           else if (reply.value.kind === 'not-applicable') body = <MissingWords missing="not-applicable" />;
           else {
-            const a = reply.value, f = a.figures[0];
+            const a = reply.value, f = a.figures.find(x => x.key === a.headline) ?? a.figures[0];
             body = (
               <>
                 {f === undefined ? <MissingWords missing="absent" /> : <Figure size="tile" value={figureOf(f.unit, f.minor, a.receiptId, a.labels.filter(l => l === 'seed' || l === 'what-if'), f.quantityUnit)} onReceipt={open} />}

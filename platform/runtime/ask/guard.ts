@@ -61,6 +61,9 @@ const AFTER_AMOUNT = new Set([...SCALE, ...PERCENT, ...CURRENCY, 'paise', 'प�
 const NUMBER_WORDS = new Set(['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
   'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'dozen', 'half', 'double', 'doubled', 'triple', 'tripled', 'twice', 'thrice',
   'एक', 'दो', 'तीन', 'चार', 'पाँच', 'पांच', 'छह', 'छः', 'सात', 'आठ', 'नौ', 'दस', 'बीस', 'पचास', 'आधा', 'आधी', 'दोगुना', 'दोगुनी', 'तिगुना', ...SCALE]);
+/** Nouns a count figure is said with ("12 invoices", "2 items"). A number before one of them is never money. */
+const TALLY_NOUNS = new Set(['rows', 'row', 'records', 'record', 'entries', 'entry', 'lines', 'line', 'items', 'item', 'invoices', 'invoice', 'matches', 'match',
+  'पंक्ति', 'पंक्तियाँ', 'पंक्तियां', 'पंक्तियों', 'प्रविष्टियाँ', 'बिल']);
 const COUNT_NOUNS = new Set(['rows', 'row', 'records', 'record', 'entries', 'entry', 'lines', 'line', 'left', 'excluded', 'counted', 'read', 'पंक्ति', 'पंक्तियाँ', 'पंक्तियां', 'पंक्तियों']);
 // Only words that introduce a time and never an amount: "rose to 2026" or "a total of 2026" stay amounts.
 const YEAR_BEFORE = new Set(['in', 'since', 'during', 'until', 'till', 'year', 'fy', 'साल', 'वर्ष']);
@@ -174,12 +177,16 @@ export function guardLines(explanation: string, receipt: Pick<CalculationReceipt
     const plain = !m.currency && !m.scale && !m.percent;
     const quantity = shown.find(s => s.unit === 'quantity' && s.numbers.includes(n) && plain && m.negative === s.negative && (unitWord(s.quantityUnit) === null || m.next === unitWord(s.quantityUnit)));
     if (quantity) return [{ number: t.text, matched: { figureKey: quantity.f.key } }];
-    const money = shown.find(s => s.unit === 'money' && s.numbers.includes(n) && !m.scale && !m.percent && m.negative === s.negative);
+    // A number followed by a quantity's unit word or a row noun is a quantity or count, never money.
+    const counted = shown.some(s => s.unit === 'quantity' && unitWord(s.quantityUnit) === m.next) || TALLY_NOUNS.has(m.next);
+    const money = !counted && shown.find(s => s.unit === 'money' && s.numbers.includes(n) && !m.scale && !m.percent && m.negative === s.negative);
     if (money) return [{ number: t.text, matched: { figureKey: money.f.key } }];
     const points = shown.find(s => s.unit === 'basis-points' && s.numbers.includes(n) && ['bps', 'basis'].includes(m.next) && !m.currency && !m.negative === !s.negative);
     if (points) return [{ number: t.text, matched: { figureKey: points.f.key } }];
-    const counted = shown.find(s => s.unit === 'count' && s.numbers.includes(n) && plain && !m.negative && !s.negative && /^\d+$/.test(t.text));
-    if (counted) return [{ number: t.text, matched: { figureKey: counted.f.key } }];
+    // A count matches only as a plain number followed by a row noun ("12 invoices"), or right after its own label ("Items with stock figures: 2").
+    const labelled = (label: string) => tokens[i - 1]?.text === ':' && lower(tokens[i - 2]) === label.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).at(-1);
+    const tally = shown.find(s => s.unit === 'count' && s.numbers.includes(n) && plain && !m.negative && !s.negative && /^\d+$/.test(t.text) && (TALLY_NOUNS.has(m.next) || labelled(s.f.label)));
+    if (tally) return [{ number: t.text, matched: { figureKey: tally.f.key } }];
     // A count matches only as a plain count of rows: no currency, sign, scale or percent, and a row word after it.
     const count = !m.currency && !m.negative && !m.scale && !m.percent && COUNT_NOUNS.has(m.next) && /^\d+$/.test(t.text);
     if (count && (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows))) return [{ number: t.text, matched: { field: 'rows' } }];

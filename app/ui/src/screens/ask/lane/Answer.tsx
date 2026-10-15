@@ -76,8 +76,10 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
   const [act, setAct] = useState<Act>({ kind: 'idle' });
   const toReceipt = (receiptId: string) => ask.go({ kind: 'receipt', receiptId });
   const figs = a.figures.map(f => ({ f, figure: figureOf(f.unit, f.minor, a.receiptId, a.labels, f.quantityUnit) }));
-  const head: FigureOrMissing = figs[0]?.figure ?? missingFigure(a.completeness === 'empty' ? 'not-loaded-yet' : 'absent');
-  const bars: ChartValue[] = figs.map(({ f, figure }) => ({ id: f.key, label: f.label, value: figure }));
+  // The main figure is the one the engine names; the chart compares only figures in that same unit.
+  const main = figs.find(x => x.f.key === a.headline) ?? figs[0];
+  const head: FigureOrMissing = main?.figure ?? missingFigure(a.completeness === 'empty' ? 'not-loaded-yet' : 'absent');
+  const bars: ChartValue[] = figs.filter(({ f }) => main !== undefined && f.unit === main.f.unit && f.quantityUnit === main.f.quantityUnit).map(({ f, figure }) => ({ id: f.key, label: f.label, value: figure }));
   const matched = (m: GuardMatch) => m === null ? w.matchNone : 'figureKey' in m
     ? fill(w.matchFigure, { label: a.figures.find(f => f.key === m.figureKey)?.label ?? m.figureKey })
     : m.field === 'rows' ? w.matchRows : m.field === 'excluded' ? w.matchExcluded : m.field === 'ordinal' ? w.matchOrdinal : w.matchDate;
@@ -87,7 +89,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
 
   async function mutate(method: 'askx.save' | 'askx.checks.save', what: 'saved' | 'savedCheck') {
     setAct({ kind: 'busy' });
-    const payload = method === 'askx.save' ? { receiptId: a.receiptId } : { receiptId: a.receiptId, figureKey: a.figures[0]?.key };
+    const payload = method === 'askx.save' ? { receiptId: a.receiptId } : { receiptId: a.receiptId, figureKey: main?.f.key };
     const reply = await call(ask.rpc, method, payload, savedId);
     if (!ask.live()) return;
     setAct(reply.kind === 'ok' ? { kind: 'done', what } : reply.kind === 'not-built' ? { kind: 'not-built' } : { kind: 'refused', code: reply.code });
@@ -124,7 +126,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
       </div>
 
       {bars.length > 1 && <RankedBars sentence={w.bars} values={bars} onReceipt={toReceipt} />}
-      {(ask.view === 'books' ? bars.length > 0 : bars.length > 1) && (
+      {(ask.view === 'books' ? figs.length > 0 : figs.length > 1) && (
         <section className={s.section} aria-label={w.measures} data-measures="">
           <h2 className={s.heading}>{w.measures}</h2>
           {bars.length > 1 && <p className={s.note}>{w.measuresNote}</p>}

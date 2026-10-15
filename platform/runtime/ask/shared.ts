@@ -156,7 +156,8 @@ export function translate(error: unknown): ChausarError {
   else if (code === 'RECEIPT_NOT_FOUND' || code === 'DECISION_NOT_FOUND' || code === 'FORECAST_NOT_FOUND') mapped = new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.');
   else if (isRuleCode(code)) mapped = new ChausarError('ASK_STOPPED_BY_RULE', 'A rule in Trust stops this answer for your seat.');
   else if (code === 'UNKNOWN_METHOD' || code === 'METHOD_UNAVAILABLE') mapped = new ChausarError('METHOD_UNAVAILABLE', 'This part is not built yet.');
-  else if (code === 'FACTS_CHANGED' || code === 'DICTIONARY_CHANGED' || code === 'REVISION_CONFLICT') mapped = new ChausarError('ASK_CHANGED', 'The books or meanings changed while working this out. Try again.');
+  else if (code === 'REVISION_CONFLICT') mapped = new ChausarError('ASK_CHANGED', 'This changed since you opened it. Look at it again first.');
+  else if (code === 'FACTS_CHANGED' || code === 'DICTIONARY_CHANGED') mapped = new ChausarError('ASK_CHANGED', 'The books or meanings changed while working this out. Try again.');
   else if (code === 'STALE_EVIDENCE') mapped = new ChausarError('ASK_STALE', 'Rebuild the answer before using it here.');
   else mapped = new ChausarError('ASK_REFUSED', 'The calculation refused this request.');
   (mapped as any).cause = code;
@@ -192,7 +193,7 @@ export function signedRows(receipt: CalculationReceipt): { factId: string; row: 
  * page does not know is `other`: drawn as plain text, never as rupees.
  */
 export type FigureUnit = 'money' | 'basis-points' | 'quantity' | 'count' | 'other';
-const QUANTITY_UNIT = /^[\p{L}\p{N}][\p{L}\p{N} ._/-]{0,39}$/u;
+const QUANTITY_UNIT = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} ._/()-]{0,39}$/u;
 export function unitOf(figure: unknown): { unit: FigureUnit; quantityUnit: string | null } {
   const f = (figure ?? {}) as { unit?: unknown; quantityUnit?: unknown };
   const unit: FigureUnit = f.unit === 'money' || f.unit === 'basis-points' || f.unit === 'quantity' || f.unit === 'count' ? f.unit : 'other';

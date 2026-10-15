@@ -102,7 +102,9 @@ async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due:
     try {
       const receipt = await calculate(again);
       const figure = receipt.figures.find(f => f.key === item.figureKey);
-      results.set(item.id, figure ? { at, result: figure.minor === item.expectedMinor ? 'same' : 'moved', minor: figure.minor, receiptId: receipt.id, code: null, because }
+      // A figure now in another unit has moved, even with the same digits.
+      const sameUnit = !figure || item.unit === undefined || (unitOf(figure).unit === item.unit && unitOf(figure).quantityUnit === (item.quantityUnit ?? null));
+      results.set(item.id, figure ? { at, result: figure.minor === item.expectedMinor && sameUnit ? 'same' : 'moved', minor: figure.minor, receiptId: receipt.id, code: null, because }
         : { at, result: 'cannot-run', minor: null, receiptId: receipt.id, code: 'ASK_FIGURE_GONE', because });
     } catch (error) {
       results.set(item.id, { at, result: 'cannot-run', minor: null, receiptId: null, code: translate(error).code, because });

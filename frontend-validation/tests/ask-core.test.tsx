@@ -46,7 +46,7 @@ const receipt = {
 };
 const rows = (tab: string) => ({
   tab, total: 1, offset: 0, hidden: tab === 'left-out', hiddenCount: null, rule: tab === 'left-out' ? 'branch' : null,
-  rows: [{ rowId: `row-${tab}`, sourceId: 'src-tally', sourceRow: 12, cells: [{ name: 'Party', value: tab === 'counted' ? '<b>Acme</b>' : 'Cancelled Co' }], amountMinor: '5000', reason: tab === 'counted' ? null : 'cancelled' }],
+  rows: [{ rowId: `row-${tab}`, sourceId: 'src-tally', sourceRow: 12, cells: [{ name: 'Party', value: tab === 'counted' ? '<b>Acme</b>' : 'Cancelled Co' }], amountMinor: '5000', unit: 'money', quantityUnit: null, reason: tab === 'counted' ? null : 'cancelled' }],
 });
 
 function fake(handlers: Record<string, Handler | { code: string }>) {

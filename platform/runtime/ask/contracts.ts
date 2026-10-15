@@ -118,7 +118,7 @@ export type SourceRowsReply = {
   tab: 'counted' | 'left-out';
   total: number;
   offset: number;
-  rows: { rowId: string; sourceId: string; sourceRow: number | null; cells: { name: string; value: string }[]; amountMinor: string | null; reason: string | null }[];
+  rows: ({ rowId: string; sourceId: string; sourceRow: number | null; cells: { name: string; value: string }[]; amountMinor: string | null; reason: string | null } & FigureShape)[];
   /** True when this seat may not see some rows of the receipt. */
   hidden: boolean;
   /** How many rows are hidden, given only when three or more (part 10), never which. */

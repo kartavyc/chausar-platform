@@ -18,7 +18,7 @@ import s from './analysis.module.css';
 export interface CheckValue { readonly id: string; readonly question: string; readonly createdAt: string; readonly expected: { minor: string | null; receiptId: string | null }; readonly results: readonly CheckResult[]; readonly shape: UnitShape }
 export function checkReply(value: unknown): CheckValue {
   const v = obj(value), e = obj(v.expected);
-  id(v.operationId); str(v.figureKey, 100);
+  id(v.operationId); str(v.figureKey, 200);
   return { id: id(v.id), question: str(v.question, 2000), createdAt: date(v.createdAt), expected: expectedOf(e), results: list(v.results, checkResult, 1000), shape: unitShape(v) };
 }
 

@@ -22,7 +22,7 @@ export type Completeness = (typeof COMPLETENESS)[number];
 export type Unit = 'money' | 'basis-points' | 'quantity' | 'count' | 'other';
 export interface UnitShape { readonly unit: Unit; readonly quantityUnit: string | null }
 const UNITS = ['money', 'basis-points', 'quantity', 'count'] as const;
-const QUANTITY_UNIT = /^[\p{L}\p{N}][\p{L}\p{N} ._/-]{0,39}$/u;
+const QUANTITY_UNIT = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} ._/()-]{0,39}$/u;
 /** Reads `unit` (and a quantity's `quantityUnit`) from one figure. Any unit outside the list is `other`. */
 export function unitShape(o: Record<string, unknown>, field: 'unit' | 'kind' = 'unit'): UnitShape {
   const raw = o[field], unit: Unit = typeof raw === 'string' && (UNITS as readonly string[]).includes(raw) ? raw as Unit : 'other';
@@ -177,14 +177,14 @@ export interface AnswerReply {
   readonly explanation: { readonly source: 'template' | 'model'; readonly text: string; readonly replaced: boolean; readonly reason: 'no-model' | 'guard-replaced' | null };
   readonly guard: { readonly status: 'passed' | 'replaced'; readonly lines: readonly { readonly number: string; readonly matched: GuardMatch }[] };
 }
-const figures = (v: unknown) => list(v, f => { const o = obj(f); return { key: str(o.key, 100), label: label(o.label), minor: minor(o.minor), ...unitShape(o) }; }, 100);
+const figures = (v: unknown) => list(v, f => { const o = obj(f); return { key: str(o.key, 200), label: label(o.label), minor: minor(o.minor), ...unitShape(o) }; }, 110);
 const labels = (v: unknown) => list(v, l => oneOf(l, LABELS), 3);
 const gaps = (v: unknown) => list(v, g => oneOf(g, GAPS), 5);
 const month = (v: unknown) => { const m = str(v, 7); if (!/^\d{4}-\d{2}$/.test(m)) fail(); return m; };
 const guardMatch = (v: unknown): GuardMatch => {
   if (v === null) return null;
   const o = obj(v);
-  return 'figureKey' in o ? { figureKey: str(o.figureKey, 100) } : { field: oneOf(o.field, ['rows', 'excluded', 'date', 'ordinal'] as const) };
+  return 'figureKey' in o ? { figureKey: str(o.figureKey, 200) } : { field: oneOf(o.field, ['rows', 'excluded', 'date', 'ordinal'] as const) };
 };
 const count = (v: unknown) => { const n = int(v); if (n < 0) fail(); return n; };
 export function answerReply(value: unknown): AnswerReply {
@@ -273,7 +273,7 @@ export function receiptReply(value: unknown): ReceiptReply {
   };
 }
 
-export interface SourceRow { readonly rowId: string; readonly sourceId: string; readonly sourceRow: number | null; readonly cells: readonly { name: string; value: string }[]; readonly amountMinor: string | null; readonly reason: string | null }
+export interface SourceRow { readonly rowId: string; readonly sourceId: string; readonly sourceRow: number | null; readonly cells: readonly { name: string; value: string }[]; readonly amountMinor: string | null; readonly reason: string | null; readonly shape: UnitShape }
 export interface SourceRowsReply { readonly tab: 'counted' | 'left-out'; readonly total: number; readonly offset: number; readonly rows: readonly SourceRow[]; readonly hidden: boolean;
   /** How many rows are hidden, given only when three or more, never which. */
   readonly hiddenCount: number | null;
@@ -287,7 +287,7 @@ export function sourceRowsReply(value: unknown): SourceRowsReply {
     hiddenCount: v.hiddenCount === null ? null : count(v.hiddenCount), rule: optRule(v.rule),
     rows: list(v.rows, r => {
       const o = obj(r);
-      return { rowId: id(o.rowId), sourceId: id(o.sourceId), sourceRow: o.sourceRow === null ? null : count(o.sourceRow), cells: list(o.cells, c => { const x = obj(c); return { name: str(x.name, 200), value: str(x.value, 4000) }; }, 200), amountMinor: optMinor(o.amountMinor), reason: optStr(o.reason, 200) };
+      return { rowId: id(o.rowId), sourceId: id(o.sourceId), sourceRow: o.sourceRow === null ? null : count(o.sourceRow), cells: list(o.cells, c => { const x = obj(c); return { name: str(x.name, 200), value: str(x.value, 4000) }; }, 200), amountMinor: optMinor(o.amountMinor), reason: optStr(o.reason, 200), shape: unitShape(o) };
     }, 500),
   };
 }

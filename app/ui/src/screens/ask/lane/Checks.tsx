@@ -36,7 +36,7 @@ export function checksReply(value: unknown): ChecksValue {
   return {
     items: list(v.items, i => {
       const x = obj(i), e = obj(x.expected);
-      return { id: id(x.id), question: str(x.question, 2000), operationId: id(x.operationId), figureKey: str(x.figureKey, 100), expected: expectedOf(e), last: x.last === null ? null : checkResult(x.last), ...unitShape(x) };
+      return { id: id(x.id), question: str(x.question, 2000), operationId: id(x.operationId), figureKey: str(x.figureKey, 200), expected: expectedOf(e), last: x.last === null ? null : checkResult(x.last), ...unitShape(x) };
     }, 2000),
     due: bool(v.due), changed: list(v.changed, c => str(c, 64), 20), lastRunAt: v.lastRunAt === null ? null : date(v.lastRunAt),
   };

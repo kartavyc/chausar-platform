@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TextProvider } from '../../app/ui/src/app/text';
 import { AskPlace } from '../../app/ui/src/screens/ask/lane/AskPlace';
 import { figureOf } from '../../app/ui/src/screens/ask/lane/kit';
-import { unitShape } from '../../app/ui/src/screens/ask/lane/core-replies';
+import { sourceRowsReply, unitShape } from '../../app/ui/src/screens/ask/lane/core-replies';
 import type { Address, Language } from '../../app/ui/src/app/presentation';
 
 // The ask lane's follow-up to core-data: figure units, the cancelled journal state and decidedOn. Synthetic replies only.
@@ -100,4 +100,14 @@ test('no cancel for a decision this member did not record, nor for a viewer; Hin
   show({ 'askx.decisions.get': () => decision() }, sheet('decision.dec-1', 'decisions'), { language: 'hi' });
   expect(await screen.findByText(/को तय हुआ।.*को दर्ज हुआ।/)).toBeTruthy();
   expect(screen.getByRole('button', { name: 'निर्णय रद्द करें' })).toBeTruthy();
+});
+
+test('the main tile is the figure the engine names, and stock rows are quantities, never rupees', async () => {
+  show({ 'askx.answer': () => ({ ...stockAnswer, headline: 'items' }), 'askx.menu': () => ({ state: 'empty' }) }, sheet('answer.r-stock'));
+  const tile = await screen.findAllByText('2');
+  expect(tile.length).toBeGreaterThan(0);
+  const rows = sourceRowsReply({ tab: 'counted', total: 1, offset: 0, hidden: false, hiddenCount: null, rule: null,
+    rows: [{ rowId: 'row-1', sourceId: 'src-stock', sourceRow: 3, cells: [{ name: 'sku', value: 'SKU-A' }], amountMinor: '1200', unit: 'quantity', quantityUnit: 'boxes', reason: null }] });
+  const row = rows.rows[0]!;
+  expect(figureOf(row.shape.unit, row.amountMinor!, 'r-stock', [], row.shape.quantityUnit).display).toBe('1,200 boxes');
 });

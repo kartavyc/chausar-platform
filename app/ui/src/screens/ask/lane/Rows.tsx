@@ -8,7 +8,7 @@ import type { Catalogue } from '../../../places/types.ts';
 import { Choice } from '../../../parts/Choice';
 import { Button } from '../../../parts/Button';
 import { Figure, MissingWords } from '../../../parts/Figure';
-import { AskPage, countWords, fill, moneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
+import { AskPage, countWords, fill, figureOf, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
 import { sourceRowsReply, type RuleKind, type SourceRowsReply } from './core-replies.ts';
 import { RuleLine, useExplain } from './core-words';
@@ -78,7 +78,7 @@ export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> 
                         {r.tab === 'left-out' && <td>{row.reason ?? <MissingWords missing="unknown" />}</td>}
                         {books && <td className="fig">{row.rowId}</td>}
                         <td className={s.num}>
-                          {row.amountMinor === null ? <MissingWords missing="absent" /> : <Figure value={moneyFigure(row.amountMinor, view.receiptId)} onReceipt={toReceipt} />}
+                          {row.amountMinor === null ? <MissingWords missing="absent" /> : <Figure value={figureOf(row.shape.unit, row.amountMinor, view.receiptId, [], row.shape.quantityUnit)} onReceipt={toReceipt} />}
                         </td>
                       </tr>
                     ))}

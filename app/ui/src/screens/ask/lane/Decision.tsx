@@ -100,7 +100,7 @@ function Body({ d, onReviewed }: { d: DecisionValue; onReviewed: (d: DecisionVal
         {d.cancelled && <span className={s.flag} data-decision-flag="cancelled">{w.cancelled}</span>}
       </> : undefined}>
         <p className={s.lead} data-decision-text="">{d.text}</p>
-        <p className={s.note} data-decided-on={d.decidedOn ?? undefined}>{d.decidedOn !== null && d.decidedOn !== d.createdAt.slice(0, 10)
+        <p className={s.note} data-decided-on={d.decidedOn ?? undefined}>{d.decidedOn !== null && d.recordedLater
           ? fill(w.decidedLater, { date: dayText(d.decidedOn, lang), date2: dayText(d.createdAt, lang), date3: dayText(d.reviewDate, lang) })
           : fill(w.madeOn, { date: dayText(d.decidedOn ?? d.createdAt, lang), date2: dayText(d.reviewDate, lang) })}</p>
         {d.status === 'closed' && <p className={s.note}>{w.closed}</p>}

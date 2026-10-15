@@ -210,7 +210,7 @@ test('an export reply with a bad file name is not offered', async () => {
 /* 4. AS-06: how many rows are hidden, and by which kind of rule. */
 const rowsReply = (over: Record<string, unknown>) => ({
   tab: 'counted', total: 1, offset: 0, hidden: true, hiddenCount: 4, rule: 'branch',
-  rows: [{ rowId: 'row-1', sourceId: 'src-tally', sourceRow: 12, cells: [{ name: 'Party', value: 'Acme' }], amountMinor: '5000', reason: null }], ...over,
+  rows: [{ rowId: 'row-1', sourceId: 'src-tally', sourceRow: 12, cells: [{ name: 'Party', value: 'Acme' }], amountMinor: '5000', unit: 'money', quantityUnit: null, reason: null }], ...over,
 });
 test.each(VIEWS)('a known number of hidden rows is said with its rule kind (%s)', async view => {
   mount(sheet('answer.r-1'), { 'askx.answer': () => answer(), 'askx.receipt': () => receipt(), 'askx.sourceRows': () => rowsReply({}) }, { view });

@@ -55,7 +55,7 @@ export function answerOf(host: ModuleHost, ctx: Context, receipt: CalculationRec
     kind: 'answer', answerId: answer?.id ?? null, receiptId: receipt.id, operationId: receipt.operation, label: operation?.label ?? receipt.operation,
     period: receipt.period, comparePeriod: receipt.comparePeriod, branch: receipt.branch, asOf: receipt.asOf, headline: headlineKey(receipt),
     // A figure keeps its own unit: a quantity or count is never drawn as rupees, and an unknown unit is plain text.
-    figures: receipt.figures.filter(f => typeof f.minor === 'string' && /^-?\d{1,40}$/.test(f.minor)).map(f => ({ key: f.key, label: f.label, minor: f.minor, ...unitOf(f) })),
+    figures: receipt.figures.slice(0, 110).filter(f => typeof f.minor === 'string' && /^-?\d{1,40}$/.test(f.minor)).map(f => ({ key: f.key, label: f.label, minor: f.minor, ...unitOf(f) })),
     rows: { read: receipt.coverage.selectedRows, counted: receipt.coverage.countedRows, excluded: receipt.coverage.excludedRows },
     completeness: receipt.coverage.completeness, gaps: gapsOf(receipt), monthsNotLoaded: monthsNotLoaded(host, ctx, receipt), labels,
     explanation: { source: 'template', text: receipt.explanation, replaced: false, reason: 'no-model' },
@@ -207,12 +207,17 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
   }
   const facts = new Map(host.store.read().facts.map(fact => [fact.id, fact]));
   const cells = (id: string) => Object.entries(facts.get(id)?.fields ?? {}).filter(([name]) => !INTERNAL.test(name)).map(([name, value]) => ({ name, value: asText(value).slice(0, 500) }));
+  const quantities = receipt.definitions.some(d => (d as { measure?: string }).measure === 'quantity');
   const all = tab === 'counted'
-    ? receipt.rows.map(row => ({ rowId: row.factId, sourceId: row.sourceId, sourceRow: row.sourceRow, cells: cells(row.factId), amountMinor: row.amountMinor, reason: null }))
+    // A stock row's value is a quantity in its own unit, never paise.
+    ? receipt.rows.map(row => ({ rowId: row.factId, sourceId: row.sourceId, sourceRow: row.sourceRow, cells: cells(row.factId), amountMinor: row.amountMinor, reason: null,
+      ...(row.measureField === 'quantity' ? unitOf({ unit: 'quantity', quantityUnit: row.quantityUnit }) : { unit: 'money' as const, quantityUnit: null }) }))
     : [...new Map(receipt.exclusions.map(e => [e.rowId, e])).values()].map(e => {
       const fact = facts.get(e.rowId);
       return { rowId: e.rowId, sourceId: fact?.sourceId ?? '', sourceRow: fact?.sourceRow ?? null, cells: cells(e.rowId),
-        amountMinor: typeof fact?.fields.amountMinor === 'string' && /^-?\d+$/.test(fact.fields.amountMinor) ? fact.fields.amountMinor : null, reason: e.reason };
+        // A left-out row of a quantity calculation has no counted value: its money field, if any, is not what was counted.
+        amountMinor: !quantities && typeof fact?.fields.amountMinor === 'string' && /^-?\d+$/.test(fact.fields.amountMinor) ? fact.fields.amountMinor : null, reason: e.reason,
+        unit: 'money' as const, quantityUnit: null };
     });
   void ctx;
   return { tab, total: all.length, offset, rows: all.slice(offset, offset + limit), hidden: hiddenCount > 0, hiddenCount: hiddenCount >= 3 ? hiddenCount : null, rule: hiddenCount > 0 ? rule : null };
@@ -247,8 +252,8 @@ export async function exportReceipt(ctx: Context, payload: unknown, host: Module
     return rows;
   };
   const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replaceAll('"', '""')}"`;
-  const lines = ['"counted","source","row","amount_paise","reason","cells"'];
+  const lines = ['"counted","source","row","value","unit","reason","cells"'];
   for (const [tab, first] of [['counted', counted], ['left-out', left]] as const) for (const row of await all(tab, first))
-    lines.push([cell(tab === 'counted' ? 'yes' : 'no'), cell(row.sourceId), `"${row.sourceRow ?? ''}"`, `"${row.amountMinor ?? ''}"`, cell(row.reason ?? ''), cell(row.cells.map(c => `${c.name}=${c.value}`).join('; '))].join(','));
+    lines.push([cell(tab === 'counted' ? 'yes' : 'no'), cell(row.sourceId), `"${row.sourceRow ?? ''}"`, `"${row.amountMinor ?? ''}"`, cell(row.amountMinor === null ? '' : row.unit === 'money' ? 'paise' : row.quantityUnit ?? row.unit), cell(row.reason ?? ''), cell(row.cells.map(c => `${c.name}=${c.value}`).join('; '))].join(','));
   return { fileName: `receipt-${request.receiptId}.csv`, csv: lines.join('\r\n') + '\r\n' };
 }

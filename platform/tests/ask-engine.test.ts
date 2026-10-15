@@ -751,7 +751,7 @@ test('core-data follow-up: a quantity or count is never money — stock on hand 
   assert.deepEqual(answer.figures.map((f: any) => [f.key, f.minor, f.unit, f.quantityUnit]),
     [['item:SKU-A', '1200', 'quantity', 'boxes'], ['item:SKU-B', '5', 'quantity', 'kg'], ['items', '2', 'count', null]]);
   assert.ok(answer.figures.every((f: any) => f.unit !== 'money'), 'no stock figure is typed as money');
-  assert.equal(answer.guard.status, 'passed');
+  assert.equal(answer.guard.status, 'passed', JSON.stringify([answer.explanation.text, answer.guard.lines]));
 
   // The guard: a quantity matches only with its own unit word, never as rupees, a scale or a percent.
   const receipt = await ask(engine, 'receipts.get', { id: answer.receiptId });
@@ -762,6 +762,13 @@ test('core-data follow-up: a quantity or count is never money — stock on hand 
   assert.deepEqual(said('1200 kg'), [null], 'a quantity said in another unit does not match');
   assert.deepEqual(said('2 items with stock'), ['items']);
   assert.deepEqual(said('Rs 2 items'), [null]);
+  assert.deepEqual(said('you owe 2'), [null], 'a count needs its noun');
+
+  // Rows of a stock receipt are quantities in their unit, and the export names the unit.
+  const rows = await ask(engine, 'askx.sourceRows', { receiptId: answer.receiptId, tab: 'counted' });
+  assert.deepEqual(rows.rows.map((r: any) => [r.amountMinor, r.unit, r.quantityUnit]).sort(), [['1200', 'quantity', 'boxes'], ['5', 'quantity', 'kg']]);
+  const exported = await ask(engine, 'askx.receipt.export', { receiptId: answer.receiptId });
+  assert.match(exported.csv, /"value","unit"/); assert.match(exported.csv, /"1200","boxes"/); assert.doesNotMatch(exported.csv, /amount_paise/);
   const guarded = await ask(engine, 'askx.guard', { receiptId: answer.receiptId, text: 'You hold ₹1,200 of SKU-A.' });
   assert.equal(guarded.status, 'replaced');
 
@@ -783,6 +790,11 @@ test('core-data follow-up: an unknown unit is plain text, and a stored money che
   assert.deepEqual(unitOf({ unit: 'quantity', quantityUnit: 'pcs' }), { unit: 'quantity', quantityUnit: 'pcs' });
   assert.deepEqual(unitOf({ unit: 'quantity', quantityUnit: 'pcs‮' }), { unit: 'quantity', quantityUnit: null });
   assert.deepEqual(unitOf({ unit: 'count', quantityUnit: 'pcs' }), { unit: 'count', quantityUnit: null });
+  for (const word of ['डिब्बे', 'kg (net)']) assert.deepEqual(unitOf({ unit: 'quantity', quantityUnit: word }), { unit: 'quantity', quantityUnit: word });
+  // A money figure never takes a number said with a quantity's unit word or a row noun.
+  const mixed: any = { figures: [{ key: 'total', label: 'Total', minor: '120000', display: '₹1,200.00', unit: 'money' }, { key: 'item:A', label: 'A', minor: '1200', display: '1200 boxes', unit: 'quantity', quantityUnit: 'boxes' }],
+    rows: [], coverage: { countedRows: 0, excludedRows: 0 } };
+  assert.deepEqual(guardLines('₹1,200.00 billed; 1,200 boxes; 1,200 invoices', mixed).map(l => l.matched), [{ figureKey: 'total' }, { figureKey: 'item:A' }, null]);
   for (const unit of ['litres', 'MONEY', '', null, undefined, 7]) assert.deepEqual(unitOf({ unit }), { unit: 'other', quantityUnit: null });
   // An unknown unit never matches a written number, with or without a currency mark.
   const receipt: any = { figures: [{ key: 'x', label: 'X', minor: '500', display: '500', unit: 'litres' }], rows: [], coverage: { countedRows: 0, excludedRows: 0 } };
