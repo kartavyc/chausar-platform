@@ -1,0 +1,24 @@
+/* Layout for the write-back screens. Colours and spacing come from tokens only. */
+.page { display: flex; flex-direction: column; gap: var(--sp4); }
+.subs { display: flex; flex-wrap: wrap; gap: var(--sp2) var(--sp4); margin: 0; padding: 0; list-style: none; }
+.sub { font: inherit; font-size: var(--fs-read); color: var(--fg2); background: none; border: 0; padding: 0; min-height: var(--target); cursor: pointer; text-decoration: none; }
+.sub[aria-current='page'] { color: var(--fg); font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp5); align-items: start; }
+.split[data-open] { grid-template-columns: minmax(0, 1fr) minmax(0, var(--col-sheet)); }
+@media (max-width: 52rem) { .split[data-open] { grid-template-columns: minmax(0, 1fr); } }
+.pane { display: flex; flex-direction: column; gap: var(--sp3); min-width: 0; }
+.section { display: flex; flex-direction: column; gap: var(--sp2); padding-top: var(--sp3); border-top: var(--hair) solid var(--line2); }
+.h { font-size: var(--fs-read); font-weight: 500; margin: 0; }
+.open { font: inherit; text-align: start; background: none; border: 0; padding: 0; color: var(--fg); cursor: pointer; min-height: var(--target); }
+.open:focus-visible { outline: var(--focus); }
+.meta { color: var(--mute); font-size: var(--fs-note2); margin: 0; }
+.form { display: flex; flex-direction: column; gap: var(--sp2); }
+.form label { display: flex; flex-direction: column; gap: var(--sp1); color: var(--fg2); font-size: var(--fs-note2); }
+.form input, .form textarea, .form select { font: inherit; color: var(--fg); background: var(--bg); border: var(--hair) solid var(--line); border-radius: var(--r1); padding: var(--sp1) var(--sp2); }
+.form .check { flex-direction: row; align-items: baseline; gap: var(--sp2); color: var(--fg); font-size: var(--fs-read); }
+.form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp2); }
+.form legend { color: var(--fg2); font-size: var(--fs-note2); padding: 0; }
+.grants { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.grant { display: flex; flex-direction: column; gap: var(--sp1); padding: var(--sp2) 0; border-bottom: var(--hair) solid var(--line2); }
+.mono { font-family: var(--fm); font-size: var(--fs-note2); }
+.dense td, .dense th { padding: 0 var(--sp1); font-size: var(--fs-note2); }
