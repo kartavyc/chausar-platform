@@ -10,11 +10,17 @@ import { createContext, useContext, type ReactNode } from 'react';
 import { IntlProvider, useIntl } from 'react-intl';
 import en from '../text/en.json';
 import hi from '../text/hi.json';
+import { laneWords } from '../text/lanes/index.ts';
 import type { Language } from './presentation.ts';
 
 type Messages = Readonly<Record<string, string>>;
 
-const CATALOGUE: Record<Language, Messages> = { en, hi };
+/** The shared catalogue plus each lane's own words (text/lanes/<lane>.ts). A test keeps lane keys
+ *  apart from the shared file and from each other, so the merge order never decides a sentence. */
+function withLanes(base: Messages, language: Language): Messages {
+  return Object.assign({}, base, ...Object.values(laneWords).map(lane => lane[language]));
+}
+const CATALOGUE: Record<Language, Messages> = { en: withLanes(en, 'en'), hi: withLanes(hi, 'hi') };
 
 export type TextValues = Record<string, string | number>;
 

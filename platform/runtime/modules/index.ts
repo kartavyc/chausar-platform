@@ -11,5 +11,10 @@ import { learningExtModule } from './lane-learning-ext.ts';
 import { hostedLinkModule } from './lane-hosted-link.ts';
 import { releaseModule } from './lane-release.ts';
 import { modelsExtModule } from './lane-models-ext.ts';
+import { drivingModule } from './lane-driving.ts';
+import { caEnterpriseModule } from './lane-ca-enterprise.ts';
+import { coreDataModule } from './lane-core-data.ts';
+import { coreSyncJobsModule } from './lane-core-sync-jobs.ts';
+import { coreGatewayAuthModule } from './lane-core-gateway-auth.ts';
 
-export const modules: readonly EngineModule[] = [ frameTodayModule, askModule, workBooksModule, reportsToolsTrustModule, connectorsExtModule, writebackModule, jobsExtModule, learningExtModule, hostedLinkModule, releaseModule, modelsExtModule, ];
+export const modules: readonly EngineModule[] = [ frameTodayModule, askModule, workBooksModule, reportsToolsTrustModule, connectorsExtModule, writebackModule, jobsExtModule, learningExtModule, hostedLinkModule, releaseModule, modelsExtModule, drivingModule, caEnterpriseModule, coreDataModule, coreSyncJobsModule, coreGatewayAuthModule, ];

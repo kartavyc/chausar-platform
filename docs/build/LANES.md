@@ -1,5 +1,7 @@
 # Full-product build: lanes
 
+> **Round 4 (15 October 2026):** new seams and every lane's assignment are in [ROUND4.md](ROUND4.md); the full list of unfinished items is [ROUND4-GAPS.md](ROUND4-GAPS.md).
+
 This is the working brief for the full-product build of 14 October 2026. Eleven lanes build in parallel, each in its own cloud session on its own branch. A coordinator merges them into `claude/clever-goldberg-49qobq`. The specifications are in `docs/specs/`:
 
 - `CHAUSAR-ARCHITECTURE.md`: the sixteen pieces.

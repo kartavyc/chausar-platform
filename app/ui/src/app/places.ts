@@ -15,6 +15,7 @@
 
 import type { Address, PlaceId, View } from './presentation.ts';
 import { SEVEN_PLACES, type SevenPlace } from './routes.ts';
+import { laneSubPlaces } from '../places/subplaces/index.ts';
 
 export interface SubPlace {
   id: string;
@@ -40,7 +41,15 @@ export interface ShellConfig {
 
 const sub = (place: string, id: string): SubPlace => ({ id, nameKey: `SH-01.sub.${place}.${id}` });
 
-const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
+/** Sub-places the lanes add (places/subplaces/<lane>.ts), after the authored ones of that place. */
+function withLaneSubs(shell: ShellKind, id: PlaceId, authored: ReadonlyArray<SubPlace>): ReadonlyArray<SubPlace> {
+  const added = Object.values(laneSubPlaces).flat()
+    .filter((s) => s.place === id && (s.shells ?? ['desktop']).includes(shell) && !authored.some((a) => a.id === s.id))
+    .map((s) => sub(id, s.id));
+  return added.length === 0 ? authored : [...authored, ...added];
+}
+
+const DESKTOP_AUTHORED: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
   today: [sub('today', 'today'), sub('today', 'activity')],
   ask: [sub('ask', 'new'), sub('ask', 'saved'), sub('ask', 'whatifs'), sub('ask', 'decisions'), sub('ask', 'checks'), sub('ask', 'notyet')],
   work: [sub('work', 'approvals'), sub('work', 'jobs'), sub('work', 'actions'), sub('work', 'cando')],
@@ -65,11 +74,13 @@ const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
   ],
 };
 
+const DESKTOP = Object.fromEntries(SEVEN_PLACES.map((p) => [p, withLaneSubs('desktop', p, DESKTOP_AUTHORED[p])])) as Record<SevenPlace, ReadonlyArray<SubPlace>>;
+
 /** Enterprise sub-places (enterprise.md part 3). Renamed ones replace the desktop entry. */
-const ENTERPRISE: Record<SevenPlace | 'company', ReadonlyArray<SubPlace>> = {
-  today: DESKTOP.today,
-  ask: [...DESKTOP.ask, sub('ask', 'plans')],
-  work: [...DESKTOP.work, sub('work', 'cases'), sub('work', 'agents')],
+const ENTERPRISE_AUTHORED: Record<SevenPlace | 'company', ReadonlyArray<SubPlace>> = {
+  today: DESKTOP_AUTHORED.today,
+  ask: [...DESKTOP_AUTHORED.ask, sub('ask', 'plans')],
+  work: [...DESKTOP_AUTHORED.work, sub('work', 'cases'), sub('work', 'agents')],
   books: [
     sub('books', 'sources'),
     sub('books', 'meanings'),
@@ -83,7 +94,7 @@ const ENTERPRISE: Record<SevenPlace | 'company', ReadonlyArray<SubPlace>> = {
   reports: [sub('reports', 'packs'), sub('reports', 'briefs'), sub('reports', 'duedates'), sub('reports', 'exports'), sub('reports', 'sent')],
   tools: [sub('tools', 'smallapps'), sub('tools', 'plugins'), sub('tools', 'assistants'), sub('tools', 'planning')],
   trust: [
-    ...DESKTOP.trust,
+    ...DESKTOP_AUTHORED.trust,
     sub('trust', 'access'),
     sub('trust', 'markings'),
     sub('trust', 'retention'),
@@ -101,10 +112,11 @@ const ENTERPRISE: Record<SevenPlace | 'company', ReadonlyArray<SubPlace>> = {
     sub('company', 'licence'),
   ],
 };
+const ENTERPRISE = Object.fromEntries(([...SEVEN_PLACES, 'company'] as const).map((p) => [p, withLaneSubs('enterprise', p, ENTERPRISE_AUTHORED[p])])) as Record<SevenPlace | 'company', ReadonlyArray<SubPlace>>;
 
 const place = (id: PlaceId, subs: ReadonlyArray<SubPlace>): Place => ({ id, nameKey: `SH-01.place.${id}`, subs });
 
-const CA_FIRM: ReadonlyArray<Place> = [
+const CA_FIRM_AUTHORED: ReadonlyArray<Place> = [
   place('today', []),
   place('clients', []),
   place('work', [sub('work', 'cosign'), sub('work', 'many'), sub('work', 'questions')]),
@@ -112,6 +124,7 @@ const CA_FIRM: ReadonlyArray<Place> = [
   place('tools', [sub('tools', 'library'), sub('tools', 'invite')]),
   place('trust', [sub('trust', 'people'), sub('trust', 'firmname')]),
 ];
+const CA_FIRM: ReadonlyArray<Place> = CA_FIRM_AUTHORED.map((p) => ({ ...p, subs: withLaneSubs('ca-firm', p.id, p.subs) }));
 
 /** The grant list in force, or undefined when nothing is gated by one. */
 function grants(config: ShellConfig): ReadonlySet<string> | undefined {
