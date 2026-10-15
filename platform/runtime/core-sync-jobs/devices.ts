@@ -89,12 +89,35 @@ async function holds(host: ModuleHost, configuredHere: boolean, state: State) {
   return configuredHere && admission instanceof PenWriterAdmission ? (await admission.holds(state)).holds : false;
 }
 
-/** Adds every recorded machine's key to the sync service's signers, so snapshots each of them signed can be read. */
-function installTrust(host: ModuleHost, ctx: Context, state: State) {
+/** Adds machines' keys to the sync service's signers, so snapshots each of them signed can be read. */
+type Signer = { id: string; publicKey: string; memberId: string; epoch: number; removed: boolean };
+function installTrust(host: ModuleHost, ctx: Context, signers: Iterable<Signer>) {
   const sync = syncOf(host); if (!sync) return;
-  for (const device of devicesOf(state).devices) {
+  for (const device of signers) {
     try { sync.trustDevice(ctx, { signerId: device.id, publicKey: device.publicKey, memberId: device.memberId, epoch: device.epoch }); } catch {}
   }
+}
+const recorded = (state: State): Signer[] => devicesOf(state).devices.map(d => ({ id: d.id, publicKey: d.publicKey, memberId: d.memberId, epoch: d.epoch, removed: d.removedAt !== null }));
+/**
+ * The machines this copy records, plus machines that joined later: each acceptance in the shared folder is signed by
+ * the computer that approved it, so a machine is known when its approver is known and not removed.
+ */
+async function knownSigners(state: State, folder: SyncFolder): Promise<Map<string, Signer>> {
+  const known = new Map(recorded(state).map(d => [d.id, d]));
+  if (folder.kind !== 'folder') return known;
+  const directory = sharedPaths(folder.directory).accepted; let names: string[] = [];
+  try { names = (await readdir(directory)).filter(n => /^join_[a-f0-9-]{36}\.json$/.test(n)).slice(0, 500); } catch { return known; }
+  const acceptances: Acceptance[] = [];
+  for (const name of names) { try { const value = await readRecord<Acceptance>(join(directory, name)); if (value?.format === 'chausar.device-join-accepted.v1' && value.workspaceId === state.workspace.id) acceptances.push(value); } catch {} }
+  for (let added = true; added;) {
+    added = false;
+    for (const a of acceptances) {
+      const approver = known.get(a.approverDeviceId);
+      if (known.has(a.deviceId) || !approver || approver.removed || approver.publicKey !== a.approverPublicKey || !validAcceptance(a, a.approverPublicKey)) continue;
+      known.set(a.deviceId, { id: a.deviceId, publicKey: a.publicKey, memberId: a.memberId, epoch: a.epoch, removed: false }); added = true;
+    }
+  }
+  return known;
 }
 async function ensureOn(host: ModuleHost, enrolment: Enrolment) {
   check(enrolment.syncOn, 'SYNC_OFF', 'Sync is off. The owner turns it on first.');
@@ -107,8 +130,14 @@ async function publish(host: ModuleHost) {
   return asPenWork('sync', async () => {
     const preview = await host.call('sync.preview', {}) as { id: string };
     const approval = await host.call('sync.approve', { id: preview.id }) as { id: string };
-    const pushed = await host.call('sync.push', { previewId: preview.id, approvalId: approval.id }) as { head: { revision: number } };
-    return { revision: pushed.head.revision };
+    try {
+      const pushed = await host.call('sync.push', { previewId: preview.id, approvalId: approval.id }) as { head: { revision: number } };
+      return { revision: pushed.head.revision };
+    } catch (error) {
+      // The previous pen holder's publication lease (one minute) has not run out yet: nothing was sent.
+      if (error instanceof ChausarError && error.code === 'WRITER_LEASE_DENIED') throw new ChausarError('SYNC_LEASE_WAIT', 'Another computer sent a copy a moment ago. Try again in a minute.');
+      throw error;
+    }
   });
 }
 
@@ -186,7 +215,7 @@ async function handOver(ctx: Context, payload: Record<string, unknown>, host: Mo
   const me = device!.identity.deviceId;
   if (payload.retry === true) {
     const pen = currentPen(state); check(pen?.kind === 'hand-over' && pen.from === me, 'NOTHING_TO_RETRY', 'There is no hand-over from this computer waiting to be sent.');
-    await ensureOn(host, enrolment!); installTrust(host, ctx, state);
+    await ensureOn(host, enrolment!); installTrust(host, ctx, recorded(state));
     const published = await publish(host); return { ...await penNow(host), published: true, revision: published.revision };
   }
   confirmed(payload);
@@ -194,7 +223,7 @@ async function handOver(ctx: Context, payload: Record<string, unknown>, host: Mo
   check(await holds(host, here, state), 'SYNC_READ_ONLY_DEVICE', 'Only the computer that holds the pen can hand it over.');
   const target = devicesOf(state).devices.find(d => d.id === payload.toDeviceId);
   check(target && target.removedAt === null && target.id !== me, 'DEVICE_NOT_FOUND', 'Choose another computer that is in this workspace.');
-  await ensureOn(host, enrolment!); installTrust(host, ctx, state);
+  await ensureOn(host, enrolment!); installTrust(host, ctx, recorded(state));
   await host.store.update(draft => {
     const own = ns(draft), pen = currentPen(draft); check(pen?.deviceId === me, 'SYNC_READ_ONLY_DEVICE', 'Only the computer that holds the pen can hand it over.');
     own.pen = signPen(draft.workspace.id, { seq: pen.seq + 1, deviceId: target!.id, from: me, at: now(), kind: 'hand-over' }, device!.signingKey);
@@ -237,18 +266,28 @@ async function remove(ctx: Context, payload: Record<string, unknown>, host: Modu
   return { removed: true, deviceId: payload.deviceId, keyChanged: false, keyChange: 'VAULT_REKEY_NOT_BUILT', copiesStay: true };
 }
 
+/** The pen holder sends the workspace as it is now to the shared folder (one encrypted snapshot, signed by this computer). */
+async function send(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
+  inApp(ctx); fields(payload, ['confirm']); confirmed(payload);
+  const { enrolment, state, configured: here } = await context(host);
+  check(enrolment && here, 'SYNC_RESTART_REQUIRED', 'Set up sync on this computer and restart Chausar first.');
+  check(await holds(host, here, state), 'SYNC_READ_ONLY_DEVICE', 'Only the computer that holds the pen sends changes.');
+  await ensureOn(host, enrolment!); installTrust(host, ctx, recorded(state));
+  return { sent: true, revision: (await publish(host)).revision };
+}
+
 /** Reads the newest encrypted snapshot into a new folder. The person then switches to it (lock, then open that folder). */
 async function read(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
   inApp(ctx); fields(payload, ['passphrase']);
   check(typeof payload.passphrase === 'string' && payload.passphrase.length > 0 && payload.passphrase.length <= 1024, 'INVALID_DEVICE_REQUEST', 'Type the workspace passphrase.');
   const { enrolment, device, state, configured: here } = await context(host);
   check(enrolment && here && device, 'SYNC_RESTART_REQUIRED', 'Set up sync on this computer and restart Chausar first.');
-  await ensureOn(host, enrolment!); installTrust(host, ctx, state);
+  const known = await knownSigners(state, enrolment!.transport);
+  await ensureOn(host, enrolment!); installTrust(host, ctx, known.values());
   const transport = syncOf(host)!.options.transport as SyncTransport; const head = await transport.getHead();
   if (!head || head.revision <= state.revision) return { upToDate: true, revision: state.revision };
-  const snapshot = await transport.get(head.recordHash);
-  const signer = devicesOf(state).devices.find(d => d.id === snapshot?.signerId);
-  check(signer && signer.removedAt === null, 'SYNC_UNTRUSTED_DEVICE', 'The newest copy was written by a computer that is not in this workspace.');
+  const snapshot = await transport.get(head.recordHash), signer = known.get(snapshot?.signerId ?? '');
+  check(signer && !signer.removed, 'SYNC_UNTRUSTED_DEVICE', 'The newest copy was written by a computer that is not in this workspace.');
   const folder = `synced-${head.revision}-${randomUUID().slice(0, 8)}`;
   await asPenWork('sync', () => host.call('sync.pull', { folder, passphrase: payload.passphrase }));
   if (enrolment!.transport.kind === 'folder') await writeRecord(join(sharedPaths(enrolment!.transport.directory).seen, `${device!.identity.deviceId}.json`),
@@ -259,9 +298,14 @@ async function read(ctx: Context, payload: Record<string, unknown>, host: Module
 // ---- joining (FR-14) ----
 
 type JoinRequest = { format: 'chausar.device-join-request.v1'; requestId: string; deviceId: string; name: string; publicKey: string; createdAt: string; expiresAt: string };
-type Acceptance = { format: 'chausar.device-join-accepted.v1'; requestId: string; deviceId: string; workspaceId: string; vaultId: string; approverDeviceId: string; approverPublicKey: string; at: string; signature: string };
+type Acceptance = { format: 'chausar.device-join-accepted.v1'; requestId: string; deviceId: string; publicKey: string; memberId: string; epoch: number; workspaceId: string; vaultId: string; approverDeviceId: string; approverPublicKey: string; at: string; signature: string };
 const requestCode = (request: JoinRequest) => String(parseInt(createHash('sha256').update(JSON.stringify(request)).digest('hex').slice(0, 8), 16) % 1_000_000).padStart(6, '0');
-const acceptanceBody = (a: Omit<Acceptance, 'signature'>) => Buffer.from(JSON.stringify({ format: a.format, requestId: a.requestId, deviceId: a.deviceId, workspaceId: a.workspaceId, vaultId: a.vaultId, approverDeviceId: a.approverDeviceId, approverPublicKey: a.approverPublicKey, at: a.at }));
+const acceptanceBody = (a: Omit<Acceptance, 'signature'>) => Buffer.from(JSON.stringify({ format: a.format, requestId: a.requestId, deviceId: a.deviceId, publicKey: a.publicKey, memberId: a.memberId, epoch: a.epoch,
+  workspaceId: a.workspaceId, vaultId: a.vaultId, approverDeviceId: a.approverDeviceId, approverPublicKey: a.approverPublicKey, at: a.at }));
+function validAcceptance(a: Acceptance, approverKey: string): boolean {
+  try { const { signature, ...body } = a; return typeof a.publicKey === 'string' && createPublicKey(a.publicKey).asymmetricKeyType === 'ed25519' && typeof a.memberId === 'string' && Number.isSafeInteger(a.epoch)
+    && verify(null, acceptanceBody(body), createPublicKey(approverKey), Buffer.from(signature, 'base64url')); } catch { return false; }
+}
 async function readRequest(directory: string, requestId: string): Promise<JoinRequest | null> {
   const value = await readRecord<JoinRequest>(join(sharedPaths(directory).requests, `${requestId}.json`));
   if (!value) return null;
@@ -296,14 +340,14 @@ async function inviteVerify(ctx: Context, payload: Record<string, unknown>, host
   const already = registry.devices.find(d => d.id === request!.deviceId);
   check(!registry.usedRequests.includes(requestId) || already, 'DEVICE_JOIN_USED', 'This request was already used.');
   check(!already || already.removedAt === null, 'DEVICE_REMOVED', 'That computer was removed from this workspace.');
-  await ensureOn(host, enrolment!); installTrust(host, ctx, state);
+  await ensureOn(host, enrolment!); installTrust(host, ctx, recorded(state));
   if (!already) await host.store.update(draft => {
     const own = ns(draft); check(!own.usedRequests.includes(requestId), 'DEVICE_JOIN_USED', 'This request was already used.');
     own.devices.push({ id: request!.deviceId, name: request!.name, publicKey: request!.publicKey, memberId: ctx.memberId, epoch: ctx.epoch, enrolledAt: now(), removedAt: null, addedBy: device!.identity.deviceId });
     own.usedRequests.push(requestId); audit(draft, 'device.joined', { memberId: ctx.memberId });
   });
   const published = await publish(host);
-  const body: Omit<Acceptance, 'signature'> = { format: 'chausar.device-join-accepted.v1', requestId, deviceId: request!.deviceId, workspaceId: state.workspace.id, vaultId: vaultIdOf(host), approverDeviceId: device!.identity.deviceId, approverPublicKey: device!.identity.publicKey, at: now() };
+  const body: Omit<Acceptance, 'signature'> = { format: 'chausar.device-join-accepted.v1', requestId, deviceId: request!.deviceId, publicKey: request!.publicKey, memberId: ctx.memberId, epoch: ctx.epoch, workspaceId: state.workspace.id, vaultId: vaultIdOf(host), approverDeviceId: device!.identity.deviceId, approverPublicKey: device!.identity.publicKey, at: now() };
   await writeRecord(join(paths.accepted, `${requestId}.json`), { ...body, signature: sign(null, acceptanceBody(body), device!.signingKey).toString('base64url') } satisfies Acceptance);
   return { approved: true, requestId, deviceId: request!.deviceId, revision: published.revision };
 }
@@ -334,9 +378,8 @@ async function join_(ctx: Context, payload: Record<string, unknown>, host: Modul
     if (Date.parse(pending!.expiresAt) <= Date.now()) { await writePendingJoin(host.directory, null); return { state: 'expired' }; }
     return { state: 'waiting', requestId: pending!.requestId, code: pending!.code, expiresAt: pending!.expiresAt };
   }
-  const { signature, ...body } = acceptance;
-  let valid = false; try { valid = acceptance.format === 'chausar.device-join-accepted.v1' && acceptance.requestId === pending!.requestId && acceptance.deviceId === device!.identity.deviceId
-    && createPublicKey(acceptance.approverPublicKey).asymmetricKeyType === 'ed25519' && verify(null, acceptanceBody(body), createPublicKey(acceptance.approverPublicKey), Buffer.from(signature, 'base64url')); } catch {}
+  const valid = acceptance.format === 'chausar.device-join-accepted.v1' && acceptance.requestId === pending!.requestId && acceptance.deviceId === device!.identity.deviceId
+    && acceptance.publicKey === device!.identity.publicKey && validAcceptance(acceptance, acceptance.approverPublicKey);
   check(valid, 'DEVICE_JOIN_INVALID', 'The approval in the shared folder is not valid. Do not continue.');
   const transport = new FileSyncTransport({ directory: paths.store, workspaceId: acceptance.workspaceId, vaultId: acceptance.vaultId });
   const head = await transport.getHead(); check(head, 'SYNC_EMPTY', 'The shared folder has no encrypted copy yet.');
@@ -366,6 +409,7 @@ export const deviceMethods: Record<string, MethodSpec> = {
   'devices.takePen': { permission: 'admin', handler: takePen },
   'devices.remove': { permission: 'admin', handler: remove },
   'devices.read': { permission: 'admin', handler: read },
+  'devices.send': { permission: 'admin', handler: send },
   'devices.join': { permission: 'admin', preVault: true, handler: join_ },
   'seats.inviteVerify': { permission: 'admin', handler: inviteVerify },
   'sync.setup': { permission: 'admin', handler: setup },

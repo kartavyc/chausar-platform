@@ -5,6 +5,7 @@
   "devices.takePen",
   "devices.remove",
   "devices.read",
+  "devices.send",
   "devices.join",
   "seats.inviteVerify",
   "sync.setup"

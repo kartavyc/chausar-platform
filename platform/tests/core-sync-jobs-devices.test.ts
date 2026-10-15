@@ -18,8 +18,9 @@ async function fixture(t: TestContext) {
   t.after(async () => { for (const engine of engines) await engine.close().catch(() => {}); await rm(root, { recursive: true, force: true }); });
   const office = join(root, 'office'), laptop = join(root, 'laptop'), shared = join(root, 'shared');
   await mkdir(shared);
+  let offsetMs = 0; const clock = () => new Date(Date.now() + offsetMs);
   async function start(directory: string, sync = true) {
-    const options = sync ? await desktopSyncOptions(directory, false) : undefined;
+    const options = sync ? await desktopSyncOptions(directory, false, clock) : undefined;
     const engine = new Engine({ directory, demo: true, storage: 'experimental-file', ...(options ? { sync: options } : {}) });
     engines.add(engine); return engine;
   }
@@ -27,7 +28,7 @@ async function fixture(t: TestContext) {
     await engine.close(); engines.delete(engine);
     const next = await start(directory); await next.request('workspace.open', { folder, passphrase }); return next;
   }
-  return { root, office, laptop, shared, start, restart };
+  return { root, office, laptop, shared, start, restart, advance: (ms: number) => { offsetMs += ms; } };
 }
 
 test('a second computer joins through the shared folder, receives the pen, and the first becomes read only', async t => {
@@ -208,4 +209,35 @@ test('the installed app gets sync options only on an enrolled computer, never in
   assert.equal(options.enabled, false); assert.equal(options.transport, undefined, 'Drive is attached later by hosted-link');
   assert.equal(options.deviceId, (await deviceIdentity(f.office))!.identity.deviceId); assert.equal(options.signerId, options.deviceId);
   assert.equal(options.writerAdmission?.workspaceId, a.vault!.read().workspace.id); assert.equal(options.writerAdmission?.vaultId, a.vault!.vaultId);
+});
+
+test('a reader trusts a machine that joined after its copy, through the approver\'s signed acceptance', async t => {
+  const f = await fixture(t), third = join(f.root, 'third');
+  let a = await f.start(f.office, false);
+  await a.request('workspace.create', { name: 'Synthetic Three Computers', passphrase, demo: false, pack: 'ecommerce' });
+  await a.request('sync.setup', { transport: 'folder', folder: f.shared, deviceName: 'Office desk' });
+  a = await f.restart(a, f.office); await a.request('sync.setup', { on: true });
+  async function join_(directory: string, name: string) {
+    let engine = await f.start(directory, false);
+    const asked = await engine.request('devices.join', { step: 'request', folder: f.shared, deviceName: name });
+    await a.request('seats.inviteVerify', { requestId: asked.requestId, code: asked.code, approve: true });
+    const ready = await engine.request('devices.join', { step: 'finish' });
+    await engine.request('workspace.restore', { backupFile: ready.backupFile, passphrase, folder: 'main' });
+    engine = await f.restart(engine, directory);
+    return { engine, id: (await deviceIdentity(directory))!.identity.deviceId };
+  }
+  const b = await join_(f.laptop, 'Laptop');           // B's copy knows the office and the laptop only
+  let c = await join_(third, 'Shop counter');
+  await a.request('devices.handOver', { toDeviceId: c.id, confirm: true });
+  const read = await c.engine.request('devices.read', { passphrase });
+  c.engine = await f.restart(c.engine, third, read.folder);
+  await c.engine.request('trust.update', { retentionDays: 77 });
+  await assert.rejects(c.engine.request('devices.send', { confirm: true }), code('SYNC_LEASE_WAIT'));
+  f.advance(61_000); // the office computer's publication lease runs out
+  await assert.rejects(b.engine.request('devices.send', { confirm: true }), code('SYNC_READ_ONLY_DEVICE'));
+  const sent = await c.engine.request('devices.send', { confirm: true }); assert.equal(sent.sent, true);
+  const caught = await b.engine.request('devices.read', { passphrase });
+  assert.equal(caught.upToDate, false, 'the laptop reads the copy the shop counter signed');
+  const opened = await f.restart(b.engine, f.laptop, caught.folder);
+  assert.equal((await opened.request('devices.pen', {})).holder.name, 'Shop counter');
 });

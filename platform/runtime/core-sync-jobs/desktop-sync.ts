@@ -13,7 +13,8 @@ import { deviceIdentity, readEnrolment } from './device-files.ts';
 import { PenWriterAdmission } from './pen.ts';
 import { sharedPaths } from './devices.ts';
 
-export async function desktopSyncOptions(directory: string, demo: boolean): Promise<(SyncOptions & { writerAdmission?: SyncWriterAdmission }) | undefined> {
+/** `clock` is for synthetic tests only; the installed app uses the system clock. */
+export async function desktopSyncOptions(directory: string, demo: boolean, clock?: () => Date): Promise<(SyncOptions & { writerAdmission?: SyncWriterAdmission }) | undefined> {
   if (demo) return undefined;
   const enrolment = await readEnrolment(directory); if (!enrolment) return undefined;
   const device = await deviceIdentity(directory); if (!device || device.identity.deviceId !== enrolment.deviceId) return undefined;
@@ -22,8 +23,8 @@ export async function desktopSyncOptions(directory: string, demo: boolean): Prom
   if (enrolment.transport.kind === 'folder') {
     const store = sharedPaths(enrolment.transport.directory).store;
     // An unreachable folder leaves sync without a transport; the app still opens and says sync is not connected.
-    try { await mkdir(store, { recursive: true, mode: 0o700 }); transport = new FileSyncTransport({ directory: store, workspaceId, vaultId }); } catch { transport = undefined; }
+    try { await mkdir(store, { recursive: true, mode: 0o700 }); transport = new FileSyncTransport({ directory: store, workspaceId, vaultId, ...(clock ? { clock } : {}) }); } catch { transport = undefined; }
   }
   return { mode: 'single-writer', workspaceId, deviceId, signerId: deviceId, signingKey: device.signingKey, enabled: enrolment.syncOn, ...(transport ? { transport } : {}),
-    trustedSigners: {}, leaseTtlMs: 60_000, writerAdmission: new PenWriterAdmission({ directory, workspaceId, vaultId, deviceId }) };
+    trustedSigners: {}, leaseTtlMs: 60_000, ...(clock ? { clock } : {}), writerAdmission: new PenWriterAdmission({ directory, workspaceId, vaultId, deviceId }) };
 }
