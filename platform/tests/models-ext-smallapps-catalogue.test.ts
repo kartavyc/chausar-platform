@@ -166,8 +166,9 @@ test('press: writeback rows prepare through writeback.prepare with the real requ
   assert.deepEqual(result.approval, { waits: true, alwaysWaits: true, tier: 2, kind: 'action', id: 'action_wb_1', digest: 'e'.repeat(64), secondAsk: true, approveWith: 'writeback.approve', reauthWith: 'writeback.reauth' });
   assert.match(result.words, /waits for a person/); assert.match(result.words, /passphrase again/);
   assert.ok(!host.calls.some(c => /approve|execute|reauth/.test(c.method)));
-  // A writeback that answers with anything but "prepared", or for another action, is refused, not passed on.
-  for (const reply of [(r: any) => view(r, { status: 'approved' }), (r: any) => view(r, { status: 'verified' }), (r: any) => view(r, { action: 'paymentLink.create' }),
+  // A writeback that answers in an unknown status, or for another action, is refused, not passed on.
+  // (An existing action in a known status is said in words: models-ext-smallapps-review4.test.ts.)
+  for (const reply of [(r: any) => view(r, { status: 'done-ish' }), (r: any) => view(r, { status: 'executed' }), (r: any) => view(r, { action: 'paymentLink.create' }),
     (r: any) => view(r, { approval: {} }), (r: any) => view(r, { id: 'a b' }), () => 'prepared']) {
     const rogue = fakeHost({ writeback: rows, prepare: reply });
     const other = await appWith(rogue, 'sales this month with a refund button');
@@ -225,7 +226,10 @@ test('prepareAction never reaches past prepare and passes writeback refusals thr
   const host = (reply: unknown) => ({ call: async (method: string) => { if (method === 'writeback.prepare') return reply; throw new ChausarError('UNKNOWN_METHOD', 'x'); } });
   const request = { payload: {}, intentId: 'intent-1' };
   await assert.rejects(prepareAction(host({ ...view({ action: 'invoice.paymentReminder' }), id: 'a b' }), row, request), code('SMALLAPP_PREPARE_UNREADABLE'));
-  await assert.rejects(prepareAction(host(view({ action: 'invoice.paymentReminder' }, { status: 'approved' })), row, request), code('SMALLAPP_PREPARE_UNREADABLE'));
+  await assert.rejects(prepareAction(host(view({ action: 'invoice.paymentReminder' }, { status: 'approving' })), row, request), code('SMALLAPP_PREPARE_UNREADABLE'));
+  // The existing action for the same intent, in a known status other than prepared, comes back as such: nothing is approved here.
+  assert.deepEqual(await prepareAction(host(view({ action: 'invoice.paymentReminder' }, { status: 'approved' })), row, request),
+    { status: 'existing', state: 'approved', id: 'action_wb_1', connector: 'zoho-books', operation: 'invoice.paymentReminder', through: 'writeback' });
   for (const refusal of ['INVALID_WRITE_PAYLOAD', 'WRITE_NOT_GRANTED', 'IDEMPOTENCY_CONFLICT'])
     await assert.rejects(prepareAction({ call: async () => { throw new ChausarError(refusal, 'x'); } }, row, request), code(refusal));
 });

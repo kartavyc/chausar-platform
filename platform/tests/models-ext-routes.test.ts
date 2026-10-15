@@ -166,6 +166,17 @@ test('engine: modelsx.price in jobs-ext shape, the local model list and this mon
     assert.equal(list.reachable, true); assert.equal(list.endpoint, 'http://127.0.0.1:11434'); assert.deepEqual(seen, ['http://127.0.0.1:11434/api/tags']);
     assert.deepEqual(list.models, [{ name: 'llama3.2:3b', sizeBytes: 2019393189, modifiedAt: '2026-09-01T10:00:00.000Z', family: 'llama' }]); assert.equal(list.skipped, 1);
     await assert.rejects(engine.request('modelsx.localList', { endpoint: 'https://ollama.example.com/api/chat' }), code('INVALID_ENDPOINT'));
+    // Review 4, item 10: naming another loopback port is for an owner in the untainted desktop app only; anyone else
+    // (another channel, a tainted request, a non-admin) cannot probe local ports, and reads only the configured endpoint.
+    const desk: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+    assert.equal((await engine.requestAs(desk, 'modelsx.localList', { endpoint: 'http://127.0.0.1:9999/api/chat' })).endpoint, 'http://127.0.0.1:9999');
+    const added = await engine.request('members.add', { name: 'Accountant', role: 'accountant', branches: ['*'] });
+    const accountant: Context = { memberId: added.id, role: added.role, epoch: added.epoch, channel: 'desktop' };
+    seen.length = 0;
+    for (const who of [{ ...desk, channel: 'mcp' as const }, { ...desk, sourceTainted: true }, accountant])
+      await assert.rejects(engine.requestAs(who, 'modelsx.localList', { endpoint: 'http://127.0.0.1:5432/api/chat' }), code('LOCAL_ENDPOINT_APP_ONLY'));
+    assert.deepEqual(seen, [], 'A refused endpoint is never contacted.');
+    assert.equal((await engine.requestAs(accountant, 'modelsx.localList', {})).endpoint, 'http://127.0.0.1:11434');
   } finally { await engine.request('workspace.lock', {}).catch(() => {}); await rm(directory, { recursive: true, force: true }); }
 });
 

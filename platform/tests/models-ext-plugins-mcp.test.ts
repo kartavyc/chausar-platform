@@ -12,6 +12,8 @@ import { parseDocument, rawPublicKey } from '../runtime/smallapps/plugin-format.
 import { buildDocument, wrapMcpServer } from '../runtime/smallapps/plugin-wrap.ts';
 import { MCP_MODERN, endpointShapeValid, mcpExchange, parseRemote, readReply, runExchange } from '../runtime/smallapps/plugin-mcp.ts';
 import type { McpEndpoint } from '../runtime/smallapps/plugin-mcp.ts';
+import { pluginWrapPart } from '../runtime/smallapps/plugin-methods.ts';
+import type { ModuleHost } from '../runtime/modules/types.ts';
 import type { TransportRequest, TransportResponse } from '../runtime/smallapps/plugin-network.ts';
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected); return true; };
@@ -176,6 +178,12 @@ test('TL-07 and remote MCP through the real engine: pending requests, approve ex
   assert.ok(mine.receives.every((line: unknown) => typeof line === 'string') && mine.receives.some((line: string) => /city/.test(line)));
   assert.deepEqual((await engine.requestAs(accountant, 'smallapps.pendingRequests', {})).requests.map((r: any) => r.id), [theirs.previewId]);
   await assert.rejects(engine.request('smallapps.pendingRequests', { all: true }), code('INVALID_PLUGIN_REQUEST'));
+  // Review 4, item 11: everyone's prepared arguments only in the untainted desktop app; elsewhere an owner sees their own.
+  for (const elsewhere of [{ ...owner, channel: 'mcp' as const }, { ...owner, sourceTainted: true }])
+    assert.deepEqual((await engine.requestAs(elsewhere, 'smallapps.pendingRequests', {})).requests.map((r: any) => r.id), [prepared.previewId]);
+  const asPhone = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'phone' } as const;
+  const readOnly = { store: engine.vault!, options: { clock: () => clock } } as unknown as ModuleHost;
+  assert.deepEqual((await pluginWrapPart.methods['smallapps.pendingRequests'].handler(asPhone, {}, readOnly) as any).requests.map((r: any) => r.id), [prepared.previewId]);
 
   // Approve exactly that digest, send once.
   const ok = await engine.request(mine.approveWith.method, { previewId: mine.approveWith.previewId, digest: mine.approveWith.digest });
@@ -230,10 +238,14 @@ test('TL-07 and remote MCP through the real engine: pending requests, approve ex
   assert.equal(audited.length, 6, 'Every HTTP request of every exchange is audited as network.request.');
   assert.doesNotMatch(JSON.stringify([ledger, audited]), /mcp-secret|sess-7|Pune|Ignore/, 'No keys, session numbers or bodies are kept.');
 
-  // Expired previews drop out of the list and are cleaned from the workspace.
+  // Expired previews drop out of the list and the preview; listing is a pure read, the next prepare cleans them.
   clock += 15 * 60_000 + 1;
+  const kept = () => ((engine.vault!.read() as any).extensions['models-ext'].plugins.remote.previews as any[]).map(p => p.id);
   assert.deepEqual((await engine.request('smallapps.pendingRequests', {})).requests, []);
   await assert.rejects(engine.request('smallapps.pluginRemotePreview', { previewId: theirs.previewId }), code('PLUGIN_REMOTE_PREVIEW_NOT_FOUND'));
+  assert.ok(kept().includes(theirs.previewId), 'Reading pending requests writes nothing.');
+  const later = await engine.request('smallapps.pluginPrepareRemote', { id: modern, tool: 'forecast', arguments: { city: 'Pune' } });
+  assert.ok(!kept().includes(theirs.previewId) && kept().includes(later.previewId), 'The prepare path cleans expired previews.');
 });
 
 test('pending requests and MCP refresh are refused in the demo', async t => {

@@ -343,7 +343,7 @@ async function prepareRemote(ctx: Context, payload: Record<string, any>, host: M
 function remotePreview(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   fields(payload, ['previewId'], ['previewId']);
   check(isId(payload.previewId, 'xremote'), 'INVALID_PLUGIN_REQUEST', 'Name the plugin request.');
-  const preview = readable(host).remote?.previews.find(p => p.id === payload.previewId);
+  const at = clockMs(host); const preview = readable(host).remote?.previews.find(p => p.id === payload.previewId && (p.status !== 'prepared' || Date.parse(p.expiresAt) > at));
   check(preview && (preview.createdBy === ctx.memberId || ['owner', 'cofounder'].includes(ctx.role)), 'PLUGIN_REMOTE_PREVIEW_NOT_FOUND', 'That plugin request is not kept. Prepare it again.');
   return previewView(preview);
 }
@@ -364,13 +364,15 @@ function receivesWords(preview: RemotePreview): string[] {
   return words;
 }
 
-/** TL-07: every prepared request that is not sent and not expired. Callers see their own; owners and cofounders see all. */
+/**
+ * TL-07: every prepared request that is not sent and not expired. Callers see their own; owners and cofounders in the
+ * untainted desktop app see everyone's (their arguments are other members' data). A pure read: expired previews are
+ * skipped here and cleaned by the prepare, approve and call paths.
+ */
 async function pendingRequests(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   fields(payload, []);
   const at = clockMs(host); const ns = readable(host); const previews = ns.remote?.previews ?? [];
-  // Expired previews drop out here and are cleaned from the workspace; a read-only view simply skips the clean.
-  if (previews.some(p => p.status === 'prepared' && Date.parse(p.expiresAt) <= at)) { try { await host.store.update(state => { remoteOf(state, at); }); } catch { /* read-only view */ } }
-  const all = ['owner', 'cofounder'].includes(ctx.role);
+  const all = ['owner', 'cofounder'].includes(ctx.role) && ctx.channel === 'desktop' && !ctx.sourceTainted;
   return { requests: previews.filter(p => p.status === 'prepared' && Date.parse(p.expiresAt) > at && (all || p.createdBy === ctx.memberId)).flatMap(p => {
     const item = ns.installed.find(entry => entry.id === p.pluginId && entry.digest === p.pluginDigest); if (!item) return [];
     const sites = [...new Set(p.requests.map(r => r.site))]; const methods = [...new Set(p.requests.map(r => r.method))];

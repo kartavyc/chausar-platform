@@ -177,7 +177,8 @@ export const laneRefusalCodes: readonly string[] = [
   'PLUGIN_MCP_REPLY_INVALID', 'VOICE_OFF', 'VOICE_LOCAL_ONLY', 'VOICE_DESKTOP_ONLY', 'VOICE_PROVIDER_MISMATCH',
   'VOICE_SESSION_NOT_FOUND', 'VOICE_SESSION_CLOSED', 'VOICE_LIVE_BUSY', 'VOICE_NOTHING_HEARD',
   'VOICE_TAINTED_CONTEXT', 'VOICE_CLOCK_INVALID', 'SPEECH_KEY_APP_ONLY', 'SEND_DISABLED', 'PREVIEW_NOT_FOUND',
-  'INVALID_AUDIO', 'INVALID_TRANSCRIPT', 'INVALID_CREDENTIAL', 'DEMO_PROVIDER_DISABLED', 'SPEECH_FAILED'
+  'INVALID_AUDIO', 'INVALID_TRANSCRIPT', 'INVALID_CREDENTIAL', 'DEMO_PROVIDER_DISABLED', 'SPEECH_FAILED',
+  'LOCAL_ENDPOINT_APP_ONLY'
 ];
 const laneCode = (value: unknown): string | undefined => typeof value === 'string' && laneRefusalCodes.includes(value) ? value : undefined;
 function desktopFailure(code: string): Error & { code: string } {

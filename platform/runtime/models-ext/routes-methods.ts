@@ -140,10 +140,16 @@ async function ollamaGet(request: { url: string; timeoutMs: number; maxBytes: nu
   return { status: response.status, body: Buffer.concat(chunks).toString('utf8') };
 }
 
-/** FR-05: the models installed in the local Ollama, read from loopback only. Nothing leaves the machine. */
-async function localList(payload: Record<string, any>, host: ModuleHost) {
+/**
+ * FR-05: the models installed in the local Ollama, read from loopback only. Nothing leaves the machine.
+ * Naming another endpoint is for an owner or cofounder in the untainted desktop app: anyone else could use it to learn
+ * which local ports answer. Everyone else reads only the configured (or default) endpoint.
+ */
+async function localList(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   keys(payload, ['endpoint']);
   check(!host.demo, 'DEMO_PROVIDER_DISABLED', 'Synthetic demo mode keeps model providers disabled.');
+  if (payload.endpoint !== undefined) check(['owner', 'cofounder'].includes(ctx.role) && ctx.channel === 'desktop' && !ctx.sourceTainted,
+    'LOCAL_ENDPOINT_APP_ONLY', 'Only an owner in the desktop app can name another local model address. Leave it out to read the configured one.');
   const configured = host.store.read().routes.find(r => r.kind === 'ollama' && r.enabled)?.endpoint;
   const base = new URL(validateEndpoint(payload.endpoint ?? configured ?? 'http://127.0.0.1:11434/api/chat', 'ollama'));
   const url = `${base.origin}/api/tags`;
@@ -245,7 +251,7 @@ export const routesPart: ModulePart = {
         unmeasured: found.length - measured.length, note: found.length - measured.length ? 'Some calls have no measured cost; their reservation is counted instead.' : 'Every call was measured.' };
     } },
     'modelsx.price': { permission: 'read', handler: (ctx, payload, host) => price(ctx, payload, host) },
-    'modelsx.localList': { permission: 'read', handler: (_ctx, payload, host) => localList(payload, host) },
+    'modelsx.localList': { permission: 'read', handler: (ctx, payload, host) => localList(ctx, payload, host) },
     'modelsx.connectAllowance': { permission: 'admin', external: true, handler: (ctx, payload, host) => connectAllowance(ctx, payload, host) },
   },
 };

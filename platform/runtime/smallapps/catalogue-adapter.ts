@@ -32,7 +32,10 @@
  * (`IDEMPOTENCY_CONFLICT`). Reply: the action view `{ id, system, action, digest, status: 'prepared',
  * word, alwaysWaits, kind, tier, practice, expiresAt, approval: { needsSecondAsk, … }, … }`, or
  * `{ status: 'already-done', externalId, … }` when the effect is already in the system (nothing is
- * prepared). Any other status is refused: preparing never approves or does. Approval stays with
+ * prepared). Both writeback and core `actions.prepare` return the existing action for the same intent in
+ * whatever status it now has (approved, executing, unknown, verified, rejected, blocked, cancelled; an
+ * expired writeback preparation is cancelled); that comes back here as `existing` with its status, so the
+ * caller can say plainly what happened. Preparing never approves or does. Approval stays with
  * `writeback.approve {id, digest, secondAsk?}`; money and changes that cannot be undone first need
  * `writeback.reauth` (the second ask, `REAUTH_REQUIRED` without it). A practice connection
  * (`environment: 'practice'`) prepares against Practice systems and is marked `practice`.
@@ -162,7 +165,11 @@ export function pressConnection(row: ActionRow, connectionId: unknown): Connecti
 export type Prepared =
   | { status: 'prepared'; id: string; connector: string; operation: string; digest: string; impact: string | null; through: 'writeback' | 'core';
       alwaysWaits: boolean; secondAsk: boolean; practice: boolean; connectionId: string | null; expiresAt: string | null }
-  | { status: 'already-done'; connector: string; operation: string; externalId: string | null; through: 'writeback' };
+  | { status: 'already-done'; connector: string; operation: string; externalId: string | null; through: 'writeback' }
+  | { status: 'existing'; state: ExistingStatus; id: string; connector: string; operation: string; through: 'writeback' | 'core' };
+/** Statuses of an action already held for the same intent, other than prepared (core `PreparedAction['status']`). */
+export type ExistingStatus = 'approved' | 'executing' | 'unknown' | 'verified' | 'rejected' | 'blocked' | 'cancelled';
+const EXISTING = new Set<string>(['approved', 'executing', 'unknown', 'verified', 'rejected', 'blocked', 'cancelled']);
 const unreadable = 'SMALLAPP_PREPARE_UNREADABLE';
 /** Prepare, never more: writeback.prepare for writeback rows, core actions.prepare for core rows. */
 export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionRow, request: { payload: unknown; intentId: string; sourceIds?: string[]; connectionId?: unknown; tainted?: boolean }): Promise<Prepared> {
@@ -181,6 +188,7 @@ export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionR
       && typeof reply.kind === 'string' && Object.hasOwn(KIND_IMPACT, reply.kind) && plain(reply.approval) && typeof reply.approval.needsSecondAsk === 'boolean'
       && (reply.expiresAt === null || typeof reply.expiresAt === 'string'),
     unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
+    if (EXISTING.has(reply.status as string)) return { status: 'existing', state: reply.status as ExistingStatus, id: reply.id, ...base, through: 'writeback' };
     check(reply.status === 'prepared', unreadable, 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');
     return { status: 'prepared', id: reply.id, ...base, digest: reply.digest, impact: KIND_IMPACT[reply.kind as string], through: 'writeback',
       alwaysWaits: row.alwaysWaits || reply.alwaysWaits, secondAsk: reply.approval.needsSecondAsk, practice: reply.practice, connectionId: via.id,
@@ -191,6 +199,7 @@ export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionR
   const reply: any = await (request.tainted ? host.call('actions.prepare', corePayload, { tainted: true }) : host.call('actions.prepare', corePayload));
   check(plain(reply) && typeof reply.id === 'string' && REF.test(reply.id) && typeof reply.digest === 'string' && /^[A-Za-z0-9_.:-]{8,200}$/.test(reply.digest),
     unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
+  if (EXISTING.has(reply.status as string)) return { status: 'existing', state: reply.status as ExistingStatus, id: reply.id, ...base, through: 'core' };
   check(reply.status === 'prepared', unreadable, 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');
   return { status: 'prepared', id: reply.id, ...base, digest: reply.digest, impact: typeof reply.impact === 'string' && IMPACTS.has(reply.impact) ? reply.impact : row.impact,
     through: 'core', alwaysWaits: row.alwaysWaits, secondAsk: false, practice: false, connectionId: null, expiresAt: null };

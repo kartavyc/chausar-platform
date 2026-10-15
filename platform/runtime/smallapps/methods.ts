@@ -15,10 +15,16 @@ import { checkPayload, grantedConnections, loadCatalogue, prepareAction, type Ca
 import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, visibleVersions, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
-  /** 'planner' only when this app's descriptor is exactly what the local planner makes from its line; anything else is outside text and presses as such. */
+  /**
+   * 'planner' only when this app's descriptor is exactly what the local planner makes from its line AND it was made
+   * in the untainted desktop app; anything else is outside text and presses as such.
+   */
   madeBy?: 'planner' | 'outside';
+  /** The app was made or rebuilt by a request that had read outside text, or from outside the desktop app. Never cleared. */
+  creatorTainted?: boolean;
   history: { version: number; digest: string; dictionaryVersion: number; dictionaryHash: string; at: string; by: string; change: 'created' | 'rebuilt' }[];
-  presses: { actionId: string; cardId: string; at: string; by: string }[] };
+  /** `intent` is the derived press intent (card, member, payload); `generation` counts fresh preparations of that intent. */
+  presses: { actionId: string; cardId: string; at: string; by: string; intent?: string; generation?: number }[] };
 type SmallApps = { apps: App[]; book: Entry[] };
 const MAX_APPS = 200, MAX_PRESSES = 200;
 const EMPTY: SmallApps = { apps: [], book: [] };
@@ -77,6 +83,20 @@ const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(a
 function actionNotes(descriptor: Descriptor, m: Menu) {
   return descriptor.cards.flatMap(c => { if (c.kind !== 'action') return []; const row = actionRow(m, `${c.connector}/${c.operation}`); return row ? [{ ...actionNote(c.id, row), available: row.available }] : []; });
 }
+/** A request that has read outside text, or that comes from outside the desktop app, cannot make anything count as the planner's own. */
+const outsideContext = (ctx: Context) => ctx.sourceTainted === true || (ctx.channel !== undefined && ctx.channel !== 'desktop');
+/** Statuses of an earlier action for the same press intent. Prepared: a repeated press is the same intent. Finished: a new press prepares afresh. */
+const FINISHED = new Set(['verified', 'rejected', 'blocked', 'cancelled']);
+const EXISTING_WORDS: Record<string, string> = {
+  approved: 'This exact action was already approved and waits to be done. Nothing new was prepared.',
+  executing: 'This exact action is being done now. Nothing new was prepared.',
+  unknown: 'This exact action was tried and its result is not known yet. Read it back on the approvals list before pressing again. Nothing new was prepared.',
+  verified: 'This exact action was already done. Nothing new was prepared.',
+  rejected: 'This exact action was already decided and did not go through. Nothing new was prepared.',
+  blocked: 'This exact action was already decided and is blocked. Nothing new was prepared.',
+  cancelled: 'This exact action was already dropped. Nothing new was prepared.',
+};
+const MAX_GENERATIONS = 8;
 const requireCurrent = (app: App, m: Menu) => check(staleness(app.descriptor, m).length === 0, 'SMALLAPP_OUT_OF_DATE', 'A definition this app uses changed. Rebuild the app before opening it.');
 
 const WITHHELD = new Set(['FORBIDDEN_BRANCH', 'BRANCH_FORBIDDEN', 'SOURCE_REVOKED', 'RECEIPT_FORBIDDEN', 'FORBIDDEN']);
@@ -132,12 +152,13 @@ const methods: Record<string, MethodSpec> = {
     const branches = branchesOf(host.store.read(), ctx);
     const planned = request !== null ? plan(request, m, branches).descriptor : null;
     const shape = (d: Descriptor) => digest({ ...d, cards: d.cards.map(({ id: _id, ...card }) => card) });
-    const madeBy: App['madeBy'] = planned && shape(planned) === shape(descriptor) ? 'planner' : 'outside';
+    const tainted = outsideContext(ctx);
+    const madeBy: App['madeBy'] = !tainted && planned && shape(planned) === shape(descriptor) ? 'planner' : 'outside';
     const app = await host.store.update(state => {
       const ns = mine(state); check(ns.apps.length < MAX_APPS, 'SMALLAPP_LIMIT', 'Remove an app before adding another.');
       check(state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_OUT_OF_DATE', 'The dictionary changed while the app was being saved. Propose it again.');
       const at = now(), d = digest(descriptor);
-      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request, madeBy,
+      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request, madeBy, ...(tainted ? { creatorTainted: true } : {}),
         history: [{ version: 1, digest: d, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'created' }], presses: [] };
       ns.apps.push(created); audit(state, 'smallapp.created', { appId: created.id }); return structuredClone(created);
     });
@@ -187,6 +208,8 @@ const methods: Record<string, MethodSpec> = {
       const stored = mine(state).apps.find(a => a.id === app.id); check(stored, 'SMALLAPP_NOT_FOUND', 'This small app is unavailable.');
       check(stored.digest === app.digest && state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_CHANGED', 'The app or the dictionary changed during the rebuild. Try again.');
       const at = now(); stored.descriptor = descriptor; stored.digest = digest(descriptor); stored.version += 1; stored.updatedAt = at;
+      // A rebuild keeps the outside-text mark and can only add it: a tainted rebuild marks the app outside from then on.
+      if (outsideContext(ctx)) { stored.madeBy = 'outside'; stored.creatorTainted = true; }
       stored.history.push({ version: stored.version, digest: stored.digest, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'rebuilt' });
       audit(state, 'smallapp.rebuilt', { appId: stored.id, version: stored.version }); return structuredClone(stored);
     });
@@ -213,17 +236,28 @@ const methods: Record<string, MethodSpec> = {
     // What the person typed is data: its required fields are checked here, its exact shape by the writeback adapter, never by the number guard.
     if (row.origin === 'writeback') checkPayload(row, input.payload);
     // The one path to an action: prepare. Approval and execution stay with the person.
-    // A repeated press of the same card with the same payload is the same intent, so it prepares once.
-    // An app not made by the local planner carries outside text: its presses are marked as such.
-    const action = await prepareAction(host, row, { payload: input.payload, intentId: input.idempotencyKey ?? `smallapp:${app.id}:${card.id}:${digest(input.payload ?? null).slice(0, 32)}`,
-      tainted: app.madeBy !== 'planner',
-      ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}) });
+    // A repeated press of the same card with the same payload by the same member is the same intent while its action
+    // still waits; once that action is finished (done, decided, dropped or expired) the next press is a new generation.
+    // Outside text marks the press: an app not made by the local planner, made by a tainted request, or a tainted presser.
+    const tainted = app.madeBy !== 'planner' || app.creatorTainted === true || ctx.sourceTainted === true;
+    const intent = `smallapp:${digest({ app: app.id, card: card.id, member: ctx.memberId, payload: input.payload ?? null }).slice(0, 48)}`;
+    let generation = app.presses.filter(p => p.intent === intent).reduce((g, p) => Math.max(g, p.generation ?? 0), 0);
+    const request = { payload: input.payload, tainted, ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}) };
+    let action = await prepareAction(host, row, { ...request, intentId: input.idempotencyKey ?? `${intent}:${generation}` });
+    while (input.idempotencyKey === undefined && action.status === 'existing' && FINISHED.has(action.state)) {
+      check(++generation < MAX_GENERATIONS, 'SMALLAPP_PREPARE_UNREADABLE', 'This button was pressed many times with the same details. Check the approvals list before trying again.');
+      action = await prepareAction(host, row, { ...request, intentId: `${intent}:${generation}` });
+    }
     if (action.status === 'already-done') return { action: null, alreadyDone: { connector: action.connector, operation: action.operation, externalId: action.externalId },
       words: 'This is already in the system. Nothing was prepared and nothing will be sent.' };
+    if (action.status === 'existing') return { action: null, existing: { id: action.id, connector: action.connector, operation: action.operation, status: action.state, through: action.through },
+      words: EXISTING_WORDS[action.state] };
+    const prepared = action;
     await host.store.update(state => {
       const stored = mine(state).apps.find(a => a.id === app.id); if (!stored) return;
-      stored.presses.push({ actionId: action.id, cardId: card.id, at: now(), by: ctx.memberId }); stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
-      audit(state, 'smallapp.pressed', { appId: app.id, actionId: action.id });
+      stored.presses.push({ actionId: prepared.id, cardId: card.id, at: now(), by: ctx.memberId, ...(input.idempotencyKey === undefined ? { intent, generation } : {}) });
+      stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
+      audit(state, 'smallapp.pressed', { appId: app.id, actionId: prepared.id });
     });
     const writeback = action.through === 'writeback';
     return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through,
