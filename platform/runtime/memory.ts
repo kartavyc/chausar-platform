@@ -1,5 +1,5 @@
-import { authorize, audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore } from './contracts.ts';
-import { assertSourceAccess, sourceAllowed } from './trust.ts';
+import { authorize, audit, check, factWithheld, hash, newId, now, type Context, type Fact, type State, type StateStore } from './contracts.ts';
+import { assertSourceAccess, factFor, sourceAllowed } from './trust.ts';
 
 export type FactInput = { entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo?: string | null; fields: Record<string, unknown>; branch?: string };
 export type Period = { from: string; to: string };
@@ -19,7 +19,7 @@ export function currentAccess(store: StateStore, ctx: Context, branch?: string, 
   if (sourceId) assertSourceAccess(store.read(), ctx, [sourceId]);
   return member;
 }
-export function canSeeFact(store: StateStore, ctx: Context, fact: Fact) { const member = authorize(store, ctx); return (member.branches.includes('*') || (!!fact.branch && member.branches.includes(fact.branch))) && sourceAllowed(store.read(), ctx, fact.sourceId); }
+export function canSeeFact(store: StateStore, ctx: Context, fact: Fact) { const member = authorize(store, ctx); return (member.branches.includes('*') || (!!fact.branch && member.branches.includes(fact.branch))) && sourceAllowed(store.read(), ctx, fact.sourceId) && factWithheld(store.read(), member, fact) !== true; }
 export function markStale(state: State, reason: string) { for (const item of [...state.answers, ...state.receipts]) { item.stale = true; item.staleReason = reason; } }
 export function resolveCustomer(state: State, customerId: unknown, asOf: string): unknown {
   if (typeof customerId !== 'string') return customerId;
@@ -34,7 +34,7 @@ export function resolveCustomer(state: State, customerId: unknown, asOf: string)
   return current;
 }
 export function selectFacts(store: StateStore, ctx: Context, filter: FactFilter = {}): FactSelection {
-  currentAccess(store, ctx, filter.branch); validatePeriod(filter.period);
+  const member = currentAccess(store, ctx, filter.branch); validatePeriod(filter.period);
   const state = store.read(); const asOf = filter.asOf ?? now();
   check(typeof asOf === 'string' && Number.isFinite(Date.parse(asOf)), 'INVALID_ASOF', 'The known-on time must be an ISO timestamp.');
   const normalized = new Date(asOf).toISOString();
@@ -72,12 +72,16 @@ export function selectFacts(store: StateStore, ctx: Context, filter: FactFilter 
     const customerId = resolveCustomer(state, winner.fields.customerId, normalized);
     if (filter.customerId && customerId !== resolveCustomer(state, filter.customerId, normalized)) continue;
     if (filter.orderId && winner.fields.orderId !== filter.orderId) continue;
-    selected.push({ ...structuredClone(winner), fields: { ...structuredClone(winner.fields), customerId } });
+    // A field withheld from this reader leaves the copy, and a filter on a withheld field does not match it.
+    const shown = factFor(state, member, { ...structuredClone(winner), fields: { ...structuredClone(winner.fields), customerId } }) ?? undefined;
+    if (!shown || (filter.customerId && shown.withheld?.includes('customerId')) || (filter.orderId && shown.withheld?.includes('orderId'))) continue;
+    selected.push(shown);
   }
   return { facts: selected, conflicts: conflicts.filter(c => !filter.kinds || filter.kinds.includes(c.kind)), excluded, asOf: normalized };
 }
 
-export function insertFacts(state: State, inputs: FactInput[], learnedAt: string): Fact[] {
+/** `enteredBy`: the member writing through the app; a new version keeps the member who entered the first one. */
+export function insertFacts(state: State, inputs: FactInput[], learnedAt: string, enteredBy?: string): Fact[] {
   const created: Fact[] = [];
   for (const input of inputs) {
     check(typeof input.entityId === 'string' && input.entityId.length > 0 && typeof input.sourceId === 'string' && input.sourceId.length > 0 && Number.isInteger(input.sourceRow) && input.sourceRow > 0, 'INVALID_FACT', 'Every fact needs a stable source, logical row identifier and row number.');
@@ -88,7 +92,8 @@ export function insertFacts(state: State, inputs: FactInput[], learnedAt: string
     const previous = sameKey.at(-1);
     if (previous && !previous.supersededAt && hash({ fields: previous.fields, validFrom: previous.validFrom, validTo: previous.validTo, branch: previous.branch }) === hash({ fields: input.fields, validFrom: input.validFrom, validTo: input.validTo ?? null, branch: input.branch })) continue;
     check(!previous || previous.learnedAt <= learnedAt, 'SYSTEM_CLOCK_REGRESSION', 'A correction cannot be learned before the previous version.');
-    const fact: Fact = { ...structuredClone(input), id: newId('fact'), validTo: input.validTo ?? null, learnedAt, supersededAt: null };
+    const { enteredBy: _claimed, withheld: _shown, ...clean } = structuredClone(input) as FactInput & Pick<Fact, 'enteredBy' | 'withheld'>; const author = previous ? previous.enteredBy : enteredBy;
+    const fact: Fact = { ...clean, id: newId('fact'), validTo: input.validTo ?? null, learnedAt, supersededAt: null, ...(author ? { enteredBy: author } : {}) };
     state.facts.push(fact); created.push(fact);
   }
   if (created.length) markStale(state, 'Source facts changed. Recalculate this answer.');
@@ -98,7 +103,7 @@ export class MemoryService {
   store: StateStore;
   constructor(store: StateStore) { this.store = store; }
   query(ctx: Context, filter: FactFilter = {}) { return selectFacts(this.store, ctx, filter); }
-  history(ctx: Context, entityId: string) { authorize(this.store, ctx); return structuredClone(this.store.read().facts.filter(f => f.entityId === entityId && canSeeFact(this.store, ctx, f))); }
+  history(ctx: Context, entityId: string) { const member = authorize(this.store, ctx); const state = this.store.read(); return structuredClone(state.facts.filter(f => f.entityId === entityId && canSeeFact(this.store, ctx, f)).flatMap(f => factFor(state, member, f) ?? [])); }
   suggestCustomerMatch(ctx: Context, leftId: string, rightId: string) {
     authorize(this.store, ctx); const selected = selectFacts(this.store, ctx).facts;
     const identity = (id: string) => { const facts = selected.filter(f => f.fields.customerId === id); check(facts.length > 0, 'CUSTOMER_NOT_FOUND', 'Both customers must exist under your current access.'); return { gstins: [...new Set(facts.map(f => f.fields.gstin).filter(gstinValid))], pans: [...new Set(facts.map(f => f.fields.pan).filter((v): v is string => typeof v === 'string' && /^[A-Z]{5}\d{4}[A-Z]$/.test(v)))] }; };
@@ -114,7 +119,7 @@ export class MemoryService {
     check(!options.testLearnedAt || this.store.read().workspace.demo, 'TEST_CLOCK_FORBIDDEN', 'A labelled demo workspace is required for the test clock.');
     const learnedAt = options.testLearnedAt ? new Date(options.testLearnedAt).toISOString() : now();
     for (const f of inputs) currentAccess(this.store, ctx, f.branch, f.sourceId);
-    return this.store.update(state => { authorize(this.store, ctx, 'prepare'); for (const f of inputs) currentAccess(this.store, ctx, f.branch, f.sourceId); const records = insertFacts(state, inputs, learnedAt); audit(state, 'facts.appended', { count: records.length, testClock: !!options.testLearnedAt }); return structuredClone(records); });
+    return this.store.update(state => { authorize(this.store, ctx, 'prepare'); for (const f of inputs) currentAccess(this.store, ctx, f.branch, f.sourceId); const records = insertFacts(state, inputs, learnedAt, ctx.memberId); audit(state, 'facts.appended', { count: records.length, testClock: !!options.testLearnedAt }); return structuredClone(records); });
   }
   async correct(ctx: Context, factId: string, fields: Record<string, unknown>, options: { testLearnedAt?: string } = {}) {
     authorize(this.store, ctx, 'prepare'); const old = this.store.read().facts.find(f => f.id === factId);

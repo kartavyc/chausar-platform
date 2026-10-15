@@ -3,7 +3,7 @@ import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type
 import { OntologyService, type Definition } from './ontology.ts';
 import { formatMinor } from './currency.ts';
 import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
-import { assertSourceAccess } from './trust.ts';
+import { assertSourceAccess, withheldMeasure } from './trust.ts';
 import { resolveCoreOperationAlias } from './core-operation-aliases.ts';
 
 export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
@@ -120,6 +120,7 @@ export class CalculatorService {
       for (const row of selected.filter(f => f.kind === d.kind)) {
         const status = String(row.fields.status ?? '');
         if (['cancelled', 'void', 'draft', 'bounced'].includes(status)) { excluded.push({ rowId: row.id, reason: `Status ${status} is excluded by the published counting rule.` }); continue; }
+        if (withheldMeasure(row, d.field, excluded, missingMeasures)) continue;
         const value = row.fields[d.field];
         if (value === undefined || value === null) { check(d.nulls !== 'reject', 'MISSING_MEASURE_VALUE', `A ${d.name} fact is missing its required amount.`); missingMeasures.add(row.id); excluded.push({ rowId: row.id, reason: 'A null amount is explicitly excluded by the dictionary.' }); continue; }
         check(typeof value === 'string' && /^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Financial calculations require exact integer minor-unit strings.');
