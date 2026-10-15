@@ -114,6 +114,13 @@ export interface CalculationReceiptEvidence {
   readonly stale: boolean;
   readonly staleReason?: string;
   readonly allowedNumbers: readonly string[];
+  /** core-data provenance (AS-05), absent on receipts made before it was recorded. */
+  readonly provenance?: {
+    readonly recipes?: readonly { readonly sourceId: string; readonly recipeId: string; readonly acceptedBy: string | null; readonly acceptedAt: string | null }[];
+    readonly meaning?: { readonly publishedBy: string; readonly reviewedBy: string | null; readonly coSignedBy: string | null; readonly reviewedAt: string | null };
+    readonly forecast?: { readonly method: string; readonly learnedFrom: ReceiptPeriod; readonly testedOn: ReceiptPeriod } | null;
+    readonly allowedBy?: { readonly ruleId: string; readonly check: string; readonly device: 'desktop' | 'phone' | 'mcp'; readonly memberId: string; readonly at: string };
+  };
 }
 
 export type ApprovalKind = 'message' | 'record-change' | 'money' | 'prepare-only' | 'job' | 'group';

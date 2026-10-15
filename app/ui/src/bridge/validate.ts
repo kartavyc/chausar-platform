@@ -173,8 +173,29 @@ export const receiptEvidenceKeys = [
   'ontologyVersion', 'dictionaryHash', 'definitionHash', 'figures', 'valueMinor', 'totalMinor', 'rowIds', 'rows', 'exclusions',
   'coverage', 'assumptions', 'explanation', 'stale', 'allowedNumbers',
 ] as const;
+/** core-data receipt provenance (AS-05): who accepted each recipe, who reviewed the meaning, the forecast line and the Allowed by line. */
+function provenance(value: unknown, path: string): void {
+  const obj = shape(value, path, [], ['recipes', 'meaning', 'forecast', 'allowedBy']);
+  const orNull = (v: unknown, p: string) => { if (v !== null) string(v, p); };
+  if (Object.hasOwn(obj, 'recipes')) array(obj.recipes, `${path}.recipes`, 1000, (v, p) => {
+    const r = shape(v, p, ['sourceId', 'recipeId', 'acceptedBy', 'acceptedAt']); string(r.sourceId, `${p}.sourceId`); string(r.recipeId, `${p}.recipeId`); orNull(r.acceptedBy, `${p}.acceptedBy`); orNull(r.acceptedAt, `${p}.acceptedAt`);
+  });
+  if (Object.hasOwn(obj, 'meaning')) {
+    const m = shape(obj.meaning, `${path}.meaning`, ['publishedBy', 'reviewedBy', 'coSignedBy', 'reviewedAt']);
+    string(m.publishedBy, `${path}.meaning.publishedBy`); for (const key of ['reviewedBy', 'coSignedBy', 'reviewedAt']) orNull(m[key], `${path}.meaning.${key}`);
+  }
+  if (Object.hasOwn(obj, 'forecast') && obj.forecast !== null) {
+    const f = shape(obj.forecast, `${path}.forecast`, ['method', 'learnedFrom', 'testedOn']); string(f.method, `${path}.forecast.method`);
+    for (const key of ['learnedFrom', 'testedOn']) { const range = shape(f[key], `${path}.forecast.${key}`, ['from', 'to']); string(range.from, `${path}.forecast.${key}.from`); string(range.to, `${path}.forecast.${key}.to`); }
+  }
+  if (Object.hasOwn(obj, 'allowedBy')) {
+    const a = shape(obj.allowedBy, `${path}.allowedBy`, ['ruleId', 'check', 'device', 'memberId', 'at']);
+    for (const key of ['ruleId', 'check', 'memberId', 'at']) string(a[key], `${path}.allowedBy.${key}`); choice(a.device, `${path}.allowedBy.device`, ['desktop', 'phone', 'mcp']);
+  }
+}
 function receipt(value: unknown, path: string): void {
-  const obj = shape(value, path, receiptEvidenceKeys, ['staleReason', 'requestedSourceIds', 'missingFigures']);
+  const obj = shape(value, path, receiptEvidenceKeys, ['staleReason', 'requestedSourceIds', 'missingFigures', 'provenance']);
+  if (Object.hasOwn(obj, 'provenance')) provenance(obj.provenance, `${path}.provenance`);
   for (const key of ['id', 'memberId', 'operation', 'dictionaryHash', 'definitionHash']) id(obj[key], `${path}.${key}`);
   integer(obj.epoch, `${path}.epoch`); integer(obj.ontologyVersion, `${path}.ontologyVersion`);
   array(obj.sourceIds, `${path}.sourceIds`, 10000, id); unique(obj.sourceIds, `${path}.sourceIds`);
@@ -291,10 +312,10 @@ export const validateEnterpriseStatus = (value: unknown): EnterpriseInvestigatio
 
 /** Consume the real full DTO but expose only the documented evidence projection. */
 export function projectCalculationReceipt(value: unknown): CalculationReceiptEvidence {
-  const obj = shape(value, 'receipt', [...receiptEvidenceKeys, 'definitions'], ['staleReason', 'requestedSourceIds', 'compiledCalculation', 'databaseProof', 'missingFigures']);
+  const obj = shape(value, 'receipt', [...receiptEvidenceKeys, 'definitions'], ['staleReason', 'requestedSourceIds', 'compiledCalculation', 'databaseProof', 'missingFigures', 'provenance']);
   if (!Array.isArray(obj.definitions)) fail('receipt.definitions');
   for (const key of ['definitions', 'compiledCalculation', 'databaseProof']) if (Object.hasOwn(obj, key)) jsonData(obj[key], `receipt.${key}`);
   const selected: Record<string, unknown> = {};
-  for (const key of [...receiptEvidenceKeys, 'staleReason', 'requestedSourceIds', 'missingFigures']) if (Object.hasOwn(obj, key)) selected[key] = obj[key];
+  for (const key of [...receiptEvidenceKeys, 'staleReason', 'requestedSourceIds', 'missingFigures', 'provenance']) if (Object.hasOwn(obj, key)) selected[key] = obj[key];
   return validateReceiptEvidence(selected);
 }
