@@ -102,7 +102,8 @@ export const FORBIDDEN_SCREEN = /\bpay(ment|ments|ee|ing)?\b|\btransfer\b|\bchec
 /** Mutes activity the driver caused itself: its own key and pointer events, plus a short grace. */
 export class OwnInput {
   #until = 0; #depth = 0;
-  constructor(private readonly graceMs = 200, private readonly clock: () => number = Date.now) {}
+  readonly graceMs: number; readonly clock: () => number;
+  constructor(graceMs = 200, clock: () => number = Date.now) { this.graceMs = graceMs; this.clock = clock; }
   async around<T>(work: () => Promise<T>): Promise<T> {
     this.#depth += 1;
     try { return await work(); } finally { this.#depth -= 1; this.#until = this.clock() + this.graceMs; }
