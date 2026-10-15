@@ -286,7 +286,7 @@ export type Gst2bLineReply = {
  *   askx.change          { operationId!, period | periodId, branch, change!: { operationId, period | periodId, branch }, today } → UnderstandReply (proposal)
  *   askx.stop            {}  (stops this member's running forecast, plan or checks run; they refuse ASK_STOPPED) → { stopped: true, at }
  *   askx.tell            { text!, kind!: 'preference' | 'claim' }  → { state: 'proposed', memoryId, status } | { state: 'not-built' }
- *   askx.explainRule     { rule!: RuleKind, receiptId, sourceId }  → { state: 'ready', ruleId, text, changeableBy } | { state: 'not-built' }
+ *   askx.explainRule     { rule!: RuleKind, receiptId, sourceId, language: 'en' | 'hi' }  → { state: 'ready', ruleId, text, changeableBy } | { state: 'not-built' }
  *   askx.answer          { receiptId! }                                    → AnswerReply
  *   askx.guard           { receiptId!, text! }                             → { status, lines: GuardLine[], explanation }
  *   askx.receipt         { receiptId! }                                    → ReceiptReply

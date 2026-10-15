@@ -136,7 +136,7 @@ Methods this lane serves (all in `platform/runtime/ask/contracts.ts`, list at it
 | `askx.change` | `{ operationId!, period \| periodId, branch, change!: { operationId, period \| periodId, branch }, today }` | `UnderstandReply` (proposal) |
 | `askx.stop` | `{}` | `{ stopped: true, at }`; the stopped call refuses `ASK_STOPPED` |
 | `askx.tell` | `{ text!, kind!: 'preference' \| 'claim' }` | `{ state: 'proposed', memoryId, status } \| { state: 'not-built' }` |
-| `askx.explainRule` | `{ rule!: 'branch' \| 'source' \| 'seat' \| 'access' \| 'marking', receiptId, sourceId }` | `{ state: 'ready', ruleId, text, changeableBy } \| { state: 'not-built' }` |
+| `askx.explainRule` | `{ rule!: 'branch' \| 'source' \| 'seat' \| 'access' \| 'marking', receiptId, sourceId, language: 'en' \| 'hi' }` | `{ state: 'ready', ruleId, text, changeableBy } \| { state: 'not-built' }` |
 | `askx.gst2b` (changed) | adds `registerSourceId`, `gstr2bSourceId` | adds state `choose-sources`; `ready` adds `via`, `sources`, `matchReceiptId`, group `probable`, `unknownTax`, line `receiptId` |
 | `askx.understand` (changed) | — | adds `statement` and `no-match` with `reason: 'needs-data'`, `need`, `loaded` |
 | `askx.receipt` (changed) | — | adds `provenance` |
@@ -148,7 +148,7 @@ Methods this lane consumes from other lanes:
 |---|---|---|---|
 | `receipts.get` → `receipt.provenance` | core-data | `{ recipes?: { sourceId, recipeId, acceptedBy, acceptedAt }[]; meaning?: { publishedBy, reviewedBy, coSignedBy, reviewedAt }; forecast?: { method, learnedFrom, testedOn }; allowedBy?: { ruleId, check, device, memberId, at } }` | `provenance: null`, "not recorded yet" |
 | `coredata.gst2bReceipt` | core-data | `{ registerSourceId, gstr2bSourceId, period, toleranceMinor }` → `{ receiptId, lines: { key: 'GSTIN\|INVOICE\|FY', receiptId }[] }` | lines open their two rows |
-| `trust.explain` | reports-tools-trust | `{ rule, receiptId?, sourceId? }` → `{ ruleId, text, changeableBy: 'owner' \| 'owner-or-cofounder' }` | `not-built`, fixed kind sentence |
+| `trust.explain` | reports-tools-trust | `{ rule, receiptId?, sourceId?, language? }` → `{ ruleId, text, changeableBy: 'owner' \| 'owner-or-cofounder' }`, registered on their branch at `86fd0b1`; `ruleId` may hold `:` and `+` | `not-built`, fixed kind sentence |
 | `reportsx.askPerson` | reports-tools-trust | `{ question, reason, receiptId? }` → `{ file, sent: false }` (exists) | — |
 | `books.memoryPropose` | work-books | `{ text, kind, receiptId? }` → memory line `{ id, status }` (exists) | `not-built` |
 | `connectorsx.envelopes`, `connectorsx.gstMatch` | connectors-ext | as served (exist) | older local match on `gstr2b`-kind facts |

@@ -62,9 +62,12 @@ export async function tell(ctx: Context, payload: unknown, host: ModuleHost) {
   }
 }
 
+/** Trust's stable rule ids, e.g. `marking:accountant:personal+confidential`. */
+const RULE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:+-]{0,199}$/;
 const RULES: readonly RuleKind[] = ['branch', 'source', 'seat', 'access', 'marking'];
 export async function explainRule(ctx: Context, payload: unknown, host: ModuleHost) {
-  const request = input(payload, ['rule', 'receiptId', 'sourceId'], ['rule']);
+  const request = input(payload, ['rule', 'receiptId', 'sourceId', 'language'], ['rule']);
+  check(request.language === undefined || request.language === 'en' || request.language === 'hi', 'ASK_INVALID', 'Choose English or Hindi.');
   check(RULES.includes(request.rule), 'ASK_INVALID', 'Name the kind of rule.');
   for (const name of ['receiptId', 'sourceId'] as const) if (request[name] !== undefined) check(identifier(request[name]), 'ASK_INVALID', 'Choose one item by its identifier.');
   void ctx;
@@ -75,7 +78,7 @@ export async function explainRule(ctx: Context, payload: unknown, host: ModuleHo
     throw translate(error);
   }
   // The rule's words come from Trust as fixed text; anything else is refused rather than shown.
-  check(identifier(reply?.ruleId) && typeof reply.text === 'string' && reply.text.trim().length > 0 && reply.text.length <= 1000
+  check(typeof reply?.ruleId === 'string' && RULE_ID.test(reply.ruleId) && typeof reply.text === 'string' && reply.text.trim().length > 0 && reply.text.length <= 1000
     && (reply.changeableBy === 'owner' || reply.changeableBy === 'owner-or-cofounder'), 'ASK_REFUSED', 'Trust explained the rule in a shape this page does not read.');
   return { state: 'ready' as const, ruleId: reply.ruleId as string, text: reply.text as string, changeableBy: reply.changeableBy as 'owner' | 'owner-or-cofounder' };
 }

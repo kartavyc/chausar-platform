@@ -677,3 +677,14 @@ test('round 4: change, stop, needs-data, telling not asking, the rule’s words 
   const answer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
   assert.equal((await ask(engine, 'askx.receipt', { receiptId: answer.receiptId })).provenance, null);
 });
+
+test('round 4: the rule’s words from Trust are passed through only in the agreed shape', async () => {
+  const { explainRule } = await import('../runtime/ask/round4.ts');
+  let sent: any = null;
+  const host = (reply: unknown): any => ({ options: {}, store: { read: () => ({}) }, call: async (method: string, payload: any) => { assert.equal(method, 'trust.explain'); sent = payload; return reply; } });
+  const good = { ruleId: 'marking:accountant:personal+confidential', text: 'Personal and confidential records are hidden from the accountant seat.', changeableBy: 'owner' };
+  assert.deepEqual(await explainRule(owner, { rule: 'marking', language: 'hi' }, host(good)), { state: 'ready', ...good });
+  assert.deepEqual(sent, { rule: 'marking', language: 'hi' });
+  for (const bad of [{ ...good, ruleId: 'x y' }, { ...good, text: '' }, { ...good, changeableBy: 'anyone' }, { ...good, text: 'x'.repeat(1001) }, null])
+    await assert.rejects(explainRule(owner, { rule: 'marking' }, host(bad)), code('ASK_REFUSED'));
+});
