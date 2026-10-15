@@ -15,7 +15,8 @@ export const DELIVERY_INSTRUCTIONS = "You draft a reply to a client of a small s
 /** The first line of every template outline stored for a real order. */
 export const TEMPLATE_OUTLINE_LINE = "Template outline. No AI wrote this and it doesn't read the client's request.";
 export const TEMPLATE_QUESTION = 'Is anything missing that we should know before we start?';
-export const TEMPLATE_PRICE_SENTENCE = 'The price comes from your plan.';
+/** Client-facing: the owner copies the outline to a client, so it never says "your plan" (that would read as the client's). */
+export const TEMPLATE_PRICE_SENTENCE = 'Here is the price for this work.';
 
 export type FigureRefEntry = { ref: string; label: string; receiptId: string; figureKey: PriceFigure['key'] };
 export type DateRefEntry = { ref: string; label: string; iso: IsoDate };
@@ -153,7 +154,7 @@ export const TEMPLATE_OUTLINES: Readonly<Record<ServiceType, readonly string[]>>
     'Thanks for your message. This reply sets out how we will handle your project.',
     'We will make the pieces described in your brief, in the style you choose.',
     'We will list anything in the brief that needs a choice from you before we start.',
-    'Once you answer the questions, we will start the first draft for your review.',
+    'Once you answer the question below, we will start the first draft for your review.',
   ],
   consulting: [
     'Thanks for reaching out. This reply sets out how we will work on your question.',

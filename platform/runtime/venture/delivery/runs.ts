@@ -15,6 +15,7 @@ import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayI
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
+export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 const MAX_EDITED_CHARS = 20000;
 
 type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[] };
@@ -64,7 +65,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   // Decide before any preview, so a blocked request records nothing.
   const template = useTemplate || deps.models.status(ctx).tiers.main.presetId === 'built-in-templates';
-  if (!template) check(venture.launchStage === 'shadow' || venture.launchStage === 'approve-each', 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const playbook = await ensurePlaybook(deps, ctx);
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
@@ -93,7 +94,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
 
   return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
     const stage = tx.venture!.launchStage;
-    check(stage === 'shadow' || stage === 'approve-each', 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+    check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
     const run: DeliveryRunRecord = {
       ...baseRun(tx, context.order, playbook), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
       preview, deliverable: null, renderedText: null, checks: [],
@@ -121,6 +122,8 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRun(state, venture, runId);
   check(run.status === 'waiting-for-you' && run.callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+  // The owner may have moved the stage down since the draft was made: nothing is sent unless an agent may draft now.
+  check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
@@ -133,32 +136,57 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
     const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed }));
     deliverable = outcome.value;
   } catch (error) {
-    await markFailedWhenSpent(deps, ctx, runId, callId, error);
+    await markFailedWhenSpent(deps, ctx, run, callId, error);
     throw error;
   }
   const renderedText = renderDeliverable(deliverable, context.receipts, context.venture.country);
   const checks = checkDraft(context, playbook, deliverable, renderedText);
-  return ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
-    const current = tx.find('venture-delivery-run', runId);
-    check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
-    const next: DeliveryRunRecord = { ...current, status: 'ready-for-review', preview: null, deliverable, renderedText, checks };
-    tx.replace(next);
-    recordCheckSignal(tx, runId, checks);
-    tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
-    return next;
-  });
+  try {
+    return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+      const current = tx.find('venture-delivery-run', runId);
+      check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+      // Checked again: the stage can move down while the call is out. At shadow the answer is a practice draft.
+      const stage = tx.venture!.launchStage;
+      check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      const next: DeliveryRunRecord = {
+        ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
+      };
+      tx.replace(next);
+      recordCheckSignal(tx, runId, checks);
+      tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
+      return next;
+    });
+  } catch (error) {
+    // The call is spent, so a draft that could not be stored can never be approved again.
+    await markFailedWhenSpent(deps, ctx, run, callId, error);
+    throw error;
+  }
+}
+
+/** The stages at which an agent may draft for a real order. Moving down is always allowed, so each step checks again. */
+function agentStage(stage: VentureRecord['launchStage']): boolean {
+  return stage === 'shadow' || stage === 'approve-each';
 }
 
 /**
- * When the approved call was claimed and then failed (the model's answer was refused, or the provider failed), the
- * draft can never be approved again, so it is marked failed and the owner drafts again. A refusal before the claim
- * (a stale digest, the send setting, the budget) leaves it waiting.
+ * When an approval shows that a waiting draft can never be approved, the draft is marked failed so it stops looking
+ * approvable, and the owner drafts again. That is the case when the approved call was claimed and then failed (the
+ * model's answer was refused, the provider failed, or the draft could not be stored), and when a stale approval comes
+ * after the preview's time is up or the call is no longer a preview. A refusal while the preview is live (a wrong
+ * digest, the send setting, the budget, the phone) leaves it waiting.
  */
-async function markFailedWhenSpent(deps: VentureDeps, ctx: Context, runId: string, callId: string, error: unknown) {
-  if (errorCode(error) === 'APPROVAL_STALE' || errorCode(error) === 'APP_APPROVAL_REQUIRED') return;
+async function markFailedWhenSpent(deps: VentureDeps, ctx: Context, run: DeliveryRunRecord, callId: string, error: unknown) {
+  const code = errorCode(error);
+  if (code === 'APP_APPROVAL_REQUIRED') return;
   // Looked up by id only: the contract's ModelCallRecord type narrows to never (see docs/venture/delivery.md).
   const call: { status?: unknown } | undefined = deps.store.read().conversations.find((record: { id?: unknown } | null) => record?.id === callId);
-  if (!call || call.status === 'preview') return;
+  if (code === 'APPROVAL_STALE') {
+    const live = run.preview !== null && Date.parse(run.preview.expiresAt) > deps.clock().getTime() && call?.status === 'preview';
+    if (live) return;
+  } else if (!call || call.status === 'preview') {
+    return;
+  }
+  const runId = run.id;
   try {
     await ventureAction(deps, ctx, 'approve', 'delivery.failed', tx => {
       const current = tx.find('venture-delivery-run', runId);
@@ -192,17 +220,32 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
-    check(!(run.practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
-    const next: DeliveryRunRecord = { ...run, status: verdict, verdict: { choice: verdict, reason, at: tx.now }, editedText };
+    // An agent draft is a practice draft unless the business is at approve each now: moving down is the owner's
+    // safety lever, so a draft approved earlier can't be accepted, and an edit made now can't be copied.
+    const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
+    check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
+    if (verdict === 'accepted') acceptableAsIs(run.checks);
+    const next: DeliveryRunRecord = { ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText };
     tx.replace(next);
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
       tx.put(signal);
       tx.emit('signal-recorded', { signalId: signal.id, runId, source: signal.source, reason });
     }
-    tx.emit('delivery-reviewed', { runId, verdict, practice: run.practice });
+    tx.emit('delivery-reviewed', { runId, verdict, practice });
     return next;
   });
+}
+
+/**
+ * A draft that failed a check can't be accepted and copied as it stands; the owner edits or rejects it. A draft that
+ * claims finished work gets its own words, since an agent here only had the client's message.
+ */
+function acceptableAsIs(checks: readonly CheckResult[]) {
+  const failed = checks.filter(result => !result.passed);
+  if (!failed.length) return;
+  if (failed.some(result => result.check === 'no-done-claims')) check(false, 'INVALID_VENTURE_REQUEST', DONE_CLAIM_REASON);
+  check(false, 'INVALID_VENTURE_REQUEST', `This draft failed a check: ${failed[0].detail} Edit it or reject it.`);
 }
 
 export async function deliveryListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunRecord[]> {

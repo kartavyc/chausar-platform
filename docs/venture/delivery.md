@@ -51,7 +51,7 @@ The validator turns the model's flat output into a draft: headings only from the
 
 The judge sees `Total: [price from Chausar]` and `[date from Chausar]` instead, so no receipt amount leaves under standing consent.
 
-The template outline is what runs when no AI serves the drafting tier: one sentence per required section that promises work ahead, the plan's total in the second section when a receipt exists, and the question "Is anything missing that we should know before we start?". For a real order its text starts with "Template outline. No AI wrote this and it doesn't read the client's request."
+The template outline is what runs when no AI serves the drafting tier: one sentence per required section that promises work ahead, the plan's total in the second section when a receipt exists, and the question "Is anything missing that we should know before we start?". For a real order its text starts with "Template outline. No AI wrote this and it doesn't read the client's request." The owner copies the outline to a client, so its words speak to the client: the price line reads "Here is the price for this work. Total: INR 2,948.82", never "your plan", and no sentence mentions more questions than the one it asks.
 
 ## Checks
 
@@ -70,34 +70,48 @@ Costs come from the model port's outcomes and are summed with BigInt. When any o
 - **approve each**: one step up from shadow. Drafts can be accepted, edited or rejected. The venture status becomes `live`.
 - **approve a sample** and **auto with spot checks** are planned and always refused with `STAGE_PLANNED`.
 
-Moving down is always allowed; moving up is one allowed stage at a time (`LAUNCH_STAGE_BLOCKED` with the reason otherwise).
+Moving down is always allowed; moving up is one allowed stage at a time (`LAUNCH_STAGE_BLOCKED` with the reason otherwise). Moving down is the owner's safety lever when an agent misbehaves, so every step of a real order checks the stage again (see Real orders).
+
+When shadow is closed, the reason says why, in words that match what the rehearsal really did:
+
+| What the newest rehearsals show | Reason |
+| --- | --- |
+| Every practice client with a run was rehearsed by templates alone | "Connect an AI and rehearse with it first. Template outlines can't be judged." |
+| A practice client has no run with the current playbook, or was rehearsed by templates alone while others used an AI | "Rehearse all three practice clients with the current playbook." |
+| An AI took part, but templates wrote the drafts | "Template outlines can't be judged. Rehearse each practice client with your AI writing the drafts." |
+| The AI wrote the drafts, but templates serve quick work, so no AI judged | "Your AI wrote the drafts, but no AI judged them. Connect an AI for quick work, then rehearse again." |
+| The AI's draft was refused, or the episode stopped, so nothing was judged | "Your last rehearsal was not judged. Run it again with your AI." |
+| Every practice client was judged, but one failed | "Every practice client must pass. Rehearse the ones that failed again." |
 
 ## Real orders
 
 `venture.delivery.run { orderId, useTemplate? }` decides first whether a template or a model will write, so a blocked request stores nothing. A template outline works at any stage and is ready at once. An agent draft needs shadow or approve each; it stores the exact text the model will receive and waits.
 
-`venture.delivery.approve { runId, digest }` reads the waiting draft outside any transaction, then asks the model port to send the approved text once (the port claims the call first, so two approvals send once). The draft is rendered and checked, and one action stores it. A failed check stores a `check-failed` signal.
+`venture.delivery.approve { runId, digest }` reads the waiting draft outside any transaction, then asks the model port to send the approved text once (the port claims the call first, so two approvals send once). The draft is rendered and checked, and one action stores it. A failed check stores a `check-failed` signal. Before anything is sent, approve refuses with `LAUNCH_STAGE_BLOCKED` unless the stage is shadow or approve each now, so a draft made at approve each and approved after a move down to rehearsal never reaches the model. The store step checks the stage again (it can move while the call is out): at shadow the answer is stored as a practice draft whatever the stage was when the draft was made; at rehearsal nothing is stored and the run is marked `failed`.
 
-`venture.delivery.review` accepts, edits or rejects a ready draft. A practice draft refuses `accepted` with `PRACTICE_DRAFT`. A rejection needs a reason from the list. Edits and rejections store signals. `venture.simulation.fromSignal` turns a signal into a rehearsal case built from the messy practice client, with checks focused on the reason. It never copies the client's request.
+`venture.delivery.review` accepts, edits or rejects a ready draft. A practice draft refuses `accepted` with `PRACTICE_DRAFT`, and so does any agent draft while the stage is below approve each; an edit or a rejection made then is stored as a practice draft, so it is never copied to a client. A draft that failed a check can't be accepted as it stands (`INVALID_VENTURE_REQUEST`, "This draft claims work that was not done. Edit it or reject it." for a done claim, or "This draft failed a check: ... Edit it or reject it." for any other); the owner edits it, which records a signal, or rejects it. A rejection needs a reason from the list. Edits and rejections store signals. `venture.simulation.fromSignal` turns a signal into a rehearsal case built from the messy practice client, with checks focused on the reason. It never copies the client's request.
 
 ## Choices made where the spec left room
 
 1. **What "judged" means.** A rehearsal row counts as judged only when the run was not template only, every agent draft for that client was written by a model, and every judge answer is a real answer. This follows the contract's own comment ("judged means a model wrote and a judge answered"), so a run where templates wrote the drafts and a model only judged them can't unlock shadow.
-2. **The shadow reason.** "Connect an AI and rehearse with it first. Template outlines can't be judged." shows when every practice client that has a run is unjudged; otherwise "Rehearse all three practice clients with the current playbook."
+2. **The shadow reason.** The spec names two reasons; this package adds four more so an owner who rehearsed with an AI is never told to connect one (the table under The launch ladder). "Connect an AI" shows only when every practice client with a run was rehearsed by templates alone.
 3. **Model answers that fail in rehearsal.** When the model's answer is refused (`MODEL_OUTPUT_REJECTED`, `MODEL_REFUSAL`, `MODEL_INCOMPLETE`), that practice client fails with a sentence such as "The draft was refused: ..." and the run is still stored. Any other error (no key, budget, send setting) stops the request.
-4. **A spent approval that failed.** If the approved call was claimed and then failed, the draft can never be approved again, so it is marked `failed` and the owner drafts again. A refusal before the claim (a stale digest, the send setting, the budget) leaves it waiting.
+4. **A draft that can never be approved is marked failed.** If the approved call was claimed and then failed, or its answer could not be stored, the draft is marked `failed` (preview cleared) and the owner drafts again. A stale approval (`APPROVAL_STALE`) leaves the draft waiting only while its preview is live: before `expiresAt` and with the model call still a preview. After the preview's thirty minutes the next approval marks it `failed`, so the list doesn't keep a draft that looks approvable and is not. A wrong digest, the send setting or the budget while the preview is live leaves it waiting. One limit: after an app restart the model port forgets the previews it held in memory, so for the rest of those thirty minutes an approval is refused as stale and the draft still shows as waiting; the first approval after the thirty minutes marks it failed.
 5. **`venture.simulation.run {}`** runs the three template practice clients. Signal cases run only when named.
 6. **The template practice client** answers a follow-up question with "That is all I can share for now. Please go ahead with what you have."
 7. **The practice client's history** holds only the agent's questions, never the rendered draft, so no amount reaches the practice client either.
 8. **Signal cases** keep five core checks (numbers, prices, outside writes, turns, done claims) and add the checks for the reason, for example `required-sections` for a missing section.
 9. **Moving to the stage you are on** changes nothing and returns the ladder. Moving down from approve each sets the venture status back to `rehearsal`.
 10. **`capabilityList`** takes an optional fourth argument, the model presets, so a model row can name the preset and its availability words. Without it, Anthropic presets that serve a tier count as available and the others as unverified, as in the models table.
+11. **The stage is checked at every step of a real order**, not only when the draft is made: at approve before anything is sent, again when the answer is stored, and at review. Moving down always wins.
+12. **Accept needs every check to pass.** The spec allows accept at approve each; this package also refuses a plain accept when a check failed, because the owner copies an accepted draft to a client in one click. Editing is always open, so the owner keeps the last word.
 
 ## How it was checked
 
 - `node --check` on every file in this package and the test (see the note below on what it misses).
 - Scoped typecheck with the scratch compiler (`typescript@5.9.3`, the repo `tsconfig.json`) over `platform/runtime/venture/delivery/**` and `platform/tests/venture-delivery.test.ts`, filtered to these paths: no errors.
-- `node --test platform/tests/venture-delivery.test.ts`: 18 of 18 pass. Two rules were broken on purpose (practice drafts at shadow, and what counts as judged) and the tests caught each one.
+- `node --test platform/tests/venture-delivery.test.ts`: 21 of 21 pass. Rules were broken on purpose and a test caught each one: practice drafts at shadow, what counts as judged, the stage check at approve (before the send and when storing), the practice flag when storing, marking a spent draft failed, the stage check at review, the stale preview rule, accept after a failed check, and the shadow reason.
+- A scratch probe outside the suite drove these methods through the real engine and the real model port with the end-to-end recordings: a wrong digest leaves the draft waiting; an approval after moving down to rehearsal sends nothing; a draft made at approve each and approved at shadow is a practice draft that accept refuses; the US template outline reads "Here is the price for this work. Total: USD 300.00" and can be accepted.
 - `node --test platform/tests/desktop-harness.test.ts platform/tests/desktop-ipc-methods.test.ts platform/tests/venture-contracts.test.ts`: 29 of 29 pass.
 
 ## Hand-off note
@@ -112,6 +126,6 @@ Moving down is always allowed; moving up is one allowed stage at a time (`LAUNCH
 
 **For P6 (end-to-end):** the steps in section 11 that touch this package should pass as written: the rehearsal draft fixture matches only requests that offer `offer_1.total`, a real order offers only `order.*` refs, and the template path gives `modelMode: 'template'`, `costMicros: '0'` and the "Connect an AI" reason.
 
-**For P7 (screens):** a run's `practice` flag means the screen shows "Practice draft. Not for the client." with no Accept, Copy or Save; `servedBy: 'template'` means the text already starts with the template outline line. Send one practice client per `venture.simulation.run` request.
+**For P7 (screens):** a run's `practice` flag means the screen shows "Practice draft. Not for the client." with no Accept, Copy or Save; `servedBy: 'template'` means the text already starts with the template outline line. Send one practice client per `venture.simulation.run` request. Review can now refuse Accept on a run whose `practice` is false: an agent draft while the stage is below approve each (`PRACTICE_DRAFT`), and any draft with a failed check (`INVALID_VENTURE_REQUEST`). The screen shows the error words today, which is safe; it would read better to offer Accept only when every check passed and, for `servedBy: 'model'`, the stage is approve each.
 
 **Not finished:** nothing in this package's scope.

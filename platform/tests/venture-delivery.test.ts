@@ -19,14 +19,19 @@ import {
   capabilityList, handlers, playbookSteps, renderDeliverable, renderForJudge, runChecks, scenariosFor, templateOutline, validateDraft,
   validatePlaybook,
 } from '../runtime/venture/delivery/index.ts';
-import { rehearsalRefs, TEMPLATE_OUTLINE_LINE, TEMPLATE_OUTLINES, TEMPLATE_QUESTION } from '../runtime/venture/delivery/deliverable.ts';
+import { rehearsalRefs, TEMPLATE_OUTLINE_LINE, TEMPLATE_OUTLINES, TEMPLATE_PRICE_SENTENCE, TEMPLATE_QUESTION } from '../runtime/venture/delivery/deliverable.ts';
 import { PRACTICE_CLIENTS } from '../runtime/venture/delivery/scenarios.ts';
-import { REASON_CONNECT_AI, REASON_REHEARSE_ALL } from '../runtime/venture/delivery/launch.ts';
+import {
+  REASON_CONNECT_AI, REASON_NO_JUDGE, REASON_NOT_JUDGED, REASON_PASS_ALL, REASON_REHEARSE_ALL, REASON_TEMPLATE_DRAFTS,
+} from '../runtime/venture/delivery/launch.ts';
+import { DONE_CLAIM_REASON, STAGE_BLOCKED_REASON } from '../runtime/venture/delivery/runs.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'phone' };
 const clock = () => new Date('2026-10-15T10:00:00.000Z');
+// The stub's previews last thirty minutes from the fixed clock, like the real port's.
+const PREVIEW_EXPIRES_AT = '2026-10-15T10:30:00.000Z';
 const ORDER_REQUEST = 'Please close my September books. The bank statement and bills are in the shared folder.';
 const CLIENT_NAME = 'Cafe Aroma Demo';
 const CLIENT_EMAIL = 'owner@aroma.example';
@@ -64,6 +69,10 @@ class StubPort implements ModelPort {
   previews = new Map<string, { digest: string; used: boolean }>();
   statusCalls = 0;
   sent = 0;
+  /** The port's clock; setup points it at deps.clock so a test can let a preview expire. */
+  now: () => Date = clock;
+  /** Runs after the model answered an approved call, before runPreview returns: lets a test move the stage mid-approval. */
+  afterSend: (() => Promise<unknown>) | null = null;
   #calls = 0;
   constructor(store: VentureTestStore) { this.store = store; }
   status(_ctx: Context): ModelStatusView {
@@ -110,26 +119,29 @@ class StubPort implements ModelPort {
     if (this.recordCalls) await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
     return {
       callId, payloadText, digest: payloadDigest, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-15T10:30:00.000Z',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: PREVIEW_EXPIRES_AT,
     };
   }
   async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
     if (ctx.channel !== 'desktop') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
     const held = this.previews.get(callId);
-    if (!held || held.used || held.digest !== approvedDigest) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
+    const expired = this.now().getTime() > Date.parse(PREVIEW_EXPIRES_AT);
+    if (!held || held.used || held.digest !== approvedDigest || expired) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
     held.used = true;
     const setCall = (status: string) => this.recordCalls ? this.store.update(state => { const call = state.conversations.find(r => r?.id === callId); if (call) call.status = status; }) : Promise.resolve();
     await setCall('dispatching');
     this.sent += 1;
+    let value: T;
     try {
-      const value = validate(this.next('delivery'));
+      value = validate(this.next('delivery'));
       await setCall('completed');
-      return { value, by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', costMicros: this.costs.delivery, priceConfirmed: this.confirmed };
     } catch (error) {
       await setCall('failed');
       throw error;
     }
+    if (this.afterSend) await this.afterSend();
+    return { value, by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', costMicros: this.costs.delivery, priceConfirmed: this.confirmed };
   }
 }
 
@@ -209,6 +221,7 @@ async function setup(options: { accepted?: boolean; serviceType?: ServiceType } 
     store, clock, models, services: {} as VentureDeps['services'], github: {} as VentureDeps['github'], secrets: {} as VentureDeps['secrets'],
     host: 'test', demo: true, storage: 'experimental-file',
   };
+  models.now = () => deps.clock();
   const venture = await ventureAction(deps, owner, 'admin', 'create', tx => tx.put<VentureRecord>({
     ...tx.base('venture-record'), idea: 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.',
     ideaDigest: 'idea-digest', workingName: 'Ledger Cafe Books', country: IN, serviceType: options.serviceType ?? 'bookkeeping', status: 'blueprint',
@@ -241,6 +254,17 @@ async function setStage(env: Env, launchStage: VentureRecord['launchStage']) {
 function call<T>(env: Env, method: keyof typeof handlers & string, payload: unknown = {}, ctx: Context = owner): Promise<T> {
   const handler = handlers[method as keyof typeof handlers] as (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
   return handler(env.deps, ctx, payload) as Promise<T>;
+}
+
+/** The delivery run as stored now. */
+function stored(env: Env, runId: string): DeliveryRunRecord {
+  const run = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === runId);
+  assert.ok(run, runId);
+  return run;
+}
+
+function approve(env: Env, run: DeliveryRunRecord, digestValue = run.preview!.digest): Promise<DeliveryRunRecord> {
+  return call<DeliveryRunRecord>(env, 'venture.delivery.approve', { runId: run.id, digest: digestValue });
 }
 
 function events(env: Env): string[] {
@@ -500,8 +524,12 @@ test('template rehearsal: three practice clients pass their checks, not judged, 
 });
 
 test('template words: every outline sentence and practice client is free of numbers, avoid-list words and done claims', () => {
+  // The outline is a reply the owner copies to a client, so "your" means the client's: the price never comes from "your plan".
+  assert.doesNotMatch(TEMPLATE_PRICE_SENTENCE, /\byour\b/i);
   for (const type of SERVICE_TYPES) {
     assert.equal(TEMPLATE_OUTLINES[type].length, REQUIRED_SECTIONS[type].length, type);
+    // The outline asks one question, so no sentence speaks of several.
+    for (const sentence of TEMPLATE_OUTLINES[type]) assert.doesNotMatch(sentence, /\bthe questions\b/i, `${type}: ${sentence}`);
     const outline = templateOutline(type, { receiptId: 'price_x', figureKey: 'total' });
     assert.deepEqual(outline.sections.map(section => section.heading), [...REQUIRED_SECTIONS[type]]);
     assert.deepEqual(outline.questionsForClient, [TEMPLATE_QUESTION]);
@@ -671,6 +699,67 @@ test('launch ladder: template rehearsal cannot unlock shadow; judged model runs 
   assert.equal(events(env).filter(name => name === 'launch-stage-changed').length, 3);
 });
 
+test('launch ladder: the shadow reason says why a rehearsal with an AI did not count', async () => {
+  const env = await setup();
+  const all = { scenarioIds: ['bookkeeping-clean', 'bookkeeping-messy', 'bookkeeping-pushback'] };
+  const ladder = async () => {
+    const status = await call<LaunchStatus>(env, 'venture.launch.status');
+    return { status, shadow: status.stages.find(item => item.stage === 'shadow')! };
+  };
+
+  // An AI is connected but its drafts were refused: not judged, and the owner is not told to connect an AI.
+  const bad = structuredClone(await fixture('draft-rehearsal'));
+  bad.sections[0].parts[0].text = 'Your books will be ready in 2 days.';
+  await queueModel(env, {});
+  env.models.outputs.delivery = [bad];
+  const refused = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
+  assert.equal(refused.modelMode, 'model');
+  assert.ok(refused.episodes.every(episode => /^The draft was refused: /.test(episode.firstFailure ?? '')));
+  let { status, shadow } = await ladder();
+  assert.ok(status.rehearsal.every(row => row.runId === refused.id && !row.judged));
+  assert.equal(shadow.allowed, false);
+  assert.equal(shadow.reason, REASON_NOT_JUDGED);
+  await assert.rejects(call(env, 'venture.launch.advance', { to: 'shadow' }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === REASON_NOT_JUDGED);
+
+  // The AI writes the drafts but templates serve quick work, so no AI judges them.
+  await queueModel(env, {});
+  env.models.fast = 'template';
+  const noJudge = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
+  assert.equal(noJudge.modelMode, 'mixed');
+  assert.equal(noJudge.passed, true);
+  ({ status, shadow } = await ladder());
+  assert.ok(status.rehearsal.every(row => row.passed === true && !row.judged));
+  assert.equal(shadow.reason, REASON_NO_JUDGE);
+
+  // Templates write the drafts and the AI only judges them: still not a rehearsal with your AI.
+  await queueModel(env, {});
+  env.models.main = 'template';
+  const templateDrafts = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
+  assert.equal(templateDrafts.modelMode, 'mixed');
+  assert.ok(templateDrafts.episodes.every(episode => episode.judge.every(answer => answer.answer === 'yes')));
+  ({ shadow } = await ladder());
+  assert.equal(shadow.reason, REASON_TEMPLATE_DRAFTS);
+
+  // Every practice client judged by the AI, but one failed.
+  await queueModel(env, { judge: ['judge-no-claims', 'judge-yes'] });
+  const oneFailed = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
+  assert.deepEqual(oneFailed.episodes.map(episode => episode.passed), [false, true, true]);
+  ({ status, shadow } = await ladder());
+  assert.ok(status.rehearsal.every(row => row.judged));
+  assert.equal(shadow.reason, REASON_PASS_ALL);
+  assert.equal(status.stages.find(item => item.stage === 'approve-each')!.reason, REASON_PASS_ALL);
+
+  // Only template runs: the spec's words.
+  const fresh = await setup();
+  await call(fresh, 'venture.simulation.run', { useTemplate: true });
+  const freshStatus = await call<LaunchStatus>(fresh, 'venture.launch.status');
+  assert.equal(freshStatus.stages.find(item => item.stage === 'shadow')!.reason, REASON_CONNECT_AI);
+  for (const reason of [REASON_NOT_JUDGED, REASON_NO_JUDGE, REASON_TEMPLATE_DRAFTS, REASON_PASS_ALL]) {
+    assert.deepEqual(houseStyleFindings(reason), [], reason);
+    assert.doesNotThrow(() => assertNoNumbers(reason, 'reason'), reason);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 7. Real delivery runs
 // ---------------------------------------------------------------------------
@@ -686,7 +775,8 @@ test('real runs: a template outline at any stage; a model draft waits for approv
   assert.equal(outline.practice, false);
   assert.equal(outline.callId, null);
   assert.ok(outline.renderedText!.startsWith(`${TEMPLATE_OUTLINE_LINE}\n\n# `));
-  assert.ok(outline.renderedText!.includes('Total: INR 2,948.82'));
+  assert.ok(outline.renderedText!.includes('Here is the price for this work. Total: INR 2,948.82'), outline.renderedText!);
+  assert.doesNotMatch(outline.renderedText!, /your plan/i);
   assert.ok(!outline.renderedText!.includes('September'), 'an outline never reads the request');
   assert.ok(outline.checks.every(result => result.passed), JSON.stringify(outline.checks));
   assert.equal(env.models.previewed.length, 0);
@@ -709,6 +799,7 @@ test('real runs: shadow drafts are practice drafts; approve-each drafts can be a
   const env = await setup();
   const { order } = await seedOrder(env);
   await queueModel(env, { delivery: ['draft-order'] });
+  env.models.recordCalls = true; // the real port records every call, so a stale digest can be told from a spent call
   await setStage(env, 'shadow');
 
   const waiting = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
@@ -726,6 +817,7 @@ test('real runs: shadow drafts are practice drafts; approve-each drafts can be a
   assert.ok(events(env).includes('delivery-waiting'));
 
   await assert.rejects(call(env, 'venture.delivery.approve', { runId: waiting.id, digest: '0'.repeat(64) }), code('APPROVAL_STALE'));
+  assert.equal(stored(env, waiting.id).status, 'waiting-for-you', 'a wrong digest while the preview is live leaves the draft waiting');
   await assert.rejects(call(env, 'venture.delivery.approve', { runId: waiting.id, digest: waiting.preview!.digest }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(call(env, 'venture.delivery.review', { runId: waiting.id, verdict: 'accepted' }), code('DELIVERY_NOT_READY'));
   const ready = await call<DeliveryRunRecord>(env, 'venture.delivery.approve', { runId: waiting.id, digest: waiting.preview!.digest });
@@ -801,6 +893,24 @@ test('real runs: a failed check on an approved draft records a signal; a refused
   assert.equal(signal.reason, 'no-done-claims');
   const scenario = await call<Scenario>(env, 'venture.simulation.fromSignal', { signalId: signal.id });
   assert.ok(scenario.checks.includes('no-done-claims'));
+  // A draft that claims finished work can't be accepted and copied as it stands: the owner edits or rejects it.
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST' && error.message === DONE_CLAIM_REASON);
+  assert.equal(stored(env, run.id).status, 'ready-for-review');
+  const rejected = await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: run.id, verdict: 'rejected', reason: 'claims-work-not-done' });
+  assert.equal(rejected.status, 'rejected');
+  assert.equal((await call<LaunchStatus>(env, 'venture.launch.status')).acceptedDeliveries, 0);
+
+  // Any other failed check also stops a plain accept, and says which check.
+  const missing = structuredClone(await fixture('draft-order'));
+  missing.sections = missing.sections.slice(0, 2);
+  env.models.outputs.delivery = [missing];
+  env.models.used = {};
+  const short = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+  const shortReady = await approve(env, short);
+  assert.equal(shortReady.checks.find(result => result.check === 'required-sections')!.passed, false);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: short.id, verdict: 'accepted' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST' && /^This draft failed a check: Missing sections: .+ Edit it or reject it\.$/.test(error.message));
+  const fixedByOwner = await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: short.id, verdict: 'edited', reason: 'missing-section', editedText: 'Hello,\nWe will start once you confirm.' });
+  assert.equal(fixedByOwner.status, 'edited');
 
   env.models.recordCalls = true;
   const digitDraft = structuredClone(await fixture('draft-order'));
@@ -809,9 +919,98 @@ test('real runs: a failed check on an approved draft records a signal; a refused
   env.models.used = {};
   const failing = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
   await assert.rejects(call(env, 'venture.delivery.approve', { runId: failing.id, digest: failing.preview!.digest }), code('MODEL_OUTPUT_REJECTED'));
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === failing.id)!;
-  assert.equal(stored.status, 'failed');
+  assert.equal(stored(env, failing.id).status, 'failed');
   await assert.rejects(call(env, 'venture.delivery.approve', { runId: failing.id, digest: failing.preview!.digest }), code('DELIVERY_NOT_WAITING'));
+});
+
+test('real runs: moving the stage down after a draft was made keeps agent drafts away from clients', async () => {
+  const env = await setup();
+  const { order } = await seedOrder(env);
+  await queueModel(env, { delivery: ['draft-order'] });
+  env.models.recordCalls = true;
+  const down = (to: VentureRecord['launchStage']) => call<LaunchStatus>(env, 'venture.launch.advance', { to });
+  const draftAtApproveEach = async () => {
+    await setStage(env, 'approve-each');
+    const run = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+    assert.equal(run.practice, false);
+    return run;
+  };
+
+  // Made at approve each, approved after a move down to shadow: the answer is a practice draft.
+  const first = await draftAtApproveEach();
+  await down('shadow');
+  const practice = await approve(env, first);
+  assert.equal(practice.status, 'ready-for-review');
+  assert.equal(practice.practice, true);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: first.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+
+  // Approved at approve each, reviewed after a move down to shadow: accept refuses, and an edit stays a practice draft.
+  const second = await draftAtApproveEach();
+  assert.equal((await approve(env, second)).practice, false);
+  await down('shadow');
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: second.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+  const edited = await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: second.id, verdict: 'edited', reason: 'tone', editedText: 'Hello,\nWe will start soon.' });
+  assert.equal(edited.status, 'edited');
+  assert.equal(edited.practice, true, 'an edit made at shadow is not copied to a client');
+
+  // Approved at approve each, reviewed after a move down to rehearsal: accept refuses too.
+  const third = await draftAtApproveEach();
+  await approve(env, third);
+  await down('rehearsal');
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: third.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+
+  // Made at approve each, approved after a move down to rehearsal: refused before anything is sent.
+  const fourth = await draftAtApproveEach();
+  await down('rehearsal');
+  const sentBefore = env.models.sent;
+  await assert.rejects(approve(env, fourth), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === STAGE_BLOCKED_REASON);
+  assert.equal(env.models.sent, sentBefore);
+  assert.equal(stored(env, fourth.id).status, 'waiting-for-you');
+
+  // The stage moves down to rehearsal while the approved call is in flight: no draft is stored and the run fails.
+  const fifth = await draftAtApproveEach();
+  env.models.afterSend = () => down('rehearsal');
+  await assert.rejects(approve(env, fifth), code('LAUNCH_STAGE_BLOCKED'));
+  assert.equal(stored(env, fifth.id).status, 'failed');
+  assert.equal(stored(env, fifth.id).preview, null);
+  assert.equal(stored(env, fifth.id).deliverable, null);
+  // ... and to shadow while in flight: the answer is stored as a practice draft.
+  const sixth = await draftAtApproveEach();
+  env.models.afterSend = () => down('shadow');
+  const sixthReady = await approve(env, sixth);
+  env.models.afterSend = null;
+  assert.equal(sixthReady.practice, true);
+
+  // A template outline needs no agent, so it can still be accepted at rehearsal.
+  await down('rehearsal');
+  const outline = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id, useTemplate: true });
+  assert.equal((await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: outline.id, verdict: 'accepted' })).status, 'accepted');
+  assert.equal((await call<LaunchStatus>(env, 'venture.launch.status')).acceptedDeliveries, 0);
+});
+
+test('real runs: an approval after the preview expired marks the draft failed instead of leaving it waiting', async () => {
+  const env = await setup();
+  const { order } = await seedOrder(env);
+  await queueModel(env, { delivery: ['draft-order'] });
+  env.models.recordCalls = true;
+  await setStage(env, 'approve-each');
+  const run = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+  assert.equal(run.preview!.expiresAt, PREVIEW_EXPIRES_AT);
+
+  // While the preview is live, a stale approval (a wrong digest) leaves the draft waiting.
+  await assert.rejects(approve(env, run, 'f'.repeat(64)), code('APPROVAL_STALE'));
+  assert.equal(stored(env, run.id).status, 'waiting-for-you');
+
+  // Thirty one minutes after the preview, which lasts thirty, it can never be approved, so the draft is marked failed.
+  env.deps.clock = () => new Date('2026-10-15T10:31:00.000Z');
+  await assert.rejects(approve(env, run), code('APPROVAL_STALE'));
+  const failed = stored(env, run.id);
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.preview, null);
+  assert.equal(env.models.sent, 0);
+  await assert.rejects(approve(env, run), code('DELIVERY_NOT_WAITING'));
+  const listed = await call<DeliveryRunRecord[]>(env, 'venture.delivery.list');
+  assert.equal(listed[0].status, 'failed');
 });
 
 // ---------------------------------------------------------------------------
