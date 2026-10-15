@@ -44,21 +44,21 @@ The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask
 
 ## Audit: AS-01 to AS-19
 
-Each entry's Shows, States, You can, Engine and Rules lines were checked against the screens and the engine, in Simple, Guided and Books and in English and Hindi. This table is the state after the engine gaps it found were closed.
+Each entry's Shows, States, You can, Engine and Rules lines were checked against the screens and the engine, in Simple, Guided and Books and in English and Hindi. This table is the state after round 4.
 
 | Screen | State | What is missing |
 |---|---|---|
 | AS-01 The ask page | done | Voice and Ctrl K belong to the host's ask line. The menu shows in Ask › New only when the host hands that address to `askPlaces` (see assumptions); it is one press away from every lane page. |
 | AS-02 What Chausar understood | done | — |
 | AS-03 One question back | done | — |
-| AS-04 An answer | done | The two meanings of "sales" are offered as one question back, not as two answers side by side. |
-| AS-05 The receipt | partial | Recipe "accepted by" and the meaning's reviewer and co-signer (the import and dictionary records do not carry them); the forecast method sits on the forecast page, not the receipt; the rule id and deciding check of the Allowed by line. |
+| AS-04 An answer | done | — (two meanings can be shown side by side, each with its own receipt) |
+| AS-05 The receipt | done up to core-data | Provenance (recipe accepted by, meaning reviewer and co-signer, forecast line, Allowed-by rule, check and device) is drawn from the core lane's agreed `provenance` field; "not recorded yet" until core-data records it. |
 | AS-06 The rows behind a number | done | — |
 | AS-07 What was sent | done | — |
-| AS-08 Not yet | partial | No "needs data: …" reason; Ask a person (`support.askAPerson`, day 10) is another lane's. |
-| AS-09 Stopped by a rule | done | The rule is named by kind (branch, source, seat, access, marking) in fixed words; the rule's own text needs `trust.explain` (another lane). |
+| AS-08 Not yet | done | — (needs-data reasons; Ask a person through `reportsx.askPerson`) |
+| AS-09 Stopped by a rule | done | The rule's own words come from reports-tools-trust's `trust.explain` (registered on their branch); the fixed kind sentence shows until it is merged. |
 | AS-10 Why did it change | done | An investigation completes in one step, so there is nothing to resume; reopening re-checks access. |
-| AS-11 What if | done | No branch picker on the form (the engine takes `branch`). |
+| AS-11 What if | done | — (branch picker) |
 | AS-12 Forecast | done | — |
 | AS-13 Best plan under limits | done (experimental) | — |
 | AS-14 Saved | done | Reached from every lane page; the host's retained what-if list draws `#/ask/saved` first. |
@@ -66,7 +66,7 @@ Each entry's Shows, States, You can, Engine and Rules lines were checked against
 | AS-16 Checks | done | — |
 | AS-17 Not-yet list | done | — |
 | AS-18 Search results | done | — |
-| AS-19 Purchases against GSTR-2B | partial | A line opens its two source rows as written, not a calculator receipt; group and line amounts are written as text, not figures. |
+| AS-19 Purchases against GSTR-2B | done up to core-data | Runs on connectors-ext's own recipe and matcher (integration-tested on the real fixture); lines and groups open core-data's match receipts once `coredata.gst2bReceipt` is merged, and their rows as written until then. |
 
 ## Labels
 
