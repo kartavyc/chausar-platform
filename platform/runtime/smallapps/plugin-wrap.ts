@@ -11,6 +11,8 @@ import type { CodeEntry, DataEntry, DataKind, PluginDocument, SkillEntry, ToolEn
 import { NETWORK_LIMITS, requestShapeValid } from './plugin-network.ts';
 import type { RequestSpec } from './plugin-network.ts';
 import { schemaProblems } from './plugin-schema.ts';
+import { parseRemote } from './plugin-mcp.ts';
+import type { McpEndpoint } from './plugin-mcp.ts';
 
 export type Refused = { path: string; code: string; words: Words };
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -64,10 +66,12 @@ export function wrapAgentSkill(skillMd: unknown, files: unknown = {}): { skill: 
 
 /**
  * Wrap an MCP `tools/list` result. A tool runs only if `code` maps it to WebAssembly in the package and/or
- * `requests` declares the exact HTTPS requests Chausar may make for it. A runnable tool whose argument schema
- * falls outside the enforced subset is reported here and refused on inspection.
+ * `requests` declares the exact HTTPS requests Chausar may make for it, or, with `remote`, it is called on that
+ * remote MCP server. A runnable tool whose argument schema falls outside the enforced subset is reported here and
+ * refused on inspection; on a remote server such a tool is instead carried as a description only, as MCP asks a
+ * client to leave out a tool it cannot use (so `x-mcp-header` tools are left out too).
  */
-export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknown; code?: unknown; requests?: unknown } = {}): { tools: ToolEntry[]; code: CodeEntry[]; sites: string[]; refused: Refused[]; server: { name: string | null; version: string | null } } {
+export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknown; code?: unknown; requests?: unknown; remote?: unknown } = {}): { tools: ToolEntry[]; code: CodeEntry[]; sites: string[]; refused: Refused[]; server: { name: string | null; version: string | null } } {
   let value = toolsList;
   if (typeof value === 'string') { check(value.length <= LIMITS.document, 'PLUGIN_MCP_INVALID', 'The tools list is too large.'); try { value = JSON.parse(value); } catch { check(false, 'PLUGIN_MCP_INVALID', 'The tools list is not JSON.'); } }
   if (plain(value) && plain(value.result)) value = value.result;
@@ -75,6 +79,8 @@ export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknow
   const info = options.serverInfo; check(info === undefined || plain(info), 'PLUGIN_MCP_INVALID', 'Server information is an object.');
   const codeMap = options.code ?? {}; check(plain(codeMap) && Object.keys(codeMap).length <= LIMITS.code, 'PLUGIN_MCP_INVALID', 'Code is a map from tool name to a manifest and module.');
   const requestMap = options.requests ?? {}; check(plain(requestMap) && Object.keys(requestMap).length <= LIMITS.tools, 'PLUGIN_MCP_INVALID', 'Requests are a map from tool name to declared requests.');
+  const remote: McpEndpoint | null = options.remote === undefined ? null : parseRemote(options.remote);
+  check(!remote || (Object.keys(codeMap).length === 0 && Object.keys(requestMap).length === 0), 'PLUGIN_MCP_INVALID', 'A remote MCP server is called over MCP; it carries no code or declared requests.');
   const refused: Refused[] = []; const sites: string[] = [];
   if (info && typeof info.url === 'string') {
     let host = ''; try { const url = new URL(info.url); host = url.protocol === 'https:' && !url.username && !url.password ? url.hostname.toLowerCase() : ''; } catch { host = ''; }
@@ -97,8 +103,12 @@ export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknow
     const declared = Object.hasOwn(requestMap, tool.name) ? requestMap[tool.name] : undefined;
     check(declared === undefined || (Array.isArray(declared) && declared.length > 0 && declared.length <= NETWORK_LIMITS.requests && declared.every(requestShapeValid)), 'PLUGIN_MCP_INVALID', 'Declared requests are GET or POST to a named HTTPS site with a path, a body choice and size and time limits.');
     const requests = declared ? structuredClone(declared as RequestSpec[]) : undefined;
-    const entry: ToolEntry = { name: tool.name, title: typeof tool.title === 'string' ? tool.title.slice(0, 200) : null, description: typeof tool.description === 'string' ? tool.description : '', inputSchema: JSON.parse(JSON.stringify(inputSchema)), code: codeId, sites: requests ? [...new Set(requests.map(request => request.site))].sort() : codeId ? [] : [...sites] };
+    const entry: ToolEntry = { name: tool.name, title: typeof tool.title === 'string' ? tool.title.slice(0, 200) : null, description: typeof tool.description === 'string' ? tool.description : '', inputSchema: JSON.parse(JSON.stringify(inputSchema)), code: codeId, sites: requests ? [...new Set(requests.map(request => request.site))].sort() : codeId || remote ? [] : [...sites] };
     if (requests) entry.requests = requests;
+    if (remote) {
+      if (schemaProblems(entry.inputSchema).length) { refused.push({ path: `tools.${tool.name}.inputSchema`, code: 'PLUGIN_SCHEMA_UNSUPPORTED', words: { en: 'This tool declares an argument schema outside the strict subset Chausar enforces, so it is carried as a description only and cannot be called.', hi: 'यह टूल ऐसा तर्क-ढाँचा बताता है जो Chausar के सख़्त उपसमुच्चय से बाहर है, इसलिए यह केवल विवरण के रूप में रखा गया और चलाया नहीं जा सकता।' } }); tools.push(entry); continue; }
+      entry.mcp = { ...remote }; entry.sites = [remote.site];
+    }
     if ((codeId || requests) && schemaProblems(entry.inputSchema).length) refused.push({ path: `tools.${tool.name}.inputSchema`, code: 'PLUGIN_SCHEMA_UNSUPPORTED', words: { en: 'This runnable tool declares an argument schema outside the strict subset Chausar enforces. The plugin will be refused on inspection.', hi: 'यह चलने वाला टूल ऐसा तर्क-ढाँचा बताता है जो Chausar के सख़्त उपसमुच्चय से बाहर है। जाँच में प्लगइन मना होगा।' } });
     tools.push(entry);
   }
