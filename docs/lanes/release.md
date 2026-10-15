@@ -212,3 +212,87 @@ Dotfiles: electron-builder's resource filters drop dotfiles such as `runtime-bin
 - The final `builder.json` still lists only `AppImage` for Linux; the launcher needs `tar.gz` there too (a one-line change plus its assertion in `release-build-config.test.ts`).
 - macOS and Windows launchers; a launch as a non-root desktop user with the Chromium sandbox.
 - A window-title check (no `xdotool` or `wmctrl`); screenshots were checked instead.
+
+## Round 4: enterprise identity map and search
+
+Run on 2026-10-15 in one Linux container (kernel 6.18, Node 24.13.1, Docker 29.8.2, PostgreSQL 16.15 server binaries from Ubuntu for the test clusters, `postgres:17` image for compose). Nothing was pushed, published or deployed; every cluster, container, network and volume was removed afterwards. This section supersedes two lines under "What could not run or is still missing" in the enterprise section above: the identity map on disk and loopback-only search.
+
+### What changed
+
+| Item | Where | Label |
+|---|---|---|
+| Identity map in PostgreSQL. Table `chausar_enterprise_identities` holds issuer, `subject_hash` (the SHA-256 of `sub`), member id, role, branches (JSONB), `revoked` and `updated_at`, with `UNIQUE (issuer, subject_hash)` and checks on the digest shape and role. It is created with the other enterprise tables under the same advisory schema lock, over the same pool and TLS rules as the sessions (`PostgresEnterpriseStore.identities`) | `enterprise/server/state-store.ts` | **experimental** (real TLS-only PostgreSQL; never deployed) |
+| Concurrency. A sign-in runs in one transaction. It takes `pg_advisory_xact_lock(hashtextextended('chausar-enterprise-identity:' + key, 0))` for its (issuer, subject), reads the row, and decides: reuse, refuse, or revoke-and-add through the engine. It then writes with `INSERT … ON CONFLICT (issuer, subject_hash) DO UPDATE` before `COMMIT`, with a `lock_timeout` of 30 s. A second process signing in the same person waits, then sees the first one's row and reuses its member. If the row cannot be written after the engine added a member, that member is revoked (`ENTERPRISE_IDENTITY_STORE_FAILED`) | `state-store.ts`, `identity.ts` | **experimental** |
+| Revoked state recorded. When a sign-in finds the mapped member revoked in the engine, the row is marked `revoked = true`. Later sign-ins with the same mapping are then refused from the table as well (`ENTERPRISE_MEMBER_REVOKED`). A changed role or branch list provisions a new member and clears the mark | `identity.ts` | **experimental** |
+| One-time import. An `identities.json` (version 1) in `dataDirectory` is checked as before: a regular file, not a link, owner-only mode, at most 8 MB, well formed. Its entries are inserted with `ON CONFLICT DO NOTHING`, so existing rows win, and the file is renamed `identities.json.imported`. If another process renamed it first (`ENOENT`), start-up continues. With the in-memory store the file is read but left in place | `identity.ts` | **experimental** |
+| `MemoryIdentityStore` (a per-identity promise chain) for unit tests and for embedders without a shared store; `MemoryEnterpriseStore.identities` uses it. `createEnterpriseServer` now always takes the identity map from its state store, and no `identities.json` is written any more | `state-store.ts`, `server.ts` | **supported** (unit-tested contract) |
+| Private token search on a remote PostgreSQL over verified TLS. `PostgresInvestigationSearch.connect` accepts `InvestigationSearchRemoteOptions`: `host` (a name or address) and `remoteTls: { ca, servername? }`, with only those two keys. It connects with `ssl: { ca, rejectUnauthorized: true, minVersion: 'TLSv1.2', servername? }` and checks `pg_stat_ssl.ssl` on its own backend. It records the server's own address rather than comparing it with the host name. A missing or malformed pin is refused before any connection (`POSTGRES_TLS_REQUIRED`). Without `remoteTls` the old code path runs unchanged: a literal loopback host, `ssl: false`, and the address must equal the host | `platform/runtime/investigation-search.ts` (core edit) | **experimental** |
+| The engine passes `remoteTls` to the search adapter only when both `storageMode === 'enterprise-server'` and `postgresTls` are set, as it already does for the snapshot adapter | `platform/runtime/engine.ts` (one fenced spread in `privateSearchAdapter`) | **experimental** |
+
+### Core edits
+
+- **`platform/runtime/investigation-search.ts`.** Adds one exported type (`InvestigationSearchRemoteOptions`) and one helper (`remoteSearchTls`). Inside `connect` it makes three guarded changes:
+  - `remoteTls` is an allowed key only when it is present;
+  - the pool uses `ssl: tls`, where `tls` is `false` for every existing caller;
+  - the identity check compares the address only for loopback, and requires TLS for a remote host.
+
+  Reason: the search adapter refused every non-loopback host, so `research.search` could not run in the enterprise server with a database on another host. No other lane owns this file in round 4: core-data owns calculator, ontology, workbook, trust and mcp, and core-gateway-auth owns gateway, actions, vault and plugins.
+- **`platform/runtime/engine.ts`.** Adds one spread in `privateSearchAdapter`, marked `release (round 4)`. Reason: the engine builds and closes the search adapter itself from its options, and the enterprise-only gate (`storageMode`) lives there. Injecting a search port through `options.research.search` would instead bypass the engine's own close on lock and shutdown. Desktop and owner-server engines never set `storageMode`, so they build the same loopback-only options as before.
+
+### Results
+
+| Check | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` | pass |
+| Syntax check | `node scripts/check.mjs` | pass (1,159 files) |
+| Release, investigation and PostgreSQL tests, no database URL | `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/investigation*.test.ts platform/tests/postgres-*.test.ts` | 434 tests: 429 pass, 0 fail, 5 skipped. Of the skipped tests, 2 need the Windows C-drive fixture, 1 needs a staged runtime (`CHAUSAR_REAL_POSTGRES_RUNTIME`) and 2 need `CHAUSAR_TEST_POSTGRES_URL`. The new identity and search tests start their own real clusters, so they are not skipped. All existing `investigation*.test.ts` tests pass unchanged |
+| Same, with a real TLS-only PostgreSQL 16.15 on a non-loopback address (192.0.2.2) | the same command with `CHAUSAR_TEST_POSTGRES_URL` and `CHAUSAR_TEST_POSTGRES_CA` (cluster from `enterprise/server/testing/real-postgres.ts`, run as the unprivileged `postgres` user) | 434 tests: 431 pass, 0 fail, 3 skipped (Windows fixture, staged runtime). `release-enterprise-postgres.test.ts` (sessions shared by two instances) passes with the identity map now in PostgreSQL |
+| In-memory identity store | `release-enterprise-identity.test.ts` | pass. One identity is held at a time while another proceeds. A failed decision saves nothing, and an import never overwrites. Two directories sharing one store, racing four sign-ins of one new person, add one member; without a shared store they add two, which is the case the store prevents. Revoked state is recorded and kept until the mapping changes. A legacy file is read; a malformed or group-readable file is refused (`ENTERPRISE_IDENTITY_STORE_INVALID`) |
+| Identity map, real TLS-only cluster | `release-enterprise-identity.test.ts` (starts its own cluster) | pass. See "Identity map against a real cluster" below |
+| Search adapter refusals | `release-investigation-tls.test.ts` | pass. Without `remoteTls`, `192.0.2.10`, `db.example.com` and `localhost` are refused (`INVALID_POSTGRES_CONFIG`). Missing, empty, non-PEM, extra-key and badly named pins are refused (`POSTGRES_TLS_REQUIRED`). Driver controls such as `ssl` are still refused (`SEARCH_CONFIGURATION_INVALID`) |
+| Desktop refuses; enterprise without TLS refuses | `release-investigation-tls.test.ts` | pass. `research.search` with a remote URL is refused with `INVALID_POSTGRES_CONFIG` in a desktop engine, in a desktop engine with `postgresTls` only, and in an enterprise engine without `postgresTls`. An enterprise engine with a pin takes the remote path: a malformed pin is refused with `POSTGRES_TLS_REQUIRED` |
+| Enterprise search, real TLS-only cluster | `release-investigation-tls.test.ts` (starts its own cluster) | pass. See "Search against a real cluster" below |
+| Image build | `docker build --network host --build-arg HTTPS_PROXY --secret id=build_ca,src=/root/.ccr/ca-bundle.crt -f enterprise/server/Dockerfile -t chausar-enterprise:dev .` | pass (no new runtime files; the identity store is in `state-store.ts`) |
+| Compose smoke | `node enterprise/server/testing/compose-smoke.ts` | **24/24 steps pass** (was 17). See "Compose smoke" below. Torn down: no containers, networks or volumes left |
+
+#### Identity map against a real cluster
+
+- **Import.** `identities.json` was imported (1 entry), renamed `.imported` and not read again. The imported mapping signs in as the same member.
+- **Constraints.** A second row for one (issuer, subject) is refused by `chausar_enterprise_identities_subject`, and a raw subject is refused by the check.
+- **Three separate OS processes.** Each ran `testing/identity-race-child.ts` with its own pool over TLS, and all three started at the same instant on one new identity. Exactly one provisioned a member, and all three resolved to that member. The other two waited on the lock (at least 300 ms of a 400 ms hold). The table has one row.
+- **Two HTTPS server instances.** Each had its own pool, store and identity directory, over one engine (the engine is one writer per workspace). Both finished the same new person's sign-in concurrently, three times. Each time, both sessions were the same member, exactly one member was added, and the table had one row.
+- **Restart.** After both instances stopped and a fresh instance started with a fresh pool, signing in again gave the same member. Only digests are stored.
+
+#### Search against a real cluster
+
+- Plaintext loopback is refused by the server. An unrelated CA and a wrong server name are refused.
+- With the pinned CA the adapter indexes a two-document projection:
+  - "August payment" finds the investigation;
+  - "private draft" finds the journal;
+  - "September" finds nothing.
+
+  The server identity is 192.0.2.2, PostgreSQL 16. With `servername: 'chausar-db.test'` over 127.0.0.1 the search works too.
+- An enterprise engine creates a workspace and an investigation over TLS, and `research.search` returns the investigation (`engine: 'postgres'`). The same URL in a desktop engine is refused.
+
+#### Compose smoke
+
+The 17 earlier steps pass, plus seven new ones:
+
+- the identity map is one row in PostgreSQL, with a 64-hex subject digest, the signed-in member's id and `revoked = false`;
+- no `identities.json` is written on the server volume;
+- `investigations.create` over `/api/rpc` succeeds;
+- `research.search` over `/api/rpc` finds the new investigation in the remote database (`engine postgres`, server 172.18.0.2:5432, 1 match);
+- a search for "September" finds nothing;
+- the `chausar-private-investigation-search` connection uses TLSv1.3, alongside `chausar-vault` and `chausar-enterprise-sessions`;
+- after `docker compose restart server`, a new sign-in is the same member, the member count is unchanged and the table still has one row.
+
+### Still missing
+
+- Active-active engines. The HTTPS race test shares one engine, because the engine is one writer per workspace: a second engine opening the same PostgreSQL workspace is refused with `VAULT_BUSY` (checked here). The identity lock itself is proven across real OS processes at the store level.
+- An administrator's revocation is written to the identity table at that person's next sign-in, not when it happens. Sessions still end at once through the per-request member check.
+- Not run or not supported:
+  - search through a remote database whose server port is translated (the adapter requires the server's own port to equal the configured one);
+  - IPv6;
+  - a managed PostgreSQL service;
+  - a real identity provider;
+  - CI.
