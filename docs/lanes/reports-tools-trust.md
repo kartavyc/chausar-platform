@@ -151,7 +151,7 @@ Seats = { seats: { memberId, name, seat: "owner"|"cofounder"|"accountant"|"ca"|"
   templates: { seat, limits: string[] }[] }
 Models = { routes: { id, kind, label, health, order: number, terms: { keeps, keepsFor, trains, country, termsUrl, readOn } | null,
   lastAnswerCostMinor: string | null }[], spendThisMonthMinor: string, monthlyCapMinor: string | null,
-  voice: { provider: string | null, minutesThisMonth: number } }
+  voice: { provider: string | null, minutesThisMonth: number | null } }
 Network = { items: { id, at, kind: "model"|"connector"|"action"|"sharing"|"phone"|"sync"|"plugin",
   destination, why, bytes: number | null, outcome: "allowed" | "stopped" | "waiting", pluginId?, waitingContent?: string }[],
   canary: { planted: boolean, alert: CanaryAlert | null } }
@@ -190,7 +190,7 @@ Notes on the contract as built (additive to the tables above):
 - `reportsx.weekAhead` refuses `WEEK_TOO_OLD` for weeks before last week, compares the last completed week with the one before it, and carries `gaps: string[]`.
 - Figures from a source marked with a kind the caller's seat does not see print as `withheld` on pages, briefs and exports, with a gap saying so.
 - The projection line is always `not-counted`; a passed forecast is named in a gap and opens in Ask.
-- `trustx.models` gives `spendThisMonthMinor: null` to seats other than owner and cofounder, `voice.minutesThisMonth: null`, and `capEnforced: false`.
+- `trustx.models` gives `spendThisMonthMinor: null` to seats other than owner and cofounder and `capEnforced: false`. Spend and voice minutes come from models-ext `modelsx.meters.month` (`spendMinor`, `voiceMinutesMs` shown as minutes to one decimal, rounded down); `null` ("not counted") when the meters do not answer.
 - `trustx.checkCanary` also looks for GSTINs, mail addresses and phone numbers from the books in what left, with or without a planted value.
 - A seat past its end date ends before any request of this lane runs, and that seat's own request is refused.
 - Validation refusals in the trust part use `INVALID_FIELDS`, never `INVALID_REQUEST`, which screens read as "not built yet".
@@ -318,7 +318,7 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 
 - **Reachability**: resolved in round 2 — the host now lets a lane's place module win its address, so the week ahead, the Friday review and Rhythm are reached at `reports/weekahead`; the retained lesson review keeps its own address. Outside links open through the host's link dialog (`openLink`, SH-10), report pages print through the guarded shell port (`print('page')`), and Vault places frame-today's recovery contact (`RecoveryContactSettings`), so `trustx.setRecoveryContact` remains only for older callers.
 - **Needs a person**: a CA must check `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`; 10 of 25 sources could not be opened and are marked unconfirmed: EPFO, ESIC, Maharashtra and Karnataka professional tax, MCA, two income-tax rows), and decide whether extensions such as CBDT Circular 07/2026 are shown; the 43B(h) and TReDS notes; the model terms in `tools-terms.v1.json`; a native reader's review of Hindi and Hinglish.
-- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost. models-ext's meters do not measure voice minutes or the month's spend; small-app action cards carry no `payloadSchema` yet, so a press sends `{}`; `smallapps.pendingRequests` is on the models-ext branch only. Methods other lanes build this round and our screens wait for (typed "not built yet"): `models.setLadder`, `shell.startAtLogin`, `devices.*`, `sync.setup`. The follow-up book's delete and export write models-ext's stored book directly (`extensions['models-ext'].smallApps.book`) through its own visibility rules; they move to models-ext methods if those appear. No core method discards a waiting model send (it expires).
+- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost. small-app action cards carry no `payloadSchema` yet, so a press sends `{}`; Methods other lanes build this round and our screens wait for (typed "not built yet"): `models.setLadder`, `shell.startAtLogin`, `devices.*`, `sync.setup`. The follow-up book's delete and export write models-ext's stored book directly (`extensions['models-ext'].smallApps.book`) through its own visibility rules; they move to models-ext methods if those appear. No core method discards a waiting model send (it expires).
 - **The outbound check** covers the model gateway only; plugin network calls (models-ext), the learning upload (learning-ext) and hosted-link's allowance client are not routed through it.
 - **Within the lane**: staff "sees their own" is not enforced; keep periods for kinds other than facts are stored, not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced. (Round 4: connector pages are kept between draws; seat limits and deletion places carry codes.)
 
@@ -342,7 +342,7 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | TL-04 Plugins | `tools/plugins` | met | — |
 | TL-05 Install a plugin | `tools/plugins?sheet=install` | met | no "No internet" state |
 | TL-06 A tool from outside | Plugins page, `tools/wrap` | met (experimental) | wrap a SKILL.md or an MCP tools/list through `smallapps.pluginWrap`, preview before install |
-| TL-07 A request from a connected tool | `tools/requests` | raised (experimental) | over `smallapps.pendingRequests` (models-ext, round 4); "not built yet" until that merges |
+| TL-07 A request from a connected tool | `tools/requests` | raised (experimental) | over `smallapps.pendingRequests` (models-ext, merged) |
 | TL-08 Other assistants | `tools/assistants` | met | the MCP server removes nothing from answers, so "removed" is always empty |
 | TL-09 Phone | `tools/phone` | met | mail and WhatsApp checked through `phone.verify`; cost per channel "not counted" until hosted-link sends it |
 | TL-10 Language packs | Plugins page | met | packs not reviewed by a native reader |
@@ -353,7 +353,7 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | TR-05 Do | `?sheet=do` | met over jobs-ext | no amount limit in jobs-ext |
 | TR-06 People | `trust/people` | met | staff "sees their own" not enforced |
 | TR-07 Machines and the pen | `trust/devices` | partial | Drive sync built over `hosted.drive.*` (experimental); machines, pen hand-over and folder sync drawn over core-sync-jobs `devices.*`/`sync.setup`, "not built yet" until they land |
-| TR-08 Models | `trust/models` (+ `models-compare`, `models-prices`, `models-voice`, `models-allowance`) | partial | order saved through `models.setLadder` (core-gateway-auth; "not built yet" until it lands); cap not enforced (core-gateway-auth); live bench plan/approve not drawn; voice minutes not counted |
+| TR-08 Models | `trust/models` (+ `models-compare`, `models-prices`, `models-voice`, `models-allowance`) | partial | order saved through `models.setLadder` (core-gateway-auth; "not built yet" until it lands); cap not enforced (core-gateway-auth); live bench plan/approve not drawn; voice minutes and month spend from models-ext meters |
 | TR-09 Network | `trust/network` | met | a waiting send can be released, not discarded |
 | TR-10 Record | `trust/record` | met | — |
 | TR-11 Sharing | `trust/sharing` | met over learning-ext | — |

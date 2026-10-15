@@ -121,16 +121,17 @@ test('phone opt-ins and reminder consents are agreements, withdrawn through the 
 test('voice minutes and month spend come from models-ext meters when they answer, and are not counted until then', async t => {
   const f = await setup(t);
   const models = await f.rpc('trustx.models');
-  assert.equal(models.voice.minutesThisMonth, null); assert.equal(models.spendThisMonthMinor, '0');
+  // models-ext is merged and measures voice: a fresh workspace has used none.
+  assert.equal(models.voice.minutesThisMonth, 0); assert.equal(models.spendThisMonthMinor, '0');
 
   const state = initialState('Synthetic meters', true);
   const host = (meters: unknown): any => ({ store: { read: () => state }, services: { gateway: { listRoutes: () => [], receipts: () => [] } }, demo: true, directory: '', options: {},
     call: async (method: string) => { assert.equal(method, 'modelsx.meters'); if (meters instanceof Error) throw meters; return meters; } });
-  const answered = await modelsView(owner, host({ voice: { minutesThisMonth: 42.5 }, totals: { spendThisMonthMinor: '012345' } }));
+  const answered = await modelsView(owner, host({ month: { month: '2026-10', voiceMinutesMs: 2_550_000, spendMinor: '012345' } }));
   assert.equal(answered.voice.minutesThisMonth, 42.5); assert.equal(answered.spendThisMonthMinor, '12345');
-  const viewer = await modelsView({ ...owner, role: 'viewer' }, host({ voice: { minutesThisMonth: 3 }, totals: { spendThisMonthMinor: '500' } }));
+  const viewer = await modelsView({ ...owner, role: 'viewer' }, host({ month: { month: '2026-10', voiceMinutesMs: 180_000, spendMinor: '500' } }));
   assert.equal(viewer.spendThisMonthMinor, null, 'spend stays with owner and cofounder');
-  for (const odd of [{ voice: { minutesThisMonth: -1 }, totals: { spendThisMonthMinor: 12 } }, { voice: { minutesThisMonth: '3' } }, null]) {
+  for (const odd of [{ month: { voiceMinutesMs: -1, spendMinor: 12 } }, { month: { voiceMinutesMs: 1.5 } }, { month: null }, null]) {
     const view = await modelsView(owner, host(odd)); assert.equal(view.voice.minutesThisMonth, null); assert.equal(view.spendThisMonthMinor, '0');
   }
   // A fault in another lane's meters never stops the Models screen: minutes stay not counted and spend is summed here.

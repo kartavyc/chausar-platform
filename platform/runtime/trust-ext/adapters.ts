@@ -102,7 +102,11 @@ export async function modelMeters(host: ModuleHost): Promise<{ minutesThisMonth:
   // An optional enrichment: a fault in another lane's meters never stops the Models screen.
   const reply = await ask(host, 'modelsx.meters').catch(() => null);
   if (!obj(reply)) return { minutesThisMonth: null, spendThisMonthMinor: null };
-  const minutes = reply.voice?.minutesThisMonth, spend = reply.totals?.spendThisMonthMinor;
-  return { minutesThisMonth: typeof minutes === 'number' && Number.isFinite(minutes) && minutes >= 0 && minutes <= 1e7 ? minutes : null,
+  // models-ext round 4: `month: { spendMinor, voiceMinutesMs, ... }` for the current calendar month (model plus voice spend).
+  const month = obj(reply.month) ? reply.month : null;
+  const ms = month?.voiceMinutesMs, spend = month?.spendMinor;
+  const msOk = typeof ms === 'number' ? Number.isSafeInteger(ms) && ms >= 0 : typeof ms === 'string' && /^\d{1,15}$/.test(ms);
+  // Minutes to one decimal, rounded down, from whole milliseconds: a display of a meter, not a figure with a receipt.
+  return { minutesThisMonth: msOk ? Math.floor(Number(ms) / 6000) / 10 : null,
     spendThisMonthMinor: typeof spend === 'string' && /^\d{1,20}$/.test(spend) ? BigInt(spend).toString() : null };
 }
