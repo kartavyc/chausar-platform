@@ -12,7 +12,7 @@ import { peekLane } from './lane-state.ts';
 
 /** TL-08: one kind of thing the numbers server's disclosure check removed from an answer: the field, why, and how many. Never a value. */
 export type McpRemoved = { field: string; why: typeof removedWhy[number]; count: number };
-const removedWhy = ['personal', 'financial', 'confidential', 'withheld', 'send-level', 'own-entries'] as const;
+const removedWhy = ['personal', 'financial', 'confidential', 'withheld', 'send-level'] as const;
 const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 /**
  * The `removed` list core-data's MCP replies carry (`{ field, why, count }[]`), checked before it is kept or shown: at most fifty

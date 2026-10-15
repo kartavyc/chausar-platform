@@ -259,7 +259,7 @@ waits for the second person); allowed sources are one admin's change. Hindi sent
 - `trustx.followUpDelete { id, expectedVersion }` (prepare; desktop only, refuses tainted requests): the writer, an owner or a cofounder deletes an entry with its history; refuses on a changed version. `trustx.followUpExport {}`: CSV (mode 0600) of entries the caller sees, formula-guarded cells, not encrypted. Refusals `FOLLOW_UP_*`.
 
 - `trustx.keep`: each kind gains `rule: 'retention' | 'enforced' | 'not-enforced' | 'until-deleted'` and, when enforced, `lastApplied: { at, removed, held } | null` read from the newest `trust.keep.enforced` activity entry.
-- `trustx.assistants`: `calls[].removed` is `{ field, why: 'personal'|'financial'|'confidential'|'withheld'|'send-level'|'own-entries', count }[]` (at most 50, checked) or `'not-recorded'`.
+- `trustx.assistants`: `calls[].removed` is `{ field, why: 'personal'|'financial'|'confidential'|'withheld'|'send-level', count }[]` (at most 50, checked) or `'not-recorded'`.
 - Reports connector pages: a "GSTR-3B" section (outward taxable, zero-rated, nil/exempt, non-GST, reverse charge inward — not turnover — and outward tax) and an "Invoices to look at" section (up to 20 differing invoices, each with its own `gstr2b_line` receipt). New refusal `COREDATA_REPLY_INVALID`.
 
 ### What this lane assumes from other lanes (round 4)

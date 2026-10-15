@@ -33,7 +33,7 @@ export interface Assistants {
 }
 /** One kind of thing the numbers server's disclosure check took out of an answer: a field name, why, and how many. Never a value. */
 export interface Removal { readonly field: string; readonly why: typeof REMOVED_WHY[number]; readonly count: number }
-export const REMOVED_WHY = ['personal', 'financial', 'confidential', 'withheld', 'send-level', 'own-entries'] as const;
+export const REMOVED_WHY = ['personal', 'financial', 'confidential', 'withheld', 'send-level'] as const;
 const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 /** The engine's list (at most fifty) or the word that its record does not say. */
 function removals(value: unknown, path: string): readonly Removal[] | 'not-recorded' {
