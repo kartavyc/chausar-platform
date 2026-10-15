@@ -56,6 +56,9 @@ try {
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupComplete = false; let startupTask = Promise.resolve();
+// --- driving lane: WK-14 strip, tray Stop and the driver switch (app/desktop/driving-main.cjs) ---
+require('./driving-main.cjs').registerDriving({ getEngine: () => engine, demo });
+// --- end driving lane ---
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
