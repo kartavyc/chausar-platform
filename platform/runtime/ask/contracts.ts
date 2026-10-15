@@ -12,6 +12,8 @@ export type PeriodId = 'this-month' | 'last-month' | 'this-quarter' | 'last-quar
 export type PeriodChoice = { id: PeriodId; period: Period };
 export type Missing = 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted';
 export type Need = 'period' | 'comparePeriod' | 'onDate' | 'priceChange';
+/** Data a question needs that no published calculation covers yet (AS-08 "needs data: …"). */
+export type DataNeed = 'gstr2b' | 'form26as' | 'stock' | 'bank-statement' | 'payroll';
 
 /** A known amount with its receipt, or a missing word. */
 export type Amount = { kind: 'money' | 'basis-points'; minor: string; receiptId: string } | { kind: 'missing'; missing: Missing };
@@ -26,6 +28,8 @@ export type MenuReply = {
   gst2b: 'offered' | 'not-applicable';
   today: string;
   periods: PeriodChoice[];
+  /** Branches this seat can see rows in, for the group pickers (AS-02, AS-11). */
+  branches: string[];
 };
 export type SuggestReply = { suggestions: { operationId: string; label: string; periodId: PeriodId; asked: number; why: 'asked-before' | 'starter' }[] };
 
@@ -34,6 +38,10 @@ export type UnderstandReply =
   | { kind: 'proposal'; proposal: Proposal; options: { operations: { operationId: string; label: string }[]; periods: PeriodChoice[]; branches: string[] } }
   | { kind: 'choose'; choices: { operationId: string; label: string; meaning: string | null }[]; periodId: PeriodId | null }
   | { kind: 'no-match'; reason: 'no-calculation' | 'unknown-word' | 'action'; word: string | null; nearby: { operationId: string; label: string }[] }
+  /** `loaded`: the data is there but no calculation covers this question yet (for GSTR-2B, the match page does). */
+  | { kind: 'no-match'; reason: 'needs-data'; word: null; need: DataNeed; loaded: boolean; nearby: { operationId: string; label: string }[] }
+  /** Telling, not asking: offered to Memory as a proposed line through `askx.tell`. */
+  | { kind: 'statement'; text: string; memoryKind: 'preference' | 'claim' }
   | { kind: 'refused'; code: string };
 
 /** `date` covers dates, months with years, financial years and introduced years; `ordinal` is 1st, 2nd… */
@@ -94,6 +102,13 @@ export type ReceiptReply = {
   meaning: { version: number; publishedBy: string; publishedAt: string } | null;
   /** True in a demo workspace: every date and figure is synthetic. */
   demo: boolean;
+  /** The core lane's provenance (AS-05), null until it records it on receipts. */
+  provenance: {
+    recipes: { sourceId: string; recipeId: string; acceptedBy: string | null; acceptedAt: string | null }[];
+    meaning: { publishedBy: string; reviewedBy: string | null; coSignedBy: string | null; reviewedAt: string | null } | null;
+    forecast: { method: string; learnedFrom: { from: string; to: string }; testedOn: { from: string; to: string } } | null;
+    allowedBy: { ruleId: string; check: string; device: 'desktop' | 'phone' | 'mcp'; memberId: string; at: string } | null;
+  } | null;
 };
 export type SourceRowsReply = {
   tab: 'counted' | 'left-out';
@@ -268,6 +283,10 @@ export type Gst2bLineReply = {
  *   askx.understand      { question!, today }                              → UnderstandReply
  *   askx.run             { operationId!, period | periodId, comparePeriod, onDate, priceChangeBps, branch, today,
  *                          correctedFrom: { operationId, periodChanged, groupChanged } }   → RunReply
+ *   askx.change          { operationId!, period | periodId, branch, change!: { operationId, period | periodId, branch }, today } → UnderstandReply (proposal)
+ *   askx.stop            {}  (stops this member's running forecast, plan or checks run; they refuse ASK_STOPPED) → { stopped: true, at }
+ *   askx.tell            { text!, kind!: 'preference' | 'claim' }  → { state: 'proposed', memoryId, status } | { state: 'not-built' }
+ *   askx.explainRule     { rule!: RuleKind, receiptId, sourceId }  → { state: 'ready', ruleId, text, changeableBy } | { state: 'not-built' }
  *   askx.answer          { receiptId! }                                    → AnswerReply
  *   askx.guard           { receiptId!, text! }                             → { status, lines: GuardLine[], explanation }
  *   askx.receipt         { receiptId! }                                    → ReceiptReply

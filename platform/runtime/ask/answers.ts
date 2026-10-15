@@ -147,7 +147,25 @@ export async function receiptView(ctx: Context, payload: unknown, host: ModuleHo
       .filter((entry, index, list) => list.findIndex(other => other.from === entry.from && other.rate === entry.rate) === index),
     sent: conversation ? { kind: 'model', available: true } : { kind: 'nothing' },
     meaning: meaningOf(host, ctx, receipt), demo: host.store.read().workspace.demo === true || host.demo,
+    provenance: provenanceOf((receipt as { provenance?: unknown }).provenance),
   };
+}
+
+const str = (v: unknown, max = 200) => typeof v === 'string' && v.length > 0 && v.length <= max ? v : null;
+const span = (v: any) => v && str(v.from, 10) && str(v.to, 10) ? { from: v.from as string, to: v.to as string } : null;
+/** The core lane's provenance on a receipt (AS-05), read field by field; anything else is left out. */
+export function provenanceOf(value: unknown): ReceiptReply['provenance'] {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, any>;
+  const recipes = Array.isArray(v.recipes) ? v.recipes.slice(0, 50).flatMap((r: any) => str(r?.sourceId) && str(r?.recipeId)
+    ? [{ sourceId: r.sourceId, recipeId: r.recipeId, acceptedBy: str(r.acceptedBy), acceptedAt: str(r.acceptedAt, 40) }] : []) : [];
+  const meaning = v.meaning && str(v.meaning.publishedBy) ? { publishedBy: v.meaning.publishedBy as string, reviewedBy: str(v.meaning.reviewedBy), coSignedBy: str(v.meaning.coSignedBy), reviewedAt: str(v.meaning.reviewedAt, 40) } : null;
+  const forecast = v.forecast && str(v.forecast.method, 100) && span(v.forecast.learnedFrom) && span(v.forecast.testedOn)
+    ? { method: v.forecast.method as string, learnedFrom: span(v.forecast.learnedFrom)!, testedOn: span(v.forecast.testedOn)! } : null;
+  const a = v.allowedBy;
+  const allowedBy = a && str(a.ruleId) && str(a.check) && ['desktop', 'phone', 'mcp'].includes(a.device) && str(a.memberId) && str(a.at, 40)
+    ? { ruleId: a.ruleId as string, check: a.check as string, device: a.device as 'desktop' | 'phone' | 'mcp', memberId: a.memberId as string, at: a.at as string } : null;
+  return { recipes, meaning, forecast, allowedBy };
 }
 
 function meaningOf(host: ModuleHost, ctx: Context, receipt: CalculationReceipt): ReceiptReply['meaning'] {

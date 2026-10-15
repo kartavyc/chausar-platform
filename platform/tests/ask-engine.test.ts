@@ -631,3 +631,49 @@ test('round 4: GSTR-2B through the connectors lane’s own recipe and matcher, w
   assert.equal(chosen.groups.find((g: any) => g.group === 'matched').count, 1);
   await assert.rejects(ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY, registerSourceId: 'nobody' }), code('ASK_NOT_FOUND'));
 });
+
+test('round 4: change, stop, needs-data, telling not asking, the rule’s words and provenance', async t => {
+  const { statementOf } = await import('../runtime/ask/menu.ts');
+  const { provenanceOf } = await import('../runtime/ask/answers.ts');
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  // AS-02: a change moves the proposal and is kept as structure only.
+  const changed = await ask(engine, 'askx.change', { operationId: 'billed', periodId: 'last-month', today: TODAY, change: { operationId: 'received', periodId: 'this-month' } });
+  assert.deepEqual([changed.kind, changed.proposal.operationId, changed.proposal.period], ['proposal', 'received', { from: '2026-10-01', to: TODAY }]);
+  const corrections = (engine as any).vault.read().extensions.ask.corrections;
+  assert.deepEqual(corrections.map((c: any) => [c.from, c.to, c.periodChanged, c.groupChanged]), [['billed', 'received', true, false]]);
+  // SH-04: a stop asked for during a long answer ends it with a fixed refusal.
+  const { stop, checkStop } = await import('../runtime/ask/round4.ts');
+  const started = Date.now() - 1;
+  stop(owner, {});
+  assert.throws(() => checkStop(owner, started), code('ASK_STOPPED'));
+  assert.doesNotThrow(() => checkStop(owner, Date.now() + 1000));
+  assert.deepEqual(Object.keys(await ask(engine, 'askx.stop')).sort(), ['at', 'stopped']);
+  // AS-08: a question about data that is not loaded names the data.
+  const gst = await ask(engine, 'askx.understand', { question: 'How much ITC did we lose?', today: TODAY });
+  assert.deepEqual([gst.kind, gst.reason, gst.need, gst.loaded], ['no-match', 'needs-data', 'gstr2b', false]);
+  assert.deepEqual([(await ask(engine, 'askx.understand', { question: 'What is our TDS credit?', today: TODAY })).need], ['form26as']);
+  // Telling, not asking: proposed to Memory, changes nothing until confirmed.
+  assert.deepEqual(statementOf('Customer A always pays late'), { text: 'Customer A always pays late', kind: 'preference' });
+  assert.deepEqual(statementOf('Remember that the shop is closed on Sundays'), { text: 'the shop is closed on Sundays', kind: 'claim' });
+  assert.equal(statementOf('What was billed last month?'), null);
+  assert.equal(statementOf('billed last month'), null);
+  const told = await ask(engine, 'askx.understand', { question: 'Remember that customer A pays by cheque', today: TODAY });
+  assert.deepEqual(told, { kind: 'statement', text: 'customer A pays by cheque', memoryKind: 'claim' });
+  const proposed = await ask(engine, 'askx.tell', { text: told.text, kind: told.memoryKind });
+  assert.equal(proposed.state, 'proposed');
+  const memory = await ask(engine, 'books.memory', {});
+  assert.ok(JSON.stringify(memory).includes('customer A pays by cheque'));
+  // AS-09: until the trust lane serves trust.explain, the rule's words are "not built".
+  assert.deepEqual(await ask(engine, 'askx.explainRule', { rule: 'branch' }), { state: 'not-built' });
+  await assert.rejects(ask(engine, 'askx.explainRule', { rule: 'anything' }), code('ASK_INVALID'));
+  // AS-05: provenance is read field by field; malformed parts are left out, never invented.
+  assert.equal(provenanceOf(undefined), null);
+  assert.deepEqual(provenanceOf({ recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: 'owner', acceptedAt: '2026-10-01T00:00:00.000Z' }, { sourceId: 7 }],
+    meaning: { publishedBy: 'owner', reviewedBy: 'acct', coSignedBy: null }, forecast: { method: 'linear-trend-v1', learnedFrom: { from: 'x' } },
+    allowedBy: { ruleId: 'rule-1', check: 'branch-scope', device: 'desktop', memberId: 'owner', at: '2026-10-01T00:00:00.000Z' } }),
+  { recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: 'owner', acceptedAt: '2026-10-01T00:00:00.000Z' }], meaning: { publishedBy: 'owner', reviewedBy: 'acct', coSignedBy: null, reviewedAt: null },
+    forecast: null, allowedBy: { ruleId: 'rule-1', check: 'branch-scope', device: 'desktop', memberId: 'owner', at: '2026-10-01T00:00:00.000Z' } });
+  const answer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
+  assert.equal((await ask(engine, 'askx.receipt', { receiptId: answer.receiptId })).provenance, null);
+});

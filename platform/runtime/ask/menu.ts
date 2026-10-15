@@ -10,16 +10,17 @@ import { newId, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { canSeeFact } from '../memory.ts';
 import type { Dictionary, Operation } from '../ontology.ts';
+import type { Period } from '../memory.ts';
 import { resolveCoreOperationAlias } from '../core-operation-aliases.ts';
-import type { MenuReply, PeriodId, SuggestReply, UnderstandReply, WantedReply } from './contracts.ts';
-import { askState, businessToday, currentDictionary, input, needsOf, PERIOD_IDS, peekAsk, periodChoices, seedDictionary, text, topicOf, words } from './shared.ts';
+import type { DataNeed as Need, MenuReply, PeriodId, SuggestReply, UnderstandReply, WantedReply } from './contracts.ts';
+import { askState, codeOf, translate, businessToday, currentDictionary, input, needsOf, PERIOD_IDS, peekAsk, periodChoices, seedDictionary, text, topicOf, words } from './shared.ts';
 
 const TOPICS = ['sales', 'collections', 'cash', 'stock', 'tax', 'other'] as const;
 
 export function menu(ctx: Context, payload: unknown, host: ModuleHost): MenuReply {
   const request = input(payload, ['today']);
   const today = businessToday(host, request.today), dictionary = currentDictionary(host, ctx);
-  if (!dictionary) return { state: 'no-dictionary', seed: false, dictionary: null, topics: [], gst2b: 'not-applicable', today, periods: periodChoices(today) };
+  if (!dictionary) return { state: 'no-dictionary', seed: false, dictionary: null, topics: [], gst2b: 'not-applicable', today, periods: periodChoices(today), branches: [] };
   const items = dictionary.operations.map(operation => ({
     operationId: operation.id, label: operation.label, type: operation.type, topic: topicOf(operation), needs: needsOf(operation),
     meaning: dictionary.definitions.find(definition => definition.name === operation.definitions[0])?.meaning ?? null,
@@ -29,7 +30,7 @@ export function menu(ctx: Context, payload: unknown, host: ModuleHost): MenuRepl
     dictionary: { version: dictionary.version, pack: dictionary.pack, label: dictionary.label, gstMode: dictionary.gstMode },
     topics: TOPICS.map(topic => ({ topic, items: items.filter(item => item.topic === topic) })).filter(group => group.items.length > 0),
     gst2b: dictionary.gstMode === 'regular' && dictionary.definitions.some(definition => definition.name === 'purchases') ? 'offered' : 'not-applicable',
-    today, periods: periodChoices(today),
+    today, periods: periodChoices(today), branches: branchesOf(host, ctx),
   };
 }
 
@@ -110,12 +111,24 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
   if (found.ids.length === 1) {
     const operation = dictionary.operations.find(candidate => candidate.id === found.ids[0])!;
     const choices = periodChoices(today), chosen = choices.find(choice => choice.id === (periodId ?? 'last-month'))!;
-    return { kind: 'proposal', proposal: { operationId: operation.id, label: operation.label, period: chosen.period, periodId: chosen.id, branch: null, needs: needsOf(operation) },
-      options: { operations: dictionary.operations.map(o => ({ operationId: o.id, label: o.label })), periods: choices, branches: branchesOf(host, ctx) } };
+    return proposalReply(host, ctx, dictionary, operation, chosen.period, chosen.id, null, today);
   }
   if (found.ids.length > 1) {
     return { kind: 'choose', periodId, choices: found.ids.map(id => dictionary.operations.find(operation => operation.id === id)!).map(operation => ({
       operationId: operation.id, label: operation.label, meaning: dictionary.definitions.find(definition => definition.name === operation.definitions[0])?.meaning ?? null })) };
+  }
+  // Telling, not asking: a statement goes to Memory as a proposed line, never into a calculation.
+  const statement = statementOf(question);
+  if (statement) return { kind: 'statement', text: statement.text, memoryKind: statement.kind };
+  // A question about data that is not loaded says which data it needs.
+  const need = NEEDS.find(([, terms]) => tokens.some(token => terms.includes(token)) || terms.some(term => term.includes(' ') && lowered.includes(term)));
+  if (need) {
+    const loaded = await dataLoaded(ctx, host, need[0]);
+    if (keeps(ctx)) await host.store.update(state => {
+      if (state.unsupported.filter(entry => entry?.by === ctx.memberId).length < WANTED_PER_MEMBER)
+        state.unsupported.push({ id: newId('wanted'), at: now(), question: question.trim().slice(0, 500), status: 'not-yet', by: ctx.memberId });
+    });
+    return { kind: 'no-match', reason: 'needs-data', word: null, need: need[0], loaded, nearby: nearby([]) };
   }
   // No calculation. One or two unknown words is a business word Chausar does not know.
   const word = found.unknown.length > 0 && found.unknown.length <= 2 ? found.unknown.join(' ') : null;
@@ -128,6 +141,49 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
       state.unsupported.push({ id: newId('wanted'), at: now(), question: question.trim().slice(0, 500), status: 'not-yet', by: ctx.memberId });
   });
   return { kind: 'no-match', reason: word ? 'unknown-word' : 'no-calculation', word, nearby: nearby([]) };
+}
+
+/** A proposal and the short lists it can be changed from (AS-02). */
+export function proposalReply(host: ModuleHost, ctx: Context, dictionary: Dictionary, operation: Operation, chosen: Period, periodId: PeriodId | null, branch: string | null, today: string): UnderstandReply {
+  return { kind: 'proposal', proposal: { operationId: operation.id, label: operation.label, period: chosen, periodId, branch, needs: needsOf(operation) },
+    options: { operations: dictionary.operations.map(o => ({ operationId: o.id, label: o.label })), periods: periodChoices(today), branches: branchesOf(host, ctx) } };
+}
+
+/** Data a question can need that no published calculation covers yet, by the words that name it. */
+const NEEDS: readonly [Need, readonly string[]][] = [
+  ['gstr2b', ['gst', 'gstr', '2b', 'gstr2b', 'itc', 'igst', 'cgst', 'sgst', 'जीएसटी', 'input tax']],
+  ['form26as', ['tds', '26as', 'ais', 'टीडीएस']],
+  ['stock', ['stock', 'inventory', 'स्टॉक', 'माल']],
+  ['bank-statement', ['bank', 'balance', 'बैंक']],
+  ['payroll', ['salary', 'salaries', 'payroll', 'wages', 'वेतन', 'तनख्वाह']],
+];
+async function dataLoaded(ctx: Context, host: ModuleHost, need: Need): Promise<boolean> {
+  let recipes: string[] = [];
+  try { recipes = (await host.call('connectorsx.envelopes', { limit: 400 }) as { recipeId?: unknown; status?: unknown }[]).filter(e => e?.status === 'accepted').map(e => String(e.recipeId ?? '')); }
+  catch (error) { if (!['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(codeOf(error))) throw translate(error); }
+  const facts = host.store.read().facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f));
+  if (need === 'gstr2b') return recipes.some(r => r.startsWith('gst.gstr2b')) || facts.some(f => f.kind === 'gstr2b' || f.kind === 'gstr-2b');
+  if (need === 'form26as') return recipes.some(r => /26as|ais/i.test(r));
+  if (need === 'stock') return facts.some(f => f.fields.stockQuantity !== undefined || f.fields.quantity !== undefined);
+  if (need === 'bank-statement') return recipes.some(r => /bank/i.test(r));
+  return recipes.some(r => /payroll|keka|greythr/i.test(r));
+}
+
+const QUESTION_WORDS = new Set(['what', 'how', 'which', 'who', 'when', 'why', 'where', 'is', 'are', 'was', 'were', 'did', 'do', 'does', 'show', 'list', 'give', 'tell', 'can', 'could', 'should',
+  'क्या', 'कितना', 'कितनी', 'कितने', 'कौन', 'कब', 'क्यों', 'कहाँ', 'कैसे', 'दिखाओ', 'बताओ', 'बताएँ']);
+const REMEMBER = /^\s*(?:please\s+)?(?:remember|note|keep in mind)(?:\s+that)?[\s,:]+|^\s*याद रख(?:ो|ें|िए)\s*(?:कि)?\s*/iu;
+const PREFERENCE = /\b(?:prefer|always|never|please|i like|we like|i want|we want)\b|पसंद|हमेशा|कभी नहीं/iu;
+const TELLING = /\b(?:is|are|was|were|has|have|had|pays|paid|owes|buys|sells|closes|opens|always|never|usually|prefers?)\b|\s(?:है|हैं|था|थे|थी|करता|करती|करते)(?:\s|$|।)/u;
+/** A sentence that tells Chausar something rather than asking it. "Remember that…" always counts. */
+export function statementOf(question: string): { text: string; kind: 'preference' | 'claim' } | null {
+  const trimmed = question.trim(), told = REMEMBER.test(trimmed);
+  const body = trimmed.replace(REMEMBER, '').trim();
+  if (!body) return null;
+  if (!told) {
+    const first = words(body)[0] ?? '';
+    if (/[?？]\s*$/.test(body) || QUESTION_WORDS.has(first) || words(body).length < 3 || !TELLING.test(` ${body.toLowerCase()} `)) return null;
+  }
+  return { text: body.slice(0, 2000), kind: PREFERENCE.test(body) ? 'preference' : 'claim' };
 }
 
 function branchesOf(host: ModuleHost, ctx: Context): string[] {

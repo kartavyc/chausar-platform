@@ -11,6 +11,7 @@
 import { check, hash, newId, now, type Context, type State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
+import { checkStop } from './round4.ts';
 import type { CheckItem, CheckReply, ChecksReply, Fingerprint } from './contracts.ts';
 import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
 
@@ -92,7 +93,9 @@ export async function runChecks(ctx: Context, host: ModuleHost, calculate: Calcu
 async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due: (item: CheckItem, current: Fingerprint) => boolean) {
   const before = host.store.read(), own = peekAsk(before), current = fingerprint(before, host);
   const results = new Map<string, CheckItem['results'][number]>();
+  const started = Date.now();
   for (const item of own.checks.filter(c => c.memberId === ctx.memberId && due(c, current))) {
+    checkStop(ctx, started);
     const at = now(), because = changedParts(item.fingerprint, current), { asOf: _asOf, ...again } = item.request;
     try {
       const receipt = await calculate(again);

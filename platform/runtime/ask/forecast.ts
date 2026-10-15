@@ -18,6 +18,7 @@ import type { SavedForecastEvaluation } from '../forecast-contracts.ts';
 import type { AskState, ForecastReply } from './contracts.ts';
 import { addMonths, askState, businessToday, peekAsk, codeOf, core, currentDictionary, input, monthEnd, monthStart, translate } from './shared.ts';
 import { operationOf } from './menu.ts';
+import { checkStop } from './round4.ts';
 
 export const NEEDED_MONTHS = 24;
 const HELD_BACK = 6;
@@ -62,7 +63,9 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   const asOf = reused ? previous!.asOf : now();
   if (!history) {
     history = [];
+    const started = Date.now();
     for (const [y, m] of months) {
+      checkStop(ctx, started);
       const receipt = await core<CalculationReceipt>(host, 'calculation.run', { operation: operation.id, sourceIds, period: { from: monthStart(y, m), to: monthEnd(y, m) }, asOf, ...(branch === null ? {} : { branch }) });
       history.push({ month: monthStart(y, m).slice(0, 7), minor: receipt.valueMinor, receiptId: receipt.id });
     }
