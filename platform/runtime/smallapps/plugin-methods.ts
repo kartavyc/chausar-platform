@@ -14,6 +14,7 @@ import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { MODULE_ID } from '../models-ext/part.ts';
 import type { ModulePart } from '../models-ext/part.ts';
 import { RUN_INPUT_LIMIT } from '../plugins.ts';
+import { guardOutbound } from '../plugins.ts'; // core-gateway-auth: canary
 import type { HostFunction, PluginManifest } from '../plugins.ts';
 import { contentFindings, documentDigest, keyIdOf, parseDocument, publicKeyObject, rawPublicKey, reviewDocument, runnable, signDocument, untrusted } from './plugin-format.ts';
 import type { DataEntry, Doors, PluginDocument, SkillEntry, ToolEntry, TrustedKey } from './plugin-format.ts';
@@ -358,6 +359,9 @@ async function callRemote(ctx: Context, payload: Record<string, any>, host: Modu
   const plan = await planRemote(host, ns, { id: preview.pluginId, tool: preview.tool, arguments: preview.arguments });
   check(plan.digest === preview.digest, 'PREVIEW_CHANGED', 'The plugin, its grant or its requests changed since this was approved. Prepare it again.');
   const doors = plan.run.code ? await bindDoors(ctx, host, plan.run.core!.manifest.capabilities, plan.grant.code[plan.run.code.codeId]) : NO_DOORS;
+  // core-gateway-auth: canary. The exact arguments every request is built from (path values and body) and every URL are
+  // checked before the approval is spent: a protected value stops the call, nothing is sent and the approval stays unused.
+  await guardOutbound(host.store, ctx, { channel: 'plugin', receiptId: preview.id, endpoint: plan.requests.map(r => r.url).join('\n'), payload: [canonical(plan.args), ...plan.requests.map(r => r.url)].join('\n') });
   // Single use: the approval is consumed before the first byte leaves.
   await host.store.update(state => { const live = approvalUsable(state, peek(state)?.remote, ctx, ids, at); live.approval.used = true; live.preview.status = 'executing'; });
   const fetched: Fetched[] = []; const ledger: LedgerEntry[] = []; let failure: ChausarError | undefined; let receiptId = '';
