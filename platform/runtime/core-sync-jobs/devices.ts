@@ -143,6 +143,10 @@ async function publish(host: ModuleHost) {
 
 // ---- reads ----
 
+/** What the sync place asks for, as codes the screen words: a folder is read and written; Drive sees only its own folder. */
+const access = (folder: SyncFolder) => folder.kind === 'folder' ? { kind: 'folder' as const, access: 'read-write-this-folder' }
+  : { kind: 'drive' as const, access: 'drive.file', oldCopies: 'drive-keeps-30-days-or-100-versions' };
+
 async function list(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
   fields(payload, []);
   const { enrolment, device, state, configured: here } = await context(host);
@@ -151,7 +155,7 @@ async function list(ctx: Context, payload: Record<string, unknown>, host: Module
   const admin = ['owner', 'cofounder'].includes(ctx.role);
   return {
     thisDevice: device ? { id: device.identity.deviceId, name: device.identity.name, enrolled: !!enrolment && registry.devices.some(d => d.id === thisId && d.removedAt === null) } : null,
-    configured: here, syncOn: enrolment?.syncOn ?? false, transport: enrolment ? { kind: enrolment.transport.kind } : null,
+    configured: here, syncOn: enrolment?.syncOn ?? false, transport: enrolment ? access(enrolment.transport) : null,
     readOnly: here && !holding, pen: penView(state, thisId, holding),
     devices: registry.devices.map(d => ({ id: d.id, name: d.name, thisComputer: d.id === thisId, holdsPen: pen?.deviceId === d.id, state: d.removedAt ? 'removed' : 'active',
       enrolledAt: d.enrolledAt, removedAt: d.removedAt, lastReadAt: seen.get(d.id) ?? null, fingerprint: fingerprint(d.publicKey), ...(admin ? { memberId: d.memberId } : {}) })),
