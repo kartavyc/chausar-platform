@@ -1,0 +1,122 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written responses for the P2 model tests, shaped like the Anthropic Messages API, Claude Code JSON output and Codex JSONL events. Not captured from a live account. No paid call was made.",
+  "responses": [
+    {
+      "purpose": "interview",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "cafes"
+      ],
+      "body": {
+        "id": "msg_synthetic_interview",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"words\":\"Who will your first clients be?\"}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 812,
+          "output_tokens": 164
+        }
+      }
+    },
+    {
+      "purpose": "blueprint",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [],
+      "body": {
+        "id": "msg_synthetic_plan_one",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"words\":\"First plan words\"}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1430,
+          "output_tokens": 402
+        }
+      }
+    },
+    {
+      "purpose": "blueprint",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [],
+      "body": {
+        "id": "msg_synthetic_plan_two",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"words\":\"Second plan words\"}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1430,
+          "output_tokens": 402
+        }
+      }
+    },
+    {
+      "purpose": "brief",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "{\"words\":\"Brief words from Claude Code\"}",
+        "usage": {
+          "input_tokens": 300,
+          "output_tokens": 40
+        }
+      }
+    },
+    {
+      "purpose": "judge",
+      "kind": "codex-cli",
+      "model": "gpt-6-luna",
+      "status": 200,
+      "mustInclude": [],
+      "body": "{\"type\":\"thread.started\",\"thread_id\":\"thread_synthetic\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_synthetic\",\"type\":\"agent_message\",\"text\":\"{\\\"words\\\":\\\"Judge words from Codex\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":200,\"output_tokens\":30}}"
+    },
+    {
+      "purpose": "client-sim",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 500,
+      "mustInclude": [],
+      "body": {
+        "type": "error",
+        "error": {
+          "type": "api_error",
+          "message": "Synthetic provider failure"
+        }
+      }
+    }
+  ]
+}
