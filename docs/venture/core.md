@@ -58,6 +58,7 @@ Done: everything in section 4 of the build spec.
 Contract change needed (for the integrator, it is not core's to make):
 
 - In `contracts.ts`, `ModelConnectionRecord` and `ModelCallRecord` each declare `kind: ModelRouteKind`, which shares its name with the record kind from `RecordBase` (`kind: 'venture-model-connection'` and `kind: 'venture-model-call'`). The intersection makes `kind` the type `never`, and a record that stored the route kind under `kind` would no longer be found by `listRecords` and would be refused by `tx.put`. The models package already stores it as `routeKind` (with casts), so core's checklist item "Add your AI (optional)", which finds connections by record kind, works today. Suggested fix: rename the field to `routeKind` on both record types so the contract matches what is stored (`ModelPreset.kind` and `ModelReplayFixture.responses[].kind` are fine as they are).
+- **Applied in Phase C.** Both record types now carry the route as `routeKind` in `contracts.ts` (commit `b8752df`), and the models package, the engine and e2e tests and the renderer fixture read them through the contract types (commit `9faee82`).
 
 Wiring changes needed: none.
 

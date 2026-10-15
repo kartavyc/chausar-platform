@@ -88,6 +88,29 @@ Every model and Build screen should say the answers come from a synthetic record
 
 The Electron window is not launched in this run: `node_modules` stays absent, and the window needs the pinned Electron 44.4.5 from `npm install`. The desktop is checked another way. `node scripts/desktop-smoke.mjs` starts the real worker; a scratch script outside the repo starts `EngineHarness` on `platform/runtime/worker.ts` with `CHAUSAR_DEMO=1` and calls `venture.countries` and `venture.preview` through the forked worker; and the IPC contract, preload and main process are tested with mocks (`venture-shell.test.ts`). With `npm install` done, `npm run desktop` opens the window.
 
+## Integration (Phase C)
+
+Phase C joined the seven packages in one checkout and applied their hand-off notes:
+
+- `contracts.ts`: model connection and model call records carry the route as `routeKind`, because `kind` is the record kind. Before this, TypeScript reduced both record types to `never`. The models package, the engine and end-to-end tests and the renderer fixture now use the contract types.
+- `main.cjs`: the app window on the trusted document may write text to the clipboard (`clipboard-sanitized-write`), so Copy brief, Copy invoice and the Bolt and v0 handoffs can copy on the desktop. Every other permission is still refused. This is tested with mocks, not yet in a real Electron window.
+- The draft reply sheet offers Accept only when every check passed, because the engine refuses Accept after a failed check.
+- The plan's back office line says "Clients pay through Stripe links on your site, and you record each payment here." instead of "Payments by Stripe.", since Chausar takes no payments itself. Tax names read in plain case inside a sentence ("sales tax", but "GST").
+
+How it was checked, on Windows with Node 24.13.1:
+
+- `node scripts/check.mjs` and a full typecheck with `typescript@5.9.3` against the repo `tsconfig.json`, unfiltered: both clean. `node --check` does not catch every syntax error in an ES module `.ts` file, so the typecheck is the one to trust.
+- Every `venture-*.test.ts` file, the parity, shell and renderer tests, and the end-to-end test: all pass.
+- One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else running: 2,718 tests, 2,717 pass, 0 fail, 1 skipped (a DuckDB proof that needs the native module, skipped before this work too), in about 23 minutes.
+- `node scripts/desktop-smoke.mjs`, and `EngineHarness` on the forked worker answering `venture.countries` (15 rows) and `venture.preview` (bookkeeping) before any vault.
+- The replay demo above, driven through the local server's `/api/rpc` in the order the screens call it: plan, recording-backed rewrite, brief, Bolt copy, GitHub check, three judged rehearsals, a practice draft that can't be accepted, an accepted draft, `INV-0001` as a TAX INVOICE with CGST and SGST, the payment of 2948.82, the books (billed 249900, received 294882, earned 249900 paise) and the same billed total in the back office; checklist 12 of 12. Each of the seven places then opened in the browser; Your business, Build and Agents say the AI answers come from a synthetic recording.
+- The template walk with no variables, clicked through in the browser: plan, keep it safe, accept, the template brief, rehearsal (template outline, not judged), shadow blocked with its reason, a template outline accepted for a 2 hour order (USD 300.00), invoice `INV-0001`, payment, and Money showing USD 300.00. The send setting stayed `nothing` and no model call was made.
+
+Known limits seen in the walk:
+
+- Today and Money ask for the books from the day the business was created to today. An invoice or payment dated before that day only shows when that period is asked for, as in the back office.
+- Dates in the books and in the date fields are the engine's UTC day, while the Today heading uses the computer's own day. In India they differ between midnight and 05:30.
+
 ## Package pages
 
 | Page | What it covers |

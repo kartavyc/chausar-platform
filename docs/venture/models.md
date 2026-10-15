@@ -133,6 +133,8 @@ Model call records keep the text that was sent. For calls that held client detai
 
 **Contract change needed (for the integrator).** In `contracts.ts`, `ModelConnectionRecord` and `ModelCallRecord` each declare `kind: ModelRouteKind`, which clashes with `RecordBase`'s `kind` (the record kind). TypeScript reduces both types to `never`, and with them `ModelConnectionView`, `ModelStatusView['connections']`, `VentureResults['venture.models.calls']` and `RecordOf<'venture-model-connection' | 'venture-model-call'>`. This package stores the route kind as `routeKind` and uses the local shapes in `models/types.ts`, which are the contract types with that one rename. Proposed fix: rename the field to `routeKind: ModelRouteKind` in both contract types. After that, `types.ts` can re-export the contract types and the casts in `port.ts` and `handlers.ts` can go. P6 recorded the same change in `shell.md`.
 
+**Applied in Phase C.** Both record types now carry the route as `routeKind` in `contracts.ts` (commit `b8752df`), and the models package, the engine and e2e tests and the renderer fixture read them through the contract types (commit `9faee82`). `types.ts` now re-exports the contract types and the casts are gone.
+
 **Wiring changes needed.** None. The host in `host.ts` already builds the transport and the port the way this package expects.
 
 **Not finished.** Nothing in P2's scope. The live checks above (a real key, an installed Claude Code, a real Codex profile) need the founder and are not part of this run.

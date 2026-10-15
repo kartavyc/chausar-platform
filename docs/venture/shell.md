@@ -67,6 +67,8 @@ All commands from the repo root on Windows, Node 24.13.1, with the other package
 
 **Contract change needed (for the integrator).** In `contracts.ts`, `ModelConnectionRecord` and `ModelCallRecord` each declare `kind: ModelRouteKind`, which clashes with `RecordBase`'s `kind` (the record kind). TypeScript reduces both types to `never`, and with them `ModelConnectionView`, `ModelStatusView['connections']`, `VentureResults['venture.models.calls']` and `RecordOf<'venture-model-connection' | 'venture-model-call'>`. P2 already stores the route as `routeKind` and works around the type. Proposed fix: rename the field to `routeKind: ModelRouteKind` in both types. Until then, `venture-engine.test.ts` and `venture-e2e.test.ts` read connections and calls through small local shapes; after the fix they can use the contract types.
 
+**Applied in Phase C.** Both record types now carry the route as `routeKind` in `contracts.ts` (commit `b8752df`), and the models package, the engine and e2e tests and the renderer fixture read them through the contract types (commit `9faee82`).
+
 **Wiring.** No bug found in the frozen files (`engine.ts`, `server.ts`, `worker.ts`, `ipc-contract.cjs`, `ipc-contract.d.cts`, `preload.cjs`, `main.cjs`). `venture-shell.test.ts` covers the link opener, the 15 minute request limit, `/launch.js` and the replay switch.
 
 **Phase C.** Run the e2e test again once every package is committed: it passed here against work still in flight. The docs test needs every `docs/venture/*.md` page to be free of em dashes and the banned words, so it checks the other packages' pages too.

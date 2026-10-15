@@ -82,6 +82,6 @@ Issued invoices, payments and deliveries become facts in the `chausar-books` sou
 
 **Not finished.** Nothing in P3's scope.
 
-**Contract change needed.** None required. Optional: the comment on `BpsString` could say that a CGST or SGST line may hold half of an odd rate as `n.5`.
+**Contract change needed.** None required. Optional: the comment on `BpsString` could say that a CGST or SGST line may hold half of an odd rate as `n.5`. **Applied in Phase C** (commit `b8752df`).
 
 **Wiring change needed.** None.
