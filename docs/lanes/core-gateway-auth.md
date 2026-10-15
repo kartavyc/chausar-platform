@@ -36,7 +36,10 @@ Every item below is labelled **supported** (tested end to end through the real e
 - Per-member approval secrets: a cofounder sets their own secret (`secondAsk.setSecret`); the owner always uses the vault passphrase. scrypt hashes (N=2^15) in this lane's namespace, bound to the member's epoch. 5 wrong tries lock that member for 15 minutes (`SECOND_ASK_LOCKED`), counted before the answer.
 - `auth.verifyApprovalSecret` for writeback (coordinator's contract), so a cofounder can answer writeback's second ask in place of `REAUTH_OWNER_ONLY`.
 
-### 4. PIN quick unlock (supported with the file store; experimental with the OS keychain)
+### 4. PIN quick unlock (experimental: it needs the OS keychain)
+
+- **The PIN needs the OS keychain.** `pin.set` refuses with `PIN_NEEDS_KEYCHAIN` ("Quick unlock needs this computer's keychain. Use your passphrase.") unless the device secret is held by the keychain. The check runs before the passphrase is looked at, and again inside enrolment once the device secret is stored. Without a keychain the device secret would be a file beside the PIN record: a copy of the app folder could try every PIN offline, with the failure counter in the same copy, so the vault's protection at rest would fall from the passphrase to the PIN.
+- **A weaker file-backed PIN** is possible only behind the trusted host option `EngineOptions.modules['core-gateway-auth'].pinWithoutKeychain = true`. It is never set by default and the installed app does not set it. It exists for tests and the demo; anyone setting it accepts that the PIN, not the passphrase, guards the vault at rest.
 
 - `pin.set { pin, passphrase }` (owner, in the app) wraps the vault key with a key from scrypt(PIN) and HKDF with a 32-byte device secret from the secret store, AES-GCM bound to the vault id and folder. The record is `<appDir>/pin-unlock/<folder>.json` on this device only; the PIN is never stored.
 - `workspace.open { unlock: 'pin', pin, folder? }` unlocks (trusted local desktop owner only). A wrong PIN is the generic `UNLOCK_FAILED`.
@@ -72,7 +75,7 @@ All RPC methods are module methods; desktop-only unless stated (module methods r
 | `secondAsk.clearSecret` | admin, untainted | `{ memberId }` (owner: anyone; cofounder: self) | `{ cleared: boolean }` |
 | `secondAsk.status` | read | `{}` | `{ by: 'passphrase' \| 'member-secret' \| 'none', expects: (same as by), secretSet: boolean, lockedUntil: string \| null }` (caller only) |
 | `auth.verifyApprovalSecret` | approve, untainted | `{ secret }` | `{ verified: boolean }` |
-| `pin.set` | admin, owner, untainted | `{ pin: '6–12 digits', passphrase }` | `pin.status` shape |
+| `pin.set` | admin, owner, untainted; refuses `PIN_NEEDS_KEYCHAIN` without the OS keychain | `{ pin: '6–12 digits', passphrase }` | `pin.status` shape |
 | `pin.clear` | admin, owner, untainted | `{}` | `pin.status` shape |
 | `pin.status` | read, preVault | `{ folder?: string }` | `{ enabled, failuresLeft: number \| null, waitUntil: string \| null, disabledReason: 'too-many-tries' \| null, deviceBound: 'keychain' \| 'file' }` |
 | `secrets.status` | admin | `{}` | `{ backing: 'keychain' \| 'file', unlocked, stores: [{ name: 'connector-credentials' \| 'secrets', backing, present, available }] }` |
@@ -111,7 +114,7 @@ In-process contracts:
 ## Still missing / needs the founder
 
 - **The native keychain helper is not compiled or signed** (`platform/native/keychain`, release lane). Keychain mode is tested only with an in-memory provider; `deviceBound` is `file` in practice until the signed helper and manifest ship. Founder: signing certificate and a real Windows/macOS machine.
-- **PIN with the file store:** the device secret sits under a file key next to the PIN record, so someone who can read the user's files can try PINs offline; the attempt counter is a file and protects only at the lock screen. With the OS keychain this improves; a hardware-bound key (TPM, Secure Enclave) would be needed to close it.
+- **PIN quick unlock is off until the signed keychain helper ships**, because it refuses without the OS keychain (`PIN_NEEDS_KEYCHAIN`). With the keychain, someone who can run code as the user can still ask the keychain for the device secret; the attempt counter is a file and protects only at the lock screen. A hardware-bound key (TPM, Secure Enclave) would be needed to close that.
 - **Probes against real CLIs and Ollama** were run only through injected ports.
 - **The decide purpose and the cap** have not run against a live paid provider (needs a paid key).
 - Spend before this lane was installed is counted from retained receipts only; receipts older than retention are not counted.

@@ -74,7 +74,7 @@ export async function openVaultFolder(directory: string, vault: Vault): Promise<
 }
 
 /** Wrap the open vault's key under the PIN, after the passphrase verifies. False when the passphrase is wrong. */
-export async function enrolPin(input: { directory: string; folder: string; pin: string; passphrase: string; vault: Vault }): Promise<boolean> {
+export async function enrolPin(input: { directory: string; folder: string; pin: string; passphrase: string; vault: Vault; allowFile?: boolean }): Promise<boolean> {
   const pin = checkPinRule(input.pin), folder = checkPinFolder(input.folder), vault = input.vault;
   if (typeof input.passphrase !== 'string' || input.passphrase.length < 1 || input.passphrase.length > 1024) return false;
   const vaultId = vault.vaultId, binding = vault.passphraseBinding();
@@ -84,6 +84,8 @@ export async function enrolPin(input: { directory: string; folder: string; pin: 
       const secrets = new SecretStore(input.directory);
       let device = await secrets.get(DEVICE_SECRET);
       if (!device || device.length !== 32) { device?.fill(0); device = randomBytes(32); await secrets.set(DEVICE_SECRET, device); }
+      // The device secret must really be held by the keychain, unless the trusted host allowed the weaker file store.
+      if (!input.allowFile && secretsBacking(input.directory) !== 'keychain') { device.fill(0); check(false, 'PIN_NEEDS_KEYCHAIN', 'Quick unlock needs this computer\u2019s keychain. Use your passphrase.'); }
       const salt = randomBytes(32), iv = randomBytes(12);
       let wrap: Buffer | undefined;
       try {

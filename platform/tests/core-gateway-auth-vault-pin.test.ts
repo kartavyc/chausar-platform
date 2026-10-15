@@ -19,15 +19,17 @@ class FakeKeychain implements VaultKeychainProvider {
   async retrieve(id: string) { this.retrievals++; const key = this.entries.get(id); return key ? Uint8Array.from(key) : null; }
   async remove(id: string) { this.entries.delete(id); }
 }
-async function fixture(t: TestContext, options: { demo?: boolean } = {}) {
+async function fixture(t: TestContext, options: { demo?: boolean; fileAllowed?: boolean; noKeychain?: boolean } = {}) {
   const directory = await mkdtemp(join(await realpath(tmpdir()), 'chausar-gw-pin-'));
   const keychain = new FakeKeychain(), engines: Engine[] = [];
   const storage = options.demo ? { demo: true, storage: 'experimental-file' as const } : installSyntheticProductionStorage(directory, ['main'], t.mock);
-  const engine = new Engine({ directory, ...storage, keychain }); engines.push(engine);
+  // The weaker file-backed PIN is allowed only by an explicit trusted host option.
+  const modules = options.fileAllowed ? { modules: { 'core-gateway-auth': { pinWithoutKeychain: true } } } : {};
+  const engine = new Engine({ directory, ...storage, ...(options.noKeychain ? {} : { keychain }), ...modules }); engines.push(engine);
   t.after(async () => { for (const item of engines) await item.close().catch(() => {}); secretCustody.close(directory); await rm(directory, { recursive: true, force: true }); });
   const created = await engine.request('workspace.create', { name, passphrase });
   return { directory, keychain, engine, recoveryCode: created.recoveryCode as string, record: join(directory, 'pin-unlock', `${Buffer.from('main').toString('base64url')}.json`),
-    extra: (more: Partial<ConstructorParameters<typeof Engine>[0]> = {}) => { const next = new Engine({ directory, ...storage, keychain, ...more }); engines.push(next); return next; } };
+    extra: (more: Partial<ConstructorParameters<typeof Engine>[0]> = {}) => { const next = new Engine({ directory, ...storage, ...(options.noKeychain ? {} : { keychain }), ...modules, ...more }); engines.push(next); return next; } };
 }
 const files = (root: string): string[] => readdirSync(root, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? files(join(root, entry.name)) : [join(root, entry.name)]);
 const status = (engine: Engine, folder?: string) => engine.request('pin.status', folder ? { folder } : {});
@@ -92,10 +94,10 @@ test('a right PIN resets the count', async t => {
 });
 
 test('a PIN record is useless off this device', async t => {
-  const a = await fixture(t, { demo: true });
+  const a = await fixture(t, { demo: true, fileAllowed: true });
   await a.engine.request('pin.set', { pin: PIN, passphrase }); await a.engine.request('workspace.lock');
   // Another app directory holding a copy of the same vault, with its own device secret and its own PIN.
-  const b = await fixture(t, { demo: true });
+  const b = await fixture(t, { demo: true, fileAllowed: true });
   await b.engine.request('workspace.lock'); await rm(join(b.directory, 'main'), { recursive: true, force: true });
   cpSync(join(a.directory, 'main'), join(b.directory, 'main'), { recursive: true });
   await b.engine.request('workspace.open', { passphrase }); await b.engine.request('pin.set', { pin: '7302958146', passphrase }); await b.engine.request('workspace.lock');
@@ -164,8 +166,24 @@ test('deleting a vault opened with its PIN removes the record through custody', 
   assert.equal(existsSync(f.record), false); assert.equal(f.keychain.entries.has(id), false, 'native custody removal still runs');
 });
 
-test('a demo engine binds the PIN to the file store and never touches the keychain', async t => {
-  const f = await fixture(t, { demo: true });
+test('without the keychain, setting a PIN refuses before the passphrase is checked, and writes nothing', async t => {
+  for (const options of [{ demo: true }, { noKeychain: true }]) {
+    const f = await fixture(t, options);
+    await assert.rejects(f.engine.request('pin.set', { pin: PIN, passphrase }), { code: 'PIN_NEEDS_KEYCHAIN', message: 'Quick unlock needs this computer\u2019s keychain. Use your passphrase.' });
+    await assert.rejects(f.engine.request('pin.set', { pin: PIN, passphrase: 'not the passphrase at all' }), { code: 'PIN_NEEDS_KEYCHAIN' });
+    assert.equal(existsSync(f.record), false); assert.equal(existsSync(join(f.directory, 'secrets')), false, 'no device secret was made');
+    assert.equal((await status(f.engine)).enabled, false);
+    await f.engine.request('workspace.lock');
+    await assert.rejects(f.engine.request('workspace.open', { unlock: 'pin', pin: PIN }));
+    await f.engine.request('workspace.open', { passphrase });
+  }
+  // With the keychain the same request goes through, and the device secret is held by the keychain.
+  const k = await fixture(t);
+  assert.equal((await k.engine.request('pin.set', { pin: PIN, passphrase })).deviceBound, 'keychain');
+});
+
+test('only an explicit trusted host option allows the weaker file-backed PIN; a demo engine then never touches the keychain', async t => {
+  const f = await fixture(t, { demo: true, fileAllowed: true });
   const set = await f.engine.request('pin.set', { pin: PIN, passphrase });
   assert.equal(set.deviceBound, 'file');
   await f.engine.request('workspace.lock');

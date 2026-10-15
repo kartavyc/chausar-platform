@@ -22,9 +22,13 @@ export const vaultMethods: Record<string, MethodSpec> = {
   'secrets.status': { permission: 'admin', handler: (_ctx, _payload, host) => secretCustody.status(host.directory) },
   'pin.set': { permission: 'admin', handler: async (ctx, payload, host) => {
     ownerAtDesktop(ctx); checkPinRule(payload.pin);
+    // Without the OS keychain the device secret is a file beside the PIN record: a copy of the app folder could then be tried
+    // offline against every PIN, so the PIN would replace the passphrase as the protection at rest. Only a trusted host may allow it.
+    const withoutKeychain = host.options.pinWithoutKeychain === true;
+    check(withoutKeychain || secretCustody.status(host.directory).backing === 'keychain', 'PIN_NEEDS_KEYCHAIN', 'Quick unlock needs this computer\u2019s keychain. Use your passphrase.');
     check(typeof payload.passphrase === 'string' && payload.passphrase.length > 0, 'PASSPHRASE_REQUIRED', 'Enter your passphrase to set quick unlock.');
     const vault = openVault(host), folder = await openVaultFolder(host.directory, vault);
-    check(await enrolPin({ directory: host.directory, folder, pin: payload.pin, passphrase: payload.passphrase, vault }), 'PASSPHRASE_INCORRECT', 'That passphrase is not right. Quick unlock was not set.');
+    check(await enrolPin({ directory: host.directory, folder, pin: payload.pin, passphrase: payload.passphrase, vault, allowFile: withoutKeychain }), 'PASSPHRASE_INCORRECT', 'That passphrase is not right. Quick unlock was not set.');
     return pinStatus(host.directory, folder, vault.vaultId);
   } },
   'pin.clear': { permission: 'admin', handler: async (ctx, _payload, host) => {
