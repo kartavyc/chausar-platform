@@ -104,6 +104,7 @@
   "records.deletions",
   "records.get",
   "records.holdings",
+  "records.invoices",
   "records.matches",
   "records.optIn",
   "records.search",

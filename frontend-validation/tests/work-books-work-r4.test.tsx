@@ -128,7 +128,7 @@ const REMINDERS = (extra: Record<string, unknown> = {}) => ({ available: true, c
 test('WK-12: Reminders: today in write-back’s time zone, and Prepare a reminder from a picked customer and invoice', async () => {
   const { rpc, navigate } = show({ 'approvals.reminders': () => REMINDERS(),
     'records.search': () => ({ records: [{ id: 'cust-a', kind: 'customer', name: 'Synthetic Traders', sources: [], facts: 2 }] }),
-    'records.get': () => ({ id: 'cust-a', name: 'Synthetic Traders', timeline: [{ at: '2026-10-01', kind: 'invoice', amount: { minor: '100000' }, sourceId: 's', ref: 'INV-A' }, { at: '2026-10-02', kind: 'payment', amount: { minor: '100' }, sourceId: 's', ref: null }] }),
+    'records.invoices': () => ({ id: 'cust-a', name: 'Synthetic Traders', invoices: ['INV-A'] }),
     'approvals.prepareReminder': () => ({ id: 'writeback:wb1', blocked: null }) }, { place: 'work', sub: 'reminders' });
   expect(await screen.findByText(/Today is 2026-10-15 in Asia\/Kolkata: 3 of 20 reminders prepared, 1 sent/)).toBeTruthy();
   await userEvent.type(screen.getByLabelText('Find a customer by name'), 'Synthetic');
@@ -137,8 +137,17 @@ test('WK-12: Reminders: today in write-back’s time zone, and Prepare a reminde
   await userEvent.click(await screen.findByLabelText('INV-A'));
   await userEvent.click(screen.getByRole('button', { name: 'Prepare' }));
   await waitFor(() => expect(rpc.request).toHaveBeenCalledWith('approvals.prepareReminder', { connectionId: 'conn-mail', customerId: 'cust-a', invoiceId: 'INV-A', language: 'en' }));
+  // Listing a customer's invoices calculates nothing: records.get (which runs aging) is never asked.
+  expect(rpc.request).toHaveBeenCalledWith('records.invoices', { id: 'cust-a' });
+  expect(rpc.request.mock.calls.some((c: unknown[]) => c[0] === 'records.get')).toBe(false);
   await userEvent.click(await screen.findByRole('button', { name: 'Open its approval' }));
   expect(navigate).toHaveBeenCalledWith({ place: 'work', sub: 'approvals', sheet: sheetOf('writeback:wb1') });
+});
+
+test('WK-12 (review 4): a missing sent count is never drawn as 0; the line keeps to the limits', async () => {
+  show({ 'approvals.reminders': () => REMINDERS({ caps: { timeZone: 'Asia/Kolkata', today: '2026-10-15', preparedToday: 3, sentToday: null, perCustomer: 1, perDay: 20 } }) }, { place: 'work', sub: 'reminders' });
+  expect(await screen.findByText('At most 20 reminders a day, and 1 per customer a day.')).toBeTruthy();
+  expect(screen.queryByText(/0 sent/)).toBeNull();
 });
 
 test('WK-12: a blocked reminder says why; no connection says so; without write-back not built; Hindi', async () => {
@@ -150,7 +159,7 @@ test('WK-12: a blocked reminder says why; no connection says so; without write-b
   expect(await screen.findByText('Reminders arrive with write-back. Not built yet.')).toBeTruthy();
   cleanup();
   show({ 'approvals.reminders': () => REMINDERS(), 'records.search': () => ({ records: [{ id: 'cust-a', kind: 'customer', name: 'A' }] }),
-    'records.get': () => ({ id: 'cust-a', name: 'A', timeline: [{ at: '2026-10-01', kind: 'invoice', amount: { minor: '1' }, ref: 'INV-A' }] }),
+    'records.invoices': () => ({ id: 'cust-a', name: 'A', invoices: ['INV-A'] }),
     'approvals.prepareReminder': () => ({ id: null, blocked: { code: 'FOLLOW_UP_NO_CONSENT', reason: 'No reminder: this customer has not agreed to reminders.' } }) }, { place: 'work', sub: 'reminders' });
   await userEvent.click(await screen.findByRole('button', { name: 'Find' }));
   await userEvent.click(await screen.findByLabelText('A'));

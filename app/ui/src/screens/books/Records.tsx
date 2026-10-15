@@ -158,6 +158,7 @@ function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
     onDelete={async () => { const outcome = await act.run('records.delete', { id, confirmation: typed }, deletionReport); if (outcome.ok) setReport(outcome.value); }} />;
 }
 
+const CORE_STORE_NAMES: readonly string[] = ['facts', 'receipts', 'answers', 'actions', 'conversations'];
 function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDelete }: {
   props: BooksProps; id: string; typed: string; setTyped: (v: string) => void; busy: boolean; refusal: string | null; onCancel: () => void; onDelete: () => Promise<void>;
 }) {
@@ -174,7 +175,9 @@ function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDel
         rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>, r.reason ?? ''] }))} />
       {!plan.canDelete && plan.stores.some(r => r.state === 'needs-owner') && <p className={s.amber}>{m['del.notAvailable']}</p>}
       {plan.stores.some(r => r.state === 'needs-owner') && plan.sourceDeletion.available && <Note>{m['del.sourceDeletion']}</Note>}
-      {plan.coreDeletion?.available === true && plan.canDelete && <Note>{k['del.core']}</Note>}
+      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess !== false && plan.canDelete && <Note>{k['del.core']}</Note>}
+      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess !== false && plan.canDelete && plan.stores.some(r => r.state === 'can-delete' && CORE_STORE_NAMES.includes(r.store)) && <Note>{k['del.coreEveryRow']}</Note>}
+      {plan.coreDeletion?.available === true && plan.coreDeletion.fullAccess === false && plan.stores.some(r => r.count > 0 && CORE_STORE_NAMES.includes(r.store)) && <p className={s.amber}>{k['del.coreNeedsFull']}</p>}
       {plan.canDelete && (
         <form className={s.form} aria-label={m['del.start']} onSubmit={(e: FormEvent) => { e.preventDefault(); if (typed === id) void onDelete(); }}>
           <Note>{m['del.waits']}</Note>

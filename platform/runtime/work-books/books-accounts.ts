@@ -104,64 +104,115 @@ const FROM_LEARNING: Readonly<Record<string, AccountClass>> = {
 };
 /** A stable plain account id for learning-ext; the name itself is books data and stays on this computer. */
 export const accountId = (name: string) => `acct_${createHash('sha256').update(name).digest('hex').slice(0, 24)}`;
-type LearningSet = { id: string; at: string; proposals: { accountId: string; name: string; accountClass: string | null; confidence: string; needsQuestion: boolean; evidence?: { detail?: unknown }[] }[] };
-/** The newest proposal set learning-ext holds for the caller (`learningx.accountsList`, read only). */
-async function latestSet(host: ModuleHost): Promise<{ available: boolean; set: LearningSet | null }> {
+type LearningProposal = { accountId: string; name: string; accountClass: string | null; confidence: string; needsQuestion: boolean; evidence?: { detail?: unknown }[] };
+type LearningSet = { id: string; at: string; sourceIds: string[]; proposals: LearningProposal[] };
+/**
+ * The proposal sets learning-ext holds for the caller (`learningx.accountsList`, read only), newest first: the newest
+ * set for each exact source set. `accounts.propose` sends one set per source, so this is the latest sort of each source.
+ */
+async function latestSets(host: ModuleHost): Promise<{ available: boolean; sets: LearningSet[] }> {
   const result = await optionalCall<{ sets?: unknown }>(host, 'learningx.accountsList', {});
-  if (!result.available) return { available: false, set: null };
-  const sets = (Array.isArray(result.value?.sets) ? result.value.sets : []).filter((s: any) => s && typeof s.id === 'string' && typeof s.at === 'string' && Array.isArray(s.proposals)) as LearningSet[];
-  return { available: true, set: sets.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0] ?? null };
+  if (!result.available) return { available: false, sets: [] };
+  const sets = (Array.isArray(result.value?.sets) ? result.value.sets : []).filter((s: any) => s && typeof s.id === 'string' && typeof s.at === 'string' && Array.isArray(s.proposals))
+    .map((s: any) => ({ ...s, sourceIds: Array.isArray(s.sourceIds) ? (s.sourceIds as unknown[]).filter((x): x is string => typeof x === 'string').sort() : [] })) as LearningSet[];
+  const newest = new Map<string, LearningSet>();
+  for (const set of sets.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))) { const key = JSON.stringify(set.sourceIds); if (!newest.has(key)) newest.set(key, set); }
+  return { available: true, sets: [...newest.values()] };
 }
+/** One proposal per account name: the newest set that names it wins. Each learned name keeps every latest set holding it (for the decision mirror). */
 async function learnedProposals(host: ModuleHost) {
-  const { available, set } = await latestSet(host); const learned = new Map<string, { class: AccountClass; reason: string }>();
-  for (const p of set?.proposals ?? []) {
+  const { available, sets } = await latestSets(host); const learned = new Map<string, { class: AccountClass; reason: string }>();
+  const holders = new Map<string, { setId: string; accountId: string }[]>(); const seen = new Set<string>();
+  for (const set of sets) for (const p of set.proposals) {
+    if (!p || typeof p.name !== 'string' || typeof p.accountId !== 'string') continue;
+    holders.set(p.name, [...(holders.get(p.name) ?? []), { setId: set.id, accountId: p.accountId }]);
+    if (seen.has(p.name)) continue; seen.add(p.name);
     const mapped = typeof p.accountClass === 'string' ? FROM_LEARNING[p.accountClass] : undefined;
-    if (p && typeof p.name === 'string' && mapped && p.needsQuestion !== true) learned.set(p.name, { class: mapped, reason: 'Proposed from earlier decisions in this workspace.' });
+    if (mapped && p.needsQuestion !== true) learned.set(p.name, { class: mapped, reason: 'Proposed from earlier decisions in this workspace.' });
   }
-  return { available, learned, set };
+  return { available, learned, holders, sortedAt: sets[0]?.at ?? null };
 }
 async function accountRows(ctx: Context, host: ModuleHost) {
-  const state = host.store.read(); const { available, learned, set } = await learnedProposals(host); const decisions = peekBooks(state).accounts;
+  const state = host.store.read(); const { available, learned, holders, sortedAt } = await learnedProposals(host); const decisions = peekBooks(state).accounts;
   const found = collect(state, ctx, host);
   const rows = [...found.values()].sort((a, b) => a.name.localeCompare(b.name)).map(item => row(item, decisions.filter(d => d.name === item.name).at(-1), learned));
-  return { rows, available, found, set };
+  return { rows, available, found, holders, sortedAt };
 }
+const PLAIN_TEXT = /^[^\u0000-\u001f\u007f]{1,200}$/, PLAIN_SOURCE = /^[A-Za-z0-9_.:-]{1,200}$/;
+/**
+ * The accounts to sort, grouped by source: one group per source, each account in it carrying that sourceId. An account
+ * read from several sources is in each of their groups, so every name learning-ext keeps is bound to the sources it
+ * came from. An account is never sent without its sources: a source whose id learning-ext cannot take is left out.
+ */
+export function accountsBySource(found: Map<string, { name: string; group: string | null; sourceIds: Set<string> }>) {
+  const groups = new Map<string, { id: string; name: string; parentGroup?: string; sourceId: string }[]>();
+  for (const a of [...found.values()].sort((x, y) => x.name.localeCompare(y.name))) {
+    if (!PLAIN_TEXT.test(a.name) || !a.name.trim()) continue;
+    for (const sourceId of [...a.sourceIds].sort()) {
+      if (!PLAIN_SOURCE.test(sourceId)) continue;
+      const list = groups.get(sourceId) ?? []; if (list.length >= 5000) continue;
+      list.push({ id: accountId(a.name), name: a.name, ...(a.group && PLAIN_TEXT.test(a.group) && a.group.trim() ? { parentGroup: a.group } : {}), sourceId }); groups.set(sourceId, list);
+    }
+  }
+  return groups;
+}
+type LearningMirror = { recorded: boolean; code?: string };
+const codeOf = (error: unknown) => { const code = (error as { code?: unknown })?.code; return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'LEARNING_DECIDE_FAILED'; };
 
 export const accountMethods: Record<string, MethodSpec> = {
   'accounts.list': { permission: 'read', async handler(ctx, payload, host) {
-    input(payload, []); const { rows, available, set } = await accountRows(ctx, host);
-    return { accounts: rows, proposals: { available, ...(set ? { sortedAt: set.at } : {}) } };
+    input(payload, []); const { rows, available, sortedAt } = await accountRows(ctx, host);
+    return { accounts: rows, proposals: { available, ...(sortedAt ? { sortedAt } : {}) } };
   } },
-  /** Ask learning-ext to sort the visible chart (`learningx.accountsPropose`); its proposals show on the next list. */
+  /**
+   * Ask learning-ext to sort the visible chart (`learningx.accountsPropose`), once per source: each call holds the
+   * accounts read from that one source with its sourceId, so learning-ext shows a name only to members who may read
+   * that source. Its proposals show on the next list. `setId` is the last set made; `setIds` lists them all.
+   */
   'accounts.propose': { permission: 'prepare', async handler(ctx, payload, host) {
     input(payload, []); const { found } = await accountRows(ctx, host);
-    const plain = /^[^\u0000-\u001f\u007f]{1,200}$/;
-    const accounts = [...found.values()].filter(a => plain.test(a.name) && a.name.trim()).slice(0, 5000).map(a => ({
-      id: accountId(a.name), name: a.name, ...(a.group && plain.test(a.group) && a.group.trim() ? { parentGroup: a.group } : {}),
-      ...([...a.sourceIds].length === 1 && /^[A-Za-z0-9_.:-]{1,200}$/.test([...a.sourceIds][0]) ? { sourceId: [...a.sourceIds][0] } : {}) }));
-    check(accounts.length > 0, 'ACCOUNT_NOT_FOUND', 'No accounts were read from your books yet.');
-    const result = await optionalCall<{ id?: unknown; counts?: unknown }>(host, 'learningx.accountsPropose', { accounts });
-    check(result.available, 'ACCOUNT_PROPOSALS_NOT_BUILT', 'Sorting by the learning lane is not installed here.');
-    check(typeof result.value?.id === 'string', 'INVALID_LEARNING_REPLY', 'The learning lane gave an unreadable answer.');
-    return { setId: result.value.id, accounts: accounts.length };
+    const groups = accountsBySource(found);
+    check(groups.size > 0, 'ACCOUNT_NOT_FOUND', 'No accounts were read from your books yet.');
+    const setIds: string[] = []; const names = new Set<string>();
+    for (const [, accounts] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const result = await optionalCall<{ id?: unknown; counts?: unknown }>(host, 'learningx.accountsPropose', { accounts });
+      check(result.available, 'ACCOUNT_PROPOSALS_NOT_BUILT', 'Sorting by the learning lane is not installed here.');
+      check(typeof result.value?.id === 'string', 'INVALID_LEARNING_REPLY', 'The learning lane gave an unreadable answer.');
+      setIds.push(result.value.id); for (const a of accounts) names.add(a.name);
+    }
+    return { setId: setIds.at(-1)!, setIds, accounts: names.size };
   } },
   'accounts.classes': { permission: 'read', handler(_ctx, payload) { input(payload, []); return { classes: [...CLASSES] }; } },
   'accounts.decide': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['name', 'decision', 'class'], ['name', 'decision']);
     check(typeof request.name === 'string' && ['yes', 'no', 'change'].includes(request.decision), 'INVALID_BOOKS_REQUEST', 'Name the account and answer yes, no or change.');
     check(request.decision === 'change' ? CLASSES.includes(request.class) : request.class === undefined, 'INVALID_BOOKS_REQUEST', 'Choose one of the account classes only when changing the class.');
-    const { rows, found } = await accountRows(ctx, host); const current = rows.find(r => r.name === request.name); check(current, 'ACCOUNT_NOT_FOUND', 'This account was not found in your books.');
+    const { rows, found, holders } = await accountRows(ctx, host); const current = rows.find(r => r.name === request.name); check(current, 'ACCOUNT_NOT_FOUND', 'This account was not found in your books.');
     check(request.decision !== 'yes' || current.proposed, 'CLASS_REQUIRED', 'There is no proposed class to accept. Choose a class.');
     const who = member(host.store.read(), ctx);
-    await writeBooks(host.store, ctx, 'prepare', books => {
-      books.accounts.push({ name: current.name, decision: request.decision, class: request.decision === 'yes' ? current.proposed : request.decision === 'change' ? request.class : null, proposed: current.proposed,
+    const cls = request.decision === 'yes' ? current.proposed : request.decision === 'change' ? request.class : null;
+    // The same decision sent again by the same person (a retry, a double tap) is kept once.
+    const last = peekBooks(host.store.read()).accounts.filter(d => d.name === current.name).at(-1);
+    const repeat = !!last && last.memberId === who.id && last.decision === request.decision && last.class === cls;
+    if (!repeat) await writeBooks(host.store, ctx, 'prepare', books => {
+      books.accounts.push({ name: current.name, decision: request.decision, class: cls, proposed: current.proposed,
         by: who.name, memberId: who.id, role: who.role, at: now(), sourceIds: [...found.get(current.name)!.sourceIds].sort() });
     });
-    // Yes or No on a class learning-ext proposed goes back to its decision log (structure only). A change of class
-    // has no one-to-one class there, so it stays in this lane's record.
-    const { set } = await learnedProposals(host); const learnedRow = set?.proposals.find(p => p.name === current.name);
-    if (learnedRow && current.because.some(b => b.code === 'learned') && request.decision !== 'change')
-      await optionalCall(host, 'learningx.accountsDecide', { setId: set!.id, decisions: [{ accountId: learnedRow.accountId, choice: request.decision === 'yes' ? 'accepted' : 'rejected' }] });
-    return (await accountRows(ctx, host)).rows.find(r => r.name === current.name)!;
+    // Yes or No on a class learning-ext proposed goes back to its decision log (structure only), in every latest set that
+    // holds the account. A change of class has no one-to-one class there, so it stays in this lane's record. The mirror is
+    // best effort: the person's decision above is already kept, and a refusal there (ALREADY_DECIDED, say) is reported, never thrown.
+    let learning: LearningMirror = { recorded: false };
+    const held = holders.get(current.name) ?? [];
+    if (!repeat && held.length > 0 && current.because.some(b => b.code === 'learned') && request.decision !== 'change') {
+      learning = { recorded: true };
+      for (const { setId, accountId: id } of held) {
+        try {
+          const result = await optionalCall(host, 'learningx.accountsDecide', { setId, decisions: [{ accountId: id, choice: request.decision === 'yes' ? 'accepted' : 'rejected' }] });
+          if (!result.available) { learning = { recorded: false }; break; }
+        } catch (error) { learning = { recorded: false, code: codeOf(error) }; break; }
+      }
+    }
+    const after = (await accountRows(ctx, host)).rows.find(r => r.name === current.name)!;
+    return { ...after, learning, repeated: repeat };
   } },
 };

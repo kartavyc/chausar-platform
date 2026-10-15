@@ -188,6 +188,16 @@ test('BK-05: not built, a viewer, an answer that needs the file again, and an ol
   expect(await screen.findByText('The recipe changed since this read. Read the source again.')).toBeTruthy();
 });
 
+test('BK-05 (review 4): a reconciliation without its counts or unit says "unknown", never 0; refused answers name their code', async () => {
+  const bare = { ...reconciliation, status: 'differs', theirs: { total: '150000', rowCount: null, reference: null, provenance: null }, ours: { total: '149000', rowCount: null, live: null, changed: null }, unit: null };
+  setup({ address: { place: 'books', sub: 'recipes', sheet: sheetOf(`r:${recipe.id}`) }, handlers: { 'books.recipeMore': () => recipeMore({ answers: [], reconciliations: [bare], reconciled: null, answersRead: { available: false, code: 'SOURCE_REVOKED' } }) } });
+  const line = await screen.findByText(/unknown live rows, unknown changed/);
+  expect(line.textContent).not.toMatch(/\b0 changed|\b0 live/);
+  expect(line.textContent).toMatch(/unknown \/ unknown/);
+  expect(screen.queryByText('Nobody has answered a question for this recipe yet.')).toBeNull();
+  expect(screen.getAllByRole('alert').some(a => /SOURCE_REVOKED|no longer available/i.test(a.textContent ?? ''))).toBe(true);
+});
+
 test('all three views draw; Simple keeps the age and the answer; an engine without the round-4 methods still draws the sheets', async () => {
   for (const view of ['simple', 'guided', 'books'] as const) {
     setup({ address: { place: 'books', sub: 'sources', sheet: sheetOf('cx-zoho-1') }, view });

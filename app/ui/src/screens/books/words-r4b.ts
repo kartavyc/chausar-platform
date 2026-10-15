@@ -42,6 +42,8 @@ const en = {
   'rates.receiptsWait': 'Receipts do not carry this count yet. The count above is over the books.',
   // BK-20
   'del.core': 'Facts, receipts, answers, actions and conversations are deleted through the core too, and each is counted again after.',
+  'del.coreEveryRow': 'The core deletes every row about this customer, including rows you cannot see here.',
+  'del.coreNeedsFull': 'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.',
   // Bill photo
   'bill.pageOf': 'Page {n} of {of}',
   'bill.outlineNote': 'Each field is outlined where its words were read. Faint boxes are the other words on the page.',
@@ -79,6 +81,8 @@ const hi: Readonly<Record<Key, string>> = {
   'rates.receiptsNone': 'किसी रसीद में दर न होने से छूटी पंक्तियाँ नहीं हैं।',
   'rates.receiptsWait': 'रसीदों में यह गिनती अभी नहीं आती। ऊपर की गिनती बहीखातों पर है।',
   'del.core': 'तथ्य, रसीदें, जवाब, कार्रवाइयाँ और बातचीत भी कोर के ज़रिए मिटाई जाती हैं, और हर एक को बाद में फिर गिना जाता है।',
+  'del.coreEveryRow': 'कोर इस ग्राहक की हर पंक्ति मिटाता है, उन पंक्तियों समेत जो आपको यहाँ नहीं दिखतीं।',
+  'del.coreNeedsFull': 'कोर के ज़रिए मिटाने से इस ग्राहक की हर पंक्ति मिटती है, उन पंक्तियों समेत जो आपको नहीं दिखतीं। यह सिर्फ़ हर शाखा वाला व्यक्ति कर सकता है।',
   'bill.pageOf': 'पन्ना {n}, कुल {of}',
   'bill.outlineNote': 'हर खाने के चारों ओर वहाँ घेरा है जहाँ उसके शब्द पढ़े गए। हल्के घेरे पन्ने के बाकी शब्द हैं।',
   'bill.omitted': 'इस पन्ने के {n} और शब्दों पर घेरा नहीं है।',

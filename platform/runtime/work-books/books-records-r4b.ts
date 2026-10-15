@@ -7,7 +7,7 @@
  *  - reminders sent and payments noted in write-back's follow-up journal
  *    (`writeback.followUp.journal`), when that family is installed. Write-back names the
  *    customer by the connected system's id, so only an entry whose id is exactly this record's
- *    (or one joined with it) is shown;
+ *    (or one joined with it) is shown, and only when the caller may read every source it names;
  *  - notes: memory lines that name the record as a whole word, as far as the caller sees them.
  * Nothing here is calculated; entries are listed oldest first, at most 200.
  */
@@ -50,6 +50,10 @@ export async function timelineMore(host: ModuleHost, ctx: Context, id: unknown) 
   if (journal.available && Array.isArray(journal.value)) for (const raw of journal.value.slice(0, 5000)) {
     const j = raw as Record<string, unknown> | null; if (!j || typeof j !== 'object' || typeof j.customerId !== 'string' || !ids.has(j.customerId)) continue;
     const at = instant(j.at); if (!at || (j.kind !== 'sent' && j.kind !== 'paid')) continue;
+    // An entry is shown only under the source rule of the sources it was sent from: a hidden source hides it.
+    const sources = j.sourceIds ?? [];
+    if (!Array.isArray(sources) || !sources.every(x => typeof x === 'string')) continue;
+    try { sourceAccess(state, ctx, sources as string[]); } catch { continue; }
     entries.push({ at, type: j.kind === 'sent' ? 'reminder-sent' : 'payment-noted', what: null, status: null, source: 'writeback-journal', ref: word(j.invoiceId, 200) });
   }
   for (const line of peekBooks(state).memory) {

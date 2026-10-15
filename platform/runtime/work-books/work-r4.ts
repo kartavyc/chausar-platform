@@ -22,6 +22,7 @@ import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { installed } from './work-jobs-sheet.ts';
 import { env, flatten, rowOf, steps, type Env, type Step } from './work-queue.ts';
 import { isReminderView, wbDetail } from './work-writeback.ts';
+import { recordIdOf } from './books-records.ts';
 
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const str = (value: unknown, max = 400): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
@@ -174,10 +175,13 @@ export async function capsDay(host: ModuleHost): Promise<CapsDay | null> {
     preparedToday: count(counts.preparedToday) ? counts.preparedToday : null, sentToday: count(counts.sentToday) ? counts.sentToday : null,
     perCustomer: count(settings.reminderCapPerCustomer) ? settings.reminderCapPerCustomer : null, perDay: count(settings.reminderCapPerDay) ? settings.reminderCapPerDay : null };
 }
-/** The Books record a write-back customer id names, when it is one (`records.get` as the same caller). */
-export async function bookRecordOf(host: ModuleHost, customerId: string | null): Promise<string | null> {
-  if (!customerId) return null;
-  try { const view = await host.call('records.get', { id: customerId }); return record(view) && str(view.id, 200) ? view.id : null; } catch { return null; }
+/**
+ * The Books record a write-back customer id names, when it is one, under the caller's access. Resolved from the
+ * facts the caller sees (`recordIdOf`), never through `records.get`: that read calculates aging, and reading an
+ * approval must not write receipts, answers or audit lines.
+ */
+export function bookRecordOf(host: ModuleHost, ctx: Context, customerId: string | null): string | null {
+  return customerId ? recordIdOf(host, ctx, customerId) : null;
 }
 
 // ---------- WK-08: child task results (core-sync-jobs) ----------
@@ -254,8 +258,9 @@ export const workR4Methods: Readonly<Record<string, MethodSpec>> = {
     return { available: true as const, connections, caps: await capsDay(host), items };
   } },
   /** WK-15: delete again what a restore brought back (core-data `deletion.reapply`). Never probed. */
-  'approvals.reapplyDeletions': { permission: 'approve', async handler(_ctx, payload, host) {
+  'approvals.reapplyDeletions': { permission: 'approve', async handler(ctx, payload, host) {
     empty(payload);
+    check(!ctx.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot delete anything.');
     if (!(await installed(host, 'deletion.reapply'))) throw new ChausarError('DELETION_REAPPLY_NOT_BUILT', 'Deleting again what a restore brought back is not built yet.');
     const reply = await host.call('deletion.reapply', {});
     check(record(reply) && count(reply.reapplied), 'INVALID_DELETION_REPLY', 'The deletions could not be read back.');

@@ -14,6 +14,7 @@ import { laneWords } from '../../text/lanes/index.ts';
 import { Section, Note, Actions, Button, Refusal } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
+import { missingWord } from '../work/kit/words.ts';
 import { rupeesToPaise } from '../work/StartJob.tsx';
 import { answerRemoveReply, answerReply, diffReply, reconcileView, recipeMoreReply, sourceMoreReply, tallyCompaniesReply, type DiffReply, type Question, type ReconcileView, type TallyCompanies } from './contract-r4a.ts';
 import { ConfirmButton, Table, approves, fill, prepares, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
@@ -165,10 +166,12 @@ function AnswerQuestion({ props, q, can, onAnswered }: { props: BooksProps; q: Q
 }
 
 function RecLine({ r, w, language }: { r: ReconcileView; w: R4; language: Language }) {
-  const ours = r.ours.total === null ? w.recNone : null, theirs = r.theirs?.total == null ? w.recNone : null;
+  // Missing is words, never zero: a total without its unit, or a row count not given, says so.
+  const unknown = missingWord('unknown', language);
+  const total = (value: string | null | undefined) => value == null ? w.recNone : r.unit === null && r.measure === 'money' ? unknown : <TotalText value={value} measure={r.measure} unit={r.unit ?? ''} />;
   return (
     <p className={r.status === 'matches' ? undefined : s.amber}>
-      {w[`rec.${r.status}`]} <span className={s.note}>{day(r.at, language)} · {r.by.name}, {roleWord(r.by.role, language)} · {ours ?? <TotalText value={r.ours.total} measure={r.measure} unit={r.unit} />} / {theirs ?? <TotalText value={r.theirs!.total} measure={r.measure} unit={r.unit} />} · {fill(w.recRows, { live: r.ours.live, changed: r.ours.changed })}</span>
+      {w[`rec.${r.status}`]} <span className={s.note}>{day(r.at, language)} · {r.by.name}, {roleWord(r.by.role, language)} · {total(r.ours.total)} / {total(r.theirs?.total)} · {fill(w.recRows, { live: r.ours.live ?? unknown, changed: r.ours.changed ?? unknown })}</span>
     </p>
   );
 }
@@ -240,7 +243,7 @@ export function RecipeMore({ props, recipeId, checkEnvelopeId }: { props: BooksP
       )}
       <Section title={w.answersTitle}>
         {v.reconciled && <p>{fill(w.reconciledBy, { by: v.reconciled.by, role: roleWord(v.reconciled.role, props.language), when: day(v.reconciled.at, props.language) })}</p>}
-        {v.answers.length === 0 ? <Note>{w.noAnswers}</Note> : (
+        {v.answersRead?.code ? <SayR4 code={v.answersRead.code} language={props.language} /> : v.answers.length === 0 ? <Note>{w.noAnswers}</Note> : (
           <ul className={s.list}>{v.answers.map(a => (
             <li key={a.id} className={s.inline}>
               <span>{fill(w.answeredBy, { name: a.answeredBy.name, role: roleWord(a.answeredBy.role, props.language), when: day(a.answeredBy.at, props.language), field: a.field, choice: choiceLabel(a.choice, w) })}</span>

@@ -335,7 +335,7 @@ export async function reminderOf(e: Env, view: WbView): Promise<Reminder | undef
     customerId, invoiceId: text(detail.invoiceId, 100) ? detail.invoiceId : null, channel, asWritten, invoiceLink: asWritten ? LINK.exec(asWritten)?.[0] ?? null : null,
     outstanding: minor(detail.outstandingMinor),
     notes: e.ctx.role === 'owner' ? PAYMENT_NOTES.map(n => ({ id: n.id, text: { en: n.text.en, hi: n.text.hi }, source: n.source, checkedOn: n.checkedOn, notLegalAdvice: true as const })) : null,
-    agreement, stoppedOn: finalStoppedOn, caps, blocked, recordId: await bookRecordOf(e.host, customerId),
+    agreement, stoppedOn: finalStoppedOn, caps, blocked, recordId: bookRecordOf(e.host, e.ctx, customerId),
   };
 }
 /** The latest Books stop word for this customer that no later Books agreement on the channel has lifted. */

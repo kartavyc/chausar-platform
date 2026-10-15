@@ -59,6 +59,8 @@ export type Reminders = ReturnType<typeof reminders>;
 export const prepared = object({ id: nullable(id), blocked: nullable(object({ code: short, reason: long })) });
 export const customers = object({ records: list(object({ id, kind: short, name: nullable(short) }), 2000) });
 export const customerRecord = object({ id, name: nullable(short), timeline: list(object({ at: either(instant, isoDate), kind: short, amount, ref: nullable(short) }), 5000) });
+/** `records.invoices { id }`: a customer's invoice references, read without calculating anything. */
+export const customerInvoices = object({ id, name: nullable(short), invoices: list(short, 5000) });
 
 /** WK-15: deleting again what a restore brought back. */
 export const restoreR4 = object({}, { deletions: object({ available: bool }) });

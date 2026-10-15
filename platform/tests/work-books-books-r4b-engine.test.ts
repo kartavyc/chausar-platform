@@ -112,7 +112,7 @@ test('BK-20: with core-data installed, the plan offers the core stores and delet
   await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
   await call(owner, 'records.setOptIn', { id: 'c-1', channel: 'mail', answer: 'yes', source: 'Email', on: '2026-09-03' });
   const plan = await call(viewer, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: true }); assert.equal(plan.canDelete, true);
+  assert.deepEqual(plan.coreDeletion, { available: true, everyRow: true, fullAccess: true }); assert.equal(plan.canDelete, true);
   assert.deepEqual(plan.stores.find((s: any) => s.store === 'facts'), { store: 'facts', count: 1, state: 'can-delete', reason: null });
 
   // Deleting always waits for a person: the approve seat and the typed id, checked before core-data is called.
@@ -141,7 +141,7 @@ test('BK-20: without the core deletion installed, the core stores stay "not poss
   await services.memory.append(owner, [fact('inv-1', 'invoice', '2026-09-02', { customerId: 'c-1', amountMinor: '50000' })]);
   await call(owner, 'books.remember', { text: 'c-1 prefers calls after noon', kind: 'preference' });
   const plan = await call(viewer, 'records.deletionPlan', { id: 'c-1' });
-  assert.deepEqual(plan.coreDeletion, { available: false }); assert.equal(plan.stores.find((s: any) => s.store === 'facts').state, 'needs-owner');
+  assert.deepEqual(plan.coreDeletion, { available: false, everyRow: true, fullAccess: true }); assert.equal(plan.stores.find((s: any) => s.store === 'facts').state, 'needs-owner');
   const report = await call(owner, 'records.delete', { id: 'c-1', confirmation: 'c-1' });
   assert.equal(report.rows.find((r: any) => r.store === 'facts').state, 'not-possible');
   assert.equal(calls.some(c => c.method === 'deletion.customer'), false, 'never probed');

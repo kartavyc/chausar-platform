@@ -71,16 +71,17 @@ export function answerOf(raw: unknown): AnswerView | null {
 
 const RECONCILE_STATES = ['matches', 'differs', 'rows-changed', 'not-imported', 'no-source-total'] as const;
 export type ReconcileView = { envelopeId: string; importId: string | null; at: string; by: { name: string; role: string }; status: typeof RECONCILE_STATES[number];
-  theirs: { total: string | null; rowCount: number | null; reference: string; provenance: string } | null;
-  ours: { total: string | null; rowCount: number; live: number; changed: number }; measure: 'money' | 'count'; unit: string };
+  theirs: { total: string | null; rowCount: number | null; reference: string | null; provenance: string | null } | null;
+  ours: { total: string | null; rowCount: number | null; live: number | null; changed: number | null }; measure: 'money' | 'count'; unit: string | null };
+/** Missing is words, never zero: a count or text recipes-ext did not give stays null, and the screen says so. */
 export function reconcileOf(raw: unknown, envelopeId?: string): ReconcileView | null {
   if (!plain(raw) || !plain(raw.by) || !plain(raw.ours)) return null;
   const id = str(raw.envelopeId, 200) ?? envelopeId ?? null, at = instant(raw.at), status = one(raw.status, RECONCILE_STATES), name = str(raw.by.name, 200), role = str(raw.by.role, 40);
   const measure = one(raw.measure, ['money', 'count'] as const);
   if (!id || !at || !status || !name || !role || !measure) return null;
-  const theirs = plain(raw.theirs) ? { total: digits(raw.theirs.total), rowCount: int(raw.theirs.rowCount), reference: str(raw.theirs.reference, 200) ?? '', provenance: str(raw.theirs.provenance, 80) ?? '' } : null;
+  const theirs = plain(raw.theirs) ? { total: digits(raw.theirs.total), rowCount: int(raw.theirs.rowCount), reference: str(raw.theirs.reference, 200), provenance: str(raw.theirs.provenance, 80) } : null;
   return { envelopeId: id, importId: str(raw.importId, 200), at, by: { name, role }, status, theirs,
-    ours: { total: digits(raw.ours.total), rowCount: int(raw.ours.rowCount) ?? 0, live: int(raw.ours.live) ?? 0, changed: int(raw.ours.changed) ?? 0 }, measure, unit: str(raw.unit, 40) ?? '' };
+    ours: { total: digits(raw.ours.total), rowCount: int(raw.ours.rowCount), live: int(raw.ours.live), changed: int(raw.ours.changed) }, measure, unit: str(raw.unit, 40) };
 }
 
 const EFFECTS = ['columns', 'meaning', 'dates', 'amount', 'check', 'identity', 'other'] as const;
@@ -171,8 +172,18 @@ export const r4aMethods: Record<string, MethodSpec> = {
     const { recipeId } = input(payload, ['recipeId'], ['recipeId']); check(plainId(recipeId), REQUEST, 'Name the recipe.');
     const [answer, answers, remove, diff, reconcile] = await Promise.all(['recipes.answer', 'recipes.answers', 'recipes.answerRemove', 'recipes.upgradeDiff', 'recipes.reconcile'].map(m => installed(host, m)));
     const reads = (await rawEnvelopes(host, ctx, { limit: 400 })).items.filter(e => e.recipeId === recipeId);
-    const answered = answers ? rows((await host.call('recipes.answers', { recipeId }) as Raw)?.answers, 500).map(answerOf)
-      .filter((a): a is AnswerView => a !== null && a.recipeId === recipeId && sourceVisible(host.store, ctx, a.sourceId)) : [];
+    // A refusal of the saved answers (recipes-ext's own access rule, say) leaves the rest of the page readable:
+    // `answers` stays empty and `answersRead` names the code, so the screen does not say "no answers".
+    let answered: AnswerView[] = []; let answersRead: { available: boolean; code?: string } = { available: answers };
+    if (answers) {
+      try {
+        answered = rows((await host.call('recipes.answers', { recipeId }) as Raw)?.answers, 500).map(answerOf)
+          .filter((a): a is AnswerView => a !== null && a.recipeId === recipeId && sourceVisible(host.store, ctx, a.sourceId));
+      } catch (error) {
+        const code = (error as { code?: unknown })?.code;
+        answersRead = { available: false, code: typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'RECIPE_ANSWERS_FAILED' };
+      }
+    }
     const reconciliations = reads.flatMap(e => rows(e.reconciliations, 10).map(r => reconcileOf(r, typeof e.id === 'string' ? e.id : undefined)))
       .filter((r): r is ReconcileView => r !== null).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
     // A recipe is graded "reconciled" by a named person's latest "matches".
@@ -180,7 +191,7 @@ export const r4aMethods: Record<string, MethodSpec> = {
     const gstin = reads.map(e => typeof e.gstin === 'string' && GSTIN.test(e.gstin) ? e.gstin : null).find(g => g !== null) ?? null;
     return { recipeId, questions: reads.map(questionOf).filter((q): q is QuestionView => q !== null).slice(0, 20), answers: answered, reconciliations,
       reconciled: latestMatch ? { by: latestMatch.by.name, role: latestMatch.by.role, at: latestMatch.at, envelopeId: latestMatch.envelopeId } : null, gstin,
-      can: { answer, answers, remove, diff, reconcile } };
+      can: { answer, answers, remove, diff, reconcile }, answersRead };
   } },
   'books.recipeAnswer': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['envelopeId', 'choice'], ['envelopeId', 'choice']);

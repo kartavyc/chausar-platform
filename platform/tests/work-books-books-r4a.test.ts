@@ -168,3 +168,26 @@ test('round-4 Books methods are in the lane module and its allowlist', async () 
     assert.ok(workBooksModule.methods[method], method); assert.ok(listed.includes(method), method);
   }
 });
+
+// ---------------------------------------------------------------- review 4
+
+test('BK-05 (review 4): a refused recipes.answers leaves the rest of recipeMore readable and names the code', async () => {
+  const { call } = await setup();
+  const more = await call(viewer, 'books.recipeMore', { recipeId: 'zoho-books.invoices.gross' }, { ...base, 'recipes.answers': () => { throw new ChausarError('SOURCE_REVOKED', 'x'); } });
+  assert.deepEqual(more.answers, []);
+  assert.deepEqual(more.answersRead, { available: false, code: 'SOURCE_REVOKED' });
+  assert.equal(more.questions.length, 1, 'the questions still read');
+  assert.equal(more.reconciliations.length, 1, 'the reconciliations still read');
+  const fine = await call(viewer, 'books.recipeMore', { recipeId: 'zoho-books.invoices.gross' }, { ...base, 'recipes.answers': () => ({ answers: [answer] }) });
+  assert.deepEqual(fine.answersRead, { available: true });
+});
+
+test('BK-05 (review 4): a reconciliation without counts, unit or reference keeps them null, never 0 or blank', async () => {
+  const { call } = await setup();
+  const { unit: _unit, ...noUnit } = reconciliation;
+  const bare = { ...noUnit, theirs: { total: '150000' }, ours: { total: '150000' } };
+  const more = await call(viewer, 'books.recipeMore', { recipeId: 'zoho-books.invoices.gross' }, { ...base, 'connectorsx.envelopes': () => [envelope({ reconciliations: [bare] })] });
+  assert.deepEqual(more.reconciliations[0].ours, { total: '150000', rowCount: null, live: null, changed: null });
+  assert.deepEqual(more.reconciliations[0].theirs, { total: '150000', rowCount: null, reference: null, provenance: null });
+  assert.equal(more.reconciliations[0].unit, null);
+});

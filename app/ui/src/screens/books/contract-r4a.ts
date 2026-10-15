@@ -37,8 +37,9 @@ export type AnswerView = ReturnType<typeof answerView>;
 export const RECONCILE_STATES = ['matches', 'differs', 'rows-changed', 'not-imported', 'no-source-total'] as const;
 export const reconcileView = object({
   envelopeId: id, importId: nullable(id), at: when, by: object({ name, role: name }), status: oneOf(RECONCILE_STATES),
-  theirs: nullable(object({ total: nullable(digits), rowCount: nullable(count), reference: name, provenance: name })),
-  ours: object({ total: nullable(digits), rowCount: count, live: count, changed: count }), measure: oneOf(['money', 'count']), unit: name,
+  theirs: nullable(object({ total: nullable(digits), rowCount: nullable(count), reference: nullable(name), provenance: nullable(name) })),
+  // A count or text the reader did not give is null and drawn as a missing word, never as 0 or blank.
+  ours: object({ total: nullable(digits), rowCount: nullable(count), live: nullable(count), changed: nullable(count) }), measure: oneOf(['money', 'count']), unit: nullable(name),
 });
 export type ReconcileView = ReturnType<typeof reconcileView>;
 
@@ -46,7 +47,7 @@ export const recipeMoreReply = object({
   recipeId: name, questions: list(question, 20), answers: list(answerView, 500), reconciliations: list(reconcileView, 20),
   reconciled: nullable(object({ by: name, role: name, at: when, envelopeId: id })), gstin: nullable(text(15)),
   can: object({ answer: bool, answers: bool, remove: bool, diff: bool, reconcile: bool }),
-});
+}, { answersRead: object({ available: bool }, { code }) });
 export type RecipeMore = ReturnType<typeof recipeMoreReply>;
 
 export const answerReply = object({ answer: answerView, read: nullable(envelopeView), next: nullable(question), readAgain: oneOf(['not-needed', 'bring-the-file-again', 'read-again']) });

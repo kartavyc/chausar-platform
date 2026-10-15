@@ -207,7 +207,7 @@ export const removeRateReply = object({ currency: text(3), on: isoDate, removed:
 export const deletionPlanReply = object({
   recordId: id, canDelete: bool, sourceDeletion: object({ available: bool }),
   stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'nothing-held']), reason: nullable(line) }), 50),
-}, { coreDeletion: object({ available: bool }) });
+}, { coreDeletion: object({ available: bool }, { everyRow: bool, fullAccess: bool }) });
 export type DeletionPlan = ReturnType<typeof deletionPlanReply>;
 export const deletionReport = object({
   id, recordId: id, at: when, by: name, complete: bool,

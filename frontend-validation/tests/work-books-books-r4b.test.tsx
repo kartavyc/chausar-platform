@@ -185,6 +185,21 @@ test('BK-19: the not-counted count from receipts, each opening its receipt; BK-2
   expect(await screen.findByText(/deleted through the core too/)).toBeTruthy();
 });
 
+test('BK-20 (review 4): the plan says the core deletes every row, and that it needs every branch when the person lacks one', async () => {
+  setup({ address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: { 'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: true, sourceDeletion: { available: false },
+    coreDeletion: { available: true, everyRow: true, fullAccess: true }, stores: [{ store: 'facts', count: 12, state: 'can-delete', reason: null }] }) } });
+  fireEvent.click(await screen.findByRole('button', { name: /Delete/ }));
+  expect(await screen.findByText('The core deletes every row about this customer, including rows you cannot see here.')).toBeTruthy();
+  cleanup();
+  const reason = 'Deleting through the core removes every row about this customer, including rows you cannot see. Only a person with every branch can do it.';
+  setup({ address: { place: 'books', sub: 'customers', sheet: sheetOf('rec-1') }, handlers: { 'records.deletionPlan': () => ({ recordId: 'rec-1', canDelete: false, sourceDeletion: { available: false },
+    coreDeletion: { available: true, everyRow: true, fullAccess: false }, stores: [{ store: 'facts', count: 12, state: 'needs-owner', reason }, { store: 'memory', count: 1, state: 'can-delete', reason: null }] }) } });
+  fireEvent.click(await screen.findByRole('button', { name: /Delete/ }));
+  expect((await screen.findAllByText(reason)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/deleted through the core too/)).toBeNull();
+  expect(screen.queryByLabelText(/Type the customer id/)).toBeNull();
+});
+
 // ---------------------------------------------------------------- bill photo
 
 test('bill photo: fields outlined by their words on page 1, and every later page drawn with its own outline', async () => {

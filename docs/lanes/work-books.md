@@ -333,6 +333,7 @@ SourceRow = { sourceId; system: string; way: 'files' | 'signed-in' | 'this-compu
 | `accounts.decide` | prepare | `{ name, decision: 'yes' \| 'no' \| 'change', class? }` | the account row |
 | `records.search` | read | `{ kind?: 'customer' \| 'supplier' \| 'item'; text?: string }` | `{ records: { id; kind; name: string \| null; sources: string[]; facts: number }[] }` |
 | `records.get` | read | `{ id }` | `RecordView` |
+| `records.invoices` | read | `{ id }` | `{ id; name: string \| null; invoices: string[] }`: the customer's invoice references, calculated from nothing (review 4). Same visibility as `records.get`. |
 | `records.setOptIn` | prepare | `{ id, channel: 'mail' \| 'whatsapp', answer: 'yes' \| 'no', source: string, on: 'YYYY-MM-DD' }` | `RecordView`. Refuses `TAINTED_CONSENT` from a tainted context and `LIST_FULL` at 10000 entries. |
 | `records.stop` | prepare | `{ id, on: 'YYYY-MM-DD' }` | `RecordView` (the customer sent the stop word). Refuses `TAINTED_CONSENT` from a tainted context and `LIST_FULL` at 10000 entries. Review 2: a Books stop also stops write-back reminders (see the reminder sheet). |
 | `records.matches` | read | `{}` | `{ pairs: { left; right; relation; evidence: string[]; reason: string; state: 'open' \| 'joined' \| 'not-same'; mergeId: string \| null }[] }` |
@@ -876,8 +877,9 @@ AnswerView = { id; sourceId; recipeId; recipeVersion; reason; field; sample: str
   answeredBy: { name; role; at }; envelopeId: string | null }          // connectors-ext's memberId is not copied
 ReconcileView = { envelopeId; importId: string | null; at; by: { name; role };
   status: 'matches' | 'differs' | 'rows-changed' | 'not-imported' | 'no-source-total';
-  theirs: { total: string | null; rowCount: number | null; reference; provenance } | null;
-  ours: { total: string | null; rowCount; live; changed }; measure: 'money' | 'count'; unit }
+  theirs: { total: string | null; rowCount: number | null; reference: string | null; provenance: string | null } | null;
+  ours: { total: string | null; rowCount: number | null; live: number | null; changed: number | null }; measure: 'money' | 'count'; unit: string | null }
+  // Review 4: a count or text the reply did not carry stays null (missing is words, never 0 or ''); the screen says "unknown".
 ```
 
 Screens: the source sheet draws the data's age, "How sign-in works here" before Sign in again is
@@ -956,7 +958,7 @@ merged engine with jobs-ext, demo mode), `frontend-validation/tests/work-books-w
 | WK-02 second ask | core-gateway-auth (coordinator's contract; not on its branch yet) | `secondAsk.status {}` (caller only) → `{ expects: 'passphrase' \| 'member-secret' }`; `secondAsk.grant { target: { kind: 'action', id, digest }, secret }` → `{ granted: true, expiresAt }`, single use, five minutes; refusals (`SECOND_ASK_LOCKED`, a wrong secret) pass through. Once merged, core `actions.approve` on money refuses `SECOND_ASK_REQUIRED` without a fresh grant. | The typed amount (`secondAsk.by: 'typed-amount'`). |
 | WK-02 / writeback second ask | core-gateway-auth via writeback (writeback branch `lane-writeback.ts`) | writeback reads `auth.approvalSecret.status {}` → `{ set }` and `auth.approvalSecret.verify { secret }` → `{ verified }` and accepts a member's own secret in place of `REAUTH_OWNER_ONLY`. Work passes `reauth` through unchanged and reads `auth.approvalSecret.status` only to word the field (`secondAsk.whose`). | `whose: 'vault-passphrase'`. |
 | WK-12 caps | writeback (branch `writeback/overview.ts`) | `writeback.caps {}` → `{ settings: { reminderCapPerCustomer, reminderCapPerDay, … }, timeZone, today: 'YYYY-MM-DD', now, counts: { preparedToday, sentToday, customersToday } }`; `writeback.connections {}` → `[{ id, system, label, environment, write, revokedAt? }]`. | Caps line without its time zone (`timeZone: null`). |
-| WK-12 record link | work-books (own) | `records.get { id: customerId }` as the caller; success → `reminder.recordId`. | Customers and suppliers. |
+| WK-12 record link | work-books (own) | Review 4: resolved from the facts the caller sees (`recordIdOf`, the `records.get` lookup without its aging calculation), so reading an approval writes nothing; found → `reminder.recordId`. | Customers and suppliers. |
 | WK-15 | core-data (not on its branch yet) | `deletion.reapply {}` (a person's press only) → `{ reapplied: number }` (customer records deleted again). | `afterRestore.deletions.available: false`; `approvals.reapplyDeletions` refuses `DELETION_REAPPLY_NOT_BUILT`. |
 | WK-08 child results | core-sync-jobs (not on its branch yet) | `jobs.children { id }` → `{ items: { id, title, state, result: { done: string[], open: string[], receiptIds: string[] } \| null }[] }`. | `children: { available: false }`. |
 | WK-16 core person step | core-sync-jobs (not on its branch yet) | `jobs.personStep.done { id: jobId, stepId }`; the core ledger then carries `{ event: 'person-step-done', stepId, by: memberId }` (read back). | `manage.personStep: 'not-built'`, `PERSON_STEP_NOT_BUILT`. |
@@ -980,3 +982,23 @@ Status: WK-09 done (supported; experimental templates labelled); WK-02 practice 
 results and core meters adapters (not built until core-sync-jobs); WK-12 entry point, exact record and time zone done; core second ask adapter (typed amount until core-gateway-auth);
 WK-15 reapply adapter (not built until core-data); WK-16 core step adapter; live refresh adapter; WK-14 checked against the driving lane (experimental). gst-matching's sources must be
 chosen in jobs-ext (`GST_SOURCES_REQUIRED` is said in words); Work does not pick them.
+
+## Review 4 fixes
+
+Each has a regression test in `platform/tests/work-books-review4.test.ts` (the reviewer's reproductions) or the
+named lane test. Reply shapes change additively only.
+
+| # | What changed | Supported |
+|---|---|---|
+| 1 | Reading never calculates. `approvals.get` resolves a reminder's Books record with `recordIdOf(host, ctx, id)` (books-records.ts, the `collectRecords` visibility), not `records.get`, which runs the aging calculator and writes a receipt. New read method `records.invoices { id }` → `{ id; name: string \| null; invoices: string[] }` (a customer's invoice references, sorted; `[]` for a supplier or item; `RECORD_NOT_FOUND` as `records.get`). The Reminders form lists invoices with it. | supported |
+| 2 | `accounts.propose` sends one `learningx.accountsPropose` per source: every account in that source, each with that `sourceId`. An account read from several sources is sent once per source; an account is never sent without its source (a source id learning-ext cannot take is left out). Reply adds `setIds: string[]` (`setId` is the last). `accounts.list` reads the newest learning-ext set for each exact source set and takes, per account name, the proposal of the newest set that names it; `proposals.sortedAt` is the newest of those. | supported |
+| 3 | `accounts.decide` keeps the person's decision first; the learning-ext mirror (`learningx.accountsDecide`, every latest set holding the account) is best effort. Reply adds `learning: { recorded: boolean; code?: string }` (a refusal such as `ALREADY_DECIDED` is reported, never thrown) and `repeated: boolean`: the same decision and class again by the same member right after their own is kept once and not mirrored again. | supported |
+| 4 | `records.timelineMore` shows a write-back journal entry only when the caller passes `sourceAccess` for its `sourceIds` (none listed: shown; not a list of strings: hidden). | supported |
+| 5 | Reminders: the caps line says today's counts only when `sentToday` is known too; otherwise it keeps to the limits (never "0 sent"). | supported |
+| 6 | `ReconcileView` counts, unit, reference and provenance are nullable (see Round 4 contracts); the reconcile line says "unknown" for each. | supported |
+| 7 | `approvals.reapplyDeletions` refuses `TAINTED_APPROVAL` from a tainted context before calling core-data. | supported |
+| 8 | BK-20: `records.delete` snapshots the exact rows it counted in each core store (by id) before `deletion.customer` and counts those rows again afterwards, with a fresh count; a receipt left behind after its facts were deleted stays `pending`. Core deletion removes every row about the customer, including rows the approver cannot see, so it needs a member with every branch (`'*'`): without, the core stores are `needs-owner` with that reason, `canDelete` is false while a core store holds something, and `records.delete` refuses `CORE_DELETION_NEEDS_FULL_ACCESS`. `records.deletionPlan.coreDeletion` adds `everyRow: true` and `fullAccess: boolean`; the screen says both before the yes. | supported |
+| 9 | `StrategyImpact.preserved` counts only the preserved receipts the caller can read (their own, current epoch). | supported |
+| 10 | `books.recipeMore` survives a refused `recipes.answers`: `answers: []` and the new `answersRead: { available: boolean; code?: string }` names the code (the screen says it instead of "no answers"). The array `answers` keeps its shape, so the refusal is reported beside it. | supported |
+
+New refusal code on the work-books line: `CORE_DELETION_NEEDS_FULL_ACCESS`. New method: `records.invoices` (read).

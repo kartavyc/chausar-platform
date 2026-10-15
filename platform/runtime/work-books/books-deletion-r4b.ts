@@ -4,7 +4,7 @@
  * Whether it is installed is read from the method registry, never by calling it: calling it
  * deletes. The call is made only inside `records.delete`, after the typed id and the approve
  * seat were checked there (deleting always waits for a person). What core-data reports is
- * not trusted for the report: every store is counted again afterwards, and only a store found
+ * not trusted for the report: the exact rows counted before are counted again afterwards (review 4), with a fresh count, and only a store found
  * empty is reported deleted.
  *
  * Assumed contract (docs/lanes/work-books.md, "Round 4 contracts"):

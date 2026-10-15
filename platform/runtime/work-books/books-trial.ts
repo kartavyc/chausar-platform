@@ -48,7 +48,7 @@ function cellOf(outcome: unknown): Cell {
 const same = (a: Amount, b: Amount) => 'minor' in a && 'minor' in b ? a.minor === b.minor : false;
 
 /** The Books view of one trial summary from core, with the live receipt of each saved question. */
-async function trialView(host: ModuleHost, summary: unknown, record: { draftId: string | null; proposalId: string | null; precedence?: Precedence | null } | null) {
+async function trialView(host: ModuleHost, ctx: Context, summary: unknown, record: { draftId: string | null; proposalId: string | null; precedence?: Precedence | null } | null) {
   check(plain(summary) && str(summary.trialId, 200), 'TRIAL_REPLY_INVALID', 'The copy answered in an unexpected shape.');
   const trialId = summary.trialId as string, questions = (await savedQuestions(host)).items;
   const evaluation = plain(summary.evaluation) ? summary.evaluation : null;
@@ -62,7 +62,7 @@ async function trialView(host: ModuleHost, summary: unknown, record: { draftId: 
       differs: !same(now.value, changed.value) || now.refused !== changed.refused };
   });
   // Round 4 (BK-09): every strategy core offers, each with its impact preview; `impact` stays the prospective one.
-  const impacts = evaluation ? await impactsOf(host, trialId) : [];
+  const impacts = evaluation ? await impactsOf(host, ctx, trialId) : [];
   const forward = impacts.find(i => i.strategy === 'prospective');
   const impact = forward && forward.digest !== null ? { digest: forward.digest, strategy: 'prospective' as const, affectedAnswers: forward.affectedAnswers, rebuild: forward.rebuild, activeWork: forward.activeWork } : null;
   const impactCode = forward && forward.digest === null ? forward.code : null;
@@ -135,7 +135,7 @@ export const trialMethods: Record<string, MethodSpec> = {
       if (list.length > 200) list.splice(0, list.length - 200);
     });
     const evaluated = await host.call('trials.evaluate', { trialId });
-    return trialView(host, evaluated, made);
+    return trialView(host, ctx, evaluated, made);
   } },
   'books.trialRead': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['trialId', 'draftId', 'proposalId', 'precedence']);
@@ -147,7 +147,7 @@ export const trialMethods: Record<string, MethodSpec> = {
     let summary: unknown;
     try { summary = await host.call('trials.get', { trialId: record.trialId }); }
     catch { return { trial: null }; }   // discarded or no longer readable by this person: there is no copy to show
-    return { trial: await trialView(host, summary, record) };
+    return { trial: await trialView(host, ctx, summary, record) };
   } },
   'books.trialPublish': { permission: 'approve', async handler(ctx, payload, host) {
     const request = input(payload, ['trialId', 'evaluationDigest', 'impactDigest', 'strategy'], ['trialId', 'evaluationDigest', 'impactDigest']);

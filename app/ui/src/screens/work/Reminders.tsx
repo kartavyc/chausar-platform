@@ -1,7 +1,7 @@
 /**
  * Reminders to customers (WK-12), at #/work/reminders: today's limits in write-back's own time
  * zone, the reminders prepared so far, and "Prepare a reminder": pick a customer from the Books
- * records (records.search), one of their invoices (records.get) and the mail or WhatsApp
+ * records (records.search), one of their invoices (records.invoices, which calculates nothing) and the mail or WhatsApp
  * connection, then approvals.prepareReminder. Nothing is sent: the reminder waits in Approvals.
  */
 import { useState, type FormEvent } from 'react';
@@ -10,7 +10,7 @@ import { useAct, useReply } from './kit/reply.ts';
 import { dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, Section } from './kit/Page';
 import { sheetOf } from './contract.ts';
-import { customerRecord, customers, prepared, reminders, type CapsDay } from './contract-r4.ts';
+import { customerInvoices, customers, prepared, reminders, type CapsDay } from './contract-r4.ts';
 import { MARK_OF } from './Approvals.tsx';
 import { Frame, rowTitle, type WorkProps } from './shared.tsx';
 import { LIVE, useLive } from './R4Parts.tsx';
@@ -19,8 +19,9 @@ import s from './work.module.css';
 
 function capsLine(c: CapsDay, r: R4Words): string | null {
   if (c.perDay === null || c.perCustomer === null) return null;
-  if (c.timeZone !== null && c.today !== null && c.preparedToday !== null)
-    return sayR4(r, 'rem.today', { today: c.today, zone: c.timeZone, prepared: c.preparedToday, perDay: c.perDay, sent: c.sentToday ?? 0, perCustomer: c.perCustomer });
+  // Missing is words, never zero: without every count of today the line keeps to the limits.
+  if (c.timeZone !== null && c.today !== null && c.preparedToday !== null && c.sentToday !== null)
+    return sayR4(r, 'rem.today', { today: c.today, zone: c.timeZone, prepared: c.preparedToday, perDay: c.perDay, sent: c.sentToday, perCustomer: c.perCustomer });
   return sayR4(r, 'rem.limits', { perDay: c.perDay, perCustomer: c.perCustomer });
 }
 
@@ -42,8 +43,8 @@ function PrepareForm({ p, connections, onPrepared }: { p: WorkProps; connections
   };
   const pick = async (id: string) => {
     setCustomer(id); setInvoice(null); setResult(null);
-    const out = await act.run('records.get', { id }, customerRecord);
-    if (out.ok) setInvoices([...new Set(out.value.timeline.filter(t => t.kind === 'invoice' && t.ref !== null).map(t => t.ref as string))]);
+    const out = await act.run('records.invoices', { id }, customerInvoices);
+    if (out.ok) setInvoices([...new Set(out.value.invoices)]);
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
