@@ -17,6 +17,9 @@ type SearchClient = { query(sql: string, values?: unknown[]): Promise<{ rows: Re
 export type InvestigationSearchPool = { connect(): Promise<SearchClient>; end(): Promise<void> };
 export type InvestigationSearchLimits = { operationTimeoutMs?: number };
 export type InvestigationSearchOptions = InvestigationSearchLimits & { host: '127.0.0.1' | '::1'; port: number; user: string; password: string; database: string; maxConnections?: number };
+/** Trusted enterprise-server host only (the engine passes it only in `storageMode: 'enterprise-server'`): a database on another
+ * host over verified TLS against a pinned CA (PEM) and optional server name. No plaintext or `prefer` fallback. */
+export type InvestigationSearchRemoteOptions = Omit<InvestigationSearchOptions, 'host'> & { host: string; remoteTls: { ca: string; servername?: string } };
 const MAX_DOCUMENTS = 10000, MAX_TEXT_BYTES = 8 * 1024 * 1024, MAX_QUERY_BYTES = 4096;
 const CREATE_DOCUMENTS = 'CREATE TEMP TABLE investigation_search_documents (id TEXT PRIMARY KEY, kind TEXT NOT NULL, revision BIGINT NOT NULL, digest TEXT NOT NULL, document TSVECTOR NOT NULL) ON COMMIT DROP';
 const INSERT_DOCUMENT = "INSERT INTO investigation_search_documents VALUES ($1,$2,$3,$4,to_tsvector('simple'::regconfig,$5))";
@@ -55,6 +58,15 @@ function project(projection: AuthorizedInvestigationSearchProjection, request: I
   return { documents, textBytes, bounds: { ...request.bounds }, query: request.query, projectionDigest: hash({ complete: true, documents }) };
 }
 
+function remoteSearchTls(options: InvestigationSearchRemoteOptions) {
+  const tls = options.remoteTls, pem = /^-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\s*/;
+  const name = (value: unknown) => typeof value === 'string' && value.length <= 253 && /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/.test(value);
+  check(!!tls && typeof tls === 'object' && !Array.isArray(tls) && Reflect.ownKeys(tls).every(key => key === 'ca' || key === 'servername') && typeof tls.ca === 'string' && tls.ca.length <= 256 * 1024 && pem.test(tls.ca)
+    && (tls.servername === undefined || name(tls.servername)), 'POSTGRES_TLS_REQUIRED', 'A remote database needs verified TLS with a pinned certificate authority.');
+  check(typeof options.host === 'string' && (name(options.host) || /^[0-9a-fA-F:.]{2,39}$/.test(options.host)), 'INVALID_POSTGRES_CONFIG', 'Provide an explicit database host name or address.');
+  return { ca: tls.ca, rejectUnauthorized: true, minVersion: 'TLSv1.2', ...(tls.servername ? { servername: tls.servername } : {}) };
+}
+
 /** Host authorization precedes projection; the host must recheck access and revisions before release. */
 export class PostgresInvestigationSearch {
   #pool: InvestigationSearchPool;
@@ -64,9 +76,11 @@ export class PostgresInvestigationSearch {
   #identity: InvestigationSearchServerIdentity | null = null;
   #operations = new Set<AbortController>();
   private constructor(pool: InvestigationSearchPool, limits: InvestigationSearchLimits, ownPool: boolean) { this.#timeout = operationTimeout(limits); this.#pool = pool; this.#ownPool = ownPool; }
-  static async connect(options: InvestigationSearchOptions): Promise<PostgresInvestigationSearch> {
-    exactObject(options, ['host', 'port', 'user', 'password', 'database', 'maxConnections', 'operationTimeoutMs'], ['host', 'port', 'user', 'password', 'database']);
-    check(['127.0.0.1', '::1'].includes(options.host) && Number.isSafeInteger(options.port) && options.port >= 1024 && options.port <= 65535, 'INVALID_POSTGRES_CONFIG', 'Use an explicit literal loopback host and unprivileged port.');
+  static async connect(options: InvestigationSearchOptions | InvestigationSearchRemoteOptions): Promise<PostgresInvestigationSearch> {
+    const remote = !!options && typeof options === 'object' && Object.hasOwn(options, 'remoteTls');
+    exactObject(options, ['host', 'port', 'user', 'password', 'database', 'maxConnections', 'operationTimeoutMs', ...(remote ? ['remoteTls'] : [])], ['host', 'port', 'user', 'password', 'database']);
+    const tls = remote ? remoteSearchTls(options as InvestigationSearchRemoteOptions) : false;
+    check((remote || ['127.0.0.1', '::1'].includes(options.host)) && Number.isSafeInteger(options.port) && options.port >= 1024 && options.port <= 65535, 'INVALID_POSTGRES_CONFIG', 'Use an explicit literal loopback host and unprivileged port.');
     for (const name of ['user', 'password', 'database'] as const) check(typeof options[name] === 'string' && options[name].length > 0 && options[name].length <= 1024 && !/[\0\r\n]/.test(options[name]), 'INVALID_POSTGRES_CONFIG', 'Explicit bounded database credentials and identity are required.');
     check(options.maxConnections === undefined || (Number.isSafeInteger(options.maxConnections) && options.maxConnections >= 1 && options.maxConnections <= 4), 'INVALID_POSTGRES_CONFIG', 'Use one to four private search connections.');
     const limits = options.operationTimeoutMs === undefined ? {} : { operationTimeoutMs: options.operationTimeoutMs }; operationTimeout(limits);
@@ -74,14 +88,16 @@ export class PostgresInvestigationSearch {
     try { const packageName = 'pg'; pg = await import(packageName); }
     catch { throw new ChausarError('POSTGRES_UNAVAILABLE', 'The qualified PostgreSQL driver is unavailable.'); }
     const Pool = pg.Pool ?? pg.default?.Pool;
-    const pool: InvestigationSearchPool = new Pool({ host: options.host, port: options.port, user: options.user, password: options.password, database: options.database, max: options.maxConnections ?? 2, connectionTimeoutMillis: 3000, query_timeout: operationTimeout(limits), application_name: 'chausar-private-investigation-search', ssl: false });
+    const pool: InvestigationSearchPool = new Pool({ host: options.host, port: options.port, user: options.user, password: options.password, database: options.database, max: options.maxConnections ?? 2, connectionTimeoutMillis: 3000, query_timeout: operationTimeout(limits), application_name: 'chausar-private-investigation-search', ssl: tls });
     const search = new PostgresInvestigationSearch(pool, limits, true);
     try {
       search.#identity = await search.transaction(async query => {
         const result = await query("SELECT current_database() AS database,host(inet_server_addr()) AS address,inet_server_port() AS port,current_setting('server_version') AS server_version,version() AS version");
         check(result.rows.length === 1, 'SEARCH_SERVER_IDENTITY_INVALID', 'PostgreSQL must return one actual server identity.');
         const row = result.rows[0];
-        check(row.database === options.database && row.address === options.host && row.port === options.port && typeof row.server_version === 'string' && row.server_version.length <= 200 && typeof row.version === 'string' && row.version.startsWith('PostgreSQL ') && row.version.length <= 1000, 'SEARCH_SERVER_IDENTITY_INVALID', 'The native search server did not identify the configured local database.');
+        // A remote server is named by DNS or behind an address translation, so its own address is recorded, not compared; TLS is proven instead.
+        if (remote) check((await query('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')).rows[0]?.ssl === true, 'SEARCH_SERVER_IDENTITY_INVALID', 'The remote search connection is not encrypted.');
+        check(row.database === options.database && (remote ? typeof row.address === 'string' : row.address === options.host) && row.port === options.port && typeof row.server_version === 'string' && row.server_version.length <= 200 && typeof row.version === 'string' && row.version.startsWith('PostgreSQL ') && row.version.length <= 1000, 'SEARCH_SERVER_IDENTITY_INVALID', 'The native search server did not identify the configured local database.');
         return { database: row.database, address: row.address, port: row.port, serverVersion: row.server_version, version: row.version } as InvestigationSearchServerIdentity;
       });
       return search;
