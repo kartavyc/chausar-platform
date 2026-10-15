@@ -112,3 +112,43 @@ Each entry's Shows, States, You can, Engine and Rules lines were checked against
 - The number guard is deliberately strict: number words ("one customer", "doubled") and any non-decimal numeral make it fall back to the template explanation. Dates, months with years, financial years, introduced years ("in 2026", "2026 में") and ordinals are recognised by structure.
 - Asking about another member's receipt id says "stopped by a rule", while an id that does not exist says "not found" (the core's translation); ids are random.
 - See the audit table for each screen's remaining partial items.
+
+## Round 4
+
+What changed, by item in ROUND4.md's "ask" section:
+
+- **AS-05 provenance.** `askx.receipt` carries `provenance` (recipes accepted by, the meaning's reviewer and co-signer, the forecast line, the Allowed-by rule id, check and device), read field by field from the core lane's receipts (`provenanceOf`); `null` until core-data records it, and the screen says "not recorded yet".
+- **AS-08 needs data and Ask a person.** A question about data no calculation covers says which data it needs (`needs-data`: GSTR-2B, Form 26AS, stock, bank statement, payroll) and whether it is loaded; every Not yet offers Ask a person through reports-tools-trust's `reportsx.askPerson`.
+- **AS-09 the rule's words.** `askx.explainRule` asks reports-tools-trust's `trust.explain`; until it exists the reply is `not-built` and the screen keeps the fixed kind sentence (supported up to that boundary).
+- **AS-11 branch picker.** `askx.menu` lists the branches the seat can see; What if passes the chosen one.
+- **AS-19.** The match now runs through connectors-ext's own GSTR-2B recipe and matcher. That recipe writes the suppliers' lines as kind `purchase` in their own source, so the earlier `gstr2b`-kind assumption is kept only as a fallback. Probable matches are their own group, never counted as matched; two registers or two 2B reads ask which to match. Lines become receipts when core-data serves `coredata.gst2bReceipt`. An integration test imports the real GSTR-2B fixture through `connectorsx.importPreview`/`importCommit`.
+- **AS-04 two meanings side by side.** The screen runs each meaning and shows the answers as different measures, each with its own receipt.
+- **BK-17/SH-04 telling, not asking.** A statement typed into Ask ("Remember that…", or a sentence that tells rather than asks) is offered to Memory through work-books' `books.memoryPropose` (`askx.tell`); it waits for the owner to confirm it.
+- **Receipts.** An unknown receipt id and another seat's receipt give the same answer (`ASK_NOT_FOUND`) on every method; only a seat's own receipt can be "stopped by a rule".
+- **AS-02 `ask.change`, SH-04 `ask.stop`.** `askx.change` changes a proposal and records the correction as structure only. `askx.stop` stops this member's running forecast, plan or checks run (`ASK_STOPPED`).
+
+## Round 4 contracts
+
+Methods this lane serves (all in `platform/runtime/ask/contracts.ts`, list at its end):
+
+| Method | Payload | Reply |
+|---|---|---|
+| `askx.change` | `{ operationId!, period \| periodId, branch, change!: { operationId, period \| periodId, branch }, today }` | `UnderstandReply` (proposal) |
+| `askx.stop` | `{}` | `{ stopped: true, at }`; the stopped call refuses `ASK_STOPPED` |
+| `askx.tell` | `{ text!, kind!: 'preference' \| 'claim' }` | `{ state: 'proposed', memoryId, status } \| { state: 'not-built' }` |
+| `askx.explainRule` | `{ rule!: 'branch' \| 'source' \| 'seat' \| 'access' \| 'marking', receiptId, sourceId }` | `{ state: 'ready', ruleId, text, changeableBy } \| { state: 'not-built' }` |
+| `askx.gst2b` (changed) | adds `registerSourceId`, `gstr2bSourceId` | adds state `choose-sources`; `ready` adds `via`, `sources`, `matchReceiptId`, group `probable`, `unknownTax`, line `receiptId` |
+| `askx.understand` (changed) | — | adds `statement` and `no-match` with `reason: 'needs-data'`, `need`, `loaded` |
+| `askx.receipt` (changed) | — | adds `provenance` |
+| `askx.menu` (changed) | — | adds `branches` |
+
+Methods this lane consumes from other lanes:
+
+| Method | Owner | Contract assumed | Until it exists |
+|---|---|---|---|
+| `receipts.get` → `receipt.provenance` | core-data | `{ recipes?: { sourceId, recipeId, acceptedBy, acceptedAt }[]; meaning?: { publishedBy, reviewedBy, coSignedBy, reviewedAt }; forecast?: { method, learnedFrom, testedOn }; allowedBy?: { ruleId, check, device, memberId, at } }` | `provenance: null`, "not recorded yet" |
+| `coredata.gst2bReceipt` | core-data | `{ registerSourceId, gstr2bSourceId, period, toleranceMinor }` → `{ receiptId, lines: { key: 'GSTIN\|INVOICE\|FY', receiptId }[] }` | lines open their two rows |
+| `trust.explain` | reports-tools-trust | `{ rule, receiptId?, sourceId? }` → `{ ruleId, text, changeableBy: 'owner' \| 'owner-or-cofounder' }` | `not-built`, fixed kind sentence |
+| `reportsx.askPerson` | reports-tools-trust | `{ question, reason, receiptId? }` → `{ file, sent: false }` (exists) | — |
+| `books.memoryPropose` | work-books | `{ text, kind, receiptId? }` → memory line `{ id, status }` (exists) | `not-built` |
+| `connectorsx.envelopes`, `connectorsx.gstMatch` | connectors-ext | as served (exist) | older local match on `gstr2b`-kind facts |
