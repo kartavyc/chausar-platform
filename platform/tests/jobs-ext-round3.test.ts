@@ -87,6 +87,11 @@ test('modelsx.price in the agreed shape prices a route; a missing or malformed o
     { routeId: 'r', unitMinor: '3', basis: 'measured', pricedAt: '2026-10-01T00:00:00.000Z', source: 'modelsx' });
   await assert.rejects(routePrice(host({ unitMinor: '0.5', basis: 'measured', pricedAt: '2026-10-01' }), 'r'), { code: 'ROUTE_PRICE_INVALID' });
   await assert.rejects(routePrice(host(Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' })), 'r'), { code: 'ROUTE_PRICE_UNAVAILABLE' });
+  // A route models-ext does not know falls through to host prices; a CLI estimate refusal stands.
+  const notFound = host(Object.assign(new Error('x'), { code: 'ROUTE_NOT_FOUND' }));
+  await assert.rejects(routePrice(notFound, 'r'), { code: 'ROUTE_PRICE_UNAVAILABLE' });
+  assert.deepEqual(await routePrice({ ...notFound, options: { routePrices: { r: { unitMinor: '2' } } } }, 'r'), { routeId: 'r', unitMinor: '2', basis: 'measured', pricedAt: '1970-01-01T00:00:00.000Z', source: 'host' });
+  await assert.rejects(routePrice(host(Object.assign(new Error('x'), { code: 'ROUTE_ESTIMATE_UNAVAILABLE' })), 'r'), { code: 'ROUTE_ESTIMATE_UNAVAILABLE' });
 });
 
 test('the stock check runs once the dictionary publishes stock_on_hand (core-data’s quantity measure)', async () => {
