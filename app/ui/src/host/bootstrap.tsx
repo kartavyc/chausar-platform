@@ -6,7 +6,7 @@ import { ConversationWorkspace, type ConversationWorkspaceProps, type SavedReadb
 import { PageHeader } from '../app/PageHeader';
 import type { Address, Language, View } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress, withoutSheet, withSheet } from '../app/routes.ts';
-import { TextProvider, useT } from '../app/text';
+import { T, TextProvider, useT } from '../app/text';
 import type { ConversationSavedAnswer } from '../bridge/conversation-host.ts';
 import type { CalculationReceiptEvidence, ReceiptPeriod } from '../bridge/presentation.ts';
 import { projectTodayHostForUi } from '../bridge/today-host.ts';
@@ -35,6 +35,8 @@ import { LockScreen } from '../app/LockScreen';
 import { LinkDialog } from '../app/LinkDialog';
 import { externalUrl, type ShellPort } from '../bridge/shell.ts';
 import { UnlockControl, type UnlockResult } from './UnlockControl';
+import { PinUnlock } from '../screens/first-run/Pin';
+import { canSwitch, menuWorkspaces, switchWorkspace, useWorkspaceFolders } from './workspace-switch.ts';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
@@ -389,8 +391,12 @@ function HostLinkDialog({ url, shell, onClose }: { url: string | null; shell: Sh
   }} />;
 }
 
-function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell }: {
+/** SH-06: switching workspaces from the menu (host/workspace-switch.ts). Null: no list is offered. */
+interface WorkspaceSwitching { readonly open: string | null; readonly marks: ReadonlyMap<string, boolean>; readonly onSwitch: (folder: string) => void }
+
+function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell, switching = null }: {
   shell: ShellPort | null;
+  switching?: WorkspaceSwitching | null;
   controller: HostController;
   state: HostState;
   context: UiContext;
@@ -409,6 +415,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     if (typeof url === 'string') setLinkAsked(externalUrl(url) ?? url.slice(0, 2048).replace(/[^\u0021-\u007e]/g, '\ufffd'));
   };
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
+  const switchFolders = useWorkspaceFolders(controller.places, switching !== null, context.contextKey);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
   const consumer = controller.todayConsumer;
   const todayCurrent = useSyncExternalStore(consumer?.subscribe ?? noTodaySubscribe, consumer?.snapshot ?? noTodaySnapshot, consumer?.snapshot ?? noTodaySnapshot);
@@ -892,6 +899,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
       onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
       onReadAgain: () => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); },
+      ...(switching !== null ? {
+        workspaces: menuWorkspaces(switchFolders, { folder: switching.open, name: context.workspace.name }, switching.marks),
+        onSwitchWorkspace: switching.onSwitch, ...(switching.open !== null ? { workspaceId: switching.open } : {}),
+      } : {}),
     },
     ...(frame.reads.shell !== null ? {
       banners: shellBanners(frame.reads.shell, language, {
@@ -1044,6 +1055,11 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
   const [lockFolder, setLockFolder] = useState('main');
+  // SH-06: the folder the host itself opened (null when it did not), the demo or real marks seen
+  // this session, and whether the lock screen follows a switch.
+  const [openedFolder, setOpenedFolder] = useState<string | null>(null);
+  const marks = useRef(new Map<string, boolean>());
+  const [switched, setSwitched] = useState(false);
   // SH-06: the language and view saved for this computer, unless the trusted mount fixed them.
   useEffect(() => {
     if (options.firstRun !== 'journey') return;
@@ -1088,6 +1104,13 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  if (authorized && openedFolder !== null) marks.current.set(openedFolder, state.context.workspace.demo);
+  const switching = journeyMode && authorized && canSwitch(state.context.member.role) ? {
+    open: openedFolder, marks: marks.current,
+    onSwitch: (folder: string) => {
+      if (switchWorkspace(controller, folder, openedFolder, chosen => { setLockFolder(chosen); setUnlockResult(null); setSwitched(true); })) setOpenedFolder(null);
+    },
+  } : null;
   /** A person's change of language or view is kept for this computer once a workspace is open. */
   const chooseLanguage = (next: Language) => { setLanguage(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, next, view).catch(() => {}); };
   const chooseView = (next: View) => { setView(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, language, next).catch(() => {}); };
@@ -1096,14 +1119,16 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
       const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: lockFolder, passphrase }).then(
-        () => { setUnlockResult(null); return controller.unlocked(); },
+        () => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); return controller.unlocked(); },
         // A wrong passphrase says so; any other refusal keeps the lock screen and says it could not unlock.
         // Nothing here ever leads to creating or recovering a workspace on its own.
         (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : { kind: 'failed' }); });
       return <TextProvider language={language}>
         <LockScreen workspaceName={lockFolder === 'main' ? hostMessage(language, 'thisWorkspace') : lockFolder}
           unlockControl={<>
+            {switched && <p role="status" data-workspace-switched={lockFolder}><T k="SH-06.switching" values={{ folder: lockFolder }} /></p>}
             <LockFolderChoice rpc={controller.places} folder={lockFolder} onFolder={setLockFolder} />
+            <PinUnlock rpc={controller.places} folder={lockFolder} onUnlocked={() => { setUnlockResult(null); setOpenedFolder(lockFolder); setSwitched(false); return controller.unlocked(); }} />
             <UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />
             <AskRecoveryContact rpc={controller.places} folder={lockFolder} />
           </>} />
@@ -1140,7 +1165,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
-            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
+            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} switching={switching} />
           : <div style={{ padding: 'var(--sp6)' }}>
             <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}

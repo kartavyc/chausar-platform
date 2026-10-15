@@ -5,6 +5,10 @@
  * which sends it to the engine. This screen keeps no copy and never shows it again. Without
  * that adapter the API key row says it is not built yet.
  *
+ * The Ollama row offers the models installed on this computer (`modelsx.localList`), and with
+ * two or more routes the order they are tried in can be set (`models.setLadder`); both say
+ * "not built yet" while their owners have not registered them.
+ *
  * Skipping is a real choice: importing, the menu of calculations, receipts and backup work
  * without a model. The managed allowance is planned, not available yet.
  */
@@ -15,6 +19,7 @@ import { Field } from '../../parts/Field';
 import { validateModelRoutes, type UiModelRoute } from '../../host/contracts.ts';
 import { failureOf, type JourneyFailure, type JourneyPort, type RouteConfigInput, type RouteKind } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, StepHeader } from './JourneyParts';
+import { LocalModels, RouteLadder } from './RouteLadder';
 import s from './Journey.module.css';
 
 type RouteRow = 'codex-cli' | 'claude-cli' | 'api' | 'ollama' | 'managed';
@@ -50,12 +55,13 @@ export function Model({ rpc, saveRouteKey, onDone }: ModelProps) {
   const [connected, setConnected] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const generation = useRef(0);
+  const [readCount, setReadCount] = useState(0);
 
   const read = useCallback(async () => {
     const token = ++generation.current;
     try {
       const reply = await rpc.request('models.list', {});
-      if (token === generation.current) setRoutes({ kind: 'ready', routes: validateModelRoutes(reply) });
+      if (token === generation.current) { setRoutes({ kind: 'ready', routes: validateModelRoutes(reply) }); setReadCount(count => count + 1); }
     } catch (error) { if (token === generation.current) setRoutes({ kind: 'failed', failure: failureOf(error) }); }
   }, [rpc]);
   useEffect(() => { void read(); return () => { generation.current++; }; }, [read]);
@@ -124,6 +130,7 @@ export function Model({ rpc, saveRouteKey, onDone }: ModelProps) {
                     </>
                   )}
                 </div>
+                {row === 'ollama' && <LocalModels rpc={rpc} chosen={modelName} onPick={setModelName} />}
                 <Actions>
                   <Act submit label="FR-05.save.btn" disabled={busy} />
                   <Act variant="link" label="FR.journey.back.btn" onClick={() => setOpen(null)} disabled={busy} />
@@ -136,6 +143,7 @@ export function Model({ rpc, saveRouteKey, onDone }: ModelProps) {
           </li>
         ))}
       </ul>
+      <RouteLadder rpc={rpc} quietWhenShort version={readCount} />
       <Note k="FR-05.sendLevel" />
       {skipped && <Note k="FR-05.skipped" role="status" />}
       <Actions>

@@ -48,3 +48,41 @@ export function learningxProposalHandlers(): Readonly<Record<string, FakeHandler
     },
   };
 }
+
+/**
+ * FR-10: `learningx.intakeStatus`, `learningx.preview` and `learningx.consent` in learning-ext's
+ * registered shapes (platform/runtime/learning-ext/sharing.ts), kept in memory. `mode` is the
+ * intake: `closed` (no intake configured), `test-inbox` (a demo workspace) or `intake`.
+ * `sharingSwitch` is the Trust sharing switch. The bytes are structure only.
+ */
+export function learningxSharingHandlers(options: { readonly mode?: 'closed' | 'intake' | 'test-inbox'; readonly sharingSwitch?: boolean; readonly empty?: boolean } = {}): Readonly<Record<string, FakeHandler>> {
+  const mode = options.mode ?? 'closed', sharingSwitch = options.sharingSwitch ?? false;
+  const previews = new Map<string, { digest: string; boxes: string[] }>();
+  const status = () => ({
+    open: mode !== 'closed', mode, sharingSwitch,
+    label: mode === 'test-inbox' ? 'Demo test: sends to a test inbox only.' : mode === 'closed' ? 'Sharing is not open yet. Nothing is sent.' : 'Sharing sends structure only.',
+    boxes: [{ box: 'setup-shapes', open: true }, { box: 'corrections', open: true }, { box: 'account-words', open: false, shown: false }, { box: 'question-shapes', open: false, shown: false }],
+  });
+  return {
+    intakeStatus: () => status(),
+    preview: async (payload, context) => {
+      if (context.role !== 'owner' && context.role !== 'cofounder') throw context.refuse('FORBIDDEN', 'Only an owner previews sharing.');
+      const boxes = Array.isArray(payload['boxes']) ? (payload['boxes'] as unknown[]).filter((box): box is string => box === 'setup-shapes' || box === 'corrections').sort() : [];
+      if (boxes.length === 0) throw context.refuse('INVALID_REQUEST', 'Choose one or more sharing boxes.');
+      if (options.empty) throw context.refuse('NOTHING_TO_SHARE', 'No new decisions are waiting in the chosen boxes.');
+      const events = boxes.map(box => ({ kind: box === 'corrections' ? 'mapping' : 'mapping', choice: box === 'corrections' ? 'corrected' : 'accepted', field: 'amount', type: 'money' }));
+      const bytes = `{"schema":"chausar.learning.v1","boxes":${JSON.stringify(boxes)}}\n${events.map(event => JSON.stringify(event)).join('\n')}\n{"end":true}`;
+      const digest = await sha256Hex(bytes);
+      const id = `sharepreview_fake_${previews.size + 1}`;
+      previews.set(id, { digest, boxes });
+      return { id, at: `${context.date}T06:00:00.000Z`, memberId: 'member_demo_owner', epoch: 1, boxes, decisionIds: events.map((_, index) => `decision_${index + 1}`), sourceIds: [], digest, size: bytes.length, count: events.length, blocked: [], bytes, names: 0, amounts: 0, publicName: null, authors: [], status: status() };
+    },
+    consent: (payload, context) => {
+      if (!sharingSwitch) throw context.refuse('SHARING_DISABLED', 'Turn on structure-only sharing before giving consent.');
+      const preview = typeof payload['previewId'] === 'string' ? previews.get(payload['previewId']) : undefined;
+      if (preview === undefined) throw context.refuse('NOT_FOUND', 'That sharing preview does not exist.');
+      if (payload['digest'] !== preview.digest) throw context.refuse('PREVIEW_CHANGED', 'Consent must name the exact previewed bytes.');
+      return { id: 'shareconsent_fake_1', at: `${context.date}T06:00:00.000Z`, previewId: payload['previewId'], digest: preview.digest, publicName: null, memberId: 'member_demo_owner', role: context.role, epoch: 1, integrity: 'c'.repeat(64) };
+    },
+  };
+}

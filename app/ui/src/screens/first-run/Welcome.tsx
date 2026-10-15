@@ -33,9 +33,11 @@ export interface WelcomeProps {
   readonly folders?: readonly string[] | undefined;
   /** Open one of them: the host draws its lock screen for that folder. */
   readonly onOpenFolder?: ((folder: string) => void) | undefined;
+  /** FR-14: join a workspace that lives on another computer. */
+  readonly onJoin?: (() => void) | undefined;
 }
 
-export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIdea, onRecover, onDemo, folders = [], onOpenFolder }: WelcomeProps) {
+export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIdea, onRecover, onDemo, folders = [], onOpenFolder, onJoin }: WelcomeProps) {
   const t = useT();
   const name = useId();
   const legend = useId();
@@ -74,6 +76,7 @@ export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIde
       <Actions>
         {onDemo !== undefined ? <Act variant="link" label="FR-01.demo.btn" onClick={onDemo} /> : <Note k="FR-01.demo.notBuilt" />}
         {openWorkspace === null && <Act variant="link" label="FR-01.recover.btn" onClick={onRecover} />}
+        {openWorkspace === null && onJoin !== undefined && <Act variant="link" label="FR-14.join.btn" onClick={onJoin} />}
       </Actions>
       <Note k="FR-01.memory" />
     </section>

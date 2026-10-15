@@ -25,7 +25,7 @@ Every feature below is labelled **supported** (tested end to end in the app on s
 | Lock screen with the trusted unlock control (`workspace.open`), wrong passphrase without a count, the field cleared at once; `controller.unlocked()` leaves the lock with a fresh read | supported | `app/LockScreen.tsx`, `host/UnlockControl.tsx`, `host/controller.ts` |
 | Idle auto-lock | supported | `app/useIdleLock.ts` |
 | Windows Hello / Touch ID unlock link (drawn only when the host says the device supports it) | experimental: no native provider is wired | `host/UnlockControl.tsx` |
-| Workspace menu: views, languages, Help, Lock now, About, workspace list when more than one | supported (list: experimental, the engine has no workspace list) | `app/WorkspaceMenu.tsx` |
+| Workspace menu: views, languages, Help, Lock now, About, workspace list when more than one, switching (round 4) | supported (switching tested end to end on the fake engine) | `app/WorkspaceMenu.tsx`, `host/workspace-switch.ts` |
 | Keyboard map (one `KEY_MAP` drives the handler and Help) | supported | `app/keys.ts` |
 | Help SH-12 with offline lists from `todayx.help` | supported | `app/HelpSheet.tsx` |
 | Link dialog SH-10, mounted by the host behind `openLink(url)` on `PlaceRenderProps`; opens through `shell.openExternal` only after "Open in your browser"; a refused address keeps the dialog open with the reason | supported (no place module calls `openLink` yet) | `app/LinkDialog.tsx`, `host/bootstrap.tsx`, `places/types.ts` |
@@ -186,6 +186,38 @@ The fake engine serves every new method; `FAKE_PRE_VAULT` lists those served whi
 - No pixel comparison against the reference pictures, no screen-reader pass, no axe run; the Hindi text needs a native reader.
 - The final Electron package config (`app/desktop/builder.json`, release lane) must include `app/ui/host`, `app/ui/public` and `app/ui/assets/fonts`, as the preview config already does; `scripts/desktop-launch.mjs` (release lane) does not yet accept `--legacy-renderer`.
 - Round 2: the host still has to wire the device choices at start, the folder choice on the lock screen and `onOpenFolder` (instructions in the round-2 hand-off; `bootstrap.tsx` was not edited). Trust · Vault (reports-tools-trust) has to place `RecoveryContactSettings`. The recovery contact cannot confirm anything until the hosted relay is deployed. The disk check is not tested on real Windows, macOS or Linux disks.
+
+## Round 4: shell and first-run pieces
+
+| Item | Label | Where |
+|---|---|---|
+| SH-06 `workspaces.switch`: the menu lists this computer's workspace folders (`todayx.workspaces`, names only) to an owner or co-founder; choosing one sets that folder for the lock screen, then locks through the controller's own lock (`workspace.lock`, retried, never failing open); the lock screen says the last workspace is locked and opens the chosen folder only with its own passphrase or PIN. The open workspace shows its own name; a demo or real mark shows once a folder has been opened this session (memory only). Accountant and viewer seats get no list (their lock is local only, so a second workspace could not open) | supported (fake engine with two folders and two passphrases, host end to end) | `host/workspace-switch.ts`, `host/bootstrap.tsx` |
+| SH-02/TR-12 PIN quick unlock: on the lock screen a PIN field only when `workspace.pin.status { folder }` says a PIN is set and still works; uncontrolled field, read once, emptied at once, sent once to `workspace.pin.unlock`; a wrong PIN says so with no count; `PIN_LOCKED_OUT` removes the field and says only the passphrase works. `PinSettings` (export) for Trust · Vault: set with the passphrase (both read once and emptied), remove | supported on the fake fixture; the engine side is core-gateway-auth's (fixture-only until it registers) | `screens/first-run/Pin.tsx` |
+| FR-05/TR-08 route ladder: `RouteLadder` (export; also in first run's Model step when two or more routes exist): Move up/down buttons, Alt with an arrow key on a focused row (focus follows, the new place is announced), Save order → `models.setLadder`, Check → `models.probe` with the SH-09 states in words. Local models: `LocalModels` in the Ollama row, from `modelsx.localList` in models-ext's published shape; picking fills the model name | supported on the fake fixture; ladder and probe fixture-only (core-gateway-auth), local list fixture-only until models-ext merges | `screens/first-run/RouteLadder.tsx`, `Model.tsx` |
+| Business time zone: `TimeZoneSetting` (export) on the step after the vault (first run's Model screen) and for settings; the stored zone from `ui.context.timeZone`, the machine's zone only as a suggestion the person confirms, the runtime's IANA list; `workspace.setTimeZone` (core-data); the host reads `ui.context` again when first run ends, so Activity and receipts use it | supported on the fake fixture; fixture-only until core-data registers | `screens/first-run/TimeZone.tsx` |
+| FR-10 the sharing question, after the first receipt (never at install): two boxes that start empty, the sentence, "See the exact file" (`learningx.preview`, the bytes drawn as text), consent to exactly that file (`learningx.consent`) only when intake is open and the Trust sharing switch is on; closed intake says "Sharing is not open yet. Nothing is sent."; a demo workspace's test inbox needs the "Demo test" switch first; nothing is sent from here and no feature depends on it | supported (learning-ext's real registered methods; fake fixture `learningxSharingHandlers`) | `screens/first-run/Sharing.tsx` |
+| FR-14 join from another computer: Welcome → "Join a workspace" → a short code with its time (15 minutes), Check again, approved → open the folder at its lock screen, expired or used → start again. `JoinRequests` (export) for the computer already in: the code to compare and Approve | supported on the fake fixture; fixture-only until core-sync-jobs registers | `screens/first-run/Join.tsx` |
+
+Words: `app/ui/src/text/lanes/frame-today.ts` (English and Hindi); first run layers them under its own catalogue. Contracts: `app/ui/src/bridge/r4-contracts.ts`; fixtures: `app/ui/src/bridge/fixtures/r4.ts` (served by the fake engine; `absent` leaves any out), `fixtures/learningx.ts` (`learningxSharingHandlers`). Tests: `app/ui/tests/frame-today-r4-shell.test.ts`, `frontend-validation/tests/frame-today-r4-shell.test.tsx`.
+
+### Round 4 contracts
+
+| Method | Payload | Reply | Owner | State |
+|---|---|---|---|---|
+| `workspace.pin.status` (preVault) | `{ folder? }` | `{ set, passphraseOnly }` (no count of tries) | core-gateway-auth | fixture only |
+| `workspace.pin.unlock` (preVault) | `{ folder, pin }` | as `workspace.open`; `PIN_WRONG`, `PIN_LOCKED_OUT`, `PIN_NOT_SET` | core-gateway-auth | fixture only |
+| `workspace.pin.set` (admin) | `{ pin: 4–12 digits, passphrase }` | `{ set, passphraseOnly }`; `PIN_INVALID`, `UNLOCK_FAILED` | core-gateway-auth | fixture only |
+| `workspace.pin.remove` (admin) | `{}` | `{ set, passphraseOnly }` | core-gateway-auth | fixture only |
+| `models.setLadder` (admin) | `{ routeIds }` (every route once) | `{ routeIds }`; `LADDER_INVALID`, `ROUTE_NOT_FOUND`; `models.list` then answers in that order | core-gateway-auth | fixture only |
+| `models.probe` (read) | `{ routeId }` | `{ routeId, state: ready / signed-out / not-installed / version-untested / timed-out / error / skipped-by-send, checkedAt }` | core-gateway-auth | fixture only |
+| `modelsx.localList` (read) | `{ endpoint? }` | `{ endpoint, models: [{ name, sizeBytes, modifiedAt, family }], reachable: true }` or `{ reachable: false, words }` | models-ext | published contract; fixture until merged |
+| `workspace.setTimeZone` (admin) | `{ timeZone }` (IANA) | `{ timeZone }`; `TIME_ZONE_INVALID`; then `ui.context.timeZone` | core-data | fixture only |
+| `devices.join` (preVault, new computer) | `{}` to start, `{ joinId }` to read | `{ joinId, code: dddd-dddd, expiresAt (+15 min), state: waiting / approved / expired / used, folder? }` | core-sync-jobs | fixture only |
+| `seats.inviteVerify` (admin, a computer already in) | `{}` to list, `{ joinId, code }` to approve | `{ requests: [join] }` or the approved join; `JOIN_EXPIRED`, `JOIN_USED`, `JOIN_CODE_MISMATCH` | core-sync-jobs | fixture only |
+| `learningx.intakeStatus` / `learningx.preview` / `learningx.consent` | `{}` / `{ boxes }` / `{ previewId, digest }` | as registered in `platform/runtime/learning-ext/sharing.ts` | learning-ext | present |
+| `workspaces.switch` | none | composed from `workspace.lock` and `workspace.open { folder }` | frame-today | no engine method |
+
+The new refusal codes are on frame-today's `laneRefusals` line (`R4_REFUSALS`), so they reach the screen before their owners add them to their own lines.
 
 ## Adversarial review (round 2)
 

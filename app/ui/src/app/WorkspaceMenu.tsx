@@ -18,7 +18,8 @@ import s from './WorkspaceMenu.module.css';
 export interface WorkspaceEntry {
   id: string;
   name: string;
-  demo: boolean;
+  /** Demo or real, when known. A folder not opened yet carries no mark. */
+  demo?: boolean | undefined;
 }
 
 export interface CompanyEntry {
@@ -89,7 +90,7 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
               {p.workspaces.map((w) => (
                 <MenuItem key={w.id} id={`ws:${w.id}`} className={[s.item, p.workspaceId === w.id ? s.chosen : ''].join(' ')}>
                   {w.name}
-                  <span className={s.demo}> {w.demo ? t('SH-06.demo') : t('SH-06.real')}</span>
+                  {w.demo !== undefined && <span className={s.demo}> {w.demo ? t('SH-06.demo') : t('SH-06.real')}</span>}
                 </MenuItem>
               ))}
             </MenuSection>
