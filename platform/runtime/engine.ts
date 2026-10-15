@@ -80,6 +80,9 @@ import { authorize, audit, check, ChausarError, hash, newId, now, type Context, 
 import { engineModules, moduleMethods } from './modules/registry.ts';
 import type { ModuleHost } from './modules/types.ts';
 import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
+// core-gateway-auth: stored-secret custody and PIN quick unlock follow the open vault.
+import { gatewayAuthVaultAttached, gatewayAuthVaultClosed } from './gateway-auth/lifecycle.ts';
+import { pinUnlockCustody } from './gateway-auth/pin.ts';
 
 // Engine modules register their namespace purge once, at load.
 for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
@@ -853,6 +856,8 @@ export class Engine {
         learning: this.services.learning, calculator: this.services.calculator,
         actions: this.services.actions, reports: this.services.reports, jobs: this.services.jobs } }),
       review, ...(selection ? { selection } : {}) });
+    // core-gateway-auth: open stored-secret custody (OS keychain when installed, never in demo) for as long as this vault stays attached.
+    await gatewayAuthVaultAttached({ directory: this.options.directory, keychain: this.options.keychain, demo: this.#demo, vault, live: () => this.vault === vault });
   }
   private builtinActions(store: StateStore): any {
     const draft = {
@@ -873,6 +878,7 @@ export class Engine {
     await this.closeVault();
   }
   private async closeVault() {
+    gatewayAuthVaultClosed(this.options.directory); // core-gateway-auth: zero held secret-store keys; never throws
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     let failure: unknown;
@@ -1026,6 +1032,17 @@ export class Engine {
     }
     if (method === 'workspace.open') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');
+      // core-gateway-auth: PIN quick unlock, for the same trusted local desktop owner as native custody (gateway-auth/pin.ts).
+      if (payload.unlock === 'pin') {
+        const ctx = this.context, folder = payload.folder ?? payload.path ?? 'main'; this.workspacePath(folder);
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted && ctx.role === 'owner' && ctx.memberId === this.#baseContext.memberId && ctx.epoch === this.#baseContext.epoch,
+          'KEYCHAIN_OWNER_REQUIRED', 'Quick unlock requires the trusted local desktop owner.');
+        const custody = await pinUnlockCustody({ directory: this.options.directory, folder, pin: payload.pin, keychain: this.options.keychain });
+        return this.withWorkspaceStorage(folder, 'open', async storage => {
+          await this.attachSafely(await Vault.openWithKeychain({ directory: this.workspacePath(folder), storage, keychain: custody, writerGuard: this.writerGuard() }));
+          return { workspace: this.store().read().workspace };
+        });
+      }
       check(payload.unlock === undefined || payload.unlock === 'passphrase' || payload.unlock === 'keychain', 'INVALID_REQUEST', 'Choose passphrase or native custody unlock.');
       const folder = payload.folder ?? payload.path ?? 'main', keychain = this.options.keychain;
       if (payload.unlock === 'keychain') {
