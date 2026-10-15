@@ -73,6 +73,11 @@ test('each banner shows only for its own condition', async () => {
   assert.deepEqual(newer.banners, [{ kind: 'update-needed', reason: 'vault-newer', date: null }]);
   const withdrawn = await shell(owner, hostWith({ 'release.status': { configured: true, version: '1.0.0', vaultCompatible: true, withdrawn: true } }).host);
   assert.deepEqual(withdrawn.banners, [{ kind: 'update-needed', reason: 'withdrawn', date: null }]);
+  // Not configured: no update banner, even with an expired build; an unusable build shows Update needed.
+  const unconfigured = await shell(owner, hostWith({ 'release.status': { configured: false, version: '1.0.0', vaultCompatible: true, build: { updateNeeded: true, usable: false } } }).host);
+  assert.deepEqual(unconfigured.banners, []);
+  const unusable = await shell(owner, hostWith({ 'release.status': { configured: true, version: '1.0.0', vaultCompatible: true, build: { usable: false, updateNeeded: false, expiresAt: null } } }).host);
+  assert.deepEqual(unusable.banners, [{ kind: 'update-needed', reason: 'expired', date: null }]);
   // Release absent: the core updates.status is the fallback.
   const core = hostWith({ 'updates.status': { state: 'expired', date: '2026-09-01' } });
   assert.deepEqual((await shell(owner, core.host)).banners, [{ kind: 'update-needed', reason: 'expired', date: '2026-09-01' }]);

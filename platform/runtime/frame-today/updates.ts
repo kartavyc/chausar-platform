@@ -47,7 +47,7 @@ export async function updates(ctx: Context, host: ModuleHost): Promise<UpdatesRe
     return { ...reply, state: Date.parse(applied.at) < started ? 'rolled-back' : 'restart' };
   if (status?.configured === false) return { ...reply, state: 'not-configured' };
   if (reply.candidate !== null) return { ...reply, state: 'ready' };
-  if (status?.withdrawn === true || status?.build?.updateNeeded === true) return { ...reply, state: 'update-needed' };
+  if (status?.withdrawn === true || status?.build?.updateNeeded === true || status?.build?.usable === false) return { ...reply, state: 'update-needed' };
   return reply;
 }
 

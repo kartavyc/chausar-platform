@@ -114,9 +114,11 @@ export async function updateNeeded(host: ModuleHost) {
   if (release === null) return null;
   if (!release.absent) {
     const status = release.value;
+    // A newer app wrote this data: said whatever the update channel. Without a configured channel nothing else shows.
     if (status?.vaultCompatible === false) return { kind: 'update-needed' as const, reason: 'vault-newer' as const, date: null };
+    if (status?.configured === false) return null;
     if (status?.withdrawn === true) return { kind: 'update-needed' as const, reason: 'withdrawn' as const, date: null };
-    if (status?.build?.updateNeeded === true) return { kind: 'update-needed' as const, reason: 'expired' as const, date: isIso(status.build.expiresAt) ? status.build.expiresAt as string : null };
+    if (status?.build?.updateNeeded === true || status?.build?.usable === false) return { kind: 'update-needed' as const, reason: 'expired' as const, date: isIso(status.build.expiresAt) ? status.build.expiresAt as string : null };
     return null;
   }
   const status: any = await quiet(() => host.call('updates.status', {}));
