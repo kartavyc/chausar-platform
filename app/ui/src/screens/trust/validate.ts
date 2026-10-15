@@ -168,11 +168,21 @@ export function validateSendLevels(reply: unknown): SendLevels {
 }
 
 // ---------- Keep (TR-04) ----------
-export interface Keep { kinds: { kind: string; days: number | null; note: string }[]; inventory: { path: string; bytes: number | null; what: string }[] }
+/** How a kind's keep rule is applied (the engine's code, which the screen words); absent from an older engine, which sends only its note. */
+export const KEEP_RULES = ['retention', 'enforced', 'not-enforced', 'until-deleted'] as const;
+export type KeepRule = typeof KEEP_RULES[number];
+/** The last keep clean-up for a kind: counts of what it removed and held back. */
+export interface KeepApplied { at: string; removed: number; held: number }
+export interface Keep { kinds: { kind: string; days: number | null; note: string; rule: KeepRule | null; lastApplied: KeepApplied | null }[]; inventory: { path: string; bytes: number | null; what: string }[] }
 export function validateKeep(reply: unknown): Keep {
   const r = rec(reply);
   return {
-    kinds: list(r['kinds'], 'reply.kinds', (v, p) => { const k = rec(v, p); return { kind: id(k['kind'], `${p}.kind`), days: optCount(k['days'], `${p}.days`), note: str(k['note'], `${p}.note`, 500) }; }, 100),
+    kinds: list(r['kinds'], 'reply.kinds', (v, p) => {
+      const k = rec(v, p), applied = k['lastApplied'] === undefined || k['lastApplied'] === null ? null : rec(k['lastApplied'], `${p}.lastApplied`);
+      return { kind: id(k['kind'], `${p}.kind`), days: optCount(k['days'], `${p}.days`), note: str(k['note'], `${p}.note`, 500),
+        rule: k['rule'] === undefined ? null : oneOf(k['rule'], `${p}.rule`, KEEP_RULES),
+        lastApplied: applied === null ? null : { at: instant(applied['at'], `${p}.lastApplied.at`), removed: count(applied['removed'], `${p}.lastApplied.removed`), held: count(applied['held'], `${p}.lastApplied.held`) } };
+    }, 100),
     inventory: list(r['inventory'], 'reply.inventory', (v, p) => { const i = rec(v, p); return { path: id(i['path'], `${p}.path`), bytes: optCount(i['bytes'], `${p}.bytes`), what: str(i['what'], `${p}.what`, 500) }; }, 500),
   };
 }

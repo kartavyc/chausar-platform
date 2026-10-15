@@ -29,7 +29,21 @@ export interface Assistants {
   readonly on: boolean;
   readonly server: { readonly version: string; readonly scope: 'this-computer' };
   readonly assistants: readonly { readonly id: string; readonly name: string; readonly pairedAt: string; readonly lastCall: string | null; readonly active: boolean }[];
-  readonly calls: readonly { readonly id: string; readonly at: string; readonly client: string; readonly calculation: string; readonly receiptId: string | null; readonly removed: readonly string[]; readonly refused: boolean }[];
+  readonly calls: readonly { readonly id: string; readonly at: string; readonly client: string; readonly calculation: string; readonly receiptId: string | null; readonly removed: readonly Removal[] | 'not-recorded'; readonly refused: boolean }[];
+}
+/** One kind of thing the numbers server's disclosure check took out of an answer: a field name, why, and how many. Never a value. */
+export interface Removal { readonly field: string; readonly why: typeof REMOVED_WHY[number]; readonly count: number }
+export const REMOVED_WHY = ['personal', 'financial', 'confidential', 'withheld', 'send-level', 'own-entries'] as const;
+const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+/** The engine's list (at most fifty) or the word that its record does not say. */
+function removals(value: unknown, path: string): readonly Removal[] | 'not-recorded' {
+  if (value === 'not-recorded') return value;
+  return list(value, path, (v, p) => {
+    const r = rec(v, p), field = str(r['field'], `${p}.field`, 40), count = int(r['count'], `${p}.count`);
+    if (!FIELD.test(field)) throw new ShapeError(`${p}.field`);
+    if (count < 1) throw new ShapeError(`${p}.count`);
+    return { field, why: oneOf(r['why'], `${p}.why`, REMOVED_WHY), count };
+  }, 50);
 }
 export function assistants(value: unknown): Assistants {
   const r = rec(value), server = rec(r['server'], 'reply.server');
@@ -44,7 +58,7 @@ export function assistants(value: unknown): Assistants {
       const c = rec(v, p);
       return {
         id: id(c['id'], `${p}.id`), at: when(c['at'], `${p}.at`), client: str(c['client'], `${p}.client`, 200), calculation: str(c['calculation'], `${p}.calculation`, 200),
-        receiptId: c['receiptId'] === null ? null : id(c['receiptId'], `${p}.receiptId`), removed: strings(c['removed'], `${p}.removed`, 100), refused: bool(c['refused'], `${p}.refused`),
+        receiptId: c['receiptId'] === null ? null : id(c['receiptId'], `${p}.receiptId`), removed: removals(c['removed'], `${p}.removed`), refused: bool(c['refused'], `${p}.refused`),
       };
     }, 1000),
   };

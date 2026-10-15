@@ -191,12 +191,24 @@ export const KEEP = cat({
   inventoryTitle: 'Everything the app writes to disk', inventoryNone: 'Nothing is listed.', kindsNone: 'No kind of data is listed.',
   'kind.facts': 'Facts from your sources', 'kind.modelReceipts': 'Model receipts', 'kind.activity': 'Activity record', 'kind.briefs': 'Briefs',
   'kind.exports': 'Exports', 'kind.learning': 'Learning log',
+  'rule.retention': 'Removed by the retention clean-up after {days} days.',
+  'rule.enforced': 'Those older than {days} days are removed each day while the app runs on its own; anything another record still needs is held back.',
+  'rule.activityHeld': 'Entries the tamper-evident record links are held back, so this record may hardly shrink.',
+  'rule.not-enforced': 'Your rule is {days} days, but removing these on their own is not built yet; until then they are kept until you delete them.',
+  'rule.until-deleted': 'Kept until you delete it.',
+  lastApplied: 'Last clean-up on {date}: {removed} removed, {held} held back.',
 }, {
   kindsTitle: 'हर तरह का डेटा कब तक रखा जाता है', until: 'जब तक आप न हटाएँ', days: '{days} दिन', daysField: '{kind} कितने दिन रखें',
   daysHint: 'खाली छोड़ें तो यह तब तक रहेगा जब तक आप न हटाएँ।', badDays: '1 से 3650 तक दिनों की पूरी संख्या लिखें।',
   inventoryTitle: 'ऐप डिस्क पर जो कुछ लिखता है', inventoryNone: 'कुछ भी सूची में नहीं है।', kindsNone: 'किसी तरह का डेटा सूची में नहीं है।',
   'kind.facts': 'आपके स्रोतों के तथ्य', 'kind.modelReceipts': 'मॉडल की रसीदें', 'kind.activity': 'गतिविधि का रिकॉर्ड', 'kind.briefs': 'ब्रीफ़',
   'kind.exports': 'निर्यात', 'kind.learning': 'सीखने का लॉग',
+  'rule.retention': 'रिटेंशन सफ़ाई {days} दिन बाद हटा देती है।',
+  'rule.enforced': '{days} दिन से पुराने, ऐप के अपने आप चलते समय, हर दिन हटा दिए जाते हैं; जो किसी और रिकॉर्ड को अब भी चाहिए, वह रोक लिया जाता है।',
+  'rule.activityHeld': 'छेड़छाड़-प्रमाण रिकॉर्ड जिन प्रविष्टियों से जुड़ा है, वे रोक ली जाती हैं, इसलिए यह रिकॉर्ड शायद ही घटे।',
+  'rule.not-enforced': 'आपका नियम {days} दिन है, पर इन्हें अपने आप हटाना अभी बना नहीं है; तब तक ये आपके हटाने तक रखे जाते हैं।',
+  'rule.until-deleted': 'जब तक आप न हटाएँ, रखा जाता है।',
+  lastApplied: '{date} की पिछली सफ़ाई: {removed} हटाए गए, {held} रोके गए।',
 });
 
 export const DO = cat({

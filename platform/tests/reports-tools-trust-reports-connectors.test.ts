@@ -4,7 +4,10 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
-import { checkEnvelopes, checkFreshness, checkMatch } from '../runtime/reports-ext/connector-pages.ts';
+import { checkCoreTotals, checkEnvelopes, checkFreshness, checkGst2b, checkMatch } from '../runtime/reports-ext/connector-pages.ts';
+import { moduleMethods, type RegisteredMethod } from '../runtime/modules/registry.ts';
+import { check, type Context } from '../runtime/contracts.ts';
+import type { ModuleHost } from '../runtime/modules/types.ts';
 import { Calculations } from '../runtime/reports-ext/pages.ts';
 import { connectorCacheStats } from '../runtime/reports-ext/connector-cache.ts';
 
@@ -53,11 +56,153 @@ const lineOf = (built: any, id: string) => built.sections[0].lines.find((line: a
 async function receiptsOpen(engine: Engine, built: any) {
   for (const section of built.sections) for (const line of section.lines) {
     if (line.figure.kind === 'missing') continue;
-    assert.equal(line.figure.kind, 'money'); assert.ok(built.receiptIds.includes(line.figure.receiptId));
+    assert.ok(['money', 'count'].includes(line.figure.kind)); assert.ok(built.receiptIds.includes(line.figure.receiptId));
     const receipt = await engine.request('receipts.get', { id: line.figure.receiptId });
     assert.equal(receipt.id, line.figure.receiptId); assert.ok(receipt.figures.some((f: any) => f.minor === line.figure.exact));
   }
 }
+
+// ---- A fake core-data (coredata.bankTotals, coredata.gstr3bTurnover, coredata.gst2bReceipt) ----
+// Registered for one test and put back after, so these tests hold whether or not core-data is merged. Each fake receipt
+// is a copy of a real calculator receipt over the requested sources with the figures core-data's contract names, stored
+// in state.receipts as core-data stores its own (calc-receipts.ts storeReceipts), so receipts.get opens it.
+type Handler = (ctx: Context, payload: Record<string, any>, host: ModuleHost) => unknown;
+type CoreMethod = 'coredata.bankTotals' | 'coredata.gstr3bTurnover' | 'coredata.gst2bReceipt';
+const absent: Handler = () => check(false, 'UNKNOWN_METHOD', 'The requested operation is not available.');
+function fakeCore(t: any, handlers: Partial<Record<CoreMethod, Handler>> = {}) {
+  const map = moduleMethods as Map<string, RegisteredMethod>; const calls: { method: string; payload: any }[] = [];
+  for (const method of ['coredata.bankTotals', 'coredata.gstr3bTurnover', 'coredata.gst2bReceipt'] as const) {
+    const before = map.get(method); const handler = handlers[method] ?? absent;
+    map.set(method, Object.freeze({ permission: 'read' as const, module: 'core-data-fake',
+      handler: (ctx: Context, payload: Record<string, any>, host: ModuleHost) => { calls.push({ method, payload: structuredClone(payload) }); return handler(ctx, payload, host); } }));
+    t.after(() => { if (before) map.set(method, before); else map.delete(method); });
+  }
+  return calls;
+}
+let fakeId = 0;
+type FakeFigure = [key: string, minor: string, unit?: 'money' | 'count'];
+async function fakeReceipt(ctx: Context, host: ModuleHost, sourceIds: string[], period: any, operation: string, figures: FakeFigure[], missingFigures: [string, string][] = [], assumptions: Record<string, unknown> = {}) {
+  const base = await host.services.calculator.calculate(ctx, { operation: 'purchases', period, sourceIds });
+  const receipt = { ...structuredClone(base), id: `receipt_fakecore_${++fakeId}`, operation, stale: false, assumptions,
+    figures: figures.map(([key, minor, unit = 'money']) => ({ key, label: key, minor, display: minor, unit, ...(unit === 'money' ? { currency: 'INR' } : {}) })),
+    missingFigures: missingFigures.map(([key, missing]) => ({ key, label: key, missing, reason: 'Synthetic.' })),
+    coverage: { ...base.coverage, completeness: 'reconciled-imports', gaps: [`Synthetic ${operation} gap.`] } };
+  await host.store.update(state => { state.receipts.push(structuredClone(receipt) as any); });
+  return receipt;
+}
+const totalsReply = (receipt: any) => ({ receipt, figures: Object.fromEntries(receipt.figures.map((f: any) => [f.key, f.minor])),
+  missing: Object.fromEntries(receipt.missingFigures.map((m: any) => [m.key, m.missing])) });
+async function importAll(engine: Engine) {
+  await engine.request('sources.import', { sourceId: 'books', format: 'csv', content: books, recipe, expectedTotals: { rowCount: 8, amountMinor: '18835000' } });
+  await importFile(engine, 'gst.gstr1-invoices-summary', 'gstr1-sep', 'gst-downloads/gstr1-sep-2026-with-summary.json');
+  await importFile(engine, 'gst.gstr3b-supplies', 'gstr3b-sep', 'gst-downloads/gstr3b-sep-2026.json', { rowCount: 5, total: '27050000' });
+  await importFile(engine, 'gst.gstr2b-b2b', 'gstr2b-sep', 'gst-downloads/gstr2b-sep-2026.json');
+  await importFile(engine, 'bank.statement-csv', 'bank-hdfc', 'bank-statements/hdfc-like.csv');
+}
+
+test('with core-data: every bank, GSTR-3B and GSTR-2B figure opens its receipt; counts are counts and missing figures are words', async t => {
+  const engine = await open(t);
+  const calls = fakeCore(t, {
+    'coredata.bankTotals': async (ctx, p, host) => totalsReply(await fakeReceipt(ctx, host, p.sourceIds, p.period, 'bank_totals',
+      [['credits', '500000'], ['debits', '120000'], ['net', '380000'], ['entries', '7', 'count']], [['opening', 'absent'], ['closing', 'unknown']])),
+    'coredata.gstr3bTurnover': async (ctx, p, host) => totalsReply(await fakeReceipt(ctx, host, p.sourceIds, p.period, 'gstr3b_turnover',
+      [['turnover', '27000000'], ['outwardTaxable', '25000000'], ['zeroRated', '2000000'], ['reverseChargeInward', '50000'], ['outwardTax', '4500000']], [['nilExempt', 'absent'], ['nonGst', 'absent']])),
+    'coredata.gst2bReceipt': async (ctx, p, host) => {
+      const sources = [p.registerSourceId, p.gstr2bSourceId];
+      const group = await fakeReceipt(ctx, host, sources, p.period, 'gstr2b_match', [['booksTaxable', '3685000'], ['gstr2bTaxable', '4000000'], ['creditAtRisk', '13500'],
+        ['matched', '2', 'count'], ['withinTolerance', '0', 'count'], ['amountDiffers', '1', 'count'], ['inBooksOnly', '1', 'count'], ['in2bOnly', '0', 'count'],
+        ['probable', '0', 'count'], ['invalid', '0', 'count'], ['creditAtRiskUnknownTax', '0', 'count']]);
+      const lineOne = async (key: string, group: string, figures: FakeFigure[], missing: [string, string][]) =>
+        ({ key, receiptId: (await fakeReceipt(ctx, host, sources, p.period, 'gstr2b_line', figures, missing, { key, group, toleranceMinor: '0' })).id });
+      return { receiptId: group.id, lines: [
+        await lineOne('27PQRSX5678K1ZY|KST-101|2026-27', 'matched', [['booksTaxable', '2000000'], ['gstr2bTaxable', '2000000'], ['difference', '0']], []),
+        await lineOne('29ABCDE1234F1ZW|SP/0013|2026-27', 'amount-differs', [['booksTaxable', '510000'], ['gstr2bTaxable', '500000'], ['difference', '-10000']], []),
+        await lineOne('29ABCDE1234F1ZW|SP/0099|2026-27', 'books-only', [['booksTaxable', '75000']], [['gstr2bTaxable', 'absent'], ['difference', 'not-applicable']]),
+      ] };
+    },
+  });
+  await importAll(engine);
+
+  const bank = await page(engine, 'lender', 'bank-summary');
+  assert.equal(bank.state, 'ready-tested');
+  assert.deepEqual(calls.find(c => c.method === 'coredata.bankTotals')!.payload, { sourceIds: ['bank-hdfc'], period: september });
+  assert.equal(lineOf(bank, 'credits').figure.exact, '500000'); assert.equal(lineOf(bank, 'credits').figure.kind, 'money');
+  assert.equal(lineOf(bank, 'net').figure.exact, '380000');
+  assert.deepEqual([lineOf(bank, 'entries').figure.kind, lineOf(bank, 'entries').figure.exact], ['count', '7']);
+  assert.deepEqual(lineOf(bank, 'opening').figure, { kind: 'missing', missing: 'absent' });
+  assert.deepEqual(lineOf(bank, 'closing').figure, { kind: 'missing', missing: 'unknown' });
+  assert.ok(!bank.gaps.some((gap: string) => gap.startsWith('The bank connector checks')), 'no longer not counted');
+  await receiptsOpen(engine, bank);
+
+  const gst = await page(engine, 'lender', 'gst-turnover');
+  assert.equal(gst.state, 'ready-tested', 'no line is left not counted, so the page can be tested');
+  assert.equal(lineOf(gst, 'gstr3b').figure.exact, '27000000'); assert.equal(lineOf(gst, 'gstr3b').figure.measure.key, 'turnover');
+  const parts = gst.sections.find((s: any) => s.id === 'gstr3b');
+  assert.equal(parts.lines.find((l: any) => l.id === 'reverseChargeInward').figure.exact, '50000');
+  assert.match(parts.lines.find((l: any) => l.id === 'reverseChargeInward').label, /not turnover/);
+  assert.deepEqual(parts.lines.find((l: any) => l.id === 'nilExempt').figure, { kind: 'missing', missing: 'absent' });
+  assert.ok(!gst.gaps.some((gap: string) => gap.startsWith('GSTR-3B is kept as the rows')));
+  await receiptsOpen(engine, gst);
+
+  const match = await page(engine, 'ca', 'purchases-gstr2b');
+  assert.deepEqual(calls.find(c => c.method === 'coredata.gst2bReceipt')!.payload, { registerSourceId: 'books', gstr2bSourceId: 'gstr2b-sep', period: september, toleranceMinor: '0' });
+  assert.equal(match.state, 'ready-tested');
+  assert.equal(lineOf(match, 'books').figure.exact, '3685000'); assert.equal(lineOf(match, 'credit-at-risk').figure.kind, 'money');
+  assert.deepEqual([lineOf(match, 'amount-differs').figure.kind, lineOf(match, 'amount-differs').figure.exact], ['count', '1']);
+  assert.deepEqual([lineOf(match, 'within-tolerance').figure.kind, lineOf(match, 'within-tolerance').figure.exact], ['count', '0']);
+  for (const words of ['Some invoices are in the books but not in GSTR-2B', 'Some invoices are in both, with different amounts', 'Invoices are matched exactly'])
+    assert.ok(match.gaps.some((gap: string) => gap.startsWith(words)), words);
+  assert.ok(!match.gaps.some((gap: string) => gap.startsWith('Some invoices in GSTR-2B are not')));
+  const invoices = match.sections.find((s: any) => s.id === 'invoices');
+  assert.deepEqual(invoices.lines.map((l: any) => [l.label, l.figure.exact, l.figure.measure.key]), [
+    ['29ABCDE1234F1ZW · SP/0013 · 2026-27: amount differs', '-10000', 'difference'],
+    ['29ABCDE1234F1ZW · SP/0099 · 2026-27: in the books only', '75000', 'booksTaxable']]);
+  await receiptsOpen(engine, match);
+  assert.equal(match.receiptIds.length, 3, 'the group receipt and the two invoices shown');
+  const hindi = await page(engine, 'ca', 'purchases-gstr2b', { language: 'hi' });
+  assert.match(hindi.sections.find((s: any) => s.id === 'invoices').lines[0].label, /राशि अलग है$/);
+});
+
+test('with core-data: a business that is not GST-regular reads in words; refusals leave figures unknown, never zero', async t => {
+  const engine = await open(t);
+  fakeCore(t, {
+    'coredata.gstr3bTurnover': () => check(false, 'GST_RETURN_NOT_APPLICABLE', 'A composition or unregistered business files no GSTR-3B outward supplies table.'),
+    'coredata.bankTotals': () => check(false, 'SOURCE_REVOKED', 'Synthetic refusal.'),
+    'coredata.gst2bReceipt': () => check(false, 'GST_MATCH_TOO_LARGE', 'Synthetic refusal.'),
+  });
+  await importAll(engine);
+  const gst = await page(engine, 'lender', 'gst-turnover');
+  assert.notEqual(gst.state, 'not-started');
+  assert.deepEqual(lineOf(gst, 'gstr3b').figure, { kind: 'missing', missing: 'not-applicable' });
+  assert.ok(gst.gaps.some((gap: string) => gap.startsWith('A composition or unregistered business files no GSTR-3B')));
+  const bank = await page(engine, 'lender', 'bank-summary');
+  assert.equal(bank.state, 'not-started');
+  for (const line of bank.sections[0].lines) assert.deepEqual(line.figure, { kind: 'missing', missing: 'unknown' }, line.id);
+  assert.ok(bank.gaps.includes('The calculation of the bank totals was refused, so they are not shown.'));
+  const match = await page(engine, 'ca', 'purchases-gstr2b');
+  assert.equal(lineOf(match, 'books').figure.kind, 'money');
+  assert.deepEqual(lineOf(match, 'matched').figure, { kind: 'missing', missing: 'unknown' });
+  assert.ok(match.gaps.some((gap: string) => gap.startsWith('There are too many purchase lines')));
+  const blocked = fakeCore(t, { 'coredata.gst2bReceipt': () => check(false, 'GST_MATCH_NOT_APPLICABLE', 'Synthetic.') });
+  const notApplicable = await page(engine, 'ca', 'purchases-gstr2b', { language: 'hi' });
+  assert.ok(blocked.length === 1); assert.equal(notApplicable.state, 'not-started');
+  assert.ok(notApplicable.gaps.includes('कंपोज़िशन या बिना पंजीकरण वाला व्यवसाय ख़रीद का GSTR-2B से मिलान नहीं करता।'));
+});
+
+test('the core-data adapter refuses replies it cannot read', () => {
+  const receipt = { id: 'r1', operation: 'bank_totals', figures: [{ key: 'credits', minor: '10' }, { key: 'entries', minor: '3' }], coverage: { gaps: [] } };
+  const keys = { credits: 'money', entries: 'count', opening: 'money' } as const;
+  assert.deepEqual(checkCoreTotals({ receipt, figures: { credits: '10', entries: '3' }, missing: { opening: 'absent' } }, keys).figures,
+    { credits: { exact: '10', unit: 'money' }, entries: { exact: '3', unit: 'count' }, opening: 'absent' });
+  assert.equal(checkCoreTotals({ receipt, figures: { credits: '10' }, missing: {} }, keys).figures.opening, 'unknown', 'a key given nowhere is unknown, not zero');
+  assert.throws(() => checkCoreTotals({ receipt, figures: { credits: '11' }, missing: {} }, keys), code('COREDATA_REPLY_INVALID'), 'a figure must be the receipt\'s own');
+  assert.throws(() => checkCoreTotals({ receipt, figures: { credits: 10 }, missing: {} }, keys), code('COREDATA_REPLY_INVALID'), 'money is a paise string');
+  assert.throws(() => checkCoreTotals({ receipt: { ...receipt, figures: [{ key: 'entries', minor: '-3' }] }, figures: { entries: '-3' }, missing: {} }, keys), code('COREDATA_REPLY_INVALID'));
+  assert.throws(() => checkCoreTotals({ receipt, figures: {}, missing: { opening: 'zero' } }, keys), code('COREDATA_REPLY_INVALID'));
+  assert.throws(() => checkCoreTotals({ figures: {}, missing: {} }, keys), code('COREDATA_REPLY_INVALID'));
+  assert.deepEqual(checkGst2b({ receiptId: 'r1', lines: [{ key: 'A|B|2026-27', receiptId: 'r2', extra: 'dropped' }] }), { receiptId: 'r1', lines: [{ key: 'A|B|2026-27', receiptId: 'r2' }] });
+  assert.throws(() => checkGst2b({ receiptId: 'r1', lines: [{ key: 'no-separators', receiptId: 'r2' }] }), code('COREDATA_REPLY_INVALID'));
+});
 
 test('the three connector pages say plainly that nothing is imported yet', async t => {
   const engine = await open(t);
@@ -70,8 +215,8 @@ test('the three connector pages say plainly that nothing is imported yet', async
   assert.equal(bank.state, 'not-started'); assert.deepEqual(bank.gaps, ['अभी तक कोई बैंक विवरण आयात नहीं हुआ है।']); assert.deepEqual(bank.receiptIds, []);
 });
 
-test('GST turnover, bank summary and purchases against GSTR-2B are built from connector imports with receipts that open', async t => {
-  const engine = await open(t);
+test('before core-data: GST turnover, bank summary and purchases against GSTR-2B are built from connector imports with receipts that open', async t => {
+  const engine = await open(t); fakeCore(t);
   await engine.request('sources.import', { sourceId: 'books', format: 'csv', content: books, recipe, expectedTotals: { rowCount: 8, amountMinor: '18835000' } });
   await importFile(engine, 'gst.gstr1-invoices-summary', 'gstr1-sep', 'gst-downloads/gstr1-sep-2026-with-summary.json');
   await importFile(engine, 'gst.gstr3b-supplies', 'gstr3b-sep', 'gst-downloads/gstr3b-sep-2026.json', { rowCount: 5, total: '27050000' });
@@ -124,7 +269,7 @@ test('the connector adapter refuses replies it cannot read', () => {
 });
 
 test('drawing the packs list again with nothing changed does not recalculate the connector pages; a change in data does', async t => {
-  const engine = await open(t);
+  const engine = await open(t); fakeCore(t);
   await engine.request('sources.import', { sourceId: 'books', format: 'csv', content: books, recipe, expectedTotals: { rowCount: 8, amountMinor: '18835000' } });
   await importFile(engine, 'gst.gstr1-invoices-summary', 'gstr1-sep', 'gst-downloads/gstr1-sep-2026-with-summary.json');
   await importFile(engine, 'gst.gstr2b-b2b', 'gstr2b-sep', 'gst-downloads/gstr2b-sep-2026.json');

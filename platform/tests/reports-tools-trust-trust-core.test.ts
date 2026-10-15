@@ -7,6 +7,7 @@ import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { Context, Fact } from '../runtime/contracts.ts';
 import { markingsForSources } from '../runtime/trust-ext/methods-core.ts';
+import { moduleMethods, type RegisteredMethod } from '../runtime/modules/registry.ts';
 import { today } from '../runtime/trust-ext/core-state.ts'; // the lane's India date
 
 // Synthetic people, phones and GSTINs only.
@@ -159,6 +160,31 @@ test('keep lists kinds and the files the app writes, including the vault', async
   keep = await f.rpc('trustx.setKeep', { kind: 'facts', days: 30 }); assert.equal(keep.kinds[0].days, 30); assert.equal(f.store.read().policy.retentionDays, 30);
   keep = await f.rpc('trustx.setKeep', { kind: 'exports', days: 14 }); assert.equal(keep.kinds.find((k: any) => k.kind === 'exports').days, 14);
   assert.equal((await f.call('trustx.setKeep', { kind: 'facts', days: null })).body.error.code, 'INVALID_KEEP');
+});
+
+test('keep says each kind is enforced once core-data\'s keep.enforce is there, with the last clean-up\'s counts; before, that it is stored only', async t => {
+  const f = await fixture(t);
+  const map = moduleMethods as Map<string, RegisteredMethod>; const before = map.get('keep.enforce');
+  t.after(() => { if (before) map.set('keep.enforce', before); else map.delete('keep.enforce'); });
+  await f.rpc('trustx.setKeep', { kind: 'exports', days: 14 }); await f.rpc('trustx.setKeep', { kind: 'activity', days: 30 });
+  // Before core-data: the rule is stored, not enforced, and no clean-up is shown.
+  map.delete('keep.enforce');
+  let keep = await f.rpc('trustx.keep'); const by = (kind: string) => keep.kinds.find((k: any) => k.kind === kind);
+  assert.deepEqual(keep.kinds.map((k: any) => k.rule), ['retention', 'until-deleted', 'not-enforced', 'until-deleted', 'not-enforced', 'until-deleted']);
+  assert.match(by('exports').note, /not built yet/); assert.equal(by('exports').lastApplied, null);
+  // With a (fake) keep.enforce and a recorded clean-up: enforced, and the counts of the newest clean-up by kind.
+  map.set('keep.enforce', Object.freeze({ permission: 'admin' as const, module: 'core-data-fake', handler: () => ({ at: new Date().toISOString(), kinds: [] }) }));
+  await f.store.update(state => {
+    state.activity.push({ id: 'event_old', at: '2026-10-01T00:00:00.000Z', event: 'trust.keep.enforced', details: { kinds: [{ kind: 'exports', removed: 9, held: 9 }] } } as any);
+    state.activity.push({ id: 'event_new', at: '2026-10-02T00:00:00.000Z', event: 'trust.keep.enforced', details: { kinds: [{ kind: 'exports', removed: 2, held: 1 }, { kind: 'activity', removed: 0, held: 40 }, { kind: 'learning', removed: -1, held: 0 }] } } as any);
+  });
+  keep = await f.rpc('trustx.keep');
+  assert.deepEqual(keep.kinds.map((k: any) => k.rule), ['retention', 'until-deleted', 'enforced', 'until-deleted', 'enforced', 'until-deleted']);
+  assert.match(by('exports').note, /removed each day/); assert.doesNotMatch(by('exports').note, /not built yet/);
+  assert.match(by('activity').note, /tamper-evident record links are held back/);
+  assert.deepEqual(by('exports').lastApplied, { at: '2026-10-02T00:00:00.000Z', removed: 2, held: 1 });
+  assert.deepEqual(by('activity').lastApplied, { at: '2026-10-02T00:00:00.000Z', removed: 0, held: 40 });
+  assert.equal(by('learning').lastApplied, null, 'a count that is not whole is left out');
 });
 
 test('do: what may run on its own is jobs-ext\'s; this lane keeps no autonomy engine', async t => {

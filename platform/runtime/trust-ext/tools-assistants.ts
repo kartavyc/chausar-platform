@@ -2,12 +2,35 @@
 import { audit, check, newId, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
+import * as mcpModule from '../mcp.ts';
 import { MCP_PROTOCOL_VERSION } from '../mcp.ts';
 import { fields, newestFirst, tools } from './tools-common.ts';
 import { coreState } from './core-state.ts';
 import { applyByOne, onApplyChange } from './core-dual.ts';
 import { onPurge, onTick } from './lifecycle.ts';
 import { peekLane } from './lane-state.ts';
+
+/** TL-08: one kind of thing the numbers server's disclosure check removed from an answer: the field, why, and how many. Never a value. */
+export type McpRemoved = { field: string; why: typeof removedWhy[number]; count: number };
+const removedWhy = ['personal', 'financial', 'confidential', 'withheld', 'send-level', 'own-entries'] as const;
+const FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+/**
+ * The `removed` list core-data's MCP replies carry (`{ field, why, count }[]`), checked before it is kept or shown: at most fifty
+ * entries, a plain field name, a known reason and a whole count. Anything else is not kept (`undefined`), so the list then
+ * reads "not recorded" rather than a guess. No outside text: field names are the workspace's own field identifiers.
+ */
+export function mcpRemoved(value: unknown): McpRemoved[] | undefined {
+  if (!Array.isArray(value) || value.length > 50) return undefined;
+  const out: McpRemoved[] = [];
+  for (const item of value) {
+    if (item === null || typeof item !== 'object' || typeof item.field !== 'string' || !FIELD.test(item.field) || !removedWhy.includes(item.why)
+      || !Number.isSafeInteger(item.count) || item.count < 1 || item.count > 1_000_000) return undefined;
+    out.push({ field: item.field, why: item.why, count: item.count });
+  }
+  return out;
+}
+/** True once the core's numbers server has a disclosure step (core-data's `discloseRows`); before it, an answer never had anything removed. */
+const disclosure = typeof (mcpModule as Record<string, unknown>).discloseRows === 'function';
 
 /** Sessions issued by the auth service last at most one day; an assistant pairs again after that. */
 type Paired = { id: string; name: string; pairedAt: string; sessionId: string };
@@ -40,12 +63,13 @@ export async function assistants(_ctx: Context, payload: Record<string, any>, ho
 export function assistantsView(state: State) {
   const list = paired(state); const ids = new Map(list.map(item => [item.id, item.name]));
   const receipts = new Map(state.receipts.map(receipt => [receipt.id, receipt]));
-  // The numbers server records each call by structure only (core-hooks.ts): the tool, the receipt and how it ended, refused requests included.
-  // It has no disclosure step that removes fields from an answer, so `removed` is always empty.
+  // The numbers server records each call by structure only (core-hooks.ts): the tool, the receipt and how it ended, refused requests included,
+  // and what its disclosure check removed when the core's record carries that. A call that was not answered gave nothing, so nothing was removed.
   const calls = newestFirst(((tools(state).mcpCalls ?? []) as any[]).flatMap(d => {
     const client = ids.get(d.memberId);
+    const removed: McpRemoved[] | 'not-recorded' = d.outcome !== 'answered' ? [] : mcpRemoved(d.removed) ?? (disclosure ? 'not-recorded' : []);
     return client ? [{ id: d.id as string, at: d.at as string, client, calculation: typeof d.tool === 'string' ? d.tool : 'An unregistered request',
-      receiptId: typeof d.receiptId === 'string' && receipts.has(d.receiptId) ? d.receiptId as string : null, removed: [] as string[], refused: d.outcome === 'refused',
+      receiptId: typeof d.receiptId === 'string' && receipts.has(d.receiptId) ? d.receiptId as string : null, removed, refused: d.outcome === 'refused',
       code: typeof d.code === 'string' ? d.code as string : null }] : [];
   }));
   return {

@@ -6,6 +6,7 @@ import type { Address, Language, View } from '../../app/ui/src/app/presentation'
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { toolsPlaces, ToolRequestSheet } from '../../app/ui/src/screens/tools/index';
 import { TOOLS_WORDS } from '../../app/ui/src/screens/tools/words';
+import { assistants as assistantsReply } from '../../app/ui/src/screens/tools/validate';
 
 // Every reply here is a synthetic fixture. Nothing reaches a network.
 afterEach(cleanup);
@@ -96,7 +97,8 @@ const ASSISTANTS = {
   on: true, server: { version: '1.4.0', scope: 'this-computer' },
   assistants: [{ id: 'as-1', name: 'Desk helper', pairedAt: '2026-10-01T09:00:00Z', lastCall: '2026-10-12T10:00:00Z', active: true }],
   calls: [
-    { id: 'c1', at: '2026-10-12T10:00:00Z', client: 'Desk helper', calculation: 'Cash in hand', receiptId: 'rc-77', removed: ['customer names'], refused: false },
+    { id: 'c1', at: '2026-10-12T10:00:00Z', client: 'Desk helper', calculation: 'Cash in hand', receiptId: 'rc-77', removed: [{ field: 'customerId', why: 'send-level', count: 3 }, { field: 'taxMinor', why: 'personal', count: 1 }], refused: false },
+    { id: 'c3', at: '2026-10-12T12:00:00Z', client: 'Desk helper', calculation: 'Sales', receiptId: 'rc-78', removed: 'not-recorded', refused: false },
     { id: 'c2', at: '2026-10-12T11:00:00Z', client: 'Desk helper', calculation: 'Change a price', receiptId: null, removed: [], refused: true },
   ],
 };
@@ -525,7 +527,10 @@ test('assistants: rule, server card, calls with receipts, removed and refused; s
   expect(await screen.findByText(en.rule)).toBeTruthy();
   expect(screen.getByText('1.4.0')).toBeTruthy();
   expect(screen.getByText(en.thisComputer)).toBeTruthy();
-  expect(screen.getByText('customer names')).toBeTruthy();
+  expect(screen.getByText('Customer: the Send level allows no names of records (3)')).toBeTruthy();
+  expect(screen.getByText('taxMinor: marked personal (1)')).toBeTruthy();
+  expect(screen.getByText(en.removedNotRecorded)).toBeTruthy();
+  expect(screen.queryByText(en.removedNothing)).toBeNull();
   expect(screen.getByText(en.refusedCall)).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Open receipt rc-77' }));
   expect(d.openReceipt).toHaveBeenCalledWith('rc-77');
@@ -794,7 +799,8 @@ test('Simple: small apps keep the rows and the line, without ids or why; assista
   draw({ place: 'tools', sub: 'assistants' }, { view: 'simple' });
   await screen.findByText(en.rule);
   expect(screen.queryByText('1.4.0')).toBeNull();
-  expect(screen.queryByText('customer names')).toBeNull();
+  expect(screen.queryByText(/Customer: the Send level/)).toBeNull();
+  expect(screen.queryByText(en.removedNotRecorded)).toBeNull();
   expect(screen.getByText(en.refusedCall)).toBeTruthy();
   expect(screen.queryByText('c1')).toBeNull();
   cleanup();
@@ -839,4 +845,11 @@ test('Books: ids, digests, versions, message ids, engine replies and the count p
   draw({ place: 'tools', sub: 'assistants' }, { view: 'books' });
   await screen.findByText(en.rule);
   expect(screen.getByText('c1')).toBeTruthy();
+  expect(screen.getByText('Customer (customerId): the Send level allows no names of records (3)')).toBeTruthy();
+});
+
+test('assistants: a removed list it cannot read is refused, never shown as text', () => {
+  const call = ASSISTANTS.calls[0];
+  for (const removed of [['customer names'], [{ field: 'customer name', why: 'personal', count: 1 }], [{ field: 'customerId', why: 'because', count: 1 }], [{ field: 'customerId', why: 'personal', count: 0 }], 'nothing'])
+    expect(() => assistantsReply({ ...ASSISTANTS, calls: [{ ...call, removed }] })).toThrow();
 });

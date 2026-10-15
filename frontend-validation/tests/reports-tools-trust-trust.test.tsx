@@ -8,7 +8,7 @@ import type { Address, Language, View } from '../../app/ui/src/app/presentation'
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { trustPlaces } from '../../app/ui/src/screens/trust/index';
 import { COMMON, DELETION, KEEP, NETWORK, PEOPLE, RECORD, RULES, SEE, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
-import { validateDeletion } from '../../app/ui/src/screens/trust/validate';
+import { validateDeletion, validateKeep } from '../../app/ui/src/screens/trust/validate';
 import { words as laneWords } from '../../app/ui/src/text/lanes/reports-tools-trust';
 
 afterEach(cleanup);
@@ -823,6 +823,32 @@ describe('TR-04 Keep and TR-06 People: engine codes in words', () => {
     draw(at('rules', 'keep'), { rpc: fakeRpc({ 'trustx.keep': keep }), view: 'books' });
     expect(await screen.findByText(KEEP.en['kind.facts'])).toBeTruthy();
     expect(screen.getByText('facts')).toBeTruthy();
+  });
+
+  test('keep rules read in the screen\'s words, in Hindi too: each kind enforced, with the last clean-up\'s counts; stored-only only without keep.enforce', async () => {
+    const applied = { at: '2026-10-02T00:00:00.000Z', removed: 2, held: 40 };
+    const keep = { kinds: [
+      { kind: 'exports', days: 14, rule: 'enforced', lastApplied: { ...applied, held: 1 }, note: 'English engine note.' },
+      { kind: 'activity', days: 30, rule: 'enforced', lastApplied: applied, note: 'English engine note.' },
+      { kind: 'briefs', days: 7, rule: 'not-enforced', lastApplied: null, note: 'English engine note.' },
+      { kind: 'learning', days: null, rule: 'until-deleted', lastApplied: null, note: 'English engine note.' },
+    ], inventory: [] };
+    draw(at('rules', 'keep'), { rpc: fakeRpc({ 'trustx.keep': keep }), language: 'hi' });
+    expect(await screen.findByText(KEEP.hi['rule.enforced'].replace('{days}', '14'))).toBeTruthy();
+    expect(screen.getByText(`${KEEP.hi['rule.enforced'].replace('{days}', '30')} ${KEEP.hi['rule.activityHeld']}`)).toBeTruthy();
+    expect(screen.getByText(KEEP.hi['rule.not-enforced'].replace('{days}', '7'))).toBeTruthy();
+    expect(screen.getByText(KEEP.hi['rule.until-deleted'])).toBeTruthy();
+    expect(screen.queryByText('English engine note.')).toBeNull();
+    expect(screen.getAllByText(/की पिछली सफ़ाई: 2 हटाए गए/).length).toBe(2);
+    cleanup();
+    draw(at('rules', 'keep'), { rpc: fakeRpc({ 'trustx.keep': keep }) });
+    expect(await screen.findByText(/Last clean-up on .*: 2 removed, 40 held back\./)).toBeTruthy();
+    cleanup();
+    // A list it cannot read is refused: a negative count, or a rule it does not know.
+    for (const bad of [{ ...keep.kinds[0], lastApplied: { ...applied, removed: -1 } }, { ...keep.kinds[0], rule: 'sometimes' }, { ...keep.kinds[0], lastApplied: { ...applied, at: 'yesterday' } }])
+      expect(() => validateKeep({ kinds: [bad], inventory: [] })).toThrow();
+    // An older engine sends only its note, which is shown as it is.
+    expect(validateKeep({ kinds: [{ kind: 'exports', days: 14, note: 'Old note.' }], inventory: [] }).kinds[0]).toEqual({ kind: 'exports', days: 14, note: 'Old note.', rule: null, lastApplied: null });
   });
 
   test('seat limits and deletion places are worded by their engine codes, in Hindi too; an unknown code is shown as the engine wrote it', async () => {
