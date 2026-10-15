@@ -235,3 +235,24 @@ test('auth.verifyApprovalSecret checks the caller’s own secret for another lan
   assert.ok(Date.parse((await f.rpc('secondAsk.status')).lockedUntil) > Date.now());
   assert.deepEqual(await f.rpc('auth.verifyApprovalSecret', { secret: 'cofounder own words' }, cofounder), { verified: true }, 'The owner’s lock is the owner’s alone.');
 });
+
+test('a member on the staff seat sees and acts on only the actions they prepared (TR-06), and a hidden one answers like a missing one', async () => {
+  await import('../runtime/gateway-auth/action-rules.ts');
+  const { coreState } = await import('../runtime/trust-ext/core-state.ts');
+  const store = new TestStore();
+  store.state.members.push({ id: 'staff-1', name: 'Staff', role: 'accountant', active: true, epoch: 1, branches: ['*'] }, { id: 'acct', name: 'Accountant', role: 'accountant', active: true, epoch: 1, branches: ['*'] });
+  coreState(store.state).memberSeats['staff-1'] = 'staff';
+  const staff: Context = { memberId: 'staff-1', role: 'accountant', epoch: 1, channel: 'desktop' };
+  const accountant: Context = { memberId: 'acct', role: 'accountant', epoch: 1, channel: 'desktop' };
+  const actions = new ActionService(store, [connector()]);
+  const ownerNote = await actions.prepare(owner, { connector: 'synthetic-pay', operation: 'note', payload: { text: 'owner' }, idempotencyKey: 'note-owner-1', sourceIds: ['synthetic-sales'] });
+  const staffNote = await actions.prepare(staff, { connector: 'synthetic-pay', operation: 'note', payload: { text: 'staff' }, idempotencyKey: 'note-staff-1', sourceIds: ['synthetic-sales'] });
+  assert.deepEqual(actions.list(staff).map(a => a.id), [staffNote.id]);
+  assert.deepEqual(actions.list(accountant).map(a => a.id).sort(), [ownerNote.id, staffNote.id].sort(), 'The accountant seat is not limited to its own.');
+  assert.deepEqual(actions.list(owner).map(a => a.id).sort(), [ownerNote.id, staffNote.id].sort());
+  await assert.rejects(actions.revise(staff, ownerNote.id, { text: 'changed' }), code('NOT_FOUND'));
+  await assert.rejects(actions.revise(staff, 'action_missing', { text: 'changed' }), code('NOT_FOUND'));
+  // Preparing again with the owner's idempotency key does not reveal the owner's action either.
+  await assert.rejects(actions.prepare(staff, { connector: 'synthetic-pay', operation: 'note', payload: { text: 'owner' }, idempotencyKey: 'note-owner-1', sourceIds: ['synthetic-sales'] }), code('NOT_FOUND'));
+  assert.equal((await actions.revise(staff, staffNote.id, { text: 'staff again' })).revision, 2);
+});

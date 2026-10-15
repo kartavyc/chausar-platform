@@ -49,7 +49,11 @@ Every item below is labelled **supported** (tested end to end through the real e
 - `ConnectorCredentialStore` (connectors-ext; also used by writeback and hosted-link) takes its key from custody, so connector and writeback credentials use it.
 - `SecretStore` (sealed named secrets under `<appDir>/secrets`) holds this lane's device secret.
 
-### 6. `network.online` (supported)
+### 6. Staff see only their own actions (TR-06, core-data's request) (supported)
+
+`gateway-auth/action-rules.ts` registers an `actions.ts` rule: a member on the staff seat (trust-ext's `seatOf`) sees, revises, approves or executes only the actions they prepared, matching core-data's rule for facts, receipts and conversations. A hidden action answers `NOT_FOUND`, exactly like a missing one.
+
+### 7. `network.online` (supported)
 
 Before and after unlock. Decided from the network interfaces only; nothing leaves the machine.
 
@@ -86,12 +90,12 @@ In-process contracts:
 ## Core edits
 
 - `platform/runtime/gateway.ts`: the monthly cap (reader registry, spend ledger, check and spend in `execute`'s reservation), the decide purpose (`previewDecision`, `executeDecision`, shared `#previewStructured` behind `previewTask`), the trusted `fixtureSelectors` argument of `preview`, `setLadder`, `discard`, ladder-preserving `configureRoute`, `runOutboundChecks`. Owned by this lane.
-- `platform/runtime/actions.ts`: optional `secondAsk` money gate (constructor option and one call in `approve`). Owned.
+- `platform/runtime/actions.ts`: optional `secondAsk` money gate (constructor option and one call in `approve`), and `registerActionHidden` rules checked in `access` (a hidden action answers `NOT_FOUND`, like a missing one). Owned.
 - `platform/runtime/vault.ts`: `registerKeyWithPassphrase` and `passphraseBinding`. Owned.
 - `platform/runtime/plugins.ts`: `guardOutbound`, `UNATTRIBUTED_OUTBOUND`. Owned.
 - `platform/runtime/engine.ts` (fenced `core-gateway-auth`): imports; `attach()` ends by opening secret custody; `closeVault()` starts by closing it; `workspace.open` accepts `unlock: 'pin'`; the core `ActionService` gets the money gate. These are needed because PIN unlock and secret custody follow the vault's lifecycle, which only the engine sees.
 - `platform/runtime/connectors-ext/credentials.ts` (connectors-ext): `#key` asks custody first (one line + import), so connector and writeback credentials use the keychain-backed store.
-- `platform/runtime/smallapps/plugin-methods.ts` (models-ext), `learning-ext/sharing.ts`, `hosted-link/service.ts`: the canary guard at each outbound call (a few lines each).
+- `platform/runtime/smallapps/plugin-methods.ts` (models-ext), `learning-ext/sharing.ts`, `hosted-link/service.ts`: the canary guard at each outbound call (a few lines each). In models-ext's reworked `callRemote` it also covers every MCP message body, before the approval is spent.
 - `platform/tests/demo-data-isolation.test.ts`, `demo-provider-isolation.test.ts`: these run engine.ts in a VM with a fixed list of globals; the new imported names were added.
 - `app/desktop/preload.cjs` (this lane's `laneRefusals` line) and the synced `app/ui/src/bridge/client.ts`.
 
