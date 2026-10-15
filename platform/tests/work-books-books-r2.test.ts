@@ -131,6 +131,12 @@ test('recipes: state from reads, the two totals, questions with one of the five 
   assert.deepEqual(one.questions.map((q: any) => [q.reason, q.detail, q.choices]), [['value-not-in-list', 'unknown_value', ['cancelled', 'ignore']]]);
   assert.deepEqual(one.newer, { readWith: '1', current: '2' });
   await assert.rejects(call(viewer, 'books.recipe', { recipeId: 'nope' }, fake), { code: 'RECIPE_NOT_FOUND' });
+  // connectors-ext round 4: the choices are the envelope's question.choices, not abstention.options (only the source's own value).
+  const asked: Fake = { ...fake, 'connectorsx.envelopes': () => [envelope(), envelope({ id: 'envelope-0', status: 'abstained', pendingRows: 0, fetchedAt: '2026-10-09T10:00:00.000Z',
+    abstention: { reason: 'unknown_value', field: 'status', question: 'What does "void" mean?', options: ['void'] },
+    question: { reason: 'unknown_value', field: 'status', sample: 'void', choices: ['cancelled', 'ignore'] } })] };
+  const r4 = await call(viewer, 'books.recipe', { recipeId: 'zoho-books.invoices.gross' }, asked);
+  assert.deepEqual(r4.questions[0].choices, ['cancelled', 'ignore']);
 });
 
 test('map this field: a grammar-checked proposal stays proposed until a named person accepts; a viewer cannot; purge removes it', async () => {
