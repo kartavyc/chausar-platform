@@ -6,7 +6,7 @@
 import { check } from '../contracts.ts';
 import type { Dictionary, Operation } from '../ontology.ts';
 import type { Period } from '../memory.ts';
-import type { ActionRow } from './catalogue-adapter.ts';
+import { ACTION_ID, type ActionRow } from './catalogue-adapter.ts';
 import { CONCEPTS, CONNECTIVES, FOLLOW_UP, OPERATIONS, PERIODS } from './lexicon.ts';
 
 export const SCHEMA = 'chausar.smallapp.v1';
@@ -157,7 +157,7 @@ function card(value: unknown): Card {
   }
   if (kind === 'action') {
     const input = record(value, ['id', 'kind', 'label', 'connector', 'operation']);
-    return { id: id(input), kind, label: words(input.label), connector: ident(input.connector, /^[a-z][a-z0-9-]{0,63}$/), operation: ident(input.operation, /^[a-z][a-z0-9-]{0,63}$/) };
+    return { id: id(input), kind, label: words(input.label), connector: ident(input.connector, /^[a-z][a-z0-9-]{0,63}$/), operation: ident(input.operation, ACTION_ID) };
   }
   check(kind === 'records', 'SMALLAPP_INVALID', 'Unknown small app card type.');
   const input = record(value, ['id', 'kind', 'label', 'book']);

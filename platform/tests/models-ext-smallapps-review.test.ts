@@ -62,16 +62,19 @@ test('M5: ordinary planner titles and labels, and plain hand-written ones, still
     assert.doesNotThrow(check(d => { d.cards[0].label = label; d.title = label; }), label);
 });
 
-test('L6: a writeback row without a stated impact always waits; only reversible, unflagged, plainly worded rows do not', () => {
-  const row = { system: 'google-sheets', operation: 'append-row', label: 'Append a row to the sheet', tier: 'routine', alwaysWaits: false, status: 'experimental' };
-  assert.equal(writebackRow(row).alwaysWaits, true);
-  assert.equal(writebackRow(row).impact, null);
-  assert.equal(writebackRow({ ...row, impact: 'reversible' }).alwaysWaits, false);
-  assert.equal(writebackRow({ ...row, impact: 'reversible', alwaysWaits: true }).alwaysWaits, true);
-  assert.equal(writebackRow({ ...row, impact: 'reversible', label: 'Send the sheet by email' }).alwaysWaits, true);
-  assert.equal(writebackRow({ ...row, impact: 'reversible', operation: 'delete-row' }).alwaysWaits, true);
-  for (const impact of ['message', 'money', 'destructive']) assert.equal(writebackRow({ ...row, impact }).alwaysWaits, true, impact);
-  assert.throws(() => writebackRow({ ...row, impact: 'harmless' }), code('SMALLAPP_ROW_INVALID'));
+test('L6: only an inside-undoable, unflagged, plainly worded writeback row does not always wait; always-waits is never removed', () => {
+  const row = { system: 'google-workspace', action: 'sheets.append', title: 'Add a row to a Google Sheet', kind: 'inside-undoable', tier: 1, alwaysWaits: false, status: 'experimental',
+    installed: true, recipe: { requiredFields: ['spreadsheetId', 'sheet', 'values'] }, connections: [] };
+  assert.equal(writebackRow(row).alwaysWaits, false);
+  assert.equal(writebackRow(row).impact, 'reversible');
+  assert.equal(writebackRow({ ...row, alwaysWaits: true }).alwaysWaits, true);
+  assert.equal(writebackRow({ ...row, title: 'Send the sheet by email' }).alwaysWaits, true);
+  assert.equal(writebackRow({ ...row, action: 'rows.delete' }).alwaysWaits, true);
+  assert.equal(writebackRow({ ...row, action: 'payout.create' }).alwaysWaits, true);
+  assert.equal(writebackRow({ ...row, action: 'sheets.sendCopy' }).alwaysWaits, true, 'camelCase words are read');
+  for (const kind of ['seen-outside', 'money', 'cannot-undo']) assert.equal(writebackRow({ ...row, kind }).alwaysWaits, true, kind);
+  for (const bad of [{ kind: 'harmless' }, { kind: undefined }, { tier: 'routine' }, { tier: 3 }, { installed: 'yes' }, { recipe: undefined }, { connections: undefined }])
+    assert.throws(() => writebackRow({ ...row, ...bad }), code('SMALLAPP_ROW_INVALID'));
 });
 
 test('L1: follow-up history returns only the versions the caller can see now and says how many were withheld', async t => {

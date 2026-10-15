@@ -6,13 +6,13 @@ import { writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { BundledPostgres, nodePostgresRunner, postgresMajor, type BundledPostgresOptions, type PostgresRunner, type PostgresRunOptions, type PostgresServerProcess } from '../runtime/native/postgres-lifecycle.ts';
+import { BundledPostgres, darwinOrphans, nodePostgresRunner, parseDarwinProcessList, parseWindowsProcessList, postgresClusterName, postgresMajor, splitWindowsCommandLine, windowsOrphans, type BundledPostgresOptions, type OrphanScan, type PostgresRunner, type PostgresRunOptions, type PostgresServerProcess } from '../runtime/native/postgres-lifecycle.ts';
 
 type Call = { name: string; executable: string; args: string[]; options?: PostgresRunOptions };
 const DEAD_PID = 2_147_483_646;
 
 /** Emulates initdb, postgres (a TCP listener plus postmaster.pid), pg_ctl stop, `postgres --version` and pg_upgrade. */
-function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUpgradeCheck?: boolean; neverReady?: boolean } = {}) {
+function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUpgradeCheck?: boolean; neverReady?: boolean; ps?: string; powershell?: string } = {}) {
   const calls: Call[] = [];
   const servers = new Map<string, { server: Server; exited: boolean }>();
   const option = (args: string[], flag: string) => args[args.indexOf(flag) + 1];
@@ -27,10 +27,13 @@ function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUp
   };
   const runner: PostgresRunner = {
     async run(executable, args, options) {
-      const name = basename(executable).replace(/\.exe$/, '');
+      const name = (executable.split(/[\\/]/).pop() as string).replace(/\.exe$/, '');
       calls.push({ name, executable, args, options });
       const ok = { code: 0, stdout: '', stderr: '', timedOut: false };
       if (name === 'postgres' && args[0] === '--version') return { ...ok, stdout: `postgres (PostgreSQL) ${versionOf(executable)}\n` };
+      if (name === 'ps') return settings.ps === undefined ? { ...ok, code: 1 } : { ...ok, stdout: settings.ps };
+      if (name === 'powershell') return settings.powershell === undefined ? { ...ok, code: 1 } : { ...ok, stdout: settings.powershell };
+      if (name === 'taskkill') return ok;
       if (name === 'initdb') {
         const directory = option(args, '-D');
         await mkdir(directory, { recursive: true });
@@ -52,7 +55,7 @@ function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUp
       return { ...ok, code: 127, stderr: 'unknown fake command' };
     },
     spawnServer(executable, args) {
-      const name = basename(executable).replace(/\.exe$/, '');
+      const name = (executable.split(/[\\/]/).pop() as string).replace(/\.exe$/, '');
       calls.push({ name: `${name}:server`, executable, args });
       const directory = option(args, '-D');
       const port = Number(option(args, '-p'));
@@ -114,7 +117,7 @@ test('fresh start initialises a private loopback cluster, persists its port and 
   const server = fake.calls.find(call => call.name === 'postgres:server');
   assert.ok(server);
   assert.deepEqual(server.args.slice(2, 4), ['-h', '127.0.0.1']);
-  for (const arg of ['unix_socket_directories=', 'fsync=on', 'password_encryption=scram-sha-256']) assert.ok(server.args.includes(arg), arg);
+  for (const arg of ['unix_socket_directories=', 'fsync=on', 'password_encryption=scram-sha-256', `cluster_name=${postgresClusterName(join(dataRoot, 'cluster'))}`]) assert.ok(server.args.includes(arg), arg);
   assert.match(await pg.connectionUrl(), new RegExp(`^postgresql://chausar:[A-Za-z0-9_-]{43}@127\\.0\\.0\\.1:${connection.port}/postgres$`));
   assert.equal((await pg.start()).port, connection.port, 'a second start is a no-op while running');
   await pg.stop();
@@ -314,4 +317,129 @@ test('postgresMajor follows PostgreSQL numbering', () => {
   assert.equal(postgresMajor('9.6.24'), '9.6');
   assert.equal(postgresMajor('16'), '16');
   assert.equal(postgresMajor('beta'), null);
+});
+
+test('the cluster name in every process title is stable per data directory and a valid cluster_name', () => {
+  const name = postgresClusterName('/home/a/.config/Chausar/database/cluster');
+  assert.match(name, /^chausar-[a-f0-9]{16}$/);
+  assert.ok(name.length < 64, 'cluster_name must fit NAMEDATALEN');
+  assert.equal(postgresClusterName('/home/a/.config/Chausar/database/./cluster'), name);
+  assert.notEqual(postgresClusterName('/home/b/.config/Chausar/database/cluster'), name);
+});
+
+// Captured-shape `ps -axww -o pid=,ppid=,uid=,command=` output from macOS after a SIGKILL of the postmaster (synthetic).
+const DARWIN_DATA = '/Users/asha/Library/Application Support/Chausar/database/cluster';
+const DARWIN_EXE = '/Applications/Chausar.app/Contents/Resources/runtime-binaries/postgres/bin/postgres';
+const darwinScan = (): OrphanScan => ({ postmasterPid: 4100, clusterName: postgresClusterName(DARWIN_DATA), postgresExecutable: DARWIN_EXE, uid: 501 });
+const darwinPs = () => {
+  const ours = postgresClusterName(DARWIN_DATA), other = postgresClusterName('/Users/asha/elsewhere/cluster');
+  return [
+    '    1     0     0 /sbin/launchd',
+    `  412     1   501 /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder`,
+    ` 4123     1   501 postgres: ${ours}: chausar postgres 127.0.0.1(50432) SELECT`,
+    ` 4124     1   501 postgres: ${ours}: checkpointer `,
+    ` 4125     1   501 postgres: ${ours}: walwriter`,
+    ` 4126  4200   501 postgres: ${ours}: chausar postgres 127.0.0.1(50433) idle`,
+    ` 4127     1   502 postgres: ${ours}: chausar postgres 127.0.0.1(50434) idle`,
+    ` 4128     1   501 postgres: ${ours}-evil: chausar postgres 127.0.0.1(50435) idle`,
+    ` 4129     1   501 postgres: ${other}: chausar postgres 127.0.0.1(50436) idle`,
+    ` 4130     1   501 postgres: chausar postgres 127.0.0.1(50437) idle`,
+    ` 4131     1   501 ${DARWIN_EXE} -D ${DARWIN_DATA} -h 127.0.0.1 -p 55400 -c cluster_name=${ours}`,
+    ` 4132     1   501 ${DARWIN_EXE} -D ${DARWIN_DATA}-copy -h 127.0.0.1 -p 55401`,
+    ` 4133     1   501 /usr/local/bin/postgres -D ${DARWIN_DATA} -h 127.0.0.1 -p 55400`,
+    ` 4134     1   501 /bin/sh -c echo postgres: ${ours}: fake`,
+    'garbage line without numbers',
+    '',
+  ].join('\n');
+};
+
+test('macOS sweep: parses ps output and ends only orphans provably this cluster’s (title or exact -D, parent launchd, same user)', () => {
+  const rows = parseDarwinProcessList(darwinPs());
+  assert.equal(rows.length, 14);
+  assert.deepEqual(rows.find(row => row.pid === 4124), { pid: 4124, ppid: 1, uid: 501, executable: null, command: `postgres: ${postgresClusterName(DARWIN_DATA)}: checkpointer ` });
+  assert.deepEqual(darwinOrphans(rows, DARWIN_DATA, darwinScan(), 99999), [4123, 4124, 4125, 4131]);
+  // 4126: parent still alive (not reparented); 4127: another user; 4128/4129/4130: other or no cluster name;
+  // 4132: another data folder; 4133: another postgres executable; 4134: a shell that merely prints the title.
+  assert.deepEqual(darwinOrphans(rows, DARWIN_DATA, { ...darwinScan(), uid: null }), [], 'an unknown user id matches nothing');
+  assert.deepEqual(darwinOrphans(rows, DARWIN_DATA, darwinScan(), 4123), [4124, 4125, 4131], 'never the calling process');
+  assert.deepEqual(parseDarwinProcessList(''), []);
+});
+
+// Captured-shape `Get-CimInstance Win32_Process | Select ProcessId,ParentProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress` (synthetic).
+const WIN_EXE = 'C:\\Users\\Asha\\AppData\\Local\\Programs\\Chausar\\resources\\runtime-binaries\\postgres\\bin\\postgres.exe';
+const WIN_DATA = 'C:\\Users\\Asha\\AppData\\Roaming\\Chausar\\database\\cluster';
+const winScan = (): OrphanScan => ({ postmasterPid: 7000, clusterName: postgresClusterName(WIN_DATA), postgresExecutable: WIN_EXE, uid: null });
+const winRows = () => [
+  { ProcessId: 7101, ParentProcessId: 7000, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" --forkchild="backend" 7368` },
+  { ProcessId: 7102, ParentProcessId: 7000, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" --forkbackend 7369` },
+  { ProcessId: 7103, ParentProcessId: 7000, ExecutablePath: WIN_EXE.toUpperCase(), CommandLine: `"${WIN_EXE}" --forkchild="checkpointer" 7370` },
+  { ProcessId: 7201, ParentProcessId: 8000, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" --forkchild="backend" 7371` },
+  { ProcessId: 7202, ParentProcessId: 9000, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" --forkchild="backend" 7372` },
+  { ProcessId: 7301, ParentProcessId: 7000, ExecutablePath: 'C:\\Program Files\\PostgreSQL\\17\\bin\\postgres.exe', CommandLine: '"C:\\Program Files\\PostgreSQL\\17\\bin\\postgres.exe" --forkchild="backend" 1' },
+  { ProcessId: 7302, ParentProcessId: 7000, ExecutablePath: null, CommandLine: null },
+  { ProcessId: 7401, ParentProcessId: 1200, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" -D "${WIN_DATA.toLowerCase()}" -h 127.0.0.1 -p 55400 -c cluster_name=x` },
+  { ProcessId: 7402, ParentProcessId: 1200, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" -D "${WIN_DATA}-old" -h 127.0.0.1 -p 55401` },
+  { ProcessId: 7403, ParentProcessId: 1200, ExecutablePath: WIN_EXE, CommandLine: `"${WIN_EXE}" -h 127.0.0.1 -p 55402` },
+];
+
+test('Windows sweep: parses Win32_Process JSON and ends only the bundled postgres.exe children of the dead postmaster or -D on this folder', () => {
+  const alive = (pid: number) => pid === 9000;
+  const rows = parseWindowsProcessList(JSON.stringify(winRows()));
+  assert.equal(rows.length, 10);
+  assert.deepEqual(windowsOrphans(rows, WIN_DATA, winScan(), alive, 1), [7101, 7102, 7103, 7401]);
+  // 7201: another postmaster's child; 7202: parent 9000 is alive; 7301: another installation; 7302: unreadable
+  // (another user); 7402: another folder; 7403: no -D.
+  assert.deepEqual(windowsOrphans(rows, WIN_DATA, { ...winScan(), postmasterPid: null }, alive, 1), [7401], 'without the dead postmaster PID no forked child is provably ours');
+  assert.deepEqual(windowsOrphans(rows, WIN_DATA, { ...winScan(), postmasterPid: 9000 }, alive, 1), [7401], 'a live parent is never treated as dead');
+  assert.deepEqual(parseWindowsProcessList(JSON.stringify(winRows()[0])).map(row => row.pid), [7101], 'one process is a JSON object, not an array');
+  assert.deepEqual(parseWindowsProcessList(''), []);
+  assert.deepEqual(parseWindowsProcessList('not json'), []);
+  assert.deepEqual(parseWindowsProcessList(JSON.stringify([...winRows(), { ProcessId: '12', ParentProcessId: 1 }])), [], 'a malformed row discards the whole scan');
+  assert.deepEqual(splitWindowsCommandLine('"C:\\Program Files\\pg\\postgres.exe" -D "C:\\a b\\cluster" -c x=1'), ['C:\\Program Files\\pg\\postgres.exe', '-D', 'C:\\a b\\cluster', '-c', 'x=1']);
+  assert.deepEqual(splitWindowsCommandLine('a\\\\\\"b "c\\\\" d'), ['a\\"b', 'c\\', 'd']);
+  assert.deepEqual(splitWindowsCommandLine('  --forkchild="backend"   12 '), ['--forkchild=backend', '12']);
+});
+
+test('macOS and Windows restarts run the sweep through the runner, then end the orphans (taskkill on Windows)', async t => {
+  const darwinAlive = new Set([4123]);
+  const killed: number[] = [];
+  const mac = await setup(t, {}, { platform: 'darwin', effectiveUid: () => 501, processAlive: pid => darwinAlive.has(pid), killProcess: pid => { killed.push(pid); darwinAlive.delete(pid); } });
+  await mac.pg.start(); await mac.pg.stop();
+  const executable = join(mac.runtimeRoot, 'postgres', 'bin', 'postgres');
+  const cluster = join(mac.dataRoot, 'cluster');
+  const ps = [`   1 0 0 /sbin/launchd`, ` 4123 1 501 postgres: ${postgresClusterName(cluster)}: chausar postgres 127.0.0.1(50432) SELECT`, ` 4129 1 501 postgres: ${postgresClusterName('/elsewhere')}: idle`, ` 4131 1 501 ${executable} -D ${cluster}-other -h 127.0.0.1`].join('\n');
+  const macSweep = new BundledPostgres({ runtimeRoot: mac.runtimeRoot, dataRoot: mac.dataRoot, runner: fakeRunner({ ps }).runner, portRange: [56900, 56940], platform: 'darwin', effectiveUid: () => 501, processAlive: pid => darwinAlive.has(pid), killProcess: pid => { killed.push(pid); darwinAlive.delete(pid); }, startTimeoutMs: 5000 });
+  await writeFile(join(cluster, 'postmaster.pid'), `${DEAD_PID}\n`);
+  await macSweep.start();
+  assert.deepEqual(killed, [4123]);
+  assert.equal((await macSweep.status()).lastRecovery?.detail.orphansEnded, 1);
+  await macSweep.stop();
+
+  const root = await mkdtemp(join(tmpdir(), 'chausar-pg-win-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const runtimeRoot = join(root, 'runtime-binaries'), dataRoot = join(root, 'database');
+  await runtime(runtimeRoot, 'postgres', ['postgres.exe', 'initdb.exe', 'pg_ctl.exe', 'pg_upgrade.exe']);
+  const winAlive = new Set<number>();
+  const first = fakeRunner();
+  const windows = (runner: PostgresRunner) => new BundledPostgres({ runtimeRoot, dataRoot, runner, portRange: [56950, 56990], platform: 'win32', processAlive: pid => winAlive.has(pid), startTimeoutMs: 5000 });
+  const initial = windows(first.runner);
+  await initial.start(); await initial.stop(); await first.closeAll();
+  const exe = join(runtimeRoot, 'postgres', 'bin', 'postgres.exe');
+  winAlive.add(7101);
+  const second = fakeRunner({ powershell: JSON.stringify([{ ProcessId: 7101, ParentProcessId: DEAD_PID, ExecutablePath: exe, CommandLine: `"${exe}" --forkchild="backend" 1` }, { ProcessId: 7201, ParentProcessId: 8000, ExecutablePath: exe, CommandLine: `"${exe}" --forkchild="backend" 2` }]) });
+  const originalRun = second.runner.run;
+  second.runner.run = async (executable, args, options) => { if (/taskkill/.test(executable)) winAlive.delete(Number(args[1])); return originalRun(executable, args, options); };
+  t.after(() => second.closeAll());
+  await writeFile(join(dataRoot, 'cluster', 'postmaster.pid'), `${DEAD_PID}\n`);
+  const recovered = windows(second.runner);
+  await recovered.start();
+  const sweep = second.calls.find(call => call.name === 'powershell');
+  assert.ok(sweep && /WindowsPowerShell\\v1\.0\\powershell\.exe$/.test(sweep.executable), 'PowerShell is run by absolute path');
+  assert.deepEqual(sweep.args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
+  assert.match(sweep.args[3], /Win32_Process/);
+  const kills = second.calls.filter(call => call.name === 'taskkill');
+  assert.deepEqual(kills.map(call => call.args), [['/PID', '7101', '/F']], 'only the dead postmaster’s child is ended');
+  assert.ok(/System32\\taskkill\.exe$/.test(kills[0].executable));
+  assert.equal((await recovered.status()).lastRecovery?.detail.orphansEnded, 1);
+  await recovered.stop();
 });

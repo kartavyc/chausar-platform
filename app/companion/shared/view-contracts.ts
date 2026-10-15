@@ -1,8 +1,10 @@
 import type { ApprovalPreview, Brief, BriefView, PhoneMethods, RequestState } from '../../../platform/runtime/phone/contracts.ts';
 import type { PhoneClient } from '../../../platform/runtime/phone/client.ts';
 import type { PhoneReceipt } from '../../../platform/runtime/phone/host-contracts.ts';
+import type { PhonePageState } from './phone-page.ts';
 
-export type CompanionScreen = 'pairing' | 'briefs' | 'chat' | 'uploads' | 'approvals' | 'activity' | 'device' | 'receipt';
+/** 'phone-page' is the experimental PH-04 page; navigation refuses it unless switched on. */
+export type CompanionScreen = 'pairing' | 'briefs' | 'chat' | 'uploads' | 'approvals' | 'activity' | 'device' | 'receipt' | 'phone-page';
 export type SelectedDocument = { name: string; mediaType: 'image/jpeg' | 'image/png' | 'application/pdf' | 'text/csv'; bytes: Uint8Array };
 export interface CompanionDeviceIdentity {
   /** Native key possession proof is supplied by the selected secure-device adapter. */
@@ -13,7 +15,7 @@ export interface CompanionDocumentPicker { pick(): Promise<SelectedDocument | un
 export type CompanionPreviewReceipt = { id: string; title: string; generatedAt: string; source: string; method: string; coverage: string; details: string };
 export type CompanionReceipt = PhoneReceipt | CompanionPreviewReceipt;
 export interface CompanionReceiptReader { read(receiptId: string): Promise<CompanionReceipt>; }
-export type ApprovalInboxItem = { approvalId: string; title: string };
+export type ApprovalInboxItem = { approvalId: string; title: string; eligibility?: 'simple-reversible' | 'open-desktop' };
 export type ChatMessage = { id: string; role: 'owner' | 'companion'; text: string; requestId?: string; conversationId?: string; receiptIds: string[] };
 export type UploadView = { requestId: string; name: string; status: string };
 export type CompanionViewState = {
@@ -22,6 +24,8 @@ export type CompanionViewState = {
   busy: string[]; notice?: { tone: 'info' | 'error' | 'success'; text: string };
   briefs: (Brief & { freshness?: 'cached' | 'current'; cachedAt?: string; expiresAt?: string })[]; brief?: BriefView; approvalInbox: ApprovalInboxItem[]; approval?: ApprovalPreview;
   messages: ChatMessage[]; uploads: UploadView[]; receipt?: CompanionReceipt;
+  /** Present only when the experimental phone page is switched on. */
+  phonePage?: PhonePageState;
 };
 /** The native and web screens share this controller; it never exposes credentials/tokens. */
 export interface CompanionScreenController {
@@ -46,5 +50,10 @@ export interface CompanionScreenController {
   revokeDevice(): Promise<void>;
   forgetDevice(): Promise<void>;
   dismissNotice(): void;
+  /** Experimental phone page (PH-04). Each refuses unless the page is switched on. */
+  loadPhonePage(): Promise<void>;
+  approveOnPhone(approvalId: string): Promise<void>;
+  confirmPhoneApproval(): Promise<void>;
+  dismissPhoneApproval(): void;
 }
 export const requestLabel = (request: RequestState): string => ({ pending: 'Waiting for the engine', unknown: 'Outcome not known — check status', cancelling: 'Cancellation requested', succeeded: 'Completed', cancelled: 'Cancelled', failed: 'Could not complete' })[request.status];

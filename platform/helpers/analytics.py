@@ -190,7 +190,101 @@ def pdf_status(data):
         tesseract = True
     except Exception:
         tesseract = False
-    return {"pdfText": found["pdfplumber"], "pdfOcr": found["pypdfium2"] and found["PIL"] and tesseract, "tesseract": tesseract}
+    pdf_text = found["pdfplumber"]
+    pdf_ocr = found["pypdfium2"] and found["PIL"] and tesseract
+    size = reader_size_bytes(tesseract) if (pdf_text or pdf_ocr) else None
+    return {"pdfText": pdf_text, "pdfOcr": pdf_ocr, "tesseract": tesseract, "sizeBytes": size}
+
+
+READER_PACKAGES = ("pdfplumber", "pdfminer", "pypdf", "pypdfium2", "PIL")
+READER_SIZE_FILE_LIMIT = 50000
+
+
+def tree_bytes(root, budget):
+    """Bytes of regular files under one folder. Symbolic links are neither followed nor counted."""
+    import os
+    import stat
+    total = 0
+    for folder, folders, files in os.walk(root, followlinks=False):
+        folders[:] = [name for name in folders if not os.path.islink(os.path.join(folder, name))]
+        for name in files:
+            budget[0] -= 1
+            if budget[0] < 0:
+                return total
+            try:
+                info = os.lstat(os.path.join(folder, name))
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
+                total += info.st_size
+    return total
+
+
+def file_bytes(path):
+    import os
+    import stat
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return 0
+    if stat.S_ISLNK(info.st_mode):
+        try:
+            info = os.stat(path)
+        except OSError:
+            return 0
+    return info.st_size if stat.S_ISREG(info.st_mode) else 0
+
+
+def tessdata_candidates(program):
+    import glob
+    import os
+    here = os.path.dirname(os.path.realpath(program))
+    places = [os.path.join(here, "tessdata"), os.path.join(here, "..", "share", "tessdata"), "/usr/share/tessdata", "/usr/local/share/tessdata",
+              "/opt/homebrew/share/tessdata", "/opt/local/share/tessdata"]
+    places += sorted(glob.glob("/usr/share/tesseract-ocr/*/tessdata")) + sorted(glob.glob(os.path.join(here, "..", "share", "tesseract-ocr", "*", "tessdata")))
+    prefix = os.environ.get("TESSDATA_PREFIX")
+    if prefix:
+        places.insert(0, prefix)
+        places.insert(1, os.path.join(prefix, "tessdata"))
+    return places
+
+
+def reader_size_bytes(tesseract):
+    """
+    Size on disk of the PDF reader this helper found: the importable reader package folders (found
+    without importing them), plus the tesseract program and its English data when OCR is present.
+    Opens no file; reads sizes only.
+    """
+    import importlib.util
+    import os
+    total = 0
+    budget = [READER_SIZE_FILE_LIMIT]
+    seen = set()
+    for name in READER_PACKAGES:
+        try:
+            spec = importlib.util.find_spec(name)
+        except (ImportError, ValueError):
+            spec = None
+        if spec is None:
+            continue
+        roots = list(spec.submodule_search_locations or [])
+        if roots:
+            for root in roots:
+                real = os.path.realpath(root)
+                if real not in seen and os.path.isdir(real):
+                    seen.add(real)
+                    total += tree_bytes(real, budget)
+        elif spec.origin and os.path.isfile(spec.origin):
+            total += file_bytes(spec.origin)
+    if tesseract:
+        program = ocr_tesseract()
+        total += file_bytes(program)
+        for folder in tessdata_candidates(program):
+            path = os.path.join(folder, "eng.traineddata")
+            if os.path.isfile(path):
+                total += file_bytes(path)
+                break
+    return int(total)
 
 
 OCR_DPI = 300
@@ -199,18 +293,60 @@ OCR_LANGUAGES = {"eng"}
 OCR_DEADLINE_SECONDS = 25
 
 
+def bundled_tesseract():
+    """
+    The release's bundled tesseract, beside this interpreter: <runtime>/python/bin/python3 (python/python.exe
+    on Windows) -> <runtime>/tesseract/bin/tesseract[.exe] and <runtime>/tesseract/share/tessdata. Only a
+    regular file (never a symbolic link) whose real path stays inside the runtime folder is accepted.
+    Returns (program, tessdata folder) or None.
+    """
+    import os
+    import stat
+    python = os.path.dirname(os.path.realpath(sys.executable))
+    python_root = python if os.name == "nt" else os.path.dirname(python)
+    if os.path.basename(python_root).lower() != "python":
+        return None
+    runtime = os.path.dirname(python_root)
+    program = os.path.join(runtime, "tesseract", "bin", "tesseract.exe" if os.name == "nt" else "tesseract")
+    tessdata = os.path.join(runtime, "tesseract", "share", "tessdata")
+    try:
+        info = os.lstat(program)
+        real = os.path.realpath(program)
+        if not stat.S_ISREG(info.st_mode) or os.path.commonpath([real, runtime]) != runtime or not os.path.isdir(tessdata):
+            return None
+    except (OSError, ValueError):
+        return None
+    return real, tessdata
+
+
 def ocr_tesseract():
     """
-    The installed tesseract program, found only on the default system path (the helper is given no PATH).
+    The bundled tesseract (see bundled_tesseract), else the installed program found only on the default
+    system path (the helper is given no PATH).
     pytesseract is deliberately not imported: it passes images through temporary files, which this helper
     may not write (RLIMIT_FSIZE 0), and it imports pandas when present, which cannot map inside the
     256 MB address-space limit. tesseract is driven directly over pipes instead.
     """
     import os
     import shutil
+    bundled = bundled_tesseract()
+    if bundled is not None:
+        return bundled[0]
     found = shutil.which("tesseract", path=os.defpath)
     require(found is not None, "OCR_DEPENDENCY_UNAVAILABLE")
     return found
+
+
+def tesseract_environment(tesseract):
+    """The fixed environment tesseract runs with; the bundled program reads its own language data."""
+    import os
+    environment = {"OMP_THREAD_LIMIT": "1"}
+    if os.name == "nt":
+        environment["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+    bundled = bundled_tesseract()
+    if bundled is not None and bundled[0] == tesseract:
+        environment["TESSDATA_PREFIX"] = bundled[1]
+    return environment
 
 
 def ocr_page(tesseract, png, language, deadline):
@@ -220,9 +356,7 @@ def ocr_page(tesseract, png, language, deadline):
     import time
     remaining = deadline - time.monotonic()
     require(remaining > 0, "PDF_EXTRACT_FAILED")
-    environment = {"OMP_THREAD_LIMIT": "1"}
-    if os.name == "nt":
-        environment["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+    environment = tesseract_environment(tesseract)
     try:
         completed = subprocess.run([tesseract, "stdin", "stdout", "-l", language, "--psm", "6", "tsv"], input=png, capture_output=True, timeout=remaining, env=environment, shell=False)
     except Exception:
@@ -304,7 +438,7 @@ def pdf_ocr(data):
     version = "unknown"
     try:
         import subprocess
-        probe = subprocess.run([tesseract, "--version"], capture_output=True, timeout=5, env={"OMP_THREAD_LIMIT": "1"}, shell=False)
+        probe = subprocess.run([tesseract, "--version"], capture_output=True, timeout=5, env=tesseract_environment(tesseract), shell=False)
         first = (probe.stdout or probe.stderr).decode("utf-8", "replace").splitlines()
         if first and re.fullmatch(r"tesseract v?[0-9][0-9A-Za-z.\-]{0,40}", first[0].strip()):
             version = first[0].strip().split()[-1]

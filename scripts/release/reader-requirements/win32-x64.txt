@@ -1,0 +1,19 @@
+# Chausar bundled PDF readers for win32-x64 (CPython 3.13). One wheel per package, resolved with pip's dry-run report
+# for platform win_amd64; every hash equals PyPI's JSON API digest (https://pypi.org/pypi/<name>/<version>/json).
+# Install with: pip install --no-deps --only-binary=:all: --require-hashes -r <this file> --target <site-packages>
+# cffi-2.1.1-cp313-cp313-win_amd64.whl
+cffi==2.1.1 --hash=sha256:1aa5645c30469b09530c4ebca77ebf8f17618293c58f8549cb1a543a50236e7d
+# charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl
+charset-normalizer==3.5.2 --hash=sha256:78456a747de8dc58360ffa581f30a002baf5aa28cb262536545e91f113ed7639
+# cryptography-50.0.2-cp311-abi3-win_amd64.whl
+cryptography==50.0.2 --hash=sha256:7afa5a6602a9f29af1f3a2965f831bae7c9d5d597b7cbb716d41ab3b7d89879c
+# pdfminer_six-20260107-py3-none-any.whl
+pdfminer.six==20260107 --hash=sha256:366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+# pdfplumber-0.11.10-py3-none-any.whl
+pdfplumber==0.11.10 --hash=sha256:7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580
+# pillow-12.3.0-cp313-cp313-win_amd64.whl
+pillow==12.3.0 --hash=sha256:1cca606cd25738df4ed873d5ad46bbdb3d83b5cbca291f6b4ff13a4df6b0bbe8
+# pycparser-3.11-py3-none-any.whl
+pycparser==3.11 --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80
+# pypdfium2-5.14.0-py3-none-win_amd64.whl
+pypdfium2==5.14.0 --hash=sha256:149fd5c6397b8df8bf7911a93506eff0be874f877afe7ac936cf5d37d21a6a06
