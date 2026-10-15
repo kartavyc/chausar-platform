@@ -134,6 +134,8 @@ async function engineVm() {
     engineModules: [], moduleMethods: new Map(),
     // The core actions' money gate (core-gateway-auth), the real one.
     secondAskGate,
+    // Secret custody and PIN unlock (core-gateway-auth) follow the vault; this composition installs none.
+    gatewayAuthVaultAttached: async () => {}, gatewayAuthVaultClosed: () => {}, pinUnlockCustody: async () => { throw new Error('No PIN unlock in this composition.'); },
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
