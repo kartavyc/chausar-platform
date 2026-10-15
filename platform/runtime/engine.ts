@@ -64,6 +64,7 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
+import type { VentureHostOptions } from './venture/contracts.ts';
 
 export type EngineBackupCustodyOptions = {
   budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
@@ -75,6 +76,7 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
+  venture?: VentureHostOptions;
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -117,6 +119,23 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
+  #venture: { request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void } | null = null;
+  #venturePromise: Promise<{ request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void }> | null = null;
+  #ventureModule() {
+    return import('./venture/host.ts').catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
+  }
+  #ventureHost() {
+    const vault = this.store();
+    const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
+      check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
+      const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust },
+        { ...(this.options.venture ?? {}), demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file' });
+      this.#venture = host;
+      return host;
+    });
+    pending.catch(() => { if (this.#venturePromise === pending) this.#venturePromise = null; });
+    return pending;
+  }
   constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
   /** Resolve retained objective text only through current private authority. No inference or resend. */
   conversationContinuation(ctx: Context, id: string, view: StateStore = this.store(), resolvedByModelReceiptId?: string): ConversationContinuation {
@@ -434,6 +453,7 @@ export class Engine {
     check(!rel.startsWith('..') && !isAbsolute(rel), 'INVALID_PATH', 'Workspace path is outside the vault folder.'); return path;
   }
   private async attach(vault: Vault) {
+    this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
     // Vault paths are canonicalized when opened. Resolve the independently
     // configured root under the same no-symlink checks before comparing scope
     // (Windows may spell the same directory with a short-name alias).
@@ -653,6 +673,7 @@ export class Engine {
     await this.closeVault();
   }
   private async closeVault() {
+    this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     let failure: unknown;
@@ -718,6 +739,8 @@ export class Engine {
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
     if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version };
+    if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
+    if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
@@ -1212,6 +1235,53 @@ export class Engine {
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'venture.create':
+      case 'venture.get':
+      case 'venture.events':
+      case 'venture.interview.next':
+      case 'venture.interview.answer':
+      case 'venture.blueprint.draft':
+      case 'venture.blueprint.get':
+      case 'venture.blueprint.update':
+      case 'venture.blueprint.accept':
+      case 'venture.models.presets':
+      case 'venture.models.connect':
+      case 'venture.models.disconnect':
+      case 'venture.models.status':
+      case 'venture.models.calls':
+      case 'venture.price.quote':
+      case 'venture.receipt.get':
+      case 'venture.client.add':
+      case 'venture.client.list':
+      case 'venture.order.create':
+      case 'venture.order.list':
+      case 'venture.order.deliver':
+      case 'venture.invoice.prepare':
+      case 'venture.invoice.issue':
+      case 'venture.invoice.get':
+      case 'venture.invoice.list':
+      case 'venture.payment.record':
+      case 'venture.books.summary':
+      case 'venture.build.brief':
+      case 'venture.build.handoff':
+      case 'venture.build.handoffOpened':
+      case 'venture.build.link':
+      case 'venture.build.sync':
+      case 'venture.build.status':
+      case 'venture.connectors.list':
+      case 'venture.delivery.playbook':
+      case 'venture.simulation.scenarios':
+      case 'venture.simulation.run':
+      case 'venture.simulation.get':
+      case 'venture.simulation.fromSignal':
+      case 'venture.launch.status':
+      case 'venture.launch.advance':
+      case 'venture.delivery.run':
+      case 'venture.delivery.approve':
+      case 'venture.delivery.review':
+      case 'venture.delivery.list':
+      case 'venture.capabilities':
+        return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }
   }
