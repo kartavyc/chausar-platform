@@ -29,6 +29,7 @@ export function ProposedMeanings({ file, propose, settle = 'FR-07.proposals.sett
       <h2 className={s.sectionTitle}>{t('FR-07.proposals.title')}</h2>
       {outcome === null && <Status k="FR-07.proposals.reading" />}
       {outcome?.kind === 'sheets-only' && <Note k="FR-07.proposals.sheetsOnly" />}
+      {outcome?.kind === 'locked' && <Note k="FR-07.proposals.locked" />}
       {outcome?.kind === 'failed' && <FailureLine failure={outcome.failure} notBuilt="FR-07.proposals.notBuilt" refused="FR-07.proposals.refused" />}
       {outcome?.kind === 'ready' && (() => {
         const { proposal } = outcome;

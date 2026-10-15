@@ -7,6 +7,7 @@ import { TextProvider } from '../../app/ui/src/app/text';
 import { createFakeEngine, registerFakeMethods } from '../../app/ui/src/bridge/fake';
 import type { FakeEngine, FakeScenario } from '../../app/ui/src/bridge/fake';
 import { importsFixture, SYNTHETIC_PDF_PASSWORD } from '../../app/ui/src/bridge/fixtures/imports';
+import { LOCKED_WORKBOOK_BASE64, lockedWorkbookPort } from '../../app/ui/src/bridge/fixtures/locked-workbook';
 import { createHostController } from '../../app/ui/src/host/controller';
 import type { HostController } from '../../app/ui/src/host/controller';
 import { BringFile, encryptedOfficeFile, type PickedFile } from '../../app/ui/src/screens/first-run/BringFile';
@@ -298,7 +299,7 @@ test('FR-07: an unexpected reply is a failure with INVALID_REPLY, never drawn', 
   expect(document.body.textContent).not.toContain('Imported 42 rows.');
 });
 
-test('FR-07: without the imports family PDF stays out of the picker, and an encrypted workbook says password needed with no field', { timeout: 20000 }, async () => {
+test('FR-07: without the imports family PDF stays out of the picker, and an encrypted workbook on a core without passwords says password needed with no field', { timeout: 20000 }, async () => {
   const engine = createFakeEngine();
   const calls = fileStep(engine, pdf('statement.pdf', '%PDF-1.7'));
   const user = userEvent.setup();
@@ -307,14 +308,14 @@ test('FR-07: without the imports family PDF stays out of the picker, and an encr
   expect(calls.some(call => call.method === 'imports.preview')).toBe(false);
   cleanup();
 
-  // An encrypted Office file is an OLE file, not a ZIP: nothing is sent and no password is asked for.
-  const ole = btoa(String.fromCharCode(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0));
-  expect(encryptedOfficeFile(ole)).toBe(true);
+  // An encrypted Office file is an OLE file, not a ZIP. It is sent as normal; a core without the
+  // password path (this base) refuses it as UNSUPPORTED_WORKBOOK, so no password is asked for.
+  expect(encryptedOfficeFile(LOCKED_WORKBOOK_BASE64)).toBe(true);
   expect(encryptedOfficeFile(btoa('PK\u0003\u0004rest'))).toBe(false);
-  const sheet = fileStep(engine, { name: 'Locked.xlsx', format: 'xlsx', bytesBase64: ole });
+  const sheet = fileStep(lockedWorkbookPort(engine, { core: 'today' }), { name: 'Locked.xlsx', format: 'xlsx', bytesBase64: LOCKED_WORKBOOK_BASE64 });
   await user.click(await screen.findByRole('button', { name: w('FR-07.pick.btn') }));
   await screen.findByText(w('FR-07.password.notBuilt'));
   expect(screen.getByText(w('FR-07.password.copy'))).toBeTruthy();
   expect(document.querySelector('input[type="password"]')).toBeNull();
-  expect(sheet.some(call => call.method === 'sources.workbookPreview')).toBe(false);
+  expect(sheet.filter(call => call.method === 'sources.workbookPreview').map(call => Object.keys(call.payload))).toEqual([['sourceId', 'bytesBase64']]);
 });

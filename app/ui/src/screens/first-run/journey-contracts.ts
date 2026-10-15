@@ -81,7 +81,19 @@ export type WorkbookRequest = {
   readonly bytesBase64: string;
   readonly recipe?: MappingRecipe;
   readonly expectedTotals?: ExpectedTotals;
+  /**
+   * core-data round 4: a locked workbook's password, for this one request only. Sent only after
+   * the engine itself answered `PASSWORD_REQUIRED` (a core that reads workbook passwords).
+   */
+  readonly password?: string;
 };
+
+/** core-data's refusals for a locked workbook that have their own words on FR-07 (besides the password field's own). */
+export const LOCKED_WORKBOOK_REFUSALS: ReadonlySet<string> = new Set(['WORKBOOK_INTEGRITY_FAILED', 'WORKBOOK_ENCRYPTION_UNSUPPORTED', 'WORKBOOK_ENCRYPTION_INVALID', 'WORKBOOK_CFB_INVALID', 'WORKBOOK_LIMIT']);
+/** core-data's rule for a workbook password (`ecma376.ts`): 1 to 255 characters, no lone surrogate. */
+export function workbookPasswordShape(typed: string): boolean {
+  return typed.length >= 1 && typed.length <= 255 && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(typed);
+}
 /** A bank statement PDF for the connectors-ext `imports.*` family. */
 export type PdfRequest = { readonly sourceId: string; readonly kind: 'pdf'; readonly bytesBase64: string };
 /** Takes the envelope that `imports.preview` read, for the same source. */

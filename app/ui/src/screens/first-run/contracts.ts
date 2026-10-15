@@ -28,6 +28,14 @@
  * custom identity (the Engine accepts a nonempty custom `pack`, and its source
  * tests publish `Custom Acme workspace`), so current/history accept a
  * bounded single-line text there and are never offered as a starter.
+ *
+ * core-data round 4 (built against its contract, `platform/runtime/ontology.ts` and
+ * `calculator.ts` at a24e95f, not merged in this base): a definition may be a quantity
+ * measure (`measure: 'quantity'`, an integer `field`, string `unit` and `item` fields, an
+ * optional string `location`, `balance: 'movements' | 'snapshots'`, no `sign`; at most one per
+ * dictionary), which compiles to the one `stock_on_hand` operation of type `stock` instead of
+ * a sum. Its receipt figures are `quantity` (with `quantityUnit`) or `count`, never money
+ * (`validateStockFigures`). A definition may also carry BK-08's `example` and `usedFrom`.
  */
 
 import { ReplyValidationError, assertISOInstant } from '../../bridge/validate.ts';
@@ -39,6 +47,8 @@ export const GST_MODES = ['regular', 'composition', 'unregistered'] as const;
 export type GstMode = (typeof GST_MODES)[number];
 export type NullRule = 'exclude' | 'reject';
 export type DefinitionSign = 1 | -1;
+export type MeasureKind = 'money' | 'quantity';
+export type QuantityBalance = 'movements' | 'snapshots';
 
 /** The exact six starter packs of the frozen Engine (platform/runtime/ontology.ts `packLabels`), in its order. */
 export const STARTER_PACK_IDS = Object.freeze(['ecommerce', 'retail', 'services', 'distributor', 'manufacturing', 'saas'] as const);
@@ -54,6 +64,25 @@ export interface Definition {
   readonly currency: string;
   readonly nulls: NullRule;
   readonly sign?: DefinitionSign;
+  /** BK-08: a worked example, amounts in whole minor units. */
+  readonly example?: DefinitionExample;
+  /** BK-08: the calendar day the definition came into use. */
+  readonly usedFrom?: string;
+  /** Absent or `money`: a money measure. `quantity`: the dictionary's one stock measure. */
+  readonly measure?: MeasureKind;
+  /** Quantity only: the string field naming each row's unit, never converted. */
+  readonly unit?: string;
+  /** Quantity only: the string field naming each row's item (for example a SKU). */
+  readonly item?: string;
+  /** Quantity only: signed movements, or dated counts (snapshots). */
+  readonly balance?: QuantityBalance;
+  /** Quantity only, optional: the string field naming each row's location. */
+  readonly location?: string;
+}
+
+export interface DefinitionExample {
+  readonly rows: readonly { readonly label: string; readonly amountMinor: string; readonly counted: boolean; readonly reason?: string }[];
+  readonly resultMinor: string;
 }
 
 export interface DictionaryDraft {
@@ -65,7 +94,7 @@ export interface DictionaryDraft {
   readonly definitions: readonly Definition[];
 }
 
-export type OperationType = 'sum' | 'margin' | 'aging' | 'change' | 'scenario';
+export type OperationType = 'sum' | 'margin' | 'aging' | 'change' | 'scenario' | 'stock';
 
 export interface Operation {
   readonly id: string;
@@ -154,7 +183,14 @@ export const DRAFT_KEYS = ['pack', 'label', 'currency', 'gstMode', 'fields', 'de
 export const DEFINITION_KEYS = ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls'] as const;
 const PUBLISHED_KEYS = ['version', 'publishedAt', 'publishedBy', 'hash', 'operations', 'schema', 'checks'] as const;
 const COMPILED_SUM_KEYS = ['contractVersion', 'compilerVersion', 'type', 'operationId', 'definitionName', 'recordKind', 'moneyField', 'currency', 'sign', 'nullPolicy', 'dictionaryVersion', 'definitionHash', 'digest'] as const;
-const OPERATION_TYPES: readonly string[] = ['sum', 'margin', 'aging', 'change', 'scenario'];
+const OPERATION_TYPES: readonly string[] = ['sum', 'margin', 'aging', 'change', 'scenario', 'stock'];
+/** The quantity binding's keys (ontology.ts `quantityKeys`); with BK-08's two and `sign`, the optional definition keys. */
+const QUANTITY_KEYS = ['measure', 'unit', 'item', 'balance', 'location'] as const;
+const DEFINITION_OPTIONAL_KEYS = ['sign', 'example', 'usedFrom', ...QUANTITY_KEYS] as const;
+/** The one operation a quantity definition compiles to (ontology.ts `compileDictionary`). */
+export const STOCK_OPERATION = Object.freeze({ id: 'stock_on_hand', type: 'stock', parameters: Object.freeze(['asOf', 'branch', 'onDate']) } as const);
+const BALANCES: readonly string[] = ['movements', 'snapshots'];
+const MINOR_AMOUNT = /^-?(?:0|[1-9][0-9]{0,17})$/;
 const NULL_RULES: readonly string[] = ['exclude', 'reject'];
 
 export const MAX_FIELDS = 200;
@@ -249,17 +285,69 @@ function packIdentity(value: unknown, path: string, rule: PackRule): string {
   return identity;
 }
 
+/** A field the dictionary declares with exactly this type. */
+function typedField(value: unknown, path: string, fields: Readonly<Record<string, FieldType>>, type: FieldType): string {
+  const field = pattern(value, path, FIELD_NAME);
+  if (!Object.hasOwn(fields, field) || fields[field] !== type) invalid(path);
+  return field;
+}
+
+/** BK-08 (ontology.ts `checkDefinitionExtras`): a calendar `usedFrom`, and an example whose counted rows times the sign are its result. */
+function definitionExtras(obj: Record<string, unknown>, path: string): void {
+  if (Object.hasOwn(obj, 'usedFrom')) {
+    const day = pattern(obj.usedFrom, `${path}.usedFrom`, /^\d{4}-\d{2}-\d{2}$/);
+    const parsed = new Date(`${day}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) invalid(`${path}.usedFrom`);
+  }
+  if (!Object.hasOwn(obj, 'example')) return;
+  const example = exact(obj.example, `${path}.example`, ['rows', 'resultMinor']);
+  const rows = list(example.rows, `${path}.example.rows`, 12);
+  if (rows.length === 0) invalid(`${path}.example.rows`);
+  const result = pattern(example.resultMinor, `${path}.example.resultMinor`, MINOR_AMOUNT);
+  let total = 0n;
+  rows.forEach((item, index) => {
+    const at = `${path}.example.rows[${index}]`;
+    const row = exact(item, at, ['label', 'amountMinor', 'counted'], ['reason']);
+    text(row.label, `${at}.label`, 80);
+    const amount = pattern(row.amountMinor, `${at}.amountMinor`, MINOR_AMOUNT);
+    if (typeof row.counted !== 'boolean') invalid(`${at}.counted`);
+    // A row left out always says why.
+    if (Object.hasOwn(row, 'reason')) text(row.reason, `${at}.reason`, 160);
+    else if (!row.counted) invalid(`${at}.reason`);
+    if (row.counted) total += BigInt(amount);
+  });
+  if (String(total * (obj.sign === -1 ? -1n : 1n)) !== result) invalid(`${path}.example.resultMinor`);
+}
+
 function definition(value: unknown, path: string, draftCurrency: string, fields: Readonly<Record<string, FieldType>>): void {
-  const obj = exact(value, path, DEFINITION_KEYS, ['sign']);
+  const obj = exact(value, path, DEFINITION_KEYS, DEFINITION_OPTIONAL_KEYS);
   pattern(obj.name, `${path}.name`, MEASURE_NAME);
   text(obj.label, `${path}.label`, 200);
   meaningText(obj.meaning, `${path}.meaning`);
   pattern(obj.kind, `${path}.kind`, MEASURE_NAME);
-  const field = pattern(obj.field, `${path}.field`, FIELD_NAME);
-  if (fields[field] !== 'money') invalid(`${path}.field`);
+  if (Object.hasOwn(obj, 'measure')) choice(obj.measure, `${path}.measure`, ['money', 'quantity']);
+  if (obj.measure === 'quantity') {
+    // An exact whole-number quantity, its unit and item named by string fields; never signed, never money.
+    typedField(obj.field, `${path}.field`, fields, 'integer');
+    if (Object.hasOwn(obj, 'sign')) invalid(`${path}.sign`);
+    typedField(obj.unit, `${path}.unit`, fields, 'string');
+    typedField(obj.item, `${path}.item`, fields, 'string');
+    if (Object.hasOwn(obj, 'location')) typedField(obj.location, `${path}.location`, fields, 'string');
+    choice(obj.balance, `${path}.balance`, BALANCES);
+  } else {
+    // A money measure names no unit, item, balance or location.
+    for (const key of QUANTITY_KEYS) if (key !== 'measure' && Object.hasOwn(obj, key)) invalid(`${path}.${key}`);
+    typedField(obj.field, `${path}.field`, fields, 'money');
+  }
   if (pattern(obj.currency, `${path}.currency`, CURRENCY) !== draftCurrency) invalid(`${path}.currency`);
   choice(obj.nulls, `${path}.nulls`, NULL_RULES);
   if (Object.hasOwn(obj, 'sign') && obj.sign !== 1 && obj.sign !== -1) invalid(`${path}.sign`);
+  definitionExtras(obj, path);
+}
+
+/** The dictionary's quantity definition, if it has one. */
+export function quantityDefinition(definitions: readonly Definition[]): Definition | null {
+  return definitions.find(item => item.measure === 'quantity') ?? null;
 }
 
 /** Checks the six draft properties of an already shape-checked record; it does not clone. */
@@ -272,11 +360,14 @@ function draftFields(obj: Record<string, unknown>, path: string, rule: PackRule)
   const definitions = list(obj.definitions, `${path}.definitions`, MAX_DEFINITIONS);
   if (definitions.length === 0) invalid(`${path}.definitions`);
   const names = new Set<string>();
+  let quantities = 0;
   definitions.forEach((item, index) => {
     definition(item, `${path}.definitions[${index}]`, currency, fields);
     const name = (item as { name: string }).name;
     if (names.has(name)) invalid(`${path}.definitions[${index}].name`);
     names.add(name);
+    // At most one quantity measure per dictionary.
+    if ((item as { measure?: unknown }).measure === 'quantity' && ++quantities > 1) invalid(`${path}.definitions[${index}].measure`);
   });
 }
 
@@ -306,15 +397,29 @@ export function validatePacks(value: unknown): readonly DictionaryDraft[] {
   return Object.freeze(packs);
 }
 
-function operation(value: unknown, path: string, names: ReadonlySet<string>): Operation {
+/**
+ * One published operation. Money operations read money definitions only; the quantity
+ * definition is read by exactly one operation, `stock_on_hand` of type `stock`, with the
+ * Engine's own parameters, and that operation reads nothing else.
+ */
+function operation(value: unknown, path: string, names: ReadonlySet<string>, quantity: string | null): Operation {
   const obj = exact(value, path, ['id', 'label', 'type', 'definitions', 'parameters']);
-  pattern(obj.id, `${path}.id`, MEASURE_NAME);
+  const id = pattern(obj.id, `${path}.id`, MEASURE_NAME);
   text(obj.label, `${path}.label`, 200);
-  choice(obj.type, `${path}.type`, OPERATION_TYPES);
+  const type = choice<OperationType>(obj.type, `${path}.type`, OPERATION_TYPES);
   const definitions = list(obj.definitions, `${path}.definitions`, 20);
   if (definitions.length === 0) invalid(`${path}.definitions`);
   definitions.forEach((name, index) => { if (!names.has(pattern(name, `${path}.definitions[${index}]`, MEASURE_NAME))) invalid(`${path}.definitions[${index}]`); });
-  list(obj.parameters, `${path}.parameters`, 20).forEach((name, index) => pattern(name, `${path}.parameters[${index}]`, FIELD_NAME));
+  const parameters = list(obj.parameters, `${path}.parameters`, 20);
+  parameters.forEach((name, index) => pattern(name, `${path}.parameters[${index}]`, FIELD_NAME));
+  if (type === 'stock') {
+    if (id !== STOCK_OPERATION.id || quantity === null) invalid(`${path}.id`);
+    if (definitions.length !== 1 || definitions[0] !== quantity) invalid(`${path}.definitions`);
+    if (parameters.length !== STOCK_OPERATION.parameters.length || parameters.some((name, index) => name !== STOCK_OPERATION.parameters[index])) invalid(`${path}.parameters`);
+  } else {
+    if (id === STOCK_OPERATION.id) invalid(`${path}.id`);
+    if (quantity !== null && definitions.includes(quantity)) invalid(`${path}.definitions`);
+  }
   return obj as unknown as Operation;
 }
 
@@ -354,12 +459,15 @@ export function validatePublished(value: unknown, path = 'dictionary'): Publishe
   draftFields(obj, path, 'identity');
   const definitions = obj.definitions as readonly Definition[];
   const names = new Set(definitions.map(item => item.name));
+  const quantity = quantityDefinition(definitions)?.name ?? null;
   const version = wholeNumber(obj.version, `${path}.version`, 1);
   assertISOInstant(obj.publishedAt, `${path}.publishedAt`);
   text(obj.publishedBy, `${path}.publishedBy`, 200);
   pattern(obj.hash, `${path}.hash`, HEX_64);
-  const operations = list(obj.operations, `${path}.operations`, MAX_OPERATIONS).map((item, index) => operation(item, `${path}.operations[${index}]`, names));
+  const operations = list(obj.operations, `${path}.operations`, MAX_OPERATIONS).map((item, index) => operation(item, `${path}.operations[${index}]`, names, quantity));
   if (new Set(operations.map(item => item.id)).size !== operations.length) invalid(`${path}.operations`);
+  // A quantity definition always compiles to stock on hand, and only then is there one.
+  if ((quantity !== null) !== operations.some(item => item.type === 'stock')) invalid(`${path}.operations`);
   const schema = fieldMap(obj.schema, `${path}.schema`);
   const fields = obj.fields as Readonly<Record<string, FieldType>>;
   const schemaEntries = Object.entries(schema);
@@ -381,6 +489,71 @@ export function validatePublished(value: unknown, path = 'dictionary'): Publishe
     if (expected.length !== found.length || expected.some((id, index) => id !== found[index])) invalid(`${path}.compiledSums`);
   }
   return frozenClone(obj as unknown as PublishedDictionary);
+}
+
+/* ---------- Stock on hand figures (core-data round 4, calculator.ts `countFigure`) ---------- */
+
+/** A whole-number quantity in its own unit (never converted, never money), or a count of items. */
+export type StockFigure =
+  | { readonly key: string; readonly label: string; readonly minor: string; readonly display: string; readonly unit: 'quantity'; readonly quantityUnit: string }
+  | { readonly key: 'items' | 'itemsNotShown'; readonly label: string; readonly minor: string; readonly display: string; readonly unit: 'count' };
+
+/** At most this many items are figures on one receipt (calculator.ts `STOCK_FIGURES`). */
+export const MAX_STOCK_ITEM_FIGURES = 100;
+const STOCK_ITEM = /^[^\u0000-\u001f]{1,120}$/;
+const SIGNED_WHOLE = /^-?(?:0|[1-9][0-9]{0,29})$/;
+const UNSIGNED_WHOLE = /^(?:0|[1-9][0-9]{0,29})$/;
+
+function stockFigure(value: unknown, path: string): StockFigure {
+  const obj = exact(value, path, ['key', 'label', 'minor', 'display', 'unit'], ['quantityUnit']);
+  const key = typeof obj.key === 'string' ? obj.key : invalid(`${path}.key`);
+  text(obj.label, `${path}.label`, 200);
+  const unit = choice<'quantity' | 'count'>(obj.unit, `${path}.unit`, ['quantity', 'count']);
+  if (unit === 'quantity') {
+    const quantityUnit = text(obj.quantityUnit, `${path}.quantityUnit`, 40);
+    if (quantityUnit.trim() !== quantityUnit) invalid(`${path}.quantityUnit`);
+    const minor = pattern(obj.minor, `${path}.minor`, SIGNED_WHOLE);
+    if (obj.display !== `${minor} ${quantityUnit}`) invalid(`${path}.display`);
+    if (key === 'total') return obj as unknown as StockFigure;
+    if (!key.startsWith('item:') || !STOCK_ITEM.test(key.slice(5)) || obj.label !== key.slice(5)) invalid(`${path}.key`);
+  } else {
+    if (Object.hasOwn(obj, 'quantityUnit')) invalid(`${path}.quantityUnit`);
+    const minor = pattern(obj.minor, `${path}.minor`, UNSIGNED_WHOLE);
+    if (obj.display !== minor) invalid(`${path}.display`);
+    if (key !== 'items' && key !== 'itemsNotShown') invalid(`${path}.key`);
+  }
+  return obj as unknown as StockFigure;
+}
+
+/**
+ * The figures of a `stock_on_hand` receipt, in the calculator's order: one `item:<item>`
+ * quantity per item (at most 100, items in order), then `items` (a count), then `total` only
+ * when every item shares one unit (the exact sum of the item quantities, in that unit), then
+ * `itemsNotShown` only when there were more than 100 items. Nothing here is money.
+ */
+export function validateStockFigures(value: unknown, path = 'figures'): readonly StockFigure[] {
+  const figures = list(value, path, MAX_STOCK_ITEM_FIGURES + 3).map((item, index) => stockFigure(item, `${path}[${index}]`));
+  const items = figures.filter(figure => figure.key.startsWith('item:'));
+  if (items.length > MAX_STOCK_ITEM_FIGURES || figures.slice(0, items.length).some(figure => !figure.key.startsWith('item:'))) invalid(path);
+  for (let index = 1; index < items.length; index++) if (!(items[index - 1]!.key < items[index]!.key)) invalid(`${path}[${index}].key`);
+  const rest = figures.slice(items.length);
+  const count = rest[0];
+  if (count === undefined || count.key !== 'items') invalid(path);
+  const total = rest.find(figure => figure.key === 'total');
+  const notShown = rest.find(figure => figure.key === 'itemsNotShown');
+  const expected = ['items', ...(total === undefined ? [] : ['total']), ...(notShown === undefined ? [] : ['itemsNotShown'])];
+  if (rest.length !== expected.length || rest.some((figure, index) => figure.key !== expected[index])) invalid(path);
+  const itemCount = BigInt(count.minor);
+  if (itemCount > BigInt(MAX_STOCK_ITEM_FIGURES)) {
+    if (items.length !== MAX_STOCK_ITEM_FIGURES || notShown === undefined || BigInt(notShown.minor) !== itemCount - BigInt(MAX_STOCK_ITEM_FIGURES)) invalid(path);
+  } else if (notShown !== undefined || BigInt(items.length) !== itemCount) invalid(path);
+  const units = new Set(items.map(figure => figure.unit === 'quantity' ? figure.quantityUnit : ''));
+  if (total !== undefined) {
+    if (total.unit !== 'quantity' || items.length === 0 || units.size !== 1 || !units.has(total.quantityUnit)) invalid(`${path}.total`);
+    // Every item is shown, so the total is exactly their sum; units are never converted.
+    if (notShown === undefined && items.reduce((sum, figure) => sum + BigInt(figure.minor), 0n) !== BigInt(total.minor)) invalid(`${path}.total`);
+  } else if (notShown === undefined && items.length > 0 && units.size === 1) invalid(`${path}.total`);
+  return frozenClone(figures);
 }
 
 /** Ordinary `ontology.get({})` retains its exact current/history envelope. */

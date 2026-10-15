@@ -12,11 +12,12 @@ export type {
 export {
   ATTEMPT_ID, COMPILED_SUM_CONTENT_KEYS, FIRST_RUN_METHODS, ENGINE_DICTIONARY_REFUSALS, STARTER_PACK_IDS, canPublish, compiledSumContentJson, draftOf, firstRunFailure, frozenClone,
   isStarterPackId, meaningText, publishedContentJson, sameAuthority, sameContext, validateDraft, validateOntologyAttemptReadback, validateOntologyReadback, validatePacks,
-  validatePublished, withMeaning,
+  validatePublished, withMeaning, MAX_STOCK_ITEM_FIGURES, STOCK_OPERATION, quantityDefinition, validateStockFigures,
 } from './contracts.ts';
 export type {
   CompiledSum, Definition, DictionaryDraft, DictionaryPublicationReceipt, EngineDictionaryRefusal, FieldType, FirstRunCode, FirstRunFailure, FirstRunMethod, FirstRunPort,
   FirstRunRpcPayloads, GstMode, MemberRole, NullRule, OntologyAttemptReadback, OntologyReadback, Operation, PublishedDictionary, StarterPackId,
+  DefinitionExample, MeasureKind, OperationType, QuantityBalance, StockFigure,
 } from './contracts.ts';
 export {
   compiledSumsVerified, definitionJson, draftJson, publishedHashVerified, publishedVerified, reviewDigestOf, settingsJson, webCryptoDigest,

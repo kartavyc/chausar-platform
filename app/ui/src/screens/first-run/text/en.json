@@ -432,5 +432,13 @@
   "FR-13.backup.BACKUP_NOT_MANAGED": "Choose a backup from Chausar's own backups folder.",
   "FR-13.backup.FILE_UNREADABLE": "The backup file could not be read. Choose it again.",
   "FR-13.backup.PICKER_BUSY": "A window for choosing a file is already open.",
-  "FR-13.backup.FILE_KIND_REFUSED": "Choose a Chausar backup file."
+  "FR-13.backup.FILE_KIND_REFUSED": "Choose a Chausar backup file.",
+  "FR-07.password.invalid.sheet": "Type the password as the file was given, up to 255 characters.",
+  "FR-07.password.again": "Type the password once more to take the file in. It was used once for the check above and not kept.",
+  "FR-07.locked.WORKBOOK_INTEGRITY_FAILED": "The file opened, but its contents failed the workbook's own integrity check. It may be damaged: bring a fresh copy.",
+  "FR-07.locked.WORKBOOK_ENCRYPTION_UNSUPPORTED": "This file uses an older kind of password protection that Chausar does not open. Save a copy without its password, then bring that copy.",
+  "FR-07.locked.WORKBOOK_ENCRYPTION_INVALID": "The password protection of this file is damaged, so it cannot be opened.",
+  "FR-07.locked.WORKBOOK_CFB_INVALID": "This file is damaged and cannot be opened.",
+  "FR-07.locked.WORKBOOK_LIMIT": "This workbook is too large to read here: at most 2 MB and 100,000 cells.",
+  "FR-07.proposals.locked": "A file with a password gives no draft here: its password was used once and not kept. Save a copy without its password to get a draft."
 }

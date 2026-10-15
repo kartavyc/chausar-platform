@@ -12,10 +12,22 @@
  *
  * A bank statement PDF is offered only when the engine answers `imports.readerStatus` (the
  * connectors-ext `imports.*` family); it is then read by `PdfStatement`, which also asks for the
- * PDF's password. A sheet has no password path yet: `sources.workbookPreview` takes no `password`
- * until core-data's encrypted-workbook item lands, so an encrypted workbook (recognised by its
- * first bytes before anything is sent, or `ENCRYPTED_ZIP` from the engine) shows "password
- * needed" with the not-built words and no field.
+ * PDF's password.
+ *
+ * A locked workbook (core-data round 4, built against its contract): the file is sent to
+ * `sources.workbookPreview` as any other, without a password. Only when the engine answers
+ * `PASSWORD_REQUIRED` (which only a core that reads workbook passwords gives) does the screen
+ * draw one uncontrolled password field. Its value is read once on submit and the field emptied
+ * at once; it goes as `password` in that one `sources.workbookPreview` request and is never put in
+ * React state, storage or a log. Taking the file in asks for it once more, read and emptied the
+ * same way, for the one `sources.workbookImport` request. `WRONG_PASSWORD` and
+ * `WORKBOOK_PASSWORD_INVALID` have fixed words and ask again; the other locked-workbook refusals
+ * (`LOCKED_WORKBOOK_REFUSALS`) have their own words. A core without the password path (this base)
+ * refuses the file as `UNSUPPORTED_WORKBOOK` (an OLE file, `encryptedOfficeFile`) or `ENCRYPTED_ZIP`:
+ * that shows "password needed" with the not-built words and no field, so no password is ever
+ * typed for a request that would not use it. connectors-ext's held password
+ * (`imports.providePassword` then `imports.preview { kind: 'xlsx' }`) is not used for sheets: see
+ * docs/lanes/frame-today.md "Round 4 contracts".
  *
  * The desktop chooser (`imports.pickFile`, see `pick.ts`) refuses a file too large for one
  * request, a kind FR-07 does not read, or an unreadable file; each says so in words. `inPlace`
@@ -32,8 +44,8 @@ import { count } from '../../format/counts.ts';
 import { money } from '../../format/money.ts';
 import { Field } from '../../parts/Field';
 import {
-  failureOf, fileProblems, firstRows, formatOf, pickedRecipe, problemsByCode, rupeesToPaise, sourceIdFor, splitCsvLine, unknownLayout, validateImport, validatePreview,
-  validateReaderStatus, type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type PickedFile, type SheetPreview,
+  LOCKED_WORKBOOK_REFUSALS, failureOf, fileProblems, firstRows, formatOf, pickedRecipe, problemsByCode, rupeesToPaise, sourceIdFor, splitCsvLine, unknownLayout, validateImport, validatePreview,
+  validateReaderStatus, workbookPasswordShape, type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type PickedFile, type SheetPreview,
 } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, Status, StepHeader } from './JourneyParts';
 import { ProposedMeanings } from './ProposedMeanings';
@@ -61,13 +73,21 @@ export interface BringFileProps {
   readonly inPlace?: boolean | undefined;
 }
 
+/** Why the password field asks again: a wrong password, or one not in the engine's shape. */
+type PasswordProblem = 'wrong' | 'invalid' | null;
+/** `locked`: the preview opened a locked workbook, so taking it in asks for the password once more. */
+type Read = { readonly preview: SheetPreview; readonly recipe: MappingRecipe | null; readonly totals: ExpectedTotals | null; readonly locked: boolean; readonly takeProblem: PasswordProblem };
 type Phase =
   | { readonly kind: 'idle' }
   | { readonly kind: 'reading' }
-  | { readonly kind: 'previewed'; readonly preview: SheetPreview; readonly recipe: MappingRecipe | null; readonly totals: ExpectedTotals | null }
-  | { readonly kind: 'taking'; readonly preview: SheetPreview; readonly recipe: MappingRecipe | null; readonly totals: ExpectedTotals | null }
+  | ({ readonly kind: 'previewed' } & Read)
+  | ({ readonly kind: 'taking' } & Read)
   | { readonly kind: 'taken'; readonly result: ImportResult }
-  | { readonly kind: 'password' }
+  /** A locked workbook: one password field. The recipe and totals are kept for the read it opens. */
+  | { readonly kind: 'password'; readonly recipe: MappingRecipe | null; readonly totals: ExpectedTotals | null; readonly problem: PasswordProblem }
+  /** A locked workbook and an engine without the password path. */
+  | { readonly kind: 'passwordNotBuilt' }
+  | { readonly kind: 'lockedRefused'; readonly code: string }
   | { readonly kind: 'pdf' }
   | { readonly kind: 'unsupported' }
   | { readonly kind: 'pickRefused'; readonly code: string }
@@ -80,6 +100,15 @@ const ROLES: readonly ColumnRole[] = ['date', 'customer', 'amount', 'invoice', '
 const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'DMY'];
 const KNOWN_REASONS: ReadonlySet<string> = new Set(['MISSING_VALUE', 'INVALID_DATE', 'AMBIGUOUS_DATE', 'UNKNOWN_KIND', 'UNKNOWN_STATUS', 'DUPLICATE_SOURCE_ROW', 'CURRENCY_MISMATCH', 'OUTSIDE_SCOPE']);
 const WHOLE_SENTENCES: ReadonlySet<string> = new Set(['SOURCE_ROW_MISMATCH', 'SOURCE_TOTAL_MISMATCH', 'SOURCE_TOTALS_REQUIRED', 'UNMAPPED_FIELDS']);
+
+/** The password field's value, read once and emptied at once; it lives only in the caller's call. */
+function readOnce(form: HTMLFormElement, name: string): string {
+  const field = form.elements.namedItem(name);
+  if (!(field instanceof HTMLInputElement)) return '';
+  const typed = field.value;
+  field.value = '';
+  return typed;
+}
 
 /** An encrypted Office file is an OLE compound file (D0 CF 11 E0 A1 B1 1A E1), not the ZIP an .xlsx is. */
 export function encryptedOfficeFile(bytesBase64: string): boolean {
@@ -126,29 +155,43 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     return () => { live = false; };
   }, [rpc]);
 
-  const preview = useCallback(async (chosen: PickedFile, recipe: MappingRecipe | null, totals: ExpectedTotals | null) => {
+  /** `password`: a locked workbook's password for this one request, never kept. */
+  const preview = useCallback(async (chosen: PickedFile, recipe: MappingRecipe | null, totals: ExpectedTotals | null, password?: string) => {
     const token = ++generation.current;
     if (chosen.format === 'pdf') { setPhase({ kind: 'pdf' }); return; }
-    if (chosen.format === 'xlsx' && encryptedOfficeFile(chosen.bytesBase64)) { setPhase({ kind: 'password' }); return; }
     setPhase({ kind: 'reading' });
     const sourceId = sourceIdFor(chosen.name);
     const extra = { ...(recipe === null ? {} : { recipe }), ...(totals === null ? {} : { expectedTotals: totals }) };
     try {
       const reply = chosen.format === 'csv'
         ? await rpc.request('sources.preview', { sourceId, format: 'csv', content: chosen.content, ...extra })
-        : await rpc.request('sources.workbookPreview', { sourceId, bytesBase64: chosen.bytesBase64, ...extra });
+        : await rpc.request('sources.workbookPreview', { sourceId, bytesBase64: chosen.bytesBase64, ...extra, ...(password === undefined ? {} : { password }) });
       if (token !== generation.current) return;
       const checked = validatePreview(reply);
-      setPhase({ kind: 'previewed', preview: checked, recipe, totals });
+      setPhase({ kind: 'previewed', preview: checked, recipe, totals, locked: password !== undefined, takeProblem: null });
       if (unknownLayout(checked) && chosen.format === 'csv' && recipe === null) setColumnsOpen(true);
     } catch (error) {
       if (token !== generation.current) return;
       const failure = failureOf(error);
-      if (failure.kind === 'refused' && failure.code === 'DICTIONARY_REQUIRED' && !meaningsAgreed) { onHold(chosen); onWaits(); return; }
-      if (failure.kind === 'refused' && failure.code === 'ENCRYPTED_ZIP') { setPhase({ kind: 'password' }); return; }
+      const code = failure.kind === 'refused' ? failure.code : null;
+      if (code === 'DICTIONARY_REQUIRED' && !meaningsAgreed) { onHold(chosen); onWaits(); return; }
+      if (chosen.format === 'xlsx') {
+        if (code === 'PASSWORD_REQUIRED') { setPhase({ kind: 'password', recipe, totals, problem: null }); return; }
+        if (code === 'WRONG_PASSWORD' || code === 'WORKBOOK_PASSWORD_INVALID') { setPhase({ kind: 'password', recipe, totals, problem: code === 'WRONG_PASSWORD' ? 'wrong' : 'invalid' }); return; }
+        if (code === 'ENCRYPTED_ZIP' || (code === 'UNSUPPORTED_WORKBOOK' && encryptedOfficeFile(chosen.bytesBase64))) { setPhase({ kind: 'passwordNotBuilt' }); return; }
+        if (code !== null && LOCKED_WORKBOOK_REFUSALS.has(code)) { setPhase({ kind: 'lockedRefused', code }); return; }
+      }
       setPhase({ kind: 'failed', failure });
     }
   }, [rpc, meaningsAgreed, onHold, onWaits]);
+
+  /** The locked workbook's password: read once from the field, which is emptied at once, and sent with the one preview. */
+  const openLocked = (form: HTMLFormElement, current: Extract<Phase, { kind: 'password' }>) => {
+    const typed = readOnce(form, 'sheet-password');
+    if (file?.format !== 'xlsx' || typed.length === 0) return;
+    if (!workbookPasswordShape(typed)) { setPhase({ ...current, problem: 'invalid' }); return; }
+    void preview(file, current.recipe, current.totals, typed);
+  };
 
   // A file held for the meanings is read as soon as they are agreed.
   useEffect(() => {
@@ -175,21 +218,41 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     }
   };
 
-  const take = async (current: Extract<Phase, { kind: 'previewed' }>) => {
+  /** `password`: a locked workbook's password for this one import, never kept. */
+  const take = async (current: Extract<Phase, { kind: 'previewed' }>, password?: string) => {
     if (file === null) return;
     const token = ++generation.current;
-    setPhase({ ...current, kind: 'taking' });
+    setPhase({ ...current, kind: 'taking', takeProblem: null });
     const sourceId = sourceIdFor(file.name);
     const extra = { ...(current.recipe === null ? {} : { recipe: current.recipe }), ...(current.totals === null ? {} : { expectedTotals: current.totals }) };
     try {
       if (file.format === 'pdf') return;
       const reply = file.format === 'csv'
         ? await rpc.request('sources.import', { sourceId, format: 'csv', content: file.content, ...extra })
-        : await rpc.request('sources.workbookImport', { sourceId, bytesBase64: file.bytesBase64, ...extra });
+        : await rpc.request('sources.workbookImport', { sourceId, bytesBase64: file.bytesBase64, ...extra, ...(password === undefined ? {} : { password }) });
       if (token !== generation.current) return;
       setPhase({ kind: 'taken', result: validateImport(reply) });
-    } catch (error) { if (token === generation.current) setPhase({ kind: 'failed', failure: failureOf(error) }); }
+    } catch (error) {
+      if (token !== generation.current) return;
+      const failure = failureOf(error);
+      const code = failure.kind === 'refused' ? failure.code : null;
+      if (current.locked && (code === 'WRONG_PASSWORD' || code === 'WORKBOOK_PASSWORD_INVALID' || code === 'PASSWORD_REQUIRED')) {
+        setPhase({ ...current, takeProblem: code === 'WRONG_PASSWORD' ? 'wrong' : code === 'WORKBOOK_PASSWORD_INVALID' ? 'invalid' : null });
+        return;
+      }
+      if (current.locked && code !== null && LOCKED_WORKBOOK_REFUSALS.has(code)) { setPhase({ kind: 'lockedRefused', code }); return; }
+      setPhase({ kind: 'failed', failure });
+    }
   };
+
+  /** Taking a locked workbook in: its password once more, read once and emptied at once, for the one import. */
+  const takeLocked = (form: HTMLFormElement, current: Extract<Phase, { kind: 'previewed' }>) => {
+    const typed = readOnce(form, 'sheet-password-take');
+    if (typed.length === 0) return;
+    if (!workbookPasswordShape(typed)) { setPhase({ ...current, takeProblem: 'invalid' }); return; }
+    void take(current, typed);
+  };
+  const passwordProblem = (problem: PasswordProblem) => problem === null ? undefined : t(problem === 'wrong' ? 'FR-07.password.wrong' : 'FR-07.password.invalid.sheet');
 
   const checkWithTotals = (current: Extract<Phase, { kind: 'previewed' }>) => {
     if (file === null) return;
@@ -255,10 +318,24 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
       )}
       {phase.kind === 'failed' && <FailureLine failure={phase.failure} notBuilt="FR-07.notBuilt" refused="FR-07.refused" />}
       {phase.kind === 'password' && (
+        <form className={s.section} data-file-password="sheet" onSubmit={event => { event.preventDefault(); openLocked(event.currentTarget, phase); }}>
+          <h2 className={s.sectionTitle}>{t('FR-07.password.title')}</h2>
+          <Field label={t('FR-07.password')} name="sheet-password" type="password" autoComplete="off" spellCheck={false} problem={passwordProblem(phase.problem)} />
+          <Note k="FR-07.password.note" />
+          <Actions><Act submit variant="filled" label="FR-07.password.send.btn" /></Actions>
+        </form>
+      )}
+      {phase.kind === 'passwordNotBuilt' && (
         <div className={s.section} data-file-password="not-built">
           <h2 className={s.sectionTitle}>{t('FR-07.password.title')}</h2>
           <p className={s.status} role="status" data-first-run-not-built="">{t('FR-07.password.notBuilt')}</p>
           <Note k="FR-07.password.copy" />
+        </div>
+      )}
+      {phase.kind === 'lockedRefused' && (
+        <div className={s.section} data-file-refused="whole" data-whole-reason={phase.code}>
+          <p className={s.problem} role="alert">{t('FR-07.whole')}</p>
+          <p className={s.status}>{t(`FR-07.locked.${phase.code}`)}</p>
         </div>
       )}
       {(phase.kind === 'previewed' || phase.kind === 'taking') && (() => {
@@ -352,8 +429,15 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
                 <Actions><Act submit variant="filled" label="FR-07.check.btn" /></Actions>
               </form>
             )}
-            {checked.accepted && (
+            {checked.accepted && !phase.locked && (
               <Actions><Act variant="filled" label="FR-07.take.btn" disabled={phase.kind === 'taking'} onClick={() => { if (phase.kind === 'previewed') void take(phase); }} /></Actions>
+            )}
+            {checked.accepted && phase.locked && (
+              <form className={s.section} data-file-password="take" onSubmit={event => { event.preventDefault(); if (phase.kind === 'previewed') takeLocked(event.currentTarget, phase); }}>
+                <Field label={t('FR-07.password')} name="sheet-password-take" type="password" autoComplete="off" spellCheck={false} problem={passwordProblem(phase.takeProblem)} />
+                <Note k="FR-07.password.again" />
+                <Actions><Act submit variant="filled" label="FR-07.take.btn" disabled={phase.kind === 'taking'} /></Actions>
+              </form>
             )}
             {phase.kind === 'taking' && <Status k="FR-07.taking" />}
           </>

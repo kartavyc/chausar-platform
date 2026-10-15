@@ -9,7 +9,9 @@
  *   (`sources.workbook` → `{ sheets: [{ name, rows }] }`, the cells `sources.workbookPreview`
  *   reads) becomes CSV text here with the engine's quoting (`workbookSheetToCSV`). Only a
  *   workbook with one sheet is read, as `sources.workbookPreview` does without a chosen sheet.
- *   A PDF statement has no sheet: "sheets only".
+ *   A PDF statement has no sheet: "sheets only". A locked workbook gives no draft ("locked"): its
+ *   password was used once for the preview and once for the import and is not kept, so
+ *   `sources.workbook` is asked without one and answers `PASSWORD_REQUIRED`.
  *
  * Nothing here accepts a meaning: adoption is FR-08's step and the owner's click. Only the
  * parts the list draws are read from a reply, and each is checked first. Column headers come
@@ -43,6 +45,7 @@ export interface ProposalView {
 export type ProposalsOutcome =
   | { readonly kind: 'ready'; readonly proposal: ProposalView }
   | { readonly kind: 'sheets-only' }
+  | { readonly kind: 'locked' }
   | { readonly kind: 'failed'; readonly failure: JourneyFailure };
 
 type Rec = Record<string, unknown>;
@@ -133,7 +136,9 @@ export async function proposalsFor(rpc: JourneyPort, file: PickedFile): Promise<
     if (same !== undefined) return { kind: 'ready', proposal: same };
     return { kind: 'ready', proposal: validateProposal(await rpc.request('learningx.dictionaryBuild', { files: [{ content }] })) };
   } catch (error) {
-    return { kind: 'failed', failure: failureOf(error) };
+    const failure = failureOf(error);
+    if (file.format === 'xlsx' && failure.kind === 'refused' && failure.code === 'PASSWORD_REQUIRED') return { kind: 'locked' };
+    return { kind: 'failed', failure };
   }
 }
 
