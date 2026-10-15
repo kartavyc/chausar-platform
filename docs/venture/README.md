@@ -106,10 +106,43 @@ How it was checked, on Windows with Node 24.13.1:
 - The replay demo above, driven through the local server's `/api/rpc` in the order the screens call it: plan, recording-backed rewrite, brief, Bolt copy, GitHub check, three judged rehearsals, a practice draft that can't be accepted, an accepted draft, `INV-0001` as a TAX INVOICE with CGST and SGST, the payment of 2948.82, the books (billed 249900, received 294882, earned 249900 paise) and the same billed total in the back office; checklist 12 of 12. Each of the seven places then opened in the browser; Your business, Build and Agents say the AI answers come from a synthetic recording.
 - The template walk with no variables, clicked through in the browser: plan, keep it safe, accept, the template brief, rehearsal (template outline, not judged), shadow blocked with its reason, a template outline accepted for a 2 hour order (USD 300.00), invoice `INV-0001`, payment, and Money showing USD 300.00. The send setting stayed `nothing` and no model call was made.
 
-Known limits seen in the walk:
+The two limits this walk found are fixed in the second pass below: Money now has a period choice that reaches back-dated entries, and every date on screen is the owner's day.
 
-- Today and Money ask for the books from the day the business was created to today. An invoice or payment dated before that day only shows when that period is asked for, as in the back office.
-- Dates in the books and in the date fields are the engine's UTC day, while the Today heading uses the computer's own day. In India they differ between midnight and 05:30.
+## Second pass, 16 October
+
+The engine now marks what waits for the owner on each draft (`awaitingYou`, `canApprove`, `canAccept`, `acceptBlocked`), words template offers for how the owner charges, says "Not yet checked with a live key." beside a ready Haiku or Sonnet, and keeps every day on the owner's calendar. The screens read those fields by the names the engine sends; no name differed between the two sides.
+
+How it was checked:
+
+- `node scripts/check.mjs` and the full typecheck with `typescript@5.9.3` against the repo `tsconfig.json` (426 files), unfiltered: both clean.
+- Every `venture-*.test.ts` file: 201 of 201, the end-to-end test included. The parity, shell and renderer tests from spec 11.5, run one after another: 145 of 145.
+- The replay demo in local web mode. The steps that take a passphrase or a key (keeping the vault, adding the AI, following GitHub) and the steps that send (approving drafts, issuing the invoice, recording the payment) went through the local server's `/api/rpc`, in the order the screens call them. Every place was then opened in the browser, in light and dark, at 1280 px and at 375 px. Nothing overflowed at 375 px.
+- What the walk saw: the plan rewords its offers when the owner picks how they charge ("Bookkeeping hours" per hour, "Monthly books" per month). At shadow, Today lists the practice draft and its sheet has no Accept. Once the stage is approve each, Today drops it and a new draft can be accepted. "Practise this" on a rejected draft added a rehearsal case. Money switches between This month, Last month, This year, All time and the owner's own dates.
+- The walk ran at 04:25 in India on 16 October, while it was still 15 October in UTC. Today said "Friday 16 October", the invoice was issued on 2026-10-16 and is due on 2026-10-31, and the books named `Asia/Kolkata`. The template walk, in the United States, said "Thursday 15 October" and named `America/New_York`.
+- The template walk with no variables: the plan, the template brief, rehearsal (template outlines, not judged), shadow blocked with its reason, a template outline accepted, `INV-0001` for USD 300.00 and its payment. No model call was made and the send setting stayed `nothing`.
+
+Words at rest per place, counted the way the renderer test counts them:
+
+| Place | Replay demo | Template walk |
+|---|---|---|
+| Today | 31 | 34 |
+| Your business | 60 | 54 |
+| Build | 57 | 88 |
+| Clients | 27 | 18 |
+| Agents | 45 | 45 |
+| Money | 50 | 50 |
+| Connections | 36 | 36 |
+
+The screenshots in [`screens/`](screens/) were saved again from this walk: 02, 03, 04, 07, 10 to 16, 19, 21, 22, 24 and 25 to 29. The others show the first pass. 05, 06, 08 and 09 come right after the passphrase in onboarding, which this walk did through `/api/rpc`; 01, 17, 18, 20 and 23 look the same as before.
+
+Known limits:
+
+- Today and Money open on this month. An invoice or payment dated in an earlier month shows when the owner picks Last month, This year, All time or their own dates on Money. A books request without a period gets All time, which starts at the earliest dated entry.
+- Each country has one time zone for its days: the most populous one where a country has several (New York for the United States, Toronto for Canada, Sydney for Australia). There is no time zone setting per owner. Until a page has read the books once, a date field starts at this computer's own day.
+- Build rests at 88 words before a repo is followed, because the follow form and its two key notes are open. That is above the 60 word ceiling; the words test checks Build with a repo already followed.
+- With model-written words, Your business rests at 60, right at the ceiling.
+- "Practise this" looks for the review among the newest 500 events. An older review needs the engine to name its signal on the draft.
+- There is no separate fixed price model; "Per project" covers fixed price work.
 
 ## Package pages
 
