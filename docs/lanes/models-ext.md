@@ -226,3 +226,47 @@ An adversarial review of the lane found 1 high, 8 medium and 6 low issues. Each 
 - **Small apps.**
   - The planner is local software. A model-made descriptor can enter only through `smallapps.validate` and `smallapps.create`.
   - The writeback contract must be confirmed when that lane merges.
+
+## Round 4 contracts
+
+These are stable payload and reply shapes for other lanes. Every reply is plain JSON. Amounts are whole paise as strings, and a missing figure is a missing-state word, never zero. A method that is absent returns `UNKNOWN_METHOD`.
+
+### `voice.*` (SH-05, for frame-today's ask line and Today)
+
+Voice is **off by default**. When it is off, every method except `voice.status`, `voice.usage` and `voice.providers` refuses with `VOICE_OFF`, and the microphone opens Trust · Rules · Send. When Send is `nothing` or `shape`, speech is turned into text on this computer only (browser transcript or local whisper); a cloud provider refuses with `VOICE_LOCAL_ONLY`. No raw audio is kept: once audio is turned into text, the engine drops the bytes and keeps only their digest.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `voice.status` | read | `{}` | `{ enabled, mode: 'off'\|'browser'\|'local'\|'paid', send, localOnly, provider: {id, kind, label, local, ratePerMinuteMinor\|null} \| null, live: {sessionId, startedAt, capMs, endsAt} \| null, speaking: {utteranceId} \| null, usage: <voice.usage month> }` |
+| `voice.setEnabled` | admin, desktop | `{ enabled, providerId? }` | `{ enabled, providerId }` (the TR-08 voice row) |
+| `voice.providers` | read | `{}` | the same rows as `modelsx.speechCatalogue` |
+| `voice.start` | prepare, desktop | `{ providerId?, live?: boolean, capMs? }` | `{ sessionId, capture: 'browser-transcript'\|'record-audio'\|'live-session', provider, capMs, approval?: {previewId, digest, costCapMinor} }`. A paid provider returns `approval`; the owner approves it with `speech.approve` before audio leaves. For `live`, the reply after approval carries `live: {clientSecret, expiresAt, connectEndpoint, model, capMs, endsAt}`, and `voice.start {sessionId, approvalId}` completes it. |
+| `voice.stop` | prepare, desktop | `{ sessionId, transcript? , audioBase64?, mimeType?, durationMs }` | `{ sessionId, heard: string \| null, understood: <modelsx.speechInterpret reply> \| null, needsConfirmation: true, words }`. Nothing caught gives `heard: null` and `words: 'Not sure what was said.'`. For a live session, stop also records the minutes used, ended at the cap at the latest. |
+| `voice.confirm` | prepare | `{ sessionId, digest, text? }` | `{ confirmationId, text, digest }`. `text` is the person's edit, re-read before it is confirmed. Refuses `UNDERSTOOD_CHANGED` when the digest no longer matches. |
+| `voice.dropNote` | prepare, desktop | `{ audioBase64, mimeType, durationMs, providerId? }` | same as `voice.stop` (a recorded note dropped on the ask line) |
+| `voice.speak` | read | `{ receiptId, language?: 'en'\|'hi' }` | `{ utteranceId, language, segments: [{ text, figureKey? }] }`. Every number is read from the receipt's own figures, never from written text. The renderer speaks it locally (browser speech synthesis), and no audio leaves. |
+| `voice.stopSpeaking` | read | `{ utteranceId }` | `{ stopped: true }` |
+| `voice.usage` | read | `{ month?: 'YYYY-MM' }` | `{ month, providers: [{ providerId, kind, minutes, minutesMs, costMinor \| 'not counted', basis }], totals: { minutesMs, costMinor \| 'not counted' } }` |
+
+**Live voice (WebRTC).** `app/ui/src/screens/voice/live-client.ts` exports `startLiveVoice({ live, onTranscript, onEnd })`. It connects to `live.connectEndpoint` with the ephemeral `clientSecret` and **ends the call itself at `endsAt`**. The engine also closes the session at the cap, whether or not `voice.stop` arrives.
+
+### `modelsx.price` (for jobs-ext's `routePrice` adapter)
+
+`{ routeId }` → `{ routeId, unitMinor, basis: 'measured'|'estimate'|'zero', pricedAt }`. One unit is one model request. The value comes from:
+- `measured`: the mean measured cost per answer when the route has any, rounded up;
+- `estimate`: otherwise the route's per-call reservation `maxCostMinor`;
+- `zero`: local Ollama.
+
+Codex and Claude CLI routes refuse `ROUTE_ESTIMATE_UNAVAILABLE`, because they run on a plan, not per request. An unknown route refuses `ROUTE_NOT_FOUND`.
+
+### `modelsx.localList` (FR-05 local model picker)
+
+`{ endpoint? }` → `{ endpoint, models: [{ name, sizeBytes, modifiedAt, family }], reachable: true }`, or `{ reachable: false, words }`. It reads Ollama's `GET /api/tags` on loopback only. It is refused in demo mode.
+
+### Meters (TR-08)
+
+`modelsx.meters` adds `month: { month, spendMinor, measuredMinor, reservedMinor, voiceMinutesMs, voiceCostMinor }` across all routes and speech providers for the current calendar month.
+
+### TL-07 pending requests (for reports-tools-trust's request sheet)
+
+`smallapps.pendingRequests` (read) → `{ requests: [{ id, kind: 'plugin-network'|'plugin-tool'|'mcp-call', pluginId, plugin, tool, site?, method?, question: <untrusted quoted text>, receives: string[], preparedBy, preparedAt, expiresAt, approveWith: { method, previewId, digest } }] }`. A secret is never part of a request, and the sheet never asks for one.
