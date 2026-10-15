@@ -2,7 +2,7 @@ import { authorize, audit, check, hash, now, type Context, type State, type Stat
 import { compileSingleSum, type CompiledSingleSum } from './compiled-calculation.ts';
 
 export type FieldType = 'string' | 'money' | 'date' | 'integer' | 'boolean';
-export type Definition = { name: string; label: string; meaning: string; kind: string; field: string; currency: string; nulls: 'exclude' | 'reject'; sign?: 1 | -1; example?: DefinitionExample; usedFrom?: string };
+export type Definition = { name: string; label: string; meaning: string; kind: string; field: string; currency: string; nulls: 'exclude' | 'reject'; sign?: 1 | -1; example?: DefinitionExample; usedFrom?: string } & QuantityBinding;
 /** One worked example of a definition (BK-08): a few rows in, each counted or left out with its reason, and the exact result out. Amounts are whole minor units as strings. */
 export type DefinitionExample = { rows: { label: string; amountMinor: string; counted: boolean; reason?: string }[]; resultMinor: string };
 const MINOR = /^-?(?:0|[1-9]\d{0,17})$/;
@@ -23,8 +23,12 @@ function checkDefinitionExtras(d: Definition): void {
   }
   check(String(total * BigInt(d.sign ?? 1)) === example.resultMinor, 'INVALID_DEFINITION', 'The example result must be exactly what the counted rows add up to.');
 }
+/** Optional measure kind (default money). A quantity definition binds an integer `field`, names the string fields holding each row's
+ *  `unit` and `item` (and optionally `location`), and says whether rows are signed `movements` or dated `snapshots` (counts). */
+export type QuantityBinding = { measure?: 'money' | 'quantity'; unit?: string; item?: string; balance?: 'movements' | 'snapshots'; location?: string };
+const quantityKeys = ['measure', 'unit', 'item', 'balance', 'location'];
 export type DictionaryDraft = { pack: string; label: string; currency: string; gstMode: 'regular' | 'composition' | 'unregistered'; fields: Record<string, FieldType>; definitions: Definition[] };
-export type Operation = { id: string; label: string; type: 'sum' | 'margin' | 'aging' | 'change' | 'scenario'; definitions: string[]; parameters: string[] };
+export type Operation = { id: string; label: string; type: 'sum' | 'margin' | 'aging' | 'change' | 'scenario' | 'stock'; definitions: string[]; parameters: string[] };
 export type Dictionary = DictionaryDraft & { version: number; publishedAt: string; publishedBy: string; hash: string; operations: Operation[]; compiledSums?: CompiledSingleSum[]; schema: Record<string, FieldType>; checks: { required: string[]; currency: string; nullRules: Record<string, string> } };
 export type DictionaryPublishOptions = { expectedCurrentHash?: string | null; attemptId?: string };
 export type OntologyPublishRequest = ({ draft: DictionaryDraft } | { pack: string }) & DictionaryPublishOptions;
@@ -219,17 +223,25 @@ export function compileDictionary(draft: DictionaryDraft, version = 1, published
   check(dataRecord(draft.fields) && Object.entries(draft.fields).every(([name, type]) => /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(name) && typeof type === 'string' && ['string', 'money', 'date', 'integer', 'boolean'].includes(type)), 'INVALID_FIELD', 'Dictionary fields must have safe names and supported types.');
   const names = new Set<string>();
   for (const d of draft.definitions) {
-    check(exactKeys(d, ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls'], ['sign', 'example', 'usedFrom']), 'INVALID_DEFINITION', 'Definitions are data only.');
+    check(exactKeys(d, ['name', 'label', 'meaning', 'kind', 'field', 'currency', 'nulls'], ['sign', 'example', 'usedFrom', ...quantityKeys]), 'INVALID_DEFINITION', 'Definitions are data only.');
     check(typeof d.name === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(d.name) && !names.has(d.name), 'INVALID_DEFINITION', 'Measure names must be unique.');
     check(typeof d.label === 'string' && d.label.trim().length > 0, 'INVALID_DEFINITION', 'Give each measure a label.');
     check(typeof d.kind === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(d.kind), 'INVALID_DEFINITION', 'Record kind must be a data identifier.');
     check(typeof d.meaning === 'string' && d.meaning.trim().length > 10, 'INVALID_DEFINITION', 'Explain exactly what this measure counts.');
-    check(typeof d.field === 'string' && Object.hasOwn(draft.fields, d.field) && draft.fields[d.field] === 'money' && d.currency === draft.currency, 'INVALID_DEFINITION', 'Measure bindings need an exact money field in the dictionary currency.');
+    if (d.measure === 'quantity') {
+      const textField = (name: unknown) => typeof name === 'string' && Object.hasOwn(draft.fields, name) && draft.fields[name] === 'string';
+      check(typeof d.field === 'string' && Object.hasOwn(draft.fields, d.field) && draft.fields[d.field] === 'integer' && d.currency === draft.currency && d.sign === undefined
+        && textField(d.unit) && textField(d.item) && (d.location === undefined || textField(d.location)) && ['movements', 'snapshots'].includes(d.balance as string)
+        && !draft.definitions.some(other => other !== d && other?.measure === 'quantity'), 'INVALID_DEFINITION', 'A quantity measure binds one integer field and names its unit, item and balance rule; a dictionary has at most one.');
+    } else check((d.measure === undefined || d.measure === 'money') && quantityKeys.every(key => key === 'measure' || !Object.hasOwn(d, key)), 'INVALID_DEFINITION', 'Only a quantity measure names units, items and a balance rule.');
+    if (d.measure !== 'quantity') check(typeof d.field === 'string' && Object.hasOwn(draft.fields, d.field) && draft.fields[d.field] === 'money' && d.currency === draft.currency, 'INVALID_DEFINITION', 'Measure bindings need an exact money field in the dictionary currency.');
     check(['reject', 'exclude'].includes(d.nulls) && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'INVALID_DEFINITION', 'Define null handling and a valid sign.');
     checkDefinitionExtras(d);
     names.add(d.name);
   }
-  const sumOperations: Operation[] = draft.definitions.map(d => ({ id: d.name, label: d.label, type: 'sum', definitions: [d.name], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] }));
+  // Compound money calculations read money definitions only; a quantity definition gives stock on hand instead of a sum.
+  const quantity = draft.definitions.find(d => d.measure === 'quantity'); if (quantity) names.delete(quantity.name);
+  const sumOperations: Operation[] = draft.definitions.filter(d => d !== quantity).map(d => ({ id: d.name, label: d.label, type: 'sum', definitions: [d.name], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] }));
   if (names.has('earned')) sumOperations.push({ id: 'revenue', label: 'Revenue (earned)', type: 'sum', definitions: ['earned'], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] });
   if (names.has('earned') && names.has('refunds')) sumOperations.push({ id: 'net_sales', label: 'Net sales', type: 'sum', definitions: ['earned', 'refunds'], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] });
   if (names.has('earned') && names.has('costs') && names.has('refunds')) sumOperations.push({ id: 'margin', label: 'Order contribution margin', type: 'margin', definitions: ['earned', 'refunds', 'costs'], parameters: ['period', 'asOf', 'branch', 'customerId', 'orderId'] });
@@ -238,6 +250,7 @@ export function compileDictionary(draft: DictionaryDraft, version = 1, published
     sumOperations.push({ id: 'change', label: 'Revenue change', type: 'change', definitions: ['earned'], parameters: ['period', 'asOf', 'branch', 'customerId', 'comparePeriod'] });
     sumOperations.push({ id: 'scenario', label: 'Price scenario', type: 'scenario', definitions: ['earned'], parameters: ['period', 'asOf', 'branch', 'customerId', 'assumptions'] });
   }
+  if (quantity) sumOperations.push({ id: 'stock_on_hand', label: 'Stock on hand', type: 'stock', definitions: [quantity.name], parameters: ['asOf', 'branch', 'onDate'] });
   check(new Set(sumOperations.map(o => o.id)).size === sumOperations.length, 'RESERVED_MEASURE', 'A measure uses a generated calculation name.');
   const compiledSums = sumOperations.filter(o => o.type === 'sum' && o.definitions.length === 1)
     .map(o => compileSingleSum(o, draft.definitions.find(d => d.name === o.definitions[0])!, version));

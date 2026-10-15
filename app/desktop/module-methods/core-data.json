@@ -1,4 +1,7 @@
 [
+  "coredata.bankTotals",
+  "coredata.gst2bReceipt",
+  "coredata.gstr3bTurnover",
   "meanings.releases",
   "meanings.review",
   "receipts.provenance"
