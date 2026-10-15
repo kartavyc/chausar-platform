@@ -47,7 +47,7 @@ function chain(options: { open?: boolean } = {}) {
 
 test('the preload adds only openExternal, print and pickFile beside the existing bridge', async () => {
   const { api } = chain();
-  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'openExternal', 'pickFile', 'print', 'request', 'requestEnvelope']);
+  assert.deepEqual(Object.keys(api).sort(), ['onEngineEvent', 'onEngineStatus', 'openExternal', 'pickFile', 'print', 'request', 'requestEnvelope']);
 });
 
 test('the preload refuses non-string, empty and over-long addresses before any IPC, and main refuses the rest', async () => {

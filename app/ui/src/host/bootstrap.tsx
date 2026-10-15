@@ -56,6 +56,7 @@ import { Receipt } from '../parts/Receipt';
 import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
 import { receiptWithDetail, useReceiptDetail } from '../parts/receipt-detail.ts';
 import type { PlaceRpc } from '../places/types.ts';
+import { createLiveEvents, desktopWake, type LiveEvents } from '../places/live-events.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -455,6 +456,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     openSheet: (kind, from) => openRound4Sheet(kind, from), onReceipt: id => openReceipt(id) });
   const askLine = useHostAskLine({ rpc: controller.places, language, viewer, owner: context.member.role === 'owner', navigate, current: () => parseAddress(window.location.hash),
     onSaved: id => { if (conversationEnabled) selectSaved(id); else navigate({ place: 'ask', sub: 'saved' }); }, onQuestion });
+  // core-sync-jobs (round 4): one live-refresh source per controller, disposed with it; places receive its `subscribe`.
+  const [liveEvents, setLiveEvents] = useState<LiveEvents | null>(null);
+  useEffect(() => { const created = createLiveEvents(controller.places, desktopWake()); setLiveEvents(created); return () => created.dispose(); }, [controller]);
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -982,7 +986,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         ...(openLink !== undefined ? { openLink } : {}), setAbout: askLine.setAboutAt(at),
         // BK-04: the FR-07 flow for a place, over the host's chooser (frame-today).
         ...(viewer ? {} : { bringFile: (options?: { readonly onTaken?: (() => void) | undefined }) => <BringFileFlow rpc={controller.places} language={language}
-          company={context.workspace.name} pickFile={statementPicker(shell)} onTaken={options?.onTaken} /> }) });
+          company={context.workspace.name} pickFile={statementPicker(shell)} onTaken={options?.onTaken} /> }),
+        ...(liveEvents !== null ? { subscribe: liveEvents.subscribe } : {}) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
