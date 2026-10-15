@@ -393,3 +393,71 @@ Validators: `bridge/hosted-recovery-contract.ts`. Fixture: `bridge/fixtures/host
 ### Still missing (recover through my contact)
 
 - Enrolling the contact (`hosted.recovery.enrol` / `status` / `remove`, which need the recovery code typed once with the vault open) is not drawn yet: Trust · Vault's `RecoveryContactSettings` still saves only the name and reach in the vault. Until a contact is enrolled, asking shows `RECOVERY_NOT_ENROLLED`'s words.
+
+## Round 4 contracts (all of round 4 in one place)
+
+The per-area tables above give the details. **Owner** is the lane that serves the method. **State** is its state on the merged base:
+- *present*: the method is there.
+- *fixture*: built against the contract with a typed fixture, and a typed refusal or "not built yet" until the method exists.
+
+| Method or seam | Owner | State | Used by |
+|---|---|---|---|
+| `todayx.review`, `todayx.closeStatus`, `todayx.cash.save` (owner/cofounder) / `todayx.cash.week`, `todayx.updates*`, `todayx.faultReport.send` (refuses `FAULT_REPORT_SEND_UNAVAILABLE`) | frame-today | present | Today, Books queue, close, cash, Updates sheet, fault report |
+| `todayx.activity {job?, record?}`; `todayx.receiptDetail.cash?: 'not-captured'` | frame-today | present | Activity, receipt "Left out" |
+| `release.status` → update banner (`configured:false` → none; `vaultCompatible:false` → older-build words; `build.usable===false` / `updateNeeded` → update needed), fallback `updates.status` | release | present | SH-03, SH-08 |
+| `release.stageUpdate` / `release.applyUpdate {confirmed:true}` | release | present | Updates sheet |
+| `hosted.recovery.request / check / complete` (preVault) | hosted-link | present (enrol screen not built) | lock screen "Recover through my contact" |
+| `voice.status / start / stop / confirm / dropNote / speak / stopSpeaking / usage` | models-ext | fixture until models-ext merges | ask line, receipt "Read it aloud", cash by voice |
+| `modelsx.localList`, `modelsx.meters.month` | models-ext | fixture | FR-05 local models |
+| `models.setLadder`, `models.probe {routeId}` | core-gateway-auth | fixture | route ladder, SH-09 route states |
+| `workspace.pin.status / unlock / set / remove` | core-gateway-auth | fixture | PIN unlock, PIN settings |
+| `network.online`; `session.status` / `session.stop` | core-gateway-auth; driving | fixture | no-connection and driving banners, tray Stop |
+| `approvals.afterRestore` | work-books | present (`restoredFrom` not served) | sending-closed banner |
+| `approvals.list / get / approve {id,digest} / notNow` | work-books | present | review join, grouped stepping (WK-03) |
+| `askx.suggest`, `askx.search`, `records.search`, `books.memoryPropose / memoryConfirm` | ask, work-books | present | ask-line suggestions, telling-not-asking |
+| `reportsx.due`, `jobsx.missed`, `alerts.list` | reports, jobs-ext, core | present | worth-a-look |
+| `reportsx.weekAhead.late` (a read that does not build a brief) | reports-tools-trust | asked | worth-a-look "brief late" |
+| `workspace.setTimeZone` → `ui.context.timeZone` | core-data | fixture | time zone setting |
+| `devices.join`, `seats.inviteVerify {joinId, code}` (the code is typed by the person) | core-sync-jobs | fixture | FR-14 join |
+| `learningx.intakeStatus / preview / consent` | learning-ext | present | FR-10 sharing question (consent only after the file is shown) |
+| `sources.workbook*` with `password` (`PASSWORD_REQUIRED`, `WRONG_PASSWORD`, `WORKBOOK_PASSWORD_INVALID`) | core-data | present (merged) | FR-07 locked workbooks |
+| First-run `contracts.ts`: a quantity definition and the `stock_on_hand` operation | core-data | present | first run |
+| `imports.readerStatus.sizeBytes`: a whole number of bytes when installed, else null | connectors-ext | present | FR-07 |
+| `imports.pickFile` (IPC `chausar:imports-pick-file`: `'statement'` / `'backup'`) | frame-today desktop | present | FR-07, BK-04, FR-13 backup |
+| `PlaceRenderProps.setAbout`, `.bringFile` (frame-today), `.subscribe` (core-sync-jobs) | frame-today, core-sync-jobs | present | places |
+| `HostMountOptions.onQuestion(AskQuestion {text, about, by})` | frame-today | present | the ask lane can consume it |
+| Activity types `lesson.decided`, `vault.backup.done`, `release.update.checked`, `workspace.locked`, `workspace.unlocked` (core-sync-jobs' names) | core-sync-jobs | present | Activity |
+
+`auditEvents` keeps core-sync-jobs' recorded names, and `events.subscribe` reads them too. Only the `todayx.activity` page maps them to the screen's sentence codes (`backup.done`, `update.checked`, `lock`, `unlock`).
+
+### Round 4 review (adversarial)
+
+A review of all round-4 frame-today code found nothing high severity. Thirteen findings were fixed, each with tests:
+- GSTR-2B with probable or unreadable lines now needs the person, a failed read shows "not sure", and bank sources are filtered by the month.
+- The grouped stepper re-reads an item after `PREVIEW_CHANGED`, and says "failed" rather than "gone".
+- Cash entry keeps the typed text and says "invalid" or "failed". Cash may be told only by an owner or cofounder.
+- FR-14 approval needs the code typed in.
+- Voice reads a number back as money only when a unit is spoken, confirms the text that was seen, and treats `live:false` as not live.
+- Told cash is not drawn as a receipt link.
+- CSV must be UTF-8 and fit one request.
+- The Activity filter fold opens when a job or record filter is set.
+- FR-10 consents only to a file that was shown.
+
+### Round 4 core and shared edits
+
+- **Host bundle limit raised to 3 MB** in `scripts/build-ui-host.mjs`, `app/desktop/ui-assets.cjs` and `platform/tests/ui-preview-host.test.ts`. The merged host is 2.80 MB.
+- `app/desktop/main.cjs` and `preload.cjs`, small hunks:
+  - `imports.pickFile`, `saveText`, `crashState` and `crashAnswer`
+  - the tray
+  - `did-navigate` trust
+  - outside links before a vault
+  - the crash marker
+  - frame-today's `laneRefusals` line
+- New `app/desktop/file-ipc.cjs`.
+- `bridge/client.ts` is regenerated by `sync-lane-refusals`.
+- `places/types.ts`: `setAbout` and `bringFile`, beside core-sync-jobs' `subscribe`.
+- `parts/Frame.tsx` (`data-frame-wide` / `data-frame-narrow`), `parts/Stat.tsx` (`data-stat`), `bridge/presentation.ts` (`Figure.told`).
+- Tests made robust:
+  - `frame-today-idea` ignores every id and time key.
+  - The voice tests wait for the controller rather than for two ticks.
+  - `retained-journeys` leaves the ask line's typing reads out of its call counts.
