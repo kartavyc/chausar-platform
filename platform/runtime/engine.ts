@@ -80,6 +80,7 @@ import { authorize, audit, check, ChausarError, hash, newId, now, type Context, 
 import { engineModules, moduleMethods } from './modules/registry.ts';
 import type { ModuleHost } from './modules/types.ts';
 import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
+import { preparedExportPurge } from './core-data/prepared-exports.ts';
 
 // Engine modules register their namespace purge once, at load.
 for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
@@ -1678,9 +1679,11 @@ export class Engine {
         this.requireWorkspaceOwner(ctx); const workspace = store.read().workspace;
         check(payload.confirmation === workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
         await this.revokeManagedCopyReceipts();
+        // core-data (WK-02 exports): prepared-export files this workspace's own record names, read before the vault goes.
+        const purgePreparedExports = preparedExportPurge(store.read(), this.options.directory);
         let removed: string[] = [];
         await this.deleteVault(store, async ({ privateArtifactPaths, assertCurrent }) => {
-          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent)];
+          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent), ...await purgePreparedExports(assertCurrent)];
         });
         return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }

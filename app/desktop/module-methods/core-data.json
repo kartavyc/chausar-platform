@@ -1,1 +1,9 @@
-[]
+[
+  "decisions.journal.cancel",
+  "deletion.customer",
+  "deletion.customerPlan",
+  "deletion.pending",
+  "deletion.reapply",
+  "workspace.setTimeZone",
+  "workspace.timeZone"
+]
