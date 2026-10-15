@@ -1300,7 +1300,9 @@ globalThis.ChausarLaunch = Object.freeze({
     function reviewControls(run, status, paint) {
       const editHost = h('div');
       const review = (payload, button) => act(button, status, async () => { paint(await request('venture.delivery.review', { runId: run.id, ...payload })); });
-      const accept = run.practice ? null : filled('Accept', () => review({ verdict: 'accepted' }, accept));
+      // The engine refuses Accept on a practice draft and after any failed check, so the sheet only offers it when it can work.
+      const failedCheck = (run.checks || []).some(check => !check.passed);
+      const accept = run.practice || failedCheck ? null : filled('Accept', () => review({ verdict: 'accepted' }, accept));
       const edit = quiet('Edit', () => {
         const text = h('textarea', { rows: 10, maxlength: 20000, value: run.renderedText || '' });
         const save = quiet('Save edit', () => review({ verdict: 'edited', editedText: text.value }, save));
@@ -1308,7 +1310,8 @@ globalThis.ChausarLaunch = Object.freeze({
       });
       const reasons = picker(REASON_WORDS, 'other');
       const reject = quiet('Reject', () => review({ verdict: 'rejected', reason: reasons.value }, reject));
-      return [actions(accept, edit), editHost, h('div', { class: 'launch-reject' }, field('Why reject it', reasons), actions(reject))];
+      return [failedCheck && !run.practice ? note("A check failed, so this draft can't be accepted as it is. Edit it or reject it.") : null,
+        actions(accept, edit), editHost, h('div', { class: 'launch-reject' }, field('Why reject it', reasons), actions(reject))];
     }
 
     async function renderMoney() {

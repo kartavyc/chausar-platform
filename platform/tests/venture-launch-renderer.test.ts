@@ -10,6 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES } from '../runtime/venture/contracts.ts';
+import type { DeliveryRunRecord } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import * as F from './fixtures/venture/renderer/results.ts';
 
@@ -939,6 +940,19 @@ test('a practice draft cannot be accepted, copied or saved; a template outline s
   await click(button(sheet, 'Accept'));
   assert.deepEqual(h.calls.find(call => call.method === 'venture.delivery.review')!.payload, { runId: 'vdr_outline', verdict: 'accepted' });
   assert.equal(buttons(sheet, 'Copy').length, 1, 'an accepted draft can be copied');
+});
+
+test('a draft with a failed check offers Edit and Reject, not Accept', async () => {
+  const failed: DeliveryRunRecord = { ...F.outlineRun, id: 'vdr_failed', checks: [{ check: 'required-sections', passed: false, detail: 'The Next steps section is missing.' }] };
+  const h = await place('agents', { overrides: { 'venture.delivery.list': () => [failed] } });
+  const outline = descendants(h.content).filter(node => node.className === 'launch-row' && /outline/.test(node.textContent))[0];
+  await click(button(outline, 'Review'));
+  const sheet = openDialog(h.body);
+  assert.equal(buttons(sheet, 'Accept').length, 0, 'the engine refuses Accept after a failed check, so the sheet does not offer it');
+  assert.equal(buttons(sheet, 'Edit').length, 1);
+  assert.equal(buttons(sheet, 'Reject').length, 1);
+  assert.ok(text(sheet).includes("A check failed, so this draft can't be accepted as it is. Edit it or reject it."));
+  assert.ok(text(sheet).includes('The Next steps section is missing.'));
 });
 
 test('the money place and the invoice sheet show the experimental notice; issuing names the exact total', async () => {
