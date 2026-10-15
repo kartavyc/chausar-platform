@@ -8,12 +8,12 @@ import type { Catalogue } from '../../../places/types.ts';
 import { words } from '../../../places/types.ts';
 import { State } from '../../../patterns/States';
 import { Button } from '../../../parts/Button';
-import { fill, periodText, refusalState, useAsk } from './kit';
-import type { Period } from './client.ts';
-import type { Completeness, Gap, RuleKind } from './core-replies.ts';
+import { fill, periodText, refusalState, useAsk, useRead } from './kit';
+import { call, type Period } from './client.ts';
+import { ruleExplainReply, type Completeness, type Gap, type RuleKind } from './core-replies.ts';
 import s from './core.module.css';
 
-type CodeKey = 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE' | 'ASK_NO_CALCULATION' | 'REQUEST_FAILED' | 'INVALID_REPLY';
+type CodeKey = 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE' | 'ASK_NO_CALCULATION' | 'REQUEST_FAILED' | 'INVALID_REPLY' | 'ASK_STOPPED';
 const CODES = {
   en: {
     ASK_CANNOT_REBUILD: 'Something this answer used was deleted, so it cannot be rebuilt.',
@@ -25,6 +25,7 @@ const CODES = {
     ASK_NO_CALCULATION: 'No calculation covers this yet.',
     REQUEST_FAILED: 'The request did not reach the engine. Nothing was changed.',
     INVALID_REPLY: 'The engine sent a reply this page could not check, so nothing from it is shown.',
+    ASK_STOPPED: 'Stopped as you asked. The unfinished answer was not kept.',
   },
   hi: {
     ASK_CANNOT_REBUILD: 'इस जवाब में इस्तेमाल हुई एक चीज़ हटा दी गई, इसलिए इसे फिर से नहीं बनाया जा सकता।',
@@ -36,6 +37,7 @@ const CODES = {
     ASK_NO_CALCULATION: 'अभी कोई गणना इसे नहीं करती।',
     REQUEST_FAILED: 'अनुरोध इंजन तक नहीं पहुँचा। कुछ बदला नहीं गया।',
     INVALID_REPLY: 'इंजन का जवाब यह पेज जाँच नहीं सका, इसलिए उसमें से कुछ नहीं दिखाया गया।',
+    ASK_STOPPED: 'आपके कहने पर रोका गया। अधूरा जवाब रखा नहीं गया।',
   },
 } as const satisfies Catalogue<CodeKey>;
 
@@ -86,6 +88,44 @@ const RULES = {
 } as const satisfies Catalogue<RuleKind>;
 export const useRuleWords = () => words(RULES, useAsk().language);
 
+/** Who can change a rule, from Trust's own answer (AS-09). */
+const CHANGE = {
+  en: { owner: 'The owner', 'owner-or-cofounder': 'The owner or a co-founder', ruleText: 'The rule in Trust: {text}', changeable: '{who} can change it in Trust.' },
+  hi: { owner: 'मालिक', 'owner-or-cofounder': 'मालिक या सह-संस्थापक', ruleText: 'Trust का नियम: {text}', changeable: '{who} इसे Trust में बदल सकते हैं।' },
+} as const satisfies Catalogue<'owner' | 'owner-or-cofounder' | 'ruleText' | 'changeable'>;
+
+/**
+ * The rule's own words from Trust (askx.explainRule), drawn as text. While it is read, or when
+ * Trust cannot explain it yet, `fallback` is drawn: the fixed sentence for the kind of rule.
+ */
+export function useRuleExplain(rule: RuleKind, receiptId?: string) {
+  const ask = useAsk();
+  const [load] = useRead(`rule|${rule}|${receiptId ?? ''}|${ask.language}`, () => call(ask.rpc, 'askx.explainRule', { rule, language: ask.language, ...(receiptId === undefined ? {} : { receiptId }) }, ruleExplainReply));
+  return load.kind === 'ok' && load.value.state === 'ready' ? load.value : null;
+}
+export function RuleLine({ rule, receiptId }: { rule: RuleKind; receiptId?: string | undefined }) {
+  const ask = useAsk(), explained = useRuleExplain(rule, receiptId), c = words(CHANGE, ask.language);
+  if (explained === null) return null;
+  return (
+    <p className={s.note} data-rule-text={explained.ruleId}>
+      <span>{fill(c.ruleText, { text: explained.text })}</span> <span>{fill(c.changeable, { who: c[explained.changeableBy] })}</span>
+    </p>
+  );
+}
+
+function RuleRefusal({ code, rule, receiptId }: { code: string; rule: RuleKind; receiptId?: string | undefined }) {
+  const ask = useAsk(), w = useShared(), rules = useRuleWords(), c = words(CHANGE, ask.language);
+  const explained = useRuleExplain(rule, receiptId);
+  return (
+    <div className={s.block} data-refusal={code} data-rule={rule}>
+      {explained === null
+        ? <State state={{ kind: 'stopped-by-rule', rule: rules[rule], who: w.ruleWho }} />
+        : <span data-rule-text={explained.ruleId}><State state={{ kind: 'stopped-by-rule', rule: explained.text, who: c[explained.changeableBy] }} /></span>}
+      <Button variant="link" onClick={() => ask.leave({ place: 'trust' })}>{w.openTrust}</Button>
+    </div>
+  );
+}
+
 /** "Invoiced by customer · Aug 2026 · all branches": the calculation, the period and who is counted. */
 export function understoodText(calc: string, period: Period | null, branch: string | null, language: Language): string {
   const w = words(SHARED, language), who = branch === null ? w.everyone : fill(w.branch, { branch });
@@ -98,12 +138,13 @@ export function monthText(month: string, language: Language): string {
 }
 
 /** A refusal drawn inside a page that is otherwise shown. */
-export function Refusal({ code, rule, retry }: { code: string; rule?: RuleKind | undefined; retry?: (() => void) | undefined }) {
-  const ask = useAsk(), w = useShared(), explain = useExplain(), rules = useRuleWords();
+export function Refusal({ code, rule, retry, receiptId }: { code: string; rule?: RuleKind | undefined; retry?: (() => void) | undefined; receiptId?: string | undefined }) {
+  const ask = useAsk(), w = useShared(), explain = useExplain();
+  if (code === 'ASK_STOPPED_BY_RULE' && rule !== undefined) return <RuleRefusal code={code} rule={rule} receiptId={receiptId} />;
   if (code === 'ASK_STOPPED_BY_RULE') {
     return (
       <div className={s.block} data-refusal={code} data-rule={rule ?? ''}>
-        <State state={{ kind: 'stopped-by-rule', rule: rule === undefined ? w.rule : rules[rule], who: w.ruleWho }} />
+        <State state={{ kind: 'stopped-by-rule', rule: w.rule, who: w.ruleWho }} />
         <Button variant="link" onClick={() => ask.leave({ place: 'trust' })}>{w.openTrust}</Button>
       </div>
     );

@@ -38,7 +38,7 @@ const sheet = (name: string, sub = 'new'): Address => ({ place: 'ask', sub, shee
 
 const sep = { from: '2026-09-01', to: '2026-09-30' }, aug = { from: '2026-08-01', to: '2026-08-31' };
 const menu = {
-  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14',
+  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14', branches: [],
   topics: [{ topic: 'collections', items: [{ operationId: 'collections.total', label: 'Collections', type: 'sum', topic: 'collections', needs: ['period'], meaning: null }, { operationId: 'collections.count', label: 'Receipts counted', type: 'count', topic: 'collections', needs: ['period'], meaning: null }] }],
   periods: [{ id: 'this-month', period: { from: '2026-10-01', to: '2026-10-31' } }, { id: 'last-month', period: sep }],
 };
@@ -113,7 +113,7 @@ test('what if shows the label, the assumption and two figures side by side', asy
   await user.type(screen.getByLabelText('Change in prices, in percent'), '5');
   await user.click(screen.getByRole('button', { name: 'Show what if' }));
   const figures = await found<HTMLElement>('[data-whatif-figures]');
-  expect(rpc.calls[0]).toEqual(['askx.whatIf', { periodId: 'last-month', priceChangeBps: '500' }]);
+  expect(rpc.calls.find(c => c[0] === 'askx.whatIf')).toEqual(['askx.whatIf', { periodId: 'last-month', priceChangeBps: '500' }]);
   expect(within(figures).getByText('Your books')).toBeTruthy();
   expect(within(figures).getByText('With the change')).toBeTruthy();
   expect(within(figures).getByRole('button', { name: '₹10,000' })).toBeTruthy();
@@ -177,9 +177,9 @@ test('plan sends exact paise and basis points, and shows which limits clash', as
 });
 
 const gst = {
-  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', leftOut: 2,
-  groups: [{ group: 'matched', count: 12, taxableMinor: '5000000', taxMinor: '900000' }, { group: 'differs-inside', count: 2, taxableMinor: '100000', taxMinor: '18000' }, { group: 'differs-outside', count: 1, taxableMinor: '40000', taxMinor: '7200' }, { group: 'in-2b-only', count: 1, taxableMinor: '30000', taxMinor: '5400' }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0' }],
-  lines: [{ id: 'l-1', group: 'in-2b-only', supplier: 'Synthetic Supplier <i>', invoice: 'INV-7', booksMinor: null, twoBMinor: '35400', differenceMinor: null, bookRowId: null, twoBRowId: 'row-9' }],
+  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', sources: null, matchReceiptId: null, leftOut: 2,
+  groups: [{ group: 'matched', count: 12, taxableMinor: '5000000', taxMinor: '900000', unknownTax: 0 }, { group: 'differs-inside', count: 2, taxableMinor: '100000', taxMinor: '18000', unknownTax: 0 }, { group: 'differs-outside', count: 1, taxableMinor: '40000', taxMinor: '7200', unknownTax: 0 }, { group: 'in-2b-only', count: 1, taxableMinor: '30000', taxMinor: '5400', unknownTax: 0 }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }],
+  lines: [{ id: 'l-1', group: 'in-2b-only', supplier: 'Synthetic Supplier <i>', invoice: 'INV-7', booksMinor: null, twoBMinor: '35400', differenceMinor: null, bookRowId: null, twoBRowId: 'row-9', receiptId: null }],
   ims: [{ lineId: 'l-1', action: 'pending', reason: 'not-in-books' }],
 };
 

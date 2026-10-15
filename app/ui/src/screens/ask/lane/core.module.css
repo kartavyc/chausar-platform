@@ -11,6 +11,21 @@
 
 .page { gap: var(--sp6); }
 
+/* Two meanings side by side (AS-04): one column each, stacked on a narrow page. */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--sp6);
+  min-width: 0;
+}
+
+.column {
+  display: grid;
+  gap: var(--sp3);
+  align-content: start;
+  min-width: 0;
+}
+
 .heading {
   margin: 0;
   font-size: var(--fs-note2);

@@ -12,6 +12,7 @@ import { forecast } from '../ask/forecast.ts';
 import { confirm, discard, draft, getDecision, inbox, listDecisions, review } from '../ask/decisions.ts';
 import { search } from '../ask/search.ts';
 import { exportIms, gst2b, line, setTolerance } from '../ask/gst2b.ts';
+import { change, explainRule, stop, tell } from '../ask/round4.ts';
 
 const read = (handler: MethodSpec['handler']): MethodSpec => ({ permission: 'read', handler });
 const prepare = (handler: MethodSpec['handler']): MethodSpec => ({ permission: 'prepare', handler });
@@ -24,6 +25,10 @@ export const askModule: EngineModule = {
     'askx.suggest': read(suggest),
     'askx.understand': read(understand),
     'askx.run': read(run),
+    'askx.change': read(change),
+    'askx.stop': read(stop),
+    'askx.tell': prepare(tell),
+    'askx.explainRule': read(explainRule),
     'askx.answer': read(answer),
     'askx.guard': read(guard),
     'askx.receipt': read(receiptView),
