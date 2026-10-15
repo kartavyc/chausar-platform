@@ -136,6 +136,10 @@ test('a send the relay never received becomes not-sent; sending again is explici
   const again = await lostSend(f, 'lose-request', payload);
   assert.equal(again.id, lost.id); assert.equal(f.vault().messages.length, 1);
 
+  // Right after the attempt "not received" proves nothing (the post may still be on its way): it stays unknown.
+  await assert.rejects(f.rpc('phone.messages.check', { id: lost.id }), { code: 'MESSAGE_CHECK_TOO_SOON' });
+  assert.equal(f.vault().messages.find((m: any) => m.id === lost.id).status, 'unknown');
+  f.advance(RECHECK_AFTER_MS);
   const checked = await f.rpc('phone.messages.check', { id: lost.id });
   assert.deepEqual({ status: checked.status, sendAgain: checked.sendAgain, errorCode: checked.errorCode }, { status: 'not-sent', sendAgain: true, errorCode: null });
   const stored = f.vault().messages.find((m: any) => m.id === lost.id);
@@ -219,6 +223,54 @@ test('the tick re-checks unknown entries older than a few minutes, a bounded num
   assert.equal(f.state.relayCalls.filter(c => c.startsWith('POST')).length, before, 'ticks never post a message');
   assert.equal(f.state.relayCalls.filter(c => c.startsWith('GET /v1/relay/messages/by-key/')).length, 10);
   assert.equal(f.vault().messages.every((m: any) => typeof m.checkedAt === 'string'), true);
+});
+
+test('a retry moves the wait on: neither a check nor the tick reads "not received" as not-sent until a few minutes after the last attempt', { skip: pgSkip }, async t => {
+  const f = await setup(t);
+  const payload = { event: 'week-ahead-ready', channel: 'whatsapp' };
+  const lost = await lostSend(f, 'lose-request', payload);
+  assert.equal(lost.lastAttemptAt, lost.at);
+  f.advance(RECHECK_AFTER_MS - 60_000);
+  const retried = await lostSend(f, 'lose-request', payload);
+  assert.equal(retried.id, lost.id); assert.ok(Date.parse(retried.lastAttemptAt) > Date.parse(lost.at), 'the retry refreshed the last attempt');
+  f.advance(2 * 60_000); // past the wait counted from the first send, inside it counted from the retry
+  const lookups = () => f.state.relayCalls.filter(c => c.startsWith('GET /v1/relay/messages/by-key/')).length;
+  await f.tick();
+  assert.equal(lookups(), 0, 'the tick waits from the last attempt');
+  await assert.rejects(f.rpc('phone.messages.check', { id: lost.id }), { code: 'MESSAGE_CHECK_TOO_SOON' });
+  assert.equal(lookups(), 1);
+  const stored = f.vault().messages.find((m: any) => m.id === lost.id);
+  assert.deepEqual([stored.status, stored.checkedAt], ['unknown', undefined], 'a too-soon check records nothing');
+  // The relay already has it (the reply of the retry was lost): a check right away says so, the wait does not apply.
+  const delivered = await lostSend(f, 'lose-reply', { event: 'due-date-near', channel: 'whatsapp' });
+  assert.equal((await f.rpc('phone.messages.check', { id: delivered.id })).status, 'queued');
+  f.advance(RECHECK_AFTER_MS);
+  const checked = await f.rpc('phone.messages.check', { id: lost.id });
+  assert.deepEqual([checked.status, checked.sendAgain], ['not-sent', true]);
+});
+
+test('entries keep the account they were sent under: after pairing with another account they are never looked up or made not-sent', { skip: pgSkip }, async t => {
+  const f = await setup(t);
+  const payload = { event: 'week-ahead-ready', channel: 'whatsapp' };
+  const lost = await lostSend(f, 'lose-reply', payload);
+  const firstAccount = f.vault().pairing.accountId;
+  assert.equal(lost.accountId, firstAccount);
+  await f.rpc('hosted.unpair');
+  const started = await f.rpc('hosted.pair.start', { phone: '+919811122233' });
+  await f.rpc('hosted.pair.finish', { challengeId: started.challengeId, code: f.otp.last(), deviceName: 'Shop computer' });
+  assert.notEqual(f.vault().pairing.accountId, firstAccount);
+  f.advance(RECHECK_AFTER_MS + 1000);
+  const lookups = () => f.state.relayCalls.filter(c => c.startsWith('GET /v1/relay/messages/by-key/')).length;
+  await f.tick();
+  assert.equal(lookups(), 0, 'the tick never asks the new account about the old one\'s key');
+  let stored = f.vault().messages.find((m: any) => m.id === lost.id);
+  assert.deepEqual([stored.status, stored.errorCode], ['unknown', 'MESSAGE_OTHER_PAIRING']);
+  await assert.rejects(f.rpc('phone.messages.check', { id: lost.id }), { code: 'MESSAGE_OTHER_PAIRING' });
+  assert.equal(lookups(), 0);
+  stored = f.vault().messages.find((m: any) => m.id === lost.id);
+  assert.equal(stored.status, 'unknown', 'never not-sent');
+  const row = (await f.rpc('phone.messages.log')).messages.find((m: any) => m.id === lost.id);
+  assert.deepEqual([row.status, row.errorCode], ['unknown', 'MESSAGE_OTHER_PAIRING']);
 });
 
 test('mail STOP acts only from an authenticated sender: a forged From changes nothing, an authenticated STOP stops mail', { skip: pgSkip }, async t => {

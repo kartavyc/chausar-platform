@@ -16,6 +16,9 @@ import { FakeOtpProvider } from '../../hosted/accounts/otp.ts';
 import { FakePaymentPartner } from '../../hosted/billing/partner.ts';
 import { mailChannel, whatsappChannel } from '../../hosted/relay/channels.ts';
 import { RECOVERY_TEXT, hasDigit } from '../../hosted/shared/templates.ts';
+import { RECOVERY_ACCOUNT_CONTACT_PER_DAY, RECOVERY_CONTACT_PER_DAY } from '../../hosted/relay/recovery.ts';
+import { openFolder } from '../runtime/hosted-link/recovery.ts';
+import { createHash } from 'node:crypto';
 import * as desktopTemplates from '../runtime/hosted-link/templates.ts';
 import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-pg.ts';
@@ -90,7 +93,7 @@ async function setup(t: TestContext) {
     }
     throw new Error('recovery did not settle');
   };
-  return { engine, app, sql, outbound, requests, rpc, page, credentialCall, dump, pairAndPay, file, lastMail, tokenOf, settle, directory,
+  return { engine, app, sql, otp, partner, outbound, requests, rpc, page, credentialCall, dump, pairAndPay, file, lastMail, tokenOf, settle, directory,
     recoveryCode: created.recoveryCode as string, advance: (ms: number) => { time += ms; } };
 }
 
@@ -101,9 +104,10 @@ test('a contact confirms and the locked vault opens with a new passphrase; K lea
   const workspaceId = f.engine.vault!.read().workspace.id;
 
   const enrolled = await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
-  assert.deepEqual({ ...enrolled, enrolledAt: 'x' }, { enrolled: true, folder: 'main', contactChannel: 'mail', contactMasked: 'a•••@example.com', enrolledAt: 'x' });
+  assert.deepEqual({ ...enrolled, enrolledAt: 'x' }, { enrolled: true, folder: 'main', contactChannel: 'mail', contactMasked: 'a•••@example.com', enrolledAt: 'x', replaced: null });
   const status = await f.rpc('hosted.recovery.status');
   assert.equal(status.enrolled, true); assert.equal(status.local, true); assert.equal(status.relay.contactChannel, 'mail');
+  assert.equal(status.replacedBy, null);
 
   // The two halves: the relay got K and never the code or the name; the file holds the code sealed, never K.
   const put = f.requests.find(r => r.method === 'PUT' && r.path === '/v1/recovery/enrolment')!;
@@ -186,7 +190,7 @@ test('a declined, replaced or expired request cannot complete; a wrong credentia
   await f.pairAndPay();
   await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: 'CHR-short', contact: CONTACT }), { code: 'RECOVERY_CODE_INVALID' });
   await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: { name: 'Asha', reach: '+15555550100' } }), { code: 'RECOVERY_CONTACT_INVALID' });
-  await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT, folder: 'elsewhere' }), { code: 'RECOVERY_FOLDER_UNKNOWN' });
+  await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT, folder: 'elsewhere' }), { code: 'RECOVERY_FOLDER_MISMATCH' });
   await assert.rejects(f.rpc('hosted.recovery.request'), { code: 'RECOVERY_NOT_ENROLLED' });
   await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
   const firstCredential = JSON.parse(await readFile(f.file, 'utf8')).credential;
@@ -261,6 +265,121 @@ test('a WhatsApp contact gets the fixed template with a letters-only link; remov
   assert.equal((await f.page('GET', parameter)).status, 410, 'removing voids the open link');
   assert.equal((await f.rpc('hosted.recovery.status')).relay, null);
   assert.equal((await f.sql.query(`SELECT count(*)::int AS n FROM recovery_enrolments WHERE status = 'active'`)).rows[0].n, 0);
+});
+
+type Harness = Awaited<ReturnType<typeof setup>>;
+const activeHalves = async (f: Harness) => (await f.sql.query(`SELECT count(*)::int AS n FROM recovery_enrolments WHERE status = 'active' OR key_sealed IS NOT NULL OR contact_sealed IS NOT NULL`)).rows[0].n as number;
+const relayModule = (f: Harness) => f.app.modules.find(m => m.id === 'relay')!;
+
+test('a revoked device loses K and the contact\'s address: in the revoke itself, by the sweep, and by removal without a session', { skip: pgSkip }, async t => {
+  const f = await setup(t);
+  await f.pairAndPay();
+  await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
+  await f.rpc('workspace.lock');
+  await f.rpc('hosted.recovery.request');
+  await f.app.worker.runOnce();
+  const token = f.tokenOf(f.lastMail());
+  assert.equal((await f.page('GET', token)).status, 200);
+  await f.engine.requestAs(owner, 'workspace.open', { folder: 'main', passphrase });
+  // Unpairing revokes this device on the server: its enrolment ends in the same transaction.
+  assert.equal((await f.rpc('hosted.unpair')).serverRevoked, true);
+  assert.equal(await activeHalves(f), 0, 'K and the address are gone with the device');
+  assert.equal((await f.sql.query(`SELECT status FROM recovery_enrolments`)).rows[0].status, 'revoked');
+  assert.equal((await f.page('GET', token)).status, 410, 'the open link stops working');
+
+  // A device revoked any other way: the relay's sweep ends its enrolment.
+  const started = await f.rpc('hosted.pair.start', { phone: PHONE });
+  await f.rpc('hosted.pair.finish', { challengeId: started.challengeId, code: f.otp.last(), deviceName: 'Shop computer' });
+  await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
+  assert.equal(await activeHalves(f), 1);
+  const device = (f.engine.vault!.read().extensions!['hosted-link'] as any).pairing.deviceId;
+  await f.sql.query('UPDATE devices SET revoked_at = now() WHERE id = $1', [device]);
+  await relayModule(f).sweep!();
+  assert.equal(await activeHalves(f), 0, 'the sweep deletes K and the address');
+
+  // Removal with no working session: the local file's own credential revokes exactly its enrolment.
+  await f.rpc('hosted.unpair');
+  const again = await f.rpc('hosted.pair.start', { phone: PHONE });
+  await f.rpc('hosted.pair.finish', { challengeId: again.challengeId, code: f.otp.last(), deviceName: 'Shop computer' });
+  await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
+  assert.equal(await activeHalves(f), 1);
+  await f.sql.query('DELETE FROM sessions');
+  const before = f.requests.length;
+  assert.deepEqual(await f.rpc('hosted.recovery.remove'), { removed: true });
+  assert.deepEqual(f.requests.slice(before).map(r => `${r.method} ${r.path}`), ['POST /v1/recovery/enrolment/withdraw']);
+  assert.equal(await activeHalves(f), 0, 'the relay half is revoked without a session');
+  await assert.rejects(stat(f.file), { code: 'ENOENT' });
+  // The withdraw route takes only a request credential, for its own enrolment.
+  const wrong = await f.credentialCall('POST', '/v1/recovery/enrolment/withdraw', 'Q'.repeat(43), {});
+  assert.equal(wrong.status, 401);
+});
+
+test('another account naming the same contact cannot use up this account\'s requests; the spam ceiling leaves each account its first', { skip: pgSkip }, async t => {
+  const f = await setup(t);
+  await f.pairAndPay();
+  // A second account, paid, names the same contact and asks three times.
+  const call = async (method: string, url: string, body: unknown, bearer?: string) => f.app.router.handle({ method, url,
+    headers: { 'content-type': 'application/json', ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, body: Buffer.from(JSON.stringify(body)) });
+  const start = await call('POST', '/v1/accounts/otp/start', { phone: '+919811122233' });
+  const verified = (await call('POST', '/v1/accounts/otp/verify', { challengeId: (start.body as any).challengeId, code: f.otp.last(), deviceName: 'Other computer' })).body as any;
+  const pay = (await call('POST', '/v1/billing/checkout', { plan: 'paid', idempotencyKey: 'other-account-checkout' }, verified.sessionToken)).body as any;
+  const event = f.partner.webhook({ eventId: 'evt_other', type: 'activated', checkoutId: pay.checkoutId, subscriptionRef: 'sub_other', currentPeriodEnd: '2026-11-14T06:00:00.000Z' });
+  await f.app.router.handle({ method: 'POST', url: '/v1/billing/webhooks/fake', headers: event.headers, body: event.body });
+  const otherCredential = 'O'.repeat(43);
+  const otherEnrol = await call('PUT', '/v1/recovery/enrolment', { key: Buffer.alloc(32, 7).toString('base64'), contact: { reach: CONTACT.reach },
+    credentialSha256: createHash('sha256').update(otherCredential).digest('hex') }, verified.sessionToken);
+  assert.equal(otherEnrol.status, 200);
+  for (let i = 0; i < 3; i++) assert.equal((await f.credentialCall('POST', '/v1/recovery/requests', otherCredential, {})).status, 202);
+  const otherLimited = await f.credentialCall('POST', '/v1/recovery/requests', otherCredential, {});
+  assert.equal(otherLimited.status, 429);
+
+  // This account still has all three of its own.
+  await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT });
+  await f.rpc('workspace.lock');
+  for (let i = 0; i < 3; i++) assert.equal((await f.rpc('hosted.recovery.request')).status, 'waiting');
+  await assert.rejects(f.rpc('hosted.recovery.request'), { code: 'RECOVERY_REQUEST_LIMITED' });
+
+  // A day later, a flood from other accounts reaches the ceiling: each account still gets its first request, no more.
+  f.advance(24 * 3600000 + 60000);
+  const enrolmentId = (otherEnrol.body as any).enrolmentId;
+  await f.sql.query(`INSERT INTO recovery_requests (id, enrolment_id, account_id, contact_hash, status, expires_at, created_at, updated_at)
+    SELECT 'rcr_' || gen_random_uuid(), e.id, e.account_id, e.contact_hash, 'replaced', $2::timestamptz, $2::timestamptz, $2::timestamptz FROM recovery_enrolments e, generate_series(1, $3) WHERE e.id = $1`,
+  [enrolmentId, new Date(Date.parse('2026-10-15T06:02:00.000Z')).toISOString(), RECOVERY_CONTACT_PER_DAY]);
+  assert.equal((await f.rpc('hosted.recovery.request')).status, 'waiting', 'the flood cannot block this account\'s first request');
+  await assert.rejects(f.rpc('hosted.recovery.request'), { code: 'RECOVERY_REQUEST_LIMITED' });
+  assert.ok(RECOVERY_ACCOUNT_CONTACT_PER_DAY < RECOVERY_CONTACT_PER_DAY);
+});
+
+test('enrolment is filed under the open workspace\'s folder; a replaced enrolment is said plainly', { skip: pgSkip }, async t => {
+  const f = await setup(t);
+  await f.pairAndPay();
+  await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT, folder: 'restored' }), { code: 'RECOVERY_FOLDER_MISMATCH' });
+  await assert.rejects(f.rpc('hosted.recovery.status', { folder: 'restored' }), { code: 'RECOVERY_FOLDER_MISMATCH' });
+  await assert.rejects(f.rpc('hosted.recovery.remove', { folder: 'restored' }), { code: 'RECOVERY_FOLDER_MISMATCH' });
+  await assert.rejects(f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT, folder: '../main' }), { code: 'INVALID_REQUEST' });
+  const first = await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT, folder: 'main' });
+  assert.deepEqual([first.folder, first.replaced], ['main', null]);
+  assert.equal((await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT })).replaced, 'earlier-enrolment');
+
+  // The relay's enrolment for this pairing was replaced behind the local file's back: not just "not enrolled".
+  const session = (f.engine.vault!.read().extensions!['hosted-link'] as any).pairing.sessionToken;
+  const put = await f.app.router.handle({ method: 'PUT', url: '/v1/recovery/enrolment', headers: { 'content-type': 'application/json', authorization: `Bearer ${session}` },
+    body: Buffer.from(JSON.stringify({ key: Buffer.alloc(32, 9).toString('base64'), contact: { reach: CONTACT.reach }, credentialSha256: 'c'.repeat(64) })) });
+  assert.equal(put.status, 200);
+  const newer = await f.rpc('hosted.recovery.status');
+  assert.deepEqual([newer.enrolled, newer.local, newer.replacedBy], [false, true, 'newer-enrolment']);
+
+  // A file another workspace left under this folder (enrolled before the folder was taken from the open vault).
+  const local = JSON.parse(await readFile(f.file, 'utf8'));
+  await writeFile(f.file, JSON.stringify({ ...local, workspaceId: 'workspace-other-synthetic' }), { mode: 0o600 });
+  const other = await f.rpc('hosted.recovery.status');
+  assert.deepEqual([other.enrolled, other.local, other.replacedBy], [false, false, 'other-workspace']);
+  assert.equal((await f.rpc('hosted.recovery.enrol', { recoveryCode: f.recoveryCode, contact: CONTACT })).replaced, 'other-workspace');
+  assert.equal((await f.rpc('hosted.recovery.status')).replacedBy, null);
+  // The open folder comes from the open vault's own directory; a store that does not say needs the folder named.
+  assert.equal(openFolder({ store: { directory: join(f.directory, 'main') }, directory: f.directory } as any), 'main');
+  assert.equal(openFolder({ store: { directory: join(f.directory, 'a', 'b') }, directory: f.directory } as any), null);
+  assert.equal(openFolder({ store: {}, directory: f.directory } as any), null);
 });
 
 test('the recovery texts hold no digit and both catalogue copies agree', () => {

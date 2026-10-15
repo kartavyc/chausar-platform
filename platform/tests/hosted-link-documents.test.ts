@@ -462,7 +462,14 @@ test('end to end, stubbed readers: each route calls its reader once with the hel
   const baseline = before();
 
   const statementReply = { id: 'envelope-synthetic-1', status: 'accepted', fr07: { state: 'checked', kind: 'bank-statement' }, note: INJECTION };
-  const billReply = { readId: 'billread-synthetic-1', digest: 'a'.repeat(64), untrusted: true, stored: false, supplier: { value: INJECTION } };
+  // The shape books.billRead replies with: the reading's id and digest, and the proposal the field-check form starts from.
+  const field = (value: string | null) => ({ value, certainty: 'check-this', region: value === null ? null : { page: 1, line: 2, of: 9 } });
+  const billReply = { readId: 'billread-synthetic-1', digest: 'a'.repeat(64), mime: 'application/pdf', stored: false, expiresAt: '2026-10-14T06:30:00.000Z', untrusted: true,
+    reader: { engine: 'tesseract', version: 'synthetic', pages: 1, confidence: 90 },
+    supplier: field(INJECTION), billNumber: field('B-17'), date: field('2026-10-02'),
+    lines: [{ description: field('Courier'), quantity: field('1'), amount: field('100000') }], tax: [{ name: field('GST'), amount: field('18000') }], total: field('118000'),
+    sums: { linesPlusTax: { minor: '118000' }, total: { minor: '118000' }, equal: true },
+    routes: { zohoBooks: { available: false, connections: [] }, tallyPreview: { available: true } } };
   const s = stubbed(f, method => method === 'imports.preview' ? statementReply : billReply);
 
   const statement = await s.preview({ documentId: pdf, as: 'statement' });
@@ -476,7 +483,8 @@ test('end to end, stubbed readers: each route calls its reader once with the hel
   const bill = await s.preview({ documentId: pdf, as: 'bill' });
   assert.deepEqual([s.calls[1].method, Object.keys(s.calls[1].payload).sort(), s.calls[1].payload.mime], ['books.billRead', ['bytesBase64', 'mime'], 'application/pdf']);
   assert.equal(bill.route, 'bill'); assert.deepEqual(bill.preview, billReply);
-  assert.deepEqual(bill.confirm, { method: 'books.billConfirm', input: { readId: 'billread-synthetic-1', digest: 'a'.repeat(64) }, add: ['fields'] });
+  assert.deepEqual(bill.confirm, { method: 'books.billConfirm', input: { readId: 'billread-synthetic-1', digest: 'a'.repeat(64) }, add: ['fields'], optional: ['zoho'] });
+  assert.equal(bill.confirmReason, null); assert.equal(statement.confirmReason, null);
   for (const [id, mime, bytes] of [[jpeg, 'image/jpeg', JPEG], [png, 'image/png', PNG]] as const) {
     const photo = await s.preview({ documentId: id, as: 'bill' });
     const call = s.calls.at(-1)!;
@@ -495,10 +503,16 @@ test('end to end, stubbed readers: each route calls its reader once with the hel
   const sheet = await s.preview({ documentId: csv, expectedTotals: { rowCount: 2, amountMinor: '150000' } });
   assert.equal(sheet.route, 'csv'); assert.equal(sheet.untrusted, true); assert.equal(sheet.confirm.method, 'sources.import'); assert.equal(s.calls.length, callsSoFar);
 
-  // A refused statement has no confirm; a reply without a reading has none either.
-  const refused = stubbed(f, () => ({ id: 'envelope-synthetic-2', fr07: { state: 'refused' } }));
-  assert.equal((await refused.preview({ documentId: pdf, as: 'statement' })).confirm, null);
-  assert.equal((await stubbed(f, () => ({ untrusted: true })).preview({ documentId: pdf, as: 'bill' })).confirm, null);
+  // Only a checked statement can be committed (imports.commit refuses anything else IMPORT_NOT_ACCEPTED): a question,
+  // a refusal or an imported read has no confirm, and says why; a reply without a reading has none either.
+  for (const [state, reason] of [['question', 'statement-question'], ['refused', 'statement-refused'], ['imported', 'statement-imported'], ['unheard-of', 'reply-unrecognised']]) {
+    const read = await stubbed(f, () => ({ id: 'envelope-synthetic-2', status: 'abstained', fr07: { state } })).preview({ documentId: pdf, as: 'statement' });
+    assert.deepEqual([read.confirm, read.confirmReason], [null, reason], state);
+  }
+  const noState = await stubbed(f, () => ({ id: 'envelope-synthetic-3' })).preview({ documentId: pdf, as: 'statement' });
+  assert.deepEqual([noState.confirm, noState.confirmReason], [null, 'reply-unrecognised']);
+  const noReading = await stubbed(f, () => ({ untrusted: true })).preview({ documentId: pdf, as: 'bill' });
+  assert.deepEqual([noReading.confirm, noReading.confirmReason], [null, 'reply-unrecognised']);
 
   // A missing reader is DOCUMENT_READER_UNAVAILABLE; any other refusal of the reader passes through unchanged.
   for (const code of ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'])

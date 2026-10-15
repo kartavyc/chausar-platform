@@ -14,7 +14,7 @@
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { audit, check, ChausarError } from '../contracts.ts';
 import type { Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -51,7 +51,7 @@ const RELAY_CODES: Readonly<Record<string, string>> = Object.freeze({
 });
 /** Every code this module can refuse with (for the desktop bridge's refusal list). */
 export const RECOVERY_CODES: readonly string[] = Object.freeze([...Object.keys(RELAY_CODES).filter(code => code.startsWith('RECOVERY_')),
-  'RECOVERY_CODE_INVALID', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_FOLDER_UNKNOWN', 'RECOVERY_FILE_INVALID', 'RECOVERY_IN_PROGRESS', 'RECOVERY_CODE_REJECTED']);
+  'RECOVERY_CODE_INVALID', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_FOLDER_UNKNOWN', 'RECOVERY_FOLDER_MISMATCH', 'RECOVERY_FILE_INVALID', 'RECOVERY_IN_PROGRESS', 'RECOVERY_CODE_REJECTED']);
 
 type RecoveryFile = { format: typeof RECOVERY_FILE_FORMAT; folder: string; workspaceId: string; enrolmentId: string; origin: string; credential: string;
   nonce: string; ciphertext: string; contactChannel: 'whatsapp' | 'mail'; enrolledAt: string };
@@ -63,11 +63,40 @@ const pending = new Map<string, Pending>();
 const valid = (condition: unknown): void => check(condition, 'HOSTED_REPLY_INVALID', 'The hosted service sent a reply this app does not understand.');
 const plain = (value: unknown, maximum: number): value is string =>
   typeof value === 'string' && value.trim().length > 0 && value.length <= maximum && !/[\u0000-\u001f\u007f]/.test(value);
+/** The folder named on the lock screen (the vault is locked, so it cannot be read from the open workspace). */
 const folderOf = (payload: Record<string, any>): string => {
   const folder = payload.folder ?? 'main';
   check(typeof folder === 'string' && FOLDER.test(folder), 'INVALID_REQUEST', 'Name the workspace folder, or nothing.');
   return folder;
 };
+/**
+ * The folder of the workspace that is open: the open vault's directory (core `Vault.directory`, the engine's
+ * `<app directory>/<folder>`) relative to the app directory. Null when the store does not say (a host whose store is
+ * not a vault), or its directory is not a folder directly under the app directory.
+ */
+export function openFolder(host: ModuleHost): string | null {
+  const directory = (host.store as { directory?: unknown }).directory;
+  if (typeof directory !== 'string') return null;
+  const folder = relative(resolve(host.directory), resolve(directory));
+  return FOLDER.test(folder) ? folder : null;
+}
+/**
+ * For the methods that run with the vault open: the open workspace's folder. A `folder` in the payload must be that
+ * folder (`RECOVERY_FOLDER_MISMATCH`), so an enrolment is never filed under another workspace's folder. When the open
+ * folder cannot be told, `folder` is required and must exist.
+ */
+async function openFolderOf(host: ModuleHost, payload: Record<string, any>): Promise<string> {
+  check(payload.folder === undefined || (typeof payload.folder === 'string' && FOLDER.test(payload.folder)), 'INVALID_REQUEST', 'Name the workspace folder, or nothing.');
+  const open = openFolder(host);
+  if (open !== null) {
+    check(payload.folder === undefined || payload.folder === open, 'RECOVERY_FOLDER_MISMATCH', 'That is not the folder of the workspace that is open.');
+    return open;
+  }
+  check(payload.folder !== undefined, 'RECOVERY_FOLDER_UNKNOWN', 'Name the folder of the workspace that is open.');
+  try { check((await lstat(join(host.directory, payload.folder))).isDirectory(), 'RECOVERY_FOLDER_UNKNOWN', 'There is no workspace in that folder.'); }
+  catch (error) { throw error instanceof ChausarError ? error : new ChausarError('RECOVERY_FOLDER_UNKNOWN', 'There is no workspace in that folder.'); }
+  return payload.folder;
+}
 const fileDirectory = (host: ModuleHost) => join(host.directory, 'recovery-contact');
 const filePath = (host: ModuleHost, folder: string) => join(fileDirectory(host), `${folder}.json`);
 const aad = (workspaceId: string, enrolmentId: string) => Buffer.from(`${RECOVERY_FILE_FORMAT}|${workspaceId}|${enrolmentId}`);
@@ -143,9 +172,13 @@ const sameOrigin = (host: ModuleHost, file: RecoveryFile) =>
 
 /**
  * `hosted.recovery.enrol` (admin, vault open): `{ recoveryCode, contact: { name, reach }, folder? }` →
- * `{ enrolled: true, folder, contactChannel, contactMasked, enrolledAt }`. Replaces any earlier enrolment of this
- * computer on the relay and the local file. The code is checked for its form only: the vault's recovery wrapper is
- * held by core storage and cannot be tried without unlocking, so a wrong code shows only at recovery time.
+ * `{ enrolled: true, folder, contactChannel, contactMasked, enrolledAt, replaced }`. `folder` is the open workspace's
+ * folder; a different one is refused `RECOVERY_FOLDER_MISMATCH`. This replaces the earlier enrolment of this
+ * workspace's pairing on the relay and the folder's local file: `replaced` says what was there before,
+ * `'earlier-enrolment'` (this workspace's), `'other-workspace'` (a file another workspace left under this folder, as
+ * enrolments made before the folder was taken from the open vault could), or null. The code is checked for its form only: the vault's recovery wrapper is held by core
+ * storage (in production a PostgreSQL row a module cannot read) and core offers no check of a recovery code that does
+ * not open the vault, so a wrong code shows only at recovery time.
  */
 export async function enrol(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(payload, ['recoveryCode', 'contact'], ['folder']);
@@ -154,11 +187,12 @@ export async function enrol(ctx: Context, payload: Record<string, any>, host: Mo
   check(contact !== null && typeof contact === 'object' && !Array.isArray(contact) && Object.keys(contact).sort().join(',') === 'name,reach'
     && plain(contact.name, 100) && typeof contact.reach === 'string' && (INDIAN_MOBILE.test(contact.reach.trim()) || isMailAddress(contact.reach.trim())),
   'RECOVERY_CONTACT_INVALID', 'Give the contact\'s name and an Indian mobile number starting with +91 or a mail address.');
-  const folder = folderOf(payload);
-  try { check((await lstat(join(host.directory, folder))).isDirectory(), 'RECOVERY_FOLDER_UNKNOWN', 'There is no workspace in that folder.'); }
-  catch (error) { throw error instanceof ChausarError ? error : new ChausarError('RECOVERY_FOLDER_UNKNOWN', 'There is no workspace in that folder.'); }
+  const folder = await openFolderOf(host, payload);
   const workspaceId = host.store.read().workspace.id;
   const { pairing } = connected(host);
+  // What this enrolment replaces, so the person is told plainly.
+  const earlier = await readRecoveryFile(host, folder).catch(() => null);
+  const replaced = earlier === null ? null : earlier.workspaceId === workspaceId ? 'earlier-enrolment' as const : 'other-workspace' as const;
   const key = randomBytes(32), credential = randomBytes(32).toString('base64url');
   try {
     const reply = shape(await relay(host, 'PUT', '/v1/recovery/enrolment', pairing.sessionToken, 200,
@@ -177,14 +211,20 @@ export async function enrol(ctx: Context, payload: Record<string, any>, host: Mo
       throw new ChausarError('RECOVERY_FILE_INVALID', 'The recovery contact file could not be written on this computer.');
     }
     await host.store.update(state => { audit(state, 'hosted.recovery.enrolled', { contactChannel: enrolment.contactChannel }); });
-    return { enrolled: true, folder, contactChannel: enrolment.contactChannel, contactMasked: enrolment.contactMasked, enrolledAt: enrolment.enrolledAt };
+    return { enrolled: true, folder, contactChannel: enrolment.contactChannel, contactMasked: enrolment.contactMasked, enrolledAt: enrolment.enrolledAt, replaced };
   } finally { key.fill(0); }
 }
 
-/** `hosted.recovery.status` (read): `{ folder? }` → `{ enrolled, local, relay: { enrolmentId, contactChannel, contactMasked, enrolledAt } | null, folder }`. */
+/**
+ * `hosted.recovery.status` (read): `{ folder? }` → `{ enrolled, local, paired, relay: { enrolmentId, contactChannel,
+ * contactMasked, enrolledAt } | null, folder, replacedBy }`. `folder` is the open workspace's folder. `replacedBy`
+ * says plainly why a contact this folder had no longer works: `'other-workspace'` when the folder's local file is
+ * another workspace's enrolment (filed over this one's), `'newer-enrolment'` when the relay holds a different
+ * enrolment for this workspace's pairing than the local file, otherwise null.
+ */
 export async function status(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   input(payload, [], ['folder']);
-  const folder = folderOf(payload), file = await readRecoveryFile(host, folder).catch(() => null);
+  const folder = await openFolderOf(host, payload), file = await readRecoveryFile(host, folder).catch(() => null);
   const local = !!file && file.workspaceId === host.store.read().workspace.id;
   const c = configuration(host);
   let relayed: ReturnType<typeof enrolmentView> = null, paired = false;
@@ -192,18 +232,31 @@ export async function status(_ctx: Context, payload: Record<string, any>, host: 
     try { const { pairing } = connected(host); paired = true; relayed = enrolmentView(shape(await relay(host, 'GET', '/v1/recovery/enrolment', pairing.sessionToken, 200), ['enrolment']).enrolment); }
     catch (error) { if (!(error instanceof ChausarError && error.code === 'HOSTED_NOT_PAIRED')) throw error; }
   }
-  return { enrolled: local && !!relayed && relayed.enrolmentId === file!.enrolmentId, local, paired, relay: relayed, folder };
+  const replacedBy = file && !local ? 'other-workspace' as const : local && relayed && relayed.enrolmentId !== file!.enrolmentId ? 'newer-enrolment' as const : null;
+  return { enrolled: local && !!relayed && relayed.enrolmentId === file!.enrolmentId, local, paired, relay: relayed, folder, replacedBy };
 }
 
-/** `hosted.recovery.remove` (admin): `{ folder? }` → `{ removed: true }`. Revokes the relay's half and deletes the local file. */
+/**
+ * `hosted.recovery.remove` (admin): `{ folder? }` → `{ removed: true }`. Revokes the relay's half and deletes the local
+ * file. The relay's half is revoked by the local file's own request credential (exactly that enrolment, with or without
+ * a session); without a readable file, by the session (the enrolment of this workspace's pairing). When
+ * the relay cannot be reached the file is kept and the refusal is passed on, so a retry can still revoke it.
+ */
 export async function remove(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(payload, [], ['folder']);
-  const folder = folderOf(payload);
+  const folder = await openFolderOf(host, payload);
   const c = configuration(host);
   if (c.client) {
-    let token: string | null = null;
-    try { token = connected(host).pairing.sessionToken; } catch { token = null; }
-    if (token) await relay(host, 'DELETE', '/v1/recovery/enrolment', token, 200);
+    const file = await readRecoveryFile(host, folder).catch(() => null);
+    if (file && file.origin === c.client.origin) {
+      try { await relay(host, 'POST', '/v1/recovery/enrolment/withdraw', file.credential, 200, {}); }
+      // Already gone: removed, used, replaced, or its device revoked.
+      catch (error) { if (!(error instanceof ChausarError && ['RECOVERY_CREDENTIAL_INVALID', 'RECOVERY_NOT_ENROLLED'].includes(error.code))) throw error; }
+    } else if (!file) {
+      let token: string | null = null;
+      try { token = connected(host).pairing.sessionToken; } catch { token = null; }
+      if (token) await relay(host, 'DELETE', '/v1/recovery/enrolment', token, 200);
+    }
   }
   await rm(filePath(host, folder), { force: true });
   await host.store.update(state => { audit(state, 'hosted.recovery.removed', {}); });

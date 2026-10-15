@@ -21,8 +21,13 @@ import type { MailChannel, TelegramChannel, WhatsAppChannel } from './channels.t
  * receives the recovery code, and the desktop file never holds K.
  */
 export const RECOVERY_CONFIRM_MS = 24 * 3600000, RECOVERY_RELEASE_MS = 24 * 3600000, RECOVERY_JOB = 'relay.recovery';
-/** Requests one enrolment may make, and messages one contact may get, in twenty-four hours. */
-export const RECOVERY_REQUESTS_PER_DAY = 3, RECOVERY_CONTACT_PER_DAY = 5;
+/**
+ * Limits in twenty-four hours: requests per enrolment, and messages one contact may get from one account. Another
+ * account naming the same contact counts only against its own allowance, so it cannot use up this account's.
+ * `RECOVERY_CONTACT_PER_DAY` is a ceiling across all accounts against spam; it never refuses an account's first
+ * request of the day to its contact, so no other account can block a recovery outright.
+ */
+export const RECOVERY_REQUESTS_PER_DAY = 3, RECOVERY_ACCOUNT_CONTACT_PER_DAY = 3, RECOVERY_CONTACT_PER_DAY = 20;
 export const INDIAN_MOBILE = /^\+91[6-9][0-9]{9}$/;
 export type RecoveryStatus = 'waiting' | 'confirmed' | 'declined' | 'expired' | 'failed' | 'released';
 export type RecoveryPages = { peek(token: string): Promise<boolean>; decide(token: string, choice: 'confirm' | 'decline'): Promise<'confirmed' | 'declined' | null> };
@@ -208,6 +213,20 @@ export function createRecovery(deps: HostedDeps, kit: RecoveryKit) {
       });
     });
 
+    // Removal by the request credential, for a desktop that has no session (unpaired, or the session ended): deletes
+    // K and the contact's address of exactly the enrolment that credential belongs to.
+    router.add('POST', '/v1/recovery/enrolment/withdraw', async request => {
+      fields(json(request), []);
+      return deps.sql.transaction(async tx => {
+        const enrolment = await byCredential(tx, request, true);
+        if (enrolment.status !== 'active') return ok({ removed: false });
+        const at = now().toISOString();
+        await tx.query(`UPDATE recovery_enrolments SET status = 'revoked', key_sealed = NULL, contact_sealed = NULL, updated_at = $2 WHERE id = $1`, [enrolment.id, at]);
+        await voidRequests(tx, enrolment.id, at);
+        return ok({ removed: true });
+      });
+    });
+
     // Requests, by the locked desktop (request credential auth: the session lives in the locked vault).
     router.add('POST', '/v1/recovery/requests', async request => {
       fields(json(request), []);
@@ -218,8 +237,10 @@ export function createRecovery(deps: HostedDeps, kit: RecoveryKit) {
         const { rows: [mine] } = await tx.query('SELECT count(*)::int AS n FROM recovery_requests WHERE enrolment_id = $1 AND created_at > $2', [enrolment.id, since]);
         check(mine.n < RECOVERY_REQUESTS_PER_DAY, 'RECOVERY_REQUEST_LIMITED', 'Three recovery requests were made today. Try again tomorrow.', 429);
         await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`recovery-contact:${enrolment.contact_hash}`]);
-        const { rows: [theirs] } = await tx.query('SELECT count(*)::int AS n FROM recovery_requests WHERE contact_hash = $1 AND created_at > $2', [enrolment.contact_hash, since]);
-        check(theirs.n < RECOVERY_CONTACT_PER_DAY, 'RECOVERY_REQUEST_LIMITED', 'This contact was asked too often today. Try again tomorrow.', 429);
+        const { rows: [counts] } = await tx.query(`SELECT count(*) FILTER (WHERE account_id = $3)::int AS own, count(*)::int AS every
+          FROM recovery_requests WHERE contact_hash = $1 AND created_at > $2`, [enrolment.contact_hash, since, enrolment.account_id]);
+        check(counts.own < RECOVERY_ACCOUNT_CONTACT_PER_DAY, 'RECOVERY_REQUEST_LIMITED', 'This contact was asked too often today. Try again tomorrow.', 429);
+        check(counts.own === 0 || counts.every < RECOVERY_CONTACT_PER_DAY, 'RECOVERY_REQUEST_LIMITED', 'This contact was asked too often today. Try again tomorrow.', 429);
         // A new request voids every earlier link of this enrolment.
         await voidRequests(tx, enrolment.id, at.toISOString());
         const id = newId('rcr'), expires = new Date(at.getTime() + RECOVERY_CONFIRM_MS).toISOString();
@@ -261,6 +282,13 @@ export function createRecovery(deps: HostedDeps, kit: RecoveryKit) {
     jobs(worker: Worker) { worker.register(RECOVERY_JOB, dispatch); },
     async sweep() {
       const at = now(), old = new Date(at.getTime() - 2 * 86400000).toISOString();
+      // An active enrolment whose device was revoked (the revoke itself does this too; this catches any revoke made
+      // another way) loses K and the contact's address, and its open links stop working.
+      await deps.sql.transaction(async tx => {
+        const { rows } = await tx.query(`UPDATE recovery_enrolments e SET status = 'revoked', key_sealed = NULL, contact_sealed = NULL, updated_at = $1
+          FROM devices d WHERE d.id = e.device_id AND d.revoked_at IS NOT NULL AND e.status = 'active' RETURNING e.id`, [at.toISOString()]);
+        for (const row of rows) await voidRequests(tx, row.id, at.toISOString());
+      });
       await deps.sql.query(`UPDATE recovery_requests SET token_hash = NULL WHERE token_hash IS NOT NULL AND expires_at <= $1`, [at.toISOString()]);
       await deps.sql.query('DELETE FROM recovery_requests WHERE created_at <= $1', [old]);
       await deps.sql.query(`DELETE FROM recovery_enrolments WHERE status <> 'active' AND updated_at <= $1`, [old]);

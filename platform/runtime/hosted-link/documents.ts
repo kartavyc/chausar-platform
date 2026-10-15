@@ -236,16 +236,27 @@ export function documentRoute(mediaType: MediaType, as: unknown): DocumentRoute 
   check(as === 'bill', 'DOCUMENT_ROUTE_REQUIRED', 'Choose: read this photo as a bill.');
   return 'bill';
 }
-type Confirm = { method: string; input: Record<string, unknown>; add?: string[] };
-/** The confirm a person may run after checking a reader's reply. This module never calls it. */
-function confirmOf(route: 'statement' | 'bill', sourceId: string, reply: any): Confirm | null {
+type Confirm = { method: string; input: Record<string, unknown>; add?: string[]; optional?: string[] };
+/**
+ * Why a reader's reply carries no confirm: a statement whose read raised a question (`imports.commit` refuses
+ * anything but a checked read, `IMPORT_NOT_ACCEPTED`), was refused, or was imported already; or a reply this module
+ * cannot read a confirm from.
+ */
+export type NoConfirmReason = 'statement-question' | 'statement-refused' | 'statement-imported' | 'reply-unrecognised';
+const STATEMENT_NOT_CONFIRMABLE: Readonly<Record<string, NoConfirmReason>> = Object.freeze({ question: 'statement-question', refused: 'statement-refused', imported: 'statement-imported' });
+/** The confirm a person may run after checking a reader's reply, or why there is none. This module never calls it. */
+function confirmOf(route: 'statement' | 'bill', sourceId: string, reply: any): { confirm: Confirm | null; confirmReason: NoConfirmReason | null } {
   if (route === 'statement') {
-    if (typeof reply?.id !== 'string' || reply?.fr07?.state === 'refused') return null;
-    return { method: 'imports.commit', input: { sourceId, envelopeId: reply.id } };
+    // connectors-ext fr07 states: checked | question | refused | imported. Only a checked read can be committed.
+    const state = reply?.fr07?.state;
+    if (typeof reply?.id !== 'string' || typeof state !== 'string') return { confirm: null, confirmReason: 'reply-unrecognised' };
+    if (state !== 'checked') return { confirm: null, confirmReason: STATEMENT_NOT_CONFIRMABLE[state] ?? 'reply-unrecognised' };
+    return { confirm: { method: 'imports.commit', input: { sourceId, envelopeId: reply.id } }, confirmReason: null };
   }
-  if (typeof reply?.readId !== 'string' || typeof reply?.digest !== 'string') return null;
-  // books.billConfirm also takes the fields as the person checked and corrected them; the reading itself is only a proposal.
-  return { method: 'books.billConfirm', input: { readId: reply.readId, digest: reply.digest }, add: ['fields'] };
+  if (typeof reply?.readId !== 'string' || typeof reply?.digest !== 'string') return { confirm: null, confirmReason: 'reply-unrecognised' };
+  // books.billConfirm also takes the fields as the person checked and corrected them (the reading is only a proposal),
+  // and optionally `zoho: { connectionId, vendorId }` for a connection listed in the reply's `routes.zohoBooks`.
+  return { confirm: { method: 'books.billConfirm', input: { readId: reply.readId, digest: reply.digest }, add: ['fields'], optional: ['zoho'] }, confirmReason: null };
 }
 /**
  * PH-05. A CSV file goes to the normal import preview, exactly as for a file brought on this computer, with the
@@ -268,7 +279,7 @@ export async function documentsPreview(ctx: Context, payload: Record<string, any
       ...(payload.recipe === undefined ? {} : { recipe: payload.recipe }), ...(payload.expectedTotals === undefined ? {} : { expectedTotals: payload.expectedTotals }) };
     const preview = (host.services.imports as ImportService).preview({ ...ctx, sourceTainted: true }, structuredClone(importInput));
     return { documentId: held.localId, route, untrusted: true as const, name: NAMES[held.channel], mediaType: held.mediaType, outside: true, sourceTainted: true, imported: false, experimental: true,
-      label: DOCUMENT_LABEL, preview, confirm: { method: 'sources.import', input: importInput } as Confirm | null };
+      label: DOCUMENT_LABEL, preview, confirm: { method: 'sources.import', input: importInput } as Confirm | null, confirmReason: null as NoConfirmReason | null };
   }
   check(payload.recipe === undefined && payload.expectedTotals === undefined, 'INVALID_REQUEST', 'A recipe and expected totals apply only to a CSV file.');
   check(held.sizeBytes <= MAX_READ_BYTES, 'DOCUMENT_TOO_LARGE_TO_READ', 'This file is larger than four megabytes, the most this computer reads. Discard it, or bring a smaller copy on this computer.');
@@ -284,7 +295,7 @@ export async function documentsPreview(ctx: Context, payload: Record<string, any
   }
   await change(host, (_d, state) => audit(state, 'hosted.document.read', { localId: held.localId, route }));
   return { documentId: held.localId, route, untrusted: true as const, name: NAMES[held.channel], mediaType: held.mediaType, outside: true, sourceTainted: true, imported: false, experimental: true,
-    label: DOCUMENT_LABEL, preview, confirm: confirmOf(route, held.sourceId, preview) };
+    label: DOCUMENT_LABEL, preview, ...confirmOf(route, held.sourceId, preview) };
 }
 export async function documentsDiscard(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(payload, ['documentId']);
