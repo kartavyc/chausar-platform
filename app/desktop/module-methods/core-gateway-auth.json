@@ -1,1 +1,11 @@
-[]
+[
+  "models.capStatus",
+  "models.discard",
+  "models.probe",
+  "models.setLadder",
+  "network.online",
+  "pin.clear",
+  "pin.set",
+  "pin.status",
+  "secrets.status"
+]

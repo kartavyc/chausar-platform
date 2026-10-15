@@ -14,7 +14,7 @@ import { installSyntheticProductionStorage } from './fixtures/synthetic-producti
 
 // Synthetic fixtures only; every provider transport is injected and no network or CLI is used.
 const OWNER: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
-const STAFF: Context = { memberId: 'staff', role: 'staff', epoch: 1, channel: 'desktop' } as Context;
+const STAFF: Context = { memberId: 'staff', role: 'accountant', epoch: 1, channel: 'desktop' };
 const ENDPOINT = 'https://synthetic-model.example.invalid/v1/responses';
 const code = (wanted: string) => (error: unknown) => error instanceof Error && 'code' in error && (error as any).code === wanted;
 
@@ -36,7 +36,7 @@ async function fixture(options: { facts?: boolean; send?: 'shape' | 'samples'; a
   await trust.updatePolicy(OWNER, { send: options.send ?? 'shape' }); await new OntologyService(store).publish(OWNER, 'ecommerce');
   if (options.facts !== false) await new MemoryService(store).append(OWNER, [{ entityId: 'synthetic-sale', sourceId: 'synthetic-sales', sourceRow: 2, kind: 'sale', validFrom: '2026-09-12', branch: 'west',
     fields: { amountMinor: '12345', currency: 'INR', customerId: 'synthetic-customer-7', status: 'delivered' } }]);
-  await store.update(state => { state.members.push({ id: 'staff', role: 'staff', epoch: 1, active: true, branches: ['*'] } as any); });
+  await store.update(state => { state.members.push({ id: 'staff', role: 'accountant', epoch: 1, active: true, branches: ['*'] } as any); });
   const calls: HttpRequest[] = [];
   const gateway = new ModelGateway(store, { http: async request => { calls.push(structuredClone(request)); return reply(options.answer ? options.answer(request) : { operation: 'billed' }); } });
   await gateway.configureRoute(OWNER, { id: 'synthetic-api', kind: 'openai-responses', model: 'synthetic-model', endpoint: ENDPOINT, budgetMinor: '100000', maxCostMinor: '100', maxOutputTokens: 512 }, 'synthetic-memory-only-key');
@@ -138,7 +138,7 @@ test('bench fixture selectors let a plan name a branch or customer only when no 
   assert.equal(preview.approvalRequired, false);
   assert.deepEqual(JSON.parse(JSON.parse(preview.payload).input).selectors, { branches: ['main', 'south'], customerIds: ['bench-c1'] });
   const result = await empty.gateway.execute(OWNER, { previewId: preview.id });
-  assert.equal(result.plan.branch, 'south');
+  assert.equal((result.plan as any)?.branch, 'south');
   // Without fixture selectors the same reply is refused, as before.
   const plain = await empty.gateway.preview(OWNER, { question: 'What did the south branch bill?', routeId: 'synthetic-api', sourceIds: [], purpose: 'analysis' });
   await assert.rejects(empty.gateway.execute(OWNER, { previewId: plain.id }), code('INVALID_PLAN'));
