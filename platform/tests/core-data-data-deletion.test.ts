@@ -177,16 +177,18 @@ test('WK-15: a source deletion is registered by the trust service, and when no f
   assert.deepEqual(again.kinds[1], { kind: 'source', cameBack: 1, deleted: 1, remaining: 0, state: 'deleted', reason: null });
   assert.equal(f.store.read().facts.length, 0);
 
-  // Another store with no folder bound: the entry waits in private state, is counted, and the next deletion writes it out.
-  const g = await setup(t); await populate(g);
+  // Another store with no folder bound: the entry waits in memory (the vault's stores are untouched), is counted, and the next deletion writes it out.
+  const g = await setup(t); await populate(g); const gBackup = structuredClone(g.store.read()); const backupOf = (_: unknown) => gBackup;
   const loose = new TestStore(); loose.state = g.store.state; const trust = new TrustService(loose);
   await trust.deleteSource(owner, 'shop'); g.store.state = loose.state;
-  assert.equal((g.store.read().extensions?.['core-data'] as any).data.outbox.length, 1);
+  assert.equal(g.store.read().extensions, undefined);
   assert.deepEqual(readRegister(g.directory, g.store.read().workspace.id), []);
+  g.store.state = structuredClone(backupOf(g)); assert.equal((await g.call(owner, 'deletion.pending', {})).kinds[1].cameBack, 1);
+  g.store.state = loose.state;
   await g.services.memory.append(owner, [fact('i-5', 'till', { customerId: 'c-5' })]);
   await g.call(owner, 'deletion.customer', { id: 'c-5', confirmation: 'c-5' });
   assert.deepEqual(readRegister(g.directory, g.store.read().workspace.id).map(e => e.kind).sort(), ['customer', 'source']);
-  assert.equal((g.store.read().extensions?.['core-data'] as any).data.outbox.length, 0);
+  assert.equal((await g.call(owner, 'deletion.pending', {})).registered, 2);
 });
 
 test('WK-15: a malformed or full register is refused with a typed code and nothing is deleted', async t => {
