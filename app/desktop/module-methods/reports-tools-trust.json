@@ -22,6 +22,7 @@
   "trustx.confirmChange",
   "trustx.deleteSource",
   "trustx.deletions",
+  "trustx.explain",
   "trustx.exportDeletion",
   "trustx.hosted",
   "trustx.inspectPlugin",

@@ -239,3 +239,24 @@ async function jobsPreset(f: { call(method: string, payload?: any): Promise<{ st
   const reply = await f.call('jobsx.autonomy', {});
   return reply.status === 200 && typeof reply.body.result?.preset === 'string' ? reply.body.result.preset : null;
 }
+
+test('explain names the rule that stopped a seat in plain words and who can change it', async t => {
+  const f = await fixture(t);
+  const accountant = await f.member('Synthetic accountant', 'accountant');
+  let e = await f.as(accountant, 'trustx.explain', { rule: 'marking' });
+  assert.equal(e.seat, 'accountant'); assert.equal(e.check, 'see'); assert.deepEqual(e.hidden, ['personal', 'confidential']);
+  assert.equal(e.sentence, 'Anything marked personal or confidential is hidden from the accountant seat.');
+  assert.deepEqual(e.whoCanChange, { seats: ['owner'], both: false, sentence: 'The owner can change it. The change is made in the app.' });
+  assert.equal(e.youCanChange, false); assert.deepEqual(e.where, { place: 'trust', sub: 'markings' });
+  e = await f.as(accountant, 'trustx.explain', { rule: 'marking', language: 'hi' });
+  assert.match(e.sentence, /निजी या गोपनीय/);
+  const cofounder = await f.member('Synthetic cofounder', 'cofounder');
+  e = await f.as(cofounder, 'trustx.explain', { rule: 'seat' });
+  assert.equal(e.check, 'people'); assert.equal(e.youCanChange, true);
+  assert.deepEqual(e.whoCanChange.seats, ['owner', 'cofounder']); assert.equal(e.whoCanChange.both, true);
+  e = await f.rpc('trustx.explain', { rule: 'source', sourceId: 'gone-source' });
+  assert.deepEqual(e.source, { known: false, allowed: true }); assert.equal(e.sentence, 'This source is no longer in the workspace.');
+  assert.equal(e.whoCanChange.both, false);
+  assert.equal((await f.call('trustx.explain', { rule: 'mood' })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+  assert.equal((await f.call('trustx.explain', { rule: 'seat', extra: 1 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
+});

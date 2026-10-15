@@ -214,6 +214,33 @@ Notes on the contract as built (additive to the tables above):
 - The gateway runs the outbound check before reserving budget; a blocked call is `failed` / `CANARY_BLOCKED`, spends nothing, shows as `stopped`, and is recorded as a block, not a leak alert.
 - Dates in the trust part (CA end dates, today's counts, the month's spend) are India dates.
 
+## Round 4 contracts
+
+New or changed methods in round 4. Other lanes may code against these.
+
+### `trustx.explain` (read) — for ask AS-09
+
+Request: `{ rule: 'branch' | 'source' | 'seat' | 'access' | 'marking', sourceId?: string, language?: 'en' | 'hi' }`.
+`rule` is the `RuleKind` ask's `askx.run` returns with `ASK_STOPPED_BY_RULE`. Unknown properties or kinds refuse
+`INVALID_EXPLAIN_REQUEST`; a member no longer in the workspace refuses `ACCESS_REVOKED`.
+
+Reply, always about the caller's own seat, in fixed words built from this workspace's settings (no outside text):
+
+```
+{ rule, check: 'see' | 'people',             // which of the five checks (see, send, keep, do, people) decided
+  seat: 'owner' | 'cofounder' | 'accountant' | 'ca' | 'staff' | 'viewer' | 'assistant',
+  sentence: string,                            // "Anything marked personal or confidential is hidden from the accountant seat."
+  hidden?: ('personal' | 'financial' | 'confidential')[],  // rule 'marking' only: kinds this seat does not see
+  source?: { known: boolean, allowed: boolean },           // rule 'source' with sourceId only
+  whoCanChange: { seats: ('owner' | 'cofounder')[], both: boolean, sentence: string },
+  youCanChange: boolean,                       // the caller is owner or cofounder
+  where: { place: 'trust', sub: 'markings' | 'rules' | 'people' },  // the Trust address that holds the rule
+  language: 'en' | 'hi' }
+```
+
+`both` is true when an active cofounder exists and the rule is seats, branches, access or markings (widening those
+waits for the second person); allowed sources are one admin's change. Hindi sentences await the founder's review.
+
 ## 2. What was built
 
 Engine: the `reportsx.*` and `trustx.*` methods above, in `platform/runtime/modules/lane-reports-tools-trust.ts` and listed in `app/desktop/module-methods/reports-tools-trust.json`. Code in `platform/runtime/reports-ext/` (packs, pages, connector pages, exports, the XLSX writer, briefs, due dates, withholding) and `platform/runtime/trust-ext/` (`core-*`: rules, markings, send, dual control, keep, seats, the core hooks; `tools-*`: models, network and canary, the record, sharing and the cleaner, vault and deletion, assistants, plugins, language packs; `adapters.ts` for other lanes' reads; `lifecycle.ts`; `lane-state.ts`).
