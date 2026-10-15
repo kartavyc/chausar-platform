@@ -167,7 +167,7 @@ Hosted = { blind: string, notBlind: string, jobs: { id, name, on: false }[], pla
 Agreements = { notice: { version, en, hi }, items: { id, person, purpose, at, withdrawnAt: string | null }[] }
 Assistants = { on: boolean, server: { version, scope: "this-computer" },
   assistants: { id, name, pairedAt, lastCall: string | null, active: boolean }[],
-  calls: { id, at, client, calculation, receiptId: string | null, removed: string[], refused: boolean }[] }
+  calls: { id, at, client, calculation, receiptId: string | null, removed: { field, why, count }[] | 'not-recorded', refused: boolean }[] }
 Plugins = { plugins: PluginRow[], blockedList: { version, checkedAt } }
 PluginRow = { id, name, maker, level: "built-in"|"checked"|"community"|"blocked", kind: "data"|"code", status, blockedReason?: string }
 PluginPackage = { manifest, moduleBase64, publisher?: { name, publicKey }, signature?: string, licence?: string }
@@ -258,6 +258,10 @@ waits for the second person); allowed sources are one admin's change. Hindi sent
 - `trustx.hosted`: `plan` is `'planned-not-available' | 'paid' | 'ended'`, plus `hosted: { state: 'not-configured' | 'demo' | 'not-paired' | 'paired', refreshedAt, entitlements: { backup, worker, relay, allowance } | null }`. It reads hosted-link's cached `hosted.status` (never calls the server) and writes `tools.hosted.paidSeenFor` (the paired account id) and `paidSeenAt` when it first sees that account paid, so a later free plan on the same account reads `ended`; another account on the free plan reads `planned-not-available`. This is a write on a read: hosted-link owns the account refresh.
 - `trustx.followUpDelete { id, expectedVersion }` (prepare; desktop only, refuses tainted requests): the writer, an owner or a cofounder deletes an entry with its history; refuses on a changed version. `trustx.followUpExport {}`: CSV (mode 0600) of entries the caller sees, formula-guarded cells, not encrypted. Refusals `FOLLOW_UP_*`.
 
+- `trustx.keep`: each kind gains `rule: 'retention' | 'enforced' | 'not-enforced' | 'until-deleted'` and, when enforced, `lastApplied: { at, removed, held } | null` read from the newest `trust.keep.enforced` activity entry.
+- `trustx.assistants`: `calls[].removed` is `{ field, why: 'personal'|'financial'|'confidential'|'withheld'|'send-level'|'own-entries', count }[]` (at most 50, checked) or `'not-recorded'`.
+- Reports connector pages: a "GSTR-3B" section (outward taxable, zero-rated, nil/exempt, non-GST, reverse charge inward — not turnover — and outward tax) and an "Invoices to look at" section (up to 20 differing invoices, each with its own `gstr2b_line` receipt). New refusal `COREDATA_REPLY_INVALID`.
+
 ### What this lane assumes from other lanes (round 4)
 
 - core-gateway-auth `models.setLadder { order: routeId[] }` (admin) → `{ order }` or the reordered route list; refusal `LADDER_INVALID`.
@@ -318,9 +322,9 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 
 - **Reachability**: resolved in round 2 — the host now lets a lane's place module win its address, so the week ahead, the Friday review and Rhythm are reached at `reports/weekahead`; the retained lesson review keeps its own address. Outside links open through the host's link dialog (`openLink`, SH-10), report pages print through the guarded shell port (`print('page')`), and Vault places frame-today's recovery contact (`RecoveryContactSettings`), so `trustx.setRecoveryContact` remains only for older callers.
 - **Needs a person**: a CA must check `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`; 10 of 25 sources could not be opened and are marked unconfirmed: EPFO, ESIC, Maharashtra and Karnataka professional tax, MCA, two income-tax rows), and decide whether extensions such as CBDT Circular 07/2026 are shown; the 43B(h) and TReDS notes; the model terms in `tools-terms.v1.json`; a native reader's review of Hindi and Hinglish.
-- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost. small-app action cards carry no `payloadSchema` yet, so a press sends `{}`; Methods other lanes build this round and our screens wait for (typed "not built yet"): `models.setLadder`, `shell.startAtLogin`, `devices.*`, `sync.setup`. The follow-up book's delete and export write models-ext's stored book directly (`extensions['models-ext'].smallApps.book`) through its own visibility rules; they move to models-ext methods if those appear. No core method discards a waiting model send (it expires).
+- **Other lanes**: the connector pages (bank summary, GST turnover, purchases against GSTR-2B) use core-data's `coredata.bankTotals`, `coredata.gstr3bTurnover` and `coredata.gst2bReceipt` receipts (every figure opens its receipt; counts are counts; `GST_RETURN_NOT_APPLICABLE` reads as not applicable) and fall back to "not counted" / "ready, not tested" while those methods are absent; GSTR-2B matching is exact (tolerance 0); a reply whose figures differ from its receipt refuses `COREDATA_REPLY_INVALID`. The MCP call record carries `removed` only once core-data passes it to the call hook (`McpCallRecord.removed`); until then calls read "not recorded". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost. small-app action cards carry no `payloadSchema` yet, so a press sends `{}`; Methods other lanes build this round and our screens wait for (typed "not built yet"): `models.setLadder`, `shell.startAtLogin`, `devices.*`, `sync.setup`. The follow-up book's delete and export write models-ext's stored book directly (`extensions['models-ext'].smallApps.book`) through its own visibility rules; they move to models-ext methods if those appear. No core method discards a waiting model send (it expires).
 - **The outbound check** covers the model gateway only; plugin network calls (models-ext), the learning upload (learning-ext) and hosted-link's allowance client are not routed through it.
-- **Within the lane**: staff "sees their own" is not enforced; keep periods for kinds other than facts are stored, not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced. (Round 4: connector pages are kept between draws; seat limits and deletion places carry codes.)
+- **Within the lane**: staff "sees their own" is not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced. (Round 4: connector pages are kept between draws; seat limits and deletion places carry codes.)
 
 ## 5. Screen audit (round 2)
 
@@ -343,13 +347,13 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | TL-05 Install a plugin | `tools/plugins?sheet=install` | met | no "No internet" state |
 | TL-06 A tool from outside | Plugins page, `tools/wrap` | met (experimental) | wrap a SKILL.md or an MCP tools/list through `smallapps.pluginWrap`, preview before install |
 | TL-07 A request from a connected tool | `tools/requests` | raised (experimental) | over `smallapps.pendingRequests` (models-ext, merged) |
-| TL-08 Other assistants | `tools/assistants` | met | the MCP server removes nothing from answers, so "removed" is always empty |
+| TL-08 Other assistants | `tools/assistants` | met | removed fields shown by field, reason and count when the core's call record carries them; otherwise "not recorded" (pending core-data's `McpCallRecord.removed`) |
 | TL-09 Phone | `tools/phone` | met | mail and WhatsApp checked through `phone.verify`; cost per channel "not counted" until hosted-link sends it |
 | TL-10 Language packs | Plugins page | met | packs not reviewed by a native reader |
 | TR-01 Rules | `trust/rules` | met | — |
 | TR-02 See | `?sheet=see` | met | — |
 | TR-03 Send | `?sheet=send` | met | — |
-| TR-04 Keep | `?sheet=keep` | met | non-fact kinds stored, not enforced |
+| TR-04 Keep | `?sheet=keep` | met | every kind enforced by core-data's `keep.enforce` ("not enforced" only when that method is absent); the last clean-up's counts shown; activity mostly held back by the record links |
 | TR-05 Do | `?sheet=do` | met over jobs-ext | no amount limit in jobs-ext |
 | TR-06 People | `trust/people` | met | staff "sees their own" not enforced |
 | TR-07 Machines and the pen | `trust/devices` | partial | Drive sync built over `hosted.drive.*` (experimental); machines, pen hand-over and folder sync drawn over core-sync-jobs `devices.*`/`sync.setup`, "not built yet" until they land |
