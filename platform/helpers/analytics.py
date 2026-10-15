@@ -213,8 +213,16 @@ def ocr_tesseract():
     return found
 
 
-def ocr_page(tesseract, png, language, deadline):
-    """One page image through tesseract over pipes (the helper may not write files). Returns lines and word confidences."""
+OCR_WORDS_PER_PAGE = 1500
+
+
+def ocr_page(tesseract, png, language, deadline, want_words=False):
+    """
+    One page image through tesseract over pipes (the helper may not write files). Returns lines and word confidences.
+    With want_words (additive, round 4), also each word's box in image pixels from the same TSV (tesseract's image_to_data
+    layout): left, top, width, height, its 1-based line in the returned text, and its confidence. At most
+    OCR_WORDS_PER_PAGE words per page are kept; the rest are counted, never silently dropped.
+    """
     import os
     import subprocess
     import time
@@ -230,6 +238,7 @@ def ocr_page(tesseract, png, language, deadline):
     require(completed.returncode == 0, "PDF_EXTRACT_FAILED")
     lines = {}
     confidences = []
+    boxes = []
     for row in completed.stdout.decode("utf-8", "replace").splitlines()[1:]:
         cells = row.split("\t")
         if len(cells) != 12 or cells[0] != "5" or not cells[11].strip():
@@ -237,29 +246,41 @@ def ocr_page(tesseract, png, language, deadline):
         try:
             confidence = float(cells[10])
             key = (int(cells[2]), int(cells[3]), int(cells[4]))
+            box = (int(cells[6]), int(cells[7]), int(cells[8]), int(cells[9]))
         except ValueError:
             continue
         if confidence < 0:
             continue
         lines.setdefault(key, []).append(cells[11].strip())
         confidences.append(min(100.0, confidence))
-    text = "\n".join(" ".join(words) for _, words in sorted(lines.items()))
+        if want_words:
+            boxes.append((key, box, cells[11].strip()[:100], int(min(100.0, confidence))))
+    ordered = sorted(lines.items())
+    text = "\n".join(" ".join(words) for _, words in ordered)
     # Whole-number percent (the helper protocol carries integers only); a page with no words has none.
     confidence = int(sum(confidences) / len(confidences)) if confidences else 0
-    return text, confidence
+    if not want_words:
+        return text, confidence
+    line_of = {key: index + 1 for index, (key, _) in enumerate(ordered)}
+    words = [{"text": word, "line": line_of[key], "left": max(0, box[0]), "top": max(0, box[1]), "width": max(0, box[2]), "height": max(0, box[3]), "confidence": max(0, score)}
+             for key, box, word, score in boxes[:OCR_WORDS_PER_PAGE]]
+    return text, confidence, words, max(0, len(boxes) - OCR_WORDS_PER_PAGE)
 
 
 def pdf_ocr(data):
     """EXPERIMENTAL: scanned PDF pages rendered in memory and read by tesseract. Same limits as pdf.extract."""
     import time
     deadline = time.monotonic() + OCR_DEADLINE_SECONDS
-    keys(data, {"pdfBase64", "maxPages", "language", "password"}, {"pdfBase64"})
+    keys(data, {"pdfBase64", "maxPages", "language", "password", "words"}, {"pdfBase64"})
     password = pdf_password(data)
     require(isinstance(data["pdfBase64"], str) and len(data["pdfBase64"]) <= 5600000)
     maximum = data.get("maxPages", 20)
     require(type(maximum) is int and 1 <= maximum <= 50)
     language = data.get("language", "eng")
     require(isinstance(language, str) and language in OCR_LANGUAGES)
+    # Additive (round 4): per-page word boxes and the page image size. Off unless asked, so earlier callers see the same result.
+    want_words = data.get("words", False)
+    require(type(want_words) is bool)
     try:
         raw = base64.b64decode(data["pdfBase64"], validate=True)
     except Exception:
@@ -287,6 +308,7 @@ def pdf_ocr(data):
                 require(width > 0 and height > 0, "PDF_EXTRACT_FAILED")
                 scale = min(OCR_DPI / 72.0, OCR_MAX_SIDE / max(width, height))
                 image = page.render(scale=scale, grayscale=True).to_pil()
+                pixels = image.size
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
                 png = buffer.getvalue()
@@ -295,10 +317,16 @@ def pdf_ocr(data):
                 raise
             except Exception:
                 raise Refused("PDF_EXTRACT_FAILED")
-            text, confidence = ocr_page(tesseract, png, language, deadline)
+            if want_words:
+                text, confidence, words, omitted = ocr_page(tesseract, png, language, deadline, True)
+            else:
+                text, confidence = ocr_page(tesseract, png, language, deadline)
             characters += len(text)
             require(characters <= 100000, "PDF_TEXT_LIMIT")
-            pages.append({"page": index + 1, "text": text, "confidence": confidence})
+            entry = {"page": index + 1, "text": text, "confidence": confidence}
+            if want_words:
+                entry.update({"width": int(pixels[0]), "height": int(pixels[1]), "words": words, "wordsOmitted": omitted})
+            pages.append(entry)
     finally:
         document.close()
     version = "unknown"

@@ -5,13 +5,14 @@ import { Choice } from '../../parts/Choice';
 import { Label } from '../../parts/Label';
 import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
-import { day, dayTime, paise } from '../work/kit/format.ts';
+import { day, paise } from '../work/kit/format.ts';
 import { StepLine } from '../../parts/charts/StepLine';
 import type { StepLineChart } from '../../parts/charts/types.ts';
 import { asKnownReply, beliefLineReply, staleAnswer, staleReply, versionsReply, type BeliefLine } from './contract.ts';
 import { BooksPage, Link, Money, Recorded, Table, fill, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 import { useMoreWords } from './words-more.ts';
 import { useAuditWords } from './words-audit.ts';
+import { DemoClockState, dayIn, dayTimeIn, useZone } from './r4b-parts.tsx';
 
 const OPERATIONS = ['billed', 'received', 'earned', 'costs', 'margin'] as const;
 type Operation = typeof OPERATIONS[number];
@@ -29,6 +30,8 @@ export function History(props: BooksProps) {
   const ready = DATE.test(from) && DATE.test(to) && DATE.test(asOf);
   return (
     <BooksPage props={props} sub="history" title={w['title.history']}>
+      {/* Round 4 (BK-15): the demo clock state with its label, on a demo workspace. */}
+      <DemoClockState props={props} />
       <form className={s.form} aria-label={w.asKnownForm} onSubmit={(e: FormEvent) => { e.preventDefault(); if (ready) setAsked({ operation, period: { from, to }, asOf }); }}>
         <Choice<Operation> label={w.operation} options={OPERATIONS.map(o => ({ value: o, label: w[`op.${o}`] }))} value={operation} onChange={setOperation} />
         <Field label={w.periodFrom} type="date" value={from} onChange={e => setFrom(e.target.value)} />
@@ -50,14 +53,14 @@ export function History(props: BooksProps) {
 function AsKnown({ props, payload }: { props: BooksProps; payload: { operation: Operation; period: { from: string; to: string }; asOf: string } }) {
   const w = useWords(props.language);
   const { loaded, reload } = useReply(props, 'history.asKnownOn', payload, asKnownReply);
-  const value = valueOf(loaded);
+  const value = valueOf(loaded); const zone = useZone(props);
   return (
     <Section title={fill(w.asKnownTitle, { op: w[`op.${payload.operation}`], from: day(payload.period.from, props.language), to: day(payload.period.to, props.language) })}>
       {loaded.phase === 'refused' && <Refused props={props} code={loaded.code} notBuilt={loaded.state.kind === 'not-built'} retry={reload} />}
       {loaded.phase === 'loading' && !value && <Note>{w.reading}</Note>}
       {value && (
         <div className={s.figures}>
-          {([['then', fill(w.knownThen, { when: day(value.then.asOf, props.language) })], ['now', fill(w.knownNow, { when: day(value.now.asOf, props.language) })]] as const).map(([key, title]) => (
+          {([['then', fill(w.knownThen, { when: dayIn(value.then.asOf, props.language, zone) })], ['now', fill(w.knownNow, { when: dayIn(value.now.asOf, props.language, zone) })]] as const).map(([key, title]) => (
             <div key={key} className={s.figureBox} data-figure={key}>
               <span className={s.figureName}>{title}</span>
               <Money value={value[key].value} receiptId={value[key].receiptId} language={props.language} onReceipt={props.openReceipt} />
@@ -72,7 +75,7 @@ function AsKnown({ props, payload }: { props: BooksProps; payload: { operation: 
 /** BK-15 the belief line, on its own address (`#/books/belief`) under the History tab. */
 export function BeliefPage(props: BooksProps) {
   const m = useMoreWords(props.language);
-  return <BooksPage props={props} sub="history" title={m['belief.title']}><BeliefForm props={props} /></BooksPage>;
+  return <BooksPage props={props} sub="history" title={m['belief.title']}><DemoClockState props={props} /><BeliefForm props={props} /></BooksPage>;
 }
 
 /** The figure as known at each point where the knowledge changed. */
@@ -107,14 +110,14 @@ function BeliefForm({ props }: { props: BooksProps }) {
 function Belief({ props, payload }: { props: BooksProps; payload: Record<string, unknown> }) {
   const w = useWords(props.language); const m = useMoreWords(props.language);
   const { loaded, reload } = useReply(props, 'history.beliefLine', payload, beliefLineReply);
-  const value = valueOf(loaded);
+  const value = valueOf(loaded); const zone = useZone(props);
   if (loaded.phase === 'refused') return <Refused props={props} code={loaded.code} notBuilt={loaded.state.kind === 'not-built'} retry={reload} />;
   if (!value) return <Note>{w.reading}</Note>;
   const changed = (p: BeliefLine['points'][number]) => p.changes.map(c => c === 'correction' || c === 'new-event' ? m[`change.${c}.line`] : m[`change.${c}`]).join(', ');
   const chart: StepLineChart = {
-    form: 'step-line', from: dayTime(value.from, props.language), to: dayTime(value.to, props.language),
+    form: 'step-line', from: dayTimeIn(value.from, props.language, zone), to: dayTimeIn(value.to, props.language, zone),
     sentence: fill(m['belief.sentence'], { op: value.operation, from: day(value.period.from, props.language), to: day(value.period.to, props.language) }),
-    values: value.points.map((p, i) => ({ id: `${i}-${p.at}`, label: `${dayTime(p.at, props.language)}: ${changed(p)}`,
+    values: value.points.map((p, i) => ({ id: `${i}-${p.at}`, label: `${dayTimeIn(p.at, props.language, zone)}: ${changed(p)}`,
       value: 'minor' in p.value ? { kind: 'money' as const, exact: p.value.minor, display: paise(p.value.minor), receiptId: p.receiptId, labels: [] } : { kind: 'missing' as const, missing: p.value.missing } })),
   };
   return (
@@ -123,7 +126,7 @@ function Belief({ props, payload }: { props: BooksProps; payload: Record<string,
       {value.omitted > 0 && <Note>{fill(m['belief.omitted'], { n: value.omitted, max: 23 })}</Note>}
       <StepLine chart={chart} onReceipt={props.openReceipt} width={480} height={96} />
       <Table view={props.view} caption={chart.sentence} columns={[{ head: m['belief.when'], simple: true }, { head: m['belief.what'], simple: true }, { head: m['belief.figure'], num: true, simple: true }]}
-        rows={value.points.map((p, i) => ({ key: `${i}-${p.at}`, cells: [dayTime(p.at, props.language),
+        rows={value.points.map((p, i) => ({ key: `${i}-${p.at}`, cells: [dayTimeIn(p.at, props.language, zone),
           <span data-change={p.changes.join(' ')} className={p.changes.includes('correction') ? s.amber : undefined}>{changed(p)}</span>,
           <Money value={p.value} receiptId={p.receiptId} language={props.language} onReceipt={props.openReceipt} />] }))} />
     </div>
@@ -139,7 +142,7 @@ function Refused({ props, code, notBuilt, retry }: { props: BooksProps; code: st
 function Versions({ props, entityId }: { props: BooksProps; entityId: string }) {
   const w = useWords(props.language);
   const { loaded, reload } = useReply(props, 'history.versions', { entityId }, versionsReply, entityId);
-  const value = valueOf(loaded);
+  const value = valueOf(loaded); const zone = useZone(props);
   return (
     <Section title={fill(w.versionsTitle, { id: entityId })}>
       {loaded.phase === 'refused' && <Refused props={props} code={loaded.code} notBuilt={loaded.state.kind === 'not-built'} retry={reload} />}
@@ -148,12 +151,12 @@ function Versions({ props, entityId }: { props: BooksProps; entityId: string }) 
           { head: w['col.learned'], simple: true }, { head: w['col.change'], simple: true }, { head: w['col.kind'] }, { head: w['col.validFrom'] },
           { head: w['col.amount'], num: true, simple: true }, { head: w['col.source'] }, { head: w['col.superseded'] },
         ]} rows={value.versions.map(v => ({ key: v.factId, cells: [
-          dayTime(v.learnedAt, props.language),
+          dayTimeIn(v.learnedAt, props.language, zone),
           <span data-change={v.change} className={v.change === 'correction' ? s.amber : undefined}>{w[`change.${v.change}`]}</span>,
           v.kind, day(v.validFrom, props.language),
           <span className={v.supersededAt !== null ? s.struck : undefined}><Recorded value={v.amount} language={props.language} /></span>,
           v.sourceId,
-          v.supersededAt === null ? w.current : day(v.supersededAt, props.language),
+          v.supersededAt === null ? w.current : dayIn(v.supersededAt, props.language, zone),
         ] }))} />
       ))}
     </Section>
@@ -163,7 +166,7 @@ function Versions({ props, entityId }: { props: BooksProps; entityId: string }) 
 export function Stale(props: BooksProps) {
   const w = useWords(props.language), au = useAuditWords(props.language);
   const { loaded, reload } = useReply(props, 'history.stale', {}, staleReply);
-  const value = valueOf(loaded);
+  const value = valueOf(loaded); const zone = useZone(props);
   const act = useAct(props.rpc);
   const rebuild = async (id: string) => { if ((await act.run('history.rebuild', { id }, staleAnswer)).ok) reload(); };
   return (
@@ -174,11 +177,11 @@ export function Stale(props: BooksProps) {
         ]} rows={value.answers.map(a => ({ key: a.id, cells: [
           // Rebuilt and matching the full rebuild: no longer stale. Otherwise it stays stale, in every view (the answer column is kept in Simple).
           <span className={s.inline}>{!(a.rebuilt?.matches) && <Label kind="stale" />}{a.question ?? <span className={s.missing}>{w.noQuestion}</span>}</span>,
-          day(a.workedOutOn, props.language),
+          dayIn(a.workedOutOn, props.language, zone),
           a.reason ?? <span className={s.missing}>{w.noReason}</span>,
           <span className={s.inline}>
             {a.rebuilt === null ? w.notRebuilt : a.rebuilt.matches
-              ? <span data-result="match">{fill(w.rebuiltMatch, { when: dayTime(a.rebuilt.at, props.language) })}{props.view === 'books' && <> · <Recorded value={a.rebuilt.quick} language={props.language} /> = <Recorded value={a.rebuilt.full} language={props.language} /></>}</span>
+              ? <span data-result="match">{fill(w.rebuiltMatch, { when: dayTimeIn(a.rebuilt.at, props.language, zone) })}{props.view === 'books' && <> · <Recorded value={a.rebuilt.quick} language={props.language} /> = <Recorded value={a.rebuilt.full} language={props.language} /></>}</span>
               : <span data-result="failed" className={s.amber}>{w.rebuildFailed} {w.quick} <Recorded value={a.rebuilt.quick} language={props.language} /> · {w.full} <Recorded value={a.rebuilt.full} language={props.language} /></span>}
             {!props.viewer && (a.rebuilt === null || !a.rebuilt.matches) && <Button onClick={() => { void rebuild(a.id); }} disabled={act.busy}>{w.rebuild}</Button>}
           </span>,

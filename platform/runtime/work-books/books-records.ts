@@ -274,8 +274,9 @@ export const recordMethods: Record<string, MethodSpec> = {
 };
 
 /** Every store that holds something about one record, counted only as far as the caller can see. */
-export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store: string; count: number }[] {
-  { const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
+export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown, recount = false): { store: string; count: number }[] {
+  // Round 4 (BK-20): `recount` counts again after a deletion, when the record may no longer be in any fact.
+  { const entry = recount && plainId(id) ? { id } : findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
     const ids = recordIdsOf(state, entry.id);
     const about = (value: unknown) => [...ids].some(i => mentions(value, i));
     const factIds = new Set(state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i))).map(f => f.id));

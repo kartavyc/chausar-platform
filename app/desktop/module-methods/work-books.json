@@ -101,5 +101,6 @@
   "records.setOptIn",
   "records.setPrecedence",
   "records.stop",
+  "records.timelineMore",
   "records.undoMatch"
 ]

@@ -49,7 +49,8 @@ async function setup(options: { stub?: Stub; directory?: string } = {}) {
   await services.ontology.publish(owner, 'ecommerce');
   const calls: { method: string; payload: any }[] = [];
   const methods = { ...booksMethods, ...workMethods };
-  const host = (ctx: Context): ModuleHost => ({ store, services, demo: true, directory: options.directory ?? '/nonexistent', options: {},
+  // Round 4: which other lanes' methods are installed is the stub's own list here, never the registry of the merged build.
+  const host = (ctx: Context): ModuleHost => ({ store, services, demo: true, directory: options.directory ?? '/nonexistent', options: { hasMethod: (method: string) => !!options.stub && Object.hasOwn(options.stub, method) },
     async call(method, payload) {
       calls.push({ method, payload });
       if (options.stub && Object.hasOwn(options.stub, method)) return options.stub[method](payload);

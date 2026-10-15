@@ -6,7 +6,8 @@
  * fields and is never followed as an instruction.
  */
 export type Certainty = 'sure' | 'check-this' | 'could-not-read';
-export type Region = { page: number; line: number; of: number };
+/** `box` (round 4): the words the field was read from, per mille of the page, when the reader sent word boxes. */
+export type Region = { page: number; line: number; of: number; box?: { x: number; y: number; w: number; h: number } };
 export type BillField = { value: string | null; certainty: Certainty; region: Region | null };
 export type BillLine = { description: BillField; quantity: BillField; amount: BillField };
 export type BillTax = { name: BillField; amount: BillField };
