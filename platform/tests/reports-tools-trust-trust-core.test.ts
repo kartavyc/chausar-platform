@@ -302,3 +302,16 @@ test('trust.explain gives ask the rule id, its fixed words and who may change it
   assert.equal(e.ruleId, 'branch:accountant'); assert.equal(e.changeableBy, 'owner-or-cofounder');
   assert.equal((await f.call('trust.explain', { rule: 'seat', receiptId: 5 })).body.error.code, 'INVALID_EXPLAIN_REQUEST');
 });
+
+test('keep periods set in Trust are enforced by the real keep.enforce, and Keep shows the last clean-up', async t => {
+  const f = await fixture(t);
+  await f.rpc('trustx.setKeep', { kind: 'exports', days: 14 });
+  const enforced = await f.rpc('keep.enforce', {});
+  const exports = enforced.kinds.find((k: any) => k.kind === 'exports');
+  assert.equal(exports.days, 14, 'core-data reads the period Trust stored');
+  const keep = await f.rpc('trustx.keep');
+  const row = keep.kinds.find((k: any) => k.kind === 'exports');
+  assert.equal(row.rule, 'enforced');
+  assert.deepEqual(row.lastApplied && { removed: row.lastApplied.removed, held: row.lastApplied.held }, { removed: exports.removed, held: exports.held });
+  assert.equal(keep.kinds.find((k: any) => k.kind === 'briefs').rule, 'until-deleted');
+});

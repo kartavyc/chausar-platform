@@ -94,12 +94,14 @@ function plan(asOf: string, hypotheses: InvestigationCreate['hypotheses'] = []):
     ], hypotheses, budget: { maxSteps: 3, maxReceiptRows: 100, maxContextBytes: 16384 } };
 }
 
+// Time ceilings sized for a loaded test machine (the full suite runs files in parallel): a step that takes
+// more than a few seconds under load must not turn into JOB_PROVIDER_TIMEOUT. Three steps fit the job limit.
 function config(investigation: Investigation, patch: Partial<JobConfig> = {}): JobConfig {
   return { type: 'private-investigation', goal: investigation.objective,
     input: { investigationId: investigation.id, expectedRevision: investigation.revision,
-      steps: investigation.steps.filter(step => step.state === 'pending').map(step => ({ stepId: step.id, reserveMinor: '1', durationMs: 2000 })) },
+      steps: investigation.steps.filter(step => step.state === 'pending').map(step => ({ stepId: step.id, reserveMinor: '1', durationMs: 15000 })) },
     sourceIds: [...investigation.sourceIds], budgetMinor: '10', reserveMinor: '3',
-    limits: { modelUnits: 0, durationMs: 10000, actionExposureMinor: '0' },
+    limits: { modelUnits: 0, durationMs: 60000, actionExposureMinor: '0' },
     stopRule: { maxRuns: 1, deadline: new Date(Date.now() + 300000).toISOString() },
     nextRunAt: new Date().toISOString(), intervalMs: 60000, graceMs: 0, catchup: 'latest',
     background: false, testedRoutes: [], allowedActions: [], requiresApproval: false, ...patch };

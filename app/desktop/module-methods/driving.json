@@ -1,1 +1,13 @@
-[]
+[
+  "session.driver",
+  "session.windows",
+  "session.status",
+  "session.start",
+  "session.stop",
+  "session.resume",
+  "session.plans",
+  "session.history",
+  "session.exports",
+  "session.readExport",
+  "session.discardExport"
+]

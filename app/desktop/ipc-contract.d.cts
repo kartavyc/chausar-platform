@@ -4,6 +4,8 @@ export type DesktopMethod = typeof METHODS[number];
 export const MODULE_METHODS: readonly string[];
 export const REQUEST_CHANNEL: string;
 export const STATUS_CHANNEL: string;
+/** core-sync-jobs (round 4): live refresh; main sends `{ seq }` only. */
+export const EVENT_CHANNEL: string;
 export const TRUSTED_DOCUMENT: string;
 export const MAX_REQUEST_BYTES: number;
 export function validateRequest(input: unknown): { method: DesktopMethod; payload: Record<string, unknown> };

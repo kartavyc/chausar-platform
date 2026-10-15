@@ -209,8 +209,10 @@ test('unconverted and unsupported currencies return explicit unavailable values 
   const foreign = await setup(); await foreign.imports.commit(owner, source('books', [row('foreign-correction', '100')], '100'));
   await new MemoryService(foreign.store).correct(owner, foreign.store.read().facts[0].id, { currency: 'USD' });
   const foreignResult = await foreign.service.build(owner, foreign.request([configured({ buckets: [] })]));
-  assert.equal(foreignResult.tiles[0].value.figure, null); assert.equal(foreignResult.tiles[0].value.receiptId, null);
-  assert.equal(foreignResult.tiles[0].value.gaps[0].code, 'CURRENCY_MISMATCH');
+  // BK-19: a foreign amount with no exchange rate for its date is not counted (never zero); the receipt says how many.
+  assert.equal(foreignResult.tiles[0].value.status, 'unavailable'); assert.equal(foreignResult.tiles[0].value.figure, null); assert.ok(foreignResult.tiles[0].value.receiptId);
+  assert.equal(foreignResult.tiles[0].value.coverage!.notCounted, 1); assert.equal(foreignResult.tiles[0].value.coverage!.completeness, 'partial');
+  assert.ok(foreignResult.tiles[0].value.gaps.some(gap => /no exchange rate for their date/.test(gap.message)));
   const unsupported = await setup(); await unsupported.imports.commit(owner, source('books', [row('unsupported-correction', '100')], '100'));
   const draft = structuredClone(starterPacks[0]); draft.currency = 'ZZZ'; draft.definitions.forEach(definition => { definition.currency = 'ZZZ'; });
   await unsupported.ontology.publish(owner, draft);

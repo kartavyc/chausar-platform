@@ -68,7 +68,7 @@ test('empty-target inert import preserves historical evidence and three hand-wor
     assert.equal(recalculated.totalMinor, bench[index][1]); assert.notEqual(recalculated.id, originals[index].id);
     const comparison = compareRecalculatedReceipt(originals[index], recalculated);
     assert.equal(comparison.equivalent, true, JSON.stringify(comparison));
-    assert.deepEqual(comparison.ignoredFields, ['id', 'createdAt']);
+    assert.deepEqual(comparison.ignoredFields, ['id', 'createdAt', 'provenance']);
   }
   const costs = { sourceOnly: true, qualifiedNative: false, packageBytes: Buffer.byteLength(wire),
     retainedArtifactBytes: capture.inventory.artifacts.reduce((total, artifact) => total + artifact.bytes, 0),

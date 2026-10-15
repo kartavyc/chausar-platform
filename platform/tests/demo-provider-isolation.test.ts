@@ -9,6 +9,8 @@ import { authorize, audit, check, ChausarError, hash, initialState, newId, now, 
 import { ModelGateway, type GatewayOptions, type ModelRequest, type RouteKind } from '../runtime/gateway.ts';
 import { conversationPurpose } from '../runtime/conversation-purpose.ts';
 import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
+import { EngineEventBus } from '../runtime/core-sync-jobs/event-bus.ts';
+import { RequestAudits } from '../runtime/core-sync-jobs/request-audits.ts';
 
 // In-memory state and authored fake ports only. The VM removes host imports so
 // no native services, user profiles, database or credential helpers can run.
@@ -131,6 +133,8 @@ async function engineVm() {
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
     // No engine modules are installed in this isolated composition.
     engineModules: [], moduleMethods: new Map(),
+    // core-sync-jobs (round 4): the real event bus and request audits.
+    EngineEventBus, RequestAudits,
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
@@ -194,7 +198,7 @@ for (const entrypoint of ['server', 'worker'] as const) {
     const admissions: unknown[] = [];
     class SyntheticEngine { options: unknown; constructor(options: unknown) { this.options = options; } }
     const load = vm.runInNewContext(`${code}\n${name}`, {
-      Engine: SyntheticEngine, resolve, engineJobOptions: () => undefined,
+      Engine: SyntheticEngine, resolve, engineJobOptions: () => undefined, desktopSyncOptions: async () => undefined, desktopJobOptions: () => ({ durableJobs: undefined, jobCalendar: undefined }),
       loadCodexCliHostGateway: async (environment: unknown, dependencies: unknown) => { admissions.push(['gateway', environment, dependencies]); return { demo: false }; },
       loadEngineKeychain: async (_environment: unknown, _dependencies: unknown, demo: boolean) => { admissions.push(['keychain', demo]); return undefined; },
     });

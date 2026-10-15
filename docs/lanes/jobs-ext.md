@@ -147,7 +147,7 @@ Both screens draw loading, empty, not built, read only (viewer), locked and erro
 | Ready-made jobs and proposals | `jobsx.types`, `jobsx.templateSkill`, `jobsx.propose`, `jobsx.detect`, `jobsx.proposals`, `jobsx.card`, `jobsx.approveProposal`, `jobsx.dismissProposal`, `jobsx.edit` |
 | Jobs | `jobsx.list`, `jobsx.get`, `jobsx.timeline` (per job or per business record), `jobsx.result`, `jobsx.accept`, `jobsx.reject`, `jobsx.run`, `jobsx.pause`, `jobsx.resume`, `jobsx.delete` |
 | Waiting for you | `jobsx.answer`, `jobsx.personStep.done`, `jobsx.consent.record` |
-| Schedules, missed runs and background | `jobsx.schedules`, `jobsx.setMissedRule`, `jobsx.missed`, `jobsx.missed.seen`, `jobsx.background`, `jobsx.setBackground`, `jobsx.setWake` (refused: `WAKE_TIMER_UNAVAILABLE`) |
+| Schedules, missed runs and background | `jobsx.schedules`, `jobsx.setMissedRule`, `jobsx.missed`, `jobsx.missed.seen`, `jobsx.background`, `jobsx.setBackground`, `jobsx.setWake` (through release's `native.wake.set`/`clear`; release's refusals pass through unchanged; `WAKE_TIMER_UNAVAILABLE` only while release lacks the method) |
 | Budgets and stop rules | `jobsx.budget`, `jobsx.stopRules`, `jobsx.setStopRules` |
 | Autonomy | `jobsx.autonomy`, `jobsx.setAutonomy`, `jobsx.autonomyPreset`, `jobsx.caps`, `jobsx.setCaps` |
 | Procedures | `procedures.list`, `procedures.get`, `procedures.propose`, `procedures.approve`, `procedures.reject`, `procedures.retire`, `procedures.route` (a dry run), `procedures.runs` |
@@ -168,7 +168,7 @@ Refusal codes that screens can tell apart are on the jobs-ext line of `laneRefus
 | Deciding agent over the gateway `decide` purpose | experimental: for receivables cases only. A model may propose a reminder, which still waits for your yes; any other answer goes to you. It falls back to the lookup agent until core-gateway-auth adds the purpose, and is tested against a stub of the contract below |
 | Catch-up rule (skip, once, all) and missed-run notes | supported |
 | Background mode semantics and setting | supported (the OS service install belongs to the release lane) |
-| Waking the computer for jobs | experimental: refused with `WAKE_TIMER_UNAVAILABLE` |
+| Waking the computer for jobs | experimental: `jobsx.setWake {at, confirmed:true}` / `{clear:true, confirmed:true}` go through release's `native.wake.*`; `jobsx.background.wake` shows `native.wake.status` (`nextWakeAt`, or a code when the timer is not reachable) |
 | Rupee budgets, the stop at the reservation, what was left undone | supported with host prices; experimental with `modelsx.price` (models-ext) |
 | Stop rules and set aside after failures | supported |
 | Acceptance by the owner, with an exact reference | supported |
@@ -209,7 +209,7 @@ A missing method is treated as "not built", and the lane falls back to:
 
 - **Real sending needs a connection.** With a live or sandbox mail (or WhatsApp) connection granted `smtp.send` (or `template.send`) in writeback, reminders go through `writeback.followUp.prepare`: writeback's consent, caps, invoice evidence and fixed template, then a person's yes. Without one, they are local drafts and nothing is sent.
 - **Always-on jobs and the home box.** These are paid or experimental, and are only described.
-- **The OS wake timer and the background service install.** These belong to the release lane.
+- **The OS wake timer and the background service install.** These belong to the release lane; jobs-ext only calls `native.wake.*` and passes its refusals through.
 - **Two core suggestions from the autonomy review (not made, core files):**
   - `ModuleHost.call` runs as the module's caller, so an agent-touched reminder sent to `writeback.prepare` carries its outside-text mark only as a payload field (`sourceTainted: true`). Writeback must honour it, or the host could let a module add the taint mark to the call's context.
   - `ModelGateway.approveOutbound` refuses the phone channel but not a context marked as read-from-outside. Every other approval refuses it.

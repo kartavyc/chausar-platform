@@ -1,7 +1,7 @@
 // TR-07 Machines and sync, TR-12 "This computer" and hosted backup, TR-14 the plan and always-on job agreement,
 // and Trust · Keys, driven through the Trust place modules with a fake `rpc`. Replies follow the engine code of
 // hosted-link, jobs-ext and connectors-ext; release's shell.startAtLogin, jobs-ext's working jobsx.setWake and
-// core-sync-jobs' devices.* / sync.setup follow the contracts this lane assumes. All data is synthetic.
+// core-sync-jobs' devices.* / sync.setup follow that lane's round-4 contracts. All data is synthetic.
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -307,7 +307,7 @@ describe('TR-07 Machines and sync', () => {
     await user.type(within(setup).getByLabelText(EN['RTT.devices.folderPath']!), '/srv/share/chausar');
     await user.click(within(setup).getByRole('button', { name: EN['RTT.devices.setUp']! }));
     expect(await within(setup).findByText(EN['RTT.devices.notBuilt']!)).toBeTruthy();
-    expect(rpc.of('sync.setup').map((c) => c.payload)).toEqual([{ kind: 'folder', path: '/srv/share/chausar' }]);
+    expect(rpc.of('sync.setup').map((c) => c.payload)).toEqual([{ transport: 'folder', folder: '/srv/share/chausar' }]);
   });
 
   test('a connected folder disconnects after asking; sign-in and demo are words', async () => {
@@ -328,35 +328,42 @@ describe('TR-07 Machines and sync', () => {
   });
 
   test('machines and the pen: rows, hand over and remove each ask once more; a reader is read only', async () => {
-    const devices = { devices: [
-      { id: 'dev-a', name: 'Shop laptop', kind: 'computer', holdsPen: true, thisComputer: true, lastReadAt: AT },
-      { id: 'dev-b', name: 'Laptop 2', kind: 'computer', holdsPen: false, thisComputer: false, lastReadAt: AT },
-      { id: 'dev-c', name: 'Phone', kind: 'phone', holdsPen: false, thisComputer: false, lastReadAt: null },
-    ] };
-    const rpc = fakeRpc({ 'devices.list': devices, 'devices.pen': { deviceId: 'dev-a', thisComputer: true, readOnly: false },
-      'devices.handOver': { deviceId: 'dev-b', state: 'waiting' }, 'devices.remove': { removed: true, keyChanged: true }, 'hosted.drive.status': DRIVE_OFF });
+    const pen = (holder: string, mine: boolean) => ({ holder: { id: holder, name: 'n' }, thisComputerHolds: mine, seq: 1, since: AT, kind: 'first', handOver: null });
+    const device = (id: string, name: string, holdsPen: boolean, thisComputer: boolean, lastReadAt: string | null, state = 'active') =>
+      ({ id, name, thisComputer, holdsPen, state, enrolledAt: AT, removedAt: state === 'removed' ? AT : null, lastReadAt, fingerprint: 'f' });
+    const view = (mine: boolean) => ({ thisDevice: { id: mine ? 'dev-a' : 'dev-b', name: 'x', enrolled: true }, configured: true, syncOn: true,
+      transport: { kind: 'folder', access: 'read-write-this-folder' }, readOnly: !mine, pen: pen(mine ? 'dev-a' : 'dev-b', mine),
+      devices: [device('dev-a', 'Shop laptop', mine, mine, AT), device('dev-b', 'Laptop 2', !mine, !mine, AT), device('dev-c', 'Old desktop', false, false, null), device('dev-d', 'Gone', false, false, null, 'removed')],
+      keyChangeOnRemove: 'not-built', experimental: true });
+    const rpc = fakeRpc({ 'devices.list': view(true),
+      'devices.handOver': { ...pen('dev-a', true), configured: true, readOnly: false, published: false, handOver: { to: 'dev-b', published: false } },
+      'devices.remove': { removed: true, deviceId: 'dev-b', keyChanged: false, keyChange: 'VAULT_REKEY_NOT_BUILT', copiesStay: true }, 'hosted.drive.status': DRIVE_OFF });
     const { user } = draw(at('devices'), { rpc });
     const g = await group(EN['RTT.devices.machinesTitle']!);
     const b = await within(g).findByText('Laptop 2');
     const row = b.closest('li') as HTMLElement;
-    expect(within(g).getByText(EN['RTT.devices.neverRead']!)).toBeTruthy();
+    expect(within(g).getByText(EN['RTT.devices.syncOn']!)).toBeTruthy();
+    expect(within(g).getAllByText(EN['RTT.devices.neverRead']!).length).toBe(1);
     await user.click(within(row).getByRole('button', { name: EN['RTT.devices.handOver']! }));
     await user.click(within(row).getAllByRole('button', { name: EN['RTT.devices.handOver']! }).at(-1)!);
-    await waitFor(() => expect(rpc.of('devices.handOver').map((c) => c.payload)).toEqual([{ deviceId: 'dev-b' }]));
+    await waitFor(() => expect(rpc.of('devices.handOver').map((c) => c.payload)).toEqual([{ toDeviceId: 'dev-b', confirm: true }]));
     expect(await within(g).findByText('Waiting for Laptop 2 to take the pen.')).toBeTruthy();
     await user.click(within(row).getByRole('button', { name: EN['RTT.devices.remove']! }));
-    expect(within(row).getByText(/Removing a machine changes the key/)).toBeTruthy();
+    expect(within(row).getByText(/the key is not changed yet/)).toBeTruthy();
     await user.click(within(row).getAllByRole('button', { name: EN['RTT.devices.remove']! }).at(-1)!);
-    await waitFor(() => expect(rpc.of('devices.remove').map((c) => c.payload)).toEqual([{ deviceId: 'dev-b' }]));
-    // This computer has no Remove; the phone cannot take the pen.
+    await waitFor(() => expect(rpc.of('devices.remove').map((c) => c.payload)).toEqual([{ deviceId: 'dev-b', confirm: true }]));
+    // This computer has no Remove; a removed machine has no buttons.
     const mine = within(g).getByText('Shop laptop').closest('li') as HTMLElement;
     expect(within(mine).queryByRole('button')).toBeNull();
-    const phone = within(g).getAllByText('Phone')[0]!.closest('li') as HTMLElement;
-    expect(within(phone).queryByRole('button', { name: EN['RTT.devices.handOver']! })).toBeNull();
+    const gone = within(g).getByText('Gone').closest('li') as HTMLElement;
+    expect(within(gone).queryByRole('button')).toBeNull();
     cleanup();
-    draw(at('devices'), { rpc: fakeRpc({ 'devices.list': devices, 'devices.pen': { deviceId: 'dev-b', thisComputer: false, readOnly: true }, 'hosted.drive.status': DRIVE_OFF }) });
+    draw(at('devices'), { rpc: fakeRpc({ 'devices.list': view(false), 'hosted.drive.status': DRIVE_OFF }) });
     expect(await screen.findByText(EN['RTT.devices.readOnly']!)).toBeTruthy();
     expect(screen.queryByRole('button', { name: EN['RTT.devices.handOver']! })).toBeNull();
+    cleanup();
+    draw(at('devices'), { rpc: fakeRpc({ 'devices.list': { ...view(true), configured: false, syncOn: false, devices: [] }, 'hosted.drive.status': DRIVE_OFF }) });
+    expect(await screen.findByText(EN['RTT.devices.notConfigured']!)).toBeTruthy();
   });
 });
 

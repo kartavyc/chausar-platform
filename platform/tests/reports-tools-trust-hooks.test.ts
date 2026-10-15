@@ -188,7 +188,10 @@ test('a paired assistant token works on /mcp only; each call, refused ones inclu
     assert.deepEqual(keys, ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'tool']);
     if ('removed' in record) assert.ok(Array.isArray(record.removed) && record.removed.every((r: any) => Object.keys(r).sort().join() === 'count,field,why'));
   }
-  for (const call of view.calls) if (call.refused) assert.deepEqual(call.removed, []); else assert.ok(Array.isArray(call.removed) || call.removed === 'not-recorded');
+  // core-data passes `removed` through, so an answered call reads its list, never "not recorded".
+  for (const call of view.calls) if (call.refused) assert.deepEqual(call.removed, []); else assert.ok(Array.isArray(call.removed), JSON.stringify(call.removed));
+  // core-data passes `removed` through: an assistant's answered record carries it.
+  assert.deepEqual(Object.keys(records[0]).sort(), ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'removed', 'tool']);
   assert.ok(records.every(r => !JSON.stringify(r).includes('synthetic-hooks-shop') && !JSON.stringify(r).includes('delete_source')));
   // Revoking takes the token away from /mcp too.
   await f.rpc('trustx.revokeAssistant', { id: paired.id });

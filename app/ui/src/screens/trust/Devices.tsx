@@ -1,7 +1,7 @@
 /**
  * TR-07 Machines and the pen, at `trust/devices`: the machines that hold this workspace and which one writes,
- * over core-sync-jobs' `devices.list`, `devices.pen`, `devices.handOver`, `devices.remove` and `sync.setup`
- * (built this round by that lane: until they answer, the page says so in words), and sync through Google Drive
+ * over core-sync-jobs' `devices.list`, `devices.handOver`, `devices.remove` and `sync.setup` (until they answer,
+ * the page says so in words), and sync through Google Drive
  * over hosted-link's `hosted.drive.connect`, `hosted.drive.status` and `hosted.drive.disconnect`. Removing a
  * machine and disconnecting Drive ask once more. Folder ids from Drive are shown as text only.
  */
@@ -16,8 +16,8 @@ import { AskTwice, Tag, dayText, powers, type P } from './common';
 import { rtt } from './rtt.ts';
 import { RttRefusal, Said } from './rtt-parts';
 import {
-  validateDevices, validateDriveConnected, validateDriveDisconnected, validateDriveStatus, validateHandOver, validatePen, validateRemoved, validateSyncSetup,
-  type Device, type DriveStatus, type Pen,
+  validateDevices, validateDriveConnected, validateDriveDisconnected, validateDriveStatus, validateHandOver, validateRemoved, validateSyncSetup,
+  type Device, type DevicesView, type DriveStatus,
 } from './validate-hosted.ts';
 import { COMMON } from './words.ts';
 import s from './Trust.module.css';
@@ -41,55 +41,60 @@ export function DevicesScreen(p: P) {
 function MachinesGroup({ p }: { p: P }) {
   const say = rtt(p.language);
   const list = useEngine(p.rpc, 'devices.list', {}, validateDevices);
-  const pen = useEngine(p.rpc, 'devices.pen', {}, validatePen);
-  const reload = () => { list.reload(); pen.reload(); };
-  const body = list.state.kind === 'not-built' || pen.state.kind === 'not-built' ? <p className={s.quiet} data-devices="not-built">{say('RTT.devices.notBuilt')}</p>
+  const body = list.state.kind === 'not-built' ? <p className={s.quiet} data-devices="not-built">{say('RTT.devices.notBuilt')}</p>
     : list.state.kind === 'failed' ? <RttRefusal code={list.state.code} language={p.language} />
       : list.state.kind !== 'ready' ? <State state={screenState(list.state)} />
-        : pen.state.kind !== 'ready' ? <State state={screenState(pen.state)} />
-          : <Machines p={p} devices={list.state.value} pen={pen.state.value} reload={reload} />;
+        : <Machines p={p} view={list.state.value} reload={list.reload} />;
   return <Group title={say('RTT.devices.machinesTitle')} note={say('RTT.devices.rule')}>{body}</Group>;
 }
 
-function Machines({ p, devices, pen, reload }: { p: P; devices: Device[]; pen: Pen; reload: () => void }) {
+function Machines({ p, view, reload }: { p: P; view: DevicesView; reload: () => void }) {
   const say = rtt(p.language);
   const { admin } = powers(p);
   const hand = useSend(p.rpc, validateHandOver);
   const remove = useSend(p.rpc, validateRemoved);
+  const toggle = useSend(p.rpc, validateSyncSetup);
   const [handedTo, setHandedTo] = useState<string>('');
-  const handOver = async (d: Device) => { setHandedTo(d.name); if (await hand.send('devices.handOver', { deviceId: d.id }) !== null && p.live(p.address)) reload(); };
-  const removeOne = async (d: Device) => { if (await remove.send('devices.remove', { deviceId: d.id }) !== null && p.live(p.address)) reload(); };
-  const mayHand = admin && pen.thisComputer && !pen.readOnly;
+  const handOver = async (d: Device) => { setHandedTo(d.name); if (await hand.send('devices.handOver', { toDeviceId: d.id, confirm: true }) !== null && p.live(p.address)) reload(); };
+  const removeOne = async (d: Device) => { if (await remove.send('devices.remove', { deviceId: d.id, confirm: true }) !== null && p.live(p.address)) reload(); };
+  const setSync = async (on: boolean) => { if (await toggle.send('sync.setup', { on }) !== null && p.live(p.address)) reload(); };
+  const mayHand = admin && view.pen.thisComputerHolds && !view.readOnly;
+  const devices = view.devices;
+  if (!view.configured) return <p className={s.quiet} data-devices="not-configured">{say('RTT.devices.notConfigured')}</p>;
   return (
     <div className={s.stack}>
-      {pen.readOnly && <p className={s.status} data-read-only="">{say('RTT.devices.readOnly')}</p>}
+      <p className={s.text} data-sync={view.syncOn ? 'on' : 'off'}>{say(view.syncOn ? 'RTT.devices.syncOn' : 'RTT.devices.syncOff')}</p>
+      {admin && <span><Button variant="quiet" disabled={toggle.sent.kind === 'sending'} onClick={() => void setSync(!view.syncOn)}>{say(view.syncOn ? 'RTT.devices.turnSyncOff' : 'RTT.devices.turnSyncOn')}</Button></span>}
+      {view.readOnly && <p className={s.status} data-read-only="">{say('RTT.devices.readOnly')}</p>}
       {devices.length === 0 ? <p className={s.quiet}>{say('RTT.devices.none')}</p> : (
         <ul className={s.list}>
           {devices.map((d) => (
             <li key={d.id} className={s.item} data-device={d.id}>
               <span className={s.itemHead}>
                 <span className={s.name}>{d.name}</span>
-                <span className={s.quiet}>{say(`RTT.devices.kind.${d.kind}`)}</span>
                 {d.thisComputer && <Tag>{say('RTT.devices.thisComputer')}</Tag>}
-                <span className={s.quiet}>{say(d.holdsPen ? 'RTT.devices.holdsPen' : 'RTT.devices.reads')}</span>
+                <span className={s.quiet}>{d.removed ? say('RTT.devices.removedOn', { date: d.removedAt === null ? '' : dayText(d.removedAt, p.language) }) : say(d.holdsPen ? 'RTT.devices.holdsPen' : 'RTT.devices.reads')}</span>
               </span>
-              <span className={s.quiet}>{d.lastReadAt === null ? say('RTT.devices.neverRead') : say('RTT.devices.lastRead', { date: dayText(d.lastReadAt, p.language) })}</span>
-              <span className={s.line}>
-                {mayHand && !d.holdsPen && d.kind === 'computer' && (
-                  <AskTwice label={say('RTT.devices.handOver')} ask={say('RTT.devices.handOverAsk', { name: d.name })} confirmLabel={say('RTT.devices.handOver')}
-                    onConfirm={() => void handOver(d)} language={p.language} disabled={hand.sent.kind === 'sending'} />
-                )}
-                {admin && !d.thisComputer && (
-                  <AskTwice label={say('RTT.devices.remove')} ask={say('RTT.devices.removeAsk', { name: d.name })} confirmLabel={say('RTT.devices.remove')}
-                    onConfirm={() => void removeOne(d)} language={p.language} disabled={remove.sent.kind === 'sending'} />
-                )}
-              </span>
+              {!d.removed && <span className={s.quiet}>{d.lastReadAt === null ? say('RTT.devices.neverRead') : say('RTT.devices.lastRead', { date: dayText(d.lastReadAt, p.language) })}</span>}
+              {!d.removed && (
+                <span className={s.line}>
+                  {mayHand && !d.holdsPen && (
+                    <AskTwice label={say('RTT.devices.handOver')} ask={say('RTT.devices.handOverAsk', { name: d.name })} confirmLabel={say('RTT.devices.handOver')}
+                      onConfirm={() => void handOver(d)} language={p.language} disabled={hand.sent.kind === 'sending'} />
+                  )}
+                  {admin && !d.thisComputer && (
+                    <AskTwice label={say('RTT.devices.remove')} ask={say('RTT.devices.removeAsk', { name: d.name })} confirmLabel={say('RTT.devices.remove')}
+                      onConfirm={() => void removeOne(d)} language={p.language} disabled={remove.sent.kind === 'sending'} />
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <Said sent={hand.sent} done={(x) => x.state === 'handed-over' ? say('RTT.devices.handedOver') : say('RTT.devices.handOverWaiting', { name: handedTo })} language={p.language} />
+      <Said sent={hand.sent} done={(x) => x.published ? say('RTT.devices.handedOver') : say('RTT.devices.handOverWaiting', { name: handedTo })} language={p.language} />
       <Said sent={remove.sent} done={() => say('RTT.devices.removed')} language={p.language} />
+      <Said sent={toggle.sent} done={(x) => say(x.syncOn ? 'RTT.devices.syncOn' : 'RTT.devices.syncOff')} language={p.language} />
     </div>
   );
 }
@@ -191,7 +196,7 @@ function FolderSetup({ p }: { p: P }) {
     const typed = path.trim();
     if (typed.length === 0 || typed.length > 1000) { setProblem(say('RTT.devices.folderNeeded')); return; }
     setProblem(undefined);
-    await send('sync.setup', { kind: 'folder', path: typed });
+    await send('sync.setup', { transport: 'folder', folder: typed });
   };
   return (
     <Group title={say('RTT.devices.setupTitle')} note={say('RTT.devices.setupNote')}>
@@ -201,7 +206,7 @@ function FolderSetup({ p }: { p: P }) {
       </form>
       {sent.kind === 'refused' && (sent.code === 'UNKNOWN_METHOD' || sent.code === 'METHOD_UNAVAILABLE')
         ? <p className={s.quiet} data-setup="not-built">{say('RTT.devices.notBuilt')}</p>
-        : <Said sent={sent} done={(x) => `${say('RTT.devices.setupDone')} ${say(x.enabled ? 'RTT.devices.syncOn' : 'RTT.devices.syncOff')}`} language={p.language} />}
+        : <Said sent={sent} done={(x) => [say('RTT.devices.setupDone'), say(x.syncOn ? 'RTT.devices.syncOn' : 'RTT.devices.syncOff'), x.restartRequired ? say('RTT.devices.restart') : ''].filter(Boolean).join(' ')} language={p.language} />}
     </Group>
   );
 }

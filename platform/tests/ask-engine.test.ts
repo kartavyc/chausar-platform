@@ -617,7 +617,8 @@ test('round 4: GSTR-2B through the connectors lane’s own recipe and matcher, w
   const match = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
   assert.deepEqual([match.state, match.via, match.sources], ['ready', 'connectors', { register: 'purchase-register', gstr2b: 'gstr2b-sep' }]);
   assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['probable', 1], ['in-2b-only', 1], ['books-only', 1]]);
-  assert.equal(match.matchReceiptId, null, 'Until the core lane serves match receipts, lines open their rows.');
+  // core-data serves match receipts (coredata.gst2bReceipt); the group receipt opens like any other.
+  assert.equal(typeof match.matchReceiptId, 'string'); assert.equal((await ask(engine, 'receipts.get', { id: match.matchReceiptId })).operation, 'gstr2b_match');
   const probable = match.lines.find((l: any) => l.group === 'probable');
   assert.deepEqual(match.ims.find((i: any) => i.lineId === probable.id), { lineId: probable.id, action: 'pending', reason: 'probable-match' });
   const inside = match.lines.find((l: any) => l.group === 'differs-inside');
@@ -684,7 +685,10 @@ test('round 4: change, stop, needs-data, telling not asking, the rule’s words 
   { recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: 'owner', acceptedAt: '2026-10-01T00:00:00.000Z' }], meaning: { publishedBy: 'owner', reviewedBy: 'acct', coSignedBy: null, reviewedAt: null },
     forecast: null, allowedBy: { ruleId: 'rule-1', check: 'branch-scope', device: 'desktop', memberId: 'owner', at: '2026-10-01T00:00:00.000Z' } });
   const answer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
-  assert.equal((await ask(engine, 'askx.receipt', { receiptId: answer.receiptId })).provenance, null);
+  // core-data records provenance on every new receipt (AS-05).
+  const recorded = (await ask(engine, 'askx.receipt', { receiptId: answer.receiptId })).provenance;
+  assert.deepEqual(recorded.recipes.map((r: any) => [r.sourceId, r.acceptedBy]), [['september', 'owner']]); assert.equal(recorded.meaning.publishedBy, 'owner');
+  assert.deepEqual([recorded.allowedBy.ruleId, recorded.allowedBy.check, recorded.allowedBy.device, recorded.allowedBy.memberId], ['policy.allowed-sources:all', 'source-access+number-guard', 'desktop', 'owner']);
 });
 
 test('round 4: the rule’s words from Trust are passed through only in the agreed shape', async () => {

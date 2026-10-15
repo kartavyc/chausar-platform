@@ -3,7 +3,7 @@ import { CalculatorService, numberGuard, formatMoney, type CalculationReceipt, t
 import { canSeeFact, currentAccess, validDate } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 import type { AlertBrief, AlertBriefScope } from './alerts-contracts.ts';
-import { confirmDecision as confirmJournal, draftDecision as draftJournal, dueDecisions as dueJournal, journalContentReceiptIds, journalExecutionSnapshot, reviseDecision as reviseJournal, reviewDecision as reviewJournal, type JournalContent, type JournalDecision, type JournalDraft, type JournalExecutionReceipt, type JournalObservation, type JournalReview } from './decision-journal.ts';
+import { cancelDecision as cancelJournal, confirmDecision as confirmJournal, draftDecision as draftJournal, dueDecisions as dueJournal, journalContentReceiptIds, journalExecutionSnapshot, reviseDecision as reviseJournal, reviewDecision as reviewJournal, type JournalContent, type JournalDecision, type JournalDraft, type JournalExecutionReceipt, type JournalObservation, type JournalReview } from './decision-journal.ts';
 
 export type DecisionInput = { text: string; reviewDate: string; receiptIds?: string[]; hypotheses?: string[]; branch?: string };
 export type DecisionReview = { outcome: 'accepted' | 'rejected' | 'continue' | 'completed'; notes?: string };
@@ -43,6 +43,12 @@ function payload(value: unknown, keys: string[], code: string) {
 }
 function detached<T>(value: T, code: string): T {
   try { return structuredClone(value); } catch { check(false, code, 'Journal requests must be plain data.'); }
+}
+/** The calendar day of `at` in the workspace's time zone (AS-15 "recorded later"), or the UTC day when none is set or it is not valid. */
+function workspaceDay(state: State, at: string): string {
+  const zone = state.workspace.timeZone;
+  try { if (typeof zone === 'string' && zone.length <= 100) return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at)); } catch { /* the UTC day below */ }
+  return at.slice(0, 10);
 }
 export class ReportService {
   store: StateStore;
@@ -98,7 +104,9 @@ export class ReportService {
   draftDecision(ctx: Context, content: JournalContent): JournalDraft {
     const view = stateView(this.store.read()); authorize(view, ctx, 'prepare');
     const ids = journalContentReceiptIds(content); this.ownerAt(view, ctx, content);
-    return draftJournal(content, ids.map(id => this.receiptAt(view, ctx, id)));
+    const draft = draftJournal(content, ids.map(id => this.receiptAt(view, ctx, id)));
+    check(draft.content.decidedOn === undefined || draft.content.decidedOn <= workspaceDay(view.read(), now()), 'DECIDED_ON_LATER', 'A decision cannot be dated after today.');
+    return draft;
   }
   async confirmDecision(ctx: Context, draft: JournalDraft, input: { reviewedDigest: string }): Promise<JournalDecision> {
     authorize(this.store, ctx, 'prepare'); payload(input, ['reviewedDigest'], 'INVALID_CONFIRMATION');
@@ -107,7 +115,8 @@ export class ReportService {
       const view = stateView(state); authorize(view, request.ctx, 'prepare');
       const ids = journalContentReceiptIds(request.draft.content); this.ownerAt(view, request.ctx, request.draft.content);
       const receipts = ids.map(id => this.receiptAt(view, request.ctx, id));
-      const candidate = confirmJournal(request.draft, { reviewedDigest: request.input.reviewedDigest, id: newId('decision'), actorId: request.ctx.memberId, at: now(), receipts });
+      const at = now(), recordedOn = request.draft?.content?.decidedOn === undefined ? {} : { recordedOn: workspaceDay(state, at) };
+      const candidate = confirmJournal(request.draft, { reviewedDigest: request.input.reviewedDigest, id: newId('decision'), actorId: request.ctx.memberId, at, receipts, ...recordedOn });
       state.decisions.push(candidate); audit(state, 'decision.created', { decisionId: candidate.id, reviewDate: candidate.reviewDate, revision: candidate.revision, journal: true, memberId: request.ctx.memberId });
       return structuredClone(candidate);
     });
@@ -137,6 +146,18 @@ export class ReportService {
       if (executions.length) candidate.reviews[candidate.reviews.length - 1].executionReceipts = executions;
       state.decisions[state.decisions.findIndex(item => item.id === request.id)] = candidate;
       audit(state, 'decision.reviewed', { decisionId: candidate.id, outcome: request.review.outcome, revision: candidate.revision, memberId: request.ctx.memberId });
+      return structuredClone(candidate);
+    });
+  }
+  /** Cancels an open journal decision (AS-15) under the same access as a revision. */
+  async cancelJournalDecision(ctx: Context, id: string, input: { expectedRevision: number; reason: string }): Promise<JournalDecision> {
+    authorize(this.store, ctx, 'prepare'); payload(input, ['expectedRevision', 'reason'], 'INVALID_CANCELLATION');
+    const request = detached({ id, input, ctx }, 'INVALID_CANCELLATION');
+    return this.store.update(state => {
+      const { value } = this.journalAt(state, request.ctx, request.id);
+      const candidate = cancelJournal(value, { ...request.input, actorId: request.ctx.memberId, at: now() });
+      state.decisions[state.decisions.findIndex(item => item.id === request.id)] = candidate;
+      audit(state, 'decision.cancelled', { decisionId: candidate.id, revision: candidate.revision, memberId: request.ctx.memberId });
       return structuredClone(candidate);
     });
   }

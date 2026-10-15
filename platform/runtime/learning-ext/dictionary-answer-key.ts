@@ -45,7 +45,7 @@ export function assertAnswerKey(value: unknown): AnswerKey {
   check(plain(value) && keys(value, ['id', 'label', 'rows', 'recipe', 'expectedTotals', 'cases']), 'INVALID_ANSWER_KEY', 'An answer key holds an id, a label, rows, an optional recipe and its cases.');
   check(typeof value.id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value.id) && typeof value.label === 'string' && value.label.trim().length > 0 && value.label.length <= 120,
     'INVALID_ANSWER_KEY', 'Give the answer key a plain identifier and a short label.');
-  check(typeof value.rows === 'string' && value.rows.length > 0 && value.rows.length <= 1_000_000, 'INVALID_ANSWER_KEY', 'Answer key rows are canonical CSV text of at most one megabyte.');
+  check(typeof value.rows === 'string' && value.rows.length > 0 && value.rows.length <= 1_000_000 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.rows), 'INVALID_ANSWER_KEY', 'Answer key rows are canonical CSV text of at most one megabyte.');
   check(value.recipe === undefined || plain(value.recipe), 'INVALID_ANSWER_KEY', 'An answer key recipe is mapping data.');
   if (value.expectedTotals !== undefined) {
     const totals = value.expectedTotals;

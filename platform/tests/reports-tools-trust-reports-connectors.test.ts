@@ -69,10 +69,13 @@ async function receiptsOpen(engine: Engine, built: any) {
 type Handler = (ctx: Context, payload: Record<string, any>, host: ModuleHost) => unknown;
 type CoreMethod = 'coredata.bankTotals' | 'coredata.gstr3bTurnover' | 'coredata.gst2bReceipt';
 const absent: Handler = () => check(false, 'UNKNOWN_METHOD', 'The requested operation is not available.');
+const originals = new Map<string, RegisteredMethod | undefined>();
 function fakeCore(t: any, handlers: Partial<Record<CoreMethod, Handler>> = {}) {
   const map = moduleMethods as Map<string, RegisteredMethod>; const calls: { method: string; payload: any }[] = [];
   for (const method of ['coredata.bankTotals', 'coredata.gstr3bTurnover', 'coredata.gst2bReceipt'] as const) {
-    const before = map.get(method); const handler = handlers[method] ?? absent;
+    // The registered method as it was before any fake, so a test that fakes twice still restores the real one.
+    if (!originals.has(method)) originals.set(method, map.get(method));
+    const before = originals.get(method); const handler = handlers[method] ?? absent;
     map.set(method, Object.freeze({ permission: 'read' as const, module: 'core-data-fake',
       handler: (ctx: Context, payload: Record<string, any>, host: ModuleHost) => { calls.push({ method, payload: structuredClone(payload) }); return handler(ctx, payload, host); } }));
     t.after(() => { if (before) map.set(method, before); else map.delete(method); });
@@ -306,4 +309,22 @@ test('drawing the packs list again with nothing changed does not recalculate the
   const settled = connectorRuns;
   await engine.request('reportsx.packs', {});
   assert.equal(connectorRuns, settled, 'and is kept again once built');
+});
+
+test('with the real core-data methods: bank, GSTR-3B and GSTR-2B figures come from its receipts and open', async t => {
+  const engine = await open(t);
+  await importAll(engine);
+  const bank = await page(engine, 'lender', 'bank-summary');
+  const gst = await page(engine, 'lender', 'gst-turnover');
+  const match = await page(engine, 'ca', 'purchases-gstr2b');
+  const rows = (built: any) => built.sections[0].lines.map((l: any) => [l.id, l.figure.kind, l.figure.exact ?? l.figure.missing]);
+  assert.equal(bank.state, 'ready-tested');
+  assert.deepEqual(rows(bank), [['credits', 'money', '3000000'], ['debits', 'money', '1250000'], ['net', 'money', '1750000'], ['opening', 'money', '5000000'], ['closing', 'missing', 'absent'], ['entries', 'count', '5']]);
+  assert.equal(gst.state, 'ready-tested');
+  assert.deepEqual(lineOf(gst, 'gstr3b').figure.exact, '26850000', 'GSTR-3B turnover now has its receipt');
+  assert.equal(gst.sections[1].lines.find((l: any) => l.id === 'reverseChargeInward').figure.exact, '200000', 'reverse charge inward is shown, never in turnover');
+  assert.equal(match.state, 'ready-tested');
+  assert.deepEqual(rows(match).filter((r: any[]) => r[1] === 'count').map((r: any[]) => r[0]), ['matched', 'within-tolerance', 'amount-differs', 'books-only', 'gstr2b-only', 'probable']);
+  assert.equal(match.sections[1].lines.length, 4, 'each differing invoice is its own line with its own receipt');
+  for (const built of [bank, gst, match]) await receiptsOpen(engine, built);
 });

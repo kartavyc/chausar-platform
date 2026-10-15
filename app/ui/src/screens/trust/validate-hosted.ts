@@ -3,9 +3,8 @@
  * Machines and sync (TR-07) and Trust · Keys. Shapes are read from the engine code that answers each method:
  * jobs-ext `jobsx.background` / `jobsx.setBackground` (platform/runtime/jobs-ext/methods.ts), hosted-link
  * `hosted.*` (platform/runtime/hosted-link/service.ts, drive-sync.ts) and connectors-ext `connectorsx.*`
- * (platform/runtime/connectors-ext/service.ts). Three families are not in the base yet and follow the contracts
- * this lane assumes (docs/lanes/reports-tools-trust.md, round 4): release's `shell.startAtLogin`, jobs-ext's
- * working `jobsx.setWake`, and core-sync-jobs' `devices.*` and `sync.setup`. Every reply is untrusted data.
+ * (platform/runtime/connectors-ext/service.ts), release's `shell.startAtLogin` / `shell.setStartAtLogin`, and
+ * core-sync-jobs' `devices.*` and `sync.setup` (their round-4 contracts). Every reply is untrusted data.
  */
 import { ShapeError, bool, int, list, oneOf, rec, str, strings } from './kit/validate.ts';
 
@@ -167,39 +166,41 @@ export function validateDriveDisconnected(reply: unknown): { disconnected: boole
   return { disconnected: bool(r['disconnected'], 'reply.disconnected') };
 }
 
-// ---------- TR-07 machines and the pen (core-sync-jobs; assumed contract) ----------
-export const DEVICE_KINDS = ['computer', 'phone', 'home-box'] as const;
-export interface Device { id: string; name: string; kind: (typeof DEVICE_KINDS)[number]; holdsPen: boolean; thisComputer: boolean; lastReadAt: string | null }
-/** `devices.list {}` → `{ devices: Device[] }`; exactly one computer holds the pen when any is listed. */
-export function validateDevices(reply: unknown): Device[] {
+// ---------- TR-07 machines and the pen (core-sync-jobs, round 4) ----------
+export interface Device { id: string; name: string; holdsPen: boolean; thisComputer: boolean; removed: boolean; removedAt: string | null; lastReadAt: string | null }
+export interface Pen { holderId: string | null; thisComputerHolds: boolean; handOverTo: string | null }
+/** `devices.list {}`: whether sync is set up and on, whether this computer is read only, the pen, and every machine. */
+export interface DevicesView { configured: boolean; syncOn: boolean; readOnly: boolean; pen: Pen; devices: Device[] }
+function penOf(value: unknown, path: string): Pen {
+  const r = rec(value, path);
+  const holder = r['holder'] === null ? null : rec(r['holder'], `${path}.holder`);
+  const hand = r['handOver'] === null || r['handOver'] === undefined ? null : rec(r['handOver'], `${path}.handOver`);
+  return { holderId: holder === null ? null : id(holder['id'], `${path}.holder.id`), thisComputerHolds: bool(r['thisComputerHolds'], `${path}.thisComputerHolds`),
+    handOverTo: hand === null ? null : id(hand['to'], `${path}.handOver.to`) };
+}
+export function validateDevices(reply: unknown): DevicesView {
   const r = rec(reply);
   const devices = list(r['devices'], 'reply.devices', (v, p) => { const d = rec(v, p);
-    return { id: id(d['id'], `${p}.id`), name: str(d['name'], `${p}.name`, 120), kind: oneOf(d['kind'], `${p}.kind`, DEVICE_KINDS), holdsPen: bool(d['holdsPen'], `${p}.holdsPen`),
-      thisComputer: bool(d['thisComputer'], `${p}.thisComputer`), lastReadAt: optInstant(d['lastReadAt'], `${p}.lastReadAt`) }; }, 100);
+    return { id: id(d['id'], `${p}.id`), name: str(d['name'], `${p}.name`, 120), holdsPen: bool(d['holdsPen'], `${p}.holdsPen`), thisComputer: bool(d['thisComputer'], `${p}.thisComputer`),
+      removed: oneOf(d['state'], `${p}.state`, ['active', 'removed'] as const) === 'removed', removedAt: optInstant(d['removedAt'], `${p}.removedAt`), lastReadAt: optInstant(d['lastReadAt'], `${p}.lastReadAt`) }; }, 100);
   if (devices.filter((d) => d.holdsPen).length > 1 || devices.filter((d) => d.thisComputer).length > 1) throw new ShapeError('reply.devices');
-  return devices;
+  return { configured: bool(r['configured'], 'reply.configured'), syncOn: bool(r['syncOn'], 'reply.syncOn'), readOnly: bool(r['readOnly'], 'reply.readOnly'), pen: penOf(r['pen'], 'reply.pen'), devices };
 }
-/** `devices.pen {}` → `{ deviceId, thisComputer, readOnly }`: who writes, and whether this computer is read only. */
-export interface Pen { deviceId: string | null; thisComputer: boolean; readOnly: boolean }
-export function validatePen(reply: unknown): Pen {
-  const r = rec(reply);
-  return { deviceId: r['deviceId'] === null ? null : id(r['deviceId'], 'reply.deviceId'), thisComputer: bool(r['thisComputer'], 'reply.thisComputer'), readOnly: bool(r['readOnly'], 'reply.readOnly') };
+/** `devices.handOver { toDeviceId, confirm: true }` → the pen, and whether the hand-over was published to the folder. */
+export function validateHandOver(reply: unknown): { published: boolean } {
+  const r = rec(reply); penOf(r, 'reply');
+  return { published: bool(r['published'], 'reply.published') };
 }
-/** `devices.handOver { deviceId }` → `{ deviceId, state: 'handed-over' | 'waiting' }`. */
-export function validateHandOver(reply: unknown): { state: 'handed-over' | 'waiting' } {
-  const r = rec(reply); id(r['deviceId'], 'reply.deviceId');
-  return { state: oneOf(r['state'], 'reply.state', ['handed-over', 'waiting'] as const) };
-}
-/** `devices.remove { deviceId }` → `{ removed: true, keyChanged }`. */
+/** `devices.remove { deviceId, confirm: true }` → `{ removed: true, keyChanged, copiesStay }`; the key is not changed yet. */
 export function validateRemoved(reply: unknown): { keyChanged: boolean } {
   const r = rec(reply);
-  if (r['removed'] !== true) throw new ShapeError('reply.removed');
+  if (r['removed'] !== true || r['copiesStay'] !== true) throw new ShapeError('reply.removed');
   return { keyChanged: bool(r['keyChanged'], 'reply.keyChanged') };
 }
-/** `sync.setup { kind: 'folder', path }` → `{ kind, enabled }`; sync stays off until the owner turns it on. */
-export function validateSyncSetup(reply: unknown): { enabled: boolean } {
-  const r = rec(reply); oneOf(r['kind'], 'reply.kind', ['folder', 'drive'] as const);
-  return { enabled: bool(r['enabled'], 'reply.enabled') };
+/** `sync.setup` → the `devices.list` reply, plus `restartRequired` when a transport was set up. */
+export function validateSyncSetup(reply: unknown): { syncOn: boolean; restartRequired: boolean } {
+  const view = validateDevices(reply), r = rec(reply);
+  return { syncOn: view.syncOn, restartRequired: r['restartRequired'] === undefined ? false : bool(r['restartRequired'], 'reply.restartRequired') };
 }
 
 // ---------- Trust · Keys (connectors-ext) ----------

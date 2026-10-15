@@ -5,15 +5,19 @@
  * parts' namespaces (connector imports among them) and this lane's trust settings (markings, seats); and
  * under the caller's seat, the page, the period and the language. Calculation receipts, answers and the
  * activity log are left out of the key, because drawing a page adds to them. A kept page is used only while
- * every receipt it points to is still in the workspace. Any change to what it depends on builds it afresh.
+ * every receipt it points to is still in the workspace. Any change to what it depends on builds it afresh,
+ * and so does a change in which core-data calculations are registered (a page built without them is not kept for one with them).
  */
 import { createHash } from 'node:crypto';
 import type { Context, State } from '../contracts.ts';
 import { LANE_ID } from '../trust-ext/lane-state.ts';
+// Read only when a page is drawn, never while modules load, so the import cycle through the registry is harmless.
+import { moduleMethods } from '../modules/registry.ts';
 import type { Language, Period } from './common.ts';
 import type { ConnectorPage, ConnectorPageId } from './connector-pages.ts';
 
 const MAX_WORKSPACES = 8, MAX_PAGES = 64;
+const CORE_METHODS = ['coredata.bankTotals', 'coredata.gstr3bTurnover', 'coredata.gst2bReceipt'] as const;
 type Kept = { fingerprint: string; pages: Map<string, Promise<ConnectorPage>> };
 const kept = new Map<string, Kept>();
 /** How many connector pages were built and how many were taken from the cache, for tests and diagnostics. */
@@ -24,6 +28,7 @@ export function dependencyFingerprint(state: State): string {
   const hash = createHash('sha256');
   const part = (name: string, value: unknown) => { hash.update(name); hash.update('\u0000'); hash.update(JSON.stringify(value ?? null)); hash.update('\u0001'); };
   part('workspace', state.workspace.id);
+  part('providers', CORE_METHODS.map(method => moduleMethods.has(method) ? `${method}:${moduleMethods.get(method)!.module}` : `${method}:absent`));
   hash.update(`facts\u0000${state.facts.length}\u0000`);
   for (const fact of state.facts) hash.update(`${fact.id}\u0000${fact.sourceId}\u0000${fact.learnedAt}\u0000${fact.supersededAt ?? ''}\u0000${fact.deletedAt ?? ''}\u0000${fact.branch ?? ''}\n`);
   for (const key of ['imports', 'conflicts', 'merges', 'tombstones', 'sourceRules', 'ontology', 'members', 'policy'] as const) part(key, state[key]);
