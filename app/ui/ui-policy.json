@@ -83,6 +83,18 @@
       "guided": 24,
       "simple": 44,
       "books": 24
+    },
+    "framePx": {
+      "railPx": {
+        "asDrawn": 216,
+        "medium": 176
+      },
+      "columnPx": {
+        "asDrawn": 720,
+        "medium": 640
+      },
+      "sheetPx": 480,
+      "topBarPx": 48
     }
   },
   "views": [
@@ -106,7 +118,19 @@
     "medium": {
       "width": 1024,
       "height": 768
-    }
+    },
+    "widths": [
+      1366,
+      1315,
+      1200,
+      1024,
+      1023,
+      800,
+      600,
+      480,
+      360
+    ],
+    "height": 768
   },
   "rules": {
     "textSize": {
@@ -359,6 +383,30 @@
         "!"
       ],
       "applies": "all rendered text"
+    },
+    "layout": {
+      "design": "docs/specs/CHAUSAR-APP-DESIGN.md part 4, \"Other window sizes\": 1316 and wider as drawn; 1024 to 1315 rail 176, column 640, a sheet covers the list; under 1024 a bar across the top, the full width, a sheet fills the screen, lists one column, charts stack, a wide table scrolls sideways inside its own box; designed down to 360.",
+      "asDrawnFromPx": 1316,
+      "mediumFromPx": 1024,
+      "railPx": {
+        "asDrawn": 216,
+        "medium": 176
+      },
+      "columnPx": {
+        "asDrawn": 720,
+        "medium": 640
+      },
+      "sheetPx": 480,
+      "topBarMaxPx": 120,
+      "tolerancePx": 1,
+      "rules": {
+        "page-scroll-x": "The window and the page never scroll sideways.",
+        "overflow-viewport": "No element reaches past the window, unless a box of its own scrolls or clips it inside the window.",
+        "rail-layout": "From 1024 the rail is a column at the left, 216 wide (176 from 1024 to 1315); under 1024 it is a bar across the top.",
+        "sheet-layout": "From 1316 the sheet sits beside the page; from 1024 to 1315 it covers the list; under 1024 it fills the window.",
+        "charts-stack": "Under 1024 no two charts sit side by side.",
+        "table-scroll": "A table wider than the page scrolls inside its own box."
+      }
     },
     "remoteImages": {
       "forbidden": true,

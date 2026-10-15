@@ -88,7 +88,7 @@ export function whenOf(at: string, language: Language, t: (key: string, values?:
   return t(zone === null ? 'TD-04.whenUtc' : 'TD-04.when', { date: day, time: time(at, shown) });
 }
 
-export function ActivityPlace({ address, language, rpc, live, openReceipt, navigate }: PlaceRenderProps) {
+export function ActivityPlace({ address, language, view, rpc, live, openReceipt, navigate }: PlaceRenderProps) {
   const t = useT();
   const titleId = useId();
   const [filters, setFilters] = useState<Filters>({ state: null, actor: null, day: null });
@@ -192,18 +192,23 @@ export function ActivityPlace({ address, language, rpc, live, openReceipt, navig
   const actorOptions = [{ value: 'all', label: t('TD-04.filter.everyone') }, ...[...seen.current.actors].map(([value, label]) => ({ value, label }))];
   const dayOptions = [{ value: 'all', label: t('TD-04.filter.allDays') }, ...[...seen.current.days].sort().reverse().map((day) => ({ value: day, label: date(day, 'short', language) }))];
   const choose = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const filtersSet = filters.state !== null || filters.actor !== null || filters.day !== null;
+  const filterChoices = (
+    <div className={s.filters}>
+      <Choice label={t('TD-04.filter.state')} options={stateOptions} value={filters.state ?? 'all'} onChange={(v) => choose({ state: v === 'all' ? null : (v as ActivityState) })} />
+      <Choice label={t('TD-04.filter.person')} options={actorOptions} value={filters.actor ?? 'all'} onChange={(v) => choose({ actor: v === 'all' ? null : v })} />
+      <Choice label={t('TD-04.filter.day')} options={dayOptions} value={filters.day ?? 'all'} onChange={(v) => choose({ day: v === 'all' ? null : v })} />
+    </div>
+  );
 
   return (
     <div className={s.today}>
       <PageHeader where={t('SH-01.place.today')} title={t('TD-04.title')} titleId={titleId} />
 
-      {load.phase !== 'not-built' && (
-        <div className={s.filters}>
-          <Choice label={t('TD-04.filter.state')} options={stateOptions} value={filters.state ?? 'all'} onChange={(v) => choose({ state: v === 'all' ? null : (v as ActivityState) })} />
-          <Choice label={t('TD-04.filter.person')} options={actorOptions} value={filters.actor ?? 'all'} onChange={(v) => choose({ actor: v === 'all' ? null : v })} />
-          <Choice label={t('TD-04.filter.day')} options={dayOptions} value={filters.day ?? 'all'} onChange={(v) => choose({ day: v === 'all' ? null : v })} />
-        </div>
-      )}
+      {load.phase !== 'not-built' && (view === 'simple'
+        /* Simple shows one thing at a time: the filters fold under one word until asked for. */
+        ? <details className={s.filterFold} open={filtersSet}><summary>{t('TD-04.filter.title')}</summary>{filterChoices}</details>
+        : filterChoices)}
 
       {load.phase === 'loading' && <State state={{ kind: 'loading' }} />}
       {load.phase === 'not-built' && <State state={{ kind: 'not-built' }} />}

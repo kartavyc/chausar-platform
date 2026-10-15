@@ -13,7 +13,9 @@
       "The date, title and review rows read as one block (no 32 px grid gap between each), so the rows start right under the title.",
       "\"See all\" in Worth a look sits at the start, as wide as its words, instead of centred across the column.",
       "Status facts that wrap sit 4 px apart instead of 24 px.",
-      "The three figure tiles keep their labels, figures and charts on common lines: tiles of different heights no longer spread their rows apart."
+      "The three figure tiles keep their labels, figures and charts on common lines: tiles of different heights no longer spread their rows apart.",
+      "Round 4, from the pixel diff: the rail's wordmark sits 24 px from the top (was 28), the places start 36 px under it (was 48) and sub-places 8 px under their place, so Today, its sub-places and the places below line up with the picture within 3 px.",
+      "Round 4: the partial-scope note folds under its \"not sure\" (one press opens it), so the rows start right under the title as in the picture."
     ]
   },
   "S14-Today-Simple": {
@@ -26,7 +28,8 @@
     "fixed": [
       "The wordmark keeps its mono face in Hindi (the Devanagari rule had replaced it).",
       "Rail places in Simple step 48 px (44 px targets with a 4 px gap) instead of 56 px, close to the picture's 46.",
-      "Open review list at the right of the title; the title, partial note and rows as one block; no host bar."
+      "Open review list at the right of the title; the title, partial note and rows as one block; no host bar.",
+      "Round 4: Simple draws the configured figures one to a line (charts one at a time and large) and the partial-scope note folds under \"not sure\"; Simple Today is within 90 words at rest in Hindi and English."
     ]
   },
   "S15-Today-Books": {
@@ -39,7 +42,8 @@
     "fixed": [
       "Rail places in Books step 32 px (8 px gap), as in the picture, instead of 36.",
       "No empty table: with no queue rows the column headers are not drawn (they had no cells under them).",
-      "Open review list at the right of the title; no host bar; title and ledger as one block."
+      "Open review list at the right of the title; no host bar; title and ledger as one block.",
+      "Round 4: the Books rail starts its places 24 px under the wordmark, as in the picture (was 48); the queue and worth-a-look tables scroll inside their own box in a narrow window."
     ]
   },
   "S09-Setup": {

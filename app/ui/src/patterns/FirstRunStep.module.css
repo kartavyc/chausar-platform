@@ -5,6 +5,8 @@
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  /* One bounded track, so the 720 column narrows with the window instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
   background: var(--bg);
   color: var(--fg);
 }
@@ -54,6 +56,15 @@
   max-width: 100%;
   padding: var(--page-top) var(--sp4) var(--sp6);
   outline-offset: calc(-1 * var(--focus));
+}
+/* Under 1024 the column takes the full width; the top bar keeps the frame's side space. */
+@media (max-width: 1023px) {
+  .top {
+    padding: 0 var(--sp4);
+  }
+  .page {
+    width: 100%;
+  }
 }
 
 .steps {

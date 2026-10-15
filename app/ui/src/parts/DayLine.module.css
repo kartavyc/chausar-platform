@@ -70,6 +70,11 @@
   font-size: var(--fs-note2);
   color: var(--fg2);
 }
+/* A note's long word breaks inside its own mark rather than pushing the line past the page. */
+.note {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 
 .folded {
   position: relative;

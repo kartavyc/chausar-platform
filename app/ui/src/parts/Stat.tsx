@@ -34,7 +34,7 @@ export function Stat({ tile, onReceipt, chartWidth, chartHeight, className }: St
     tile.chartState.state === 'missing' ? tile.chartState.reasonCode : tile.chart === undefined ? 'CHART_NOT_PROVIDED' : null;
 
   return (
-    <div className={[s.stat, className].filter(Boolean).join(' ')}>
+    <div className={[s.stat, className].filter(Boolean).join(' ')} data-stat="">
       <span className={s.label}>{tile.label}</span>
       <span className={s.figureLine}>
         <Figure value={tile.figure} size="tile" onReceipt={onReceipt} />

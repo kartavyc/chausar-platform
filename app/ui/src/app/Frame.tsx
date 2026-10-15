@@ -181,7 +181,8 @@ export function Frame({ shell, address, onNavigate, counts, menu, banners = [], 
 
   return (
     <SheetRegistryContext.Provider value={registry}>
-      <div ref={rootRef} className={[s.frame, narrow ? s.narrow : '', wide ? s.wide : '', sheet ? s.withSheet : ''].filter(Boolean).join(' ')}>
+      <div ref={rootRef} className={[s.frame, narrow ? s.narrow : '', wide ? s.wide : '', sheet ? s.withSheet : ''].filter(Boolean).join(' ')}
+        data-frame-wide={wide && !sheet ? 'true' : 'false'} data-frame-narrow={narrow ? 'true' : 'false'}>
         <Rail shell={shell} address={address} onNavigate={onNavigate} counts={counts} narrow={narrow} foot={<WorkspaceMenu {...menu} />} />
         <div className={s.main}>
           {/* Banners run across the full width, above the page and above any open sheet. */}

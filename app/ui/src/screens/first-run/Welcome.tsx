@@ -75,7 +75,6 @@ export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIde
         {onDemo !== undefined ? <Act variant="link" label="FR-01.demo.btn" onClick={onDemo} /> : <Note k="FR-01.demo.notBuilt" />}
         {openWorkspace === null && <Act variant="link" label="FR-01.recover.btn" onClick={onRecover} />}
       </Actions>
-      <Note k="FR-01.memory" />
     </section>
   );
 }

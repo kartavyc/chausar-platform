@@ -22,7 +22,7 @@ import { Chart } from '../../parts/charts/Chart';
 import { State } from '../../patterns/States';
 import type { Mark } from '../../app/presentation.ts';
 import type { TodayScreenProps } from './shared';
-import { ClosingRow, attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections } from './shared';
+import { ClosingRow, attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections, TodayState } from './shared';
 import { CLOSE_STEP_ORDER, type CloseStep, type CloseStepState } from './TodayData.ts';
 import { allowsTodayMutation, todayIntentsForState } from './permissions.ts';
 import s from './Today.module.css';
@@ -106,7 +106,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
     <div className={s.today}>
       <div className={s.lead}>
       <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} aside={<TodayReviewLink data={data} intents={intents} />} />
-      <State state={data.state} />
+      <TodayState state={data.state} />
       <TodayConsumerLedger data={data} intents={intents} />
       </div>
       {data.queueMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.queueMissing')}</p>}
@@ -116,6 +116,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
       {queue.length === 0 ? (
         data.state.kind === 'ready' && <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
       ) : (
+        <div className={s.tableBox} tabIndex={0} role="group" aria-labelledby={titleId}>
         <table className={s.table} aria-labelledby={titleId}>
           <thead>
             <tr>
@@ -167,6 +168,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {data.waiting !== undefined && <p className={s.quiet}>{t('TD-03.waiting', { holder: data.waiting.holder, what: data.waiting.what })}</p>}
@@ -182,6 +184,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
             </p>
           ) : (
             worthRows.length > 0 && (
+              <div className={s.tableBox} tabIndex={0} role="group" aria-labelledby={worthId}>
               <table className={s.table} aria-labelledby={worthId}>
                 <thead>
                   <tr>
@@ -220,6 +223,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
                   ))}
                 </tbody>
               </table>
+              </div>
             )
           )}
           {(worthCut.hidden > 0 || worthSource.showAll) && worthSource.missing === undefined && (

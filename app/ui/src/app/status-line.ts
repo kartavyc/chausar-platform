@@ -25,7 +25,7 @@ const WORDS = {
     simpleSources: 'Your books were last read {date}.',
     simpleNoSources: 'No books are read yet.',
     simpleModel: 'Questions in plain words go to {route}.',
-    simpleNoModel: 'No AI model is connected. The menu still works.',
+    simpleNoModel: 'No AI model yet; the menu still works.',
   },
   hi: {
     sourcesNone: 'अभी कोई स्रोत नहीं',
@@ -41,7 +41,7 @@ const WORDS = {
     simpleSources: 'आपकी बहियाँ आख़िरी बार {date} को पढ़ी गईं।',
     simpleNoSources: 'अभी कोई बही नहीं पढ़ी गई।',
     simpleModel: 'सादे शब्दों के सवाल {route} को जाते हैं।',
-    simpleNoModel: 'कोई AI मॉडल नहीं जुड़ा। मेनू फिर भी काम करता है।',
+    simpleNoModel: 'AI मॉडल नहीं जुड़ा; मेनू फिर भी चलता है।',
   },
 } as const;
 

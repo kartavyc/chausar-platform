@@ -74,6 +74,22 @@
   height: var(--square);
 }
 
+/* Under 1024 (lists one column, down to 360): a row whose words do not fit puts the grey
+   words as written on a second line instead of cutting them. */
+@media (max-width: 1023px) {
+  .what {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding-block: var(--sp1);
+  }
+  .note,
+  .asWritten {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Opened in place: the arrow turns down once. */
 .arrowOpen {
   transform: rotate(90deg);
