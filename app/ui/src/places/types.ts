@@ -37,6 +37,12 @@ export interface PlaceRenderProps {
    * its own and the app window never goes there. Absent: draw the address as text only.
    */
   readonly openLink?: ((url: string) => void) | undefined;
+  /**
+   * BK-04 (frame-today): the FR-07 "Bring a file" flow, bound to the host's file chooser and
+   * engine port. Returns the flow to draw where the place wants it; `onTaken` runs after a file
+   * is taken in. Absent (a viewer seat): draw no "Bring a file" control.
+   */
+  readonly bringFile?: ((options?: { readonly onTaken?: (() => void) | undefined }) => ReactNode) | undefined;
 }
 
 export interface PlaceModule {

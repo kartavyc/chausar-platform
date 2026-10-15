@@ -13,7 +13,8 @@ import s from './Journey.module.css';
 
 const PACKS: ReadonlySet<string> = new Set(['ecommerce', 'services', 'saas', 'manufacturing', 'retail', 'distributor']);
 
-export function ProposedMeanings({ file, propose }: { file: PickedFile; propose: (file: PickedFile) => Promise<ProposalsOutcome> }) {
+/** `settle`: where the meanings are settled; the journey's next step by default, Books · Meanings from a place. */
+export function ProposedMeanings({ file, propose, settle = 'FR-07.proposals.settle' }: { file: PickedFile; propose: (file: PickedFile) => Promise<ProposalsOutcome>; settle?: string }) {
   const t = useT();
   const [outcome, setOutcome] = useState<ProposalsOutcome | null>(null);
   useEffect(() => {
@@ -27,7 +28,7 @@ export function ProposedMeanings({ file, propose }: { file: PickedFile; propose:
     <section className={s.section} data-proposed-meanings={outcome === null ? 'reading' : outcome.kind}>
       <h2 className={s.sectionTitle}>{t('FR-07.proposals.title')}</h2>
       {outcome === null && <Status k="FR-07.proposals.reading" />}
-      {outcome?.kind === 'csv-only' && <Note k="FR-07.proposals.csvOnly" />}
+      {outcome?.kind === 'sheets-only' && <Note k="FR-07.proposals.sheetsOnly" />}
       {outcome?.kind === 'failed' && <FailureLine failure={outcome.failure} notBuilt="FR-07.proposals.notBuilt" refused="FR-07.proposals.refused" />}
       {outcome?.kind === 'ready' && (() => {
         const { proposal } = outcome;
@@ -56,7 +57,7 @@ export function ProposedMeanings({ file, propose }: { file: PickedFile; propose:
             {proposal.skipped.length > 0 && (
               <p className={s.note}>{t('FR-07.proposals.skipped', { columns: proposal.skipped.map(item => item.header).join(', ') })}</p>
             )}
-            <Note k="FR-07.proposals.settle" />
+            <Note k={settle} />
           </>
         );
       })()}

@@ -5,6 +5,11 @@
  *   from this very sheet (same SHA-256 of its text) is shown again rather than built twice.
  * - Otherwise `learningx.dictionaryBuild` { files: [{ content }] } (prepare) profiles the sheet's
  *   columns (names and types, never values) and keeps the result as a draft proposal.
+ * - An Excel sheet is sent the same way as CSV text: the engine's own reading of the workbook
+ *   (`sources.workbook` → `{ sheets: [{ name, rows }] }`, the cells `sources.workbookPreview`
+ *   reads) becomes CSV text here with the engine's quoting (`workbookSheetToCSV`). Only a
+ *   workbook with one sheet is read, as `sources.workbookPreview` does without a chosen sheet.
+ *   A PDF statement has no sheet: "sheets only".
  *
  * Nothing here accepts a meaning: adoption is FR-08's step and the owner's click. Only the
  * parts the list draws are read from a reply, and each is checked first. Column headers come
@@ -13,8 +18,7 @@
  */
 
 import { ReplyValidationError } from '../../bridge/validate.ts';
-import { failureOf, type JourneyFailure, type JourneyPort } from './journey-contracts.ts';
-import type { PickedFile } from './BringFile';
+import { failureOf, type JourneyFailure, type JourneyPort, type PickedFile } from './journey-contracts.ts';
 
 export type MeaningType = 'string' | 'money' | 'date' | 'integer' | 'boolean';
 export type Confidence = 'high' | 'medium' | 'low';
@@ -38,7 +42,7 @@ export interface ProposalView {
 }
 export type ProposalsOutcome =
   | { readonly kind: 'ready'; readonly proposal: ProposalView }
-  | { readonly kind: 'csv-only' }
+  | { readonly kind: 'sheets-only' }
   | { readonly kind: 'failed'; readonly failure: JourneyFailure };
 
 type Rec = Record<string, unknown>;
@@ -87,15 +91,47 @@ async function sha256(textValue: string): Promise<string | null> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+const MAX_SHEET_ROWS = 100_000;
+/** Allocated cells, empty ones included (the engine bounds non-empty cells at 100,000). */
+const MAX_SHEET_CELLS = 2_000_000;
+
+/** `sources.workbook` → the one sheet's cells, checked; more than one sheet needs a chosen sheet. */
+export function validateWorkbookSheet(value: unknown): readonly (readonly string[])[] {
+  const obj = rec(value, 'workbook');
+  const sheets = list(obj['sheets'], 'workbook.sheets', 64);
+  if (sheets.length !== 1) throw Object.assign(new Error('Choose one sheet.'), { code: 'SHEET_REQUIRED' });
+  const sheet = rec(sheets[0], 'workbook.sheets[0]');
+  text(sheet['name'], 'workbook.sheets[0].name');
+  let cells = 0;
+  return list(sheet['rows'], 'workbook.sheets[0].rows', MAX_SHEET_ROWS).map((row, index) => list(row, `workbook.sheets[0].rows[${index}]`, 16_384).map((cell, column) => {
+    if (typeof cell !== 'string' || cell.length > 100_000 || ++cells > MAX_SHEET_CELLS) invalid(`workbook.sheets[0].rows[${index}][${column}]`);
+    return cell as string;
+  }));
+}
+
+/** The engine's own CSV form of a sheet (platform/runtime/workbook.ts `workbookSheetToCSV`). */
+export function sheetToCsv(rows: readonly (readonly string[])[]): string {
+  return rows.map(row => row.map(value => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value).join(',')).join('\n');
+}
+
+/** The sheet's text as learning-ext reads it: the CSV as written, or the Excel sheet as CSV. */
+async function sheetText(rpc: JourneyPort, file: PickedFile): Promise<string | null> {
+  if (file.format === 'csv') return file.content;
+  if (file.format === 'xlsx') return sheetToCsv(validateWorkbookSheet(await rpc.request('sources.workbook', { bytesBase64: file.bytesBase64 })));
+  return null;
+}
+
 /** The draft for one held sheet: an existing proposal for the same text, else a new one. */
 export async function proposalsFor(rpc: JourneyPort, file: PickedFile): Promise<ProposalsOutcome> {
-  if (file.format !== 'csv') return { kind: 'csv-only' };
+  if (file.format === 'pdf') return { kind: 'sheets-only' };
   try {
-    const digest = await sha256(file.content);
+    const content = await sheetText(rpc, file);
+    if (content === null) return { kind: 'sheets-only' };
+    const digest = await sha256(content);
     const existing = validateProposals(await rpc.request('learningx.dictionaryProposals', { limit: 20 }));
     const same = digest === null ? undefined : existing.find(item => item.status === 'proposed' && item.contentHashes.includes(digest));
     if (same !== undefined) return { kind: 'ready', proposal: same };
-    return { kind: 'ready', proposal: validateProposal(await rpc.request('learningx.dictionaryBuild', { files: [{ content: file.content }] })) };
+    return { kind: 'ready', proposal: validateProposal(await rpc.request('learningx.dictionaryBuild', { files: [{ content }] })) };
   } catch (error) {
     return { kind: 'failed', failure: failureOf(error) };
   }
@@ -105,7 +141,7 @@ export async function proposalsFor(rpc: JourneyPort, file: PickedFile): Promise<
 export function proposalCache(rpc: JourneyPort): (file: PickedFile) => Promise<ProposalsOutcome> {
   const held = new Map<string, Promise<ProposalsOutcome>>();
   return file => {
-    const key = file.format === 'csv' ? `csv:${file.content}` : `xlsx:${file.name}`;
+    const key = file.format === 'csv' ? `csv:${file.content}` : `${file.format}:${file.name}:${file.bytesBase64}`;
     let found = held.get(key);
     if (found === undefined) { found = proposalsFor(rpc, file); held.set(key, found); }
     return found;

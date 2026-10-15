@@ -17,7 +17,7 @@ import { nodeDigest, settle } from '../../app/ui/tests/first-run/fixture';
 
 // The actual journey and host controller on the fake engine: synthetic data only, no network,
 // no vault on disk, no model. FR-11 runs on the fake's `todayx.idea.*`; FR-07's proposed
-// meanings on the synthetic learningx fixture, registered only where a test says so.
+// meanings on the synthetic learningx fixture (served by the fake by default since round 4).
 const PASSPHRASE = 'Synthetic idea journey passphrase';
 const flush = async () => { await act(async () => { await settle(); }); };
 const disposers: Array<() => void> = [];
@@ -211,7 +211,9 @@ test('a sheet already proposed is shown again rather than built twice', async ()
 test('when the learningx family is absent the proposed meanings say not built yet', async () => {
   const w = words('en');
   const engine = createFakeEngine({ scenario: 'first-run' });
-  await takeFile(fileRpc(engine));
+  // The fake engine serves learningx by default; an engine without the family refuses it as unknown.
+  const rpc = fileRpc(engine);
+  await takeFile({ request: (method, payload) => method.startsWith('learningx.') ? Promise.reject(Object.assign(Error('absent'), { code: 'UNKNOWN_METHOD' })) : rpc.request(method, payload) });
   await screen.findByText(w('FR-07.proposals.notBuilt'));
   expect(document.querySelector('[data-proposed-meanings]')?.getAttribute('data-proposed-meanings')).toBe('failed');
 });

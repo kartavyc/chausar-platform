@@ -39,6 +39,11 @@ import type { IdeaSection, IdeaUnknown, IdentityCard, IdentityField } from '../.
 /* ------------------------------------------------------------------ the port */
 
 export type ImportFormat = 'csv' | 'xlsx' | 'pdf';
+/** A file brought to FR-07: CSV as text, Excel and PDF as base64 bytes. The name is data. */
+export type PickedFile =
+  | { readonly name: string; readonly format: 'csv'; readonly content: string }
+  | { readonly name: string; readonly format: 'xlsx'; readonly bytesBase64: string }
+  | { readonly name: string; readonly format: 'pdf'; readonly bytesBase64: string };
 export interface ExpectedTotals { readonly rowCount: number; readonly amountMinor: string }
 
 /** A typed, data-only mapping recipe (platform/runtime/ingest.ts `validateRecipe`). */
@@ -95,6 +100,8 @@ export type JourneyPayloads = {
   'sources.import': SheetRequest;
   'sources.workbookPreview': WorkbookRequest;
   'sources.workbookImport': WorkbookRequest;
+  /** The workbook's cells as the engine reads them (`readWorkbook`), for proposed meanings of an Excel sheet. */
+  'sources.workbook': { readonly bytesBase64: string; readonly sheet?: string };
   'ontology.get': Record<string, never>;
   'calculation.run': { readonly operation: string };
   'receipts.get': { readonly id: string };

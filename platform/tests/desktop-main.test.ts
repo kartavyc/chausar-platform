@@ -18,7 +18,7 @@ const demoProfileRoot = join(syntheticTemporary, 'fresh-preview');
 
 async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}, fault?: 'existing-root' | 'ignored-binding' | 'late-binding' | 'lock-denied' | 'unavailable-defaults' | 'unavailable-user-default' | 'unavailable-session-default' | 'unavailable-app-data' | 'invalid-app-data', profileClaimFailure?: Error) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
-  const externalOpens: unknown[][] = [], prints: unknown[][] = [];
+  const externalOpens: unknown[][] = [], prints: unknown[][] = [], openDialogs: unknown[][] = [];
   let databaseCloses = 0;
   const events: string[] = [], diagnostics: string[] = [], directories = new Set<string>([syntheticTemporary]);
   const paths: Record<string, string> = { userData: ownedApp, sessionData: ownedApp };
@@ -80,7 +80,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   class Tray extends EventEmitter { setToolTip() {} setContextMenu(menu: any) { menus.push(menu); } destroy() {} }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, shell: { openExternal: async (...args: unknown[]) => { externalOpens.push(args); } }, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, BrowserWindow: Window, Tray, shell: { openExternal: async (...args: unknown[]) => { externalOpens.push(args); } }, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message), showOpenDialog: async (...args: unknown[]) => { openDialogs.push(args); return { canceled: true, filePaths: [] }; } }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(desktopMain, 'utf8');
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'platform/runtime/native/desktop-database.ts')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: join(ownedApp, 'app', 'desktop'), require: (name: string) => {
@@ -100,7 +100,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     return { state: 'running', url: 'postgresql://chausar:synthetic@127.0.0.1:55400/postgres', close: async () => { databaseCloses++; } };
   } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, diagnostics, handlers, externalOpens, prints, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, diagnostics, handlers, externalOpens, prints, openDialogs, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
 }
 
 test('demo claims new user and session directories before the lock and pins worker storage to that profile', async () => {
@@ -380,4 +380,20 @@ test('shell.print shows the system dialog for the trusted window only, with noth
   assert.equal(window.webContents.open().action, 'deny');
   let prevented = false; window.webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'https://example.com/');
   assert.equal(prevented, true);
+});
+
+test('imports.pickFile (frame-today): the trusted window gets the system dialog, a backup opens in the profile\'s managed backups folder', async () => {
+  const d = await desktop(['--demo', '--ui-preview']);
+  const window = d.windows[0], pick = d.handlers.get('chausar:imports-pick-file');
+  assert.equal(typeof pick, 'function');
+  assert.deepEqual(await pick({ sender: {}, senderFrame: window.webContents.mainFrame }, 'statement'), { outcome: 'refused', code: 'FILE_KIND_REFUSED' });
+  assert.deepEqual(await pick(trustedEvent(window), '/etc/passwd'), { outcome: 'refused', code: 'FILE_KIND_REFUSED' });
+  assert.equal(d.openDialogs.length, 0);
+  assert.deepEqual(await pick(trustedEvent(window), 'statement'), { outcome: 'cancelled' });
+  assert.deepEqual(await pick(trustedEvent(window), 'backup'), { outcome: 'cancelled' });
+  assert.equal(d.openDialogs.length, 2);
+  assert.equal(d.openDialogs[0][0], window, 'the dialog belongs to the app window');
+  // The engine's vault directory for this demo profile, plus `backups`, where workspace.backup writes.
+  const vaults = d.engines[0].options.environment.CHAUSAR_VAULT_DIRECTORY;
+  assert.equal((d.openDialogs[1][1] as { defaultPath: string }).defaultPath, join(vaults, 'backups'));
 });
