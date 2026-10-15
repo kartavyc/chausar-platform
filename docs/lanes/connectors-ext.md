@@ -50,6 +50,10 @@ Measures are money (exact paise as strings and BigInt) or counts (sessions, tick
 | `plainDb.tables`, `plainDb.read` | admin / prepare, external | Read-only PostgreSQL, MySQL and SQLite with the database's own aggregate as the source total. |
 | `credentials.set`, `credentials.remove`, `credentials.status` | admin / admin / read | Keys typed in Trust, credentials go into the sealed local store, never into workspace state; status says only whether one is present. |
 | `schedule` | admin | A repeating read for one connection: interval, freshness target, catch-up rule (`run-once` or `skip`), optional `autoImport`. |
+| `tally.exporter`, `tally.importExport` | prepare | Tally on another computer: a PowerShell script holding the same read-only requests, a one-page guide (English and Hindi), and the answer file replayed through the same reader and recipe. |
+| `tally.companies`, `tally.ledgers` | admin, external | The companies open in Tally and the ledgers of one, for "Which company?" (BK-03). |
+| `recipes.answer`, `recipes.answers`, `recipes.answerRemove` | prepare / read / prepare | Answer a recipe's question in place, for one source and recipe version (BK-05). |
+| `recipes.upgradeDiff`, `recipes.reconcile` | read / prepare | What changed between the recipe a read used and the current one; re-total an import's live facts against the source's own total. |
 
 Methods that reach outside, store a way in, or move secrets (`connect`, `pause`, `disconnect`, `signIn`, `signInComplete`, `read`, `plainDb.*`, `credentials.*`, `schedule`) refuse callers that are not the person at the desktop (`OPEN_DESKTOP` for phone, MCP and source-tainted contexts). Reads check the caller's branch and the source's trust before any request, and the listings show only connections in the caller's branches and allowed sources.
 
@@ -186,7 +190,8 @@ Checked and found sound: origin allowlists including next-page and queued reques
 - 26 export layouts are still unconfirmed (table above); they need a real export from a user or a made-to-order book.
 - Zoho Books net reads are limited to 59 invoices per read by the request budget; a larger period must be read in parts.
 - A `declared` total with a count but no amount still needs the report total; those recipes use `report`, and the read kit enforces the declared count.
-- No screens in this lane; Books, Sources (work-books lane) calls these methods.
+- The Tally exporter's PowerShell script has never run in real Windows PowerShell 5.1 (no Windows here). Its requests are byte-exact and its answer file is tested by replay. Run it once on Windows before calling it more than experimental.
+- Answers to recipe questions are held per source and recipe version. A new recipe version asks again, on purpose: an answer for one version is never carried forward silently.
 
 ## Core and shared edits
 
