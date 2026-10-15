@@ -64,6 +64,55 @@ const WORDS = {
   },
 } as const satisfies Catalogue<Key>;
 
+type ProvKey =
+  | 'recipe' | 'recipeNoDate' | 'recipeNotRecorded' | 'recipesNone' | 'reviewed' | 'reviewedOnly' | 'reviewNotRecorded'
+  | 'forecast' | 'forecastNone' | 'rule' | 'ruleNotRecorded' | 'provenanceNone' | 'provenance';
+const PROVENANCE = {
+  en: {
+    provenance: 'Who and what allowed this',
+    recipe: 'Recipe {recipe} accepted by {who} on {date}', recipeNoDate: 'Recipe {recipe} accepted by {who}', recipeNotRecorded: 'Recipe {recipe}: who accepted it is not recorded yet.',
+    recipesNone: 'Who accepted the recipes is not recorded yet.',
+    reviewed: 'Meaning reviewed by {reviewer}, co-signed by {cosigner}', reviewedOnly: 'Meaning reviewed by {reviewer}. A co-signer is not recorded yet.',
+    reviewNotRecorded: 'Who reviewed the meaning is not recorded yet.',
+    forecast: 'Forecast by {method}, learned from {learned}, tested on {tested}', forecastNone: 'No forecast line is recorded on this receipt.',
+    rule: 'Allowed by rule {ruleId}, check {check}, on {device}', ruleNotRecorded: 'The rule and the check that allowed this are not recorded yet.',
+    provenanceNone: 'Who accepted the recipes, who reviewed the meaning and which rule allowed this are not recorded yet.',
+  },
+  hi: {
+    provenance: 'किसने और किस नियम ने इसकी अनुमति दी',
+    recipe: 'तरीका {recipe} को {who} ने {date} को स्वीकार किया', recipeNoDate: 'तरीका {recipe} को {who} ने स्वीकार किया', recipeNotRecorded: 'तरीका {recipe}: किसने स्वीकार किया, यह अभी दर्ज नहीं है।',
+    recipesNone: 'तरीके किसने स्वीकार किए, यह अभी दर्ज नहीं है।',
+    reviewed: 'अर्थ की समीक्षा {reviewer} ने की, सह-हस्ताक्षर {cosigner} ने किए', reviewedOnly: 'अर्थ की समीक्षा {reviewer} ने की। सह-हस्ताक्षर करने वाला अभी दर्ज नहीं है।',
+    reviewNotRecorded: 'अर्थ की समीक्षा किसने की, यह अभी दर्ज नहीं है।',
+    forecast: '{method} से अनुमान, {learned} से सीखा, {tested} पर परखा', forecastNone: 'इस रसीद पर अनुमान की कोई पंक्ति दर्ज नहीं है।',
+    rule: 'नियम {ruleId}, जाँच {check} से अनुमति मिली, {device} पर', ruleNotRecorded: 'किस नियम और किस जाँच ने इसकी अनुमति दी, यह अभी दर्ज नहीं है।',
+    provenanceNone: 'तरीके किसने स्वीकार किए, अर्थ की समीक्षा किसने की और किस नियम ने अनुमति दी, यह अभी दर्ज नहीं है।',
+  },
+} as const satisfies Catalogue<ProvKey>;
+
+/** AS-05 provenance in the small print: each part, or words that it is not recorded yet. */
+function ProvenanceLines({ provenance: p }: { provenance: ReceiptReply['provenance'] }) {
+  const ask = useAsk(), w = useWords(PROVENANCE), receipt = useWords(WORDS), lang = ask.language;
+  if (p === null) return <p className={s.small} data-provenance="none">{w.provenanceNone}</p>;
+  const lines: { key: string; text: string }[] = [];
+  if (p.recipes.length === 0) lines.push({ key: 'recipes', text: w.recipesNone });
+  for (const r of p.recipes) {
+    lines.push({ key: `recipe-${r.sourceId}-${r.recipeId}`, text: r.acceptedBy === null ? fill(w.recipeNotRecorded, { recipe: r.recipeId })
+      : r.acceptedAt === null ? fill(w.recipeNoDate, { recipe: r.recipeId, who: r.acceptedBy }) : fill(w.recipe, { recipe: r.recipeId, who: r.acceptedBy, date: dayText(r.acceptedAt, lang) }) });
+  }
+  const m = p.meaning;
+  lines.push({ key: 'meaning', text: m === null || m.reviewedBy === null ? w.reviewNotRecorded
+    : m.coSignedBy === null ? fill(w.reviewedOnly, { reviewer: m.reviewedBy }) : fill(w.reviewed, { reviewer: m.reviewedBy, cosigner: m.coSignedBy }) });
+  lines.push({ key: 'forecast', text: p.forecast === null ? w.forecastNone
+    : fill(w.forecast, { method: p.forecast.method, learned: periodText(p.forecast.learnedFrom, lang), tested: periodText(p.forecast.testedOn, lang) }) });
+  lines.push({ key: 'rule', text: p.allowedBy === null ? w.ruleNotRecorded : fill(w.rule, { ruleId: p.allowedBy.ruleId, check: p.allowedBy.check, device: receipt[p.allowedBy.device] }) });
+  return (
+    <ul className={s.plain} aria-label={w.provenance} data-provenance="">
+      {lines.map(l => <li key={l.key} className={s.small}>{l.text}</li>)}
+    </ul>
+  );
+}
+
 export function ReceiptScreen({ view }: { view: Extract<AskView, { kind: 'receipt' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
   const [load, retry] = useRead(`receipt|${view.receiptId}`, () => call(ask.rpc, 'askx.receipt', { receiptId: view.receiptId }, receiptReply));
@@ -104,6 +153,7 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
       <p className={s.small} data-meaning-version="">
         {r.meaning === null ? w.meaningUnknown : fill(w.meaningVersion, { version: n(r.meaning.version), by: r.meaning.publishedBy, date: dayText(r.meaning.publishedAt, lang) })}
       </p>
+      <ProvenanceLines provenance={r.provenance} />
     </div>
   );
 

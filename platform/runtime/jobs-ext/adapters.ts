@@ -45,7 +45,11 @@ function validPrice(value: any, routeId: string): RoutePrice | null {
  */
 export async function routePrice(host: Pick<ModuleHost, 'call' | 'options' | 'store'>, routeId: string): Promise<RoutePrice> {
   check(typeof routeId === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(routeId), 'INVALID_ROUTE', 'Name one model route.');
-  const fromModels = await optionalCall(host, 'modelsx.price', { routeId });
+  // models-ext prices the gateway's configured routes. A route it does not know (ROUTE_NOT_FOUND) is not priced
+  // there: fall through to host prices and the local rule. Its other refusals (ROUTE_ESTIMATE_UNAVAILABLE) stand.
+  let fromModels: Optional<unknown>;
+  try { fromModels = await optionalCall(host, 'modelsx.price', { routeId }); }
+  catch (error) { if ((error as { code?: string }).code !== 'ROUTE_NOT_FOUND') throw error; fromModels = { available: false, code: 'ROUTE_NOT_FOUND' }; }
   if (fromModels.available) {
     const price = validPrice(fromModels.value, routeId);
     check(price, 'ROUTE_PRICE_INVALID', 'The route pricing table returned an unusable price.');

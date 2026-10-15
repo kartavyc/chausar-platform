@@ -4,10 +4,13 @@
  *
  * The menu is the way to ask when no model is connected: a calculation and a period chosen
  * from short lists run as they are. A typed question is only understood first; nothing runs
- * until the person presses Run, and a corrected proposal is sent with what it corrected, as
- * structure only. An answer opens on its own page.
+ * until the person presses Run. Change asks the engine for the changed proposal (askx.change),
+ * which records nothing; when that method is not built the change is made here. Either way Run
+ * sends what was corrected against the first proposal, as structure only. A sentence that tells rather than
+ * asks is offered to Memory (askx.tell). Every Not yet offers Ask a person. An answer opens on
+ * its own page.
  */
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { Catalogue } from '../../../places/types.ts';
 import type { RowItem } from '../../../app/presentation.ts';
 import { RowList } from '../../../parts/RowList';
@@ -16,11 +19,12 @@ import { Field } from '../../../parts/Field';
 import { Choice } from '../../../parts/Choice';
 import { Label } from '../../../parts/Label';
 import { State } from '../../../patterns/States';
-import { AskPage, fill, periodText, useAsk, useRead, useWords, type AskView } from './kit';
-import { call, type Period } from './client.ts';
+import { Figure, MissingWords } from '../../../parts/Figure';
+import { AskPage, figureOf, fill, periodText, useAsk, useRead, useWords, type AskView } from './kit';
+import { call, type Period, type Reply } from './client.ts';
 import {
-  menuReply, runReply, suggestReply, understandReply,
-  type MenuItem, type MenuReply, type RuleKind, type PeriodChoice, type PeriodId, type Topic, type UnderstandReply,
+  askPersonReply, menuReply, runReply, suggestReply, tellReply, understandReply,
+  type DataNeed, type MenuItem, type MenuReply, type RuleKind, type PeriodChoice, type PeriodId, type RunReply, type TellReply, type Topic, type UnderstandReply,
 } from './core-replies.ts';
 import { Refusal, understoodText, useExplain } from './core-words';
 import s from './core.module.css';
@@ -75,6 +79,36 @@ const WORDS = {
   },
 } as const satisfies Catalogue<Key>;
 
+type MoreKey =
+  | 'needsData' | 'loadedNote' | 'openGst2b' | 'openSources' | 'sourcesNote' | DataNeed
+  | 'askPerson' | 'askPersonDone' | 'askPersonBusy'
+  | 'tellTitle' | 'tellAsk' | 'tellKeep' | 'tellBusy' | 'tellDone' | 'openMemory' | 'tellViewer' | 'preference' | 'claim'
+  | 'sideBySide' | 'sideLead' | 'sideMeasure' | 'noMeaning' | 'openAnswer' | 'sideBusy' | 'changing';
+const MORE = {
+  en: {
+    needsData: 'Not yet. Needs data: {data}.', loadedNote: 'That data is loaded, but no calculation answers this question yet.',
+    openGst2b: 'Open purchases against GSTR-2B', openSources: 'Open Books › Sources', sourcesNote: 'Load it in Books › Sources.',
+    gstr2b: 'the GSTR-2B file', form26as: 'Form 26AS', stock: 'stock counts', 'bank-statement': 'a bank statement', payroll: 'payroll records',
+    askPerson: 'Ask a person', askPersonBusy: 'Saving the page…', askPersonDone: 'A page with your question was saved for your accountant. Chausar has not sent it to anyone.',
+    tellTitle: 'You told Chausar something', tellAsk: 'Keep this for Chausar to remember? It waits until the owner confirms it in Books › Memory.',
+    tellKeep: 'Keep it', tellBusy: 'Proposing…', tellDone: 'Proposed to Memory. It waits until the owner confirms it in Books › Memory.', openMemory: 'Open Books › Memory',
+    tellViewer: 'This seat can read, not change, so it cannot keep this.', preference: 'A preference', claim: 'A fact about the business',
+    sideBySide: 'Show them side by side', sideLead: 'These are different measures. Each figure opens its own receipt.', sideMeasure: 'Measure {n}: {label}',
+    noMeaning: 'No meaning is written for this one yet.', openAnswer: 'Open this answer', sideBusy: 'Working out each one…', changing: 'Changing it…',
+  },
+  hi: {
+    needsData: 'अभी नहीं। डेटा चाहिए: {data}।', loadedNote: 'वह डेटा लोड है, पर अभी कोई गणना इस सवाल का जवाब नहीं देती।',
+    openGst2b: 'GSTR-2B से ख़रीद का मिलान खोलें', openSources: 'Books › स्रोत खोलें', sourcesNote: 'इसे Books › स्रोत में लोड करें।',
+    gstr2b: 'GSTR-2B फ़ाइल', form26as: 'फ़ॉर्म 26AS', stock: 'स्टॉक की गिनती', 'bank-statement': 'बैंक स्टेटमेंट', payroll: 'वेतन के रिकॉर्ड',
+    askPerson: 'किसी व्यक्ति से पूछें', askPersonBusy: 'पेज सहेजा जा रहा है…', askPersonDone: 'आपके सवाल वाला एक पेज आपके अकाउंटेंट के लिए सहेजा गया। Chausar ने इसे किसी को नहीं भेजा है।',
+    tellTitle: 'आपने Chausar को कुछ बताया', tellAsk: 'क्या Chausar इसे याद रखे? यह तब तक रुका रहेगा जब तक मालिक Books › Memory में इसकी पुष्टि न करें।',
+    tellKeep: 'याद रखें', tellBusy: 'प्रस्ताव भेजा जा रहा है…', tellDone: 'Memory में प्रस्तावित। यह तब तक रुका है जब तक मालिक Books › Memory में इसकी पुष्टि न करें।', openMemory: 'Books › Memory खोलें',
+    tellViewer: 'यह सीट पढ़ सकती है, बदल नहीं सकती, इसलिए इसे रख नहीं सकती।', preference: 'एक पसंद', claim: 'व्यवसाय के बारे में एक बात',
+    sideBySide: 'दोनों साथ-साथ दिखाएँ', sideLead: 'ये अलग-अलग माप हैं। हर आँकड़ा अपनी रसीद खोलता है।', sideMeasure: 'माप {n}: {label}',
+    noMeaning: 'इसका अर्थ अभी लिखा नहीं गया।', openAnswer: 'यह जवाब खोलें', sideBusy: 'हर एक का हिसाब निकाला जा रहा है…', changing: 'बदला जा रहा है…',
+  },
+} as const satisfies Catalogue<MoreKey>;
+
 type Proposed = Extract<UnderstandReply, { kind: 'proposal' }>;
 type Flow =
   | { readonly kind: 'idle' }
@@ -83,9 +117,10 @@ type Flow =
   | { readonly kind: 'refused'; readonly code: string; readonly rule?: RuleKind }
   | { readonly kind: 'not-applicable'; readonly reason: 'composition' | 'unregistered' }
   | { readonly kind: 'needs'; readonly item: MenuItem }
-  | { readonly kind: 'proposal'; readonly reply: Proposed; readonly changing: boolean; readonly op: string; readonly periodId: PeriodId | null; readonly branch: string | null }
+  | { readonly kind: 'proposal'; readonly reply: Proposed; readonly original: Proposed['proposal']; readonly changing: boolean; readonly op: string; readonly periodId: PeriodId | null; readonly branch: string | null; readonly pending?: boolean; readonly problem?: string | null }
   | { readonly kind: 'choose'; readonly reply: Extract<UnderstandReply, { kind: 'choose' }> }
-  | { readonly kind: 'no-match'; readonly reply: Extract<UnderstandReply, { kind: 'no-match' }> };
+  | { readonly kind: 'no-match'; readonly reply: Extract<UnderstandReply, { kind: 'no-match' }>; readonly question: string }
+  | { readonly kind: 'statement'; readonly reply: Extract<UnderstandReply, { kind: 'statement' }> };
 
 export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
@@ -124,8 +159,9 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
     if (reply.kind === 'refused') return setFlow({ kind: 'refused', code: reply.code });
     const v = reply.value;
     if (v.kind === 'refused') return setFlow({ kind: 'refused', code: v.code });
-    if (v.kind === 'proposal') return setFlow({ kind: 'proposal', reply: v, changing: false, op: v.proposal.operationId, periodId: v.proposal.periodId, branch: v.proposal.branch });
-    setFlow(v.kind === 'choose' ? { kind: 'choose', reply: v } : { kind: 'no-match', reply: v });
+    if (v.kind === 'proposal') return setFlow({ kind: 'proposal', reply: v, original: v.proposal, changing: false, op: v.proposal.operationId, periodId: v.proposal.periodId, branch: v.proposal.branch });
+    if (v.kind === 'statement') return setFlow({ kind: 'statement', reply: v });
+    setFlow(v.kind === 'choose' ? { kind: 'choose', reply: v } : { kind: 'no-match', reply: v, question: text });
   }
 
   return (
@@ -230,7 +266,7 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
   flow: Flow; setFlow: (f: Flow) => void; run: (payload: Record<string, unknown>) => void;
   periodId: PeriodId | null; when: Record<string, unknown>; periods: readonly PeriodChoice[]; byId: ReadonlyMap<string, MenuItem>;
 }) {
-  const ask = useAsk(), w = useWords(WORDS);
+  const ask = useAsk(), w = useWords(WORDS), more = useWords(MORE);
   const [compare, setCompare] = useState<PeriodId | null>(null);
   const [onDate, setOnDate] = useState('');
   const toReceipt = (receiptId: string) => ask.go({ kind: 'receipt', receiptId });
@@ -265,10 +301,26 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
       const { reply, op, branch } = flow, p = reply.proposal, o = reply.options;
       const opLabel = o.operations.find(x => x.operationId === op)?.label ?? byId.get(op)?.label ?? p.label;
       const chosenPeriod = flow.periodId === null ? p.period : o.periods.find(x => x.id === flow.periodId)?.period ?? p.period;
-      const periodChanged = flow.periodId !== p.periodId, groupChanged = branch !== p.branch, changed = op !== p.operationId || periodChanged || groupChanged;
+      /* Corrections are measured against the first proposal, however many changes came between. */
+      const first = flow.original;
+      const periodChanged = flow.periodId !== first.periodId, groupChanged = branch !== first.branch, changed = op !== first.operationId || periodChanged || groupChanged;
+      const change = async (to: { operationId?: string; periodId?: PeriodId; branch?: string | null }) => {
+        const local: Flow = { ...flow, ...(to.operationId === undefined ? {} : { op: to.operationId }), ...(to.periodId === undefined ? {} : { periodId: to.periodId }), ...('branch' in to ? { branch: to.branch ?? null } : {}), problem: null };
+        setFlow({ ...local, pending: true });
+        const reply = await call(ask.rpc, 'askx.change', {
+          operationId: op, ...(flow.periodId === null ? { period: chosenPeriod } : { periodId: flow.periodId }), branch, change: to,
+        }, understandReply);
+        if (!ask.live()) return;
+        // Not built yet: the correction is kept here and sent with Run.
+        if (reply.kind === 'not-built') return setFlow({ ...local, pending: false });
+        if (reply.kind === 'refused') return setFlow({ ...flow, pending: false, problem: reply.code });
+        const v = reply.value;
+        if (v.kind !== 'proposal') return setFlow({ ...flow, pending: false, problem: v.kind === 'refused' ? v.code : 'INVALID_REPLY' });
+        setFlow({ kind: 'proposal', reply: v, original: first, changing: true, op: v.proposal.operationId, periodId: v.proposal.periodId, branch: v.proposal.branch, pending: false, problem: null });
+      };
       const go = () => run({
         operationId: op, ...(flow.periodId === null ? { period: p.period } : { periodId: flow.periodId }), branch,
-        ...(changed ? { correctedFrom: { operationId: p.operationId, periodChanged, groupChanged } } : {}),
+        ...(changed ? { correctedFrom: { operationId: first.operationId, periodChanged, groupChanged } } : {}),
       });
       const operations = o.operations.some(x => x.operationId === p.operationId) ? o.operations : [{ operationId: p.operationId, label: p.label }, ...o.operations];
       return (
@@ -280,16 +332,18 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
           </p>
           {flow.changing && (
             <div className={s.section}>
-              {operations.length > 1 && <Choice label={w.changeCalc} options={operations.map(x => ({ value: x.operationId, label: x.label }))} value={op} onChange={v => setFlow({ ...flow, op: v })} />}
-              {o.periods.length > 0 && <Choice<PeriodId> label={w.changePeriod} options={o.periods.map(x => ({ value: x.id, label: w[x.id] }))} value={flow.periodId} onChange={v => setFlow({ ...flow, periodId: v })} />}
+              {operations.length > 1 && <Choice label={w.changeCalc} options={operations.map(x => ({ value: x.operationId, label: x.label }))} value={op} onChange={v => { if (v !== op) void change({ operationId: v }); }} />}
+              {o.periods.length > 0 && <Choice<PeriodId> label={w.changePeriod} options={o.periods.map(x => ({ value: x.id, label: w[x.id] }))} value={flow.periodId} onChange={v => { if (v !== flow.periodId) void change({ periodId: v }); }} />}
               {o.branches.length > 0 && (
                 <Choice label={w.changeGroup} options={[{ value: '', label: w.everyone }, ...o.branches.map(b => ({ value: `b:${b}`, label: b }))]}
-                  value={branch === null ? '' : `b:${branch}`} onChange={v => setFlow({ ...flow, branch: v === '' ? null : v.slice(2) })} />
+                  value={branch === null ? '' : `b:${branch}`} onChange={v => { const next = v === '' ? null : v.slice(2); if (next !== branch) void change({ branch: next }); }} />
               )}
+              {flow.pending === true && <p className={s.note} role="status">{more.changing}</p>}
+              {flow.problem !== undefined && flow.problem !== null && <Refusal code={flow.problem} />}
             </div>
           )}
           <div className={s.actions}>
-            <Button variant="filled" onClick={go}>{w.run}</Button>
+            <Button variant="filled" disabled={flow.pending === true} onClick={go}>{w.run}</Button>
             <Button variant="link" onClick={() => setFlow({ kind: 'idle' })}>{w.cancel}</Button>
           </div>
         </section>
@@ -302,15 +356,34 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
         <section className={s.section} aria-labelledby="ask-choose" data-choose="">
           <h2 id="ask-choose" className={s.heading}>{w.choose}</h2>
           <RowList labelledBy="ask-choose" rows={rows} onOpen={opId => runOp(opId, pid)} onReceipt={toReceipt} />
+          {flow.reply.choices.length > 1 && <SideBySide key={flow.reply.choices.map(c => c.operationId).join('|')} choices={flow.reply.choices} periodId={pid} />}
         </section>
       );
     }
+    case 'statement': return <Tell key={flow.reply.text} text={flow.reply.text} kind={flow.reply.memoryKind} />;
     case 'no-match': {
       const r = flow.reply;
+      if (r.reason === 'needs-data') {
+        const sentence = fill(more.needsData, { data: more[r.need] }), gst = r.loaded && r.need === 'gstr2b';
+        return (
+          <section className={s.section} aria-label={sentence} data-not-yet="" data-needs={r.need}>
+            <p className={s.text}>{sentence}</p>
+            {r.loaded ? <p className={s.note}>{more.loadedNote}</p> : <p className={s.note}>{more.sourcesNote}</p>}
+            <div className={s.actions}>
+              {gst
+                ? <Button variant="link" onClick={() => ask.go({ kind: 'gst2b' })}>{more.openGst2b}</Button>
+                : <Button variant="link" onClick={() => ask.leave({ place: 'books', sub: 'sources' })}>{more.openSources}</Button>}
+              <Button variant="link" onClick={() => ask.go({ kind: 'notyet' })}>{w.seeWanted}</Button>
+            </div>
+            <AskPerson question={flow.question} reason={sentence} />
+          </section>
+        );
+      }
+      const detail = r.reason === 'unknown-word' && r.word !== null ? fill(w.unknownWord, { word: r.word }) : w[r.reason === 'unknown-word' ? 'no-calculation' : r.reason];
       return (
         <section className={s.section} aria-label={w.notYet} data-not-yet="">
           <p className={s.text}>{w.notYet}</p>
-          <p className={s.note}>{r.reason === 'unknown-word' && r.word !== null ? fill(w.unknownWord, { word: r.word }) : w[r.reason === 'unknown-word' ? 'no-calculation' : r.reason]}</p>
+          <p className={s.note}>{detail}</p>
           {!(r.reason === 'unknown-word' && r.word !== null) && <p className={s.note}>{w.onList}</p>}
           {r.nearby.length > 0 && (
             <>
@@ -319,8 +392,119 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
             </>
           )}
           <div className={s.actions}><Button variant="link" onClick={() => ask.go({ kind: 'notyet' })}>{w.seeWanted}</Button></div>
+          <AskPerson question={flow.question} reason={`${w.notYet} ${detail}`} />
         </section>
       );
     }
   }
+}
+
+type Step<T> = { readonly kind: 'idle' | 'busy' } | { readonly kind: 'done'; readonly value: T } | { readonly kind: 'not-built' } | { readonly kind: 'refused'; readonly code: string };
+const stepOf = <T,>(reply: Reply<T>): Step<T> => reply.kind === 'ok' ? { kind: 'done', value: reply.value } : reply.kind === 'not-built' ? { kind: 'not-built' } : { kind: 'refused', code: reply.code };
+
+/**
+ * AS-08 Ask a person: a page with the question and the Not yet sentence, saved for the
+ * accountant through the reports lane. It is prepared, never sent; a viewer seat has no button.
+ */
+function AskPerson({ question, reason }: { question: string; reason: string }) {
+  const ask = useAsk(), more = useWords(MORE);
+  const [step, setStep] = useState<Step<{ sent: false }>>({ kind: 'idle' });
+  if (ask.viewer) return null;
+  async function send() {
+    setStep({ kind: 'busy' });
+    const reply = await call(ask.rpc, 'reportsx.askPerson', { question, reason }, askPersonReply);
+    if (ask.live()) setStep(stepOf(reply));
+  }
+  return (
+    <div className={s.block} data-ask-person="">
+      {step.kind === 'done'
+        ? <p className={s.note} role="status">{more.askPersonDone}</p>
+        : <div className={s.actions}><Button disabled={step.kind === 'busy'} onClick={() => void send()}>{step.kind === 'busy' ? more.askPersonBusy : more.askPerson}</Button></div>}
+      {step.kind === 'not-built' && <State state={{ kind: 'not-built' }} />}
+      {step.kind === 'refused' && <Refusal code={step.code} />}
+    </div>
+  );
+}
+
+/**
+ * Telling, not asking (SH-04, BK-17): the sentence is offered to Memory as a proposed line. It
+ * changes nothing until the owner confirms it in Books › Memory. A viewer seat has no button.
+ */
+function Tell({ text, kind }: { text: string; kind: 'preference' | 'claim' }) {
+  const ask = useAsk(), more = useWords(MORE);
+  const [step, setStep] = useState<Step<TellReply>>({ kind: 'idle' });
+  async function keep() {
+    setStep({ kind: 'busy' });
+    const reply = await call(ask.rpc, 'askx.tell', { text, kind }, tellReply);
+    if (ask.live()) setStep(stepOf(reply));
+  }
+  const proposed = step.kind === 'done' && step.value.state === 'proposed';
+  return (
+    <section className={s.section} aria-label={more.tellTitle} data-statement={kind}>
+      <h2 className={s.heading}>{more.tellTitle}</h2>
+      <p className={s.text}>{text}</p>
+      <p className={s.small}>{more[kind]}</p>
+      {proposed ? (
+        <p className={s.note} role="status" data-told="">{more.tellDone} <Button variant="link" onClick={() => ask.leave({ place: 'books', sub: 'memory' })}>{more.openMemory}</Button></p>
+      ) : ask.viewer ? <p className={s.note}>{more.tellViewer}</p> : (
+        <>
+          <p className={s.note}>{more.tellAsk}</p>
+          <div className={s.actions}><Button variant="filled" disabled={step.kind === 'busy'} onClick={() => void keep()}>{step.kind === 'busy' ? more.tellBusy : more.tellKeep}</Button></div>
+        </>
+      )}
+      {(step.kind === 'not-built' || (step.kind === 'done' && step.value.state === 'not-built')) && <State state={{ kind: 'not-built' }} />}
+      {step.kind === 'refused' && <Refusal code={step.code} />}
+    </section>
+  );
+}
+
+type MeaningChoice = { readonly operationId: string; readonly label: string; readonly meaning: string | null };
+/**
+ * AS-04 two meanings side by side: each choice is run for the same period and drawn in its own
+ * column, labelled as a different measure with its meaning, its figure opening its own receipt.
+ */
+function SideBySide({ choices, periodId }: { choices: readonly MeaningChoice[]; periodId: PeriodId | null }) {
+  const ask = useAsk(), more = useWords(MORE);
+  const [shown, setShown] = useState<null | 'busy' | readonly { choice: MeaningChoice; reply: Reply<RunReply> }[]>(null);
+  async function show() {
+    setShown('busy');
+    const replies = await Promise.all(choices.map(choice => call(ask.rpc, 'askx.run', { operationId: choice.operationId, ...(periodId === null ? {} : { periodId }) }, runReply)));
+    if (ask.live()) setShown(choices.map((choice, i) => ({ choice, reply: replies[i]! })));
+  }
+  if (shown === null || shown === 'busy') {
+    return <div className={s.actions}><Button disabled={shown === 'busy'} onClick={() => void show()}>{shown === 'busy' ? more.sideBusy : more.sideBySide}</Button></div>;
+  }
+  const open = (receiptId: string) => ask.go({ kind: 'receipt', receiptId });
+  return (
+    <div className={s.block} data-side-by-side="">
+      <p className={s.note}>{more.sideLead}</p>
+      <div className={s.columns}>
+        {shown.map(({ choice, reply }, i) => {
+          const title = fill(more.sideMeasure, { n: i + 1, label: choice.label });
+          let body: ReactNode;
+          if (reply.kind === 'not-built') body = <State state={{ kind: 'not-built' }} />;
+          else if (reply.kind === 'refused') body = <Refusal code={reply.code} />;
+          else if (reply.value.kind === 'refused') body = <Refusal code={reply.value.code} rule={reply.value.rule} />;
+          else if (reply.value.kind === 'not-applicable') body = <MissingWords missing="not-applicable" />;
+          else {
+            const a = reply.value, f = a.figures[0];
+            body = (
+              <>
+                {f === undefined ? <MissingWords missing="absent" /> : <Figure size="tile" value={figureOf(f.unit, f.minor, a.receiptId, a.labels.filter(l => l === 'seed' || l === 'what-if'))} onReceipt={open} />}
+                {a.period !== null && <p className={s.small}>{periodText(a.period, ask.language)}</p>}
+                <div className={s.actions}><Button variant="link" onClick={() => ask.go({ kind: 'answer', receiptId: a.receiptId })}>{more.openAnswer}</Button></div>
+              </>
+            );
+          }
+          return (
+            <section key={choice.operationId} className={s.column} aria-label={title} data-measure={choice.operationId}>
+              <h3 className={s.heading}>{title}</h3>
+              <p className={s.note}>{choice.meaning ?? more.noMeaning}</p>
+              {body}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

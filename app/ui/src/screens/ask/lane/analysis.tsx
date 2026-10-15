@@ -10,12 +10,14 @@ import type { Language } from '../../../app/presentation.ts';
 import type { Catalogue } from '../../../places/types.ts';
 import { call, fail, id, list, obj, oneOf, period, str, type Period } from './client.ts';
 import { useAsk, useWords } from './kit';
+import { stopReply } from './core-replies.ts';
+import { Button } from '../../../parts/Button';
 import s from './analysis.module.css';
 
 type Code =
   | 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_NO_DICTIONARY' | 'ASK_STOPPED_BY_RULE' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE'
   | 'ASK_NOT_GROUPABLE' | 'ASK_BRIDGE_NOT_EXACT' | 'ASK_NOT_FORECASTABLE' | 'ASK_NO_CALCULATION' | 'ASK_FORECAST_GAPS'
-  | 'REQUEST_FAILED' | 'INVALID_REPLY' | 'NOT_BUILT' | 'FORBIDDEN' | 'VAULT_LOCKED' | 'OTHER';
+  | 'REQUEST_FAILED' | 'INVALID_REPLY' | 'NOT_BUILT' | 'FORBIDDEN' | 'VAULT_LOCKED' | 'OTHER' | 'ASK_STOPPED';
 const REFUSALS = {
   en: {
     ASK_CANNOT_REBUILD: 'Something this used was deleted, so it cannot be rebuilt.',
@@ -37,6 +39,7 @@ const REFUSALS = {
     FORBIDDEN: 'This seat can read, not change.',
     VAULT_LOCKED: 'The vault is locked.',
     OTHER: 'This did not work. Nothing was changed.',
+    ASK_STOPPED: 'Stopped as you asked. The unfinished answer was not kept.',
   },
   hi: {
     ASK_CANNOT_REBUILD: 'इसमें इस्तेमाल हुई एक चीज़ हटा दी गई, इसलिए इसे फिर से नहीं बनाया जा सकता।',
@@ -58,6 +61,7 @@ const REFUSALS = {
     FORBIDDEN: 'यह सीट पढ़ सकती है, बदल नहीं सकती।',
     VAULT_LOCKED: 'तिजोरी बंद है।',
     OTHER: 'यह नहीं हुआ। कुछ नहीं बदला।',
+    ASK_STOPPED: 'आपके कहने पर रोका गया। अधूरा जवाब रखा नहीं गया।',
   },
 } as const satisfies Catalogue<Code>;
 
@@ -95,6 +99,34 @@ export function useSend() {
     else setProblem(reply.kind === 'not-built' ? 'NOT_BUILT' : reply.code);
   }, [ask]);
   return { busy, problem, send, clear: () => setProblem(null) };
+}
+
+const STOP = {
+  en: { stop: 'Stop', stopping: 'Stopping…' },
+  hi: { stop: 'रोकें', stopping: 'रोका जा रहा है…' },
+} as const satisfies Catalogue<'stop' | 'stopping'>;
+
+/**
+ * SH-04 Stop: shown while a forecast, a plan or a run of checks is being worked out. It asks
+ * the engine to stop (askx.stop); the pending call then refuses with ASK_STOPPED, which the
+ * page says in words. The unfinished answer is not kept.
+ */
+export function StopButton() {
+  const ask = useAsk(), w = useWords(STOP);
+  const [stopping, setStopping] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function stop() {
+    setStopping(true); setProblem(null);
+    const reply = await call(ask.rpc, 'askx.stop', {}, stopReply);
+    if (!ask.live()) return;
+    if (reply.kind !== 'ok') { setStopping(false); setProblem(reply.kind === 'not-built' ? 'NOT_BUILT' : reply.code); }
+  }
+  return (
+    <span data-ask-stop="">
+      <Button disabled={stopping} onClick={() => void stop()}>{stopping ? w.stopping : w.stop}</Button>
+      <Problem code={problem} />
+    </span>
+  );
 }
 
 /**

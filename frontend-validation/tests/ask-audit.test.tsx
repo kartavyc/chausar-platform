@@ -44,7 +44,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 /* AS-01: the plain calendar. */
 const menu = {
-  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14',
+  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14', branches: [],
   topics: [{ topic: 'sales', items: [{ operationId: 'sales.invoiced', label: 'Invoiced by customer', type: 'sum', topic: 'sales', needs: ['period'], meaning: null }] }],
   periods: [{ id: 'this-month', period: { from: '2026-10-01', to: '2026-10-31' } }, { id: 'last-month', period: sep }],
 };
@@ -115,7 +115,7 @@ const receipt = {
   versions: { app: '1.0.0', dictionary: 3, dictionaryHash: 'dh', definitionHash: 'defh', recipes: ['h1'], calculator: 'calc-2' },
   allowedBy: { memberId: 'owner-1', role: 'owner', device: 'mcp', at: '2026-10-14T09:00:00.000Z' },
   labels: [], notCounted: 0, fx: [{ from: 'USD', to: 'INR', rate: '8350/100', on: '2026-09-30' }], sent: { kind: 'nothing' },
-  meaning: null, demo: false,
+  meaning: null, demo: false, provenance: null,
 };
 
 test('the receipt small print carries the way in, the recipe state, the rate and the decision that allowed it, in Simple too', async () => {
@@ -229,8 +229,8 @@ test('the not-yet list heading is one template in each language', async () => {
 
 /* AS-19. */
 const gst = {
-  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', leftOut: 3,
-  groups: [{ group: 'matched', count: 12, taxableMinor: '5000000', taxMinor: '900000' }, { group: 'differs-inside', count: 2, taxableMinor: '100000', taxMinor: '18000' }, { group: 'differs-outside', count: 1, taxableMinor: '40000', taxMinor: '7200' }, { group: 'in-2b-only', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0' }],
+  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', sources: null, matchReceiptId: null, leftOut: 3,
+  groups: [{ group: 'matched', count: 12, taxableMinor: '5000000', taxMinor: '900000', unknownTax: 0 }, { group: 'differs-inside', count: 2, taxableMinor: '100000', taxMinor: '18000', unknownTax: 0 }, { group: 'differs-outside', count: 1, taxableMinor: '40000', taxMinor: '7200', unknownTax: 0 }, { group: 'in-2b-only', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }],
   lines: [], ims: [],
 };
 

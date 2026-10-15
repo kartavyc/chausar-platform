@@ -48,7 +48,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 const menu = {
-  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14',
+  state: 'ready', seed: false, dictionary: null, gst2b: 'offered', today: '2026-10-14', branches: [],
   topics: [{ topic: 'sales', items: [{ operationId: 'sales.invoiced', label: 'Invoiced by customer', type: 'sum', topic: 'sales', needs: ['period'], meaning: null }] }],
   periods: [{ id: 'this-month', period: { from: '2026-10-01', to: '2026-10-31' } }, { id: 'last-month', period: sep }],
 };
@@ -68,7 +68,7 @@ const receipt = (over: Record<string, unknown> = {}) => ({
   sources: [], versions: { app: '1.0.0', dictionary: 3, dictionaryHash: 'dh', definitionHash: 'defh', recipes: [], calculator: 'calc-2' },
   allowedBy: { memberId: 'owner-1', role: 'owner', device: 'desktop', at: '2026-10-14T09:00:00.000Z' },
   labels: [], notCounted: 0, fx: [], sent: { kind: 'nothing' },
-  meaning: { version: 4, publishedBy: 'owner-1', publishedAt: '2026-10-01T10:00:00.000Z' }, demo: false, ...over,
+  meaning: { version: 4, publishedBy: 'owner-1', publishedAt: '2026-10-01T10:00:00.000Z' }, demo: false, provenance: null, ...over,
 });
 
 /* 1. AS-09: the kind of rule that stopped an answer. */
@@ -426,8 +426,8 @@ test.each(VIEWS)('a numeral that is not a decimal digit is named in words, never
 });
 
 const gst = {
-  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', leftOut: 0,
-  groups: [{ group: 'matched', count: 1, taxableMinor: '100', taxMinor: '18' }, { group: 'differs-inside', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'differs-outside', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'in-2b-only', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0' }],
+  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', sources: null, matchReceiptId: null, leftOut: 0,
+  groups: [{ group: 'matched', count: 1, taxableMinor: '100', taxMinor: '18', unknownTax: 0 }, { group: 'differs-inside', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }, { group: 'differs-outside', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }, { group: 'in-2b-only', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0', unknownTax: 0 }],
   lines: [], ims: [],
 };
 test.each([['owner', true], ['cofounder', true], ['accountant', false], ['member', false]] as const)('the tolerance control is offered to an approving seat only (%s)', async (role, shown) => {
