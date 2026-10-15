@@ -7,7 +7,7 @@
  * for the workspace (retained source pins survive a read-only lock and reopen, see `Engine.attachSafely`; a backup's
  * bytes are the state it saved). So each record waits in memory with the time it happened and joins `state.activity`
  * inside the next write a request makes to that same workspace: the request's own `update` appends it before commit,
- * in the same revision. Writes of `workspace.*`, `scenarios.*` and `sync.*` requests, which fingerprint or pin the exact
+ * in the same revision. Writes of `workspace.*`, `scenarios.*`, `sync.*`, `devices.*` and `seats.inviteVerify` requests, which fingerprint or pin the exact
  * state they commit, never carry them. A decided lesson joins the decision's own write. Records for another workspace are dropped
  * when that workspace's write lands. Records not yet written are lost if the app quits first.
  */
@@ -22,7 +22,8 @@ export interface AuditedVault { readIdentity(): Identity; update: Update }
 
 const UNLOCKS = new Set(['workspace.open', 'workspace.recover', 'workspace.restore']);
 // Families whose writes fingerprint or pin the exact state they commit (sync previews, backups, scenarios): never folded into.
-const PINNED = /^(?:workspace|scenarios|sync)\./;
+// The machine methods send encrypted copies through sync previews, so they are pinned too.
+const PINNED = /^(?:workspace|scenarios|sync|devices)\.|^seats\.inviteVerify$/;
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9_-]{0,79}$/;
 const LIMIT = 64;
 

@@ -55,6 +55,8 @@ test('a second computer joins through the shared folder, receives the pen, and t
   await a.request('trust.update', { retentionDays: 120 }); // the pen holder writes as before
   await assert.rejects(a.request('sync.writer.review', { expectedFence: 1, expectedStateDigest: 'a'.repeat(64), deviceId: officeId, memberId: 'owner', epoch: 1, expiresAt: new Date(Date.now() + 60000).toISOString(), reason: 'x' }), code('SYNC_PEN_MANAGED'));
   const on = await a.request('sync.setup', { on: true }); assert.equal(on.syncOn, true);
+  // A record waiting from the unlock must not join the encrypted copy's pinned writes.
+  assert.equal((await a.request('devices.send', { confirm: true })).sent, true);
 
   // FR-14 on the new computer: no workspace is open yet.
   let b = await f.start(f.laptop, false);
@@ -240,4 +242,14 @@ test('a reader trusts a machine that joined after its copy, through the approver
   assert.equal(caught.upToDate, false, 'the laptop reads the copy the shop counter signed');
   const opened = await f.restart(b.engine, f.laptop, caught.folder);
   assert.equal((await opened.request('devices.pen', {})).holder.name, 'Shop counter');
+});
+
+test('a record waiting from an unlock never joins the writes that send the encrypted copy', async t => {
+  const f = await fixture(t);
+  let a = await f.start(f.office, false);
+  await a.request('workspace.create', { name: 'Synthetic Pinned Send', passphrase, demo: false, pack: 'ecommerce' });
+  await a.request('sync.setup', { transport: 'folder', folder: f.shared });
+  a = await f.restart(a, f.office);           // queues "workspace.unlocked" until the next ordinary write
+  await a.request('sync.setup', { on: true });
+  assert.equal((await a.request('devices.send', { confirm: true })).sent, true);
 });

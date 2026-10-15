@@ -12,5 +12,6 @@
   "jobs.review.set",
   "jobs.personStep.done",
   "jobs.childResults",
-  "jobs.meters"
+  "jobs.meters",
+  "events.subscribe"
 ]
