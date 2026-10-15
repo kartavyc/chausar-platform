@@ -1,7 +1,7 @@
 // Chausar venture launcher, core (P1): small helpers for labelled lines, model words and owner amounts.
 import { check } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
-import { amountText, houseStyleFindings, modelWords } from '../records.ts';
+import { amountText, doneClaimFindings, houseStyleFindings, modelWords } from '../records.ts';
 import type { Labelled, LineAuthor, LineLabel } from '../contracts.ts';
 
 /** The highest price an owner may type, in minor units (inclusive). */
@@ -17,12 +17,14 @@ export function toldByYou<T>(value: T): Labelled<T> {
 }
 
 /**
- * Words a model wrote: tidy, bounded, no numbers unless copied from the owner, and none of the words Chausar
- * keeps out of anything it shows (house style). Refuses with MODEL_OUTPUT_REJECTED.
+ * Words a model wrote: tidy, bounded, no numbers unless copied from the owner, none of the words Chausar keeps
+ * out of anything it shows (house style), and no claim of finished work ('your books are reconciled'), the same
+ * checks the template words pass. Refuses with MODEL_OUTPUT_REJECTED.
  */
 export function styledWords(value: unknown, field: string, max: number, allowed: readonly string[], multiline = false): string {
   const words = modelWords(value, field, max, { allowed, multiline });
   check(houseStyleFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} used words Chausar keeps out of its plans.`);
+  check(doneClaimFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} claimed work that has not been done.`);
   return words;
 }
 

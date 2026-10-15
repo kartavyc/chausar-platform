@@ -417,6 +417,9 @@ function applyTaxPatch(backOffice: BackOffice, patch: Record<string, unknown>, c
       backOffice.taxRateBps = '0';
       backOffice.taxRateBy = 'not-registered';
     } else if (!was) {
+      // The country prefill only exists where the table has a rate ('0' means it varies or is unknown). Without
+      // one, a rate here would claim a source that does not exist, so the owner must give their own.
+      check(country.tax.standardRateBps !== '0' || has(patch, 'taxRate'), 'INVALID_TAX_RATE', 'Enter the rate you charge when you turn tax on.');
       backOffice.taxRateBps = country.tax.standardRateBps;
       backOffice.taxRateBy = 'country-table';
     }

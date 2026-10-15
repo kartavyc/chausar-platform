@@ -18,6 +18,7 @@ import { assertNoNumbers, digest, doneClaimFindings, houseStyleFindings, venture
 import { handlers, listCountries, previewPlan } from '../runtime/venture/core/index.ts';
 import { classifyIdea, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';
 import { blueprintDigest, structureFromBlueprint } from '../runtime/venture/core/blueprint.ts';
+import { validateInterviewOutput } from '../runtime/venture/core/interview.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const FIXED_NOW = '2026-10-15T10:00:00.000Z'; // at or before real time (rule 23)
@@ -512,6 +513,20 @@ test('8. model blueprint: words only, ids fixed, the structure guard, and no cli
   await assert.rejects(h.call('venture.blueprint.draft', {}), codeOf('MODEL_OUTPUT_REJECTED'));
   assert.equal(h.store.read().conversations.filter((r: any) => r.kind === 'venture-blueprint').length, 0);
 
+  // Model words that claim finished work are refused, as the template words are checked for it in test 7.
+  h.models.fixtures.blueprint = fixture('blueprint-done-claim');
+  await assert.rejects(h.call('venture.blueprint.draft', {}), codeOf('MODEL_OUTPUT_REJECTED'));
+  assert.equal(h.store.read().conversations.filter((r: any) => r.kind === 'venture-blueprint').length, 0);
+  const claimed = { serviceType: 'bookkeeping', questions: [{ field: 'customer', kind: 'text', text: 'We have checked every entry, who is next?', choices: [] }] };
+  assert.throws(() => validateInterviewOutput(claimed, []), codeOf('MODEL_OUTPUT_REJECTED'));
+  const plain = { serviceType: 'bookkeeping', questions: [{ field: 'customer', kind: 'text', text: 'Who will your first clients be?', choices: [] }] };
+  assert.equal(validateInterviewOutput(plain, []).questions[0].text, 'Who will your first clients be?');
+  for (const fixed of ['blueprint-model', 'blueprint-newline-name']) {
+    const words = fixture(fixed) as any;
+    const strings = [words.name, words.oneLiner, words.customer, ...words.offers.flatMap((o: any) => [o.name, o.description]), ...words.steps.map((s: any) => s.title), ...words.approvals];
+    assert.deepEqual(strings.flatMap((s: string) => doneClaimFindings(s)), [], `${fixed} claims no finished work`);
+  }
+
   h.models.fixtures.blueprint = fixture('blueprint-model');
   const view = await h.call('venture.blueprint.draft', {});
   const bp = view.blueprint;
@@ -660,12 +675,6 @@ test('9. update makes new draft versions with checked tax fields; accept takes t
   await assert.rejects(us.call('venture.blueprint.update', { patch: { lutConfirmed: true } }), codeOf('INVALID_VENTURE_REQUEST'));
   await assert.rejects(us.call('venture.blueprint.update', { patch: { sacCode: '998222' } }), codeOf('INVALID_VENTURE_REQUEST'));
   await assert.rejects(us.call('venture.blueprint.update', { patch: { taxRate: '8' } }), codeOf('INVALID_TAX_RATE'));
-  // Turning tax on without a rate uses the country table; turning it off sets the rate to zero.
-  const on = (await us.call('venture.blueprint.update', { patch: { taxRegistered: true } })).blueprint;
-  assert.equal(on.backOffice.taxRateBy, 'country-table');
-  assert.equal(on.backOffice.taxRateBps, '0');
-  const off = (await us.call('venture.blueprint.update', { patch: { taxRegistered: false } })).blueprint;
-  assert.equal(off.backOffice.taxRateBy, 'not-registered');
   // A UK VAT number is checked against the country's pattern.
   const gb = setup();
   await interviewed(gb, { country: 'GB', idea: 'Podcast editing studio for creators', tax: true, rate: '20' });
@@ -680,6 +689,52 @@ test('9. update makes new draft versions with checked tax fields; accept takes t
   const studioDraft = (await studioTerms.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
   await studioTerms.call('venture.blueprint.accept', { digest: studioDraft.digest });
   assert.deepEqual((await studioTerms.call('venture.get')).terms.map((t: any) => t.key), ['client', 'offer', 'order', 'deliverable', 'invoice', 'payment', 'revision-round']);
+});
+
+test('turning tax on from the plan uses the country rate only where the country table has one', async () => {
+  const interviewOf = (h: Harness) => h.store.read().conversations.find((r: any) => r.kind === 'venture-interview');
+  const rateQuestion = (h: Harness) => interviewOf(h).questions.find((q: any) => q.id === 'q_tax_rate');
+
+  // The United States and "another country" have no rate in the table, so the owner must give one.
+  for (const country of ['US', 'XX']) {
+    const h = setup();
+    await interviewed(h, { country, idea: 'Inbox support for small online shops', price: '150', tax: false });
+    const draft = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+    const before = interviewOf(h);
+    await assert.rejects(h.call('venture.blueprint.update', { patch: { taxRegistered: true } }), codeOf('INVALID_TAX_RATE'), `${country}: no rate, refused`);
+    assert.equal((await h.call('venture.blueprint.get')).blueprint.version, draft.version, `${country}: no new version`);
+    assert.deepEqual(interviewOf(h), before, `${country}: the interview is untouched`);
+
+    // 8.25 percent is 8 x 100 + 25 = 825 basis points.
+    const on = (await h.call('venture.blueprint.update', { patch: { taxRegistered: true, taxRate: '8.25' } })).blueprint;
+    assert.deepEqual(on.backOffice.taxRegistered, { value: true, label: 'told-by-you', by: 'owner' });
+    assert.equal(on.backOffice.taxRateBps, '825');
+    assert.equal(on.backOffice.taxRateBy, 'told-by-you');
+    assert.equal(rateQuestion(h).prefill, null);
+    assert.equal(rateQuestion(h).answerBps, '825');
+    assert.deepEqual(rateQuestion(h).answer, { rate: '8.25' });
+    // A rewrite rebuilds the structure from the interview and keeps the owner's rate and label.
+    const rewritten = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+    assert.equal(rewritten.backOffice.taxRateBps, '825');
+    assert.equal(rewritten.backOffice.taxRateBy, 'told-by-you');
+    // Turning tax off sets the rate to zero and drops the rate question.
+    const off = (await h.call('venture.blueprint.update', { patch: { taxRegistered: false } })).blueprint;
+    assert.equal(off.backOffice.taxRateBps, '0');
+    assert.equal(off.backOffice.taxRateBy, 'not-registered');
+    assert.equal(rateQuestion(h), undefined);
+  }
+
+  // India has a rate in the table: turning tax on without a rate uses it, labelled as the country's.
+  const india = setup();
+  await interviewed(india, { tax: false });
+  await india.call('venture.blueprint.draft', { useTemplate: true });
+  const on = (await india.call('venture.blueprint.update', { patch: { taxRegistered: true } })).blueprint;
+  assert.equal(on.backOffice.taxRateBps, '1800');
+  assert.equal(on.backOffice.taxRateBy, 'country-table');
+  assert.equal(rateQuestion(india).answerBps, '1800');
+  const rewritten = (await india.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.equal(rewritten.backOffice.taxRateBps, '1800');
+  assert.equal(rewritten.backOffice.taxRateBy, 'country-table');
 });
 
 function priceReceipt(offerId: string, blueprintDigestValue: string) {
