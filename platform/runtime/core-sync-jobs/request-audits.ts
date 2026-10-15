@@ -1,35 +1,40 @@
 /**
- * Request audits (round 4, core-sync-jobs; TD-04): the activity record for a decided lesson, a finished backup and an
- * update check, and the lock and unlock marks. Each record carries only ids and short codes (`memberId`, `lessonId`,
- * `outcome`, `status`), which is all `frame-today/activity.ts` lets through to a screen.
+ * Request audits (round 4, core-sync-jobs; TD-04): the activity record for a decided lesson, a finished backup, an
+ * update check, a lock and an unlock. Each record carries only ids and short codes (`memberId`, `lessonId`, `outcome`,
+ * `status`), which is all `frame-today/activity.ts` lets through to a screen.
  *
- * Lock and unlock never write. Opening or locking must not publish a new authority revision (retained source pins
- * survive a read-only lock and reopen, see `Engine.attachSafely`), so the marks wait in memory with the time they
- * happened and join `state.activity` in one update during the next request that already changed that workspace's
- * revision. Marks for another workspace are dropped then. Marks not yet written are lost if the app quits first.
+ * None of them publishes a revision of its own. Opening, locking, backing up and checking for an update are read-only
+ * for the workspace (retained source pins survive a read-only lock and reopen, see `Engine.attachSafely`; a backup's
+ * bytes are the state it saved). So each record waits in memory with the time it happened and joins `state.activity`
+ * inside the next write a request makes to that same workspace: the request's own `update` appends it before commit,
+ * in the same revision. Writes of `workspace.*`, `scenarios.*` and `sync.*` requests, which fingerprint or pin the exact
+ * state they commit, never carry them. A decided lesson joins the decision's own write. Records for another workspace are dropped
+ * when that workspace's write lands. Records not yet written are lost if the app quits first.
  */
-import { check, newId, type Context, type State } from '../contracts.ts';
+import type { Context, State } from '../contracts.ts';
+import { newId } from '../contracts.ts';
 import type { EngineEventBus } from './event-bus.ts';
 
 type Identity = { workspaceId: string; revision: number };
-type Mark = { event: 'workspace.locked' | 'workspace.unlocked'; at: string; workspaceId: string; memberId: string };
-type AuditRecord = { event: string; at: string; details: Record<string, string> };
-export interface AuditedVault { readIdentity(): Identity; update<T>(change: (state: State) => T | Promise<T>): Promise<T> }
+type Pending = { event: string; at: string; workspaceId: string; details: Record<string, string> };
+type Update = <T>(change: (state: State) => T | Promise<T>) => Promise<T>;
+export interface AuditedVault { readIdentity(): Identity; update: Update }
 
 const UNLOCKS = new Set(['workspace.open', 'workspace.recover', 'workspace.restore']);
-// Families that pin the exact authority revision across calls: a pending mark never adds a revision inside them.
+// Families whose writes fingerprint or pin the exact state they commit (sync previews, backups, scenarios): never folded into.
 const PINNED = /^(?:workspace|scenarios|sync)\./;
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9_-]{0,79}$/;
-const MARK_LIMIT = 64;
+const LIMIT = 64;
 
 export class RequestAudits {
-  #marks: Mark[] = [];
+  #pending: Pending[] = [];
+  #folding = false;
   readonly #events: EngineEventBus;
   readonly #vault: () => AuditedVault | null;
   readonly #context: () => Context;
   constructor(events: EngineEventBus, vault: () => AuditedVault | null, context: () => Context) { this.#events = events; this.#vault = vault; this.#context = context; }
-  /** Lock and unlock marks still waiting for a write (count only; for tests and diagnostics). */
-  get pending(): number { return this.#marks.length; }
+  /** Records still waiting for a write (count only; for tests and diagnostics). */
+  get pending(): number { return this.#pending.length; }
   #identity(): Identity | null { try { const found = this.#vault()?.readIdentity(); return found ? { workspaceId: found.workspaceId, revision: found.revision } : null; } catch { return null; } }
   /** After every request and scheduler tick. A closing vault throws; that observation is skipped. */
   observe(): void {
@@ -37,54 +42,63 @@ export class RequestAudits {
     try { identity = this.#vault()?.readIdentity() ?? null; } catch { return; }
     this.#events.observe(identity);
   }
-  /** Runs one request; on success writes its audit records. An audit that cannot be written never fails the request. */
+  /** Runs one request, folding waiting records into its writes, then queues its own record when it succeeded. */
   async run<T>(method: string, payload: any, work: () => Promise<T>): Promise<T> {
     const before = this.#identity();
-    const reply = await work();
-    try { await this.#after(method, payload, reply, before); } catch { /* A read-only device or a closing vault keeps no audit. */ }
+    // A lesson decision's record joins the decision's own write; it leaves again if the request fails unwritten.
+    const own = method === 'memory.decideLesson' && before ? this.#queue(before, 'lesson.decided', this.#lesson(payload)) : null;
+    const restore = PINNED.test(method) ? () => {} : this.#fold();
+    let reply: T;
+    try { reply = await work(); }
+    catch (error) { if (own) this.#pending = this.#pending.filter(item => item !== own); throw error; }
+    finally { restore(); }
+    try {
+      if (method === 'workspace.lock') this.#queue(before, 'workspace.locked', {});
+      else if (UNLOCKS.has(method)) this.#queue(this.#identity(), 'workspace.unlocked', {});
+      else if (method === 'workspace.backup') this.#queue(before, 'vault.backup.done', {});
+      else if (method === 'release.checkUpdate') {
+        const action = (reply as any)?.action;
+        this.#queue(before, 'release.update.checked', ['none', 'update', 'rollback-advised'].includes(action) ? { status: action } : {});
+      }
+    } catch { /* An audit never fails the request. */ }
     return reply;
   }
-  #mark(event: Mark['event'], identity: Identity | null) {
+  #lesson(payload: any): Record<string, string> {
+    const details: Record<string, string> = {}, lessonId = payload?.candidate?.id;
+    if (typeof lessonId === 'string' && SAFE_ID.test(lessonId)) details.lessonId = lessonId;
+    if (['approve', 'reject', 'defer'].includes(payload?.decision)) details.outcome = payload.decision;
+    return details;
+  }
+  #queue(identity: Identity | null, event: string, details: Record<string, string>): Pending | null {
     const memberId = this.#context().memberId;
-    if (identity === null || typeof memberId !== 'string') return;
-    this.#marks.push({ event, at: new Date().toISOString(), workspaceId: identity.workspaceId, memberId });
-    if (this.#marks.length > MARK_LIMIT) this.#marks.splice(0, this.#marks.length - MARK_LIMIT);
+    if (identity === null || typeof memberId !== 'string') return null;
+    const item: Pending = { event, at: new Date().toISOString(), workspaceId: identity.workspaceId, details: { ...details, memberId } };
+    this.#pending.push(item);
+    if (this.#pending.length > LIMIT) this.#pending.splice(0, this.#pending.length - LIMIT);
+    return item;
   }
-  async #after(method: string, payload: any, reply: any, before: Identity | null) {
-    if (method === 'workspace.lock') { this.#mark('workspace.locked', before); return; }
-    const after = this.#identity();
-    if (UNLOCKS.has(method)) { this.#mark('workspace.unlocked', after); return; }
+  /** While a request runs, its vault writes append the waiting records before they commit. One request folds at a time. */
+  #fold(): () => void {
     const vault = this.#vault();
-    if (after === null || vault === null) return;
-    const records = this.#records(method, payload, reply);
-    const changed = before !== null && before.workspaceId === after.workspaceId && before.revision !== after.revision && !PINNED.test(method);
-    const marks = this.#marks.filter(mark => mark.workspaceId === after.workspaceId);
-    if (!records.length && !(changed && marks.length)) return;
-    const taken = new Set(marks);
-    await vault.update(state => {
-      check(state.workspace.id === after.workspaceId, 'AUDIT_WORKSPACE_CHANGED', 'The workspace changed before its audit was written.');
-      for (const mark of marks) state.activity.push({ id: newId('event'), at: mark.at, event: mark.event, details: { memberId: mark.memberId } });
-      for (const record of records) state.activity.push({ id: newId('event'), at: record.at, event: record.event, details: record.details });
-    });
-    // Written marks leave; marks for another workspace are dropped.
-    this.#marks = this.#marks.filter(mark => !taken.has(mark) && mark.workspaceId === after.workspaceId);
-  }
-  #records(method: string, payload: any, reply: any): AuditRecord[] {
-    const memberId = this.#context().memberId, at = new Date().toISOString();
-    if (typeof memberId !== 'string') return [];
-    if (method === 'memory.decideLesson') {
-      const details: Record<string, string> = { memberId };
-      const lessonId = reply?.candidate?.id ?? payload?.candidate?.id;
-      if (typeof lessonId === 'string' && SAFE_ID.test(lessonId)) details.lessonId = lessonId;
-      if (['approve', 'reject', 'defer'].includes(payload?.decision)) details.outcome = payload.decision;
-      return [{ event: 'lesson.decided', at, details }];
-    }
-    if (method === 'workspace.backup') return [{ event: 'vault.backup.done', at, details: { memberId } }];
-    if (method === 'release.checkUpdate') {
-      const details: Record<string, string> = { memberId };
-      if (['none', 'update', 'rollback-advised'].includes(reply?.action)) details.status = reply.action;
-      return [{ event: 'release.update.checked', at, details }];
-    }
-    return [];
+    if (!vault || this.#folding || !this.#pending.length) return () => {};
+    const own = Object.getOwnPropertyDescriptor(vault, 'update'), original: Update = vault.update.bind(vault);
+    const update = (<T>(change: (state: State) => T | Promise<T>): Promise<T> => {
+      let taken: Pending[] = [];
+      const appended = original<T>(async state => {
+        const result = await change(state);
+        taken = this.#pending.filter(item => item.workspaceId === state.workspace.id);
+        for (const item of taken) state.activity.push({ id: newId('event'), at: item.at, event: item.event, details: { ...item.details } });
+        taken = [...taken, ...this.#pending.filter(item => item.workspaceId !== state.workspace.id)];
+        return result;
+      });
+      // Written records leave; records for another workspace are dropped with them.
+      return appended.then(result => { const gone = new Set(taken); this.#pending = this.#pending.filter(item => !gone.has(item)); return result; });
+    }) as Update;
+    try { Object.defineProperty(vault, 'update', { value: update, configurable: true, writable: true }); } catch { return () => {}; }
+    this.#folding = true;
+    return () => {
+      this.#folding = false;
+      if (own) Object.defineProperty(vault, 'update', own); else delete (vault as { update?: unknown }).update;
+    };
   }
 }

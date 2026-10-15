@@ -32,12 +32,16 @@ test('a decided lesson is recorded with its id, the decision and the person; a r
   const decisions: string[] = [];
   engine.services.lessons = { decideLesson: async (_ctx: Context, input: any) => {
     if (input.reason === 'refuse') throw Object.assign(new Error('Synthetic refusal.'), { code: 'LESSON_REVIEW_CHANGED' });
+    // The decision's own write: the record joins it, in the same revision.
+    await engine.vault!.update(state => { (state.extensions ??= {}).synthetic = { decided: input.decision }; });
     decisions.push(input.decision); return { candidate: { id: LESSON }, status: 'approved' };
   } };
   const payload = (decision: string, reason = 'Synthetic reason with private words.') => ({ candidate: { id: LESSON, revision: 1, digest: '0'.repeat(64) }, reviewId: 'review-1', reviewDigest: '0'.repeat(64), decision, reason });
   await assert.rejects(engine.request('memory.decideLesson', payload('approve', 'refuse')), code('LESSON_REVIEW_CHANGED'));
   assert.deepEqual(ofType(engine, 'lesson.decided'), []);
+  const revision = engine.vault!.readIdentity().revision;
   await engine.request('memory.decideLesson', payload('approve'));
+  assert.equal(engine.vault!.readIdentity().revision, revision + 1, 'no revision of its own');
   await engine.request('memory.decideLesson', payload('Not a code'));
   const [approved, odd] = ofType(engine, 'lesson.decided');
   assert.deepEqual(approved!.values, { lesson: LESSON, outcome: 'approve' });
@@ -52,14 +56,19 @@ test('a finished backup is recorded; a refused one is not', async t => {
   const viewer: Context = { memberId: member.id, role: 'viewer', epoch: member.epoch, channel: 'desktop' };
   await assert.rejects(engine.requestAs(viewer, 'workspace.backup', {}));
   assert.deepEqual(ofType(engine, 'vault.backup.done'), []);
+  const revision = engine.vault!.readIdentity().revision;
   const backup = await engine.request('workspace.backup', {});
   assert.equal(backup.encrypted, true);
+  assert.equal(engine.vault!.readIdentity().revision, revision, 'a backup stays read-only');
+  assert.deepEqual(ofType(engine, 'vault.backup.done'), [], 'it waits for the next write');
+  await engine.request('trust.update', { send: 'shape' });
+  assert.equal(engine.vault!.readIdentity().revision, revision + 1);
   const [done] = ofType(engine, 'vault.backup.done');
   assert.equal(done!.state, 'done'); assert.deepEqual(done!.values, {}); assert.deepEqual(done!.actor, { kind: 'you', name: null });
   assert.deepEqual(ofType(engine, 'vault.backup.done', viewer), [], 'only the person who backed up (and the owner) sees it');
 });
 
-test('lock and unlock never write; their marks join the record with the next change to that workspace', async t => {
+test('lock and unlock never write; their marks join the next write to that workspace', async t => {
   const engine = await engineWith(t);
   const revision = () => engine.vault!.readIdentity().revision;
   const before = revision(), count = engine.vault!.read().activity.length;
@@ -68,7 +77,9 @@ test('lock and unlock never write; their marks join the record with the next cha
   assert.equal(revision(), before, 'a read-only lock and reopen publish no revision');
   await engine.request('workspace.status'); await engine.request('activity.list');
   assert.equal(revision(), before); assert.equal(engine.vault!.read().activity.length, count);
+  const written = revision();
   await engine.request('trust.update', { send: 'shape' });
+  assert.equal(revision(), written + 1, 'the marks join that write, in its revision');
   const locked = ofType(engine, 'workspace.locked'), unlocked = ofType(engine, 'workspace.unlocked');
   assert.equal(locked.length, 1); assert.equal(unlocked.length, 1);
   assert.ok(locked[0]!.at <= unlocked[0]!.at); assert.deepEqual(locked[0]!.actor, { kind: 'you', name: null }); assert.deepEqual(locked[0]!.values, {});
@@ -84,7 +95,7 @@ test('lock and unlock never write; their marks join the record with the next cha
   await engine.request('workspace.lock');
   await engine.request('workspace.open', { folder: 'main', passphrase });
   await engine.request('trust.update', { send: 'shape' });
-  assert.equal(ofType(engine, 'workspace.locked').length, 2, 'both locks of this workspace; the second workspace lock was dropped');
+  assert.equal(ofType(engine, 'workspace.locked').length, 1, 'marks for another workspace are dropped when a write lands there');
   assert.equal(ofType(engine, 'workspace.unlocked').length, 2);
 });
 
@@ -108,6 +119,8 @@ test('an update check is recorded with its outcome only when it succeeds', async
   offline = false;
   const checked = await engine.request('release.checkUpdate', {});
   assert.equal(checked.action, 'none');
+  assert.deepEqual(ofType(engine, 'release.update.checked'), []);
+  await engine.request('trust.update', { send: 'shape' });
   const [event] = ofType(engine, 'release.update.checked');
   assert.deepEqual(event!.values, { status: 'none' }); assert.deepEqual(event!.actor, { kind: 'you', name: null });
 });

@@ -17,6 +17,8 @@ import { conversationPurpose } from '../runtime/conversation-purpose.ts';
 import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
 import type { ConnectorService, HttpRequest } from '../runtime/connectors.ts';
 import type { Engine, EngineOptions } from '../runtime/engine.ts';
+import { EngineEventBus } from '../runtime/core-sync-jobs/event-bus.ts';
+import { RequestAudits } from '../runtime/core-sync-jobs/request-audits.ts';
 
 // Actual Engine/legacy connector source with in-memory custody and authored
 // ports only. Host imports are removed from the VM; no network, database,
@@ -72,6 +74,8 @@ async function engineVm() {
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
     // No engine modules are installed in this isolated composition.
     engineModules: [], moduleMethods: new Map(),
+    // core-sync-jobs (round 4): the real event bus and request audits.
+    EngineEventBus, RequestAudits,
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
