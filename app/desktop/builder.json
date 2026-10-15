@@ -4,7 +4,7 @@
   "directories": { "output": "release" }, "asar": true, "forceCodeSigning": true,
   "files": ["app/**/*", "app/ui/host/**/*", "app/ui/public/**/*", "app/ui/assets/fonts/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "scripts/release/launcher/**/*", "fixtures/**/*", "package.json", "node_modules/**/*"],
   "asarUnpack": ["package.json", "node_modules/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "scripts/release/launcher/**/*"],
-  "extraResources": [{ "from": "runtime-binaries", "to": "runtime-binaries", "filter": ["**/*"] }],
+  "extraResources": [{ "from": "runtime-binaries", "to": "runtime-binaries", "filter": ["**/*", "!**/.*", "!**/.*/**"] }],
   "win": {
     "target": ["nsis"], "signAndEditExecutable": true,
     "signtoolOptions": { "sign": "scripts/release/windows-sign.cjs", "signingHashAlgorithms": ["sha256"] }

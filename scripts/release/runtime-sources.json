@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Upstream runtime archives per target. A sha256 stays null until it is verified: the release operator downloads each archive, verifies it against the vendor's own published integrity data, and pins the lowercase SHA-256 here. scripts/release/stage-runtime.ts refuses a null pin with RUNTIME_SOURCE_UNPINNED and a null url with RUNTIME_SOURCE_UNAVAILABLE. URLs were checked to resolve on 2026-10-14; layouts and license paths were read from the archive listings. Entries with official=false come from a third-party redistributor because the upstream project ships no relocatable build for that target; their provenance needs separate review.",
+  "note": "Upstream runtime archives per target. A sha256 stays null until it is verified: the release operator downloads each archive, verifies it against the vendor's own published integrity data where the vendor publishes any, and pins the lowercase SHA-256 here with checksumSource saying how. A checksumSource starting 'computed-only:' means the vendor publishes no checksum or signature and says why. scripts/release/stage-runtime.ts refuses a null pin with RUNTIME_SOURCE_UNPINNED and a null url with RUNTIME_SOURCE_UNAVAILABLE. A postgres-<major> entry is a retained older PostgreSQL for one upgrade. libraries.<target> pins the distribution packages that layouts with vendorLibraries copy shared libraries from. URLs were checked to resolve on 2026-10-15; layouts and license paths were read from the archive listings. Entries with official=false come from a third-party redistributor because the upstream project ships no relocatable build for that target; their provenance needs separate review.",
   "targets": {
     "win32-x64": [
       {
@@ -8,22 +8,40 @@
         "version": "17.6",
         "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/windows)",
         "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip",
-        "sha256": null,
+        "sha256": "d378882abd001a186735acd6f6ba716bca6ccd192e800412d4fd15ed25376b3e",
         "license": "PostgreSQL",
         "licenseFile": "postgres/doc/src/sgml/html/legalnotice.html",
         "official": true,
-        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/src/sgml/html/legalnotice.html"], "materialiseSymlinks": false }
+        "layout": {
+          "archive": "zip",
+          "strip": "pgsql",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "doc/src/sgml/html/legalnotice.html"
+          ],
+          "materialiseSymlinks": false
+        },
+        "checksumSource": "computed-only: EnterpriseDB publishes no checksum or signature for its binaries zip (the https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip.sha256 and .md5 URLs answer 403 and https://www.enterprisedb.com/download-postgresql-binaries lists none); the executables inside are not Authenticode-signed (checked with signify 0.9.3). Downloaded over HTTPS from get.enterprisedb.com on 2026-10-15 and hashed locally; the listing matched the recorded layout and the staged executables passed scripts/package-preflight.mjs's native-header checks for this target."
       },
       {
         "component": "python",
         "version": "3.13.7",
         "vendor": "Python Software Foundation (Windows embeddable package)",
         "url": "https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip",
-        "sha256": null,
+        "sha256": "f6cca216a359be84797cabb54149ce5e062afb16cc7567eb7fc51cacb2d86b65",
         "license": "PSF-2.0",
         "licenseFile": "python/LICENSE.txt",
         "official": true,
-        "layout": { "archive": "zip", "strip": null, "into": "python", "materialiseSymlinks": false }
+        "layout": {
+          "archive": "zip",
+          "strip": null,
+          "into": "python",
+          "materialiseSymlinks": false
+        },
+        "checksumSource": "python.org publishes no SHA-256 for this file (sha256_sum is empty in https://www.python.org/api/v2/downloads/release_file/?release=1060). Matched that API's MD5 77f294ec267596827a2ab06e8fa3f18c, and verified the publisher's Sigstore bundle https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip.sigstore (identity thomas@python.org, issuer https://accounts.google.com) with sigstore 4.5.0 on 2026-10-15; python.exe and python313.dll inside carry valid Authenticode signatures. SHA-256 computed locally from the verified file."
       }
     ],
     "win32-arm64": [
@@ -37,18 +55,35 @@
         "license": "PostgreSQL",
         "licenseFile": "postgres/doc/src/sgml/html/legalnotice.html",
         "official": false,
-        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/src/sgml/html/legalnotice.html"], "materialiseSymlinks": false }
+        "layout": {
+          "archive": "zip",
+          "strip": "pgsql",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "doc/src/sgml/html/legalnotice.html"
+          ],
+          "materialiseSymlinks": false
+        }
       },
       {
         "component": "python",
         "version": "3.13.7",
         "vendor": "Python Software Foundation (Windows embeddable package)",
         "url": "https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-arm64.zip",
-        "sha256": null,
+        "sha256": "2ddcf25e71f7205e652ebb57439f22fd2bab37d7f5c9152dbe32867bf2c77a50",
         "license": "PSF-2.0",
         "licenseFile": "python/LICENSE.txt",
         "official": true,
-        "layout": { "archive": "zip", "strip": null, "into": "python", "materialiseSymlinks": false }
+        "layout": {
+          "archive": "zip",
+          "strip": null,
+          "into": "python",
+          "materialiseSymlinks": false
+        },
+        "checksumSource": "python.org publishes no SHA-256 for this file (sha256_sum is empty in https://www.python.org/api/v2/downloads/release_file/?release=1060). Matched that API's MD5 6a3fcfc7a10a3822459b1c214f769df1, and verified the publisher's Sigstore bundle https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-arm64.zip.sigstore (identity thomas@python.org, issuer https://accounts.google.com) with sigstore 4.5.0 on 2026-10-15; python.exe and python313.dll inside carry valid Authenticode signatures. SHA-256 computed locally from the verified file."
       }
     ],
     "darwin-x64": [
@@ -58,11 +93,23 @@
         "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/macosx)",
         "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip",
         "note": "Universal Mach-O (x86_64 and arm64). lib/ holds dylib symlinks that staging materialises as regular files.",
-        "sha256": null,
+        "sha256": "5afb85f5d764176bb00a527cfc5dd9127b9f8efaa33f5a9afbedbf6ceb985fcc",
         "license": "PostgreSQL",
         "licenseFile": "postgres/doc/postgresql/html/legalnotice.html",
         "official": true,
-        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/postgresql/html/legalnotice.html"], "materialiseSymlinks": true }
+        "layout": {
+          "archive": "zip",
+          "strip": "pgsql",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "doc/postgresql/html/legalnotice.html"
+          ],
+          "materialiseSymlinks": true
+        },
+        "checksumSource": "computed-only: EnterpriseDB publishes no checksum or signature for its binaries zip (the https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip.sha256 and .md5 URLs answer 403 and https://www.enterprisedb.com/download-postgresql-binaries lists none); bin/postgres and bin/initdb carry an embedded Developer ID code signature whose CMS names \"Developer ID Application: EnterpriseDB Corporation (26QKX55P9K)\" in both slices (read on Linux; the signature was not cryptographically validated, which needs codesign on macOS). Downloaded over HTTPS from get.enterprisedb.com on 2026-10-15 and hashed locally; the listing matched the recorded layout and the staged executables passed scripts/package-preflight.mjs's native-header checks for this target."
       },
       {
         "component": "python",
@@ -70,11 +117,17 @@
         "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
         "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-x86_64-apple-darwin-install_only.tar.gz",
         "note": "python.org ships only a non-relocatable macOS installer package, so this third-party relocatable build is used.",
-        "sha256": null,
+        "sha256": "ee27eca1374af8421d37dee40f1489ede86cdc511dc2c6229b4f9c6cd275dc22",
         "license": "PSF-2.0",
         "licenseFile": "python/lib/python3.13/LICENSE.txt",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "python",
+          "into": "python",
+          "materialiseSymlinks": true
+        },
+        "checksumSource": "Downloaded 2026-10-15 and hashed locally; matches the publisher's SHA256SUMS release asset for 20250818 (https://github.com/astral-sh/python-build-standalone/releases/download/20250818/SHA256SUMS)."
       }
     ],
     "darwin-arm64": [
@@ -84,11 +137,23 @@
         "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/macosx)",
         "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip",
         "note": "Universal Mach-O (x86_64 and arm64). lib/ holds dylib symlinks that staging materialises as regular files.",
-        "sha256": null,
+        "sha256": "5afb85f5d764176bb00a527cfc5dd9127b9f8efaa33f5a9afbedbf6ceb985fcc",
         "license": "PostgreSQL",
         "licenseFile": "postgres/doc/postgresql/html/legalnotice.html",
         "official": true,
-        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/postgresql/html/legalnotice.html"], "materialiseSymlinks": true }
+        "layout": {
+          "archive": "zip",
+          "strip": "pgsql",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "doc/postgresql/html/legalnotice.html"
+          ],
+          "materialiseSymlinks": true
+        },
+        "checksumSource": "computed-only: EnterpriseDB publishes no checksum or signature for its binaries zip (the https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip.sha256 and .md5 URLs answer 403 and https://www.enterprisedb.com/download-postgresql-binaries lists none); bin/postgres and bin/initdb carry an embedded Developer ID code signature whose CMS names \"Developer ID Application: EnterpriseDB Corporation (26QKX55P9K)\" in both slices (read on Linux; the signature was not cryptographically validated, which needs codesign on macOS). Downloaded over HTTPS from get.enterprisedb.com on 2026-10-15 and hashed locally; the listing matched the recorded layout and the staged executables passed scripts/package-preflight.mjs's native-header checks for this target."
       },
       {
         "component": "python",
@@ -96,11 +161,17 @@
         "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
         "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-aarch64-apple-darwin-install_only.tar.gz",
         "note": "python.org ships only a non-relocatable macOS installer package, so this third-party relocatable build is used.",
-        "sha256": null,
+        "sha256": "4774f275706f3e250bad636d7cc6bf0e43c88611b7e4ea0418a631e743a3d5d5",
         "license": "PSF-2.0",
         "licenseFile": "python/lib/python3.13/LICENSE.txt",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "python",
+          "into": "python",
+          "materialiseSymlinks": true
+        },
+        "checksumSource": "Downloaded 2026-10-15 and hashed locally; matches the publisher's SHA256SUMS release asset for 20250818 (https://github.com/astral-sh/python-build-standalone/releases/download/20250818/SHA256SUMS)."
       }
     ],
     "linux-x64": [
@@ -109,13 +180,32 @@
         "version": "17.6",
         "vendor": "theseus-rs postgresql-binaries 17.6.0",
         "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz",
-        "note": "postgresql.org publishes Linux builds only as distribution packages, not relocatable archives. This third-party build is compiled from upstream source.",
+        "note": "postgresql.org publishes Linux builds only as distribution packages, not relocatable archives. This third-party build is compiled from upstream source. It links system OpenSSL 3, libxml2, zstd, lz4, GSSAPI and zlib, so staging vendors them from the pinned Ubuntu packages under libraries.linux-x64 (vendorLibraries) and rewrites RUNPATH to $ORIGIN; PL/Python (needs the build host's libpython3.11) and the pgxs build tree are left out.",
         "sha256": "19dbf09f0fc33255ff7596fc3ceb7696647286dd15fdf60f3f65c583aae6ad5d",
         "checksumSource": "Downloaded 2026-10-14 and hashed locally; matches the publisher's postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz.sha256 release asset (https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz.sha256).",
         "license": "PostgreSQL",
         "licenseFile": "postgres/COPYRIGHT",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "postgresql-17.6.0-x86_64-unknown-linux-gnu", "into": "postgres", "include": ["bin", "lib", "share", "COPYRIGHT"], "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "postgresql-17.6.0-x86_64-unknown-linux-gnu",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "COPYRIGHT"
+          ],
+          "exclude": [
+            "lib/plpython3.so",
+            "lib/hstore_plpython3.so",
+            "lib/jsonb_plpython3.so",
+            "lib/ltree_plpython3.so",
+            "lib/pgxs"
+          ],
+          "materialiseSymlinks": true,
+          "vendorLibraries": true
+        }
       },
       {
         "component": "python",
@@ -128,7 +218,48 @@
         "license": "PSF-2.0",
         "licenseFile": "python/lib/python3.13/LICENSE.txt",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "exclude": ["bin/python", "lib/libpython3.13.so"], "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "python",
+          "into": "python",
+          "exclude": [
+            "bin/python",
+            "lib/libpython3.13.so"
+          ],
+          "materialiseSymlinks": true
+        }
+      },
+      {
+        "component": "postgres-16",
+        "version": "16.14",
+        "vendor": "theseus-rs postgresql-binaries 16.14.0",
+        "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/16.14.0/postgresql-16.14.0-x86_64-unknown-linux-gnu.tar.gz",
+        "note": "The previous PostgreSQL major, kept for one pg_upgrade of a cluster made by PostgreSQL 16 (staged as postgres-16/{bin,lib,share}). Same third-party build family and vendored libraries as postgres.",
+        "sha256": "3541705c9ca2fdbb0bfc7562b10a36aac155f18d45577d8ec6725b874ccada4a",
+        "checksumSource": "Downloaded 2026-10-15 and hashed locally; matches the publisher's postgresql-16.14.0-x86_64-unknown-linux-gnu.tar.gz.sha256 release asset (https://github.com/theseus-rs/postgresql-binaries/releases/download/16.14.0/postgresql-16.14.0-x86_64-unknown-linux-gnu.tar.gz.sha256).",
+        "license": "PostgreSQL",
+        "licenseFile": "postgres-16/COPYRIGHT",
+        "official": false,
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "postgresql-16.14.0-x86_64-unknown-linux-gnu",
+          "into": "postgres-16",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "COPYRIGHT"
+          ],
+          "exclude": [
+            "lib/plpython3.so",
+            "lib/hstore_plpython3.so",
+            "lib/jsonb_plpython3.so",
+            "lib/ltree_plpython3.so",
+            "lib/pgxs"
+          ],
+          "materialiseSymlinks": true,
+          "vendorLibraries": true
+        }
       }
     ],
     "linux-arm64": [
@@ -142,7 +273,18 @@
         "license": "PostgreSQL",
         "licenseFile": "postgres/COPYRIGHT",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "postgresql-17.6.0-aarch64-unknown-linux-gnu", "into": "postgres", "include": ["bin", "lib", "share", "COPYRIGHT"], "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "postgresql-17.6.0-aarch64-unknown-linux-gnu",
+          "into": "postgres",
+          "include": [
+            "bin",
+            "lib",
+            "share",
+            "COPYRIGHT"
+          ],
+          "materialiseSymlinks": true
+        }
       },
       {
         "component": "python",
@@ -154,8 +296,187 @@
         "license": "PSF-2.0",
         "licenseFile": "python/lib/python3.13/LICENSE.txt",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+        "layout": {
+          "archive": "tar.gz",
+          "strip": "python",
+          "into": "python",
+          "materialiseSymlinks": true
+        }
       }
     ]
+  },
+  "libraries": {
+    "linux-x64": {
+      "distribution": "Ubuntu 22.04 LTS (jammy, jammy-updates, jammy-security), amd64",
+      "minimumGlibc": "2.34",
+      "note": "Only the libraries the staged ELF files need are copied (linux-libraries.ts computes the closure). glibc and libgcc_s stay system requirements: on Debian and Ubuntu libc6 depends on libgcc-s1, and the jammy libgcc-s1 itself needs glibc 2.35. Superseded package versions eventually leave archive.ubuntu.com; re-pin from the current Packages index (or fetch the same file from launchpad.net) when a URL stops resolving. Vendored OpenSSL, libxml2 and Kerberos need re-pinning when Ubuntu publishes security updates.",
+      "system": [
+        "libc.so.6",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "librt.so.1",
+        "libresolv.so.2",
+        "libutil.so.1",
+        "libanl.so.1",
+        "ld-linux-x86-64.so.2",
+        "libgcc_s.so.1"
+      ],
+      "packages": [
+        {
+          "package": "libssl3",
+          "version": "3.0.2-0ubuntu1.30",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1.30_amd64.deb",
+          "sha256": "d1b4636e32ac6d3b95d583ac05ac548b1aa248414bae1c51b14f54be0f8fd7bc",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libssl3/copyright"
+        },
+        {
+          "package": "libxml2",
+          "version": "2.9.13+dfsg-1ubuntu0.14",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.13+dfsg-1ubuntu0.14_amd64.deb",
+          "sha256": "16e395b2c52d6ab232053468febc69f0876956ec2fae357a941a2a8dab36574f",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libxml2/copyright"
+        },
+        {
+          "package": "libicu70",
+          "version": "70.1-2",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu70_70.1-2_amd64.deb",
+          "sha256": "58a154f6307289813da2276f900498ef536ae7c0522d2cf31a3c3c5cf62dfd9a",
+          "checksumSource": "SHA256 field of dists/jammy/main/binary-amd64/Packages.xz (sha256 37cb57f1554cbfa71c5a29ee9ffee18a9a8c1782bb0568e0874b7ff4ce8f9c11), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libicu70/copyright"
+        },
+        {
+          "package": "liblzma5",
+          "version": "5.2.5-2ubuntu1.1",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1.1_amd64.deb",
+          "sha256": "af77f099e7fa95a31267023535832804382fa66572a6b38002187be6e15116cb",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/liblzma5/copyright"
+        },
+        {
+          "package": "libzstd1",
+          "version": "1.4.8+dfsg-3build1",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libz/libzstd/libzstd1_1.4.8+dfsg-3build1_amd64.deb",
+          "sha256": "ae7db00ce8b093e50c994518b90203544e063b4bc574836a048bb142b950b2c9",
+          "checksumSource": "SHA256 field of dists/jammy/main/binary-amd64/Packages.xz (sha256 37cb57f1554cbfa71c5a29ee9ffee18a9a8c1782bb0568e0874b7ff4ce8f9c11), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libzstd1/copyright"
+        },
+        {
+          "package": "liblz4-1",
+          "version": "1.9.3-2build2",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/lz4/liblz4-1_1.9.3-2build2_amd64.deb",
+          "sha256": "ac9b54d0feb840345060c74fb687675c5e1eb2b195effafae38c5f9991041e98",
+          "checksumSource": "SHA256 field of dists/jammy/main/binary-amd64/Packages.xz (sha256 37cb57f1554cbfa71c5a29ee9ffee18a9a8c1782bb0568e0874b7ff4ce8f9c11), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/liblz4-1/copyright"
+        },
+        {
+          "package": "zlib1g",
+          "version": "1:1.2.11.dfsg-2ubuntu9.2",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9.2_amd64.deb",
+          "sha256": "9dc17e51a1be2d9ed63b7b84ef0e4e29c5abe6f1bc62cb03e7181483cce8a2f2",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/zlib1g/copyright"
+        },
+        {
+          "package": "libgssapi-krb5-2",
+          "version": "1.19.2-2ubuntu0.10",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/k/krb5/libgssapi-krb5-2_1.19.2-2ubuntu0.10_amd64.deb",
+          "sha256": "08e98a3dc74361cdb13c0d68bc73e0352552490546c1ad3ce5bff5426f6a2dfe",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libgssapi-krb5-2/copyright"
+        },
+        {
+          "package": "libkrb5-3",
+          "version": "1.19.2-2ubuntu0.10",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/k/krb5/libkrb5-3_1.19.2-2ubuntu0.10_amd64.deb",
+          "sha256": "0da3e0df7d6314615160a42f65ff345986783be02cd65a6ce797cfbacc7bcb0d",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libkrb5-3/copyright"
+        },
+        {
+          "package": "libk5crypto3",
+          "version": "1.19.2-2ubuntu0.10",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/k/krb5/libk5crypto3_1.19.2-2ubuntu0.10_amd64.deb",
+          "sha256": "40429c0099678fbc35045f0c63a10bc3490251d80cf1006095eaa0272c8d5e27",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libk5crypto3/copyright"
+        },
+        {
+          "package": "libkrb5support0",
+          "version": "1.19.2-2ubuntu0.10",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/k/krb5/libkrb5support0_1.19.2-2ubuntu0.10_amd64.deb",
+          "sha256": "0406052ac2d267f05088ada6d36df61aaa338cbe8d5e13fb1d7f79da560817ed",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libkrb5support0/copyright"
+        },
+        {
+          "package": "libcom-err2",
+          "version": "1.46.5-2ubuntu1.2",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/e/e2fsprogs/libcom-err2_1.46.5-2ubuntu1.2_amd64.deb",
+          "sha256": "552bc8169451cfdcf174a8da845b13ced0a55777149af5cf47491193161ed791",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libcom-err2/copyright"
+        },
+        {
+          "package": "libkeyutils1",
+          "version": "1.6.1-2ubuntu3",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/k/keyutils/libkeyutils1_1.6.1-2ubuntu3_amd64.deb",
+          "sha256": "940daf78ee0229549b4eabc92ffd79dd038ed96a44e2e912305a23540cf22a0a",
+          "checksumSource": "SHA256 field of dists/jammy/main/binary-amd64/Packages.xz (sha256 37cb57f1554cbfa71c5a29ee9ffee18a9a8c1782bb0568e0874b7ff4ce8f9c11), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libkeyutils1/copyright"
+        },
+        {
+          "package": "libxslt1.1",
+          "version": "1.1.34-4ubuntu0.22.04.5",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxslt/libxslt1.1_1.1.34-4ubuntu0.22.04.5_amd64.deb",
+          "sha256": "5e50bc83e9365942cf63272d8a45ce71170aaf4a1a4e3c4b30f591f6194d77ef",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libxslt1.1/copyright"
+        },
+        {
+          "package": "libossp-uuid16",
+          "version": "1.6.2-1.5build9",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/o/ossp-uuid/libossp-uuid16_1.6.2-1.5build9_amd64.deb",
+          "sha256": "9800af6b6f62f8e078e2ba6f7a34cd16f45232bb41c397f49e79aef337f1cb5b",
+          "checksumSource": "SHA256 field of dists/jammy/universe/binary-amd64/Packages.xz (sha256 d29cb24c93fec5f43255706bce7eb46d4779952039d8c68ac1bb14a6f3655ce2), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libossp-uuid16/copyright"
+        },
+        {
+          "package": "libreadline8",
+          "version": "8.1.2-1",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/r/readline/libreadline8_8.1.2-1_amd64.deb",
+          "sha256": "51fd16f608efa710c987e4b071ffba0bec63a9ac8e55eddd5770f5e5252edc09",
+          "checksumSource": "SHA256 field of dists/jammy/main/binary-amd64/Packages.xz (sha256 37cb57f1554cbfa71c5a29ee9ffee18a9a8c1782bb0568e0874b7ff4ce8f9c11), listed in dists/jammy/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libreadline8/copyright"
+        },
+        {
+          "package": "libtinfo6",
+          "version": "6.3-2ubuntu0.3",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.3-2ubuntu0.3_amd64.deb",
+          "sha256": "3b8dff43a31168f5020928f2ab9a97324c5b47ae708311781f6bd01306c96214",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/libtinfo6/copyright"
+        },
+        {
+          "package": "libstdc++6",
+          "version": "12.3.0-1ubuntu1~22.04.3",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/libstdc++6_12.3.0-1ubuntu1~22.04.3_amd64.deb",
+          "sha256": "29ef3d289b272704b75141906c8f683db0f2bdb0942061366691333bfb289bdc",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/gcc-12-base/copyright",
+          "copyrightFrom": "gcc-12-base"
+        },
+        {
+          "package": "gcc-12-base",
+          "version": "12.3.0-1ubuntu1~22.04.3",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/gcc-12-base_12.3.0-1ubuntu1~22.04.3_amd64.deb",
+          "sha256": "7f9253b7e0976f0526fc21346c73ee006e185a7b2f2f865048ea78a2af55bc8d",
+          "checksumSource": "SHA256 field of dists/jammy-updates/main/binary-amd64/Packages.xz (sha256 c084c4ad20de767d7cc54c0208b6752d5351f246302bfabd53fdd84b9ec9638b), listed in dists/jammy-updates/InRelease, whose signature by the Ubuntu Archive Automatic Signing Key (2018) verified with gpgv on 2026-10-15; the downloaded .deb matched.",
+          "copyright": "usr/share/doc/gcc-12-base/copyright"
+        }
+      ]
+    }
   }
 }

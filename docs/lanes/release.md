@@ -212,3 +212,88 @@ Dotfiles: electron-builder's resource filters drop dotfiles such as `runtime-bin
 - The final `builder.json` still lists only `AppImage` for Linux; the launcher needs `tar.gz` there too (a one-line change plus its assertion in `release-build-config.test.ts`).
 - macOS and Windows launchers; a launch as a non-root desktop user with the Chromium sandbox.
 - A window-title check (no `xdotool` or `wmctrl`); screenshots were checked instead.
+
+## Round 4: runtimes, pins and PostgreSQL
+
+Run on 15 October 2026 in the Linux x64 cloud container (kernel 6.18, Ubuntu 24.04 userland, Node 24.13.1, Docker 29.8.2, patchelf 0.17.2 from `pip install patchelf==0.17.2.4`). The real PostgreSQL checks ran as the unprivileged `postgres` account (uid 102); the minimal-container runs used uid 65534 with the staged runtime mounted read-only and no network. Nothing was committed from `runtime-binaries/`, signed, uploaded or published.
+
+### What changed
+
+| Item | Where | Label |
+|---|---|---|
+| Dotfiles and dot-folders (any path segment starting with `.`) are never inventoried; `runtime-binaries/.gitignore` and the Python `lib-dynload/.empty` no longer enter the manifest | `stage-runtime.ts` `inventoryFiles` (`isDotPath` exported) | **supported** |
+| `extraResources.filter` is now `["**/*", "!**/.*", "!**/.*/**"]`. electron-builder matches filters with `{ dot: true }` (`app-builder-lib/out/fileMatcher.js`), so `**/*` alone *would* have packaged `.gitignore`; the earlier note that its filters drop dotfiles was wrong | `app/desktop/builder.json` (filter only) | **supported** |
+| The preflight's "every regular file listed" walk skips dot entries the same way (one line) | `scripts/package-preflight.mjs` `safeTree` | **supported** |
+| The start-up inventory keeps its tolerance (a listed dotfile that is absent is skipped and reported; an unlisted dotfile is ignored; a file inside a dot folder still refuses); only its comment changed | `runtime-inventory.ts` | unchanged behaviour |
+| Windows and macOS pins (below), each with an honest `checksumSource` | `runtime-sources.json` | **supported** (pins); the runtimes have not run on those OSes |
+| Self-contained Linux PostgreSQL: `layout.vendorLibraries` copies the NEEDED closure from pinned Ubuntu 22.04 `.deb`s into `<component>/lib`, writes each package's copyright to `<component>/licenses/`, rewrites RUNPATH to `$ORIGIN`-relative with patchelf, then proves every NEEDED resolves inside the component (or is a declared system library), no RUNPATH points outside it, and no file needs a newer glibc than `minimumGlibc` | new `scripts/release/linux-libraries.ts` (ELF dynamic-section and version-need reader, `ar`/`.deb` reader with Node's zstd, closure, verification), wired into `stageRuntime` (`--patchelf <path>`) | **supported** on linux-x64 |
+| PostgreSQL 16.14 pin staged as `postgres-16/{bin,lib,share}` (retained `postgres-<major>` components; validator requires an older major than `postgres`); `requiredExecutables` checks its `postgres` and `pg_ctl`; signing covers it | `runtime-sources.json`, `stage-runtime.ts`, `runtime-binaries/README.md` | **supported** on linux-x64 |
+| `verify-postgres-linux.ts --old-runtime <runtime>/postgres-16`: the upgrade runs against the staged root in place (no copies); `release-postgres-real.test.ts` reads `CHAUSAR_REAL_POSTGRES_OLD_RUNTIME` | `verify-postgres-linux.ts`, test | **supported** |
+| Orphaned-backend sweep on macOS and Windows, through the injectable runner. Every server now starts with `-c cluster_name=chausar-<16 hex of sha256(data dir)>`, so each backend's title reads `postgres: <cluster_name>: …`. macOS: `/bin/ps -axww -o pid=,ppid=,uid=,command=`; a process is ended only if its parent is launchd (PID 1), its uid is ours, and its title starts with exactly `postgres: <cluster_name>: ` or its command line starts with `<bundled postgres> -D <data dir> `; `process.kill(SIGKILL)`. Windows: `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter \"Name = 'postgres.exe'\" \| Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine \| ConvertTo-Json -Compress"`; a process is ended only if its `ExecutablePath` is the bundled `postgres.exe` and either it is a `--fork…` child whose `ParentProcessId` is the dead postmaster PID from the stale lock file and that PID is not running, or its parsed command line has `-D <data dir>` (CommandLineToArgvW quoting, case-insensitive paths); `%SystemRoot%\System32\taskkill.exe /PID n /F`. A failed or malformed scan ends nothing. `killProcess` may now be async; the sweep callback receives an `OrphanScan` (`postmasterPid`, `clusterName`, `postgresExecutable`, `uid`) | `postgres-lifecycle.ts` (`parseDarwinProcessList`, `darwinOrphans`, `parseWindowsProcessList`, `splitWindowsCommandLine`, `windowsOrphans`, `postgresClusterName`) | **experimental** (parsing tested on synthetic captured output; never run on macOS or Windows) |
+
+### Pins and sources
+
+| Target | Component | Archive (bytes) | SHA-256 | How it was verified (`checksumSource`) |
+|---|---|---|---|---|
+| win32-x64 | PostgreSQL 17.6 | EDB `postgresql-17.6-1-windows-x64-binaries.zip` (329,891,687) | `d378882abd001a186735acd6f6ba716bca6ccd192e800412d4fd15ed25376b3e` | **computed-only**: EDB publishes no checksum or signature (`.sha256`/`.md5` answer 403, the download page lists none) and the `.exe` files inside are not Authenticode-signed (signify 0.9.3) |
+| win32-x64 | Python 3.13.7 | python.org `python-3.13.7-embed-amd64.zip` (10,922,561) | `f6cca216a359be84797cabb54149ce5e062afb16cc7567eb7fc51cacb2d86b65` | python.org publishes no SHA-256 for it (`sha256_sum` is empty in its release-file API); matched the API's MD5 `77f294ec267596827a2ab06e8fa3f18c` and verified the `.sigstore` bundle (identity `thomas@python.org`, issuer `https://accounts.google.com`, sigstore 4.5.0); `python.exe`/`python313.dll` Authenticode-valid |
+| win32-arm64 | Python 3.13.7 | `python-3.13.7-embed-arm64.zip` (10,189,593) | `2ddcf25e71f7205e652ebb57439f22fd2bab37d7f5c9152dbe32867bf2c77a50` | same: MD5 `6a3fcfc7a10a3822459b1c214f769df1` + Sigstore; PE machine `0xaa64` |
+| win32-arm64 | PostgreSQL | none | `null` | still `RUNTIME_SOURCE_UNAVAILABLE` (no Windows-on-Arm build identified) |
+| darwin-x64, darwin-arm64 | PostgreSQL 17.6 | EDB `postgresql-17.6-1-osx-binaries.zip` (358,923,135; universal) | `5afb85f5d764176bb00a527cfc5dd9127b9f8efaa33f5a9afbedbf6ceb985fcc` | **computed-only** (no EDB checksum). `bin/postgres` and `bin/initdb` carry a Developer ID CMS naming "Developer ID Application: EnterpriseDB Corporation (26QKX55P9K)" in both slices; read on Linux, not cryptographically validated (needs `codesign`) |
+| darwin-x64 | Python 3.13.7 | python-build-standalone 20250818 `x86_64-apple-darwin-install_only` (16,019,989) | `ee27eca1374af8421d37dee40f1489ede86cdc511dc2c6229b4f9c6cd275dc22` | release `SHA256SUMS` |
+| darwin-arm64 | Python 3.13.7 | `aarch64-apple-darwin-install_only` (15,701,841) | `4774f275706f3e250bad636d7cc6bf0e43c88611b7e4ea0418a631e743a3d5d5` | release `SHA256SUMS` |
+| linux-x64 | PostgreSQL 16.14 (retained) | theseus-rs `postgresql-16.14.0-x86_64-unknown-linux-gnu.tar.gz` (11,068,225) | `3541705c9ca2fdbb0bfc7562b10a36aac155f18d45577d8ec6725b874ccada4a` | the release's `.sha256` asset |
+| linux-x64 | PostgreSQL 17.6, Python 3.13.7 | unchanged from round 3 | | |
+| linux-arm64 | both | | `null` | not attempted this round (`RUNTIME_SOURCE_UNPINNED`) |
+
+Library packages (`libraries.linux-x64`, Ubuntu 22.04 amd64, from `archive.ubuntu.com`): `libssl3 3.0.2-0ubuntu1.30`, `libxml2 2.9.13+dfsg-1ubuntu0.14`, `libicu70 70.1-2`, `liblzma5 5.2.5-2ubuntu1.1`, `libzstd1 1.4.8+dfsg-3build1`, `liblz4-1 1.9.3-2build2`, `zlib1g 1:1.2.11.dfsg-2ubuntu9.2`, `libgssapi-krb5-2`/`libkrb5-3`/`libk5crypto3`/`libkrb5support0 1.19.2-2ubuntu0.10`, `libcom-err2 1.46.5-2ubuntu1.2`, `libkeyutils1 1.6.1-2ubuntu3`, `libxslt1.1 1.1.34-4ubuntu0.22.04.5`, `libossp-uuid16 1.6.2-1.5build9`, `libreadline8 8.1.2-1`, `libtinfo6 6.3-2ubuntu0.3`, `libstdc++6 12.3.0-1ubuntu1~22.04.3` (copyright from `gcc-12-base`, listed for that). Chain: `gpgv` verified each pocket's `InRelease` against the Ubuntu Archive Automatic Signing Key (2018); each `Packages.xz` matched its `InRelease` SHA-256; each `.deb` matched its `Packages` SHA-256. `libc6` and `libgcc-s1` are deliberately not vendored (jammy's `libgcc_s` itself needs glibc 2.35).
+
+Every staged target passed `scripts/package-preflight.mjs`'s runtime checks for its own target (native headers of `postgres`, `initdb`, `pg_ctl` and the Python interpreter, plus the complete integrity and provenance manifest), run against the real staged trees from a scratch root; the non-runtime checks fail there only because that root has no `package.json` or keys. Negative control: the win32-x64 tree checked as win32-arm64 fails every header check.
+
+| Target | Staged files | Bytes |
+|---|---|---|
+| win32-x64 | 1,597 | 158,018,769 |
+| darwin-x64 | 3,219 | 379,206,821 |
+| darwin-arm64 | 3,222 | 379,490,314 |
+| linux-x64 (with `postgres-16`) | 5,585 | 652,716,181 (postgres 72 MB, postgres-16 71 MB, python 496 MB) |
+
+Linux staging note: "Vendored 20 libraries from 18 packages into postgres/lib; rewrote 71 library paths; 146 ELF files need glibc 2.34 (declared minimum 2.34)", and 73 paths / 145 files for `postgres-16`. The rewritten paths include the build's leftover absolute `RUNPATH /opt/postgresql/lib` and `/usr/lib/x86_64-linux-gnu` on extension modules, which the loader would otherwise search even for `libc`.
+
+### Minimal-container proof
+
+`docker run --rm --network none --user 65534:65534 --tmpfs /work -v <staged>:/rt:ro <image> /proof/in-container.sh`: the loader's `--list` for `bin/{postgres,initdb,pg_ctl,pg_upgrade,psql}` and `lib/{pgxml,uuid-ossp,pgcrypto}.so`, then `postgres --version`, `initdb`, `pg_ctl start`, `select 1`, pgcrypto (OpenSSL), `xmlparse` (libxml2), the `xml2` extension (libxslt), `uuid-ossp`, an lz4-compressed column and `wal_compression = zstd`, `pg_ctl stop`, and the staged Python (`ssl`, `sqlite3`).
+
+| Image | glibc | Vendored sonames present in the image | Result |
+|---|---|---|---|
+| Rocky Linux 9.3 minimal | 2.34 (the declared minimum) | none of the ten checked | **pass**; from the system only `libc.so.6`, `libm.so.6`, `libresolv.so.2`, `libgcc_s.so.1` |
+| Debian 12 slim | 2.36 | zlib, zstd, lz4, libstdc++ only | **pass**; every vendored name resolved to `/rt/postgres/bin/../lib/…`, not the system copy |
+| Ubuntu 22.04 | 2.35 | OpenSSL, GSSAPI, zlib, zstd, lz4, libstdc++ | **pass**; same, bundle first |
+| Debian 11 slim | 2.31 | | **refused as expected**: "version `GLIBC_2.34' not found" |
+
+All passing runs printed `postgres (PostgreSQL) 17.6`, `select 1` → `1`, the SHA-256 of `chausar` through pgcrypto, `<a><b>1</b></a>`, `ok` from `xpath_string`, a 36-character UUID, `lz4 zstd`, and Python `3.13.7 OpenSSL 3.0.16 … 3.49.1`. On Rocky 9 the staged `postgres-16` also resolved only to the bundle and the C runtime, ran `initdb`, started, and answered `1|16.14`.
+
+**System requirement (Linux x86-64): glibc 2.34 or newer, plus `libgcc_s.so.1`.**
+
+### Upgrade 16 → 17 with the pinned 16
+
+`node scripts/release/verify-postgres-linux.ts --runtime <staged> --old-runtime <staged>/postgres-16 --as-user postgres`: receipt `ok: true`, bundled 17.6, old 16.14 (`staged …/postgres-16`), 12 of 12 steps pass. The old cluster was created by the staged 16.14 binaries (500 rows), crashed with `kill -9`, reported `needs-upgrade`; start refused `POSTGRES_UPGRADE_REQUIRED`, no proof refused `BACKUP_REQUIRED`; with a 40.0 MB tar vault copy and its SHA-256 the lifecycle replayed the crashed cluster with `postgres-16/bin`, ran `pg_upgrade --check` then copy mode (`link: false`) from the staged root **in place** (`upgradeUsesStagedRootInPlace: true`, no copies), in 4.5 s; 17.6 then served 500 rows totalling 12,525,000 paise; the data root holds `chausar-cluster.json`, `cluster`, `cluster.pre-17` (`PG_VERSION` 16) and `database-password`. The same run's other steps all passed again with the vendored runtime: initdb/start/`select 1` (0.9 s), foreign lock, orderly stop, port reuse, `kill -9` recovery with WAL replay (1,001 rows), and the busy-backend crash: the orphan's title was `postgres: chausar-0aef3092a5dfb6db: chausar postgres 127.0.0.1(45952) SELECT` with parent PID 1, the same PID the Linux `/proc` sweep found and ended. `release-postgres-real.test.ts` with `CHAUSAR_REAL_POSTGRES_OLD_RUNTIME` passes (1/1) as the `postgres` account.
+
+### Checks
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | pass |
+| `node scripts/check.mjs` | pass (1,158 files) |
+| `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/desktop-*.test.ts` | 326 tests: 323 pass, 0 fail, 3 skipped (env-gated real-binary tests) |
+| New tests | `release-runtime-staging` (dot entries not inventoried and the preflight agrees; library vendoring from synthetic ELF files and `.deb`s: exact closure, `copyrightFrom`, only wrong RUNPATHs rewritten; refusals `RUNTIME_LIBRARY_UNRESOLVED`, `RUNTIME_GLIBC_TOO_NEW`, `RUNTIME_HASH_MISMATCH`, `RUNTIME_PATCHELF_MISSING`, `RUNTIME_PACKAGE_INVALID`, `RUNTIME_ELF_INVALID`; ELF reader on the real `node` binary; retained `postgres-16` staging; the new pins test), `release-postgres-lifecycle` (cluster name; macOS and Windows parsers and matchers on captured-shape output, including look-alikes that must not match; a darwin and a win32 restart that sweep through the runner and end only the proven orphan, the latter with `taskkill /PID 7101 /F`), `release-build-config` (the filter, evaluated with electron-builder's own minimatch and `dot: true`) |
+
+### Could not run or still open
+
+- Nothing ran on Windows or macOS: the pinned archives were downloaded, hashed, listed, staged and header-checked here, and the orphan sweep there is tested only against synthetic captured output. The EDB macOS code signatures were read, not validated.
+- EDB publishes no checksums, so those two pins are only as good as HTTPS from `get.enterprisedb.com` on 2026-10-15 (recorded as `computed-only`).
+- An orphan from a cluster started before this change has no `cluster_name` in its title; on macOS it is then matched only by an exact `-D` command line (postmasters), so its backends still surface as `POSTGRES_START_FAILED` until they finish.
+- The vendored OpenSSL is Ubuntu's 3.0.2 with Ubuntu's security patches (Ubuntu 22.04 standard support runs to April 2027); upstream OpenSSL 3.0 support ended in September 2026. The cluster listens on loopback without TLS, but these pins need refreshing with each Ubuntu security update, and superseded `.deb` URLs eventually leave `archive.ubuntu.com` (the same files stay on Launchpad).
+- PL/Python is not bundled (theseus-rs links the build host's `libpython3.11`); `CREATE EXTENSION plpython3u` fails with a missing-library error.
+- PostgreSQL 17.6 is not the newest 17 minor: theseus-rs publishes 16.14 (pinned here), so later 17.x builds exist too. Bumping 17 needs new pins and a fresh run.
+- linux-arm64 stays unpinned and has no library set (the arm64 packages live on `ports.ubuntu.com`); Windows-on-Arm PostgreSQL is still missing.
+- `scripts/postgres-runtime.mjs` (kept for other callers; the desktop now starts through `desktop-database.ts`) does not set `cluster_name`.
