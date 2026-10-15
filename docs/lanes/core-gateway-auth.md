@@ -32,7 +32,7 @@ Every item below is labelled **supported** (tested end to end through the real e
 ### 3. Second ask (supported)
 
 - Core money actions: the core `ActionService` is built with a money gate. `actions.approve` of a `money` action needs a single-use grant from `secondAsk.grant` (5 minutes, bound to workspace, member, epoch, role, action id and exact digest; in memory only), else `SECOND_ASK_REQUIRED`. Other ActionService instances (writeback, invoice follow-up, connector-framework write, journal execution) keep their own rules. Phone and tainted contexts are refused as before; autonomy cannot obtain a grant (it needs a typed secret in the app).
-- The work-books approvals queue answers it: for a core money action `approvals.approve` takes `reauth` and calls `secondAsk.grant` first.
+- The work-books approvals queue answers it on its own branch (`work-r4.ts`: `secondAsk.grant` before `actions.approve`); this lane does not edit work-books.
 - Per-member approval secrets: a cofounder sets their own secret (`secondAsk.setSecret`); the owner always uses the vault passphrase. scrypt hashes (N=2^15) in this lane's namespace, bound to the member's epoch. 5 wrong tries lock that member for 15 minutes (`SECOND_ASK_LOCKED`), counted before the answer.
 - `auth.verifyApprovalSecret` for writeback (coordinator's contract), so a cofounder can answer writeback's second ask in place of `REAUTH_OWNER_ONLY`.
 
@@ -66,7 +66,7 @@ All RPC methods are module methods; desktop-only unless stated (module methods r
 | `secondAsk.grant` | approve, untainted | `{ target: { kind: 'action', id, digest }, secret }` | `{ granted: true, expiresAt }` |
 | `secondAsk.setSecret` | approve, untainted, not owner | `{ secret (10–1024), current? }` | `{ set: true, at }` |
 | `secondAsk.clearSecret` | admin, untainted | `{ memberId }` (owner: anyone; cofounder: self) | `{ cleared: boolean }` |
-| `secondAsk.status` | read | `{}` | `{ by: 'passphrase' \| 'member-secret' \| 'none', secretSet: boolean, lockedUntil: string \| null }` (caller only) |
+| `secondAsk.status` | read | `{}` | `{ by: 'passphrase' \| 'member-secret' \| 'none', expects: (same as by), secretSet: boolean, lockedUntil: string \| null }` (caller only) |
 | `auth.verifyApprovalSecret` | approve, untainted | `{ secret }` | `{ verified: boolean }` |
 | `pin.set` | admin, owner, untainted | `{ pin: '6–12 digits', passphrase }` | `pin.status` shape |
 | `pin.clear` | admin, owner, untainted | `{}` | `pin.status` shape |
@@ -92,7 +92,6 @@ In-process contracts:
 - `platform/runtime/engine.ts` (fenced `core-gateway-auth`): imports; `attach()` ends by opening secret custody; `closeVault()` starts by closing it; `workspace.open` accepts `unlock: 'pin'`; the core `ActionService` gets the money gate. These are needed because PIN unlock and secret custody follow the vault's lifecycle, which only the engine sees.
 - `platform/runtime/connectors-ext/credentials.ts` (connectors-ext): `#key` asks custody first (one line + import), so connector and writeback credentials use the keychain-backed store.
 - `platform/runtime/smallapps/plugin-methods.ts` (models-ext), `learning-ext/sharing.ts`, `hosted-link/service.ts`: the canary guard at each outbound call (a few lines each).
-- `platform/runtime/work-books/work.ts` (work-books): `approveOne` answers a core money second ask through `secondAsk.grant`.
 - `platform/tests/demo-data-isolation.test.ts`, `demo-provider-isolation.test.ts`: these run engine.ts in a VM with a fixed list of globals; the new imported names were added.
 - `app/desktop/preload.cjs` (this lane's `laneRefusals` line) and the synced `app/ui/src/bridge/client.ts`.
 
@@ -100,7 +99,7 @@ In-process contracts:
 
 - The cap enforced is the one reports-tools-trust stores at `extensions['reports-tools-trust'].tools.modelCap`. Its `modelsView` still returns `capEnforced: false`; it should switch to `true` (or read `models.capStatus`).
 - jobs-ext adopts `previewDecision`/`executeDecision` for its deciding agent; models-ext passes `fixtureSelectors` from its open bench in `bench/live.ts` (its `notLive` rule can then drop the branch/customer refusal).
-- work-books adds a `secondAsk.by: 'passphrase'` hint to the sheet of a core money action (the engine side is done).
+- work-books calls `secondAsk.grant` before approving a core money action and reads `secondAsk.status.expects` (its own branch, `work-r4.ts`).
 - writeback switches to `auth.verifyApprovalSecret` to accept a cofounder's secret.
 - frame-today draws `pin.status`/`pin.set`/PIN unlock, `network.online`, and the SH-09 states from `models.probe`; reports-tools-trust draws the ladder, `capStatus`, `secondAsk.*` settings and `models.discard` on the network ledger.
 - The desktop bridge passes `workspace.open` payloads through, so `unlock: 'pin'` needs no IPC change.

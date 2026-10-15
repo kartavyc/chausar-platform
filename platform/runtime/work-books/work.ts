@@ -83,10 +83,7 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
   check(payload.digest === item.digest, 'PREVIEW_CHANGED', 'The exact change is different from the preview you read. Review it again.');
   check(!item.needsSecondAsk || payload.secondAsk === true, 'SECOND_ASK_REQUIRED', 'Money needs a second confirmation before approval.');
   check(item.can.includes('approve'), 'INVALID_APPROVAL_STATE', 'This item cannot be approved here.');
-  // core-gateway-auth: where the core actions ask again for money, the approver's own passphrase or approval secret answers it through secondAsk.grant.
-  const coreMoney = source === 'action' && typeof host.services.actions.secondAsk === 'function' && e.state.actions.some(a => a.id === raw && a.impact === 'money');
-  if (source !== 'writeback' && !coreMoney) check(payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
-  if (coreMoney) { check(typeof payload.reauth === 'string', 'REAUTH_REQUIRED', 'Type your passphrase to approve this.'); await host.call('secondAsk.grant', { target: { kind: 'action', id: raw, digest: payload.digest }, secret: payload.reauth }); }
+  if (source !== 'writeback') check(payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
   if (source === 'action') await host.services.actions.approve(ctx, raw, payload.digest);
   else if (source === 'writeback') await approveWriteback(host, raw, item, payload);
   else if (source === 'job') await host.call('jobs.approve', { id: raw, digest: payload.digest });

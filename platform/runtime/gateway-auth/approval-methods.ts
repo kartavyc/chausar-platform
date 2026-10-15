@@ -89,7 +89,7 @@ export const approvalMethods: Record<string, MethodSpec> = {
     check(secretText(payload.secret, 1), 'INVALID_REQUEST', 'Type your passphrase or approval secret.');
     return { verified: await verifySecondAskSecret(host.store, ctx, payload.secret) };
   } },
-  /** `{}` → `{ by, secretSet, lockedUntil }` for the caller only: how they answer a second ask, and whether it is locked. */
+  /** `{}` → `{ by, expects (same as by, the name work-books reads), secretSet, lockedUntil }` for the caller only: how they answer a second ask, and whether it is locked. */
   'secondAsk.status': { permission: 'read', handler: (ctx, payload, host: ModuleHost) => {
     fields(payload, []);
     const state = host.store.read(); const member = current(state, ctx);
@@ -97,6 +97,6 @@ export const approvalMethods: Record<string, MethodSpec> = {
     const by = member.role === 'owner' ? (typeof (host.store as { verifyPassphrase?: unknown }).verifyPassphrase === 'function' ? 'passphrase' : 'none')
       : member.role === 'cofounder' && secretSet ? 'member-secret' : 'none';
     const locked = ['owner', 'cofounder'].includes(member.role) ? lockedUntil(state.workspace.id, member.id) : null;
-    return { by, secretSet, lockedUntil: locked === null ? null : new Date(locked).toISOString() };
+    return { by, expects: by, secretSet, lockedUntil: locked === null ? null : new Date(locked).toISOString() };
   } },
 };

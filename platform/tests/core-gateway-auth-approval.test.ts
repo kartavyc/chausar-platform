@@ -123,7 +123,7 @@ test('core money approval through the engine needs secondAsk.grant with the owne
   const f = await workspace(t);
   const pay = await f.prepare('engine-pay-1');
   await assert.rejects(f.rpc('actions.approve', { id: pay.id, digest: pay.digest }), code('SECOND_ASK_REQUIRED'));
-  assert.deepEqual(await f.rpc('secondAsk.status'), { by: 'passphrase', secretSet: false, lockedUntil: null });
+  assert.deepEqual(await f.rpc('secondAsk.status'), { by: 'passphrase', expects: 'passphrase', secretSet: false, lockedUntil: null });
   // Shape, channel, outside text and the exact preview are checked before the passphrase is.
   await assert.rejects(f.rpc('secondAsk.grant', { ...grant(pay, passphrase), extra: true }), code('INVALID_REQUEST'));
   await assert.rejects(f.rpc('secondAsk.grant', { target: { kind: 'job', id: pay.id, digest: pay.digest }, secret: passphrase }), code('INVALID_REQUEST'));
@@ -159,8 +159,8 @@ test('a cofounder answers with their own approval secret; the owner can clear it
   const cofounder: Context = { memberId: added.id, role: 'cofounder', epoch: added.epoch, channel: 'desktop' };
   // A payment with no source is private to the person who prepared it (and the owner), so the cofounder prepares their own.
   const pay = await f.prepare('cofounder-pay-1', cofounder);
-  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'none', secretSet: false, lockedUntil: null });
-  assert.deepEqual(await f.rpc('secondAsk.status', {}, accountant), { by: 'none', secretSet: false, lockedUntil: null });
+  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'none', expects: 'none', secretSet: false, lockedUntil: null });
+  assert.deepEqual(await f.rpc('secondAsk.status', {}, accountant), { by: 'none', expects: 'none', secretSet: false, lockedUntil: null });
   await assert.rejects(f.rpc('secondAsk.grant', grant(pay, passphrase), cofounder), code('SECOND_ASK_SECRET_NOT_SET'));
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'owner approval words' }), code('SECOND_ASK_OWNER_USES_PASSPHRASE'));
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'too short' }, cofounder), code('SECOND_ASK_SECRET_INVALID'));
@@ -168,7 +168,7 @@ test('a cofounder answers with their own approval secret; the owner can clear it
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'accountant words here' }, accountant), code('FORBIDDEN'));
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'cofounder words here' }, { ...cofounder, sourceTainted: true }), code('TAINTED_APPROVAL'));
   assert.deepEqual(Object.keys(await f.rpc('secondAsk.setSecret', { secret: 'cofounder words here' }, cofounder)).sort(), ['at', 'set']);
-  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'member-secret', secretSet: true, lockedUntil: null });
+  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'member-secret', expects: 'member-secret', secretSet: true, lockedUntil: null });
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'cofounder new words' }, cofounder), code('SECOND_ASK_CURRENT_REQUIRED'));
   await assert.rejects(f.rpc('secondAsk.setSecret', { secret: 'cofounder new words', current: 'not my words' }, cofounder), code('SECOND_ASK_FAILED'));
   await f.rpc('secondAsk.setSecret', { secret: 'cofounder new words', current: 'cofounder words here' }, cofounder);
@@ -194,7 +194,7 @@ test('a cofounder answers with their own approval secret; the owner can clear it
   assert.deepEqual(await f.rpc('secondAsk.clearSecret', { memberId: added.id }), { cleared: true });
   assert.deepEqual(await f.rpc('secondAsk.clearSecret', { memberId: added.id }), { cleared: false });
   await assert.rejects(f.rpc('actions.approve', { id: next.id, digest: next.digest }, cofounder), code('SECOND_ASK_REQUIRED'));
-  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'none', secretSet: false, lockedUntil: null });
+  assert.deepEqual(await f.rpc('secondAsk.status', {}, cofounder), { by: 'none', expects: 'none', secretSet: false, lockedUntil: null });
   const events = f.engine.vault!.read().activity.filter((a: any) => a.event.startsWith('secondAsk.')).map((a: any) => [a.event, a.details.memberId]);
   assert.deepEqual(events, [['secondAsk.secretSet', added.id], ['secondAsk.secretSet', added.id], ['secondAsk.granted', added.id], ['secondAsk.granted', added.id], ['secondAsk.secretCleared', added.id], ['secondAsk.secretCleared', added.id]]);
 
@@ -203,25 +203,10 @@ test('a cofounder answers with their own approval secret; the owner can clear it
   for (let n = 0; n < 5; n++) await assert.rejects(f.rpc('secondAsk.grant', grant(next, `guess ${n}`), cofounder), code('SECOND_ASK_FAILED'));
   await assert.rejects(f.rpc('secondAsk.grant', grant(next, 'cofounder third words'), cofounder), code('SECOND_ASK_LOCKED'));
   const status = await f.rpc('secondAsk.status', {}, cofounder);
-  assert.equal(status.by, 'member-secret'); assert.ok(Date.parse(status.lockedUntil) > Date.now());
-  assert.deepEqual(await f.rpc('secondAsk.status'), { by: 'passphrase', secretSet: false, lockedUntil: null }, 'One member’s lock is theirs alone.');
+  assert.equal(status.by, 'member-secret'); assert.equal(status.expects, 'member-secret'); assert.ok(Date.parse(status.lockedUntil) > Date.now());
+  assert.deepEqual(await f.rpc('secondAsk.status'), { by: 'passphrase', expects: 'passphrase', secretSet: false, lockedUntil: null }, 'One member’s lock is theirs alone.');
   const locked = f.engine.vault!.read().activity.filter((a: any) => a.event === 'secondAsk.locked');
   assert.equal(locked.length, 1); assert.deepEqual(Object.keys(locked[0].details).sort(), ['memberId', 'until']);
-});
-
-test('the approvals queue answers a core money action’s second ask with the typed passphrase', async t => {
-  const f = await workspace(t);
-  const pay = await f.prepare('queue-pay-1'); const id = `action:${pay.id}`;
-  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest }), code('SECOND_ASK_REQUIRED'));
-  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true }), code('REAUTH_REQUIRED'));
-  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: 'not the passphrase' }), code('SECOND_ASK_FAILED'));
-  await assert.rejects(f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: passphrase }, { ...owner, sourceTainted: true }), code('TAINTED_APPROVAL'));
-  assert.equal(f.engine.vault!.read().actions.find((a: any) => a.id === pay.id).status, 'prepared');
-  await f.rpc('approvals.approve', { id, digest: pay.digest, secondAsk: true, reauth: passphrase });
-  assert.equal(f.engine.vault!.read().actions.find((a: any) => a.id === pay.id).status, 'approved');
-  // A reversible action still takes no passphrase.
-  const note = await f.prepare('queue-note-1', owner, 'note');
-  await assert.rejects(f.rpc('approvals.approve', { id: `action:${note.id}`, digest: note.digest, reauth: passphrase }), code('INVALID_APPROVAL'));
 });
 
 test('auth.verifyApprovalSecret checks the caller’s own secret for another lane and changes nothing else', async t => {
