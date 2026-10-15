@@ -56,7 +56,9 @@ export function tallyXml(page: ReportPage): TallyFile {
       const negative = figure.exact.startsWith('-'), paise = negative ? figure.exact.slice(1) : figure.exact;
       const side: 'Dr' | 'Cr' = negative ? (line.side === 'Dr' ? 'Cr' : 'Dr') : line.side, other: 'Dr' | 'Cr' = side === 'Dr' ? 'Cr' : 'Dr';
       const ledger = ledgerName(line.label); ledgers.add(ledger);
-      const narration = `${page.title}, ${section.title}: ${line.label}. Receipt ${figure.receiptId}.`;
+      // A figure's labels (stale, approximate, seed, from outside...) travel with it, so Tally shows them too.
+      const labels = figure.labels.length ? ` Marked: ${figure.labels.join(', ')}.` : '';
+      const narration = `${page.title}, ${section.title}: ${line.label}. Receipt ${figure.receiptId}.${labels}`;
       const remoteId = `chausar-report-${page.pack}-${page.page}-${section.id}-${line.id}-${figure.receiptId}`;
       vouchers.push(`<VOUCHER REMOTEID="${xmlEscape(remoteId)}" VCHTYPE="Memorandum" ACTION="Create"><DATE>${date}</DATE><VOUCHERTYPENAME>Memorandum</VOUCHERTYPENAME>`
         + `<NARRATION>${xmlEscape(narration)}</NARRATION>${entry(ledger, side, paise)}${entry(TALLY_COUNTER_LEDGER, other, paise)}</VOUCHER>`);
@@ -68,6 +70,7 @@ export function tallyXml(page: ReportPage): TallyFile {
     `<LEDGER NAME="${xmlEscape(name)}" ACTION="Create"><NAME.LIST><NAME>${xmlEscape(name)}</NAME></NAME.LIST><PARENT>${xmlEscape(TALLY_PARENT_GROUP)}</PARENT></LEDGER>`).join('');
   const head = [
     `${page.title}, ${page.period.from} to ${page.period.to}. Memorandum vouchers: they stay out of the books in Tally.`,
+    `Page state: ${page.state}.`,
     ...leftOut.map(item => `Left out, not zero: ${item.section}: ${item.line}, because ${missingWords[item.missing]}.`),
     ...notes,
     ...(page.disclaimer ? [page.disclaimer] : []),

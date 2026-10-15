@@ -49,12 +49,18 @@ export async function withdrawSharing(_ctx: Context, payload: Record<string, any
  * TR-14. The plan comes from hosted-link's cached `hosted.status` (never a call to the server): "paid" while the account
  * says so; "ended" when an account this workspace once saw on the paid plan now says free; otherwise every paid part is
  * "planned-not-available" (not set up in this app, demo mode, not paired, never paid, or hosted-link absent).
+ * The paid sighting is tied to the paired account: pairing another account on the free plan is not "ended".
+ * This read writes once, the first time a paid account is seen (hosted-link owns the refresh, so there is no other hook).
  */
 export async function hostedView(host: ModuleHost) {
   const account = await hostedAccount(host);
-  const seen: string | null = tools(host.store.read()).hosted?.paidSeenAt ?? null;
-  if (account.plan === 'paid' && seen === null) await host.store.update(state => { (tools(state).hosted ??= {}).paidSeenAt ??= now(); });
-  const plan = account.plan === 'paid' ? 'paid' as const : account.plan === 'free' && seen !== null ? 'ended' as const : 'planned-not-available' as const;
+  const record = tools(host.store.read()).hosted ?? {};
+  const seenFor: string | null = typeof record.paidSeenFor === 'string' ? record.paidSeenFor : null;
+  if (account.plan === 'paid' && account.accountId !== null && seenFor !== account.accountId) await host.store.update(state => {
+    const hosted = (tools(state).hosted ??= {}); hosted.paidSeenFor = account.accountId; hosted.paidSeenAt = now();
+  });
+  const plan = account.plan === 'paid' ? 'paid' as const
+    : account.plan === 'free' && account.accountId !== null && seenFor === account.accountId ? 'ended' as const : 'planned-not-available' as const;
   return {
     blind: 'Hosted backup and sync are blind: the server holds only locked files and no key.',
     notBlind: 'Hosted jobs are not blind: the server holds a key for that one job while it works.',

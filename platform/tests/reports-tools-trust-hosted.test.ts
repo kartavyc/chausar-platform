@@ -26,9 +26,9 @@ async function setup(t: TestContext, o: { configured?: boolean; demo?: boolean }
   await engine.requestAs(owner, 'workspace.create', { name: 'Synthetic Hosted Plan Shop', passphrase, demo: !!o.demo, pack: 'services' });
   const rpc = (method: string, payload: Record<string, unknown> = {}) => engine.requestAs(owner, method, payload);
   /** Writes what hosted-link would cache after pairing and an account refresh. */
-  const cache = (plan: 'free' | 'paid' | null) => engine.vault!.update((state: any) => {
+  const cache = (plan: 'free' | 'paid' | null, accountId = 'acct_synthetic') => engine.vault!.update((state: any) => {
     const ns = ((state.extensions ??= {})['hosted-link'] ??= {});
-    ns.pairing = { accountId: 'acct_synthetic', deviceId: 'dev_synthetic', sessionToken: 'synthetic-session', pairedAt: '2026-10-01T00:00:00.000Z', phoneMasked: '+91******3210', sessionExpiresAt: '2026-11-01T00:00:00.000Z' };
+    ns.pairing = { accountId, deviceId: 'dev_synthetic', sessionToken: 'synthetic-session', pairedAt: '2026-10-01T00:00:00.000Z', phoneMasked: '+91******3210', sessionExpiresAt: '2026-11-01T00:00:00.000Z' };
     ns.relayKey = Buffer.alloc(32, 7).toString('base64');
     ns.account = plan === null ? null : { plan, entitlements: plan === 'paid' ? ENTITLED : FREE, deviceCount: 1, refreshedAt: '2026-10-14T05:00:00.000Z' };
   });
@@ -75,6 +75,9 @@ test('a free account that was never paid is planned; paid shows paid; paid then 
   // Reading again keeps the first time the paid plan was seen; nothing else is written.
   assert.equal((f.engine.vault!.read().extensions as any)['reports-tools-trust'].tools.hosted.paidSeenAt, seen);
   assert.equal(f.fetched(), 0);
+  // Pairing another account that was never paid is not an ended plan.
+  await f.cache('free', 'acct_other');
+  assert.equal((await f.rpc('trustx.hosted')).plan, 'planned-not-available');
 });
 
 test('a cached account that is not understood reads as paired with no plan', async t => {

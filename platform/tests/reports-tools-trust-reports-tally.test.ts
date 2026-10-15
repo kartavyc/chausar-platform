@@ -27,6 +27,7 @@ test('the Tally file is exact: amounts by string from paise, a negative balance 
   const entry = (name: string, dr: boolean, amount: string) => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${name}</LEDGERNAME><ISDEEMEDPOSITIVE>${dr ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE><AMOUNT>${amount}</AMOUNT></ALLLEDGERENTRIES.LIST>`;
   assert.equal(file.xml, '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<!-- Receivables & dues, 2026-04-01 to 2026-09-30. Memorandum vouchers: they stay out of the books in Tally. -->\n'
+    + '<!-- Page state: ready-untested. -->\n'
     + '<!-- Left out, not zero: On the last day: Overdue more than 90 days, because it is withheld from your seat. -->\n'
     + '<!-- Left out, not zero: On the last day: Old dues, because it is not counted. -->\n'
     + '<!-- Gap in On the last day: One import is not reconciled - check it. -->\n'
@@ -47,4 +48,9 @@ test('only fixed pages of Dr and Cr balances can go to Tally; a page with nothin
   assert.deepEqual(exportable, ['lender.receivables-ageing', 'ca.ageing', 'investor.receivables']);
   const empty: ReportPage = { ...page, sections: [{ ...page.sections[0]!, lines: page.sections[0]!.lines.slice(2) }] };
   assert.throws(() => tallyXml(empty), (error: any) => error.code === 'TALLY_PAGE_NO_FIGURES');
+});
+
+test('the labels of a figure travel into its Tally narration', () => {
+  const stale: ReportPage = { ...page, sections: [{ ...page.sections[0], lines: [{ ...page.sections[0].lines[0], figure: { kind: 'money', exact: '100', receiptId: 'receipt_s', labels: ['stale', 'seed'] } }] }] };
+  assert.match(tallyXml(stale).xml, /<NARRATION>[^<]*Receipt receipt_s\. Marked: stale, seed\.<\/NARRATION>/);
 });

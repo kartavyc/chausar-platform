@@ -26,18 +26,18 @@ const markWords: Record<Language, Record<MarkKind, string>> = {
 };
 const or = (lang: Language, items: string[]) => items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${lang === 'hi' ? 'या' : 'or'} ${items[items.length - 1]}`;
 
-function ruleSentence(lang: Language, rule: RuleKind, seat: Seat, hidden: MarkKind[], source: { known: boolean; allowed: boolean } | null): string {
+function ruleSentence(lang: Language, rule: RuleKind, seat: Seat, hidden: MarkKind[], source: { known: boolean | null; allowed: boolean } | null): string {
   const s = seatWords[lang][seat];
   if (lang === 'hi') switch (rule) {
     case 'marking': return hidden.length ? `${or(lang, hidden.map(k => markWords.hi[k]))} चिह्नित कोई भी चीज़ ${s} सीट से छिपी है।` : `इस जवाब में ऐसा चिह्नित डेटा है जो ${s} सीट नहीं देखती।`;
-    case 'source': return source && !source.known ? 'यह स्रोत अब इस वर्कस्पेस में नहीं है।' : 'यह जवाब ऐसे स्रोत पर टिका है जिसे यह वर्कस्पेस पढ़ता नहीं है।';
+    case 'source': return source && source.known === false ? 'यह स्रोत अब इस वर्कस्पेस में नहीं है।' : 'यह जवाब ऐसे स्रोत पर टिका है जिसे यह वर्कस्पेस पढ़ता नहीं है।';
     case 'branch': return `${s} सीट केवल कुछ शाखाएँ पढ़ती है; इस जवाब को दूसरी शाखा चाहिए।`;
     case 'access': return 'इस वर्कस्पेस में आपकी पहुँच बदल गई है। फिर से साइन इन करें।';
     case 'seat': return `${s} सीट यह नहीं कर सकती।`;
   }
   switch (rule) {
     case 'marking': return hidden.length ? `Anything marked ${or(lang, hidden.map(k => markWords.en[k]))} is hidden from the ${s} seat.` : `This answer holds marked data the ${s} seat does not see.`;
-    case 'source': return source && !source.known ? 'This source is no longer in the workspace.' : 'This answer rests on a source this workspace does not read.';
+    case 'source': return source && source.known === false ? 'This source is no longer in the workspace.' : 'This answer rests on a source this workspace does not read.';
     case 'branch': return `The ${s} seat reads only some branches; this answer needs another branch.`;
     case 'access': return 'Your access to this workspace has changed. Sign in again.';
     case 'seat': return `The ${s} seat cannot do this.`;
@@ -65,9 +65,11 @@ export function explainRule(state: State, ctx: Context, payload: unknown) {
   check(member !== undefined, 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
   const seat = seatOf(state, member);
   const sees = seatSees(state, seat); const hidden = rule === 'marking' ? markKinds.filter(k => !sees[k]) : [];
-  // Only the caller's own question about a source: known and allowed, never its rows.
+  // Only the caller's own question about a source, never its rows. Whether a source exists is said only to a seat
+  // allowed to read it, so this cannot be used to probe for source ids.
+  const allowed = typeof input.sourceId === 'string' && sourceAllowed(state, ctx, input.sourceId);
   const source = rule === 'source' && typeof input.sourceId === 'string'
-    ? { known: knownSources(state).includes(input.sourceId), allowed: sourceAllowed(state, ctx, input.sourceId) } : null;
+    ? { known: allowed ? knownSources(state).includes(input.sourceId) : null, allowed } : null;
   const cofounder = state.members.some(m => m.active && m.role === 'cofounder');
   // Allowed sources are one admin's change; seats, branches and what a seat sees widen only under dual control.
   const both = rule !== 'source' && cofounder;

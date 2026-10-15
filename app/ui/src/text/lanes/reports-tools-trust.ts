@@ -1,6 +1,9 @@
 /** Words the reports-tools-trust lane adds to the shared catalogue, in English and Hindi (same keys).
  *  Only the owning lane edits this file. Keys must not repeat a key in text/en.json or another lane's file. */
 
+/** One catalogue block. Starting with an export keeps `node --check` (scripts/check.mjs) reading this file as a module. */
+export type LaneWords = Readonly<Record<string, string>>;
+
 // TR-08 models
 const TR08_MODELS_EN = {
   'SH-01.sub.trust.models-compare': 'Model comparison',
@@ -204,7 +207,7 @@ const TR08_MODELS_EN = {
   'RTT.models.refuse.tokens': 'Token counts are whole numbers.',
   'RTT.models.refuse.route': 'The route settings were refused.',
   'RTT.models.refuse.ladder': 'That order was refused. Every route must appear once.',
-} as const;
+};
 
 const TR08_MODELS_HI: Readonly<Record<keyof typeof TR08_MODELS_EN, string>> = {
   'SH-01.sub.trust.models-compare': 'मॉडलों की तुलना',

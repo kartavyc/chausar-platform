@@ -142,7 +142,7 @@ export function payloadFrom(schema: PayloadSchema, form: readonly FormField[], t
   if (!Object.keys(typed).every((k) => form.some((f) => f.name === k))) return { ok: false, field: '' };
   const payload: Record<string, unknown> = {};
   for (const f of form) {
-    const raw = typed[f.name];
+    const raw = Object.hasOwn(typed, f.name) ? typed[f.name] : undefined;
     if (f.kind === 'yesno') {
       if (raw === undefined) { if (f.required) return { ok: false, field: f.name }; continue; }
       if (typeof raw !== 'boolean') return { ok: false, field: f.name };

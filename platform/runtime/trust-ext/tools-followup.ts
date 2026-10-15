@@ -50,7 +50,7 @@ export async function followUpDelete(ctx: Context, payload: Record<string, any>,
     check(entry.versions.at(-1)!.version === expectedVersion, 'FOLLOW_UP_CONFLICT', 'This follow-up changed since you read it. Read it again.');
     const ns = moduleState<Record<string, any>>(state, BOOK_MODULE, () => ({}));
     ns.smallApps.book = (ns.smallApps.book as Entry[]).filter(item => item.id !== id);
-    audit(state, 'smallapp.followup.deleted', { entryId: id, versions: entry.versions.length });
+    audit(state, 'smallapp.followup.deleted', { entryId: id, versions: entry.versions.length, by: ctx.memberId });
     return { deleted: true, id, versionsRemoved: entry.versions.length };
   });
 }
@@ -63,9 +63,9 @@ export async function followUpExport(ctx: Context, payload: Record<string, any>,
     .sort((a, b) => a.latest.when.localeCompare(b.latest.when) || a.entry.id.localeCompare(b.entry.id));
   const csv = ['entry,customer,written,said,next,status,version,earlier_versions_withheld',
     ...rows.map(({ entry, latest, withheld }) => [entry.id, latest.who, latest.at.slice(0, 10), latest.said, latest.when, latest.status, String(latest.version), String(withheld)].map(cell).join(','))].join('\n') + '\n';
-  const folder = join(host.directory, 'exports', 'follow-up'); await mkdir(folder, { recursive: true });
+  const folder = join(host.directory, 'exports', 'follow-up'); await mkdir(folder, { recursive: true, mode: 0o700 });
   const name = `${newId('followup-export')}.csv`; const path = join(folder, name);
   await writeFile(path, csv, { encoding: 'utf8', mode: 0o600 });
-  await host.store.update(next => { audit(next, 'smallapp.followup.exported', { rows: rows.length }); });
+  await host.store.update(next => { audit(next, 'smallapp.followup.exported', { rows: rows.length, by: ctx.memberId }); });
   return { name, path, bytes: Buffer.byteLength(csv), sha256: sha256(csv), rows: rows.length, encrypted: false, warning: 'Exported files are not encrypted.' };
 }

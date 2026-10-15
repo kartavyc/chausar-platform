@@ -89,3 +89,10 @@ test('phone: verify replies, relay refusals and optional per-channel costs', () 
   assert.throws(() => counts({ ...base, costByChannel: { whatsapp: 2.4 } }));
   assert.throws(() => counts({ ...base, perMessagePaise: { sms: '1' } }));
 });
+
+test('an optional field named like a built-in property can be left blank', () => {
+  const schema = payloadSchema({ type: 'object', properties: { constructor: { type: 'string', maxLength: 10 }, note: { type: 'string', maxLength: 10 } } });
+  assert.ok(schema);
+  const result = payloadFrom(schema!, formOf(schema!), { note: 'hi' });
+  assert.equal(result.ok, true);
+});

@@ -62,6 +62,8 @@ export function hostedLeft(state: State): HostedLeft[] {
 export type HostedAccount = {
   state: 'not-configured' | 'demo' | 'not-paired' | 'paired';
   plan: 'free' | 'paid' | null;
+  /** The paired hosted account, so a plan seen as paid is tied to that account only. */
+  accountId: string | null;
   refreshedAt: string | null;
   entitlements: { backup: boolean; worker: boolean; relay: boolean; allowance: boolean } | null;
 };
@@ -70,16 +72,17 @@ export type HostedAccount = {
  * last account refresh. Never reaches the hosted service. Absent, refused or not understood reads as not configured.
  */
 export async function hostedAccount(host: ModuleHost): Promise<HostedAccount> {
-  const none: HostedAccount = { state: 'not-configured', plan: null, refreshedAt: null, entitlements: null };
+  const none: HostedAccount = { state: 'not-configured', plan: null, accountId: null, refreshedAt: null, entitlements: null };
   const reply = await ask(host, 'hosted.status');
   if (!obj(reply) || typeof reply.configured !== 'boolean' || typeof reply.paired !== 'boolean') return none;
   if (reply.demo === true) return { ...none, state: 'demo' };
   if (!reply.configured) return none;
   if (!reply.paired) return { ...none, state: 'not-paired' };
+  const accountId = obj(reply.pairing) && typeof reply.pairing.accountId === 'string' && reply.pairing.accountId.length > 0 ? reply.pairing.accountId : null;
   const account = reply.account;
-  if (!obj(account) || !['free', 'paid'].includes(account.plan) || !iso(account.refreshedAt) || !obj(account.entitlements)) return { ...none, state: 'paired' };
+  if (!obj(account) || !['free', 'paid'].includes(account.plan) || !iso(account.refreshedAt) || !obj(account.entitlements)) return { ...none, state: 'paired', accountId };
   const e = account.entitlements, on = (v: unknown) => v === true;
-  return { state: 'paired', plan: account.plan, refreshedAt: account.refreshedAt,
+  return { state: 'paired', plan: account.plan, accountId, refreshedAt: account.refreshedAt,
     entitlements: { backup: on(e.backup), worker: on(e.worker), relay: on(e.relay), allowance: on(e.allowance) } };
 }
 
