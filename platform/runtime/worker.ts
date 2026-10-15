@@ -1,10 +1,10 @@
 import { Engine } from './engine.ts';
-import { engineJobOptions } from './engine-jobs.ts';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { loadEngineKeychain, type EngineKeychainHostDependencies } from './engine-keychain-host.ts';
 import { desktopSyncOptions } from './core-sync-jobs/desktop-sync.ts';
+import { desktopJobOptions } from './core-sync-jobs/desktop-jobs.ts';
 
 /** Verified host evidence is installed before the worker can announce readiness. */
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies & EngineKeychainHostDependencies = {}): Promise<Engine> {
@@ -14,7 +14,9 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   const directory = resolve(environment.CHAUSAR_VAULT_DIRECTORY ?? './data');
   // TR-07: an enrolled computer gets its device key and pen admission; sync stays off until the owner turns it on.
   const sync = await desktopSyncOptions(directory, demo);
-  return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory, demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, keychain, ...(sync ? { sync } : {}) });
+  // WK-11: typed jobs and calendar rules, so month-end jobs run in the installed app.
+  const { durableJobs, jobCalendar } = desktopJobOptions(environment);
+  return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory, demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs, jobCalendar, gateway, keychain, ...(sync ? { sync } : {}) });
 }
 
 /** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */

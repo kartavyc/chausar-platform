@@ -194,7 +194,7 @@ for (const entrypoint of ['server', 'worker'] as const) {
     const admissions: unknown[] = [];
     class SyntheticEngine { options: unknown; constructor(options: unknown) { this.options = options; } }
     const load = vm.runInNewContext(`${code}\n${name}`, {
-      Engine: SyntheticEngine, resolve, engineJobOptions: () => undefined, desktopSyncOptions: async () => undefined,
+      Engine: SyntheticEngine, resolve, engineJobOptions: () => undefined, desktopSyncOptions: async () => undefined, desktopJobOptions: () => ({ durableJobs: undefined, jobCalendar: undefined }),
       loadCodexCliHostGateway: async (environment: unknown, dependencies: unknown) => { admissions.push(['gateway', environment, dependencies]); return { demo: false }; },
       loadEngineKeychain: async (_environment: unknown, _dependencies: unknown, demo: boolean) => { admissions.push(['keychain', demo]); return undefined; },
     });

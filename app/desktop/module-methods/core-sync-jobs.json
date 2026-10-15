@@ -8,5 +8,9 @@
   "devices.send",
   "devices.join",
   "seats.inviteVerify",
-  "sync.setup"
+  "sync.setup",
+  "jobs.review.set",
+  "jobs.personStep.done",
+  "jobs.childResults",
+  "jobs.meters"
 ]
