@@ -171,7 +171,8 @@ export const laneRefusalCodes: readonly string[] = [
   'SMALLAPP_WORDS_OFF_MENU', 'PLUGIN_SEND_WITHHELD', 'PLUGIN_REMOTE_APPROVAL_REQUIRED',
   'PLUGIN_REMOTE_PREVIEW_NOT_FOUND', 'PLUGIN_REMOTE_PREVIEW_EXPIRED', 'PLUGIN_REMOTE_APPROVAL_NOT_FOUND',
   'PLUGIN_REMOTE_APPROVAL_USED', 'PLUGIN_REMOTE_APPROVAL_EXPIRED', 'PLUGIN_REMOTE_APPROVAL_STALE',
-  'PLUGIN_RESULT_UNRECEIPTED', 'PLUGIN_DISABLED'
+  'PLUGIN_RESULT_UNRECEIPTED', 'PLUGIN_DISABLED', 'GST_MATCH_NOT_APPLICABLE', 'GST_MATCH_TOO_LARGE',
+  'GST_RETURN_NOT_APPLICABLE', 'INVALID_QUANTITY', 'INVALID_STOCK_DATE'
 ];
 const laneCode = (value: unknown): string | undefined => typeof value === 'string' && laneRefusalCodes.includes(value) ? value : undefined;
 function desktopFailure(code: string): Error & { code: string } {

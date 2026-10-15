@@ -174,7 +174,7 @@ export const receiptEvidenceKeys = [
   'coverage', 'assumptions', 'explanation', 'stale', 'allowedNumbers',
 ] as const;
 function receipt(value: unknown, path: string): void {
-  const obj = shape(value, path, receiptEvidenceKeys, ['staleReason', 'requestedSourceIds']);
+  const obj = shape(value, path, receiptEvidenceKeys, ['staleReason', 'requestedSourceIds', 'missingFigures']);
   for (const key of ['id', 'memberId', 'operation', 'dictionaryHash', 'definitionHash']) id(obj[key], `${path}.${key}`);
   integer(obj.epoch, `${path}.epoch`); integer(obj.ontologyVersion, `${path}.ontologyVersion`);
   array(obj.sourceIds, `${path}.sourceIds`, 10000, id); unique(obj.sourceIds, `${path}.sourceIds`);
@@ -187,19 +187,25 @@ function receipt(value: unknown, path: string): void {
   nullable(obj.period, `${path}.period`, period); nullable(obj.comparePeriod, `${path}.comparePeriod`, period); nullable(obj.branch, `${path}.branch`, id);
   if (typeof obj.currency !== 'string' || !/^[A-Z]{3}$/.test(obj.currency)) fail(`${path}.currency`);
   array(obj.figures, `${path}.figures`, 120, (v, p) => {
-    const f = shape(v, p, ['key', 'label', 'minor', 'display', 'unit'], ['currency']); id(f.key, `${p}.key`); string(f.label, `${p}.label`); assertIntegerString(f.minor, `${p}.minor`); string(f.display, `${p}.display`);
-    choice(f.unit, `${p}.unit`, ['money', 'basis-points']);
+    const f = shape(v, p, ['key', 'label', 'minor', 'display', 'unit'], ['currency', 'quantityUnit']); id(f.key, `${p}.key`); string(f.label, `${p}.label`); assertIntegerString(f.minor, `${p}.minor`); string(f.display, `${p}.display`);
+    choice(f.unit, `${p}.unit`, ['money', 'basis-points', 'quantity', 'count']);
+    if (Object.hasOwn(f, 'quantityUnit') && (f.unit !== 'quantity' || Object.hasOwn(f, 'currency'))) fail(`${p}.quantityUnit`);
+    if (Object.hasOwn(f, 'quantityUnit')) string(f.quantityUnit, `${p}.quantityUnit`, 40);
+    if ((f.unit === 'quantity' || f.unit === 'count') && Object.hasOwn(f, 'currency')) fail(`${p}.currency`);
     if (f.unit === 'money' && f.currency !== obj.currency) fail(`${p}.currency`);
     if (Object.hasOwn(f, 'currency') && (typeof f.currency !== 'string' || !/^[A-Z]{3}$/.test(f.currency))) fail(`${p}.currency`);
   }); unique(obj.figures, `${path}.figures`, 'key');
   assertIntegerString(obj.valueMinor, `${path}.valueMinor`); assertIntegerString(obj.totalMinor, `${path}.totalMinor`);
   array(obj.rowIds, `${path}.rowIds`, 10000, id); unique(obj.rowIds, `${path}.rowIds`);
   array(obj.rows, `${path}.rows`, 10000, (v, p) => {
-    const r = shape(v, p, ['factId', 'entityId', 'sourceId', 'sourceRow', 'kind', 'amountMinor', 'validFrom'], ['measureField', 'dueDate', 'invoiceId', 'customerId', 'orderId', 'status', 'branch', 'normalization']);
+    const r = shape(v, p, ['factId', 'entityId', 'sourceId', 'sourceRow', 'kind', 'amountMinor', 'validFrom'], ['measureField', 'dueDate', 'invoiceId', 'customerId', 'orderId', 'status', 'branch', 'normalization', 'sourceAmountMinor', 'item', 'quantityUnit']);
     for (const key of ['factId', 'entityId', 'sourceId', 'kind']) id(r[key], `${p}.${key}`);
     integer(r.sourceRow, `${p}.sourceRow`); if (r.sourceRow === 0) fail(`${p}.sourceRow`); assertIntegerString(r.amountMinor, `${p}.amountMinor`); assertISODate(r.validFrom, `${p}.validFrom`);
     if (Object.hasOwn(r, 'dueDate')) assertISODate(r.dueDate, `${p}.dueDate`);
     for (const key of ['measureField', 'invoiceId', 'customerId', 'orderId', 'status', 'branch']) if (Object.hasOwn(r, key)) string(r[key], `${p}.${key}`);
+    if (Object.hasOwn(r, 'sourceAmountMinor')) { assertIntegerString(r.sourceAmountMinor, `${p}.sourceAmountMinor`); if (!Object.hasOwn(r, 'normalization')) fail(`${p}.sourceAmountMinor`); }
+    if (Object.hasOwn(r, 'item')) string(r.item, `${p}.item`, 120); if (Object.hasOwn(r, 'quantityUnit')) string(r.quantityUnit, `${p}.quantityUnit`, 40);
+    if (Object.hasOwn(r, 'item') !== Object.hasOwn(r, 'quantityUnit')) fail(`${p}.quantityUnit`);
     if (Object.hasOwn(r, 'normalization')) {
       const n = shape(r.normalization, `${p}.normalization`, ['sourceCurrency', 'targetCurrency', 'rate']);
       for (const key of ['sourceCurrency', 'targetCurrency']) if (typeof n[key] !== 'string' || !/^[A-Z]{3}$/.test(n[key])) fail(`${p}.normalization.${key}`);
@@ -208,7 +214,8 @@ function receipt(value: unknown, path: string): void {
   }); unique(obj.rows, `${path}.rows`, 'factId');
   if (Array.isArray(obj.rows) && Array.isArray(obj.rowIds) && (obj.rowIds.length !== obj.rows.length || obj.rows.some((r, i) => (r as Record<string, unknown>).factId !== (obj.rowIds as unknown[])[i]))) fail(`${path}.rowIds`);
   array(obj.exclusions, `${path}.exclusions`, 10000, (v, p) => { const e = shape(v, p, ['rowId', 'reason']); id(e.rowId, `${p}.rowId`); string(e.reason, `${p}.reason`); });
-  const coverage = shape(obj.coverage, `${path}.coverage`, ['selectedRows', 'countedRows', 'excludedRows', 'unresolvedConflicts', 'importIds', 'completeness', 'gaps']);
+  const coverage = shape(obj.coverage, `${path}.coverage`, ['selectedRows', 'countedRows', 'excludedRows', 'unresolvedConflicts', 'importIds', 'completeness', 'gaps'], ['notCounted']);
+  if (Object.hasOwn(coverage, 'notCounted')) integer(coverage.notCounted, `${path}.coverage.notCounted`);
   for (const key of ['selectedRows', 'countedRows', 'excludedRows', 'unresolvedConflicts']) integer(coverage[key], `${path}.coverage.${key}`);
   if (Array.isArray(obj.rows) && coverage.countedRows !== obj.rows.length) fail(`${path}.coverage.countedRows`);
   array(coverage.importIds, `${path}.coverage.importIds`, 10000, id); array(coverage.gaps, `${path}.coverage.gaps`, 1000, string);
@@ -217,6 +224,12 @@ function receipt(value: unknown, path: string): void {
   string(obj.explanation, `${path}.explanation`, 100000, true); boolean(obj.stale, `${path}.stale`);
   if (Object.hasOwn(obj, 'staleReason')) string(obj.staleReason, `${path}.staleReason`);
   array(obj.allowedNumbers, `${path}.allowedNumbers`, 10000, (v, p) => { if (typeof v !== 'string' || v.length > 256 || !/^-?\d+(?:\.\d+)?$/.test(v)) fail(p); });
+  if (Object.hasOwn(obj, 'missingFigures')) {
+    array(obj.missingFigures, `${path}.missingFigures`, 120, (v, p) => {
+      const m = shape(v, p, ['key', 'label', 'missing', 'reason']); id(m.key, `${p}.key`); string(m.label, `${p}.label`); string(m.reason, `${p}.reason`);
+      choice(m.missing, `${p}.missing`, ['not-loaded-yet', 'absent', 'unknown', 'not-applicable', 'not-counted']);
+    }); unique(obj.missingFigures, `${path}.missingFigures`, 'key');
+  }
 }
 function approval(value: unknown, path: string): void {
   const obj = shape(value, path, ['id', 'kind', 'state', 'title', 'note', 'can', 'readOnly', 'prepareOnly', 'needsSecondAsk', 'digest', 'revision']);
@@ -278,10 +291,10 @@ export const validateEnterpriseStatus = (value: unknown): EnterpriseInvestigatio
 
 /** Consume the real full DTO but expose only the documented evidence projection. */
 export function projectCalculationReceipt(value: unknown): CalculationReceiptEvidence {
-  const obj = shape(value, 'receipt', [...receiptEvidenceKeys, 'definitions'], ['staleReason', 'requestedSourceIds', 'compiledCalculation', 'databaseProof']);
+  const obj = shape(value, 'receipt', [...receiptEvidenceKeys, 'definitions'], ['staleReason', 'requestedSourceIds', 'compiledCalculation', 'databaseProof', 'missingFigures']);
   if (!Array.isArray(obj.definitions)) fail('receipt.definitions');
   for (const key of ['definitions', 'compiledCalculation', 'databaseProof']) if (Object.hasOwn(obj, key)) jsonData(obj[key], `receipt.${key}`);
   const selected: Record<string, unknown> = {};
-  for (const key of [...receiptEvidenceKeys, 'staleReason', 'requestedSourceIds']) if (Object.hasOwn(obj, key)) selected[key] = obj[key];
+  for (const key of [...receiptEvidenceKeys, 'staleReason', 'requestedSourceIds', 'missingFigures']) if (Object.hasOwn(obj, key)) selected[key] = obj[key];
   return validateReceiptEvidence(selected);
 }

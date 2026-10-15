@@ -72,7 +72,7 @@ const laneRefusals = [
 
   /* ca-enterprise */ [],
 
-  /* core-data */ [],
+  /* core-data */ ['GST_MATCH_NOT_APPLICABLE', 'GST_MATCH_TOO_LARGE', 'GST_RETURN_NOT_APPLICABLE', 'INVALID_QUANTITY', 'INVALID_STOCK_DATE'],
 
   /* core-sync-jobs */ [],
 
