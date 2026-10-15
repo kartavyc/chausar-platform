@@ -116,3 +116,16 @@ button.suggestion {
   font-size: var(--fs-note);
   color: var(--mute);
 }
+
+li.suggestion {
+  cursor: pointer;
+  padding-inline: var(--sp2);
+}
+.active {
+  background: var(--line2);
+}
+
+.voice {
+  flex: 1 0 100%;
+  min-width: 0;
+}
