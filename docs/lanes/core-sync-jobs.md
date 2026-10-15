@@ -4,8 +4,6 @@ Branch `claude/lane-core-sync-jobs`. This lane owns `sync.ts`, `auth.ts`, `jobs.
 bus. Its RPC methods live in `platform/runtime/modules/lane-core-sync-jobs.ts`; its code in
 `platform/runtime/core-sync-jobs/`.
 
-<!-- SECTIONS: devices, events, jobs, audit, contracts, core edits, gaps -->
-
 ## 1. Machines and the pen (TR-07, SH-03, FR-14) — experimental
 
 **What it is.** One computer at a time may change a synced workspace: the one that holds the pen. The others read.
@@ -52,3 +50,115 @@ then refuses `DEVICE_JOIN_NEEDS_FOLDER`.
 
 A reader trusts machines that joined after its copy was taken through the acceptances in the folder, each signed by
 an approver it already knows.
+
+**Tests:** `platform/tests/core-sync-jobs-devices.test.ts` (two and three engines sharing a synthetic local folder).
+
+## 2. Live refresh (SH-01, TD-01, TD-03, TD-04, WK-01, WK-04, WK-07, BK-01) — supported
+
+- **Engine event bus** (`core-sync-jobs/event-bus.ts`): bumps a sequence number whenever the open workspace or its
+  revision changes (checked after every request and every scheduler tick, from `Vault.readIdentity()`).
+- **Desktop push:** `worker.ts` sends `{ kind: 'engine-event', seq }` (at most one per 250 ms) → `engine-harness.cjs`
+  emits `'engine-event'` → `main.cjs` forwards it on `EVENT_CHANNEL = 'chausar:engine-event'` → `preload.cjs`
+  exposes `window.chausar.onEngineEvent(callback)`, delivering only `{ seq }`. No data crosses: the renderer then asks.
+- **`events.subscribe`** (immediate reply, no waiting inside the engine): typed events after a cursor, filtered by kind,
+  visible to the caller by the same rule as Activity (it reuses frame-today's `auditEvents`).
+- **Places:** `PlaceRenderProps.subscribe?(kinds, onEvent) → unsubscribe` (additive, `places/types.ts`). The host makes
+  one `createLiveEvents` (`places/live-events.ts`) per controller: it wakes on the desktop push, or polls every 5 s while
+  the page is visible where there is no push (browser, loopback server), and stops quietly where the method is not built.
+  Each event reaches a subscriber once; a screen should coalesce its own re-reads.
+
+**Tests:** `platform/tests/core-sync-jobs-events.test.ts` (including a real forked worker over the harness) and
+`app/ui/tests/core-sync-jobs-live-events.test.ts`.
+
+## 3. Core jobs (WK-08, WK-09, WK-11, WK-16) — supported
+
+- **Durations:** a `delivered` ledger entry carries `durationMs` (since that run's admission); every `step-verified`
+  entry carries `stepId`, `durationMs` and, for an action preview, `actionId`.
+- **Actions named per job:** `JobConfig.actions` (connector.operation, at most 50); a plan job defaults to its
+  `allowedActions`. Part of the job's digest only when present, so stored jobs keep their digests.
+- **Review date:** `JobConfig.reviewOn` (YYYY-MM-DD) and `jobs.review.set`; not authority, not in the digest.
+- **Steps for a person:** a plan step with `provider: 'person'` and `input { what, memberId?, who? }` is never
+  dispatched. The job waits (`runner-blocked`, ledger reason `PERSON_STEP_WAITING`) until the job's pinned owner calls
+  `jobs.personStep.done`; then the step settles at no cost and the job resumes. The wait does not count against the
+  plan's wall-time ceiling.
+- **Child results:** `jobs.childResults` — each child task done, missing or waiting for a person, with released results;
+  `open` stays true while any child result is missing.
+- **Meters:** `jobs.meters` — clock time (sum of delivered durations) and effect exposure (prepared or approved actions
+  the job names), each null when not counted.
+- **Month-end in the installed app (WK-11):** `worker.ts` passes typed-job options (`desktopJobOptions`: the env policy,
+  else a local default) and calendar rules (Asia/Kolkata, UTC and four more zones, 2024–2040), so
+  `approvals.proposeJob` month-end no longer refuses `CALENDAR_SCHEDULE_UNAVAILABLE`.
+
+**Tests:** `platform/tests/core-sync-jobs-jobs.test.ts`.
+
+## 4. Audit events (TD-04) — supported
+
+`lesson.decided` (`lessonId`, `outcome`), `vault.backup.done`, `release.update.checked` (`status`),
+`workspace.locked`, `workspace.unlocked`, each with `memberId`. An open or a lock must not publish a revision of its
+own (retained pins survive a read-only lock and reopen), so these records wait in memory and join the next ordinary
+write to the same workspace, in that write's own revision. Writes of `workspace.*`, `scenarios.*`, `sync.*`,
+`devices.*` and `seats.inviteVerify` requests, which pin the exact state they commit, never carry them. So "backup
+done" and "update checked" appear after the next change, and records not yet written are lost if the app quits.
+Machine events are also recorded: `device.enrolled`, `device.joined`, `device.pen.handed-over`, `device.pen.taken`,
+`device.removed`; job events `job.person-step-done`, `job.person-step-waiting`, `job.review-date-set`.
+
+**Tests:** `platform/tests/core-sync-jobs-audit.test.ts`.
+
+## 5. Round 4 contracts
+
+All replies are validated JSON; refusals are typed codes (listed on the lane's preload line).
+
+| Method | Permission | Request | Reply |
+|---|---|---|---|
+| `events.subscribe` | read | `{ kinds?: Kind[]; after?: string }` | `{ cursor: string; events: { id; at; type; kinds: Kind[] }[]; more: boolean }` — without `after`: head cursor, no events. `Kind = 'activity'\|'approvals'\|'actions'\|'jobs'\|'sources'\|'books'\|'answers'\|'trust'\|'devices'\|'workspace'\|'lessons'` |
+| `devices.list` | read | `{}` | `{ thisDevice: { id; name; enrolled } \| null; configured: boolean; syncOn: boolean; transport: { kind: 'folder'; access: 'read-write-this-folder' } \| { kind: 'drive'; access: 'drive.file'; oldCopies: 'drive-keeps-30-days-or-100-versions' } \| null; readOnly: boolean; pen: PenView; devices: { id; name; thisComputer; holdsPen; state: 'active'\|'removed'; enrolledAt; removedAt; lastReadAt; fingerprint; memberId? }[]; keyChangeOnRemove: 'not-built'; experimental: true }` |
+| `devices.pen` | read | `{}` | `PenView & { configured: boolean; readOnly: boolean }`; `PenView = { holder: { id; name } \| null; thisComputerHolds: boolean; seq: number; since: string \| null; kind: 'first'\|'hand-over'\|'take-over'\|null; handOver: { to: string; published: boolean } \| null }` |
+| `sync.setup` | admin, owner/cofounder, desktop | `{ transport: 'folder'; folder: absolute path; deviceName? }` \| `{ transport: 'drive'; deviceName? }` \| `{ on: boolean }` | the `devices.list` reply, plus `restartRequired: boolean` for the first two forms |
+| `devices.handOver` | admin, desktop | `{ toDeviceId; confirm: true }` \| `{ retry: true }` | `PenView & { configured; readOnly; published: boolean; revision?: number; errorCode?: string }` |
+| `devices.takePen` (experimental) | admin, desktop | `{ confirm: true }` | `PenView & { configured; readOnly; experimental: true; lateChanges: 'settle-by-hand' }` |
+| `devices.remove` | admin, desktop | `{ deviceId; confirm: true }` | `{ removed: true; deviceId; keyChanged: false; keyChange: 'VAULT_REKEY_NOT_BUILT'; copiesStay: true }` |
+| `devices.send` | admin, desktop, pen holder | `{ confirm: true }` | `{ sent: true; revision: number }` |
+| `devices.read` | admin, desktop | `{ passphrase }` | `{ upToDate: true; revision }` \| `{ upToDate: false; folder; revision; switch: 'lock-then-open-folder' }` |
+| `devices.join` | admin; preVault (desktop only) | `{ step: 'request'; folder; deviceName? }` \| `{ step: 'finish' }` \| `{ step: 'cancel' }` | `{ state: 'waiting'; requestId; code: six digits; expiresAt }` \| `{ state: 'ready'; backupFile; revision; next: 'restore-then-restart' }` \| `{ state: 'refused' \| 'expired' \| 'cancelled' }` |
+| `seats.inviteVerify` | admin, desktop | `{}` \| `{ requestId; code; approve: true }` \| `{ requestId; approve: false }` | `{ requests: { requestId; name; code; expiresAt; fingerprint }[] }` \| `{ approved: true; requestId; deviceId; revision }` \| `{ refused: true; requestId }` |
+| `jobs.review.set` | approve | `{ id; reviewOn: 'YYYY-MM-DD' \| null }` | the job view (`reviewOn` set or removed) |
+| `jobs.personStep.done` | approve, pinned owner | `{ id; stepId }` | the job view |
+| `jobs.childResults` | read, pinned owner | `{ id }` | `{ jobId; objectiveRevision; open: boolean; children: { id; goal; state: 'done'\|'missing'\|'waiting-for-person'; missingStepIds: string[]; results: { stepId; informationClass; evidenceIds; value }[] }[] }` |
+| `jobs.meters` | read, pinned owner | `{ id }` | `{ jobId; clockMs: number \| null; exposureMinor: string \| null; actions: string[]; reviewOn: string \| null }` |
+
+Also: `PlaceRenderProps.subscribe?: (kinds: readonly LiveEventKind[], onEvent: (event: LiveEvent) => void) => () => void`
+and `window.chausar.onEngineEvent(callback: ({ seq }) => void) => () => void`.
+
+Job record additions read by work-books: `job.actions`, `job.reviewOn`, ledger `durationMs` / `stepId` / `actionId`,
+ledger `{ event: 'person-step-done', stepId, by, revision }`, ledger `{ event: 'blocked', reason: 'PERSON_STEP_WAITING', stepId }`.
+
+## 6. Core edits
+
+- `platform/runtime/engine.ts`: two imports and one fenced block (`readonly events`, request audits); `request()` runs
+  `handleRequest` inside the audit wrapper and observes the bus in `finally`, as does `tick()`. Needed for the event bus
+  and the five audits (item 1, 4).
+- `platform/runtime/worker.ts` (owned): device sync options, job options and calendar rules, the engine-event push.
+- `platform/runtime/jobs.ts` (owned): durations, actions, review date, person-step done, meters.
+- `platform/runtime/job-runner.ts`: person steps (never dispatched; no provider may be named `person`), wait excluded
+  from wall time, `childResults`, ledger fields, `job.actions` kept on amend. Needed for items WK-08 and WK-16.
+- `platform/runtime/job-protocol.ts`: `GoalExecution.personWaitMs?`, person-step input validation in `validatePlan`.
+- `app/desktop/engine-harness.cjs`, `ipc-contract.cjs` (+ `.d.cts`), `main.cjs`, `preload.cjs`: the engine-event
+  channel and `onEngineEvent`; `preload.cjs` also the lane's refusal line (synced into `app/ui/src/bridge/client.ts`).
+- `app/ui/src/places/types.ts`: optional `subscribe` prop. `app/ui/src/host/bootstrap.tsx`: one live-events instance per
+  controller, passed as `subscribe`. `app/ui/src/bridge/fake.ts`: `events.subscribe` answers empty.
+- Tests of other lanes, adjusted additively: `demo-provider-isolation.test.ts` and `demo-data-isolation.test.ts` (VM
+  globals for the new worker/engine imports), `frame-today-shell-preload.test.ts` (the new preload key).
+
+## 7. Still missing
+
+- **Needs the founder:** a second real computer (Windows or macOS), a network or cloud folder, and the home box machine
+  (TR-07, free or paid is open). Joining through Google Drive refuses `DEVICE_JOIN_NEEDS_FOLDER`.
+- **Removing a machine does not change the key:** the vault has no re-key method (core-gateway-auth owns `vault.ts`).
+- **The signing key** is a 0600 file; it moves into core-gateway-auth's OS-keychain secret store when that exists.
+- **A read-only computer refuses every change**, including saving an answer; "prepare goes to the pen holder as a
+  request" is not built. Its scheduler's job runs refuse at their first write.
+- **Take-over** does not merge the old holder's late changes; a later send from the old holder fails its head check.
+- **Switching** to a copy read with `devices.read` is lock-then-open of a new folder; old folders are not cleaned up.
+- **No screen uses `subscribe` yet**: each UI lane adopts it in its own screens. reports-tools-trust draws TR-07 and
+  frame-today the FR-14 join and the SH-03 read-only banner over the methods above.
+- **Audit timing:** "backup done" and "update checked" show after the next change; unwritten records are lost on quit.
