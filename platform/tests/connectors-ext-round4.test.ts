@@ -343,9 +343,12 @@ test('screen export: start and collect through session.*, with every reply check
   const engine = await open(t);
   const busy = await engine.request('connectorsx.connect', { group: 'busy', road: 'screen', company: 'Synthetic Traders' });
   const file = await engine.request('connectorsx.connect', { group: 'busy', road: 'file', company: 'Synthetic Traders' });
-  // Without the driving lane the real engine has no session.* methods.
-  await assert.rejects(screenExport.start(owner, { connectionId: busy.id, windowId: 'w1' }, hostFor(engine)), code('SCREEN_DRIVING_NOT_INSTALLED'));
-  await assert.rejects(screenExport.collect(owner, { connectionId: busy.id, sessionId: 's1', recipeId: 'busy.sales-register' }, hostFor(engine)), code('SCREEN_DRIVING_NOT_INSTALLED'));
+  // With the driving lane installed, its own refusal comes back unchanged: this engine is a demo launch, which never drives.
+  await assert.rejects(screenExport.start(owner, { connectionId: busy.id, windowId: 'w1' }, hostFor(engine)), (error: any) => error?.code === 'DEMO_EXTERNAL_DISABLED');
+  // A build without session.* says driving is not installed.
+  const absent = hostFor(engine, {}, () => { throw new ChausarError('UNKNOWN_METHOD', 'Unknown method.'); });
+  await assert.rejects(screenExport.start(owner, { connectionId: busy.id, windowId: 'w1' }, absent), code('SCREEN_DRIVING_NOT_INSTALLED'));
+  await assert.rejects(screenExport.collect(owner, { connectionId: busy.id, sessionId: 's1', recipeId: 'busy.sales-register' }, absent), code('SCREEN_DRIVING_NOT_INSTALLED'));
   const calls: [string, Record<string, unknown>][] = []; let reply: unknown = null;
   const driving = hostFor(engine, {}, (method, payload) => { calls.push([method, structuredClone(payload)]); return typeof reply === 'function' ? (reply as any)() : reply; });
   reply = { sessionId: 'session-1', state: 'driving', window: { id: 'window-7', title: 'Busy' }, steps: [], reason: null, plan: 'busy.report-export', startedAt: '2026-10-15T10:00:00Z', exports: [], stopKey: 'Ctrl Alt Pause' };
