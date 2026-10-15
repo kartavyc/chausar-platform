@@ -33,7 +33,8 @@ export type CanonicalRecord = {
   fields: Record<string, string>;
   sourceRow: number;
 };
-export type TotalsProvenance = 'in-file-total' | 'source-declared' | 'user-entered-report' | 'database-aggregate' | 'balance-continuity';
+/** `source-declared-count`: the system stated its record count for exactly the filter read, and no amount; the amount was not checked. */
+export type TotalsProvenance = 'in-file-total' | 'source-declared' | 'source-declared-count' | 'user-entered-report' | 'database-aggregate' | 'balance-continuity';
 export type SourceTotals = { rowCount: number | null; total: string | null; reference: string; provenance: TotalsProvenance };
 export type Check = { id: string; status: 'passed' | 'failed' | 'unavailable'; expected?: string | number | null; observed?: string | number | null; line?: number };
 export type AbstentionReason = 'ambiguous_field' | 'unknown_value' | 'date_format' | 'currency' | 'sign_convention';

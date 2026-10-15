@@ -211,3 +211,18 @@ export function ruleKind(code: string): 'branch' | 'source' | 'seat' | 'access' 
   if (code === 'ACCESS_REVOKED') return 'access';
   return 'seat';
 }
+
+/**
+ * Opens a receipt for this seat. A receipt that does not exist and one that belongs to another
+ * member give the same answer, so a receipt id cannot be probed. Only the seat's own receipt can
+ * be "stopped by a rule" (its rows moved out of the seat's access).
+ */
+export async function openReceipt(host: ModuleHost, ctx: Context, id: unknown): Promise<CalculationReceipt> {
+  const receiptId = requireId(id);
+  try { return await host.call('receipts.get', { id: receiptId }) as CalculationReceipt; }
+  catch (error) {
+    const own = host.store.read().receipts.some(r => r?.id === receiptId && r.memberId === ctx.memberId);
+    if (!own) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.');
+    throw translate(error);
+  }
+}

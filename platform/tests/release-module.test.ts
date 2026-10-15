@@ -123,3 +123,28 @@ test('without host-supplied options the module wires itself from the engine envi
   assert.equal(status.configured, true);
   assert.equal(status.channel, 'stable');
 });
+
+test('start at login and the wake timer are wired as release methods', async t => {
+  const { engine, directory, calls } = await fixture(t);
+  const before = await engine.request('shell.startAtLogin');
+  assert.equal(before.mechanism, 'linux-xdg-autostart');
+  assert.equal(before.enabled, false);
+  await assert.rejects(engine.request('shell.setStartAtLogin', { enabled: true }), code('CONFIRMATION_REQUIRED'));
+  const after = await engine.request('shell.setStartAtLogin', { enabled: true, confirmed: true });
+  assert.equal(after.enabled, true);
+  assert.match(await readFile(join(directory, 'home', '.config', 'autostart', 'in.chausar.desktop'), 'utf8'), /--start-at-login/);
+  await engine.request('shell.setStartAtLogin', { enabled: false, confirmed: true });
+  await assert.rejects(engine.request('native.wake.set', { at: '2099-01-01T00:00:00Z' }), code('CONFIRMATION_REQUIRED'));
+  const status = await engine.request('native.wake.status');
+  assert.equal(status.mechanism, 'linux-systemd-user-timer');
+  assert.ok(Array.isArray(calls));
+});
+
+test('the reader bundle methods report a missing bundle instead of failing', async t => {
+  const { engine } = await fixture(t);
+  const bundle = await engine.request('native.readerBundle');
+  assert.equal(bundle.present, false);
+  await assert.rejects(engine.request('native.installReader'), code('READER_BUNDLE_MISSING'));
+  const status = await engine.request('imports.readerStatus').catch((error: any) => ({ code: error.code }));
+  assert.ok(status && typeof status === 'object');
+});

@@ -10,5 +10,13 @@
   "service.status",
   "service.plan",
   "service.install",
-  "service.uninstall"
+  "service.uninstall",
+  "native.wake.status",
+  "native.wake.plan",
+  "native.wake.set",
+  "native.wake.clear",
+  "shell.startAtLogin",
+  "shell.setStartAtLogin",
+  "native.readerBundle",
+  "native.installReader"
 ]

@@ -6,6 +6,8 @@ import { WOOCOMMERCE_NOTICES } from '../../adapters/commerce/woocommerce.ts';
  * Store orders read by the adapters in runtime/adapters/commerce. Field aliases are the flattened
  * dotted keys of the source JSON; money is decimal text in major units. Both stores declare an
  * order count (checked by the read runner) but no amount, so the amount total is the report total.
+ * WooCommerce's count is for exactly the filter read, so its orders are accepted on the count alone
+ * when no report total is typed. Shopify still needs the report total.
  */
 const shopifyOrders: SourceRecipe = {
   id: 'shopify.orders', version: '1', group: 'shopify', operation: 'orders', title: 'Shopify orders', decoder: 'api-records',
@@ -49,7 +51,8 @@ const woocommerceOrders: SourceRecipe = {
   status: { field: 'status', values: { pending: 'pending', processing: 'processing', 'on-hold': 'on_hold', completed: 'completed', cancelled: 'cancelled',
     refunded: 'refunded', failed: 'failed', 'checkout-draft': 'draft', trash: 'deleted' } },
   outputs: { orderId: 'number', taxMinor: 'tax', shippingMinor: 'shipping', customerId: 'customerId', paymentMethod: 'paymentMethod' },
-  totals: { kind: 'report' },
+  // X-WP-Total is the store's count for exactly the after/before filter read.
+  totals: { kind: 'report', declaredCount: 'accepts' },
   notices: [...WOOCOMMERCE_NOTICES],
   sensitivity: 'financial',
 };

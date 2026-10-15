@@ -60,6 +60,14 @@ let window; let engine; let database; let tray; let demoMode = demo; let stoppin
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
+// --- release lane: start at login and wake launches (SH-07) ---
+// --start-at-login starts hidden in the tray: no window until the person opens one, and closing the window
+// keeps the tray. It grants nothing else; jobs keep running with the window closed only with --background.
+// A later launch by the wake timer (--background) or at sign-in never opens a window in the running instance.
+const startAtLoginRequested = process.argv.includes('--start-at-login');
+const trayRequested = backgroundRequested || startAtLoginRequested;
+const quietLaunch = argv => Array.isArray(argv) && argv.some(value => value === '--background' || value === '--start-at-login');
+// --- end release lane ---
 let selectedDocument = legacyRenderer ? 'chausar://app/index.html' : 'chausar://app/ui/index.html';
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
@@ -139,7 +147,7 @@ async function startEngine() {
 function confirmUpdateTrial() { if (process.env.CHAUSAR_INSTALL_ROOT && engine?.state === 'ready') void engine.request('release.status', {}).catch(() => {}); }
 // --- end release lane ---
 function createBackgroundTray() {
-  if (!backgroundRequested) return;
+  if (!trayRequested) return; // release lane: start at login also uses the tray
   const icon = nativeImage.createFromPath(join(__dirname, 'icon.png'));
   if (icon.isEmpty()) throw new Error('The background-mode tray icon is missing.');
   tray = new Tray(icon);
@@ -204,12 +212,12 @@ if (singleInstance) app.whenReady().then(async () => {
   // FR-07, BK-04 and FR-13 (frame-today): imports.pickFile, the system open dialog on its own channel, trusted frame only.
   registerPickFileHandler({ ipcMain, dialog, contents: () => window?.webContents, document: () => selectedDocument, owner: () => (window && !window.isDestroyed() ? window : null),
     backupsDirectory: () => join(demo ? demoProfile.vaults : join(app.getPath('userData'), 'vaults'), 'backups') });
-  try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; confirmUpdateTrial(); createBackgroundTray(); createWindow(); }
+  try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; confirmUpdateTrial(); createBackgroundTray(); if (!startAtLoginRequested) createWindow(); }
   catch (error) { if (!stopping) { console.error(startupDiagnostic(error, 'ready-startup')); dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
+app.on('second-instance', (_event, argv) => { if (quietLaunch(argv)) return; /* release lane */ if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
 app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
-app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
+app.on('window-all-closed', () => { if (!trayRequested) app.quit(); }); // release lane: the start-at-login tray stays
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;

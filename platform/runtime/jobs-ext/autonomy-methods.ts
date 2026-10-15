@@ -1,7 +1,7 @@
 import { audit, check } from '../contracts.ts';
 import type { Context } from '../contracts.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { agreement, ALWAYS_WAITS, autoRun, DEFAULT_DAILY_COUNT, kindTable, routine, today, usedToday } from './autonomy.ts';
+import { agreement, ALWAYS_WAITS, autoRun, DEFAULT_DAILY_COUNT, kindTable, routine, today, usedToday , amountToday } from './autonomy.ts';
 import type { JobsExtSettings } from './state.ts';
 import { lane, peekLane } from './state.ts';
 
@@ -28,26 +28,29 @@ export const autonomyMethods: Record<string, MethodSpec> = {
       kinds: [...table.values()].sort((a, b) => a.kind.localeCompare(b.kind)).map(row => {
         const entry = ns.autonomy.kinds[row.kind];
         return { kind: row.kind, title: row.title, impact: row.impact, switchable: row.switchable, on: row.switchable && entry?.on === true,
-          dailyCount: entry?.dailyCount ?? DEFAULT_DAILY_COUNT, usedToday: usedToday(state, row.kind, day), agreement: agreed.get(row.kind) ?? { approved: 0, declined: 0 } };
+          dailyCount: entry?.dailyCount ?? DEFAULT_DAILY_COUNT, usedToday: usedToday(state, row.kind, day),
+          dailyAmountMinor: entry?.dailyAmountMinor ?? '0', amountUsedTodayMinor: amountToday(state, row.kind, day), agreement: agreed.get(row.kind) ?? { approved: 0, declined: 0 } };
       }),
       alwaysWaits: { intro: ALWAYS_WAITS.intro, items: [...ALWAYS_WAITS.items] }, caps: ns.settings,
     };
   } },
   'jobsx.setAutonomy': { permission: 'admin', async handler(ctx, payload, host) {
-    appOnly(ctx); const body = fields(payload, ['kind', 'on', 'dailyCount'], 'INVALID_AUTONOMY');
+    appOnly(ctx); const body = fields(payload, ['kind', 'on', 'dailyCount', 'dailyAmountMinor'], 'INVALID_AUTONOMY');
     check(typeof body.kind === 'string' && body.kind.length > 0 && body.kind.length <= 200, 'INVALID_AUTONOMY', 'Name one kind of action.');
     check(typeof body.on === 'boolean', 'INVALID_AUTONOMY', 'Say whether the switch is on or off.');
     const dailyCount = body.dailyCount ?? DEFAULT_DAILY_COUNT;
     check(Number.isSafeInteger(dailyCount) && dailyCount >= 1 && dailyCount <= 100, 'INVALID_AUTONOMY', 'The daily count is a whole number from 1 to 100.');
+    // An omitted amount keeps the kind's current limit; a new kind starts at zero.
+    check(body.dailyAmountMinor === undefined || typeof body.dailyAmountMinor === 'string' && /^(0|[1-9]\d{0,15})$/.test(body.dailyAmountMinor), 'INVALID_AUTONOMY', 'The daily amount limit is whole paise.');
     const row = (await kindTable(ctx, host)).get(body.kind);
     check(row, 'UNSUPPORTED_ACTION', 'This action is absent from the written connector catalogue.');
     check(!body.on || row.switchable, 'ALWAYS_WAITS', 'This always waits for a person. It has no switch.');
     return host.store.update(state => {
-      const ns = lane(state);
-      if (row.switchable) ns.autonomy.kinds[row.kind] = { on: body.on, dailyCount }; else delete ns.autonomy.kinds[row.kind];
+      const ns = lane(state); const dailyAmountMinor: string = body.dailyAmountMinor ?? ns.autonomy.kinds[row.kind]?.dailyAmountMinor ?? '0';
+      if (row.switchable) ns.autonomy.kinds[row.kind] = { on: body.on, dailyCount, dailyAmountMinor }; else delete ns.autonomy.kinds[row.kind];
       ns.autonomy.preset = 'custom';
-      audit(state, 'jobsx.autonomy.changed', { kind: row.kind, on: body.on && row.switchable, dailyCount, memberId: ctx.memberId });
-      return { kind: row.kind, on: body.on && row.switchable, dailyCount, preset: ns.autonomy.preset };
+      audit(state, 'jobsx.autonomy.changed', { kind: row.kind, on: body.on && row.switchable, dailyCount, dailyAmountMinor, memberId: ctx.memberId });
+      return { kind: row.kind, on: body.on && row.switchable, dailyCount, dailyAmountMinor, preset: ns.autonomy.preset };
     });
   } },
   'jobsx.autonomyPreset': { permission: 'admin', async handler(ctx, payload, host) {
@@ -58,7 +61,7 @@ export const autonomyMethods: Record<string, MethodSpec> = {
       const ns = lane(state); const kinds: typeof ns.autonomy.kinds = {};
       for (const row of table.values()) if (row.switchable) {
         const on = preset === 'all-but-always-waits' || (preset === 'routine' && routine(row));
-        kinds[row.kind] = { on, dailyCount: preset === 'routine' ? DEFAULT_DAILY_COUNT : ns.autonomy.kinds[row.kind]?.dailyCount ?? DEFAULT_DAILY_COUNT };
+        kinds[row.kind] = { on, dailyCount: preset === 'routine' ? DEFAULT_DAILY_COUNT : ns.autonomy.kinds[row.kind]?.dailyCount ?? DEFAULT_DAILY_COUNT, dailyAmountMinor: ns.autonomy.kinds[row.kind]?.dailyAmountMinor ?? '0' };
       }
       ns.autonomy.kinds = kinds; ns.autonomy.preset = preset;
       audit(state, 'jobsx.autonomy.preset', { preset, memberId: ctx.memberId });
