@@ -62,7 +62,7 @@ ReportPage = { pack, page, title, language: "en"|"hi", period: { from, to } | nu
   footer: { checkCode: string | null, at: string | null },   // from the tamper-evident record head
   receiptIds: string[] }
 ExportedFile = { format: "csv"|"xlsx"|"html", name, path, bytes, sha256, encrypted: false, textCellsProtected: true }
-  // format "pdf" refuses PDF_USES_PRINT (use print from the app); "tally" refuses TALLY_PAGE_EXPORT_NOT_AVAILABLE
+  // format "pdf" refuses PDF_USES_PRINT (use print from the app); "tally" writes Tally XML for balance pages (see Round 4 contracts); other pages refuse TALLY_PAGE_EXPORT_NOT_AVAILABLE
 WeekAhead = { id, period: { from, to }, scheduledFor, builtAt, late: boolean,
   changed: BriefItem[], decide: BriefItem[], due: BriefItem[], inbox: { id, text, reviewDate }[],
   missed: { id, what, at }[], explanation: "not-written" , receiptIds: string[] }
@@ -250,6 +250,24 @@ Reply, always about the caller's own seat, in fixed words built from this worksp
 `both` is true when an active cofounder exists and the rule is seats, branches, access or markings (widening those
 waits for the second person); allowed sources are one admin's change. Hindi sentences await the founder's review.
 
+### Reports and Trust changes (round 4)
+
+- `reportsx.export { format: 'tally' }` — balance pages only (`lender.receivables-ageing`, `ca.ageing`, `investor.receivables`). Each known figure is one Memorandum voucher dated the period end between ledger "Chausar: <label>" and "Chausar report figures" (both under Suspense A/c), same exact amount on both sides (Dr is a negative AMOUNT with ISDEEMEDPOSITIVE Yes). Reply `{ format: 'tally', name (.xml), path, bytes, sha256, encrypted: false, textCellsProtected: true, vouchers: number, leftOut: { section, line, missing }[] }` where `missing` is a Missing state or `'not-money'`; left-out lines also appear as XML comments, never as zero. Narration names the receipt id; REMOTEID `chausar-report-<pack>-<page>-<section>-<line>-<receiptId>`. Refusals: `TALLY_PAGE_EXPORT_NOT_AVAILABLE` (not a balance page), `TALLY_PAGE_NO_FIGURES`.
+- `trustx.seats`: each seat row and template gains `limitCodes: string[]`, same order as `limits` (`everything`, `cofounder-too`, `everything-two-person`, `reads-unmarked`, `prepares-actions`, `no-approve-money`, `no-change-send`, `reads-exports-until`, `no-prepare-approve`, `adds-entries`, `own-only-not-enforced`, `reads-only`, `assistant-read-only`).
+- `DeletionReport` rows are `{ place, code, state, reason }` (`facts`, `imports`, `receipts`, `answers`, `decisions`, `actions`, `model-receipts`, `lane-records`, `backups`, `exports`, `ai-provider`, `briefs-sent`, `drive-versions`; `null` for an unrecognised older row).
+- `trustx.hosted`: `plan` is `'planned-not-available' | 'paid' | 'ended'`, plus `hosted: { state: 'not-configured' | 'demo' | 'not-paired' | 'paired', refreshedAt, entitlements: { backup, worker, relay, allowance } | null }`. It reads hosted-link's cached `hosted.status` (never calls the server) and writes `tools.hosted.paidSeenAt` once, the first time it sees a paid plan, so a later free plan reads `ended`.
+- `trustx.followUpDelete { id, expectedVersion }` (prepare; desktop only, refuses tainted requests): the writer, an owner or a cofounder deletes an entry with its history; refuses on a changed version. `trustx.followUpExport {}`: CSV (mode 0600) of entries the caller sees, formula-guarded cells, not encrypted. Refusals `FOLLOW_UP_*`.
+
+### What this lane assumes from other lanes (round 4)
+
+- core-gateway-auth `models.setLadder { order: routeId[] }` (admin) → `{ order }` or the reordered route list; refusal `LADDER_INVALID`.
+- release `shell.startAtLogin` (admin): `{}` reads, `{ enabled }` sets; reply `{ enabled, supported? }`; `SHELL_UNAVAILABLE` without a desktop shell.
+- jobs-ext `jobsx.setWake { enabled }` → `{ enabled }`.
+- core-sync-jobs `devices.list {}` → `{ devices: [{ id, name, kind: 'computer'|'phone'|'home-box', holdsPen, thisComputer, lastReadAt }] }`; `devices.pen {}` → `{ deviceId, thisComputer, readOnly }`; `devices.handOver { deviceId }` → `{ deviceId, state: 'handed-over'|'waiting' }`; `devices.remove { deviceId }` → `{ removed: true, keyChanged }`; `sync.setup { kind: 'folder', path }` → `{ kind, enabled }`.
+- models-ext `smallapps.pendingRequests` (its round-4 contract); `smallapps.open` action cards carry `payloadSchema`.
+- hosted-link `phone.messages.counts` may add `costByChannel` / `perMessagePaise` (`{ whatsapp?, telegram?, mail?: digit string | null }`).
+- Desktop: `app/desktop/ui-assets.cjs` serves `/ui/smallapp-frame.js` (one fenced line, listed under Core edits). Checked in headless Chromium under the app's CSP: the sandboxed `srcdoc` frame loads the script from the app origin and runs with origin `null`; not yet checked inside Electron's custom scheme.
+
 ## 2. What was built
 
 Engine: the `reportsx.*` and `trustx.*` methods above, in `platform/runtime/modules/lane-reports-tools-trust.ts` and listed in `app/desktop/module-methods/reports-tools-trust.json`. Code in `platform/runtime/reports-ext/` (packs, pages, connector pages, exports, the XLSX writer, briefs, due dates, withholding) and `platform/runtime/trust-ext/` (`core-*`: rules, markings, send, dual control, keep, seats, the core hooks; `tools-*`: models, network and canary, the record, sharing and the cleaner, vault and deletion, assistants, plugins, language packs; `adapters.ts` for other lanes' reads; `lifecycle.ts`; `lane-state.ts`).
@@ -276,6 +294,7 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 | `platform/runtime/mcp.ts` (later) | call records are buffered and written in batches; `flushMcpCalls` | one assistant token cannot flood vault writes |
 | `platform/runtime/engine.ts` (later) | module source deletion needs the owner, a confirmation equal to the source id, and the caller's own single request | deletion from a module cannot run outside its request |
 | `platform/tests/import-learning-http.test.ts`, `ask-engine.test.ts`, `models-ext-plugins.test.ts`, `auth.test.ts` | a seat invited before the cofounder joins; raising Send through Trust with the cofounder confirming; a session test uses an accountant | the two-person rule now holds on core paths |
+| `app/desktop/ui-assets.cjs` (round 4) | one fenced entry serving `/ui/smallapp-frame.js` | the small-app frame's fixed renderer must load from the app origin; an inline script would break the app's `script-src 'self'` |
 
 ## 3. How a person uses it
 
@@ -290,14 +309,18 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 - **Trust · Rules**: See, Send, Keep and Do; Send, Sharing and seat changes need the owner and the cofounder when there is a cofounder.
 - **Trust · People**: invite a cofounder, accountant, CA until a date, or staff; remove a person.
 - **Trust · Models, Network, Record, Sharing, Vault**: route terms and spend; every call that left and the canary; the verifiable record; the cleaner and agreements; backups, restore test, lock, and delete-everywhere with its report.
+- **Trust · Models (round 4)**: reorder routes; compare routes from the bench; set the exchange rate and prices; choose the voice provider and its key; connect or end the Chausar allowance.
+- **Trust · Keys, Machines and sync, Hosted backup (round 4)**: type a connector's key (never shown back); connect Drive sync; machines and the pen; hosted backups, restore and key export; Vault's "This computer" has start at login, background mode and wake for jobs.
+- **Tools · Wrap a tool, Requests from tools, Plugin network (round 4)**: wrap a SKILL.md or MCP tool list into a plugin; answer a connected tool's request; prepare, approve exactly this, and send once a plugin's network request, with its ledger. The follow-up book deletes and exports; Phone checks mail and WhatsApp.
+- **Ask · Stopped by a rule**: ask reads `trust.explain` for the rule in plain words and who can change it.
 
 ## 4. What is still missing
 
 - **Reachability**: resolved in round 2 — the host now lets a lane's place module win its address, so the week ahead, the Friday review and Rhythm are reached at `reports/weekahead`; the retained lesson review keeps its own address. Outside links open through the host's link dialog (`openLink`, SH-10), report pages print through the guarded shell port (`print('page')`), and Vault places frame-today's recovery contact (`RecoveryContactSettings`), so `trustx.setRecoveryContact` remains only for older callers.
 - **Needs a person**: a CA must check `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`; 10 of 25 sources could not be opened and are marked unconfirmed: EPFO, ESIC, Maharashtra and Karnataka professional tax, MCA, two income-tax rows), and decide whether extensions such as CBDT Circular 07/2026 are shown; the 43B(h) and TReDS notes; the model terms in `tools-terms.v1.json`; a native reader's review of Hindi and Hinglish.
-- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost, and cannot verify a mail address. models-ext's meters do not measure voice minutes or the month's spend; there is no method listing pending plugin network requests or tool requests, so TL-07's sheet is never raised; small-app action buttons send an empty payload. Core has no `devices.*` methods, so TR-07 shows only this computer's sync role. No core method discards a waiting model send (it expires).
+- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost. models-ext's meters do not measure voice minutes or the month's spend; small-app action cards carry no `payloadSchema` yet, so a press sends `{}`; `smallapps.pendingRequests` is on the models-ext branch only. Methods other lanes build this round and our screens wait for (typed "not built yet"): `models.setLadder`, `shell.startAtLogin`, `devices.*`, `sync.setup`. The follow-up book's delete and export write models-ext's stored book directly (`extensions['models-ext'].smallApps.book`) through its own visibility rules; they move to models-ext methods if those appear. No core method discards a waiting model send (it expires).
 - **The outbound check** covers the model gateway only; plugin network calls (models-ext), the learning upload (learning-ext) and hosted-link's allowance client are not routed through it.
-- **Within the lane**: staff "sees their own" is not enforced; keep periods for kinds other than facts are stored, not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced; the connector pages recalculate when the packs list is drawn; deletion places and seat limits are matched to screen words by the engine's English sentences.
+- **Within the lane**: staff "sees their own" is not enforced; keep periods for kinds other than facts are stored, not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced. (Round 4: connector pages are kept between draws; seat limits and deletion places carry codes.)
 
 ## 5. Screen audit (round 2)
 
@@ -306,7 +329,7 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | Screen | Address | Status | Open items |
 |---|---|---|---|
 | RP-01 Packs | `reports/packs` | met | — |
-| RP-02 A report page | `reports/packs?sheet=<pack>.<page>` | met | Tally export refused; PDF through Print |
+| RP-02 A report page | `reports/packs?sheet=<pack>.<page>` | met | balance pages export to Tally (memorandum vouchers, not yet imported into a real Tally); other pages refuse; PDF through Print; connector pages kept between draws |
 | RP-03 The week ahead | `reports/weekahead`, `reports/briefs` | met | — |
 | RP-04 The Friday review | same | met | Approve and Not now stay in Work · Approvals |
 | RP-05 Rhythm and delivery | `?sheet=rhythm` | met | delivery depends on the hosted relay |
@@ -314,14 +337,14 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | RP-07 Exports | `reports/exports` | met | — |
 | RP-08 Ask a person | `?sheet=ask-a-person` | met | no link from Ask's Not yet page (ask lane) |
 | TL-01 Small apps | `tools/smallapps` | met | — |
-| TL-02 A small app | `tools/smallapps?sheet=<id>` | partial | drawn in a sandboxed box, not a separate-origin frame; no charts or forms yet |
-| TL-03 The follow-up book | `?sheet=follow-up-book` | partial | entries cannot be deleted or exported from here |
+| TL-02 A small app | `tools/smallapps?sheet=<id>` | met (experimental) | separate-origin `srcdoc` frame (sandbox allow-scripts, opaque origin) with a fixed renderer `/ui/smallapp-frame.js`; bars and declared forms; action payloads checked before `smallapps.pressAction`; cards send `{}` until models-ext adds `payloadSchema` |
+| TL-03 The follow-up book | `?sheet=follow-up-book` | met (experimental) | delete (asks once, by name) and CSV export |
 | TL-04 Plugins | `tools/plugins` | met | — |
 | TL-05 Install a plugin | `tools/plugins?sheet=install` | met | no "No internet" state |
-| TL-06 A tool from outside | Plugins page | met | — |
-| TL-07 A request from a connected tool | component | built, not raised | needs a models-ext list of pending requests |
+| TL-06 A tool from outside | Plugins page, `tools/wrap` | met (experimental) | wrap a SKILL.md or an MCP tools/list through `smallapps.pluginWrap`, preview before install |
+| TL-07 A request from a connected tool | `tools/requests` | raised (experimental) | over `smallapps.pendingRequests` (models-ext, round 4); "not built yet" until that merges |
 | TL-08 Other assistants | `tools/assistants` | met | the MCP server removes nothing from answers, so "removed" is always empty |
-| TL-09 Phone | `tools/phone` | met | mail not verifiable; cost is a month total |
+| TL-09 Phone | `tools/phone` | met | mail and WhatsApp checked through `phone.verify`; cost per channel "not counted" until hosted-link sends it |
 | TL-10 Language packs | Plugins page | met | packs not reviewed by a native reader |
 | TR-01 Rules | `trust/rules` | met | — |
 | TR-02 See | `?sheet=see` | met | — |
@@ -329,12 +352,12 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 | TR-04 Keep | `?sheet=keep` | met | non-fact kinds stored, not enforced |
 | TR-05 Do | `?sheet=do` | met over jobs-ext | no amount limit in jobs-ext |
 | TR-06 People | `trust/people` | met | staff "sees their own" not enforced |
-| TR-07 Machines and the pen | People page | partial | no `devices.*` in core: no hand-over, machine list or sync set-up |
-| TR-08 Models | `trust/models` | partial | routes cannot be reordered here; cap not enforced; no comparison table |
+| TR-07 Machines and the pen | `trust/devices` | partial | Drive sync built over `hosted.drive.*` (experimental); machines, pen hand-over and folder sync drawn over core-sync-jobs `devices.*`/`sync.setup`, "not built yet" until they land |
+| TR-08 Models | `trust/models` (+ `models-compare`, `models-prices`, `models-voice`, `models-allowance`) | partial | order saved through `models.setLadder` (core-gateway-auth; "not built yet" until it lands); cap not enforced (core-gateway-auth); live bench plan/approve not drawn; voice minutes not counted |
 | TR-09 Network | `trust/network` | met | a waiting send can be released, not discarded |
 | TR-10 Record | `trust/record` | met | — |
 | TR-11 Sharing | `trust/sharing` | met over learning-ext | — |
-| TR-12 Vault | `trust/vault` | met | restore from the lock screen; PIN not built in frame-today |
+| TR-12 Vault | `trust/vault`, `trust/hosted` | met | start at login over release `shell.startAtLogin` ("not built yet" until it lands), background mode and wake (experimental) over jobs-ext; hosted backup list/upload/restore/key export; restore names the newest file, the lock-screen Recover is frame-today's; PIN is core-gateway-auth/frame-today |
 | TR-13 Delete and the report | `?sheet=delete` | met | — |
-| TR-14 What the paid plan can see | Sharing page | met | no engine sends "plan ended" yet |
+| TR-14 What the paid plan can see | Sharing page | met | plan paid / ended from hosted-link's last account refresh; always-on jobs agreement sheet over `hosted.worker.*` (experimental) |
 | TR-15 Notice and agreements | Sharing page | met | — |
