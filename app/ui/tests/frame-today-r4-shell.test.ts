@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createFakeEngine, FAKE_PASSPHRASE, FAKE_SECOND_FOLDER, FAKE_SECOND_PASSPHRASE } from '../src/bridge/fake.ts';
-import { FAKE_JOIN_CODE, FAKE_PIN, FAKE_PIN_TRIES, R4_METHODS, R4_PRE_VAULT } from '../src/bridge/fixtures/r4.ts';
+import { FAKE_JOIN_BACKUP, FAKE_JOIN_CODE, FAKE_PIN, FAKE_PIN_TRIES, FAKE_SHARED_FOLDER, R4_METHODS, R4_PRE_VAULT } from '../src/bridge/fixtures/r4.ts';
 import {
-  contextTimeZone, isJoinRequests, isJoinState, isLadderReply, isPinStatus, isRouteProbe, isTimeZone, isTimeZoneReply, joinPhaseAt, R4_REFUSALS,
-  readIntakeStatus, readLocalModels, readSharingConsent, readSharingPreview,
+  contextTimeZone, isLadderReply, isPinStatus, isRouteProbe, isTimeZone, isTimeZoneReply, joinPhaseAt, R4_REFUSALS,
+  readIntakeStatus, readJoinAnswer, readJoinRequests, readJoinState, readLocalModels, readSharingConsent, readSharingPreview,
 } from '../src/bridge/r4-contracts.ts';
 import { notBuilt } from '../src/bridge/todayx-contract.ts';
 import { canSwitch, menuWorkspaces, switchWorkspace } from '../src/host/workspace-switch.ts';
@@ -39,24 +39,39 @@ test('PIN, ladder, probe and time zone replies are checked before anything is dr
   assert.equal(contextTimeZone({ timeZone: 'Nowhere/Here' }), null);
 });
 
-test('the local model list matches models-ext’s published shape exactly', () => {
-  const ready = readLocalModels({ reachable: true, endpoint: 'http://127.0.0.1:11434', models: [{ name: 'llama3:8b', sizeBytes: 4_661_224_676, modifiedAt: '2026-09-01T10:00:00Z', family: 'llama' }] });
-  assert.deepEqual(ready, { reachable: true, endpoint: 'http://127.0.0.1:11434', models: [{ name: 'llama3:8b', sizeBytes: 4_661_224_676, modifiedAt: '2026-09-01T10:00:00Z', family: 'llama' }] });
-  assert.deepEqual(readLocalModels({ reachable: false, words: 'Ollama did not answer.' }), { reachable: false }, 'its words are data and are not kept');
+test('the local model list matches models-ext’s registered shape exactly', () => {
+  const ready = readLocalModels({ endpoint: 'http://127.0.0.1:11434', reachable: true, models: [{ name: 'llama3:8b', sizeBytes: 4_661_224_676, modifiedAt: '2026-09-01T10:00:00.000Z', family: 'llama' }], skipped: 1 });
+  assert.deepEqual(ready, { reachable: true, endpoint: 'http://127.0.0.1:11434', models: [{ name: 'llama3:8b', sizeBytes: 4_661_224_676, modifiedAt: '2026-09-01T10:00:00.000Z', family: 'llama' }] });
+  assert.deepEqual(readLocalModels({ endpoint: 'http://127.0.0.1:11434', reachable: false, models: [], words: 'Ollama did not answer.' }), { reachable: false }, 'its words are data and are not kept');
+  assert.deepEqual(readLocalModels({ reachable: false, words: 'Ollama did not answer.' }), { reachable: false });
+  assert.equal(readLocalModels({ reachable: false, models: [{ name: 'x' }] }), null, 'an unreachable service lists nothing');
+  assert.equal(readLocalModels({ reachable: true, endpoint: 'x', models: [], skipped: -1 }), null);
   assert.equal(readLocalModels({ reachable: true, endpoint: 'x', models: [{ name: '; rm -rf' }] }), null);
   assert.equal(readLocalModels({ reachable: true, models: [] }), null);
   assert.equal(readLocalModels({ models: [] }), null);
 });
 
-test('joins, and the sharing replies from learning-ext, are checked', () => {
-  const join = { joinId: 'join_1', code: '4821-9930', expiresAt: '2026-10-15T10:15:00.000Z', state: 'waiting' };
-  assert.ok(isJoinState(join));
-  assert.ok(!isJoinState({ ...join, code: '48219930' }));
-  assert.ok(!isJoinState({ ...join, state: 'pending' }));
-  assert.ok(isJoinRequests({ requests: [join] }));
-  assert.equal(joinPhaseAt(join as never, Date.parse('2026-10-15T10:14:59Z')), 'waiting');
-  assert.equal(joinPhaseAt(join as never, Date.parse('2026-10-15T10:15:00Z')), 'expired', 'fifteen minutes and it is expired, whatever the reply said');
-  assert.equal(joinPhaseAt({ ...join, state: 'used' } as never, 0), 'used');
+test('joins (core-sync-jobs’ real shapes), and the sharing replies from learning-ext, are checked', () => {
+  const requestId = 'join_0123abcd-0000-4000-8000-000000000001';
+  const join = { state: 'waiting', requestId, code: '482199', expiresAt: '2026-10-15T10:15:00.000Z' };
+  const read = readJoinState(join)!;
+  assert.deepEqual(read, join);
+  assert.equal(readJoinState({ ...join, code: '4821-9930' }), null);
+  assert.equal(readJoinState({ ...join, requestId: 'join_1' }), null);
+  assert.equal(readJoinState({ ...join, state: 'pending' }), null);
+  assert.deepEqual(readJoinState({ state: 'ready', backupFile: 'joined-1760500000000.backup', revision: 4, next: 'restore-then-restart' }), { state: 'ready', backupFile: 'joined-1760500000000.backup', revision: 4 });
+  assert.equal(readJoinState({ state: 'ready', backupFile: '../x.backup', revision: 4, next: 'restore-then-restart' }), null, 'a path is never accepted');
+  for (const state of ['refused', 'expired', 'cancelled']) assert.deepEqual(readJoinState({ state }), { state });
+  assert.equal(readJoinState({ state: 'approved', folder: 'main' }), null, 'the old guessed shape is refused');
+  const listed = { requestId, name: 'Laptop', code: '482199', expiresAt: '2026-10-15T10:15:00.000Z', fingerprint: '0123456789abcdef' };
+  assert.deepEqual(readJoinRequests({ requests: [listed] }), [listed]);
+  assert.equal(readJoinRequests({ requests: [{ ...listed, name: '<b>x</b>' }] }), null);
+  assert.deepEqual(readJoinAnswer({ approved: true, requestId, deviceId: 'device_abc', revision: 7 }, requestId), { approved: true, revision: 7 });
+  assert.deepEqual(readJoinAnswer({ refused: true, requestId }, requestId), { refused: true });
+  assert.equal(readJoinAnswer({ refused: true, requestId }, 'join_0123abcd-0000-4000-8000-000000000002'), null, 'an answer for another request is not used');
+  assert.equal(joinPhaseAt(read, Date.parse('2026-10-15T10:14:59Z')), 'waiting');
+  assert.equal(joinPhaseAt(read, Date.parse('2026-10-15T10:15:00Z')), 'expired', 'fifteen minutes and it is expired, whatever the reply said');
+  assert.equal(joinPhaseAt({ state: 'refused' }, 0), 'refused');
   assert.deepEqual(readIntakeStatus({ open: false, mode: 'closed', sharingSwitch: false, label: 'x', boxes: [] }), { open: false, mode: 'closed', sharingSwitch: false });
   assert.equal(readIntakeStatus({ open: true, mode: 'closed', sharingSwitch: false }), null);
   const digest = 'a'.repeat(64);
@@ -113,17 +128,28 @@ test('the ladder reorders the routes, the time zone reaches ui.context, and a jo
   assert.deepEqual(((await engine.request('models.list', {})) as { id: string }[]).map(route => route.id), ['route_c', 'route_a', 'route_b']);
   assert.ok(isRouteProbe(await engine.request('models.probe', { routeId: 'route_a' })));
 
-  assert.equal(await codeOf(engine.request('workspace.setTimeZone', { timeZone: 'Nowhere/Here' })), 'TIME_ZONE_INVALID');
+  assert.equal(await codeOf(engine.request('workspace.setTimeZone', { timeZone: 'Nowhere/Here' })), 'INVALID_TIME_ZONE');
   await engine.request('workspace.setTimeZone', { timeZone: 'Europe/London' });
   assert.equal(((await engine.request('ui.context', {})) as { timeZone: string }).timeZone, 'Europe/London');
 
-  const started = await engine.request('devices.join', {}) as { joinId: string; code: string };
-  assert.ok(isJoinState(started)); assert.equal(started.code, FAKE_JOIN_CODE);
-  assert.deepEqual(((await engine.request('seats.inviteVerify', {})) as { requests: { joinId: string }[] }).requests.map(item => item.joinId), [started.joinId]);
-  assert.equal(await codeOf(engine.request('seats.inviteVerify', { joinId: started.joinId, code: '0000-0000' })), 'JOIN_CODE_MISMATCH');
-  assert.equal((await engine.request('seats.inviteVerify', { joinId: started.joinId, code: FAKE_JOIN_CODE }) as { state: string }).state, 'approved');
-  assert.equal(await codeOf(engine.request('seats.inviteVerify', { joinId: started.joinId, code: FAKE_JOIN_CODE })), 'JOIN_USED');
-  assert.equal((await engine.request('devices.join', { joinId: started.joinId }) as { state: string }).state, 'approved');
+  // Joining, in core-sync-jobs' steps and refusal codes.
+  assert.equal(await codeOf(engine.request('devices.join', { step: 'finish' })), 'DEVICE_JOIN_NOT_STARTED');
+  assert.equal(await codeOf(engine.request('devices.join', { step: 'request', folder: 'relative/path' })), 'INVALID_DEVICE_REQUEST');
+  assert.equal(await codeOf(engine.request('devices.join', { step: 'request', folder: '/elsewhere' })), 'DEVICE_FOLDER_NOT_SET_UP');
+  const started = readJoinState(await engine.request('devices.join', { step: 'request', folder: FAKE_SHARED_FOLDER, deviceName: 'Laptop' }));
+  assert.ok(started?.state === 'waiting'); assert.equal(started.code, FAKE_JOIN_CODE);
+  const listed = readJoinRequests(await engine.request('seats.inviteVerify', {}));
+  assert.deepEqual(listed?.map(item => [item.requestId, item.name]), [[started.requestId, 'Laptop']]);
+  assert.equal(await codeOf(engine.request('seats.inviteVerify', { requestId: started.requestId, code: '000000', approve: true })), 'DEVICE_JOIN_CODE_MISMATCH');
+  assert.deepEqual(readJoinAnswer(await engine.request('seats.inviteVerify', { requestId: started.requestId, code: FAKE_JOIN_CODE, approve: true }), started.requestId), { approved: true, revision: 3 });
+  assert.equal(await codeOf(engine.request('seats.inviteVerify', { requestId: started.requestId, code: FAKE_JOIN_CODE, approve: true })), 'DEVICE_JOIN_USED');
+  assert.deepEqual(readJoinState(await engine.request('devices.join', { step: 'finish' })), { state: 'ready', backupFile: FAKE_JOIN_BACKUP, revision: 3 });
+  assert.equal(await codeOf(engine.request('devices.join', { step: 'finish' })), 'DEVICE_JOIN_NOT_STARTED', 'a finished join is used once');
+  // Refused on the computer already in: the new computer reads "refused".
+  const second = readJoinState(await engine.request('devices.join', { step: 'request', folder: FAKE_SHARED_FOLDER }));
+  assert.ok(second?.state === 'waiting');
+  assert.deepEqual(readJoinAnswer(await engine.request('seats.inviteVerify', { requestId: second.requestId, approve: false }), second.requestId), { refused: true });
+  assert.deepEqual(readJoinState(await engine.request('devices.join', { step: 'finish' })), { state: 'refused' });
 
   const viewer = createFakeEngine({ scenario: 'read-only' });
   assert.equal(await codeOf(viewer.request('workspace.setTimeZone', { timeZone: 'UTC' })), 'FORBIDDEN');
@@ -131,7 +157,8 @@ test('the ladder reorders the routes, the time zone reaches ui.context, and a jo
 
 test('the owners’ pre-vault methods answer while locked; nothing else does', async () => {
   const engine = createFakeEngine({ scenario: 'locked' });
-  for (const method of R4_PRE_VAULT) assert.notEqual(await codeOf(engine.request(method, method === 'workspace.pin.unlock' ? { folder: 'main', pin: FAKE_PIN } : {})), 'VAULT_LOCKED', method);
+  const payloads: Record<string, Record<string, unknown>> = { 'workspace.pin.unlock': { folder: 'main', pin: FAKE_PIN }, 'devices.join': { step: 'cancel' } };
+  for (const method of R4_PRE_VAULT) assert.notEqual(await codeOf(engine.request(method, payloads[method] ?? {})), 'VAULT_LOCKED', method);
   assert.equal(await codeOf(engine.request('models.setLadder', { routeIds: [] })), 'VAULT_LOCKED');
 });
 

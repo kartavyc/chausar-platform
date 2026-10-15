@@ -61,6 +61,28 @@ test('replies are validated before they are drawn', () => {
   assert.equal(isVoiceHeard({ sessionId: 's1', heard: null, understood: null, needsConfirmation: true, words: 'Not sure what was said.' }, 's2'), false);
   assert.equal(isVoiceConfirm({ confirmationId: 'c', text: 'x', digest: 'a'.repeat(64) }, 'b'.repeat(64)), false);
   assert.equal(readVoiceSpeak({ utteranceId: 'u', language: 'en', segments: [{ text: 1 }] }), null);
+  // models-ext's real shapes: an unlabelled provider, minutes as digits or "not counted", an uncapped browser hold,
+  // a recording waiting for approval, and a confirmation with the reading it pins.
+  const usage = { month: '2026-10', providers: [{ providerId: 'browser', kind: 'browser-transcript', minutes: 'not counted', minutesMs: 'not counted', costMinor: 'not counted', basis: 'browser-text-only' },
+    { providerId: 'sarvam', kind: 'sarvam-stt', minutes: '1', minutesMs: 30000, costMinor: '25', basis: 'recorded-length-at-rate' }], totals: { minutesMs: 30000, costMinor: '25' } };
+  assert.ok(isVoiceStatus({ enabled: true, mode: 'browser', blocked: null, send: 'samples', localOnly: false, provider: { id: 'browser', kind: 'browser-transcript', label: null, local: true, words: 'x', ratePerMinuteMinor: null }, live: null, speaking: null, usage }));
+  assert.equal(isVoiceStatus({ enabled: true, mode: 'browser', send: 'samples', localOnly: false, provider: null, live: null, speaking: null, usage: { ...usage, providers: [{ ...usage.providers[1], minutes: 1 }] } }), false);
+  assert.equal(readVoiceStart({ sessionId: 's1', capture: 'browser-transcript', provider: {}, capMs: null })?.capMs, null);
+  const approval = { previewId: 'speech_preview_1', digest: 'a'.repeat(64), costCapMinor: '50' };
+  assert.ok(isVoiceHeard({ sessionId: 's1', heard: null, understood: null, needsConfirmation: true, words: 'Approve sending this recording.', receiptId: null, approval }));
+  assert.equal(isVoiceHeard({ sessionId: 's1', heard: 'x', understood: null, needsConfirmation: true, words: 'x', approval }), false);
+  assert.ok(isVoiceConfirm({ confirmationId: 'c', text: 'do lakh', edited: false, understood: '2,00,000', digest: 'a'.repeat(64), receiptId: 'r' }, 'a'.repeat(64)));
+});
+
+test('voice: a recording that would leave this computer waits for approval instead of reading "not sure"', async () => {
+  const fixtures = registerAskLineFixtures({ enabled: true, mode: 'paid' });
+  const undo = registerFakeMethods('voice', { stop: payload => ({ sessionId: payload['sessionId'], heard: null, understood: null, needsConfirmation: true, words: 'Approve sending this recording, then stop again with the approval.', receiptId: null,
+    approval: { previewId: 'speech_preview_9', digest: 'b'.repeat(64), costCapMinor: '50' } }) });
+  try {
+    const voice = createVoiceController(createFakeEngine(), fakeCapture('teen hazaar'), null, () => 'en');
+    voice.start(); await started(voice); await voice.stop();
+    assert.deepEqual(voice.snapshot().phase, { kind: 'approval', costCapMinor: '50' });
+  } finally { undo(); fixtures.undo(); }
 });
 
 function fakeCapture(said: string | null): VoiceCapturePort & { began: string[] } {
@@ -110,7 +132,7 @@ test('voice: a hold is heard, every amount is read back, and nothing is confirme
   } finally { fixtures.undo(); }
 });
 
-test('voice: only rupees or paise are read back as money; confirm asks with the text seen and refuses other words', async () => {
+test('voice: only rupees or paise are read back as money; confirm pins the reading seen by its digest and refuses other words', async () => {
   const number = (unit: 'rupees' | 'paise' | null, paise: string | null) => ({ text: 'do lakh', integer: '200000', unit, paise, display: '2,00,000' });
   const reading = (numbers: unknown[]) => ({ sessionId: 's', heard: 'x', needsConfirmation: true as const, words: 'x', understood: { ...(fakeReading('x') as object), numbers } as never });
   assert.deepEqual(readBacksOf(reading([number(null, null)])), [{ kind: 'number', text: 'do lakh' }]);
@@ -130,7 +152,7 @@ test('voice: only rupees or paise are read back as money; confirm asks with the 
     undo = registerFakeMethods('voice', { confirm: payload => { sent.push({ ...payload }); return { confirmationId: 'voice_confirmation_x', text: 'das hazaar rupaye mila', digest: p.digest }; } });
     voice.answer(0, true);
     assert.equal(await voice.confirm(), null, 'other words are never used');
-    assert.equal(sent[0]?.['text'], p.text, 'the text the person saw is sent');
+    assert.deepEqual(sent[0], { sessionId: p.sessionId, digest: p.digest }, 'the reading seen is pinned by its digest; no edited text is sent');
     assert.deepEqual(voice.snapshot().phase, { kind: 'failed', code: 'UNDERSTOOD_CHANGED' });
   } finally { undo(); fixtures.undo(); }
 });

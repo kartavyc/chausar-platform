@@ -106,7 +106,7 @@ function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCo
         onIdea={() => dispatch({ type: 'begin', path: 'idea' })} onRecover={() => dispatch({ type: 'open-recover' })} onDemo={props.onDemo}
         folders={folders} onOpenFolder={props.onOpenFolder} onJoin={() => dispatch({ type: 'open-join' })} />;
     case 'join':
-      return <JoinFromNew rpc={props.rpc} language={props.language} onBack={() => dispatch({ type: 'close-join' })} onOpenFolder={props.onOpenFolder} />;
+      return <JoinFromNew rpc={props.rpc} language={props.language} onBack={() => dispatch({ type: 'close-join' })} />;
     case 'recover':
       return <Recover rpc={props.rpc} pickBackup={props.pickBackup} onReopened={props.onReopened} onBack={() => dispatch({ type: 'close-recover' })} />;
     case 'identity':

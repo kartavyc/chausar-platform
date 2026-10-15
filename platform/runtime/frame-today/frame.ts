@@ -88,8 +88,12 @@ export async function optional(host: ModuleHost, method: string, payload: Record
 const valueOf = (reply: Awaited<ReturnType<typeof optional>>): any => reply && !reply.absent ? reply.value : null;
 const title = (text: unknown): text is string => typeof text === 'string' && text.trim().length > 0 && text.length <= 200 && !/[\u0000-\u001f]/.test(text);
 
-/** SH-03 "Chausar is driving": the driving lane's `session.status`, while a session holds a window. */
-const DRIVING = new Set(['driving', 'sign-in', 'paused-by-you', 'step-failed']);
+/**
+ * SH-03 "Chausar is driving": the driving lane's `session.status`, while a session holds a window. These are the
+ * lane's own active states (`driving/session.ts` ACTIVE); `step-failed`, like `stopped` and `done`, has ended and
+ * stays the last status until the next session, so it shows no banner.
+ */
+const DRIVING = new Set(['driving', 'sign-in', 'paused-by-you']);
 export async function drivingNow(host: ModuleHost) {
   const status = valueOf(await optional(host, 'session.status'));
   return DRIVING.has(status?.state) && title(status?.window?.title) ? { kind: 'driving' as const, program: status.window.title as string } : null;

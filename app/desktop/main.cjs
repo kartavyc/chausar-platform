@@ -160,7 +160,8 @@ async function startEngine() {
 function confirmUpdateTrial() { if (process.env.CHAUSAR_INSTALL_ROOT && engine?.state === 'ready') void engine.request('release.status', {}).catch(() => {}); }
 // --- end release lane ---
 // --- frame-today: the tray (SH-07). Facts are read from the engine as the desktop owner; a fact it cannot read is left out. ---
-const DRIVING_STATES = ['driving', 'sign-in', 'paused-by-you', 'step-failed'];
+// The driving lane's active states (driving/session.ts ACTIVE); a failed step has ended the session, so no Stop.
+const DRIVING_STATES = ['driving', 'sign-in', 'paused-by-you'];
 async function trayFacts() {
   const facts = { count: null, locked: false, driving: false };
   if (stopping || engine?.state !== 'ready') return facts;

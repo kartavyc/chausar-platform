@@ -27,7 +27,12 @@ export function machineTimeZone(): string | null {
   try { const zone = new Intl.DateTimeFormat().resolvedOptions().timeZone; return isTimeZone(zone) ? zone : null; } catch { return null; }
 }
 
-type Stored = { readonly kind: 'reading' } | { readonly kind: 'known'; readonly zone: string | null } | JourneyFailure;
+/** core-data's refusals (`workspace.setTimeZone`) said in this screen's words. */
+const OWN_WORDS: Readonly<Record<string, string>> = {
+  FORBIDDEN: 'TZ.owner', ACCESS_DENIED: 'TZ.owner', INVALID_TIME_ZONE: 'TZ.invalid', TAINTED_SETTING: 'TZ.tainted',
+};
+
+type Stored ={ readonly kind: 'reading' } | { readonly kind: 'known'; readonly zone: string | null } | JourneyFailure;
 type Saving = 'idle' | 'saving' | { readonly kind: 'saved'; readonly zone: string } | JourneyFailure;
 
 export interface TimeZoneSettingProps {
@@ -63,8 +68,9 @@ export function TimeZoneSetting({ rpc, onSaved, suggest = machineTimeZone }: Tim
     setSaving('saving');
     try {
       const reply = await rpc.request('workspace.setTimeZone', { timeZone: choice });
-      if (!isTimeZoneReply(reply) || reply.timeZone !== choice) { setSaving({ kind: 'refused', code: 'INVALID_REPLY' }); return; }
-      setStored({ kind: 'known', zone: reply.timeZone }); setSaving({ kind: 'saved', zone: reply.timeZone });
+      // core-data answers with the zone list's own spelling of the name: the same zone, never another one.
+      if (!isTimeZoneReply(reply) || reply.timeZone.toLowerCase() !== choice.toLowerCase()) { setSaving({ kind: 'refused', code: 'INVALID_REPLY' }); return; }
+      setStored({ kind: 'known', zone: reply.timeZone }); setChoice(reply.timeZone); setSaving({ kind: 'saved', zone: reply.timeZone });
       onSaved?.(reply.timeZone);
     } catch (error) { setSaving(failureOf(error)); }
   };
@@ -89,8 +95,8 @@ export function TimeZoneSetting({ rpc, onSaved, suggest = machineTimeZone }: Tim
       </form>
       {typeof saving === 'object' && saving.kind === 'saved' && <p className={s.status} role="status">{t('TZ.saved', { zone: saving.zone })}</p>}
       {typeof saving === 'object' && saving.kind === 'not-built' && <FailureLine failure={saving} notBuilt="TZ.notBuilt" refused="TZ.refused" />}
-      {typeof saving === 'object' && saving.kind === 'refused' && (saving.code === 'FORBIDDEN' || saving.code === 'ACCESS_DENIED'
-        ? <p className={s.problem} role="alert">{t('TZ.owner')}</p>
+      {typeof saving === 'object' && saving.kind === 'refused' && (OWN_WORDS[saving.code] !== undefined
+        ? <p className={s.problem} role="alert" data-time-zone-refused={saving.code}>{t(OWN_WORDS[saving.code]!)}</p>
         : <FailureLine failure={saving} notBuilt="TZ.notBuilt" refused="TZ.refused" />)}
     </section>
   );

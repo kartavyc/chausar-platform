@@ -202,7 +202,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   };
   const r4 = r4Handlers({
     refuse: fakeRefusal, openFolder: () => unlocked ? folder : null, unlock: openFolder,
-    passphraseFits: value => typeof value === 'string' && value === passphraseOf(folder), role: () => seat.role,
+    passphraseFits: value => typeof value === 'string' && value === passphraseOf(folder), joinedPassphrase: () => FAKE_PASSPHRASE, role: () => seat.role,
     routeIds: () => routes.map(route => String(route['id'])),
     setRouteIds: ids => { routes = ids.map(id => routes.find(route => route['id'] === id)!); },
     setTimeZone: zone => { timeZone = zone; }, now: () => Date.now(),

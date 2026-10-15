@@ -14,10 +14,10 @@
  * | `workspace.pin.remove` (admin) | `{}` | `PinStatus` | core-gateway-auth |
  * | `models.setLadder` (admin) | `{ routeIds }` | `{ routeIds }`; refusals `LADDER_INVALID`, `ROUTE_NOT_FOUND` | core-gateway-auth |
  * | `models.probe` (read) | `{ routeId }` | `RouteProbe` | core-gateway-auth |
- * | `modelsx.localList` (read) | `{ endpoint? }` | `LocalModelsReply` | models-ext (published contract) |
- * | `workspace.setTimeZone` (admin) | `{ timeZone }` | `{ timeZone }`; refusal `TIME_ZONE_INVALID`; then `ui.context.timeZone` | core-data |
- * | `devices.join` (preVault, new computer) | `{}` to start, `{ joinId }` to read | `JoinState` | core-sync-jobs |
- * | `seats.inviteVerify` (admin, a computer already in) | `{}` to list, `{ joinId, code }` to approve | `JoinRequests` or `JoinState`; refusals `JOIN_EXPIRED`, `JOIN_USED`, `JOIN_CODE_MISMATCH` | core-sync-jobs |
+ * | `modelsx.localList` (read; refuses `DEMO_PROVIDER_DISABLED` in a demo engine) | `{ endpoint? }` | `LocalModelsReply` | models-ext (registered) |
+ * | `workspace.setTimeZone` (admin) | `{ timeZone }` | `{ timeZone }` (the zone list's own spelling); refusals `INVALID_TIME_ZONE`, `TAINTED_SETTING`; then `ui.context.timeZone` | core-data (registered) |
+ * | `devices.join` (admin, preVault, desktop) | `{ step: 'request', folder, deviceName? }` / `{ step: 'finish' }` / `{ step: 'cancel' }` | `JoinState` | core-sync-jobs (registered) |
+ * | `seats.inviteVerify` (admin, desktop, a computer already in) | `{}` / `{ requestId, code, approve: true }` / `{ requestId, approve: false }` | `{ requests }` or `JoinAnswer`; refusals in `JOIN_REFUSALS` | core-sync-jobs (registered) |
  * | `learningx.intakeStatus`, `learningx.preview`, `learningx.consent` | as registered | `IntakeStatus`, `SharingPreview`, `SharingConsent` | learning-ext (registered) |
  *
  * `workspaces.switch` (SH-06) is not an engine method: the host composes it from the
@@ -65,7 +65,11 @@ export function isRouteProbe(v: unknown): v is RouteProbe {
 /* ---------------------------------------------------------------- local models (models-ext) */
 
 export interface LocalModel { readonly name: string; readonly sizeBytes: number | null; readonly modifiedAt: string | null; readonly family: string | null }
-/** `{ endpoint, models, reachable: true }` or `{ reachable: false, words }` (models-ext's published shape). */
+/**
+ * models-ext's registered reply (`routes-methods.ts`): `{ endpoint, reachable: true, models, skipped }` (`skipped`: entries
+ * whose names were refused) or `{ endpoint, reachable: false, models: [], words }`. The words are the engine's; the screen
+ * says its own.
+ */
 export type LocalModelsReply =
   | { readonly reachable: true; readonly endpoint: string; readonly models: readonly LocalModel[] }
   | { readonly reachable: false };
@@ -80,8 +84,11 @@ function isLocalModel(v: unknown): v is LocalModel {
 /** Checks the reply and gives it back in one form; null when it does not match. */
 export function readLocalModels(v: unknown): LocalModelsReply | null {
   if (!isRec(v) || typeof v.reachable !== 'boolean') return null;
-  if (v.reachable === false) return only(v, ['reachable'], ['words']) && (v.words === undefined || typeof v.words === 'string') ? Object.freeze({ reachable: false }) : null;
-  if (!only(v, ['reachable', 'endpoint', 'models']) || !str(v.endpoint, 2048) || !Array.isArray(v.models) || v.models.length > 500 || !v.models.every(isLocalModel)) return null;
+  if (v.reachable === false) {
+    return only(v, ['reachable'], ['endpoint', 'models', 'words']) && (v.words === undefined || typeof v.words === 'string') && (v.endpoint === undefined || str(v.endpoint, 2048))
+      && (v.models === undefined || (Array.isArray(v.models) && v.models.length === 0)) ? Object.freeze({ reachable: false as const }) : null;
+  }
+  if (!only(v, ['reachable', 'endpoint', 'models'], ['skipped']) || !(v.skipped === undefined || (Number.isSafeInteger(v.skipped) && (v.skipped as number) >= 0)) || !str(v.endpoint, 2048) || !Array.isArray(v.models) || v.models.length > 500 || !v.models.every(isLocalModel)) return null;
   const models = v.models.map(m => Object.freeze({
     name: m.name,
     sizeBytes: m.sizeBytes === undefined || m.sizeBytes === null ? null : Number(m.sizeBytes),
@@ -110,31 +117,84 @@ export function contextTimeZone(v: unknown): { readonly timeZone: string | null 
 
 /* ---------------------------------------------------------------- joining from another computer (FR-14) */
 
-/** Codes are short and grouped for reading aloud: two groups of four digits. */
-export const JOIN_CODE = /^\d{4}-\d{4}$/;
-export type JoinPhase = 'waiting' | 'approved' | 'expired' | 'used';
-export interface JoinState {
-  readonly joinId: string;
-  readonly code: string;
-  /** Fifteen minutes from the start. */
-  readonly expiresAt: string;
-  readonly state: JoinPhase;
-  /** Once approved: the folder this computer now holds, opened with its own passphrase. */
-  readonly folder?: string;
-}
-export function isJoinState(v: unknown): v is JoinState {
-  return isRec(v) && only(v, ['joinId', 'code', 'expiresAt', 'state'], ['folder']) && id(v.joinId) && typeof v.code === 'string' && JOIN_CODE.test(v.code)
-    && instant(v.expiresAt) && ['waiting', 'approved', 'expired', 'used'].includes(v.state as string)
-    && (v.folder === undefined || (typeof v.folder === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(v.folder)));
-}
-export interface JoinRequests { readonly requests: readonly JoinState[] }
-export function isJoinRequests(v: unknown): v is JoinRequests {
-  return isRec(v) && only(v, ['requests']) && Array.isArray(v.requests) && v.requests.length <= 20 && v.requests.every(isJoinState);
+/*
+ * core-sync-jobs' real contract (platform/runtime/core-sync-jobs/devices.ts), through a shared folder both
+ * computers can reach:
+ * - `devices.join` (admin, preVault, desktop only) on the new computer:
+ *   `{ step: 'request', folder: <full path>, deviceName? }` → `{ state: 'waiting', requestId, code: six digits, expiresAt }`;
+ *   `{ step: 'finish' }` → the same waiting reply, or `{ state: 'ready', backupFile, revision, next: 'restore-then-restart' }`,
+ *   or `{ state: 'refused' | 'expired' }`; `{ step: 'cancel' }` → `{ state: 'cancelled' }`.
+ * - `seats.inviteVerify` (admin, desktop) on a computer already in: `{}` → `{ requests: [{ requestId, name, code, expiresAt,
+ *   fingerprint }] }`; `{ requestId, code, approve: true }` → `{ approved: true, requestId, deviceId, revision }`;
+ *   `{ requestId, approve: false }` → `{ refused: true, requestId }`.
+ * Ready means the encrypted copy is in this computer's backups folder: `workspace.restore { backupFile, passphrase, folder }`,
+ * then a restart starts sync on this computer.
+ */
+
+/** The code both computers show: six digits. */
+export const JOIN_CODE = /^\d{6}$/;
+const JOIN_REQUEST_ID = /^join_[a-f0-9-]{36}$/;
+/** The encrypted copy's managed name in this computer's backups folder; never a path. */
+const JOIN_BACKUP = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,120}\.backup$/;
+const DEVICE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._'-]{0,59}$/u;
+export const isJoinRequestId = (v: unknown): v is string => typeof v === 'string' && JOIN_REQUEST_ID.test(v);
+/** A computer name as core-sync-jobs accepts it (a few plain words); checked before it is sent. */
+export const isDeviceName = (v: unknown): v is string => typeof v === 'string' && DEVICE_NAME.test(v);
+
+export type JoinState =
+  | { readonly state: 'waiting'; readonly requestId: string; readonly code: string; readonly expiresAt: string }
+  | { readonly state: 'ready'; readonly backupFile: string; readonly revision: number }
+  | { readonly state: 'refused' | 'expired' | 'cancelled' };
+export type JoinPhase = JoinState['state'];
+/** Checks a `devices.join` reply and gives back only the fields the screen uses; null when it does not match. */
+export function readJoinState(v: unknown): JoinState | null {
+  if (!isRec(v)) return null;
+  if (v.state === 'waiting') {
+    return only(v, ['state', 'requestId', 'code', 'expiresAt']) && isJoinRequestId(v.requestId) && typeof v.code === 'string' && JOIN_CODE.test(v.code) && instant(v.expiresAt)
+      ? Object.freeze({ state: 'waiting' as const, requestId: v.requestId, code: v.code, expiresAt: v.expiresAt }) : null;
+  }
+  if (v.state === 'ready') {
+    return only(v, ['state', 'backupFile', 'revision', 'next']) && typeof v.backupFile === 'string' && JOIN_BACKUP.test(v.backupFile)
+      && Number.isSafeInteger(v.revision) && (v.revision as number) >= 0 && v.next === 'restore-then-restart'
+      ? Object.freeze({ state: 'ready' as const, backupFile: v.backupFile, revision: v.revision as number }) : null;
+  }
+  if (v.state === 'refused' || v.state === 'expired' || v.state === 'cancelled') return only(v, ['state']) ? Object.freeze({ state: v.state }) : null;
+  return null;
 }
 /** A waiting join is expired once its time has passed, whatever the last reply said. */
 export function joinPhaseAt(join: JoinState, now: number): JoinPhase {
   return join.state === 'waiting' && Date.parse(join.expiresAt) <= now ? 'expired' : join.state;
 }
+
+/** One computer asking to join, as the computer already in lists it. The name is the other computer's own words: data only. */
+export interface JoinRequest { readonly requestId: string; readonly name: string; readonly code: string; readonly expiresAt: string; readonly fingerprint: string }
+export function readJoinRequests(v: unknown): readonly JoinRequest[] | null {
+  if (!isRec(v) || !only(v, ['requests']) || !Array.isArray(v.requests) || v.requests.length > 100) return null;
+  const out: JoinRequest[] = [];
+  for (const r of v.requests) {
+    if (!isRec(r) || !only(r, ['requestId', 'name', 'code', 'expiresAt', 'fingerprint']) || !isJoinRequestId(r.requestId) || !isDeviceName(r.name)
+      || typeof r.code !== 'string' || !JOIN_CODE.test(r.code) || !instant(r.expiresAt) || typeof r.fingerprint !== 'string' || !/^[a-f0-9]{16}$/.test(r.fingerprint)) return null;
+    out.push(Object.freeze({ requestId: r.requestId, name: r.name, code: r.code, expiresAt: r.expiresAt, fingerprint: r.fingerprint }));
+  }
+  return Object.freeze(out);
+}
+/** `seats.inviteVerify`'s answer to Approve or Refuse, for this request only. */
+export type JoinAnswer = { readonly approved: true; readonly revision: number } | { readonly refused: true };
+export function readJoinAnswer(v: unknown, requestId: string): JoinAnswer | null {
+  if (!isRec(v) || v.requestId !== requestId) return null;
+  if (v.approved === true) {
+    return only(v, ['approved', 'requestId', 'deviceId', 'revision']) && typeof v.deviceId === 'string' && /^[a-z][a-z0-9_-]{2,80}$/.test(v.deviceId)
+      && Number.isSafeInteger(v.revision) && (v.revision as number) >= 0 ? Object.freeze({ approved: true as const, revision: v.revision as number }) : null;
+  }
+  return v.refused === true && only(v, ['refused', 'requestId']) ? Object.freeze({ refused: true as const }) : null;
+}
+/** The join refusals the screens say in their own words (on core-sync-jobs' `laneRefusals` line and frame-today's). */
+export const JOIN_REFUSALS = [
+  'DEVICE_JOIN_CODE_MISMATCH', 'DEVICE_JOIN_EXPIRED', 'DEVICE_JOIN_USED', 'DEVICE_JOIN_NOT_FOUND', 'DEVICE_JOIN_NOT_STARTED', 'DEVICE_JOIN_INVALID',
+  'DEVICE_JOIN_NEEDS_FOLDER', 'DEVICE_ALREADY_ENROLLED', 'DEVICE_NOT_ENROLLED', 'DEVICE_REMOVED', 'DEVICE_FOLDER_UNAVAILABLE', 'DEVICE_FOLDER_NOT_SET_UP',
+  'INVALID_DEVICE_REQUEST', 'SYNC_READ_ONLY_DEVICE', 'SYNC_OFF', 'SYNC_NOT_CONNECTED', 'SYNC_UNTRUSTED_DEVICE', 'SYNC_EMPTY', 'SYNC_LEASE_WAIT',
+  'APP_APPROVAL_REQUIRED',
+] as const;
 
 /* ---------------------------------------------------------------- the sharing question (FR-10, learning-ext) */
 
@@ -160,6 +220,7 @@ export function readSharingConsent(v: unknown): SharingConsent | null {
 
 /** Refusal codes these contracts name; mirrored on frame-today's `laneRefusals` line so they reach the screen. */
 export const R4_REFUSALS = [
-  'PIN_WRONG', 'PIN_LOCKED_OUT', 'PIN_NOT_SET', 'PIN_INVALID', 'LADDER_INVALID', 'ROUTE_NOT_FOUND', 'TIME_ZONE_INVALID',
-  'JOIN_EXPIRED', 'JOIN_USED', 'JOIN_CODE_MISMATCH',
+  'PIN_WRONG', 'PIN_LOCKED_OUT', 'PIN_NOT_SET', 'PIN_INVALID', 'LADDER_INVALID', 'ROUTE_NOT_FOUND', 'INVALID_TIME_ZONE', 'TAINTED_SETTING',
+  'DEMO_PROVIDER_DISABLED', 'LOCAL_ENDPOINT_APP_ONLY', 'LOCAL_LIST_INVALID', 'INVALID_ENDPOINT',
+  ...JOIN_REFUSALS,
 ] as const;

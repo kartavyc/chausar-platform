@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { mountHost, type MountedHost } from '../../app/ui/src/host/bootstrap';
 import { createHostController } from '../../app/ui/src/host/controller';
 import { createFakeEngine, FAKE_PASSPHRASE, FAKE_SECOND_PASSPHRASE, registerFakeMethods, type FakeEngineOptions } from '../../app/ui/src/bridge/fake';
-import { FAKE_JOIN_CODE, FAKE_PIN, FAKE_PIN_TRIES } from '../../app/ui/src/bridge/fixtures/r4';
+import { FAKE_JOIN_CODE, FAKE_PIN, FAKE_PIN_TRIES, FAKE_SHARED_FOLDER } from '../../app/ui/src/bridge/fixtures/r4';
 import { learningxSharingHandlers } from '../../app/ui/src/bridge/fixtures/learningx';
 import { TextProvider } from '../../app/ui/src/app/text';
 import { words } from '../../app/ui/src/text/lanes/frame-today';
@@ -184,8 +184,27 @@ test('FR-05: local models are listed and picked; unreachable and absent have the
   await screen.findByText(w('FR-05.local.unreachable'));
   expect(screen.queryByText('Ollama is not running.')).toBeNull();
   unreachable.unmount();
-  inEnglish(<LocalModels rpc={createFakeEngine({ absent: ['modelsx.localList'] })} onPick={picked} />);
+  const absent = inEnglish(<LocalModels rpc={createFakeEngine({ absent: ['modelsx.localList'] })} onPick={picked} />);
   await screen.findByText(w('FR-05.local.notBuilt'));
+  absent.unmount();
+  // models-ext's real refusal in a demo engine has its own words.
+  inEnglish(<LocalModels rpc={{ request: async () => { throw Object.assign(new Error('demo'), { code: 'DEMO_PROVIDER_DISABLED' }); } }} onPick={picked} />);
+  await screen.findByText(w('FR-05.local.demo'));
+});
+
+test('the time zone: core-data’s spelling is the same zone, and its refusals have words', async () => {
+  let reply: () => unknown = () => ({ timeZone: 'Europe/London' });
+  const rpc = { request: async (method: string) => method === 'ui.context' ? { timeZone: null } : reply() };
+  inEnglish(<TimeZoneSetting rpc={rpc} suggest={() => 'europe/london'} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: w('TZ.save.btn') }));
+  await screen.findByText(w('TZ.saved', { zone: 'Europe/London' }));
+  reply = () => { throw Object.assign(new Error('x'), { code: 'INVALID_TIME_ZONE' }); };
+  await user.click(screen.getByRole('button', { name: w('TZ.save.btn') }));
+  await screen.findByText(w('TZ.invalid'));
+  reply = () => { throw Object.assign(new Error('x'), { code: 'TAINTED_SETTING' }); };
+  await user.click(screen.getByRole('button', { name: w('TZ.save.btn') }));
+  await screen.findByText(w('TZ.tainted'));
 });
 
 test('the time zone: the machine zone is only a suggestion until confirmed; saved reaches ui.context; absent says not built', async () => {
@@ -282,19 +301,37 @@ test('FR-10: without learning-ext the step says not built and Continue still goe
   expect(onContinue).toHaveBeenCalledOnce();
 });
 
-test('FR-14: the new computer shows a code; the computer already in compares it and approves; then it opens', async () => {
+/** The new computer's first screen: the shared folder's full path and a name, then Ask to join. */
+async function askToJoin(user: ReturnType<typeof userEvent.setup>, folder: string, name = 'Laptop') {
+  await user.type(await screen.findByRole('textbox', { name: w('FR-14.folder.field') }), folder);
+  await user.type(screen.getByRole('textbox', { name: w('FR-14.name.field') }), name);
+  await user.click(screen.getByRole('button', { name: w('FR-14.ask.btn') }));
+}
+
+test('FR-14: the new computer asks through the shared folder; the computer already in compares the code and approves; the copy opens', async () => {
   const engine = createFakeEngine();
-  const opened = vi.fn();
-  inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} onOpenFolder={opened} />);
+  inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} />);
   const user = userEvent.setup();
+  // A path that is not a full path is said in words and nothing is sent; a folder not set up is core-sync-jobs' refusal.
+  await askToJoin(user, 'Shared/Chausar');
+  await screen.findByText(w('FR-14.folderBad'));
+  expect(engine.calls.filter(method => method === 'devices.join')).toHaveLength(1);
+  await user.clear(screen.getByRole('textbox', { name: w('FR-14.folder.field') }));
+  await user.clear(screen.getByRole('textbox', { name: w('FR-14.name.field') }));
+  await askToJoin(user, '/Users/demo/Elsewhere');
+  await screen.findByText(w('FR-14.code.DEVICE_FOLDER_NOT_SET_UP'));
+  await user.clear(screen.getByRole('textbox', { name: w('FR-14.folder.field') }));
+  await user.clear(screen.getByRole('textbox', { name: w('FR-14.name.field') }));
+  await askToJoin(user, FAKE_SHARED_FOLDER);
   expect((await screen.findAllByText(FAKE_JOIN_CODE)).length).toBe(1);
   await screen.findByText(w('FR-14.waiting'));
-  // On the computer already in: no code is shown there; the person types the one the new computer shows.
+  // On the computer already in: the name it gave, no code; the person types the one the new computer shows.
   const requests = render(<TextProvider language="en"><JoinRequests rpc={engine} /></TextProvider>);
   const field = await within(requests.container).findByRole('textbox', { name: w('FR-14.requests.field') });
   expect(requests.container.textContent).not.toContain(FAKE_JOIN_CODE);
+  expect(requests.container.textContent).toContain('Laptop asks to join');
   // A typed code that differs is refused with its words; nothing is approved.
-  await user.type(field, '0000-0000');
+  await user.type(field, '000000');
   await user.click(within(requests.container).getByRole('button', { name: w('FR-14.approve.btn') }));
   await within(requests.container).findByText(w('FR-14.mismatch'));
   const typed = await within(requests.container).findByRole('textbox', { name: w('FR-14.requests.field') });
@@ -302,18 +339,42 @@ test('FR-14: the new computer shows a code; the computer already in compares it 
   await user.type(typed, FAKE_JOIN_CODE);
   await user.click(within(requests.container).getByRole('button', { name: w('FR-14.approve.btn') }));
   await within(requests.container).findByText(w('FR-14.approve.done'));
+  requests.unmount();
+  // Ready: the copy is opened with the workspace passphrase (this fake's workspace is open, so lock it first).
+  await engine.request('workspace.lock', {});
   await user.click(screen.getByRole('button', { name: w('FR-14.check.btn') }));
-  await screen.findByText(w('FR-14.approved'));
-  await user.click(screen.getByRole('button', { name: w('FR-14.open.btn') }));
-  expect(opened).toHaveBeenCalledWith('joined-shop');
+  await screen.findByText(w('FR-14.ready'));
+  const secret = screen.getByLabelText(w('FR-14.restore.passphrase')) as HTMLInputElement;
+  await user.type(secret, 'not the passphrase');
+  await user.click(screen.getByRole('button', { name: w('FR-14.restore.btn') }));
+  await screen.findByText(w('FR-14.restore.refused', { code: 'UNLOCK_FAILED' }));
+  expect(secret.value, 'the passphrase is read once and emptied').toBe('');
+  await user.type(secret, FAKE_PASSPHRASE);
+  await user.click(screen.getByRole('button', { name: w('FR-14.restore.btn') }));
+  await screen.findByText(w('FR-14.restored'));
 });
 
-test('FR-14: after 15 minutes the code is expired; without the method it is not built', async () => {
+test('FR-14: refused there, expired after 15 minutes, cancelled, and without the method it is not built', async () => {
   const engine = createFakeEngine();
-  const { unmount } = inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} now={() => Date.now() + 16 * 60_000} />);
+  const user = userEvent.setup();
+  const first = inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} />);
+  await askToJoin(user, FAKE_SHARED_FOLDER);
+  await screen.findByText(w('FR-14.waiting'));
+  const listed = await engine.request('seats.inviteVerify', {}) as { requests: { requestId: string }[] };
+  await engine.request('seats.inviteVerify', { requestId: listed.requests[0]!.requestId, approve: false });
+  await user.click(screen.getByRole('button', { name: w('FR-14.check.btn') }));
+  await screen.findByText(w('FR-14.refusedThere'));
+  first.unmount();
+  // A join already started is picked up again when the screen opens; after 15 minutes it is expired.
+  await engine.request('devices.join', { step: 'request', folder: FAKE_SHARED_FOLDER });
+  const late = inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} now={() => Date.now() + 16 * 60_000} />);
   await screen.findByText(w('FR-14.expired'));
   expect(screen.getByRole('button', { name: w('FR-14.again.btn') })).toBeTruthy();
-  unmount();
+  late.unmount();
+  const again = inEnglish(<JoinFromNew rpc={engine} language="en" onBack={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: w('FR-14.cancel.btn') }));
+  await screen.findByRole('textbox', { name: w('FR-14.folder.field') });
+  again.unmount();
   inEnglish(<JoinFromNew rpc={createFakeEngine({ absent: ['devices.join'] })} language="en" onBack={() => {}} />);
   await screen.findByText(w('FR-14.notBuilt'));
 });

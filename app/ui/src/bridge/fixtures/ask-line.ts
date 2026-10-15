@@ -69,9 +69,12 @@ export function voiceHandlers(options: VoiceFixtureOptions = {}): Readonly<Recor
   const sessions = new Map<string, { text: string | null; digest: string | null }>();
   let next = 0;
   const provider = mode === 'paid' ? { id: 'speech_paid_demo', kind: 'sarvam-stt', label: 'Paid speech (demo)', local: false, ratePerMinuteMinor: '200' }
-    : mode === 'off' ? null : { id: 'speech_local_demo', kind: mode === 'browser' ? 'browser-transcript' : 'whisper-local', label: 'On this computer', local: true, ratePerMinuteMinor: null };
+    : mode === 'off' ? null : { id: 'speech_local_demo', kind: mode === 'browser' ? 'browser-transcript' : 'local-command', label: 'On this computer', local: true, ratePerMinuteMinor: null };
   const usage = (month: string) => ({
-    month, providers: provider === null ? [] : [{ providerId: provider.id, kind: provider.kind, minutes: mode === 'paid' ? 3 : 0, minutesMs: mode === 'paid' ? 180000 : 0, costMinor: mode === 'paid' ? '600' : '0', basis: mode === 'paid' ? 'measured' : 'local' }],
+    // models-ext's voice-usage.ts: minutes as digits, and "not counted" for browser text (no length is known).
+    month, providers: provider === null ? [] : [mode === 'browser'
+      ? { providerId: provider.id, kind: provider.kind, minutes: 'not counted', minutesMs: 'not counted', costMinor: 'not counted', basis: 'browser-text-only' }
+      : { providerId: provider.id, kind: provider.kind, minutes: mode === 'paid' ? '3' : '0', minutesMs: mode === 'paid' ? 180000 : 0, costMinor: mode === 'paid' ? '600' : '0', basis: mode === 'paid' ? 'recorded-length-at-rate' : 'local-free' }],
     totals: { minutesMs: mode === 'paid' ? 180000 : 0, costMinor: mode === 'paid' ? '600' : '0' },
   });
   const on = (context: Parameters<FakeHandler>[1]) => {
@@ -94,7 +97,7 @@ export function voiceHandlers(options: VoiceFixtureOptions = {}): Readonly<Recor
       if (options.localOnly && mode === 'paid') throw context.refuse('VOICE_LOCAL_ONLY', 'Speech stays on this computer.');
       const sessionId = `voice_session_${++next}`;
       sessions.set(sessionId, { text: null, digest: null });
-      return { sessionId, capture: mode === 'browser' ? 'browser-transcript' : 'record-audio', provider, capMs: 60000,
+      return { sessionId, capture: mode === 'browser' ? 'browser-transcript' : 'record-audio', provider, capMs: mode === 'browser' ? null : 300000,
         ...(options.approval && mode === 'paid' ? { approval: { previewId: `speech_preview_${next}`, digest: fakeHash(`approval:${next}`), costCapMinor: '200' } } : {}) };
     },
     stop: (payload, context) => {
@@ -115,7 +118,9 @@ export function voiceHandlers(options: VoiceFixtureOptions = {}): Readonly<Recor
       if (!session || session.digest === null || session.digest !== payload['digest']) throw context.refuse('UNDERSTOOD_CHANGED', 'What was heard changed.');
       if (payload['text'] !== undefined && payload['text'] !== session.text) throw context.refuse('UNDERSTOOD_CHANGED', 'What was heard changed.');
       sessions.delete(String(payload['sessionId']));
-      return { confirmationId: `voice_confirmation_${next}`, text: session.text, digest: session.digest };
+      // models-ext's reply: the words heard, the reading the digest pins, and whether they were edited.
+      const understood = String(fakeReading(session.text ?? '')['understood']);
+      return { confirmationId: `voice_confirmation_${next}`, text: session.text, edited: false, understood, digest: session.digest, receiptId: null };
     },
     speak: (payload, context) => {
       on(context);

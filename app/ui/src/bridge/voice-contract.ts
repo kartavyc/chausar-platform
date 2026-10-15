@@ -34,8 +34,10 @@ export const VOICE_METHODS = {
 export const VOICE_REFUSALS = ['VOICE_OFF', 'VOICE_LOCAL_ONLY', 'UNDERSTOOD_CHANGED'] as const;
 
 export type VoiceMode = 'off' | 'browser' | 'local' | 'paid';
-export interface VoiceProvider { readonly id: string; readonly kind: string; readonly label: string; readonly local: boolean; readonly ratePerMinuteMinor: string | null }
-export interface VoiceUsageRow { readonly providerId: string; readonly kind: string; readonly minutes: number; readonly minutesMs: number; readonly costMinor: string | 'not counted'; readonly basis: string }
+/** models-ext's `publicProvider`: the label is null when the provider was configured without one. */
+export interface VoiceProvider { readonly id: string; readonly kind: string; readonly label: string | null; readonly local: boolean; readonly ratePerMinuteMinor: string | null }
+/** models-ext's `voice-usage.ts`: whole minutes as words of digits, and "not counted" for browser text (no length is known). */
+export interface VoiceUsageRow { readonly providerId: string; readonly kind: string; readonly minutes: string | 'not counted'; readonly minutesMs: number | 'not counted'; readonly costMinor: string | 'not counted'; readonly basis: string }
 /** `voice.usage` { month? } → minutes of speech this month and their cost. */
 export interface VoiceUsage { readonly month: string; readonly providers: readonly VoiceUsageRow[]; readonly totals: { readonly minutesMs: number; readonly costMinor: string | 'not counted' } }
 /** `voice.status` {} → whether voice is on, the provider and its cost per minute, and this month's use. */
@@ -54,7 +56,8 @@ export type VoiceCapture = 'browser-transcript' | 'record-audio' | 'live-session
 export interface VoiceStart {
   readonly sessionId: string;
   readonly capture: VoiceCapture;
-  readonly capMs: number;
+  /** The longest hold; null for the browser transcript, which the engine does not cap. */
+  readonly capMs: number | null;
   readonly approval: { readonly previewId: string; readonly digest: string; readonly costCapMinor: string } | null;
   /** Live (WebRTC) voice, after approval. The ask line never asks for it; see `LIVE_VOICE_NOT_BUILT`. */
   readonly live: boolean;
@@ -67,22 +70,28 @@ export interface VoiceHeard {
   readonly needsConfirmation: true;
   /** The engine's own sentence; the screen draws its own words instead. */
   readonly words: string;
+  /** A recording that would leave this computer waits for an owner's approval first (nothing heard yet). */
+  readonly approval?: { readonly previewId: string; readonly digest: string; readonly costCapMinor: string } | undefined;
 }
-/** `voice.confirm` { sessionId, digest, text? } → the confirmed text. */
-export interface VoiceConfirm { readonly confirmationId: string; readonly text: string; readonly digest: string }
+/**
+ * `voice.confirm` { sessionId, digest } → the confirmed words: `text` is the transcript as heard, `understood` the reading
+ * the digest pins (models-ext adds `edited` and `receiptId`). Sending `text` would make it an edit that must be read again.
+ */
+export interface VoiceConfirm { readonly confirmationId: string; readonly text: string; readonly digest: string; readonly understood?: string | undefined }
 /** `voice.speak` { receiptId, language? } → what to say, every number read from the receipt's own figures. */
 export interface VoiceSpeak { readonly utteranceId: string; readonly language: 'en' | 'hi'; readonly segments: readonly { readonly text: string; readonly figureKey: string | null }[] }
 
 const money = (v: unknown): v is string | 'not counted' => isDigits(v) || v === 'not counted';
 function isProvider(v: unknown): v is VoiceProvider {
-  return isRec(v) && isId(v['id']) && shortText(v['kind']) && shortText(v['label']) && typeof v['local'] === 'boolean'
+  return isRec(v) && isId(v['id']) && shortText(v['kind']) && (v['label'] === null || shortText(v['label'])) && typeof v['local'] === 'boolean'
     && (v['ratePerMinuteMinor'] === null || isDigits(v['ratePerMinuteMinor']));
 }
 export function isVoiceUsage(v: unknown): v is VoiceUsage {
   if (!isRec(v) || !isMonth(v['month']) || !Array.isArray(v['providers']) || !isRec(v['totals'])) return false;
   const totals = v['totals'];
-  return v['providers'].length <= 50 && v['providers'].every(p => isRec(p) && isId(p['providerId']) && shortText(p['kind']) && typeof p['minutes'] === 'number' && p['minutes'] >= 0
-    && isCount(p['minutesMs']) && money(p['costMinor']) && shortText(p['basis'])) && isCount(totals['minutesMs']) && money(totals['costMinor']);
+  return v['providers'].length <= 50 && v['providers'].every(p => isRec(p) && isId(p['providerId']) && shortText(p['kind'])
+    && (isDigits(p['minutes']) || p['minutes'] === 'not counted') && (isCount(p['minutesMs']) || p['minutesMs'] === 'not counted')
+    && money(p['costMinor']) && shortText(p['basis'])) && isCount(totals['minutesMs']) && money(totals['costMinor']);
 }
 export function isVoiceStatus(v: unknown): v is VoiceStatus {
   if (!isRec(v) || typeof v['enabled'] !== 'boolean' || !oneOf(['off', 'browser', 'local', 'paid'] as const)(v['mode']) || !shortText(v['send']) || typeof v['localOnly'] !== 'boolean') return false;
@@ -92,13 +101,15 @@ export function isVoiceStatus(v: unknown): v is VoiceStatus {
   if (!(speaking === null || isRec(speaking) && isId(speaking['utteranceId']))) return false;
   return isVoiceUsage(v['usage']);
 }
+const isApproval = (a: unknown): a is { previewId: string; digest: string; costCapMinor: string } =>
+  isRec(a) && isId(a['previewId']) && isStr(a['digest']) && /^[a-f0-9]{64}$/.test(a['digest']) && isDigits(a['costCapMinor']);
 /** Checks a `voice.start` reply and returns the fields the ask line uses, or null. */
 export function readVoiceStart(v: unknown): VoiceStart | null {
-  if (!isRec(v) || !isId(v['sessionId']) || !oneOf(['browser-transcript', 'record-audio', 'live-session'] as const)(v['capture']) || !isCount(v['capMs'])) return null;
+  if (!isRec(v) || !isId(v['sessionId']) || !oneOf(['browser-transcript', 'record-audio', 'live-session'] as const)(v['capture']) || !(v['capMs'] === null || isCount(v['capMs']))) return null;
   const a = v['approval'];
-  if (!(a === undefined || a === null || isRec(a) && isId(a['previewId']) && isStr(a['digest']) && /^[a-f0-9]{64}$/.test(a['digest']) && isDigits(a['costCapMinor']))) return null;
+  if (!(a === undefined || a === null || isApproval(a))) return null;
   return {
-    sessionId: v['sessionId'], capture: v['capture'], capMs: v['capMs'],
+    sessionId: v['sessionId'], capture: v['capture'], capMs: v['capMs'] as number | null,
     approval: isRec(a) ? { previewId: a['previewId'] as string, digest: a['digest'] as string, costCapMinor: a['costCapMinor'] as string } : null,
     // `live: false` is not live; `live: true` or the live details object (models-ext contract) is.
     live: v['capture'] === 'live-session' || v['live'] === true || isRec(v['live']),
@@ -107,12 +118,14 @@ export function readVoiceStart(v: unknown): VoiceStart | null {
 export function isVoiceHeard(v: unknown, sessionId?: string): v is VoiceHeard {
   if (!isRec(v) || !isId(v['sessionId']) || (sessionId !== undefined && v['sessionId'] !== sessionId) || v['needsConfirmation'] !== true || !shortText(v['words'])) return false;
   if (!(v['heard'] === null || plainText(10000)(v['heard']))) return false;
+  if (!(v['approval'] === undefined || (v['heard'] === null && isApproval(v['approval'])))) return false;
   if (v['understood'] === null) return v['heard'] === null;
   return v['heard'] !== null && isSpeechInterpretReply(v['understood']);
 }
 export function isVoiceConfirm(v: unknown, digest?: string): v is VoiceConfirm {
   return isRec(v) && isId(v['confirmationId']) && plainText(10000)(v['text']) && (v['text'] as string).trim().length > 0
-    && isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']) && (digest === undefined || v['digest'] === digest);
+    && isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']) && (digest === undefined || v['digest'] === digest)
+    && (v['understood'] === undefined || plainText(10000)(v['understood']));
 }
 export function readVoiceSpeak(v: unknown): VoiceSpeak | null {
   if (!isRec(v) || !isId(v['utteranceId']) || !oneOf(['en', 'hi'] as const)(v['language']) || !Array.isArray(v['segments']) || v['segments'].length > 200) return null;

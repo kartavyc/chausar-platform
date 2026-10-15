@@ -167,7 +167,8 @@ export function LocalModels({ rpc, onPick, chosen }: { rpc: ComputerPort; onPick
     <div className={s.section} data-local-models={state.kind === 'ready' ? (state.reply.reachable ? 'ready' : 'unreachable') : state.kind}>
       <h3 className={s.sectionTitle}>{t('FR-05.local.title')}</h3>
       {state.kind === 'reading' && <Status k="FR-05.local.reading" />}
-      {(state.kind === 'not-built' || state.kind === 'refused') && <FailureLine failure={state} notBuilt="FR-05.local.notBuilt" refused="FR-05.local.refused" />}
+      {state.kind === 'refused' && state.code === 'DEMO_PROVIDER_DISABLED' && <p className={s.note} role="status">{t('FR-05.local.demo')}</p>}
+      {(state.kind === 'not-built' || (state.kind === 'refused' && state.code !== 'DEMO_PROVIDER_DISABLED')) && <FailureLine failure={state} notBuilt="FR-05.local.notBuilt" refused="FR-05.local.refused" />}
       {state.kind === 'ready' && !state.reply.reachable && <p className={s.note} role="status">{t('FR-05.local.unreachable')}</p>}
       {state.kind === 'ready' && state.reply.reachable && state.reply.models.length === 0 && <p className={s.note} role="status">{t('FR-05.local.none')}</p>}
       {state.kind === 'ready' && state.reply.reachable && state.reply.models.length > 0 && (

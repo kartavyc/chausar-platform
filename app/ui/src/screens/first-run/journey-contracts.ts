@@ -146,7 +146,7 @@ export type JourneyPayloads = {
   'learningx.intakeStatus': Record<string, never>;
   'learningx.preview': { readonly boxes: readonly ('setup-shapes' | 'corrections')[] };
   'learningx.consent': { readonly previewId: string; readonly digest: string };
-  'devices.join': { readonly joinId?: string };
+  'devices.join': { readonly step: 'request'; readonly folder: string; readonly deviceName?: string } | { readonly step: 'finish' | 'cancel' };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 

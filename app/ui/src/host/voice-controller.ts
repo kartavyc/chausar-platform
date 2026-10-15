@@ -50,6 +50,8 @@ export type VoicePhase =
   | { readonly kind: 'approval'; readonly costCapMinor: string }
   | {
     readonly kind: 'heard'; readonly sessionId: string; readonly text: string; readonly digest: string;
+    /** The words as heard (the transcript the engine confirms); `text` is its reading, shown and asked. */
+    readonly heard: string;
     /** Each amount or date heard, shown back large, and the answers so far (null: not answered). */
     readonly readBacks: readonly ReadBack[]; readonly answers: readonly (boolean | null)[];
     /** Words such as "nahi" that flip the meaning. */
@@ -133,9 +135,11 @@ export function createVoiceController(rpc: PlaceRpc, capture: VoiceCapturePort |
     else phase({ kind: 'failed', code });
   };
   const heardPhase = (reply: VoiceHeard, caught: string): VoicePhase => {
+    // A recording that would leave this computer waits for an owner's approval (models-ext `voice.stop` / `voice.dropNote`).
+    if (reply.approval !== undefined) return { kind: 'approval', costCapMinor: reply.approval.costCapMinor };
     if (reply.heard === null || reply.understood === null) return { kind: 'unsure', words: caught };
     const readBacks = readBacksOf(reply);
-    return { kind: 'heard', sessionId: reply.sessionId, text: reply.understood.understood, digest: reply.understood.digest, readBacks, answers: readBacks.map(() => null), flips: flipsOf(reply), confirming: false };
+    return { kind: 'heard', sessionId: reply.sessionId, text: reply.understood.understood, heard: reply.heard, digest: reply.understood.digest, readBacks, answers: readBacks.map(() => null), flips: flipsOf(reply), confirming: false };
   };
   const send = async (method: string, payload: Record<string, unknown>, mine: number, caught: string, sessionId?: string) => {
     try {
@@ -204,13 +208,15 @@ export function createVoiceController(rpc: PlaceRpc, capture: VoiceCapturePort |
       if (p.kind !== 'heard' || p.confirming || !p.answers.every(a => a === true)) return null;
       phase({ ...p, confirming: true });
       try {
-        // The text confirmed is the text the person saw; a reply with other words is refused, not used.
-        const reply = await rpc.request(VOICE_METHODS.confirm, { sessionId: p.sessionId, digest: p.digest, text: p.text });
+        // The engine confirms the words it heard, pinned by the digest of the reading the person saw; sending `text`
+        // would make it an edit to be read again. A reply with other words or another reading is refused, not used.
+        const reply = await rpc.request(VOICE_METHODS.confirm, { sessionId: p.sessionId, digest: p.digest });
         if (mine !== turn) return null;
         if (!isVoiceConfirm(reply, p.digest)) { phase({ kind: 'failed', code: 'INVALID_REPLY' }); return null; }
-        if (reply.text !== p.text) { phase({ kind: 'failed', code: 'UNDERSTOOD_CHANGED' }); return null; }
+        if (reply.text !== p.heard || (reply.understood !== undefined && reply.understood !== p.text)) { phase({ kind: 'failed', code: 'UNDERSTOOD_CHANGED' }); return null; }
         phase({ kind: 'idle' });
-        return reply.text;
+        // The question is the reading shown ("2,00,000 ka payment nahi aaya"), the one the person said Yes to.
+        return p.text;
       } catch (error) { refusal(error, mine); return null; }
     },
     reset() { turn++; session = null; capture?.cancel(); phase({ kind: 'idle' }); },
