@@ -139,3 +139,12 @@ test('start at login and the wake timer are wired as release methods', async t =
   assert.equal(status.mechanism, 'linux-systemd-user-timer');
   assert.ok(Array.isArray(calls));
 });
+
+test('the reader bundle methods report a missing bundle instead of failing', async t => {
+  const { engine } = await fixture(t);
+  const bundle = await engine.request('native.readerBundle');
+  assert.equal(bundle.present, false);
+  await assert.rejects(engine.request('native.installReader'), code('READER_BUNDLE_MISSING'));
+  const status = await engine.request('imports.readerStatus').catch((error: any) => ({ code: error.code }));
+  assert.ok(status && typeof status === 'object');
+});

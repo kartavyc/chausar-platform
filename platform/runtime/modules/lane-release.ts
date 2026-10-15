@@ -9,6 +9,7 @@ import { BackgroundService } from '../native/background-service.ts';
 import { WakeTimer, nativeWakeStatus, nativeWakePlan, nativeWakeSet, nativeWakeClear } from '../native/wake-timer.ts';
 import { StartAtLogin, shellStartAtLogin, shellSetStartAtLogin } from '../native/start-at-login.ts';
 import { keychainStatus } from '../native/keychain-status.ts';
+import { readerBundle, verifyReaderBundle } from '../native/reader-bundle.ts';
 import { BundledPostgres } from '../native/postgres-lifecycle.ts';
 import { releaseModuleOptions } from '../native/release-options.ts';
 import { confirmInstalledTrial, type TrialConfirmation } from '../native/update-launch.ts';
@@ -79,6 +80,13 @@ async function startAtLogin(host: ModuleHost): Promise<StartAtLogin> {
   const o = await options(host);
   check(typeof o.appExecutable === 'string' && isAbsolute(o.appExecutable), 'SERVICE_UNAVAILABLE', 'Starting at sign-in needs the installed desktop app.');
   return new StartAtLogin({ executable: o.appExecutable, platform: o.platform, homeDirectory: o.homeDirectory, runner: o.serviceRunner });
+}
+async function readerOptions(host: ModuleHost) {
+  const o = await options(host);
+  // Nothing is bundled outside the installed app (no resources folder): the methods report that plainly.
+  if (typeof o.resourcesPath !== 'string' || !isAbsolute(o.resourcesPath)) return null;
+  const executable = host.services.helper?.options?.executable;
+  return { resourcesPath: o.resourcesPath, pythonExecutable: typeof executable === 'string' ? executable : null, platform: o.platform, arch: o.arch };
 }
 async function bundledPostgres(host: ModuleHost): Promise<BundledPostgres> {
   const o = await options(host);
@@ -158,6 +166,16 @@ export const releaseModule: EngineModule = {
       const o = await options(host);
       return keychainStatus({ platform: o.platform ?? process.platform, arch: o.arch ?? process.arch, environment: o.environment ?? process.env,
         resourcesPath: o.resourcesPath ?? '', demo: host.demo });
+    } },
+    // The bundled PDF readers (FR-07): connectors-ext's imports.readerStatus and imports.installReader call these.
+    'native.readerBundle': { permission: 'read', async handler(_ctx, _payload, host) {
+      const o = await readerOptions(host);
+      return o ? readerBundle(o) : { present: false, reason: 'RUNTIME_NOT_BUNDLED', python: null, packages: null, tesseract: null, sizeBytes: null, manifestSha256: null };
+    } },
+    'native.installReader': { permission: 'admin', async handler(ctx, _payload, host) {
+      writer(ctx); const o = await readerOptions(host);
+      check(o, 'READER_BUNDLE_MISSING', 'This installation does not include the PDF readers. Install the full release.');
+      return verifyReaderBundle(o);
     } },
     'native.databaseStatus': { permission: 'admin', async handler(_ctx, _payload, host) {
       return (await bundledPostgres(host)).status();

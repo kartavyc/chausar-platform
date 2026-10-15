@@ -199,18 +199,60 @@ OCR_LANGUAGES = {"eng"}
 OCR_DEADLINE_SECONDS = 25
 
 
+def bundled_tesseract():
+    """
+    The release's bundled tesseract, beside this interpreter: <runtime>/python/bin/python3 (python/python.exe
+    on Windows) -> <runtime>/tesseract/bin/tesseract[.exe] and <runtime>/tesseract/share/tessdata. Only a
+    regular file (never a symbolic link) whose real path stays inside the runtime folder is accepted.
+    Returns (program, tessdata folder) or None.
+    """
+    import os
+    import stat
+    python = os.path.dirname(os.path.realpath(sys.executable))
+    python_root = python if os.name == "nt" else os.path.dirname(python)
+    if os.path.basename(python_root).lower() != "python":
+        return None
+    runtime = os.path.dirname(python_root)
+    program = os.path.join(runtime, "tesseract", "bin", "tesseract.exe" if os.name == "nt" else "tesseract")
+    tessdata = os.path.join(runtime, "tesseract", "share", "tessdata")
+    try:
+        info = os.lstat(program)
+        real = os.path.realpath(program)
+        if not stat.S_ISREG(info.st_mode) or os.path.commonpath([real, runtime]) != runtime or not os.path.isdir(tessdata):
+            return None
+    except (OSError, ValueError):
+        return None
+    return real, tessdata
+
+
 def ocr_tesseract():
     """
-    The installed tesseract program, found only on the default system path (the helper is given no PATH).
+    The bundled tesseract (see bundled_tesseract), else the installed program found only on the default
+    system path (the helper is given no PATH).
     pytesseract is deliberately not imported: it passes images through temporary files, which this helper
     may not write (RLIMIT_FSIZE 0), and it imports pandas when present, which cannot map inside the
     256 MB address-space limit. tesseract is driven directly over pipes instead.
     """
     import os
     import shutil
+    bundled = bundled_tesseract()
+    if bundled is not None:
+        return bundled[0]
     found = shutil.which("tesseract", path=os.defpath)
     require(found is not None, "OCR_DEPENDENCY_UNAVAILABLE")
     return found
+
+
+def tesseract_environment(tesseract):
+    """The fixed environment tesseract runs with; the bundled program reads its own language data."""
+    import os
+    environment = {"OMP_THREAD_LIMIT": "1"}
+    if os.name == "nt":
+        environment["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+    bundled = bundled_tesseract()
+    if bundled is not None and bundled[0] == tesseract:
+        environment["TESSDATA_PREFIX"] = bundled[1]
+    return environment
 
 
 def ocr_page(tesseract, png, language, deadline):
@@ -220,9 +262,7 @@ def ocr_page(tesseract, png, language, deadline):
     import time
     remaining = deadline - time.monotonic()
     require(remaining > 0, "PDF_EXTRACT_FAILED")
-    environment = {"OMP_THREAD_LIMIT": "1"}
-    if os.name == "nt":
-        environment["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+    environment = tesseract_environment(tesseract)
     try:
         completed = subprocess.run([tesseract, "stdin", "stdout", "-l", language, "--psm", "6", "tsv"], input=png, capture_output=True, timeout=remaining, env=environment, shell=False)
     except Exception:
@@ -304,7 +344,7 @@ def pdf_ocr(data):
     version = "unknown"
     try:
         import subprocess
-        probe = subprocess.run([tesseract, "--version"], capture_output=True, timeout=5, env={"OMP_THREAD_LIMIT": "1"}, shell=False)
+        probe = subprocess.run([tesseract, "--version"], capture_output=True, timeout=5, env=tesseract_environment(tesseract), shell=False)
         first = (probe.stdout or probe.stderr).decode("utf-8", "replace").splitlines()
         if first and re.fullmatch(r"tesseract v?[0-9][0-9A-Za-z.\-]{0,40}", first[0].strip()):
             version = first[0].strip().split()[-1]

@@ -1,0 +1,19 @@
+# Chausar bundled PDF readers for darwin-arm64 (CPython 3.13). One wheel per package, resolved with pip's dry-run report
+# for platform macosx_13_0_arm64; every hash equals PyPI's JSON API digest (https://pypi.org/pypi/<name>/<version>/json).
+# Install with: pip install --no-deps --only-binary=:all: --require-hashes -r <this file> --target <site-packages>
+# cffi-2.1.1-cp313-cp313-macosx_11_0_arm64.whl
+cffi==2.1.1 --hash=sha256:19ee6127ee34de7d83ce3d371ebc5ed91addbdcc39f9ab15ce4eb35a4e534971
+# charset_normalizer-3.5.2-cp313-cp313-macosx_10_13_universal2.whl
+charset-normalizer==3.5.2 --hash=sha256:6045373d5a89a5ec71afde535db987ca28e76dfa276c2d4c818265b375d4b055
+# cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl
+cryptography==50.0.2 --hash=sha256:fa8f5efb344d6908a1ce62f4a24e2e5780f825d6f53f5f50ec5ffacac72936cb
+# pdfminer_six-20260107-py3-none-any.whl
+pdfminer.six==20260107 --hash=sha256:366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+# pdfplumber-0.11.10-py3-none-any.whl
+pdfplumber==0.11.10 --hash=sha256:7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580
+# pillow-12.3.0-cp313-cp313-macosx_11_0_arm64.whl
+pillow==12.3.0 --hash=sha256:d69141514cc30b774ceea5e3ed3a6635c8d8a96edf664689b890f4089111fb35
+# pycparser-3.11-py3-none-any.whl
+pycparser==3.11 --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80
+# pypdfium2-5.14.0-py3-none-macosx_13_0_arm64.whl
+pypdfium2==5.14.0 --hash=sha256:2de384df66ba55fcaab0775f30f28ec1090af3dfa60276a07821efc96d993118

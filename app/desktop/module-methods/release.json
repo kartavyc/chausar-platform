@@ -16,5 +16,7 @@
   "native.wake.set",
   "native.wake.clear",
   "shell.startAtLogin",
-  "shell.setStartAtLogin"
+  "shell.setStartAtLogin",
+  "native.readerBundle",
+  "native.installReader"
 ]

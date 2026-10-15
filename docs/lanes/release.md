@@ -250,6 +250,10 @@ Notes for other lanes: the release refusal line in `preload.cjs` does not yet li
 
 Run on 2026-10-15 in one Linux container (kernel 6.18, Node 24.13.1, Docker 29.8.2, PostgreSQL 16.15 server binaries from Ubuntu for the test clusters, `postgres:17` image for compose). Nothing was pushed, published or deployed; every cluster, container, network and volume was removed afterwards. This section supersedes two lines under "What could not run or is still missing" in the enterprise section above: the identity map on disk and loopback-only search.
 
+## Round 4: bundled PDF readers
+
+Run on 15 October 2026 in the Linux x64 cloud container (Node 24.13.1, Docker 29.8.2). The installed app now ships the FR-07 PDF readers, so nothing needs downloading: `imports.readerStatus` reports them installed and `imports.installReader` verifies them instead of refusing.
+
 ### What changed
 
 | Item | Where | Label |
@@ -329,3 +333,48 @@ The 17 earlier steps pass, plus seven new ones:
   - a managed PostgreSQL service;
   - a real identity provider;
   - CI.
+
+| Reader staging: the staged interpreter's own pip installs hash-pinned wheels (`--no-deps --only-binary=:all: --require-hashes --no-compile`) into its site-packages, drops `bin/` console scripts, checks every installed `dist-info` against the pins, byte-compiles with checked-hash `.pyc`; conda-forge `.conda` packages (zip of `pkg-`/`info-*.tar.zst`, zstd through Node's zlib, archive listings checked for unsafe paths) are merged and only `bin/tesseract`, its shared-library closure and `share/tessdata/configs/tsv` are copied (symlinks materialised), plus every package's licences (`info/licenses`, or `licensePaths` in the payload for the GCC runtime packages) and the separately pinned `eng.traineddata`; writes `readers.json` (`chausar.readers.v1`); refuses another host (`READER_STAGE_HOST_ONLY`), unresolved targets (`READER_SOURCE_UNRESOLVED`), changed downloads, a different package set, missing closure files and missing licences | `scripts/release/stage-readers.ts`; `stage-runtime.ts` gains `--readers` / `--readers-only` (re-signs, tesseract included, and re-inventories) | **experimental** (Linux x64 run below; other targets unrun) |
+| Pins: requirement files per target (one wheel per package, every hash equal to PyPI's JSON API digest, resolved with pip's dry-run report per platform tag) and a `readers` section in `runtime-sources.json` | `scripts/release/reader-requirements/*.txt`, `scripts/release/runtime-sources.json` | **supported** for linux-x64; recorded only elsewhere |
+| `readerBundle({ resourcesPath, pythonExecutable })` and `verifyReaderBundle(...)`: read only `runtime-binaries/manifest.json` and `readers.json` (which must match its own manifest entry); the configured Python must be the bundled one; verification re-hashes the reader package folders, everything under `tesseract/` and `readers.json`, and refuses unlisted files there. No download | `platform/runtime/native/reader-bundle.ts` | **supported** |
+| Helper lookup: `bundled_tesseract()` finds `<runtime>/tesseract/bin/tesseract[.exe]` beside `sys.executable` (`python/bin/python3` or `python/python.exe`): a regular file, not a link, whose real path stays inside the runtime; `TESSDATA_PREFIX` points at the bundled `tessdata`; otherwise the old `os.defpath` lookup. No `LD_LIBRARY_PATH` (conda's `RPATH $ORIGIN/../lib`) | `platform/helpers/analytics.py` (connectors-ext/helpers area; small edit) | **experimental** |
+| `imports.readerStatus.sizeBytes` from `native.readerBundle`; `imports.installReader` calls `native.installReader` and returns `{ installed: true, downloaded: false, ...readerStatus }`; without the release method (`UNKNOWN_METHOD`, `METHOD_UNAVAILABLE`) or without a bundle (`READER_BUNDLE_MISSING`) it still refuses `READER_INSTALL_UNAVAILABLE` | `platform/runtime/connectors-ext/fr07.ts` (cross-lane edit) | **experimental** until `native.*` is wired |
+
+### Round 4 contracts
+
+- `native.readerBundle` (read, no payload) → `{ present, reason, python: { version } | null, packages: { pdfplumber, pypdfium2, Pillow } | null, tesseract: { version, languages } | null, sizeBytes | null, manifestSha256 | null }`. Absent reasons: `RUNTIME_NOT_BUNDLED`, `RUNTIME_MANIFEST_INVALID`, `READERS_NOT_BUNDLED`, `READERS_CHANGED`, `READERS_INVALID`, `PYTHON_NOT_CONFIGURED`, `PYTHON_NOT_BUNDLED`, `READER_PACKAGE_MISSING`, `OCR_PROGRAM_MISSING`. `sizeBytes` sums the manifest sizes under `python/` and `tesseract/`.
+- `native.installReader` (admin, no payload) → `{ installed: true, downloaded: false, verifiedFiles, verifiedBytes, manifestSha256, bundle }`, or `READER_BUNDLE_MISSING` / `READER_BUNDLE_CHANGED`.
+- Both take `resourcesPath` from the release module options (`process.resourcesPath` in the app) and `pythonExecutable` from `host.services.helper.options.executable` (the engine's `CHAUSAR_PYTHON`). The methods are wired by the coordinator in `lane-release.ts` and `module-methods/release.json`.
+
+### Pins (linux-x64, staged and run)
+
+| Part | Pin | Checksum source |
+|---|---|---|
+| pdfplumber 0.11.10, pdfminer.six 20260107, pypdfium2 5.14.0, Pillow 12.3.0, charset-normalizer 3.5.2, cryptography 50.0.2, cffi 2.1.1, pycparser 3.11 | `reader-requirements/linux-x64.txt` (manylinux_2_17/2_28 x86_64 or py3-none-any wheels) | PyPI JSON API `digests.sha256`, cross-checked with pip's report. cryptography (with cffi, pycparser) is required: pdfminer.six imports it at load time for encrypted PDFs |
+| tesseract 5.5.3 (`h7618cdf_0`), leptonica 1.87.0 and 29 further conda-forge linux-64 packages (31 in all, the closure's owners) | `runtime-sources.json` `readers.targets.linux-x64.tesseract.packages` | conda-forge `repodata.json` sha256 via micromamba 2.9.0's solve |
+| `eng.traineddata` (4,113,088 bytes, sha256 `7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2`) and its LICENSE | tesseract-ocr/tessdata_fast commit `87416418657359cb625c412a48b6e1d6d41c29bd` | hashed locally (git blob `bbef4675…`); byte-identical to the copy inside the pinned conda tesseract package |
+
+Other targets: `linux-arm64`, `win32-x64`, `darwin-x64` (cryptography 48.0.1, the last with Intel macOS wheels) and `darwin-arm64` have pinned requirement files; pypdfium2 5.14.0 needs macOS 13. `win32-x64`, `darwin-x64` and `darwin-arm64` have conda-forge tesseract 5.5.3 package pins (repodata sha256) but no computed closure (`include: null`), so staging refuses. Windows also needs the embeddable Python's `python313._pth` to gain `Lib\site-packages` and `import site` (not done). `win32-arm64` has no pins: cryptography publishes no `win_arm64` wheel. The UB Mannheim Windows installer is recorded as an unpinned alternative (no publisher checksum could be read here).
+
+### Results
+
+| Run | Command | Result |
+|---|---|---|
+| Stage | copy of `/var/tmp/chausar-pg-runtime`, then `NODE_EXTRA_CA_CERTS=… PIP_CERT=… node scripts/release/stage-runtime.ts --platform linux --arch x64 --out <copy> --readers-only` | pass in 21 s: 8 Python packages, tesseract 40 files (39 ELF files + the TSV config), 33 licence files; manifest 6,614 files (was 5,116), 698,432,034 bytes (+163 MB: tesseract 96.7 MB, site-packages 67.4 MB) |
+| Desktop start-up inventory | `verifyRuntimeInventory` on the staged copy | pass: 6,614 files verified in 5.1 s |
+| Bundle record | `readerBundle` / `verifyReaderBundle` | present; Python 3.13.7; pdfplumber 0.11.10, pypdfium2 5.14.0, Pillow 12.3.0; tesseract 5.5.3, `eng`; `sizeBytes` 669,031,286; install verified 1,012 files (154,532,565 bytes) in about 1 s, no download |
+| Real helper (`helper.ts` → `analytics.py`, staged Python, process limits on) | `CHAUSAR_TEST_READER_RUNTIME=<copy> node --test platform/tests/release-readers-real.test.ts` | `pdf.status` → `{pdfText: true, pdfOcr: true, tesseract: true}` (0.3 s); `pdf.extract` of a hand-built text PDF returns its four lines exactly (0.2 s); a Pillow-drawn picture-only PDF has no text layer and `pdf.ocr` reads all four lines exactly at confidence 95, engine 5.5.3, renderer pypdfium2 (1.0 s) |
+| connectors-ext real OCR case on the bundle | `connectors-ext-ocr.test.ts`'s "real OCR" test with `CHAUSAR_PYTHON=<copy>/python/bin/python3` and its probe relaxed (scratch copy, not committed; its probe looks only on `os.defpath`) | pass: a two-page A4 300 dpi scanned statement OCRs at ≥ 80 confidence and passes the bank recipe's running-balance check (total 1750000) |
+| Self-contained in a minimal OS | same test with `CHAUSAR_TEST_READER_DOCKER=1`: `docker run --network none debian:bookworm-slim` with only the runtime and `analytics.py` mounted read-only (image pulled through `mirror.gcr.io` after Docker Hub returned 429) | pass: OCR reads all four lines; `ldd` inside the container resolves everything to the bundle except glibc (libc, libm, libpthread, libdl, libresolv, ld-linux; Debian 12.15, glibc 2.36) |
+| Typecheck, check, tests | `npm run typecheck`; `node scripts/check.mjs`; `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/connectors-ext*.test.ts platform/tests/helper*.test.ts` | pass; pass; 457 tests, 449 pass, 0 fail, 8 skipped (env-gated) |
+
+A finding on the way: tesseract's `tsv` output needs `tessdata/configs/tsv`; with only `eng.traineddata` in `TESSDATA_PREFIX` it silently prints plain text and the helper reads no words. The config is part of the closure now.
+
+### Still missing
+
+- `native.readerBundle` / `native.installReader` wiring in `lane-release.ts` and `release.json` (coordinator).
+- Windows and macOS: closures not computed, never staged or run; Windows `._pth` change not made; macOS signing of the bundled dylibs (the sign hook now covers `tesseract/`) not run.
+- The conda binaries keep their build-prefix placeholders (default tessdata, OpenSSL and Kerberos configuration paths); the helper always sets `TESSDATA_PREFIX` and never uses the network paths, so they are inert, but they are not rewritten.
+- libcurl, OpenSSL, Kerberos and ICU ride along because the conda tesseract links them (about 45 MB); a tesseract built without URL input would drop them.
+- `connectors-ext-ocr.test.ts` and `connectors-ext-fr07.test.ts` gate their real cases on `os.defpath` tesseract and on pypdf/reportlab, so with only the bundled runtime they skip (connectors-ext may switch the OCR probe to `pdf.status`).
+- No packaged app was built with the readers; the run used the staged folder through the helper and the desktop inventory check.

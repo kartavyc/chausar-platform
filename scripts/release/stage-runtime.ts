@@ -5,6 +5,7 @@ import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, realpath, renam
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../platform/runtime/contracts.ts';
+import { stageReaders, type PythonRunner, type ReaderSources } from './stage-readers.ts';
 
 /*
  * Stages vendored PostgreSQL and Python runtimes into `runtime-binaries/` for one target and writes
@@ -13,6 +14,10 @@ import { check } from '../../platform/runtime/contracts.ts';
  *
  *   node scripts/release/stage-runtime.ts --platform win32 --arch x64 --out runtime-binaries
  *   node scripts/release/stage-runtime.ts --platform linux --arch x64 --out runtime-binaries --inventory-only
+ *   node scripts/release/stage-runtime.ts --platform linux --arch x64 --out runtime-binaries --readers-only
+ *
+ * `--readers` (with a full stage) or `--readers-only` (into an already-staged runtime) adds the
+ * bundled PDF readers from stage-readers.ts: Python's PDF packages and tesseract with English data.
  *
  * The inventory covers every regular file under the output folder, including `keychain/` (the CI
  * builds the helper and its keychain/manifest.json first, then runs --inventory-only).
@@ -26,7 +31,7 @@ import { check } from '../../platform/runtime/contracts.ts';
 export type RuntimePlatform = 'win32' | 'darwin' | 'linux';
 export type RuntimeArchitecture = 'x64' | 'arm64';
 export type RuntimeComponent = 'postgres' | 'python';
-export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz'; strip: string | null; into: RuntimeComponent; include?: string[]; /** Archive paths left out, such as a symlinked duplicate of a large file. */ exclude?: string[]; materialiseSymlinks: boolean };
+export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz' | 'tar'; strip: string | null; into: RuntimeComponent; include?: string[]; /** Archive paths left out, such as a symlinked duplicate of a large file. */ exclude?: string[]; materialiseSymlinks: boolean };
 export type RuntimeSource = { component: RuntimeComponent; version: string; vendor: string; url: string | null; sha256: string | null; license: string; licenseFile: string; official: boolean; layout: RuntimeLayout; note?: string; /** Where the pin was verified (the vendor's own checksum file); required with a pin. */ checksumSource?: string };
 export type RuntimeSources = { schemaVersion: 1; note?: string; targets: Record<string, RuntimeSource[]> };
 export type ManifestComponent = { version: string; source: string; license: string; licenseFile: string };
@@ -45,6 +50,9 @@ export type StageOptions = {
   repoRoot?: string;
   /** Absolute signing executable run as `<command> <file>` (no shell) on each native file before hashing. */
   signCommand?: string | null;
+  /** Also stage the bundled PDF readers (runtime-sources.json `readers`) before signing and inventory. */
+  readers?: boolean;
+  runPython?: PythonRunner;
   onNote?: (text: string) => void;
 };
 
@@ -60,7 +68,7 @@ const MAX_FILES = 20_000;
 const OUTPUT_LIMIT = 4000;
 
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const safeRelative = (value: unknown): value is string => typeof value === 'string' && SAFE_RELATIVE.test(value) && !value.endsWith('/');
+export const safeRelative = (value: unknown): value is string => typeof value === 'string' && SAFE_RELATIVE.test(value) && !value.endsWith('/');
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
 
 function validTarget(platform: string, architecture: string): asserts platform is RuntimePlatform {
@@ -140,9 +148,10 @@ export async function downloadArchive(url: string, destination: string, options:
   return hash.digest('hex');
 }
 
-function tool(executable: string, args: string[], timeoutMs = 600_000): Promise<{ code: number | null; stdout: string }> {
+/** Runs a staging tool without a shell; `env` replaces the inherited environment when given. */
+export function tool(executable: string, args: string[], timeoutMs = 600_000, env?: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string }> {
   return new Promise(accept => {
-    const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...(env ? { env } : {}) });
     const chunks: Buffer[] = [];
     let size = 0, stderr = '', done = false;
     const finish = (code: number | null) => { if (done) return; done = true; clearTimeout(deadline); accept({ code, stdout: Buffer.concat(chunks).toString('utf8') }); };
@@ -279,7 +288,7 @@ export async function isNativeFile(path: string): Promise<boolean> {
   } finally { await handle.close(); }
 }
 /** Runs the signing command on every native file under the staged postgres/ and python/ folders. */
-export async function signNativeFiles(out: string, signCommand: string, components: RuntimeComponent[] = ['postgres', 'python']): Promise<string[]> {
+export async function signNativeFiles(out: string, signCommand: string, components: string[] = ['postgres', 'python']): Promise<string[]> {
   check(isAbsolute(signCommand) && await regularFile(signCommand), 'RUNTIME_SIGN_COMMAND_INVALID', 'The signing command must be an absolute path to a regular file.');
   const signed: string[] = [];
   for (const component of components) {
@@ -295,7 +304,8 @@ export async function signNativeFiles(out: string, signCommand: string, componen
 }
 async function signIfRequested(out: string, options: Pick<StageOptions, 'signCommand' | 'onNote'>): Promise<void> {
   if (!options.signCommand) { options.onNote?.('Runtime files were not signed: no signing command was supplied.'); return; }
-  const signed = await signNativeFiles(out, options.signCommand);
+  const tesseract = await lstat(join(out, 'tesseract')).then(info => info.isDirectory(), () => false);
+  const signed = await signNativeFiles(out, options.signCommand, tesseract ? ['postgres', 'python', 'tesseract'] : ['postgres', 'python']);
   options.onNote?.(`Signed ${signed.length} native runtime files before hashing.`);
 }
 
@@ -308,7 +318,7 @@ export async function assertOutputAllowed(out: string, repoRoot = PROJECT_ROOT):
   const rel = relative(resolve(repoRoot), out);
   if (rel.startsWith(`..${sep}`) || rel === '..' || isAbsolute(rel)) return;
   const runtimeFolder = rel === 'runtime-binaries' || rel.startsWith(`runtime-binaries${sep}`);
-  const written = ['postgres', 'python', 'manifest.json'].map(name => join(out, name));
+  const written = ['postgres', 'python', 'tesseract', 'readers.json', 'manifest.json'].map(name => join(out, name));
   const tracked = await trackedPaths(repoRoot, runtimeFolder ? written : [out]);
   check(tracked.length === 0, 'RUNTIME_OUTPUT_TRACKED', 'Staged runtimes are never committed. Choose runtime-binaries or a folder outside the repository.');
 }
@@ -324,6 +334,9 @@ async function prepareOutput(out: string, options: StageOptions, components: Run
     check(!existing || options.replace, 'RUNTIME_OUTPUT_EXISTS', 'The output folder already holds a staged runtime. Pass --replace to restage it.');
   }
 }
+
+/** The `readers` section when the sources object carries one (otherwise stage-readers.ts reads the pin file). */
+const readerPins = (sources: RuntimeSources) => isObject((sources as { readers?: unknown }).readers) ? (sources as unknown as { readers: ReaderSources }).readers : undefined;
 
 /** Download, verify, extract and arrange both runtimes for one target, then write the manifest. */
 export async function stageRuntime(options: StageOptions): Promise<RuntimeManifest> {
@@ -351,6 +364,19 @@ export async function stageRuntime(options: StageOptions): Promise<RuntimeManife
       await rename(join(work, 'arranged', source.layout.into), join(out, source.layout.into));
     }
   } finally { await rm(work, { recursive: true, force: true }); }
+  if (options.readers) await stageReaders({ platform: options.platform, architecture: options.architecture, out, sourcesPath: options.sourcesPath, readers: readerPins(sources), fetch: options.fetch, maxBytes: options.maxBytes, replace: true, runPython: options.runPython, pythonVersion: selected[1].version, onNote: options.onNote });
+  await signIfRequested(out, options);
+  return writeRuntimeManifest(out, options.platform, options.architecture, selected);
+}
+
+/** Adds the bundled PDF readers to an already-staged runtime, then re-signs and re-inventories it. */
+export async function stageReadersIntoRuntime(options: StageOptions): Promise<RuntimeManifest> {
+  validTarget(options.platform, options.architecture);
+  const out = resolve(options.out);
+  await assertOutputAllowed(out, options.repoRoot);
+  const sources = options.sources ? validateRuntimeSources(options.sources) : await loadRuntimeSources(options.sourcesPath);
+  const selected = selectRuntimeSources(sources, options.platform, options.architecture, { requirePins: false });
+  await stageReaders({ platform: options.platform, architecture: options.architecture, out, sourcesPath: options.sourcesPath, readers: readerPins(sources), fetch: options.fetch, maxBytes: options.maxBytes, replace: options.replace, runPython: options.runPython, pythonVersion: selected[1].version, onNote: options.onNote });
   await signIfRequested(out, options);
   return writeRuntimeManifest(out, options.platform, options.architecture, selected);
 }
@@ -366,27 +392,28 @@ export async function inventoryRuntime(options: Pick<StageOptions, 'platform' | 
   return writeRuntimeManifest(out, options.platform, options.architecture, selected);
 }
 
-export function parseStageArguments(argv: string[], environment: Record<string, string | undefined> = process.env): StageOptions & { inventoryOnly: boolean } {
+export function parseStageArguments(argv: string[], environment: Record<string, string | undefined> = process.env): StageOptions & { inventoryOnly: boolean; readersOnly: boolean } {
   const values = new Map<string, string>();
   const flags = new Set<string>();
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
-    if (name === '--inventory-only' || name === '--replace') { flags.add(name); continue; }
-    check(['--platform', '--arch', '--out', '--sources', '--max-bytes', '--sign-command'].includes(name) && argv[index + 1] !== undefined && !values.has(name), 'RUNTIME_USAGE', 'Usage: node scripts/release/stage-runtime.ts --platform win32|darwin|linux --arch x64|arm64 --out runtime-binaries [--inventory-only] [--replace] [--sources file] [--max-bytes n] [--sign-command /absolute/path]');
+    if (['--inventory-only', '--replace', '--readers', '--readers-only'].includes(name)) { check(!flags.has(name), 'RUNTIME_USAGE', 'Give each option once.'); flags.add(name); continue; }
+    check(['--platform', '--arch', '--out', '--sources', '--max-bytes', '--sign-command'].includes(name) && argv[index + 1] !== undefined && !values.has(name), 'RUNTIME_USAGE', 'Usage: node scripts/release/stage-runtime.ts --platform win32|darwin|linux --arch x64|arm64 --out runtime-binaries [--inventory-only | --readers-only] [--readers] [--replace] [--sources file] [--max-bytes n] [--sign-command /absolute/path]');
     values.set(name, argv[index += 1]);
   }
   check(values.has('--platform') && values.has('--arch') && values.has('--out'), 'RUNTIME_USAGE', 'Provide --platform, --arch and --out.');
+  check([...flags].filter(flag => ['--inventory-only', '--readers-only', '--readers'].includes(flag)).length <= 1, 'RUNTIME_USAGE', 'Choose one of --inventory-only, --readers-only or --readers.');
   const maxBytes = values.has('--max-bytes') ? Number(values.get('--max-bytes')) : undefined;
   check(maxBytes === undefined || (Number.isSafeInteger(maxBytes) && maxBytes > 0), 'RUNTIME_USAGE', 'The download size limit must be a positive whole number of bytes.');
   const signCommand = values.get('--sign-command') ?? (environment.CHAUSAR_RUNTIME_SIGN_COMMAND?.trim() || null);
   check(signCommand === null || isAbsolute(signCommand), 'RUNTIME_USAGE', 'The signing command must be an absolute path.');
-  return { signCommand, platform: values.get('--platform') as string, architecture: values.get('--arch') as string, out: resolve(values.get('--out') as string), sourcesPath: values.has('--sources') ? resolve(values.get('--sources') as string) : undefined, maxBytes, replace: flags.has('--replace'), inventoryOnly: flags.has('--inventory-only') };
+  return { signCommand, platform: values.get('--platform') as string, architecture: values.get('--arch') as string, out: resolve(values.get('--out') as string), sourcesPath: values.has('--sources') ? resolve(values.get('--sources') as string) : undefined, maxBytes, replace: flags.has('--replace'), inventoryOnly: flags.has('--inventory-only'), readers: flags.has('--readers'), readersOnly: flags.has('--readers-only') };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = { ...parseStageArguments(process.argv.slice(2)), onNote: (text: string) => console.log(text) };
-    const manifest = options.inventoryOnly ? await inventoryRuntime(options) : await stageRuntime(options);
+    const manifest = options.inventoryOnly ? await inventoryRuntime(options) : options.readersOnly ? await stageReadersIntoRuntime(options) : await stageRuntime(options);
     console.log(`Runtime manifest written for ${manifest.platform}-${manifest.architecture}: ${manifest.files.length} files. Run node scripts/package-preflight.mjs next.`);
   } catch (error) {
     const failure = error as { code?: string; message?: string };
