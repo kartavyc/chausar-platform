@@ -74,11 +74,12 @@ export const recipeHandlers = {
       return structuredClone(item);
     });
     const held = takeRead(host, ctx, envelope.id);
-    if (!held) return { answer: publicAnswer(answer), read: null, readAgain: envelope.road === 'file' ? 'bring-the-file-again' : 'read-again' };
+    const connection = held?.connectionId ? peekCx(host.store.read()).connections.find(item => item.id === held.connectionId) ?? null : null;
+    // A connection removed since the read is not read again; the answer stays for the next read.
+    if (!held || (held.connectionId && !connection)) return { answer: publicAnswer(answer), read: null, readAgain: envelope.road === 'file' ? 'bring-the-file-again' : 'read-again' };
     const use = answered(host, held.target.sourceId, held.base);
     const outcome = runCompiled(use.recipe, held.input, held.options);
     if (held.ocrNotice) outcome.notices.push(held.ocrNotice);
-    const connection = held.connectionId ? peekCx(host.store.read()).connections.find(item => item.id === held.connectionId) ?? null : null;
     const read = await recordEnvelope(host, ctx, { outcome, connection, target: held.target, recipe: use.recipe, road: held.road, requestedPeriod: held.requestedPeriod, read: held.read,
       answerIds: use.applied, hold: { base: held.base, input: held.input, options: held.options, ocrNotice: held.ocrNotice } });
     return { answer: publicAnswer(answer), read: outcomeSummary(read), readAgain: 'not-needed' };

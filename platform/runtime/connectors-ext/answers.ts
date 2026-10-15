@@ -29,7 +29,9 @@ const LEAVE_OUT = 'leave-out', NO_STATUS = 'no-status';
 export function questionFor(recipe: SourceRecipe, abstention: Abstention | null): Question | null {
   if (!abstention) return null;
   const { reason, field } = abstention;
-  const sample = typeof abstention.options[0] === 'string' ? abstention.options[0] : null;
+  const first = typeof abstention.options[0] === 'string' ? abstention.options[0] : null;
+  // A value that cannot be a plain map key is never offered as an answer: the question stays open.
+  const sample = first !== null && ['__proto__', 'prototype', 'constructor'].includes(first.trim()) ? null : first;
   const words = (values: Readonly<Record<string, string>>) => [...new Set(Object.values(values))].sort();
   const canExclude = !recipe.exclude || recipe.exclude.field === field;
   switch (reason) {
@@ -139,8 +141,10 @@ export function holdRead(host: ModuleHost, item: Omit<HeldRead, 'expiresAt' | 'c
 }
 /** Taking a held read removes it: each held input is tried with one answer, once. */
 export function takeRead(host: ModuleHost, ctx: Context, envelopeId: string): HeldRead | null {
-  const map = heldMap(host), item = map.get(envelopeId) ?? null; map.delete(envelopeId);
-  return item && item.memberId === ctx.memberId ? item : null;
+  const map = heldMap(host), item = map.get(envelopeId) ?? null;
+  if (!item || item.memberId !== ctx.memberId) return null;
+  map.delete(envelopeId);
+  return item;
 }
 
 /* ------------------------------------------------------------------ version diff */
