@@ -346,7 +346,7 @@ test('purchases against GSTR-2B: four groups, the IMS list, a safe export, and n
   await ask(engine, 'sources.import', source('gst', rows));
   const match = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
   assert.equal(match.state, 'ready');
-  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['in-2b-only', 1], ['books-only', 1]]);
+  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['probable', 0], ['in-2b-only', 1], ['books-only', 1]]);
   assert.equal(match.lines.find((l: any) => l.group === 'differs-outside').differenceMinor, '6000');
   assert.deepEqual(match.ims.map((i: any) => i.action).sort(), ['accept', 'accept', 'pending', 'reject']);
   const line = await ask(engine, 'askx.gst2b.line', { periodId: 'last-month', today: TODAY, lineId: match.lines.find((l: any) => l.group === 'differs-outside').id });
@@ -594,4 +594,38 @@ test('review 2: narrowed access withholds kept figures; one confirm records once
   await ask(engine, 'askx.why.start', { operationId: 'earned', period: sept });
   assert.equal(JSON.stringify([(engine as any).vault.read().unsupported, (engine as any).vault.read().extensions.ask]), before, 'A viewer seat writes nothing to the lane or the wanted list.');
   as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+});
+
+test('round 4: GSTR-2B through the connectors lane’s own recipe and matcher, with probable matches and source choice', async t => {
+  const engine = await workspace(t);
+  const { readFile } = await import('node:fs/promises');
+  const text = await readFile(new URL('../../fixtures/connectors/gst-downloads/gstr2b-sep-2026.json', import.meta.url), 'utf8');
+  const preview = await ask(engine, 'connectorsx.importPreview', { recipeId: 'gst.gstr2b-b2b', sourceId: 'gstr2b-sep', company: 'Synthetic Traders', text });
+  await ask(engine, 'connectorsx.importCommit', { envelopeId: preview.id });
+  const twoB = (engine as any).vault.read().facts.filter((f: any) => f.sourceId === 'gstr2b-sep');
+  assert.ok(twoB.length === 5 && twoB.every((f: any) => f.kind === 'purchase'), 'The connectors recipe writes GSTR-2B lines as purchases in their own source.');
+  const register: Row[] = [
+    ['p1', 'purchase', '2026-09-02', '10000.00', '', 'SP/0012', 'settled', 'main', '29ABCDE1234F1ZW', '1800.00'],
+    ['p2', 'purchase', '2026-09-05', '20000.50', '', 'KST-101', 'settled', 'main', '27PQRSX5678K1ZY', '3600.00'],
+    ['p3', 'purchase', '2026-09-18', '4100.00', '', 'KST-102', 'settled', 'main', '27PQRSX5678K1ZY', '720.00'],
+    ['p4', 'purchase', '2026-09-21', '1000.00', '', '45', 'settled', 'main', '24LMNOP4321Q1ZA', '180.00'],
+    ['p5', 'purchase', '2026-09-22', '700.00', '', 'SP/0099', 'settled', 'main', '29ABCDE1234F1ZW', '126.00'],
+  ];
+  await ask(engine, 'sources.import', source('purchase-register', register));
+  const match = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
+  assert.deepEqual([match.state, match.via, match.sources], ['ready', 'connectors', { register: 'purchase-register', gstr2b: 'gstr2b-sep' }]);
+  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['probable', 1], ['in-2b-only', 1], ['books-only', 1]]);
+  assert.equal(match.matchReceiptId, null, 'Until the core lane serves match receipts, lines open their rows.');
+  const probable = match.lines.find((l: any) => l.group === 'probable');
+  assert.deepEqual(match.ims.find((i: any) => i.lineId === probable.id), { lineId: probable.id, action: 'pending', reason: 'probable-match' });
+  const inside = match.lines.find((l: any) => l.group === 'differs-inside');
+  assert.deepEqual([inside.booksMinor, inside.twoBMinor, inside.differenceMinor], ['2000050', '2000000', '-50']);
+  const opened = await ask(engine, 'askx.gst2b.line', { periodId: 'last-month', today: TODAY, lineId: inside.id });
+  assert.deepEqual([opened.books.sourceId, opened.twoB.sourceId, opened.rule.key], ['purchase-register', 'gstr2b-sep', 'supplier-gstin-invoice-and-financial-year']);
+  await ask(engine, 'sources.import', source('second-register', [['q1', 'purchase', '2026-09-03', '10.00', '', 'Z-1', 'settled', 'main', '29ABCDE1234F1ZW', '1.80']]));
+  const choose = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
+  assert.deepEqual(choose, { state: 'choose-sources', period: sept, registerSources: ['purchase-register', 'second-register'], gstr2bSources: ['gstr2b-sep'] });
+  const chosen = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY, registerSourceId: 'purchase-register' });
+  assert.equal(chosen.groups.find((g: any) => g.group === 'matched').count, 1);
+  await assert.rejects(ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY, registerSourceId: 'nobody' }), code('ASK_NOT_FOUND'));
 });

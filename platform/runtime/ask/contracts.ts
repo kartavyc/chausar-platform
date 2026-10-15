@@ -199,17 +199,25 @@ export type WantedReply = {
   words: { word: string; count: number; lastAt: string }[];
 };
 
-export type Gst2bGroup = 'matched' | 'differs-inside' | 'differs-outside' | 'in-2b-only' | 'books-only';
+/** `probable` is a suggestion from the connectors lane's matcher, never counted as matched. */
+export type Gst2bGroup = 'matched' | 'differs-inside' | 'differs-outside' | 'probable' | 'in-2b-only' | 'books-only';
 export type Gst2bReply =
   | { state: 'not-applicable'; reason: 'composition' | 'unregistered' }
   | { state: 'not-loaded'; period: Period }
+  /** More than one purchase register or GSTR-2B read: the person chooses which two to match. */
+  | { state: 'choose-sources'; period: Period; registerSources: string[]; gstr2bSources: string[] }
   | {
-    state: 'ready'; period: Period; toleranceMinor: string; via: 'connectors' | 'facts';
-    /** Rows left out of the match: no supplier GSTIN and invoice, no amount, or another currency. Never counted as zero. */
+    state: 'ready'; period: Period; toleranceMinor: string;
+    /** `connectors`: the connectors lane's matcher over its GSTR-2B read; `facts`: the older local match. */
+    via: 'connectors' | 'facts';
+    sources: { register: string; gstr2b: string } | null;
+    /** Rows left out of the match: no supplier GSTIN and invoice, no amount, another currency, or a duplicate. Never counted as zero. */
     leftOut: number;
-    groups: { group: Gst2bGroup; count: number; taxableMinor: string; taxMinor: string }[];
-    lines: { id: string; group: Gst2bGroup; supplier: string; invoice: string; booksMinor: string | null; twoBMinor: string | null; differenceMinor: string | null; bookRowId: string | null; twoBRowId: string | null }[];
-    ims: { lineId: string; action: 'accept' | 'reject' | 'pending'; reason: 'matched' | 'amount-differs' | 'not-in-books' }[];
+    /** The core lane's receipt for the whole match, when it serves one; null until then. */
+    matchReceiptId: string | null;
+    groups: { group: Gst2bGroup; count: number; taxableMinor: string; taxMinor: string; unknownTax: number }[];
+    lines: { id: string; group: Gst2bGroup; supplier: string; invoice: string; booksMinor: string | null; twoBMinor: string | null; differenceMinor: string | null; bookRowId: string | null; twoBRowId: string | null; receiptId: string | null }[];
+    ims: { lineId: string; action: 'accept' | 'reject' | 'pending'; reason: 'matched' | 'amount-differs' | 'not-in-books' | 'probable-match' }[];
   };
 
 /** The lane's private state, kept in the vault under `extensions.ask`. */
@@ -250,7 +258,7 @@ export type Gst2bLineReply = {
   id: string; group: Gst2bGroup;
   books: { rowId: string; sourceId: string; sourceRow: number | null; cells: { name: string; value: string }[] } | null;
   twoB: { rowId: string; sourceId: string; sourceRow: number | null; cells: { name: string; value: string }[] } | null;
-  rule: { toleranceMinor: string; key: 'supplier-gstin-and-invoice' };
+  rule: { toleranceMinor: string; key: 'supplier-gstin-and-invoice' | 'supplier-gstin-invoice-and-financial-year' };
 };
 
 /**
@@ -293,7 +301,7 @@ export type Gst2bLineReply = {
  *   askx.decisions.get   { decisionId! }                                   → DecisionReply
  *   askx.decisions.review { decisionId!, outcome!: 'accepted'|'rejected'|'continue'|'completed', notes, nextReviewDate } → DecisionReply
  *   askx.search          { query! }                                        → SearchReply
- *   askx.gst2b           { period | periodId, today }                      → Gst2bReply
+ *   askx.gst2b           { period | periodId, today, registerSourceId, gstr2bSourceId } → Gst2bReply
  *   askx.gst2b.tolerance { toleranceMinor! }                               → { toleranceMinor }
  *   askx.gst2b.line      { period | periodId, lineId!, today }             → Gst2bLineReply
  *   askx.gst2b.exportIms { period | periodId, today }                      → { fileName, csv }
