@@ -24,6 +24,7 @@ import { env, nowMs, isoAt, parseId, visibleJobs } from './work-queue.ts';
 import type { Env } from './work-queue.ts';
 import { installed, isLaneJob, jobsxView, laneMethod, personSteps, TO_JOBSX } from './work-jobs-sheet.ts';
 import type { MissedRun } from './work-jobs-sheet.ts';
+import { corePersonStepDone } from './work-r4.ts';
 
 type Edit = { budgetMinor?: string; maxRuns?: number; missedRun?: MissedRun };
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
@@ -168,7 +169,9 @@ export const workJobEditMethods: Readonly<Record<string, MethodSpec>> = {
     check(step, 'NOT_FOUND', 'Step not found.');
     check(!step.done, 'PERSON_STEP_ALREADY_DONE', 'This step is already done.');
     check(step.canDone, 'PERSON_STEP_NOT_YOURS', 'This step belongs to someone else.');
-    if (!isLaneJob(view) || !(await installed(host, 'jobsx.personStep.done'))) throw new ChausarError('PERSON_STEP_NOT_BUILT', 'Marking a step done is not built yet.');
+    // Round 4: a core job's step goes to core-sync-jobs' `jobs.personStep.done` (work-r4.ts), refused as not built without it.
+    if (!isLaneJob(view)) return corePersonStepDone(e, view, step.stepId);
+    if (!(await installed(host, 'jobsx.personStep.done'))) throw new ChausarError('PERSON_STEP_NOT_BUILT', 'Marking a step done is not built yet.');
     const back = await host.call('jobsx.personStep.done', { id: step.stepId });
     check(record(back) && back.id === step.stepId && back.jobId === raw, 'INVALID_JOB_REPLY', 'The step could not be read back.');
     const iso = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null;

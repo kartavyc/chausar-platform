@@ -29,14 +29,14 @@ export function WbNotices({ notices, ww }: { notices: WbExtra['notices']; ww: Wb
   return <>{lines.map(line => <Note key={line}>{line}</Note>)}</>;
 }
 
-export function ReminderBlock({ reminder, ww, language, onReceipt, onRecord }: { reminder: Reminder; ww: WbWords; language: Language; onReceipt: KeyValueProps['onReceipt']; onRecord?: (() => void) | undefined }) {
+export function ReminderBlock({ reminder, ww, language, onReceipt, onRecord, recordLabel, zoneLine }: { reminder: Reminder; ww: WbWords; language: Language; onReceipt: KeyValueProps['onReceipt']; onRecord?: (() => void) | undefined; recordLabel?: string | undefined; zoneLine?: string | undefined }) {
   const r = reminder;
   return (
     <div className={s.block} data-part="reminder">
       <h3 className={s.h}>{ww['rem.title']}</h3>
       {r.blocked !== null && <Note>{wbSay(ww, 'rem.blocked', { reason: r.blocked.reason })}</Note>}
       {r.blocked !== null && r.blocked.code === 'FOLLOW_UP_NO_CONSENT' && <Note>{ww['rem.record']}</Note>}
-      {r.blocked !== null && r.blocked.code === 'FOLLOW_UP_NO_CONSENT' && onRecord !== undefined && <Actions><Button variant="link" onClick={onRecord}>{ww['rem.recordOpen']}</Button></Actions>}
+      {r.blocked !== null && r.blocked.code === 'FOLLOW_UP_NO_CONSENT' && onRecord !== undefined && <Actions><Button variant="link" onClick={onRecord}>{recordLabel ?? ww['rem.recordOpen']}</Button></Actions>}
       {r.stoppedOn !== null && <Note>{wbSay(ww, 'rem.stopped', { date: day(r.stoppedOn, language) })}</Note>}
       {r.asWritten !== null && <pre className={s.asWritten}>{r.asWritten}</pre>}
       <KeyValue pairs={[
@@ -60,6 +60,7 @@ export function ReminderBlock({ reminder, ww, language, onReceipt, onRecord }: {
           {r.caps.reached && <Note>{wbSay(ww, 'rem.capReached', { n: r.caps.preparedOnDay })}</Note>}
           {!r.caps.reached && r.caps.customerReached && r.caps.customerOnDay > 1 && <Note>{ww['rem.customerCap']}</Note>}
           <p className={s.meta}>{wbSay(ww, 'rem.caps', { perCustomer: r.caps.perCustomer, perDay: r.caps.perDay, n: r.caps.preparedOnDay })}</p>
+          {zoneLine !== undefined && <p className={s.meta} data-caps-zone="">{zoneLine}</p>}
         </>
       )}
       {r.notes !== null && r.notes.length > 0 && (

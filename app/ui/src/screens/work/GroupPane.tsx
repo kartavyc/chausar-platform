@@ -8,10 +8,12 @@ import { useState } from 'react';
 import { State } from '../../patterns/States';
 import { Sheet } from '../../parts/Sheet';
 import { Label } from '../../parts/Label';
+import { Steps } from '../../parts/Steps';
+import { groupResultsR4, type GroupResultsR4 } from './contract-r4.ts';
 import { useAct, useReply } from './kit/reply.ts';
 import { Note, Refusal, pageStyles } from './kit/Page';
-import { group, groupResults, pace, type GroupResults } from './contract.ts';
-import { fieldName, fieldValue, rowTitle, say, type WorkProps } from './shared.tsx';
+import { group, pace } from './contract.ts';
+import { fieldName, fieldValue, rowTitle, say, stepItems, type WorkProps } from './shared.tsx';
 import { known } from './text.ts';
 import s from './work.module.css';
 
@@ -23,7 +25,7 @@ export function GroupPane({ p, ids, origin, onClose, onListChanged }: GroupPaneP
   const paceReply = useReply(p.host, 'approvals.pace', {}, pace);
   const act = useAct(p.rpc);
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
-  const [results, setResults] = useState<GroupResults['results'] | null>(null);
+  const [results, setResults] = useState<GroupResultsR4['results'] | null>(null);
 
   if (loaded.phase !== 'ready') {
     return (
@@ -35,7 +37,7 @@ export function GroupPane({ p, ids, origin, onClose, onListChanged }: GroupPaneP
   const g = loaded.value;
   const ticked = g.items.filter(item => !unticked.has(item.id));
   const approveAll = async () => {
-    const out = await act.run('approvals.approveGroup', { items: ticked.map(item => ({ id: item.id, digest: item.digest })) }, groupResults);
+    const out = await act.run('approvals.approveGroup', { items: ticked.map(item => ({ id: item.id, digest: item.digest })) }, groupResultsR4);
     if (out.ok) { setResults(out.value.results); onListChanged(); }
   };
   const resultFor = (itemId: string) => results?.find(r => r.id === itemId);
@@ -64,6 +66,7 @@ export function GroupPane({ p, ids, origin, onClose, onListChanged }: GroupPaneP
                 </table>
               )}
               {item.change.asWritten !== undefined && <pre className={s.asWritten}>{item.change.asWritten}</pre>}
+              {result?.steps !== undefined && <div data-group-steps={item.id}><Steps steps={stepItems(result.steps, language)} /></div>}
               {result && <p className={s.meta} role="status">{result.ok ? (result.state !== undefined && result.state !== 'approved' ? known(w, `state.${result.state}`) ?? w['group.ok'] : w['group.ok']) : say(w, 'group.refused', { code: result.code ?? 'REQUEST_FAILED' })}</p>}
             </li>
           );

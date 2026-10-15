@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { State } from '../../patterns/States';
 import { Sheet } from '../../parts/Sheet';
 import { useReply } from './kit/reply.ts';
+import { LIVE, useLive } from './R4Parts.tsx';
 import { dayTime } from './kit/format.ts';
 import { Note, pageStyles } from './kit/Page';
 import { idOf, ledger, sheetOf } from './contract.ts';
@@ -19,6 +20,7 @@ import s from './work.module.css';
 /** One action's sheet, read by its id. Shared by the record and the after-restore list. */
 export function ActionSheet({ p, id, origin, onClose, onChanged }: { p: WorkProps; id: string; origin: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { loaded, reload } = useReply(p.host, 'approvals.action', { id }, actionRecord);
+  useLive(p, LIVE.action, reload);
   const [fresh, setFresh] = useState<ActionRecord | null>(null);
   const view = fresh ?? (loaded.phase === 'ready' ? loaded.value : null);
   if (view === null) {

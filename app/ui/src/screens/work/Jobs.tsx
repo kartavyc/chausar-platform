@@ -28,6 +28,9 @@ import { isPersonStep, jobMoved, jobSheet, jobsWithProposals, sentBack, type Lan
 import { jobWords, sayJob, type JobWords } from './text-jobs.ts';
 import { JobManage, PersonStepRow, QuestionRow } from './JobManage.tsx';
 import { MeasureChart } from './parts/MeasureChart.tsx';
+import { jobR4 } from './contract-r4.ts';
+import { ChildTasks, LIVE, LanePageLinks, RouteMeters, useLive } from './R4Parts.tsx';
+import { r4Words } from './text-r4.ts';
 import s from './work.module.css';
 
 /** Proposed jobs first; the engine's order is kept otherwise. */
@@ -94,7 +97,8 @@ function LaneProposals({ items, j, onOpen }: { items: readonly LaneProposal[]; j
 function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: WorkProps; row: JobRow | undefined; id: string; origin: HTMLElement | null; pendingEdit: boolean; onClose: () => void; onChanged: () => void }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
-  const { loaded, reload } = useReply(p.host, 'approvals.job', { id }, jobSheet, String(tick));
+  const { loaded, reload } = useReply(p.host, 'approvals.job', { id }, (v, path) => ({ ...jobSheet(v, path), r4: jobR4(v, path) }), String(tick));
+  useLive(p, LIVE.jobs, reload);
   const jw = jobWords(language);
   const owns = !p.viewer && (p.member.role === 'owner' || p.member.role === 'cofounder');
   const act = useAct(p.rpc);
@@ -143,7 +147,9 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
           <KeyValue pairs={meterPairs(j.meters, w, language)} onReceipt={p.openReceipt} />
         </div>
       )}
+      {view !== 'simple' && j.r4.routes !== undefined && <RouteMeters routes={j.r4.routes} untestedStop={j.r4.untestedStop} language={language} />}
       <JobCardView card={j} w={w} language={language} onReceipt={p.openReceipt} simple={view === 'simple'} />
+      {j.r4.children !== undefined && (j.r4.children.available || view !== 'simple') && <ChildTasks value={j.r4.children} language={language} onReceipt={p.openReceipt} />}
       {j.measure !== undefined && (
         <div className={s.block}>
           <h3 className={s.h}>{jw['measure.title']}</h3>
@@ -204,6 +210,8 @@ export function JobsPage({ p }: { p: WorkProps }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
   const { loaded, reload } = useReply(p.host, 'approvals.jobs', {}, jobsWithProposals, String(tick));
+  // WK-07: the list re-reads on a job event when the host offers live refresh.
+  useLive(p, LIVE.jobs, reload);
   const jw = jobWords(language);
   const sheet = useSheet(p, 'jobs');
   // Proposing a job creates it, which core allows only an owner or a cofounder.
@@ -245,6 +253,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
               {rows.length > 0 && view !== 'books' && <RowList rows={rows.map(toRow)} selectedId={sheet.openId ?? undefined} onOpen={(id, el) => sheet.open(id, el)} onReceipt={p.openReceipt} />}
               <Note>{say(w, j.active >= j.limit ? 'jobs.atLimit' : 'jobs.active', { active: j.active, limit: j.limit })}</Note>
               {!j.proposals.available && <Note>{w['jobs.proposalsMissing']}</Note>}
+              <LanePageLinks p={p} lanes={['jobs-ext']} title={r4Words(language)['links.jobs']} />
             </div>
             {starting && canStart && <StartJobSheet p={p} origin={sheet.origin.current} onClose={sheet.close} />}
             {sheet.openId !== null && !starting && (

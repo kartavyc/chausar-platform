@@ -724,25 +724,24 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
   For a core job, Edit and the missed-run rule work only for typed jobs; a read-only brief
   says not built, and Delete cancels it (the record is kept).
-- jobs-ext is merged. Proposals from one sentence are tested through the real engine; questions, person steps, edit, the missed-run rule and lane accept are tested against stubs copied from that lane's source.
+- jobs-ext is merged. Round 4: ready-made lane jobs, questions, person steps, edit, the missed-run rule and lane accept are tested through the real merged engine (`work-books-jobs-r4-engine.test.ts`).
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works
   out what customers owe (`aging`, with its receipt); it does not write a narrative brief.
 - `approvals.get` (the approval sheet's job card) reads the missed-run rule from the interval
   catch-up; `approvals.job` reads a calendar's own rule.
-- WK-14 shows "not built yet": no lane provides `session.*`.
+- WK-14: checked against the driving lane's real `session.*` (round 4); without that lane it shows "not built yet".
 - Today rows (an expired approval as "worth a look", "3 runs were missed while this computer
   slept") and live refresh through `events.subscribe` belong to frame-today; place modules have
   no event seam.
 - WK-12: `approvals.prepareReminder` has no screen entry point of its own. "Record the
   agreement" opens Customers and suppliers, not the exact record: write-back's customer id is
   the connected system's, not a Chausar record id. Changing the caps belongs to Trust.
-- Core (non-write-back) money actions keep the typed-amount second ask: the core has no passphrase check. Write-back changes use the passphrase through `writeback.reauth`.
+- Core money actions keep the typed-amount second ask until core-gateway-auth's `secondAsk.grant` is installed (round 4 adapter; see "Round 4 contracts"). Write-back changes use the passphrase or the approver's own secret through `writeback.reauth`.
 - Files written by `approvals.exportPrepared` are not removed when the workspace is deleted (the
   engine's purge of `exports/` matches only its own vault copies; widening it is a core edit).
-- The caps line counts reminders prepared on the reminder's own day; the screen does not know
-  write-back's configured time zone.
+- The caps line counts reminders prepared on the reminder's own day and, with `writeback.caps`, says write-back's time zone (round 4).
 - Bill photo: the helper's `pdf.ocr` returns text lines with a page confidence, not word
   boxes, so a region is the line's band across the page. Only the first page is outlined.
   Parsing is fixed patterns for Indian bill layouts; anything else is left for the person.
@@ -939,3 +938,45 @@ Supported or experimental: BK-09 strategies experimental (as the copy is); BK-12
 This supersedes, in "Still missing" above: "BK-09: publishing a copy uses the prospective strategy only"; "BK-12: … the time line shows invoices and payments, not reminders or notes" (asking about the record now waits only on frame-today's `setAbout`); "Bill photo: … not word boxes … Only the first page is outlined … no real OCR run was made" (tesseract-ocr 5.3.4 was installed in the build container and a real run is tested; the test is skipped where tesseract is absent); the BK-19 and BK-20 bullets, once core-data's receipt field and `deletion.customer` are merged. Still missing: write-back names customers by the connected system's id, so journal entries match a record only when the ids are equal; the time line's reminders do not include core `invoiceFollowUp.*` mandates; BillPhoto's PDF view shows page 1 under the outline and later pages as outline panels (no page images are rendered in the screen).
 
 Core edits (shared files, additive): `platform/runtime/helper.ts` allows `words` for `pdf.ocr`; `platform/helpers/analytics.py` returns word boxes and page sizes when asked. Tests: `platform/tests/work-books-books-r4b-engine.test.ts`, `frontend-validation/tests/work-books-books-r4b.test.tsx`; the round-2 hand-built hosts (`work-books-books-r2b-engine.test.ts`, `work-books-review2.test.ts`) now declare their stubs as the installed methods (`hasMethod`) instead of reading the merged registry.
+
+### Work, round 4
+
+What Work calls in other lanes this round, with the exact shape assumed. Every method is used only when the
+method registry (or a trusted host's `hasMethod`) lists it; a mutating method is never probed. Until it lands,
+the part answers a typed "not built" state. Engine code: `platform/runtime/work-books/work-r4.ts`; screens:
+`app/ui/src/screens/work/{Reminders,R4Parts}.tsx`, `contract-r4.ts`, `text-r4.ts`. Tests:
+`platform/tests/work-books-approvals-r4.test.ts` (stubs), `platform/tests/work-books-jobs-r4-engine.test.ts` (real
+merged engine with jobs-ext, demo mode), `frontend-validation/tests/work-books-work-r4.test.tsx`.
+
+### Work
+
+| Item | Owner | Contract assumed (exact) | Until it lands |
+|---|---|---|---|
+| WK-09 | jobs-ext (merged, read from `platform/runtime/jobs-ext/methods.ts`) | `jobsx.types {}` → `{ templates: { id, title, goal, finishedWhen, steps: { kind, title, needsModel }[], intervalMs, stepsPerDelivery, missedRule: 'skip'\|'once'\|'all', budgetMinor, allowedActions, experimental, skillPath, available, code?, reason? }[], activeJobs, activeJobCap }`; `jobsx.propose { template, overrides?: { budgetMinor?, missedRule? } }` → `Proposal { id, status: 'proposed', digest, card, … }`; `jobsx.card { proposalId }` → `{ card, digest, proposal }` (digest must equal the proposal's). | `approvals.jobTemplates.lane = { available: false, … }`; `approvals.proposeJob { laneTemplate }` refuses `LANE_TEMPLATES_NOT_BUILT`. |
+| WK-02 second ask | core-gateway-auth (coordinator's contract; not on its branch yet) | `secondAsk.status {}` (caller only) → `{ expects: 'passphrase' \| 'member-secret' }`; `secondAsk.grant { target: { kind: 'action', id, digest }, secret }` → `{ granted: true, expiresAt }`, single use, five minutes; refusals (`SECOND_ASK_LOCKED`, a wrong secret) pass through. Once merged, core `actions.approve` on money refuses `SECOND_ASK_REQUIRED` without a fresh grant. | The typed amount (`secondAsk.by: 'typed-amount'`). |
+| WK-02 / writeback second ask | core-gateway-auth via writeback (writeback branch `lane-writeback.ts`) | writeback reads `auth.approvalSecret.status {}` → `{ set }` and `auth.approvalSecret.verify { secret }` → `{ verified }` and accepts a member's own secret in place of `REAUTH_OWNER_ONLY`. Work passes `reauth` through unchanged and reads `auth.approvalSecret.status` only to word the field (`secondAsk.whose`). | `whose: 'vault-passphrase'`. |
+| WK-12 caps | writeback (branch `writeback/overview.ts`) | `writeback.caps {}` → `{ settings: { reminderCapPerCustomer, reminderCapPerDay, … }, timeZone, today: 'YYYY-MM-DD', now, counts: { preparedToday, sentToday, customersToday } }`; `writeback.connections {}` → `[{ id, system, label, environment, write, revokedAt? }]`. | Caps line without its time zone (`timeZone: null`). |
+| WK-12 record link | work-books (own) | `records.get { id: customerId }` as the caller; success → `reminder.recordId`. | Customers and suppliers. |
+| WK-15 | core-data (not on its branch yet) | `deletion.reapply {}` (a person's press only) → `{ reapplied: number }` (customer records deleted again). | `afterRestore.deletions.available: false`; `approvals.reapplyDeletions` refuses `DELETION_REAPPLY_NOT_BUILT`. |
+| WK-08 child results | core-sync-jobs (not on its branch yet) | `jobs.children { id }` → `{ items: { id, title, state, result: { done: string[], open: string[], receiptIds: string[] } \| null }[] }`. | `children: { available: false }`. |
+| WK-16 core person step | core-sync-jobs (not on its branch yet) | `jobs.personStep.done { id: jobId, stepId }`; the core ledger then carries `{ event: 'person-step-done', stepId, by: memberId }` (read back). | `manage.personStep: 'not-built'`, `PERSON_STEP_NOT_BUILT`. |
+| WK-08 meters, WK-09 card | core-sync-jobs (not on its branch yet) | Ledger entries carry `durationMs` and `actionId`; a job carries `actionIds: string[]` and `reviewDate: 'YYYY-MM-DD'`. | Clock and exposure "not counted"; review date "none". |
+| WK-08 routes | jobs-ext (merged) | `jobsx.get` `facts.budget.meters.model[] = { routeId, costMinor, minutes, steps, basis: 'measured'\|'estimate'\|'zero' }`, `testedRoutes`, `stoppedBy: { rule: 'untested-route', at, reason }`. A core job: `state.routes[].kind === 'ollama'` is a local model at zero. | — |
+| Live refresh | core-sync-jobs (frame host) | `PlaceRenderProps.subscribe?(kinds: readonly string[], onEvent: (event) => void): () => void`; kinds Work follows: `approvals`, `actions`, `jobs`, `writeback`. | No subscription; pages re-read after each change. |
+| WK-14 | driving (branch `modules/lane-driving.ts`, checked) | `session.status {}` → `{ state, window, steps, reason, sessionId, plan, startedAt, exports: { id, name, bytes }[], stopKey }`; `session.windows {}` → `{ windows, available, code, reason }` (`DRIVER_UNAVAILABLE` where this computer cannot be driven); `session.start { windowId, mode: 'read-export', typesSecrets: false }` (approve, desktop and untainted only); `session.resume` (approve); `session.stop` (read). Work adds `driver: { available, code }` and `status.exports`. | "not built yet". |
+| Links | jobs-ext, writeback (sub-places not registered yet) | Any sub-place those lanes add under `work` in `places/subplaces/<lane>.ts`, named by their `SH-01.sub.work.<id>` words (jobs-ext plans `procedures` and `job-controls`). Jobs links to jobs-ext's, What it can do to writeback's. | Nothing drawn. |
+
+Methods added: `approvals.reminders` (read) → `{ available: false } | { available: true, connections: { id, label, system: 'mail'|'whatsapp', environment }[], caps: { timeZone, today, preparedToday, sentToday, perCustomer, perDay } | null, items: ApprovalRow[] }`;
+`approvals.reapplyDeletions` (approve) `{}` → `{ reapplied }`. Changed, additively: `approvals.jobTemplates` adds `lane`; `approvals.proposeJob` takes
+`{ laneTemplate, budgetMinor?, missedRun?: 'skip'|'run-once-on-wake'|'run-all' }` → `{ id: 'proposal:<id>', proposal: { id, digest }, laneTemplate }`; `approvals.practice` on a prepared
+`action:` answers `{ practice: true, available: true, mode: 'checked-not-run', outcome: 'would-create-local-draft'|'checked-not-run'|'refused', code?, steps, wouldSend, requests: 0, request }`
+(the operation's own `validate` on a copy; `execute` is never called, because a registered operation acts on the real store or system and cannot be pointed at a copy);
+`approvals.approveGroup` results carry `steps`; `approvals.get` adds `secondAsk.whose: 'own-secret'|'vault-passphrase'`, and for a core money action `secondAsk.by: 'passphrase'` when
+`secondAsk.grant` is installed (then `approvals.approve` needs `reauth`); `reminder.caps.timeZone/today` and `reminder.recordId`; `approvals.job` adds `routes`, `untestedStop`, `children`
+and `manage.personStep: 'core'`; `approvals.afterRestore` adds `deletions: { available }`; `approvals.drivingStatus` adds `driver` and `status.exports`. A new Work sub-place
+`work/reminders` (Reminders) is registered in `places/subplaces/work-books.ts`.
+
+Status: WK-09 done (supported; experimental templates labelled); WK-02 practice for core actions done (checked, not run, labelled practice); WK-03 done; WK-08 routes done, child
+results and core meters adapters (not built until core-sync-jobs); WK-12 entry point, exact record and time zone done; core second ask adapter (typed amount until core-gateway-auth);
+WK-15 reapply adapter (not built until core-data); WK-16 core step adapter; live refresh adapter; WK-14 checked against the driving lane (experimental). gst-matching's sources must be
+chosen in jobs-ext (`GST_SOURCES_REQUIRED` is said in words); Work does not pick them.

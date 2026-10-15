@@ -23,6 +23,8 @@ import { acceptResult, approveProposal, dismissProposal, sendBack, SENT_BACK } f
 import type { ApprovalDetail, Env, WorkState, Amount, ActionView } from './work-queue.ts';
 import { findView, wbDetail, wbActionView, reminderOf, practiceReply, changedPayload, parseView, SYSTEM_TITLES, REMINDER_BLOCKS } from './work-writeback.ts';
 import { exportPrepared } from './work-writeback-export.ts';
+import { childTasks, corePractice, coreRoutes, coreSecondAsk, grantSecondAsk, ownSecret, workR4Methods } from './work-r4.ts';
+import { installed, isLaneJob } from './work-jobs-sheet.ts';
 
 const FAST_MS = 2000, PACE_KEEP = 20, WANTED_MAX = 500, GROUP_MAX = 10, RESERVATION_MS = 15 * 60000;
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
@@ -51,8 +53,15 @@ async function recordPace(host: ModuleHost, ctx: Context, id: string, actionId: 
 /** The sheet for one item; a write-back reminder also carries its agreement, limits and notes (WK-12). */
 async function fullDetail(e: Env, id: string): Promise<ApprovalDetail> {
   const { source, raw } = parseId(id);
+  if (source === 'action') {
+    // Round 4: a core money action asks for a secret when core-gateway-auth's `secondAsk.grant` is installed, else the typed amount.
+    const item = detail(e, id);
+    return item.needsSecondAsk ? { ...item, secondAsk: await coreSecondAsk(e.host, e.ctx) } : item;
+  }
   if (source !== 'writeback') return detail(e, id);
-  const view = findView(e, raw); return wbDetail(e, view, await reminderOf(e, view));
+  const view = findView(e, raw); const item = wbDetail(e, view, await reminderOf(e, view));
+  // Write-back checks either the approver's own secret (when installed) or the owner's vault passphrase; the sheet says which.
+  return item.secondAsk?.by === 'passphrase' ? { ...item, secondAsk: { by: 'passphrase', whose: await ownSecret(e.host) ? 'own-secret' : 'vault-passphrase' } } : item;
 }
 /** A write-back yes: exactly this digest, with re-authentication only when write-back asks for it. */
 async function approveWriteback(host: ModuleHost, raw: string, item: ApprovalDetail, payload: { digest: string; reauth?: string }) {
@@ -83,7 +92,10 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
   check(payload.digest === item.digest, 'PREVIEW_CHANGED', 'The exact change is different from the preview you read. Review it again.');
   check(!item.needsSecondAsk || payload.secondAsk === true, 'SECOND_ASK_REQUIRED', 'Money needs a second confirmation before approval.');
   check(item.can.includes('approve'), 'INVALID_APPROVAL_STATE', 'This item cannot be approved here.');
-  if (source !== 'writeback') check(payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
+  const ownAsk = source === 'action' && item.secondAsk?.by === 'passphrase';
+  if (source !== 'writeback' && !ownAsk) check(payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
+  // The single-use grant for exactly this action and digest is asked just before the approval; the secret is never kept.
+  if (ownAsk) await grantSecondAsk(host, raw, payload.digest, payload.reauth);
   if (source === 'action') await host.services.actions.approve(ctx, raw, payload.digest);
   else if (source === 'writeback') await approveWriteback(host, raw, item, payload);
   else if (source === 'job') await host.call('jobs.approve', { id: raw, digest: payload.digest });
@@ -231,10 +243,15 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     check(Array.isArray(payload.items) && payload.items.length >= 1 && payload.items.length <= GROUP_MAX && payload.items.every((i: unknown) => record(i)), 'INVALID_APPROVAL', 'Send 1 to 10 items, each with its id and digest.');
     const parsed = payload.items.map((i: Record<string, any>) => { exact(i, ['id', 'digest']); return approvePayload(i); });
     check(new Set(parsed.map((p: { id: string }) => p.id)).size === parsed.length, 'INVALID_APPROVAL', 'Each item appears once.');
-    const results: { id: string; ok: boolean; code?: string; state?: string }[] = [];
+    // WK-03: each item carries its own five steps after the approval (or as it stands when refused).
+    const results: { id: string; ok: boolean; code?: string; state?: string; steps?: ApprovalDetail['steps'] }[] = [];
     for (const item of parsed) {
-      try { const done = await approveOne(ctx, host, item, true); results.push({ id: item.id, ok: true, state: done.state }); }
-      catch (error) { results.push({ id: item.id, ok: false, code: error instanceof ChausarError ? error.code : 'APPROVAL_FAILED' }); }
+      try { const done = await approveOne(ctx, host, item, true); results.push({ id: item.id, ok: true, state: done.state, steps: done.steps }); }
+      catch (error) {
+        let now: ApprovalDetail['steps'] | undefined;
+        try { now = detail(await env(ctx, host), item.id).steps; } catch { now = undefined; }
+        results.push({ id: item.id, ok: false, code: error instanceof ChausarError ? error.code : 'APPROVAL_FAILED', ...(now ? { steps: now } : {}) });
+      }
     }
     return { results };
   } },
@@ -246,9 +263,11 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.practice': { permission: 'prepare', async handler(ctx, payload, host) {
     const id = idOf(payload); const e = await withProposals(ctx, host, id); const item = detail(e, id); const { source, raw } = parseId(id);
     const none = (code: string) => ({ practice: true as const, available: false, steps: steps(), wouldSend: null, code });
-    // Write-back practises its own prepared actions against fresh practice systems; core actions have none.
+    // Write-back practises its own prepared actions against fresh practice systems.
     if (source === 'writeback') { void item; return practiceReply(await host.call('writeback.practice', { actionId: raw })); }
-    return none(source === 'action' && !e.catalogue.writeback ? 'WRITEBACK_NOT_BUILT' : 'PRACTICE_NOT_AVAILABLE');
+    // A core action is checked, never run (work-r4.ts corePractice).
+    if (source === 'action') return corePractice(e, findAction(e, id));
+    return none('PRACTICE_NOT_AVAILABLE');
   } },
   'approvals.execute': { permission: 'prepare', async handler(ctx, payload, host) {
     exact(payload, ['id']); const e = await env(ctx, host); const { source, raw } = parseId(payload.id);
@@ -352,7 +371,8 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const hidden = open.some(a => !canSee(a));
     // Each note is a fixed line of this lane; `noteKeys` names them in order so a screen says them in its own language.
     const keyed = [...(items.length ? [['closed-until-checked', 'Sending stays closed until every action below is checked.']] : []), ...(journalled.size ? [['may-have-gone-out', 'Some of these may already have gone out after the backup was made. Chausar will look before doing anything.']] : []), ...(hidden ? [['hidden-being-checked', 'Some actions you cannot see are still being checked.']] : [])] as [string, string][];
-    return { sendingClosed: open.length > 0, items, notes: keyed.map(([, line]) => line), noteKeys: keyed.map(([k]) => k) };
+    // WK-15: deleting again what the restore brought back is core-data's `deletion.reapply` (never probed).
+    return { sendingClosed: open.length > 0, items, notes: keyed.map(([, line]) => line), noteKeys: keyed.map(([k]) => k), deletions: { available: await installed(host, 'deletion.reapply') } };
   } },
   'approvals.exportPrepared': { permission: 'prepare', async handler(ctx, payload, host) {
     const id = idOf(payload);
@@ -396,10 +416,15 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
       acceptance: job.status === 'awaiting-acceptance' ? { id: `acceptance:${job.id}`, digest: acceptanceDigest(acceptanceReference(e, job)) } : null,
       // WK-08 measure, WK-11 schedule, WK-16 person steps; for a lane job, jobs-ext's time line, measured meters and result (work-jobs-sheet.ts)
       ...(await jobSheetExtras(e, job, timeline, ctx.role !== 'viewer')),
+      // Round 4 (WK-08): per-route meters (a local model at zero, with its minutes; an untested route apart) and child task results.
+      ...(isLaneJob(job) ? {} : { routes: coreRoutes(e, job), untestedStop: null }),
+      children: isLaneJob(job) ? { available: false as const } : await childTasks(host, job),
     };
   } },
   ...workJobMethods,
+  ...workR4Methods,
 };
+
 
 /** Removes private notes tied to removed actions or jobs (and to ones that no longer exist). */
 export const workPurge: NonNullable<EngineModule['purge']> = (state, reason) => {

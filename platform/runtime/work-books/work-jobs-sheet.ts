@@ -17,6 +17,7 @@ import type { CalculationReceipt } from '../calculator.ts';
 import type { Job } from '../jobs.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { Amount, Env } from './work-queue.ts';
+import { laneRoutes, type RouteMeter } from './work-r4.ts';
 
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const str = (value: unknown, max = 400): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
@@ -60,7 +61,7 @@ export type Schedule =
   | { kind: 'calendar'; rule: 'month-end' | 'calendar'; at: string | null; timeZone: string; paused: boolean };
 export type Way = 'jobsx' | 'core' | 'not-built';
 /** `answer`: a lane job's questions are answered through jobs-ext; `accept`: whose method accepts or sends back a result. */
-export type Manage = { edit: Way; delete: 'jobsx' | 'cancel'; missedRule: Way; personStep: 'jobsx' | 'not-built'; answer: 'jobsx' | 'not-built'; accept: 'jobsx' | 'core' };
+export type Manage = { edit: Way; delete: 'jobsx' | 'cancel'; missedRule: Way; personStep: 'jobsx' | 'core' | 'not-built'; answer: 'jobsx' | 'not-built'; accept: 'jobsx' | 'core' };
 /** WK-11: the rule and the choices offered. jobs-ext offers "run every missed one" only for a job that delivers every run. */
 export type MissedRule = { rule: MissedRun; choices: MissedRun[]; runAll: 'offered' | 'unsuitable' | 'not-built' };
 export type JobStepRow = { at: string; event: string; amount: Amount | null; needsModel: boolean | null; reason: string | null };
@@ -87,6 +88,8 @@ export type LaneView = {
   tainted: boolean;
   /** The next runs jobs-ext lists (`next.upcoming`), oldest first. */
   upcoming: string[];
+  /** Round 4 (WK-08): per-route meters from the measured budget, and a stop on an untested route (work-r4.ts laneRoutes). */
+  routes: RouteMeter[]; untestedStop: { at: string; reason: string } | null;
 };
 
 export function laneView(raw: unknown): LaneView | null {
@@ -126,6 +129,7 @@ export function laneView(raw: unknown): LaneView | null {
     leftUndone: strings(raw.leftUndone, 2000),
     tainted: raw.tainted === true,
     upcoming: (record(raw.next) && Array.isArray(raw.next.upcoming) ? raw.next.upcoming : []).filter(INSTANT).slice(0, 20),
+    ...laneRoutes(raw),
   };
 }
 
@@ -261,7 +265,9 @@ export function missedRuleOf(job: Job, view: LaneView | null, way: Way): MissedR
 export async function jobManage(host: ModuleHost, job: Job): Promise<Manage> {
   const [edit, rule, remove, done, answer, accept] = await Promise.all(['jobsx.edit', 'jobsx.setMissedRule', 'jobsx.delete', 'jobsx.personStep.done', 'jobsx.answer', 'jobsx.accept'].map(m => laneMethod(host, job, m)));
   const core: Way = job.plan ? 'core' : 'not-built';
-  return { edit: edit ? 'jobsx' : core, delete: remove ? 'jobsx' : 'cancel', missedRule: rule ? 'jobsx' : core, personStep: done ? 'jobsx' : 'not-built', answer: answer ? 'jobsx' : 'not-built', accept: accept ? 'jobsx' : 'core' };
+  // Round 4 (core-sync-jobs): a core job's person step is marked with `jobs.personStep.done` when the core serves it.
+  const corePerson = !isLaneJob(job) && await installed(host, 'jobs.personStep.done');
+  return { edit: edit ? 'jobsx' : core, delete: remove ? 'jobsx' : 'cancel', missedRule: rule ? 'jobsx' : core, personStep: done ? 'jobsx' : corePerson ? 'core' : 'not-built', answer: answer ? 'jobsx' : 'not-built', accept: accept ? 'jobsx' : 'core' };
 }
 
 /**
@@ -287,6 +293,7 @@ export async function jobSheetExtras(e: Env, job: Job, timeline: JobStepRow[], c
     missedRun: view?.missedRule === 'skip' ? 'skip' as const : view?.missedRule ? 'run-once-on-wake' as const : missedRunOf(job),
     missedRule: missedRuleOf(job, view, manage.missedRule),
     manage,
+    routes: view ? view.routes : [], untestedStop: view ? view.untestedStop : null,
     ...(meters ? { meters } : {}),
     ...(result ? { result: { done: result.done, open: result.open, recommends: result.recommends, receiptIds: result.receiptIds } } : {}),
     jobsx: view ? {

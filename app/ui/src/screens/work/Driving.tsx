@@ -13,6 +13,7 @@ import { Actions, Button, Note, Refusal, Section } from './kit/Page';
 import { driving, type DrivingStatus } from './contract-jobs.ts';
 import { jobWords, type JobKey, type JobWords } from './text-jobs.ts';
 import { Frame, type WorkProps } from './shared.tsx';
+import { r4Words, sayR4 } from './text-r4.ts';
 import s from './work.module.css';
 
 const STATE_KEY: Readonly<Record<DrivingStatus['state'], JobKey>> = {
@@ -55,6 +56,7 @@ export function DrivingPage({ p }: { p: WorkProps }) {
       {d => {
         if (!d.available) return (<><Note>{j['driving.notBuilt']}</Note><Note>{j['driving.rules']}</Note></>);
         const st = d.status;
+        const r4 = r4Words(language);
         const active = ACTIVE.includes(st.state);
         return (
           <div className={s.pane}>
@@ -71,7 +73,8 @@ export function DrivingPage({ p }: { p: WorkProps }) {
             )}
             {!active && <Note>{j[STATE_KEY[st.state]]}</Note>}
             {!active && st.reason !== null && <Note>{st.reason}</Note>}
-            {!active && owner && (
+            {d.driver !== undefined && !d.driver.available && <Note>{sayR4(r4, 'driving.cannot', { code: d.driver.code ?? 'DRIVER_UNAVAILABLE' })}</Note>}
+            {!active && owner && (d.driver === undefined || d.driver.available) && (
               <Section title={j['driving.choose']}>
                 {(d.windows ?? []).length === 0 ? <Note>{j['driving.noWindows']}</Note> : (
                   <fieldset className={s.form}>
@@ -85,6 +88,9 @@ export function DrivingPage({ p }: { p: WorkProps }) {
               </Section>
             )}
             <Steps status={st} j={j} language={language} />
+            {st.exports !== undefined && st.exports.length > 0 && (
+              <Section title={r4['driving.exports']}><ul className={s.list}>{st.exports.map(x => <li key={x.id} className={s.item}><code>{x.name}</code></li>)}</ul></Section>
+            )}
             <Note>{j['driving.rules']}</Note>
             <Refusal code={act.refusal} language={language} />
           </div>
