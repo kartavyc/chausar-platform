@@ -4,148 +4,106 @@
  * otherwise (and for any core action writeback does not list). Every row is checked strictly
  * here at the boundary; a row that fails is ignored and counted, never guessed at.
  *
- * Assumed `writeback.catalogue` contract (not merged yet; the minimum this file needs):
- *   request  `{}`
- *   reply    an array of rows, or `{ rows: [...] }` (other reply fields are ignored), at most 500 rows
- *   row      `system`    connector id, `^[a-z][a-z0-9-]{0,63}$` (`connector` is accepted as the same field)
- *            `operation` `^[a-z][a-z0-9-]{0,63}$`
- *            `label`     plain words, at most 120 characters (`title` is accepted as the same field)
- *            `tier`      `^[a-z][a-z0-9-]{0,31}$`, shown as given
+ * Confirmed `writeback.catalogue` contract, checked against writeback commit 1bba591
+ * (`platform/runtime/writeback/catalogue.ts` CatalogueEntry, `WritebackService.row` in
+ * `platform/runtime/writeback/service.ts`, `platform/runtime/modules/lane-writeback.ts`):
+ *   request  `{}`; reply a plain array of rows (at most 500 here)
+ *   row      `system`  connector id (`tally`, `zoho-books`, …), `^[a-z][a-z0-9-]{0,63}$`
+ *            `action`  dotted action id (`voucher.create`, `invoice.createDraft`), see ACTION_ID
+ *            `title`   plain words, at most 120 characters
+ *            `kind`    `inside-undoable` | `seen-outside` | `money` | `cannot-undo`
+ *                      (shown as impact `reversible` | `message` | `money` | `destructive`)
+ *            `tier`    `1` | `2` | `'prepare-only'`
  *            `alwaysWaits` boolean
- *            `status`    `^[a-z][a-z0-9-]{0,31}$` (`depth` is accepted as the same field); only
- *                        `available`, `full`, `supported` and `experimental` can go on a card
- *            `impact`    optional: `reversible` | `message` | `money` | `destructive`; missing means always-waits
- *            `payloadSchema` optional, the small JSON-Schema subset in `parseSchema`; a schema
- *                        using anything else makes the row unreadable
- *            any other field (write table, idempotency, read-back, retry window…) is ignored.
- *   Two rows with the same system and operation are both ignored.
- * Assumed `writeback.prepare` contract: request `{ system, operation, payload, idempotencyKey, sourceIds? }`,
- * reply `{ id, status: 'prepared', digest, … }`. Any other status is refused: preparing never approves or does.
+ *            `status`  `live` | `experimental` | `prepare-only` | `not-yet` (effective status);
+ *                      with `installed: true` and a tier other than prepare-only, `live` and
+ *                      `experimental` can go on a card
+ *            `recipe.requiredFields` the payload's required top-level fields
+ *            `connections` `[{ id, label, environment: live|sandbox|practice, read, write }]`,
+ *                      `write` meaning this action is granted on that connection
+ *            other fields (idempotency, reference, read-back, windows, reversal…) are ignored.
+ *   There is no JSON payload schema: each adapter's own `validate` is the schema and runs inside
+ *   `writeback.prepare` (refusing unknown fields, `INVALID_WRITE_PAYLOAD`, `INVALID_AMOUNT`,
+ *   `INVALID_DATE`, …). Here a payload is checked only as a small plain object holding every
+ *   required field. Two rows with the same system and action are both ignored.
+ * Confirmed `writeback.prepare` contract: request `{ connectionId, action, payload, intentId, sourceIds? }`.
+ * The idempotency key is derived from (system, action, connection, intentId): the same intent and
+ * payload returns the same prepared action; the same intent with another payload is refused
+ * (`IDEMPOTENCY_CONFLICT`). Reply: the action view `{ id, system, action, digest, status: 'prepared',
+ * word, alwaysWaits, kind, tier, practice, expiresAt, approval: { needsSecondAsk, … }, … }`, or
+ * `{ status: 'already-done', externalId, … }` when the effect is already in the system (nothing is
+ * prepared). Any other status is refused: preparing never approves or does. Approval stays with
+ * `writeback.approve {id, digest, secondAsk?}`; money and changes that cannot be undone first need
+ * `writeback.reauth` (the second ask, `REAUTH_REQUIRED` without it). A practice connection
+ * (`environment: 'practice'`) prepares against Practice systems and is marked `practice`.
  *
  * Always-waits can only be added here, never removed. A row is NOT always-waits only when all three
- * hold: it says `impact: 'reversible'`, it says `alwaysWaits: false`, and neither its operation nor its
- * label names money, outside messages, deleting or anything that cannot be undone. A missing impact
- * counts as always-waits.
+ * hold: its kind is `inside-undoable` (core: impact `reversible`), it says `alwaysWaits: false`, and
+ * neither its action nor its title names money, outside messages, deleting or anything that cannot
+ * be undone.
  */
 import { ChausarError, check } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 
-export type Schema =
-  | { type: 'string'; minLength: number; maxLength: number; enum?: string[]; format?: 'paise' | 'date' }
-  | { type: 'integer'; minimum?: number; maximum?: number }
-  | { type: 'boolean' }
-  | { type: 'array'; items: Schema; maxItems: number }
-  | { type: 'object'; properties: Record<string, Schema>; required: string[] };
+type Impact = 'reversible' | 'message' | 'money' | 'destructive';
+export type Connection = { id: string; label: string; environment: 'live' | 'sandbox' | 'practice'; write: boolean };
 export type ActionRow = {
-  key: string; connector: string; operation: string; label: string; tier: string | null; alwaysWaits: boolean;
-  available: boolean; status: string; impact: 'reversible' | 'message' | 'money' | 'destructive' | null;
-  payloadSchema: Schema | null; origin: 'writeback' | 'core';
+  key: string; connector: string; operation: string; label: string; tier: 1 | 2 | 'prepare-only' | null; alwaysWaits: boolean;
+  available: boolean; status: string; impact: Impact | null; requiredFields: string[]; connections: Connection[]; origin: 'writeback' | 'core';
 };
 export type Catalogue = { rows: ActionRow[]; writeback: 'used' | 'absent' | 'unreadable'; notCounted: number; words: string | null };
 
 const ABSENT = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE', 'INVALID_REQUEST']);
-const AVAILABLE = new Set(['available', 'full', 'supported', 'experimental']);
-const IMPACTS = new Set(['reversible', 'message', 'money', 'destructive']);
-const ID = /^[a-z][a-z0-9-]{0,63}$/, SHORT = /^[a-z][a-z0-9-]{0,31}$/;
+const KIND_IMPACT: Record<string, Impact> = { 'inside-undoable': 'reversible', 'seen-outside': 'message', money: 'money', 'cannot-undo': 'destructive' };
+const IMPACTS = new Set<string>(Object.values(KIND_IMPACT));
+const STATUSES = new Set(['live', 'experimental', 'prepare-only', 'not-yet']), CARD_STATUSES = new Set(['live', 'experimental']);
+const ENVIRONMENTS = new Set(['live', 'sandbox', 'practice']);
+const ID = /^[a-z][a-z0-9-]{0,63}$/, FIELD = /^[A-Za-z][A-Za-z0-9_]{0,63}$/, REF = /^[A-Za-z0-9_.:-]{1,200}$/;
+/** Writeback actions are dotted (`invoice.createDraft`); core operations are kebab (`reminder-draft`). */
+export const ACTION_ID = /^(?=.{1,64}$)[a-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)*$/;
 /** Words that put an action on the always-waits list whatever its row says (TR-05). */
 const WAITS = new Set(['pay', 'payout', 'payouts', 'transfer', 'refund', 'refunds', 'charge', 'debit', 'send', 'message', 'messages', 'whatsapp', 'sms', 'email', 'mail',
   'delete', 'remove', 'erase', 'purge', 'cancel', 'void', 'price', 'prices', 'pricing', 'stock', 'inventory', 'listing', 'listings', 'publish', 'share', 'sharing', 'invite',
-  'webhook', 'webhooks', 'tax', 'gst', 'gstr', 'tds', 'filing', 'file']);
-const tokens = (text: string) => text.normalize('NFKC').toLowerCase().split(/[^\p{L}\p{M}]+/u).filter(Boolean);
+  'webhook', 'webhooks', 'tax', 'gst', 'gstr', 'tds', 'filing']);
+/** Words of an id or label, camelCase split (`paymentLink` reads as payment, link). */
+const tokens = (text: string) => text.normalize('NFKC').replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2').toLowerCase().split(/[^\p{L}\p{M}]+/u).filter(Boolean);
 export const mustWait = (operation: string, label: string) => [...tokens(operation), ...tokens(label)].some(t => WAITS.has(t));
 
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const text = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\p{Cc}\p{Cf}]/u.test(value);
-const pick = (row: Record<string, unknown>, a: string, b: string) => Object.hasOwn(row, a) ? (Object.hasOwn(row, b) ? undefined : row[a]) : row[b];
-const ANNOTATIONS = ['description', 'title'];
-
-/** The payload schema subset small apps understand. Anything else makes the row unreadable (throws). */
-export function parseSchema(value: unknown, depth = 0): Schema {
-  const bad = () => new ChausarError('SMALLAPP_SCHEMA_UNSUPPORTED', 'This action describes its payload in a form small apps do not read.');
-  if (!plain(value) || depth > 5) throw bad();
-  const keys = Object.keys(value), allow = (...extra: string[]) => { if (!keys.every(k => ['type', ...ANNOTATIONS, ...extra].includes(k))) throw bad(); };
-  const count = (v: unknown, max: number) => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
-  switch (value.type) {
-    case 'string': {
-      allow('minLength', 'maxLength', 'enum', 'format');
-      if ((value.minLength !== undefined && !count(value.minLength, 4000)) || (value.maxLength !== undefined && !count(value.maxLength, 4000))) throw bad();
-      if (value.enum !== undefined && !(Array.isArray(value.enum) && value.enum.length > 0 && value.enum.length <= 64 && value.enum.every(e => typeof e === 'string' && e.length <= 200))) throw bad();
-      if (value.format !== undefined && value.format !== 'paise' && value.format !== 'date') throw bad();
-      const schema: Schema = { type: 'string', minLength: (value.minLength as number | undefined) ?? 0, maxLength: (value.maxLength as number | undefined) ?? 4000 };
-      if (value.enum) schema.enum = [...value.enum as string[]];
-      if (value.format) schema.format = value.format as 'paise' | 'date';
-      if (schema.minLength > schema.maxLength) throw bad();
-      return schema;
-    }
-    case 'integer': {
-      allow('minimum', 'maximum');
-      if ([value.minimum, value.maximum].some(v => v !== undefined && !Number.isSafeInteger(v))) throw bad();
-      return { type: 'integer', ...(value.minimum !== undefined ? { minimum: value.minimum as number } : {}), ...(value.maximum !== undefined ? { maximum: value.maximum as number } : {}) };
-    }
-    case 'boolean': allow(); return { type: 'boolean' };
-    case 'array': {
-      allow('items', 'maxItems'); if (value.maxItems !== undefined && !count(value.maxItems, 200)) throw bad();
-      return { type: 'array', items: parseSchema(value.items, depth + 1), maxItems: (value.maxItems as number | undefined) ?? 50 };
-    }
-    case 'object': {
-      allow('properties', 'required', 'additionalProperties');
-      if (!plain(value.properties) || Object.keys(value.properties).length > 64 || (value.additionalProperties !== undefined && value.additionalProperties !== false)) throw bad();
-      const properties: Record<string, Schema> = {};
-      for (const [name, inner] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name)) throw bad(); properties[name] = parseSchema(inner, depth + 1); }
-      const required = value.required ?? [];
-      if (!Array.isArray(required) || !required.every(r => typeof r === 'string' && Object.hasOwn(properties, r))) throw bad();
-      return { type: 'object', properties, required: [...new Set(required as string[])] };
-    }
-    default: throw bad();
-  }
-}
 
 /**
- * Check what the person typed for the action against the row's schema. These values are the
- * person's own data (an invoice id, a reminder text, an amount they entered), so the small-app
- * number guard does not apply to them; it applies only to words a model wrote into the app.
+ * The boundary check on what the person typed for a writeback action: a small plain JSON object
+ * holding every required field. Its full shape is the writeback adapter's to judge. These values are
+ * the person's own data, so the small-app number guard does not apply to them.
  */
-export function checkPayload(schema: Schema, value: unknown, depth = 0): void {
-  const fail = () => { throw new ChausarError('SMALLAPP_PAYLOAD_INVALID', 'The details for this action do not match what the action takes.'); };
-  if (depth > 6) fail();
-  switch (schema.type) {
-    case 'string':
-      if (typeof value !== 'string' || value.length < schema.minLength || value.length > schema.maxLength || /[\p{Cc}\p{Cf}]/u.test(value.replace(/[\n\t]/g, ' '))) fail();
-      if (schema.enum && !schema.enum.includes(value as string)) fail();
-      if (schema.format === 'paise' && !/^(0|[1-9]\d{0,17})$/.test(value as string)) fail();
-      if (schema.format === 'date' && !(/^\d{4}-\d{2}-\d{2}$/.test(value as string) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value)) fail();
-      return;
-    case 'integer':
-      if (!Number.isSafeInteger(value) || (schema.minimum !== undefined && (value as number) < schema.minimum) || (schema.maximum !== undefined && (value as number) > schema.maximum)) fail();
-      return;
-    case 'boolean': if (typeof value !== 'boolean') fail(); return;
-    case 'array':
-      if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > schema.maxItems) fail();
-      for (const item of value as unknown[]) checkPayload(schema.items, item, depth + 1);
-      return;
-    case 'object': {
-      if (!plain(value)) fail();
-      const input = value as Record<string, unknown>;
-      if (!Object.keys(input).every(k => Object.hasOwn(schema.properties, k)) || !schema.required.every(k => Object.hasOwn(input, k))) fail();
-      for (const [k, v] of Object.entries(input)) checkPayload(schema.properties[k], v, depth + 1);
-    }
-  }
+export function checkPayload(row: ActionRow, value: unknown): void {
+  let size = Infinity; try { size = JSON.stringify(value)?.length ?? Infinity; } catch { /* cycles and exotic values are refused below */ }
+  check(plain(value) && size <= 64_000 && row.requiredFields.every(field => Object.hasOwn(value, field)),
+    'SMALLAPP_PAYLOAD_INVALID', 'The details for this action do not match what the action takes.');
 }
 
-/** One writeback row, strictly. Throws on anything outside the assumed contract. */
+function connection(value: unknown): Connection {
+  if (!plain(value) || typeof value.id !== 'string' || !REF.test(value.id) || !text(value.label, 100) || !ENVIRONMENTS.has(value.environment as string)
+    || typeof value.write !== 'boolean' || typeof value.read !== 'boolean') throw new ChausarError('SMALLAPP_ROW_INVALID', 'A write catalogue row is outside the expected shape.');
+  return { id: value.id, label: (value.label as string).trim(), environment: value.environment as Connection['environment'], write: value.write && value.read };
+}
+
+/** One `writeback.catalogue` row, strictly. Throws on anything outside the confirmed contract. */
 export function writebackRow(value: unknown): ActionRow {
   const bad = () => new ChausarError('SMALLAPP_ROW_INVALID', 'A write catalogue row is outside the expected shape.');
   if (!plain(value)) throw bad();
-  const connector = pick(value, 'system', 'connector'), label = pick(value, 'label', 'title'), status = pick(value, 'status', 'depth');
-  const { operation, tier, alwaysWaits, impact } = value;
-  if (typeof connector !== 'string' || !ID.test(connector) || typeof operation !== 'string' || !ID.test(operation) || !text(label, 120)
-    || typeof tier !== 'string' || !SHORT.test(tier) || typeof alwaysWaits !== 'boolean' || typeof status !== 'string' || !SHORT.test(status)
-    || (impact !== undefined && !IMPACTS.has(impact as string))) throw bad();
-  const payloadSchema = value.payloadSchema === undefined ? null : parseSchema(value.payloadSchema);
-  if (payloadSchema && payloadSchema.type !== 'object') throw bad();
-  const rowImpact = (impact as ActionRow['impact'] | undefined) ?? null;
-  return { key: `${connector}/${operation}`, connector, operation, label: (label as string).trim(), tier, status, available: AVAILABLE.has(status),
-    alwaysWaits: !(rowImpact === 'reversible' && alwaysWaits === false && !mustWait(operation, label as string)), impact: rowImpact, payloadSchema, origin: 'writeback' };
+  const { system, action, title, kind, tier, alwaysWaits, status, installed, recipe, connections } = value;
+  if (typeof system !== 'string' || !ID.test(system) || typeof action !== 'string' || !ACTION_ID.test(action) || !text(title, 120)
+    || typeof kind !== 'string' || !Object.hasOwn(KIND_IMPACT, kind) || !(tier === 1 || tier === 2 || tier === 'prepare-only') || typeof alwaysWaits !== 'boolean'
+    || typeof status !== 'string' || !STATUSES.has(status) || typeof installed !== 'boolean'
+    || !plain(recipe) || !Array.isArray(recipe.requiredFields) || recipe.requiredFields.length > 64 || !recipe.requiredFields.every(f => typeof f === 'string' && FIELD.test(f))
+    || !Array.isArray(connections) || connections.length > 50) throw bad();
+  const impact = KIND_IMPACT[kind];
+  return { key: `${system}/${action}`, connector: system, operation: action, label: (title as string).trim(), tier, status,
+    available: CARD_STATUSES.has(status) && installed && tier !== 'prepare-only',
+    alwaysWaits: !(kind === 'inside-undoable' && alwaysWaits === false && !mustWait(action, title as string)), impact,
+    requiredFields: [...new Set(recipe.requiredFields as string[])], connections: connections.map(connection), origin: 'writeback' };
 }
 
 /** Core `actions.catalogue` rows: connectors with operations and their impact. Core validates payloads itself. */
@@ -155,9 +113,9 @@ export function coreRows(value: unknown): { rows: ActionRow[]; notCounted: numbe
     if (!plain(connector) || typeof connector.id !== 'string' || !ID.test(connector.id) || !Array.isArray(connector.operations)) { notCounted++; continue; }
     for (const op of connector.operations) {
       if (!plain(op) || typeof op.id !== 'string' || !ID.test(op.id) || !text(op.title, 120) || !IMPACTS.has(op.impact as string)) { notCounted++; continue; }
-      const impact = op.impact as NonNullable<ActionRow['impact']>;
+      const impact = op.impact as Impact;
       rows.push({ key: `${connector.id}/${op.id}`, connector: connector.id, operation: op.id, label: (op.title as string).trim(), tier: null, status: 'available', available: true,
-        alwaysWaits: impact !== 'reversible' || mustWait(op.id, op.title as string), impact, payloadSchema: null, origin: 'core' });
+        alwaysWaits: impact !== 'reversible' || mustWait(op.id, op.title as string), impact, requiredFields: [], connections: [], origin: 'core' });
     }
   }
   return { rows, notCounted };
@@ -170,10 +128,9 @@ export async function loadCatalogue(host: Pick<ModuleHost, 'call'>): Promise<Cat
   catch (error) { if (error instanceof ChausarError && ABSENT.has(error.code)) writeback = 'absent'; else throw error; }
   const rows: ActionRow[] = []; let notCounted = 0;
   if (writeback === 'used') {
-    const list = Array.isArray(reply) ? reply : plain(reply) && Array.isArray(reply.rows) ? reply.rows : null;
-    if (!list || list.length > 500) writeback = 'unreadable';
+    if (!Array.isArray(reply) || reply.length > 500) writeback = 'unreadable';
     else {
-      const parsed = list.map(item => { try { return writebackRow(item); } catch { notCounted++; return null; } }).filter((r): r is ActionRow => r !== null);
+      const parsed = reply.map(item => { try { return writebackRow(item); } catch { notCounted++; return null; } }).filter((r): r is ActionRow => r !== null);
       const seen = new Map<string, number>(); for (const r of parsed) seen.set(r.key, (seen.get(r.key) ?? 0) + 1);
       for (const r of parsed) if (seen.get(r.key) === 1) rows.push(r); else notCounted++;
     }
@@ -187,18 +144,53 @@ export async function loadCatalogue(host: Pick<ModuleHost, 'call'>): Promise<Cat
   return { rows, writeback, notCounted, words };
 }
 
-export type Prepared = { id: string; connector: string; operation: string; status: 'prepared'; digest: string; impact: string | null; through: 'writeback' | 'core' };
-/** Prepare, never more: writeback.prepare for writeback rows when it exists, core actions.prepare otherwise. */
-export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionRow, request: { payload: unknown; idempotencyKey: string; sourceIds?: string[] }): Promise<Prepared> {
-  let reply: any, through: Prepared['through'] = 'core';
-  if (row.origin === 'writeback') {
-    try { reply = await host.call('writeback.prepare', { system: row.connector, operation: row.operation, ...request }); through = 'writeback'; }
-    catch (error) { if (!(error instanceof ChausarError && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(error.code))) throw error; }
+/** Connections a writeback row can be prepared through: read and this action's write granted. */
+export const grantedConnections = (row: ActionRow) => row.connections.filter(c => c.write);
+/** The one connection a press goes through: the named one, or the only granted one. */
+export function pressConnection(row: ActionRow, connectionId: unknown): Connection {
+  const granted = grantedConnections(row);
+  if (connectionId !== undefined) {
+    const chosen = granted.find(c => c.id === connectionId);
+    check(chosen, 'SMALLAPP_CONNECTION_NOT_GRANTED', 'That connection is not allowed to do this action. Nothing was prepared.');
+    return chosen;
   }
-  if (through === 'core') reply = await host.call('actions.prepare', { connector: row.connector, operation: row.operation, ...request });
-  check(plain(reply) && typeof reply.id === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(reply.id) && typeof reply.digest === 'string' && /^[A-Za-z0-9_.:-]{8,200}$/.test(reply.digest),
-    'SMALLAPP_PREPARE_UNREADABLE', 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
-  check(reply.status === 'prepared', 'SMALLAPP_PREPARE_UNREADABLE', 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');
-  return { id: reply.id, connector: row.connector, operation: row.operation, status: 'prepared', digest: reply.digest,
-    impact: typeof reply.impact === 'string' && IMPACTS.has(reply.impact) ? reply.impact : row.impact, through };
+  check(granted.length > 0, 'SMALLAPP_CONNECTION_NOT_GRANTED', 'Connect this system and allow this action on it first. Nothing was prepared.');
+  check(granted.length === 1, 'SMALLAPP_CONNECTION_REQUIRED', 'More than one connection can do this action. Choose one. Nothing was prepared.');
+  return granted[0];
+}
+
+export type Prepared =
+  | { status: 'prepared'; id: string; connector: string; operation: string; digest: string; impact: string | null; through: 'writeback' | 'core';
+      alwaysWaits: boolean; secondAsk: boolean; practice: boolean; connectionId: string | null; expiresAt: string | null }
+  | { status: 'already-done'; connector: string; operation: string; externalId: string | null; through: 'writeback' };
+const unreadable = 'SMALLAPP_PREPARE_UNREADABLE';
+/** Prepare, never more: writeback.prepare for writeback rows, core actions.prepare for core rows. */
+export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionRow, request: { payload: unknown; intentId: string; sourceIds?: string[]; connectionId?: unknown }): Promise<Prepared> {
+  const base = { connector: row.connector, operation: row.operation };
+  if (row.origin === 'writeback') {
+    const via = pressConnection(row, request.connectionId);
+    let reply: any;
+    try { reply = await host.call('writeback.prepare', { connectionId: via.id, action: row.operation, payload: request.payload, intentId: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}) }); }
+    catch (error) { if (error instanceof ChausarError && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(error.code)) throw new ChausarError('SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now. Nothing was prepared.'); throw error; }
+    check(plain(reply), unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
+    if (reply.status === 'already-done') {
+      return { status: 'already-done', ...base, through: 'writeback', externalId: typeof reply.externalId === 'string' && REF.test(reply.externalId) ? reply.externalId : null };
+    }
+    check(typeof reply.id === 'string' && REF.test(reply.id) && typeof reply.digest === 'string' && /^[A-Za-z0-9_.:-]{8,200}$/.test(reply.digest)
+      && reply.system === row.connector && reply.action === row.operation && typeof reply.alwaysWaits === 'boolean' && typeof reply.practice === 'boolean'
+      && typeof reply.kind === 'string' && Object.hasOwn(KIND_IMPACT, reply.kind) && plain(reply.approval) && typeof reply.approval.needsSecondAsk === 'boolean'
+      && (reply.expiresAt === null || typeof reply.expiresAt === 'string'),
+    unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
+    check(reply.status === 'prepared', unreadable, 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');
+    return { status: 'prepared', id: reply.id, ...base, digest: reply.digest, impact: KIND_IMPACT[reply.kind as string], through: 'writeback',
+      alwaysWaits: row.alwaysWaits || reply.alwaysWaits, secondAsk: reply.approval.needsSecondAsk, practice: reply.practice, connectionId: via.id,
+      expiresAt: typeof reply.expiresAt === 'string' && reply.expiresAt.length <= 40 ? reply.expiresAt : null };
+  }
+  check(request.connectionId === undefined, 'SMALLAPP_INVALID', 'Built-in actions do not take a connection.');
+  const reply: any = await host.call('actions.prepare', { ...base, payload: request.payload, idempotencyKey: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}) });
+  check(plain(reply) && typeof reply.id === 'string' && REF.test(reply.id) && typeof reply.digest === 'string' && /^[A-Za-z0-9_.:-]{8,200}$/.test(reply.digest),
+    unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
+  check(reply.status === 'prepared', unreadable, 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');
+  return { status: 'prepared', id: reply.id, ...base, digest: reply.digest, impact: typeof reply.impact === 'string' && IMPACTS.has(reply.impact) ? reply.impact : row.impact,
+    through: 'core', alwaysWaits: row.alwaysWaits, secondAsk: false, practice: false, connectionId: null, expiresAt: null };
 }

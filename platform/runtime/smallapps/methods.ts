@@ -11,7 +11,7 @@ import { MODULE_ID, type ModulePart } from '../models-ext/part.ts';
 import type { Dictionary } from '../ontology.ts';
 import { actionRow, checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, usableOperation, validDay, type Card, type Descriptor, type Menu, type PeriodSpec } from './descriptor.ts';
 import { actionNote, plan, WAITS_WORDS } from './planner.ts';
-import { checkPayload, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
+import { checkPayload, grantedConnections, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
 import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, visibleVersions, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
@@ -158,9 +158,13 @@ const methods: Record<string, MethodSpec> = {
       else if (card.kind === 'table') { const rows = []; for (const row of card.rows) rows.push({ ...row, value: await figure(host, state, dictionary, row.operation, card.period, card.branch, onDate) }); cards.push({ ...view, rows }); }
       else if (card.kind === 'action') {
         const row = actionRow(m, `${card.connector}/${card.operation}`)!, note = actionNote(card.id, row);
-        cards.push({ ...view, alwaysWaits: note.alwaysWaits, tier: note.tier, available: row.available,
-          press: !row.available ? 'unavailable' : ctx.role === 'viewer' ? 'read-only' : 'prepares-for-approval',
-          words: row.available ? note.words : 'This action is in the catalogue but not available now. Pressing it does nothing.' });
+        // Writeback actions go through a connection with this action granted; a practice connection prepares against Practice systems.
+        const through = grantedConnections(row).map(c => ({ id: c.id, label: c.label, environment: c.environment, practice: c.environment === 'practice' }));
+        const needsConnection = row.origin === 'writeback' && through.length === 0;
+        cards.push({ ...view, alwaysWaits: note.alwaysWaits, tier: note.tier, available: row.available, connections: through,
+          press: !row.available ? 'unavailable' : ctx.role === 'viewer' ? 'read-only' : needsConnection ? 'needs-connection' : 'prepares-for-approval',
+          words: !row.available ? 'This action is in the catalogue but not available now. Pressing it does nothing.'
+            : needsConnection ? 'Connect this system and allow this action on it before pressing. Pressing it now does nothing.' : note.words });
       }
       else cards.push({ ...view, experimental: true, entries: visibleBook(state, ctx).map(latestView).filter(e => e.status === 'open').sort((a, b) => a.when.localeCompare(b.when)) });
     }
@@ -191,27 +195,34 @@ const methods: Record<string, MethodSpec> = {
     });
   } },
   'smallapps.pressAction': { permission: 'prepare', async handler(ctx, payload, host) {
-    const input = fields(payload, ['id', 'cardId', 'payload'], ['sourceIds', 'idempotencyKey']);
+    const input = fields(payload, ['id', 'cardId', 'payload'], ['sourceIds', 'idempotencyKey', 'connectionId']);
     const app = findApp(host.store.read(), input.id); const m = await menu(host); requireCurrent(app, m);
     const card = app.descriptor.cards.find(c => c.id === input.cardId);
     check(card?.kind === 'action', 'SMALLAPP_NOT_ACTION_CARD', 'Only an action card can be pressed.');
     const row = actionRow(m, `${card.connector}/${card.operation}`)!;
     check(row.available, 'SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now. Nothing was prepared.');
-    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 64 && input.sourceIds.every((s: unknown) => typeof s === 'string' && s.length <= 200), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
-    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string' && input.idempotencyKey.length <= 200, 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
-    // What the person typed is data: checked against the row's schema, never through the number guard.
-    if (row.payloadSchema) checkPayload(row.payloadSchema, input.payload);
+    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 50 && input.sourceIds.every((s: unknown) => typeof s === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(s)), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
+    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(input.idempotencyKey), 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
+    if (input.connectionId !== undefined) check(typeof input.connectionId === 'string' && input.connectionId.length <= 200, 'SMALLAPP_INVALID', 'Give a plain connection identifier.');
+    // What the person typed is data: its required fields are checked here, its exact shape by the writeback adapter, never by the number guard.
+    if (row.origin === 'writeback') checkPayload(row, input.payload);
     // The one path to an action: prepare. Approval and execution stay with the person.
-    const action = await prepareAction(host, row, { payload: input.payload, ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), idempotencyKey: input.idempotencyKey ?? newId('smallapp') });
+    const action = await prepareAction(host, row, { payload: input.payload, intentId: input.idempotencyKey ?? newId('smallapp'),
+      ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}) });
+    if (action.status === 'already-done') return { action: null, alreadyDone: { connector: action.connector, operation: action.operation, externalId: action.externalId },
+      words: 'This is already in the system. Nothing was prepared and nothing will be sent.' };
     await host.store.update(state => {
       const stored = mine(state).apps.find(a => a.id === app.id); if (!stored) return;
       stored.presses.push({ actionId: action.id, cardId: card.id, at: now(), by: ctx.memberId }); stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
       audit(state, 'smallapp.pressed', { appId: app.id, actionId: action.id });
     });
-    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through },
-      approval: { waits: true, alwaysWaits: row.alwaysWaits, tier: row.tier, kind: 'action', id: action.id, digest: action.digest },
-      words: row.alwaysWaits ? `Prepared only; nothing was approved or done. ${WAITS_WORDS} This one waits for a person to approve it in the app.`
-        : 'Prepared only. It waits on the normal approval card; nothing was approved or done.' };
+    const writeback = action.through === 'writeback';
+    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through,
+        connectionId: action.connectionId, practice: action.practice, expiresAt: action.expiresAt },
+      approval: { waits: true, alwaysWaits: action.alwaysWaits, tier: row.tier, kind: 'action', id: action.id, digest: action.digest, secondAsk: action.secondAsk,
+        approveWith: writeback ? 'writeback.approve' : 'actions.approve', ...(action.secondAsk ? { reauthWith: 'writeback.reauth' } : {}) },
+      words: `${action.practice ? 'Practice: nothing goes to a real system. ' : ''}${action.alwaysWaits ? `Prepared only; nothing was approved or done. ${WAITS_WORDS} This one waits for a person to approve it in the app.`
+        : 'Prepared only. It waits on the normal approval card; nothing was approved or done.'}${action.secondAsk ? ' Approving it asks for your passphrase again.' : ''}` };
   } },
   'smallapps.records.add': { permission: 'prepare', async handler(ctx, payload, host) {
     const input = fields(payload, ['who', 'when'], ['said', 'customerId', 'status'], 'SMALLAPP_RECORD_INVALID');
