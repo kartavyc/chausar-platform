@@ -147,3 +147,13 @@ test('identity listing has a final batch checkpoint for withdrawal of an earlier
   };
   await assert.rejects(f.host.handle(f.authentication('request.list', {})), code('CAPABILITY_FORBIDDEN'));
 });
+
+test('approval.list passes only a known eligibility hint through and refuses an unknown one', async () => {
+  const f = fixture();
+  f.ports.approvals = async () => [{ approvalId: 'note', title: 'Small note', eligibility: 'simple-reversible' }, { approvalId: 'money', title: 'Payment', eligibility: 'open-desktop' }, { approvalId: 'plain', title: 'No hint' }];
+  assert.deepEqual(await f.host.handle(f.authentication('approval.list', {})), [{ approvalId: 'note', title: 'Small note', eligibility: 'simple-reversible' }, { approvalId: 'money', title: 'Payment', eligibility: 'open-desktop' }, { approvalId: 'plain', title: 'No hint' }]);
+  f.ports.approvals = async () => [{ approvalId: 'note', title: 'Small note', eligibility: 'always' as never }];
+  await assert.rejects(f.host.handle(f.authentication('approval.list', {})), code('INVALID_RESPONSE'));
+  f.ports.approvals = async () => [{ approvalId: 'note', title: 'Small note', eligibility: 'simple-reversible', extra: 'never forwarded' } as never];
+  assert.deepEqual(await f.host.handle(f.authentication('approval.list', {})), [{ approvalId: 'note', title: 'Small note', eligibility: 'simple-reversible' }]);
+});

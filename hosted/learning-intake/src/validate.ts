@@ -112,12 +112,12 @@ export function validateEvent(value: unknown): StructuralEvent {
   for (const key of listKeys) {
     const list = value[key];
     if (list === undefined) continue;
-    check(Array.isArray(list) && list.length <= 50 && list.every(item => within(EVENT_LISTS[key], item)), 'INVALID_BATCH');
+    check(Array.isArray(list) && list.length > 0 && list.length <= 50 && list.every(item => within(EVENT_LISTS[key], item)), 'INVALID_BATCH');
     check(list.every((item, index) => index === 0 || (list[index - 1] as string) < (item as string)), 'INVALID_BATCH');
   }
   const fields = value.fields;
   if (fields !== undefined) {
-    check(Array.isArray(fields) && fields.length <= 1000, 'INVALID_BATCH');
+    check(Array.isArray(fields) && fields.length > 0 && fields.length <= 1000, 'INVALID_BATCH');
     check(fields.every(pair => Array.isArray(pair) && pair.length === 2 && within(FIELD_NAMES, pair[0]) && within(FIELD_TYPES, pair[1])), 'INVALID_BATCH');
     const pairs = fields as [string, string][];
     check(pairs.every((pair, index) => index === 0 || (pairs[index - 1][0].localeCompare(pair[0]) || pairs[index - 1][1].localeCompare(pair[1])) < 0), 'INVALID_BATCH');
@@ -132,7 +132,11 @@ export function validateBatch(value: unknown): StructuralBatch {
   check(Array.isArray(boxes) && boxes.length > 0 && boxes.every(box => within(BOXES, box)) && new Set(boxes).size === boxes.length, 'INVALID_BATCH');
   check(boxes.every(box => within(OPEN_BOXES, box)), 'BOX_NOT_OPEN');
   check(Array.isArray(events) && events.length > 0 && events.length <= 5000, 'INVALID_BATCH');
-  return { schema: LEARNING_SCHEMA, boxes: boxes as Box[], events: events.map(validateEvent) };
+  const clean = events.map(validateEvent);
+  // A batch holds each distinct event once with its `times` word: repeats or exact counts are refused, so counts cannot carry a message.
+  check(clean.every(event => event.times !== undefined), 'INVALID_BATCH');
+  check(new Set(clean.map(event => { const { times: _times, ...rest } = event; return canonical(rest); })).size === clean.length, 'INVALID_BATCH');
+  return { schema: LEARNING_SCHEMA, boxes: boxes as Box[], events: clean };
 }
 
 /** Public names: 2 to 40 letters, spaces, `.`, `-` or `'`; never a digit or `@`. */

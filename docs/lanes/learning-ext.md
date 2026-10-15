@@ -95,7 +95,7 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
     - At "shape", accounts go only as aliases with Tally group labels and keyword-table words, and dictionaries as field names, types and the structure of each definition.
     - At "samples", names and meanings are added, with identifiers masked.
     - Each call returns the gateway's exact payload preview.
-  - **Approval.** The owner approves that exact payload with `models.approve`. A tainted context cannot approve.
+  - **Approval.** The owner or a co-founder (the gateway's approvers) approves that exact payload with `models.approve`; only the person who asked can send it, so the screen offers Ask only to them. A tainted context cannot approve.
   - **Running it.** `learningx.accountsAskRun` and `learningx.editsAskRun` make a single attempt. Every attempt leaves a gateway receipt.
   - **Checking the output.** The output is checked strictly before anything is applied:
     - Account proposals must have known aliases and classes from the vocabulary. They are then merged as model evidence, so disagreement means a question.
@@ -113,6 +113,54 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
   - The builder refuses column titles that contain a number or an identifier.
   - At send level "nothing", `dictionary_schema` withholds the names of fields the owner added.
   - A residual covert channel remains: the *count* of each distinct event in a batch. Anyone who can record decisions could encode a few bits per batch through counts. It is bounded by the per-person quota, the author counts shown in the preview, and owner consent.
+
+## Round 4
+
+- **Books place, "Learning".** The lane's first screens: dictionary edits, first-dictionary adoption, the answer key, and model asks. See "Screens" below.
+- **Count channel reduced.** A batch now holds each distinct event once, with a `times` word: `one`, `few` (2–9) or `many` (10 or more).
+  - The intake refuses repeated events and events without `times`.
+  - Neither the order nor the exact count of decisions leaves the computer. What remains is which distinct shapes are present, plus a three-level frequency.
+- **Books account feed.** `learningx.accountsProposals` returns the shape work-books' `accounts.list` already reads.
+- **Canary on the upload.** When core exports `runOutboundChecks` from `gateway.ts` (core-gateway-auth, ROUND4 item 2), the upload runs the same outbound checks as a model send before anything leaves. A block refuses the batch with `CANARY_BLOCKED`. Until then nothing changes.
+
+## Screens
+
+Books → **Learning** (sub-place `{ place: 'books', id: 'learning' }`, named `SH-01.sub.books.learning`). Code is in `app/ui/src/screens/learning/`, the module in `app/ui/src/places/lane-learning-ext.tsx`, and the words (English and Hindi, `LX.*`) in `app/ui/src/text/lanes/learning-ext.ts`.
+
+1. **Dictionary edits.**
+   - A list of edits, from `learningx.edits`, filtered to awaiting review, failed the key, or all.
+   - Each row shows the change in words, the answer key before and after, failing cases, the cases it would break, and a stale mark.
+   - The owner approves or rejects through a sheet naming the exact change, which sends `editApprove` or `editReject` with `{ id, digest }`. Stale edits and edits that failed the key have no approve button.
+   - "Look for edits" calls `editsPropose`.
+2. **First dictionary.**
+   - Proposals come from `dictionaryProposals`, showing the pack, confidence and fields with evidence.
+   - Picking a CSV calls `dictionaryBuild`.
+   - The owner adopts through a sheet (`dictionaryAdopt`). The outcome shows the published version or the failing cases, and `PROPOSAL_STALE` in words.
+3. **Answer key.**
+   - Shows the hand-worked cases. Expected values come through the money formatter, labelled hand-worked.
+   - Rows withheld from people other than the owner are drawn in words.
+   - "Run the key" (owner or co-founder).
+   - The owner can reset to the default key or replace it with a key file, each through a confirm sheet.
+4. **Model asks.**
+   - Route choice: `modelRoute`, `modelRouteSet`, picked from `models.list`.
+   - Accounts and edits follow three separate presses: ask, which shows the exact bytes, endpoint, send level and digest; the owner's approval of exactly those bytes (`models.approve`); then "Send it once" (`accountsAskRun` / `editsAskRun`).
+   - Every "not yet" code is drawn in words.
+
+States: loading, empty, not built (`UNKNOWN_METHOD`, `INVALID_REQUEST`, `METHOD_UNAVAILABLE`), read only for viewers, error (including a reply in an unexpected shape), stale, and three levels of detail across the Simple, Guided and Books views. Tests are in `app/ui/tests/learning-ext-place.test.ts` (seams and words) and `frontend-validation/tests/learning-ext-place.test.tsx` (behaviour, 17 tests).
+
+## Round 4 contracts
+
+- **`learningx.accountsProposals`** (read, payload `{}`): `{ proposals: [{ name, class, accountClass, at, setId }] }`.
+  - Only the latest **decided** class per account name, across the sets the caller may see.
+  - `class` is in the Books taxonomy (`asset`, `liability`, `equity`, `income`, `expense`, `receivable`, `payable`, `bank`, `cash`, `tax`). `accountClass` is this lane's class.
+  - Suspense has no Books class and is never offered. Undecided proposals are not offered.
+- **`learningx.accountsPropose`** (prepare): payload `{ accounts: [{ id, name, parentGroup?, sourceId? }] (1–5000), modelProposals?: [{ id, accountClass, confidence, evidence }] }`. Returns a set:
+  - `{ id, at, sourceIds, proposals, counts: { total, decided, needsQuestion } }`;
+  - each of `proposals` is `{ accountId, name, parentGroup?, sourceId?, accountClass | null, confidence: 'high'|'medium'|'low', needsQuestion, evidence: [{ kind, detail, accountClass }], decision | null }`.
+- **`learningx.accountsList`** (read, `{}`): `{ sets: [set as above] }`. Viewers see only sets they made.
+- **`learningx.accountsDecide`** (prepare): `{ setId, decisions: [{ accountId, choice: 'accepted'|'corrected'|'rejected', accountClass? }] }`. Returns `{ setId, decisions: [{ accountId, choice, accountClass, decisionId }] }`.
+  - An account another person decided is changed only by them or the owner (`ALREADY_DECIDED`).
+- **Outbound checks (assumption on core-gateway-auth):** `export async function runOutboundChecks(store, context, { receiptId, endpoint, payload }): Promise<void>` in `gateway.ts`, which runs the registered `OutboundCheck`s and throws when one blocks.
 
 ## Core edits
 

@@ -1,4 +1,4 @@
-import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding, validBrief } from './contracts.ts';
+import { PhoneError, copyAuthority, copyBinding, copyApprovalListItem, copyBrief, isApprovalEligibility, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding, validBrief } from './contracts.ts';
 import type { AppChannel, ApprovalChallenge, ApprovalReceipt, BriefCache, BriefView, ChatAnswer, ConnectionState, DeviceBinding, PairingState, PhoneCapability, PhoneCredentialStore, PhoneErrorCode, PhoneMethods, PhoneTransport, RemoteRequest, RequestResult, RequestState, SessionAuthority, SessionGrant, UploadMetadata, UploadReceipt } from './contracts.ts';
 import type { PhoneReceipt } from './host-contracts.ts';
 
@@ -241,8 +241,8 @@ export class PhoneClient {
   }
   async listApprovals() {
     await this.fresh('approval.simple'); const items = await this.call('approval.list', {});
-    requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200), 'INVALID_RESPONSE');
-    return items.map(item => ({ approvalId: item.approvalId, title: item.title }));
+    requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200 && (item.eligibility === undefined || isApprovalEligibility(item.eligibility))), 'INVALID_RESPONSE');
+    return items.map(copyApprovalListItem);
   }
   async readReceipt(receiptId: string): Promise<PhoneReceipt> {
     requirePhone(isId(receiptId), 'INVALID_REQUEST');

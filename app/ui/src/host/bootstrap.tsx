@@ -41,6 +41,7 @@ import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, Scen
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
+import { useCaEnterpriseShell } from '../screens/ca-enterprise/host-wiring.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
 import { statusLine, statusSentences } from '../app/status-line.ts';
 import { HelpSheet } from '../app/HelpSheet';
@@ -49,6 +50,7 @@ import { Receipt } from '../parts/Receipt';
 import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
 import { receiptWithDetail, useReceiptDetail } from '../parts/receipt-detail.ts';
 import type { PlaceRpc } from '../places/types.ts';
+import { createLiveEvents, desktopWake, type LiveEvents } from '../places/live-events.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -431,6 +433,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
+  // core-sync-jobs (round 4): one live-refresh source per controller, disposed with it; places receive its `subscribe`.
+  const [liveEvents, setLiveEvents] = useState<LiveEvents | null>(null);
+  useEffect(() => { const created = createLiveEvents(controller.places, desktopWake()); setLiveEvents(created); return () => created.dispose(); }, [controller]);
+  const lane = useCaEnterpriseShell(controller.places, contextKey, language, frame.reads.shell !== null);
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -886,18 +892,19 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     </Sheet>,
   };
   const app: AppProps = {
-    shellKind: 'desktop', view, language,
+    shellKind: lane.kind, administers: lane.administers, allowed: lane.allowed, view, language,
     menu: {
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
       onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
       onReadAgain: () => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); },
+      ...lane.menu,
     },
     ...(frame.reads.shell !== null ? {
-      banners: shellBanners(frame.reads.shell, language, {
+      banners: [...shellBanners(frame.reads.shell, language, {
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
-      }),
+      }), ...lane.banners],
     } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
     idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
@@ -913,7 +920,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
     capabilities: {},
-    today: { data, intents: consumer !== null && todayCurrent !== null ? {
+    today: lane.withToday({ data, intents: consumer !== null && todayCurrent !== null ? {
       onReview: (id, rowOrigin) => {
         const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
         const row = rows[Number(id.replace(/^review-/, ''))];
@@ -933,13 +940,13 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         },
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
-    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } }),
     sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
         rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
         navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
-        ...(openLink !== undefined ? { openLink } : {}) });
+        ...(openLink !== undefined ? { openLink } : {}), ...(liveEvents !== null ? { subscribe: liveEvents.subscribe } : {}) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}

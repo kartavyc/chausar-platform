@@ -58,6 +58,8 @@ import { createEngineLessonService, type EngineLessonOptions } from './engine-le
 import { EngineTodayService } from './engine-today.ts';
 import type { TodayAttentionSelectionPolicy } from './engine-today-contracts.ts';
 import { TodayTilesService } from './today-tiles.ts';
+import { EngineEventBus } from './core-sync-jobs/event-bus.ts'; // core-sync-jobs (round 4)
+import { RequestAudits } from './core-sync-jobs/request-audits.ts'; // core-sync-jobs (round 4)
 import { TodayAttentionService, type TodayAttentionOptions } from './today-attention.ts';
 import { TodayEventsService } from './today-events.ts';
 import { TodayReviewService } from './today-review.ts';
@@ -80,6 +82,7 @@ import { authorize, audit, check, ChausarError, hash, newId, now, type Context, 
 import { engineModules, moduleMethods } from './modules/registry.ts';
 import type { ModuleHost } from './modules/types.ts';
 import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
+import { preparedExportPurge } from './core-data/prepared-exports.ts';
 
 // Engine modules register their namespace purge once, at load.
 for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
@@ -167,6 +170,11 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
+  // core-sync-jobs (round 4): event bus and request audits
+  /** Bumped when the open workspace or its authority revision changes (`events.subscribe`, the desktop event channel). */
+  readonly events = new EngineEventBus();
+  readonly #requestAudits = new RequestAudits(this.events, () => this.vault, () => this.context);
+  // end core-sync-jobs
   constructor(options: EngineOptions) {
     this.#demo = options.demo === true;
     check(!options.invoiceFollowUp || options.demo === true, 'INVOICE_SIMULATION_ONLY', 'Install invoice follow-up only in the explicitly experimental synthetic host.');
@@ -996,8 +1004,8 @@ export class Engine {
     const transition = transitions.has(method);
     check(!this.#transition && (!transition || this.#activeRequests === 0), 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     if (transition) this.#transition = true; else this.#activeRequests++;
-    try { return await this.handleRequest(method, payload); }
-    finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); }
+    try { return await this.#requestAudits.run(method, payload, () => this.handleRequest(method, payload)); } // core-sync-jobs: request audits
+    finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); this.#requestAudits.observe(); }
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
@@ -1519,7 +1527,7 @@ export class Engine {
       case 'sources.fetch': return s.connectors.fetch(ctx, payload);
       case 'sources.recipe': return s.connectors.proposeRecipe(ctx, payload);
       case 'sources.accept': return s.connectors.acceptRecipe(ctx, payload);
-      case 'sources.workbook': return readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
+      case 'sources.workbook': return readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet, password: payload.password }); // core-data: one-time workbook password
       case 'sources.workbookPreview': return s.imports.preview(ctx, this.workbookInput(payload));
       case 'sources.workbookImport': return s.imports.commit(ctx, this.workbookInput(payload));
       case 'ontology.packs': return s.ontology.packs();
@@ -1680,9 +1688,11 @@ export class Engine {
         this.requireWorkspaceOwner(ctx); const workspace = store.read().workspace;
         check(payload.confirmation === workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
         await this.revokeManagedCopyReceipts();
+        // core-data (WK-02 exports): prepared-export files this workspace's own record names, read before the vault goes.
+        const purgePreparedExports = preparedExportPurge(store.read(), this.options.directory);
         let removed: string[] = [];
         await this.deleteVault(store, async ({ privateArtifactPaths, assertCurrent }) => {
-          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent)];
+          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent), ...await purgePreparedExports(assertCurrent)];
         });
         return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
@@ -1852,7 +1862,8 @@ export class Engine {
     return Buffer.from(value, 'base64');
   }
   private workbookInput(payload: any) {
-    const workbook = readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
+    // core-data: the one-time password opens the workbook only; the input built below never carries it.
+    const workbook = readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet, password: payload.password });
     check(workbook.sheets.length === 1 || typeof payload.sheet === 'string', 'SHEET_REQUIRED', 'Choose the exact worksheet to import.');
     const sheet = payload.sheet ? workbook.sheets.find(item => item.name === payload.sheet) : workbook.sheets[0];
     check(sheet, 'SHEET_REQUIRED', 'The selected worksheet is missing.');
@@ -2153,6 +2164,6 @@ export class Engine {
         catch (error) { results.push({ module: engineModule.id, error: { code: (error as any).code ?? 'MODULE_SCHEDULER_FAILED' } }); }
       }
     return results;
-    } finally { this.#activeRequests--; this.notifyIdle(); }
+    } finally { this.#activeRequests--; this.notifyIdle(); this.#requestAudits.observe(); }
   }
 }
