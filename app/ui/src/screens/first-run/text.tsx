@@ -12,12 +12,15 @@ import type { Language } from '../../app/presentation.ts';
 import { TextProvider } from '../../app/text';
 import sharedEn from '../../text/en.json';
 import sharedHi from '../../text/hi.json';
+import { words as frameTodayWords } from '../../text/lanes/frame-today.ts';
 import en from './text/en.json';
 import hi from './text/hi.json';
 
 type Messages = Readonly<Record<string, string>>;
 
-const SHARED: Readonly<Record<Language, Messages>> = { en: sharedEn, hi: sharedHi };
+/** The shared catalogue plus this lane's own words (`text/lanes/frame-today.ts`), so a piece drawn both in
+ *  first run and under the host (the time zone, the ladder, joining) reads the same sentence in both. */
+const SHARED: Readonly<Record<Language, Messages>> = { en: { ...sharedEn, ...frameTodayWords.en }, hi: { ...sharedHi, ...frameTodayWords.hi } };
 export const LOCAL: Readonly<Record<Language, Messages>> = { en, hi };
 
 export function firstRunMessages(language: Language): Messages {

@@ -46,3 +46,11 @@ export {
   validateCalculationId, validateImport, validateOpened, validatePreview,
 } from './journey-contracts.ts';
 export type { JourneyFailure, JourneyMethod, JourneyPayloads, JourneyPort, MappingRecipe, RouteConfigInput, SheetPreview } from './journey-contracts.ts';
+
+/* Round 4 pieces other places draw too: Trust · Vault (PIN), Trust · Models (the ladder, local
+ * models), settings (the time zone), Trust · People and devices (join requests), Trust · Sharing. */
+export { PinSettings, PinUnlock } from './Pin';
+export { LocalModels, RouteLadder, moveRoute } from './RouteLadder';
+export { TimeZoneSetting, machineTimeZone, timeZoneList } from './TimeZone';
+export { JoinFromNew, JoinRequests } from './Join';
+export { SharingQuestion } from './Sharing';
