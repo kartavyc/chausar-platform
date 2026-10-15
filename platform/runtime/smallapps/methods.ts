@@ -15,6 +15,8 @@ import { checkPayload, grantedConnections, loadCatalogue, prepareAction, type Ca
 import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, visibleVersions, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
+  /** 'planner' only when this app's descriptor is exactly what the local planner makes from its line; anything else is outside text and presses as such. */
+  madeBy?: 'planner' | 'outside';
   history: { version: number; digest: string; dictionaryVersion: number; dictionaryHash: string; at: string; by: string; change: 'created' | 'rebuilt' }[];
   presses: { actionId: string; cardId: string; at: string; by: string }[] };
 type SmallApps = { apps: App[]; book: Entry[] };
@@ -70,7 +72,7 @@ function summary(app: App, m: Menu) {
   return { id: app.id, title: app.descriptor.title, version: app.version, createdBy: app.createdBy, createdAt: app.createdAt, updatedAt: app.updatedAt,
     uses: structuredClone(app.descriptor.uses), dictionary: structuredClone(app.descriptor.dictionary), outOfDate: reasons.length > 0, outOfDateReasons: reasons, experimental: true };
 }
-const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(app, m), descriptor: redact(app.descriptor, branches), digest: app.digest, request: app.request, history: structuredClone(app.history),
+const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(app, m), descriptor: redact(app.descriptor, branches), digest: app.digest, request: app.request, madeBy: app.madeBy ?? 'outside', history: structuredClone(app.history),
   actions: actionNotes(app.descriptor, m) });
 function actionNotes(descriptor: Descriptor, m: Menu) {
   return descriptor.cards.flatMap(c => { if (c.kind !== 'action') return []; const row = actionRow(m, `${c.connector}/${c.operation}`); return row ? [{ ...actionNote(c.id, row), available: row.available }] : []; });
@@ -127,11 +129,15 @@ const methods: Record<string, MethodSpec> = {
     const input = fields(payload, ['descriptor'], ['request']); const request = requestLine(input.request);
     const m = await menu(host);
     const descriptor = checkAgainstMenu(parseDescriptor(input.descriptor), m, branchesOf(host.store.read(), ctx));
+    const branches = branchesOf(host.store.read(), ctx);
+    const planned = request !== null ? plan(request, m, branches).descriptor : null;
+    const shape = (d: Descriptor) => digest({ ...d, cards: d.cards.map(({ id: _id, ...card }) => card) });
+    const madeBy: App['madeBy'] = planned && shape(planned) === shape(descriptor) ? 'planner' : 'outside';
     const app = await host.store.update(state => {
       const ns = mine(state); check(ns.apps.length < MAX_APPS, 'SMALLAPP_LIMIT', 'Remove an app before adding another.');
       check(state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_OUT_OF_DATE', 'The dictionary changed while the app was being saved. Propose it again.');
       const at = now(), d = digest(descriptor);
-      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request,
+      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request, madeBy,
         history: [{ version: 1, digest: d, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'created' }], presses: [] };
       ns.apps.push(created); audit(state, 'smallapp.created', { appId: created.id }); return structuredClone(created);
     });
@@ -207,7 +213,10 @@ const methods: Record<string, MethodSpec> = {
     // What the person typed is data: its required fields are checked here, its exact shape by the writeback adapter, never by the number guard.
     if (row.origin === 'writeback') checkPayload(row, input.payload);
     // The one path to an action: prepare. Approval and execution stay with the person.
-    const action = await prepareAction(host, row, { payload: input.payload, intentId: input.idempotencyKey ?? newId('smallapp'),
+    // A repeated press of the same card with the same payload is the same intent, so it prepares once.
+    // An app not made by the local planner carries outside text: its presses are marked as such.
+    const action = await prepareAction(host, row, { payload: input.payload, intentId: input.idempotencyKey ?? `smallapp:${app.id}:${card.id}:${digest(input.payload ?? null).slice(0, 32)}`,
+      tainted: app.madeBy !== 'planner',
       ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}) });
     if (action.status === 'already-done') return { action: null, alreadyDone: { connector: action.connector, operation: action.operation, externalId: action.externalId },
       words: 'This is already in the system. Nothing was prepared and nothing will be sent.' };

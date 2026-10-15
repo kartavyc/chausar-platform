@@ -165,12 +165,12 @@ export type Prepared =
   | { status: 'already-done'; connector: string; operation: string; externalId: string | null; through: 'writeback' };
 const unreadable = 'SMALLAPP_PREPARE_UNREADABLE';
 /** Prepare, never more: writeback.prepare for writeback rows, core actions.prepare for core rows. */
-export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionRow, request: { payload: unknown; intentId: string; sourceIds?: string[]; connectionId?: unknown }): Promise<Prepared> {
+export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionRow, request: { payload: unknown; intentId: string; sourceIds?: string[]; connectionId?: unknown; tainted?: boolean }): Promise<Prepared> {
   const base = { connector: row.connector, operation: row.operation };
   if (row.origin === 'writeback') {
     const via = pressConnection(row, request.connectionId);
     let reply: any;
-    try { reply = await host.call('writeback.prepare', { connectionId: via.id, action: row.operation, payload: request.payload, intentId: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}) }); }
+    try { reply = await host.call('writeback.prepare', { connectionId: via.id, action: row.operation, payload: request.payload, intentId: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}), ...(request.tainted ? { sourceTainted: true } : {}) }); }
     catch (error) { if (error instanceof ChausarError && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(error.code)) throw new ChausarError('SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now. Nothing was prepared.'); throw error; }
     check(plain(reply), unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
     if (reply.status === 'already-done') {
@@ -187,7 +187,8 @@ export async function prepareAction(host: Pick<ModuleHost, 'call'>, row: ActionR
       expiresAt: typeof reply.expiresAt === 'string' && reply.expiresAt.length <= 40 ? reply.expiresAt : null };
   }
   check(request.connectionId === undefined, 'SMALLAPP_INVALID', 'Built-in actions do not take a connection.');
-  const reply: any = await host.call('actions.prepare', { ...base, payload: request.payload, idempotencyKey: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}) });
+  const corePayload = { ...base, payload: request.payload, idempotencyKey: request.intentId, ...(request.sourceIds ? { sourceIds: request.sourceIds } : {}) };
+  const reply: any = await (request.tainted ? host.call('actions.prepare', corePayload, { tainted: true }) : host.call('actions.prepare', corePayload));
   check(plain(reply) && typeof reply.id === 'string' && REF.test(reply.id) && typeof reply.digest === 'string' && /^[A-Za-z0-9_.:-]{8,200}$/.test(reply.digest),
     unreadable, 'The prepared action came back in an unexpected shape. Check the approvals list before trying again.');
   check(reply.status === 'prepared', unreadable, 'The action did not come back as only prepared. Check the approvals list; nothing more is done from here.');

@@ -137,7 +137,7 @@ test('planner: any catalogue action is named by its words, English or romanised 
 
 async function appWith(host: ReturnType<typeof fakeHost>, line: string) {
   const proposed = await smallAppsPart.methods['smallapps.propose'].handler(owner, { line }, host) as any;
-  return smallAppsPart.methods['smallapps.create'].handler(owner, { descriptor: proposed.descriptor }, host) as any;
+  return smallAppsPart.methods['smallapps.create'].handler(owner, { descriptor: proposed.descriptor, request: line }, host) as any;
 }
 const pressOf = (host: ReturnType<typeof fakeHost>, app: any, cardId: string) => (payload: unknown, more: Record<string, unknown> = {}) =>
   smallAppsPart.methods['smallapps.pressAction'].handler(owner, { id: app.id, cardId, payload, ...more }, host) as Promise<any>;
@@ -253,4 +253,23 @@ test('date independence: presets resolve against the trusted clock, never the sy
   assert.equal(shown.cards[0].value.figures[0].minor, '250000');
   const action = shown.cards.find((c: any) => c.kind === 'action');
   assert.equal(action.alwaysWaits, false); assert.equal(action.available, true);
+});
+
+test('press: an app not made by the local planner presses as outside text, and a repeated press is one intent', async () => {
+  const prepared: any[] = [];
+  const host = fakeHost({ writeback: rows, prepare: request => { prepared.push(request); return view(request); } });
+  const planned = await appWith(host, 'sales this month with a refund button');
+  assert.equal(planned.madeBy, 'planner');
+  const proposed = await smallAppsPart.methods['smallapps.propose'].handler(owner, { line: 'sales this month with a refund button' }, host) as any;
+  const outside = await smallAppsPart.methods['smallapps.create'].handler(owner, { descriptor: proposed.descriptor }, host) as any;
+  assert.equal(outside.madeBy, 'outside');
+  const cardOf = (app: any) => app.descriptor.cards.find((c: any) => c.kind === 'action').id;
+  await pressOf(host, outside, cardOf(outside))({ paymentId: 'pay_1', amountMinor: '125000' });
+  assert.equal(prepared.at(-1).sourceTainted, true);
+  await pressOf(host, planned, cardOf(planned))({ paymentId: 'pay_1', amountMinor: '125000' });
+  await pressOf(host, planned, cardOf(planned))({ paymentId: 'pay_1', amountMinor: '125000' });
+  assert.equal(prepared.at(-1).sourceTainted, undefined);
+  assert.equal(prepared.at(-1).intentId, prepared.at(-2).intentId, 'the same card and payload is the same intent');
+  await pressOf(host, planned, cardOf(planned))({ paymentId: 'pay_2', amountMinor: '125000' });
+  assert.notEqual(prepared.at(-1).intentId, prepared.at(-2).intentId);
 });
