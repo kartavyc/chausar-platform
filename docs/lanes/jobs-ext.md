@@ -141,7 +141,10 @@ Refusal codes that screens can tell apart are on the jobs-ext line of `laneRefus
 | Detection of repeating work | supported |
 | The receivables week: aging cases, agreement, caps, a question, a step for a person, paid as a separate entry, acceptance | supported (reminders are local drafts until the writeback lane is merged) |
 | Cash position, weekly close (with its step for a person) | supported |
-| Stock check, GST matching | experimental: refused until the calculation, or the connectors method, exists |
+| GST matching (`connectorsx.gstMatch`, card names both sources, filing a person's step) | supported (end-to-end test on synthetic purchase registers) |
+| Stock check | experimental: refused with `TEMPLATE_CALCULATION_MISSING` until core-data publishes `stock_on_hand`; runs unchanged once it does |
+| Daily amount limit per kind (TR-05) | supported |
+| Deciding agent over the gateway `decide` purpose | experimental: falls back to the lookup agent until core-gateway-auth adds the purpose; tested against a stub of the contract below |
 | Catch-up rule (skip, once, all) and missed-run notes | supported |
 | Background mode semantics and setting | supported (the OS service install belongs to the release lane) |
 | Waking the computer for jobs | experimental: refused with `WAKE_TIMER_UNAVAILABLE` |
@@ -189,5 +192,21 @@ A missing method is treated as "not built", and the lane falls back to:
 - **Two core suggestions from the autonomy review (not made, core files):**
   - `ModuleHost.call` runs as the module's caller, so an agent-touched reminder sent to `writeback.prepare` carries its outside-text mark only as a payload field (`sourceTainted: true`). Writeback must honour it, or the host could let a module add the taint mark to the call's context.
   - `ModelGateway.approveOutbound` refuses the phone channel but not a context marked as read-from-outside. Every other approval refuses it.
-- **A live agent that decides.** The live gateway agent only looks up; it cannot choose remind, wait or stop, because the gateway accepts calculation plans only. A deciding live route would need a new gateway purpose (core). Procedures are therefore learned from synthetic-agent runs in tests.
-- **A stock calculation.** The calculator and dictionary measure money only (every definition binds a money field). Stock on hand would be a quantity measure, which is a new calculation kind in core `ontology.ts` and `calculator.ts`, not an additive registration. So `stock-check` keeps its refusal.
+- **A live agent that decides** waits on core-gateway-auth's `decide` purpose (contract below). Until then the live agent looks up and the decision stays with a person.
+- **The stock check** waits on core-data's quantity measure (`stock_on_hand`, contract below).
+
+## Round 4 contracts
+
+Methods this lane calls in other lanes, with the exact shape it expects. A missing method or purpose is treated as "not built yet" and refused or bypassed with a typed code; nothing is guessed.
+
+| Owner | Contract | Until it lands |
+|---|---|---|
+| models-ext | `modelsx.price` (read) `{ routeId: string }` → `{ routeId: string, unitMinor: string /* whole paise per model unit, /^(0\|[1-9]\d*)$/ */, basis: 'measured' \| 'estimate' \| 'zero', pricedAt: string /* ISO date-time */ }`. Any other reply is refused with `ROUTE_PRICE_INVALID`. | Host prices (`modules['jobs-ext'].routePrices`), then the local-model rule; otherwise `ROUTE_PRICE_UNAVAILABLE` (never counted as free). |
+| core-gateway-auth | `ModelGateway.preview(ctx, { purpose: 'decide', options: string[] /* 2–10 codes, /^[a-z0-9-]{1,32}$/ */, question, routeId, sourceIds, samples: [] })` then `execute(ctx, { previewId, approvalId? })` → `{ kind: 'decision', decision: { option: string, confidence?: number /* 0..1 */ }, receipt: { id, actualCostMinor?, costReservedMinor } }`. An option outside the offered list counts as no decision. | The gateway refuses the purpose (`INVALID_CONVERSATION_PURPOSE`, or `DECIDE_PURPOSE_UNAVAILABLE`/`UNKNOWN_PURPOSE`); the agent falls back to the lookup request and the case goes to a person. |
+| core-data | A published calculation `stock_on_hand` in the dictionary's `operations`, run as `calculator.calculate(ctx, { operation: 'stock_on_hand', sourceIds? })`, whose figures carry `unit` (for example `'quantity'`) instead of money. | `stock-check` is refused with `TEMPLATE_CALCULATION_MISSING`. |
+| writeback | `writeback.connections` (read) → `[{ id, system: 'mail' \| 'whatsapp' \| …, environment: 'live' \| 'sandbox' \| 'practice', write: string[], revokedAt? }]`; `writeback.followUp.prepare` `{ connectionId, customerId, invoiceId, sourceIds }` → `{ id, … }` or `{ status: 'already-done' }`, refusing `FOLLOW_UP_NO_CONSENT`, `FOLLOW_UP_STOPPED`, `FOLLOW_UP_DAILY_CAP`, `FOLLOW_UP_NEEDS_REVIEW`, `FOLLOW_UP_NOTHING_DUE`; called with `{ tainted: true }` on the call's context for an agent-touched reminder; `writeback.followUp.consents` → `[{ customerId, channel: 'email' \| 'whatsapp', answer: 'yes' \| 'no' \| 'not-asked' \| 'stopped', observedOn }]`. | A local reminder draft; the local consent register. |
+| connectors-ext | `connectorsx.gstMatch` `{ registerSourceId, gstr2bSourceId, period: { from, to } }` → `{ mode: 'matched' \| 'not-applicable', counts: { matched, amountMismatch, inBooksOnly, in2bOnly, probable, invalid } }`; `GST_MATCH_SOURCES_EMPTY` is an open item, not a failure. | `TEMPLATE_NOT_BUILT`. |
+| work-books / frame-today | The place registry must let `work/procedures` and `work/job-controls` reach `jobsExtPlaces` (work-books' Work module claims every `work` address today). | The screens are tested directly. |
+
+Methods this lane serves for others this round: `jobsx.autonomy` rows now carry `dailyAmountMinor` and `amountUsedTodayMinor`; `jobsx.setAutonomy` accepts `dailyAmountMinor` (whole paise, default `'0'`: nothing that touches money runs on its own).
+
