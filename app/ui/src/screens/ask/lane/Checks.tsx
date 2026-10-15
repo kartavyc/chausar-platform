@@ -9,7 +9,8 @@ import type { RowItem } from '../../../app/presentation.ts';
 import { Button } from '../../../parts/Button';
 import { RowList } from '../../../parts/RowList';
 import { bool, call, date, id, list, minor, obj, oneOf, optMinor, optStr, str } from './client.ts';
-import { AskPage, dayText, fill, missingFigure, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
+import { unitShape, type UnitShape } from './core-replies.ts';
+import { AskPage, dayText, figureOf, fill, missingFigure, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { catalogue, Part, Problem, StopButton, useRefusal, useSend } from './analysis';
 import s from './analysis.module.css';
 
@@ -27,7 +28,7 @@ export function expectedOf(e: Record<string, unknown>): { minor: string | null; 
   return { minor: minor(e.minor), receiptId: id(e.receiptId) };
 }
 export interface ChecksValue {
-  readonly items: readonly { id: string; question: string; operationId: string; figureKey: string; expected: { minor: string | null; receiptId: string | null }; last: CheckResult | null }[];
+  readonly items: readonly ({ id: string; question: string; operationId: string; figureKey: string; expected: { minor: string | null; receiptId: string | null }; last: CheckResult | null } & UnitShape)[];
   readonly due: boolean; readonly changed: readonly string[]; readonly lastRunAt: string | null;
 }
 export function checksReply(value: unknown): ChecksValue {
@@ -35,7 +36,7 @@ export function checksReply(value: unknown): ChecksValue {
   return {
     items: list(v.items, i => {
       const x = obj(i), e = obj(x.expected);
-      return { id: id(x.id), question: str(x.question, 2000), operationId: id(x.operationId), figureKey: str(x.figureKey, 100), expected: expectedOf(e), last: x.last === null ? null : checkResult(x.last) };
+      return { id: id(x.id), question: str(x.question, 2000), operationId: id(x.operationId), figureKey: str(x.figureKey, 100), expected: expectedOf(e), last: x.last === null ? null : checkResult(x.last), ...unitShape(x) };
     }, 2000),
     due: bool(v.due), changed: list(v.changed, c => str(c, 64), 20), lastRunAt: v.lastRunAt === null ? null : date(v.lastRunAt),
   };
@@ -76,7 +77,7 @@ export function ChecksScreen(_props: { view: Extract<AskView, { kind: 'checks' }
       {first => {
         const c = ran ?? first, lang = ask.language;
         const rows: RowItem[] = c.items.map(i => ({
-          id: i.id, what: i.question, figure: i.expected.minor === null || i.expected.receiptId === null ? missingFigure('withheld') : rowMoneyFigure(i.expected.minor, i.expected.receiptId, ask.view, lang),
+          id: i.id, what: i.question, figure: i.expected.minor === null || i.expected.receiptId === null ? missingFigure('withheld') : i.unit === 'money' ? rowMoneyFigure(i.expected.minor, i.expected.receiptId, ask.view, lang) : figureOf(i.unit, i.expected.minor, i.expected.receiptId, [], i.quantityUnit),
           mark: i.last === null ? 'off' : i.last.result === 'same' ? 'cha' : i.last.result === 'moved' ? 'wait' : 'unsure',
           note: i.last === null ? w.notYet : fill(w[i.last.result], { date: dayText(i.last.at, lang) }),
         }));

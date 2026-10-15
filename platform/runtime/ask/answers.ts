@@ -11,7 +11,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt, CalculationRequest } from '../calculator.ts';
 import { canSeeFact, validDate, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
-import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate , openReceipt } from './shared.ts';
+import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate, openReceipt, unitOf } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
 import { guardLines } from './guard.ts';
 export { asciiDigits, guardLines } from './guard.ts';
@@ -54,7 +54,8 @@ export function answerOf(host: ModuleHost, ctx: Context, receipt: CalculationRec
   return {
     kind: 'answer', answerId: answer?.id ?? null, receiptId: receipt.id, operationId: receipt.operation, label: operation?.label ?? receipt.operation,
     period: receipt.period, comparePeriod: receipt.comparePeriod, branch: receipt.branch, asOf: receipt.asOf, headline: headlineKey(receipt),
-    figures: receipt.figures.map(f => ({ key: f.key, label: f.label, minor: f.minor, unit: f.unit })),
+    // A figure keeps its own unit: a quantity or count is never drawn as rupees, and an unknown unit is plain text.
+    figures: receipt.figures.filter(f => typeof f.minor === 'string' && /^-?\d{1,40}$/.test(f.minor)).map(f => ({ key: f.key, label: f.label, minor: f.minor, ...unitOf(f) })),
     rows: { read: receipt.coverage.selectedRows, counted: receipt.coverage.countedRows, excluded: receipt.coverage.excludedRows },
     completeness: receipt.coverage.completeness, gaps: gapsOf(receipt), monthsNotLoaded: monthsNotLoaded(host, ctx, receipt), labels,
     explanation: { source: 'template', text: receipt.explanation, replaced: false, reason: 'no-model' },
@@ -70,7 +71,10 @@ export async function run(ctx: Context, payload: unknown, host: ModuleHost): Pro
   if (!operation) return { kind: 'refused', code: 'ASK_NO_CALCULATION' };
   const today = businessToday(host, request.today);
   const chosen: Period = request.period !== undefined ? period(request.period) : namedPeriod(request.periodId ?? 'last-month', today);
-  const calculation: CalculationRequest = { operation: operation.id, period: chosen };
+  // Stock on hand is counted as of a day, never over a period: the end of the chosen period, or today when none was chosen.
+  const stockDay = () => request.onDate !== undefined ? period({ from: request.onDate, to: request.onDate }).from
+    : request.period === undefined && request.periodId === undefined ? today : chosen.to < today ? chosen.to : today;
+  const calculation: CalculationRequest = operation.type === 'stock' ? { operation: operation.id, onDate: stockDay() } : { operation: operation.id, period: chosen };
   if (request.branch !== undefined && request.branch !== null) { check(identifier(request.branch), 'ASK_INVALID', 'Choose a branch by its name.'); calculation.branch = request.branch; }
   if (operation.type === 'change') calculation.comparePeriod = request.comparePeriod !== undefined ? period(request.comparePeriod) : priorPeriod(chosen);
   if (operation.type === 'aging') calculation.onDate = request.onDate !== undefined ? period({ from: request.onDate, to: request.onDate }).from : chosen.to;

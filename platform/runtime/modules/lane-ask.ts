@@ -9,7 +9,7 @@ import { getCheck, listChecks, removeCheck, runChecks, saveCheck, tickChecks } f
 import { get as whyGet, guess as whyGuess, start as whyStart } from '../ask/why.ts';
 import { plan, whatIf, whatIfGet } from '../ask/whatif.ts';
 import { forecast } from '../ask/forecast.ts';
-import { confirm, discard, draft, getDecision, inbox, listDecisions, review } from '../ask/decisions.ts';
+import { cancel, confirm, discard, draft, getDecision, inbox, listDecisions, review } from '../ask/decisions.ts';
 import { search } from '../ask/search.ts';
 import { exportIms, gst2b, line, setTolerance } from '../ask/gst2b.ts';
 import { change, explainRule, stop, tell } from '../ask/round4.ts';
@@ -62,6 +62,7 @@ export const askModule: EngineModule = {
     'askx.decisions.list': read(listDecisions),
     'askx.decisions.get': read(getDecision),
     'askx.decisions.review': prepare(review),
+    'askx.decisions.cancel': prepare(cancel),
     'askx.search': read(search),
     'askx.gst2b': read(gst2b),
     // The tolerance changes every seat's IMS list: an owner or cofounder decides it.

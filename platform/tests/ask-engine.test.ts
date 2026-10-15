@@ -735,3 +735,84 @@ test('round 4 review: questions stay questions, partial seats get no GST advice,
     allowedBy: { ruleId: 'r', check: 'c', device: 'desktop', memberId: 'someone-else', at: '2026-10-01T00:00:00.000Z' } }, 'owner');
   assert.deepEqual(p, { recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: null, acceptedAt: null }], meaning: null, forecast: null, allowedBy: null });
 });
+
+test('core-data follow-up: a quantity or count is never money — stock on hand keeps its units through answer, guard, check and saved', async t => {
+  const engine = await workspace(t);
+  const packs = await ask(engine, 'ontology.packs');
+  const draft = structuredClone(packs.find((p: any) => p.pack === 'distributor'));
+  draft.definitions.push({ name: 'stock', label: 'Stock', meaning: 'Goods moved into (positive) or out of (negative) the shop, by movement date.', kind: 'stock_move', field: 'quantity', currency: 'INR', nulls: 'reject',
+    measure: 'quantity', unit: 'unit', item: 'sku', balance: 'movements' });
+  await ask(engine, 'ontology.publish', { draft });
+  const move = (entityId: string, sku: string, quantity: number, unit: string, validFrom: string) => ({ entityId, kind: 'stock_move', validFrom, sourceId: 'stock', sourceRow: 2, branch: 'main', fields: { sku, unit, quantity } });
+  await (engine as any).services.memory.append(owner, [move('m1', 'SKU-A', 1200, 'boxes', '2026-09-01'), move('m2', 'SKU-B', 5, 'kg', '2026-09-02')]);
+
+  const answer = await ask(engine, 'askx.run', { operationId: 'stock_on_hand', periodId: 'last-month', today: TODAY });
+  assert.equal(answer.kind, 'answer');
+  assert.deepEqual(answer.figures.map((f: any) => [f.key, f.minor, f.unit, f.quantityUnit]),
+    [['item:SKU-A', '1200', 'quantity', 'boxes'], ['item:SKU-B', '5', 'quantity', 'kg'], ['items', '2', 'count', null]]);
+  assert.ok(answer.figures.every((f: any) => f.unit !== 'money'), 'no stock figure is typed as money');
+  assert.equal(answer.guard.status, 'passed');
+
+  // The guard: a quantity matches only with its own unit word, never as rupees, a scale or a percent.
+  const receipt = await ask(engine, 'receipts.get', { id: answer.receiptId });
+  const said = (text: string) => guardLines(text, receipt).map(l => l.matched === null ? null : 'figureKey' in l.matched ? l.matched.figureKey : l.matched.field);
+  assert.deepEqual(said('1200 boxes of SKU-A'), ['item:SKU-A']);
+  assert.deepEqual(said('₹1200 of stock'), [null]);
+  assert.deepEqual(said('1200 lakh boxes'), [null]);
+  assert.deepEqual(said('1200 kg'), [null], 'a quantity said in another unit does not match');
+  assert.deepEqual(said('2 items with stock'), ['items']);
+  assert.deepEqual(said('Rs 2 items'), [null]);
+  const guarded = await ask(engine, 'askx.guard', { receiptId: answer.receiptId, text: 'You hold ₹1,200 of SKU-A.' });
+  assert.equal(guarded.status, 'replaced');
+
+  const check = await ask(engine, 'askx.checks.save', { receiptId: answer.receiptId, figureKey: 'item:SKU-A' });
+  const list = await ask(engine, 'askx.checks.list');
+  assert.deepEqual([list.items[0].unit, list.items[0].quantityUnit, list.items[0].expected.minor], ['quantity', 'boxes', '1200']);
+  const one = await ask(engine, 'askx.checks.get', { checkId: check.id });
+  assert.deepEqual([one.unit, one.quantityUnit], ['quantity', 'boxes']);
+
+  await ask(engine, 'askx.save', { receiptId: answer.receiptId });
+  const saved = await ask(engine, 'askx.saved');
+  assert.equal(saved.items[0].headline.kind, 'quantity');
+  assert.notEqual(saved.items[0].headline.kind, 'money');
+});
+
+test('core-data follow-up: an unknown unit is plain text, and a stored money check keeps its unit', async () => {
+  const { unitOf } = await import('../runtime/ask/shared.ts');
+  assert.deepEqual(unitOf({ unit: 'money' }), { unit: 'money', quantityUnit: null });
+  assert.deepEqual(unitOf({ unit: 'quantity', quantityUnit: 'pcs' }), { unit: 'quantity', quantityUnit: 'pcs' });
+  assert.deepEqual(unitOf({ unit: 'quantity', quantityUnit: 'pcs‮' }), { unit: 'quantity', quantityUnit: null });
+  assert.deepEqual(unitOf({ unit: 'count', quantityUnit: 'pcs' }), { unit: 'count', quantityUnit: null });
+  for (const unit of ['litres', 'MONEY', '', null, undefined, 7]) assert.deepEqual(unitOf({ unit }), { unit: 'other', quantityUnit: null });
+  // An unknown unit never matches a written number, with or without a currency mark.
+  const receipt: any = { figures: [{ key: 'x', label: 'X', minor: '500', display: '500', unit: 'litres' }], rows: [], coverage: { countedRows: 0, excludedRows: 0 } };
+  assert.deepEqual(guardLines('₹500 and 500', receipt).map(l => l.matched), [null, null]);
+});
+
+test('core-data follow-up: decisions read decidedOn, and the member who recorded one can cancel it', async t => {
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  const answer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
+  const { id } = await ask(engine, 'askx.decisions.draft', { sentence: 'Hold credit for customer A.', reviewDate: '2099-01-31', receiptIds: [answer.receiptId], decidedOn: '2026-10-01' });
+  const { decisionId } = await ask(engine, 'askx.decisions.confirm', { draftId: id });
+  let decision = await ask(engine, 'askx.decisions.get', { decisionId });
+  assert.deepEqual([decision.decidedOn, decision.recordedLater, decision.canCancel, decision.cancelled, decision.cancellation], ['2026-10-01', true, true, false, null]);
+  assert.equal(decision.known[0].unit, 'money');
+  const listed = await ask(engine, 'askx.decisions.list');
+  assert.equal(listed.items[0].decidedOn, '2026-10-01');
+
+  // Another member cannot cancel it, a stale revision is refused, and a reason is required.
+  const accountant: Context = { memberId: 'acct', role: 'accountant', epoch: 1, channel: 'desktop' };
+  const host: any = { options: {}, store: { read: () => (engine as any).store().read() }, call: async (method: string) => {
+    if (method === 'decisions.list') return (engine as any).store().read().decisions; throw new Error(method); } };
+  const { cancel } = await import('../runtime/ask/decisions.ts');
+  await assert.rejects(cancel(accountant, { decisionId, revision: decision.revision, reason: 'Not mine.' }, host), code('ASK_REFUSED'));
+  await assert.rejects(ask(engine, 'askx.decisions.cancel', { decisionId, revision: decision.revision + 1, reason: 'Changed my mind.' }), code('ASK_CHANGED'));
+  await assert.rejects(ask(engine, 'askx.decisions.cancel', { decisionId, revision: decision.revision, reason: '' }), code('ASK_INVALID'));
+
+  decision = await ask(engine, 'askx.decisions.cancel', { decisionId, revision: decision.revision, reason: 'Customer A paid in full.' });
+  assert.deepEqual([decision.cancelled, decision.status, decision.canCancel, decision.cancellation.reason], [true, 'closed', false, 'Customer A paid in full.']);
+  assert.ok(!(await ask(engine, 'askx.decisions.inbox')).due.some((d: any) => d.id === decisionId));
+  await assert.rejects(ask(engine, 'askx.decisions.cancel', { decisionId, revision: decision.revision, reason: 'Again.' }), code('ASK_REFUSED'));
+  assert.equal((await ask(engine, 'askx.decisions.list')).items[0].cancelled, true);
+});

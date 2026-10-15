@@ -285,7 +285,7 @@ test('a decision opened from why carries its receipts into the draft', async () 
 
 test('a decision shows what was known then and records a review', async () => {
   const user = userEvent.setup();
-  const decision = { id: 'dec-1', text: 'Raise prices by 3%', createdAt: '2026-09-02T00:00:00.000Z', reviewDate: '2026-10-02', status: 'open', recordedLater: true, replaced: false, cancelled: false, revision: null, known: [{ receiptId: 'r-aug', label: 'Collections', minor: '100000', asOf: '2026-09-01' }, { receiptId: 'r-x', label: 'Stock', minor: null, asOf: '2026-09-01' }], reviews: [], journal: true };
+  const decision = { id: 'dec-1', text: 'Raise prices by 3%', createdAt: '2026-09-02T00:00:00.000Z', reviewDate: '2026-10-02', status: 'open', recordedLater: true, replaced: false, cancelled: false, revision: null, decidedOn: null, cancellation: null, canCancel: false, known: [{ receiptId: 'r-aug', label: 'Collections', minor: '100000', asOf: '2026-09-01', unit: 'money', quantityUnit: null }, { receiptId: 'r-x', label: 'Stock', minor: null, asOf: '2026-09-01', unit: 'money', quantityUnit: null }], reviews: [], journal: true };
   const rpc = mount(sheet('decision.dec-1', 'decisions'), { 'askx.decisions.get': () => decision, 'askx.decisions.review': p => ({ ...decision, status: 'closed', reviews: [{ at: '2026-10-14T00:00:00.000Z', outcome: p.outcome, notes: p.notes ?? null, nextReviewDate: null }] }) });
   expect(await screen.findByText('Raise prices by 3%')).toBeTruthy();
   expect(screen.getByText('recorded later')).toBeTruthy();
@@ -298,12 +298,12 @@ test('a decision shows what was known then and records a review', async () => {
   expect(rpc.calls.find(c => c[0] === 'askx.decisions.review')![1]).toEqual({ decisionId: 'dec-1', outcome: 'completed', notes: 'Margins held' });
 });
 
-const checks = (last: unknown) => ({ items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', expected: { minor: '100000', receiptId: 'r-aug' }, last }], due: last === null, changed: last === null ? ['route', 'recipes'] : [], lastRunAt: last === null ? null : '2026-10-14T00:00:00.000Z' });
+const checks = (last: unknown) => ({ items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, expected: { minor: '100000', receiptId: 'r-aug' }, last }], due: last === null, changed: last === null ? ['route', 'recipes'] : [], lastRunAt: last === null ? null : '2026-10-14T00:00:00.000Z' });
 const moved = { at: '2026-10-14T00:00:00.000Z', result: 'moved', minor: '99000', receiptId: 'r-aug-2', code: null, because: ['recipes'] };
 
 test('checks: rows with expected value and last result; run all; a moved check opens old and new', async () => {
   const user = userEvent.setup();
-  const rpc = mount({ place: 'ask', sub: 'checks' }, { 'askx.checks.list': () => checks(null), 'askx.checks.run': () => checks(moved), 'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100000', receiptId: 'r-aug' }, results: [moved] }) });
+  const rpc = mount({ place: 'ask', sub: 'checks' }, { 'askx.checks.list': () => checks(null), 'askx.checks.run': () => checks(moved), 'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100000', receiptId: 'r-aug' }, results: [moved] }) });
   expect(await screen.findByText('not run yet')).toBeTruthy();
   expect(screen.getByText(/Checks run again on every change of model route, meaning, recipe or app version/)).toBeTruthy();
   expect(screen.getByText('Changed since the last run: the model route and a recipe.')).toBeTruthy();
@@ -333,7 +333,7 @@ test('a viewer seat sees no control that changes anything', async () => {
   expect(await screen.findByText('A festival week moved payments')).toBeTruthy();
   for (const name of ['Add the guess', 'Save', 'Record a decision']) expect(screen.queryByRole('button', { name })).toBeNull();
   cleanup();
-  mount(sheet('check.c-1', 'checks'), { 'askx.checks.get': () => ({ id: 'c-1', question: 'Q', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100000', receiptId: 'r-aug' }, results: [] }) }, { viewer: true });
+  mount(sheet('check.c-1', 'checks'), { 'askx.checks.get': () => ({ id: 'c-1', question: 'Q', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100000', receiptId: 'r-aug' }, results: [] }) }, { viewer: true });
   expect(await screen.findByText('This check has not run yet.')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
 });

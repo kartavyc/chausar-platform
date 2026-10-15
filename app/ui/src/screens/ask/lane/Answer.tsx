@@ -75,7 +75,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
   const [guardOpen, setGuardOpen] = useState(ask.view === 'books');
   const [act, setAct] = useState<Act>({ kind: 'idle' });
   const toReceipt = (receiptId: string) => ask.go({ kind: 'receipt', receiptId });
-  const figs = a.figures.map(f => ({ f, figure: figureOf(f.unit, f.minor, a.receiptId, a.labels) }));
+  const figs = a.figures.map(f => ({ f, figure: figureOf(f.unit, f.minor, a.receiptId, a.labels, f.quantityUnit) }));
   const head: FigureOrMissing = figs[0]?.figure ?? missingFigure(a.completeness === 'empty' ? 'not-loaded-yet' : 'absent');
   const bars: ChartValue[] = figs.map(({ f, figure }) => ({ id: f.key, label: f.label, value: figure }));
   const matched = (m: GuardMatch) => m === null ? w.matchNone : 'figureKey' in m

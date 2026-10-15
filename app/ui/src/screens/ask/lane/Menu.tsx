@@ -490,7 +490,7 @@ function SideBySide({ choices, periodId }: { choices: readonly MeaningChoice[]; 
             const a = reply.value, f = a.figures[0];
             body = (
               <>
-                {f === undefined ? <MissingWords missing="absent" /> : <Figure size="tile" value={figureOf(f.unit, f.minor, a.receiptId, a.labels.filter(l => l === 'seed' || l === 'what-if'))} onReceipt={open} />}
+                {f === undefined ? <MissingWords missing="absent" /> : <Figure size="tile" value={figureOf(f.unit, f.minor, a.receiptId, a.labels.filter(l => l === 'seed' || l === 'what-if'), f.quantityUnit)} onReceipt={open} />}
                 {a.period !== null && <p className={s.small}>{periodText(a.period, ask.language)}</p>}
                 <div className={s.actions}><Button variant="link" onClick={() => ask.go({ kind: 'answer', receiptId: a.receiptId })}>{more.openAnswer}</Button></div>
               </>

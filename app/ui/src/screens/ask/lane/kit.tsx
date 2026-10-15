@@ -82,8 +82,18 @@ export function moneyFigure(minorValue: string, receiptId: string, labels: reado
 export function bpsFigure(bps: string, receiptId: string, labels: readonly FigureLabel[] = []): Figure {
   return { kind: 'percent', exact: bps, display: percent(bps), receiptId, labels };
 }
-export function figureOf(unit: 'money' | 'basis-points', minorValue: string, receiptId: string, labels: readonly FigureLabel[] = []): Figure {
-  return unit === 'money' ? moneyFigure(minorValue, receiptId, labels) : bpsFigure(minorValue, receiptId, labels);
+/** A whole count, grouped; a negative count keeps its sign. */
+const signedCount = (v: string) => v.startsWith('-') ? `-${countText(v.slice(1))}` : countText(v);
+/**
+ * A figure in its own unit. Money is rupees and basis points a percent. A quantity is a number with
+ * its unit word ("1,200 boxes"), a count is a plain number, and a unit this page does not know is
+ * the digits as written: none of these is ever drawn as rupees.
+ */
+export function figureOf(unit: 'money' | 'basis-points' | 'quantity' | 'count' | 'other', minorValue: string, receiptId: string, labels: readonly FigureLabel[] = [], quantityUnit: string | null = null): Figure {
+  if (unit === 'money') return moneyFigure(minorValue, receiptId, labels);
+  if (unit === 'basis-points') return bpsFigure(minorValue, receiptId, labels);
+  const display = unit === 'other' ? minorValue : quantityUnit !== null && unit === 'quantity' ? `${signedCount(minorValue)} ${quantityUnit}` : signedCount(minorValue);
+  return { kind: 'count', exact: minorValue, display, receiptId, labels };
 }
 /** The words for the short money form the Simple view uses in rows (part 8). */
 const SHORT = { en: { lakh: 'lakh', crore: 'crore' }, hi: { lakh: 'लाख', crore: 'करोड़' } } as const satisfies Catalogue<'lakh' | 'crore'>;

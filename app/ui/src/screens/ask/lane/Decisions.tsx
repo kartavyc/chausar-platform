@@ -30,12 +30,12 @@ export function inboxReply(value: unknown): Inbox {
     waiting: list(v.waiting, d => { const x = obj(d); return { id: id(x.id), text: str(x.text, 2000), at: date(x.at) }; }, 500),
   };
 }
-export interface Journal { readonly items: readonly { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; reviews: number; receiptIds: readonly string[] }[] }
+export interface Journal { readonly items: readonly { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; decidedOn: string | null; reviews: number; receiptIds: readonly string[] }[] }
 export function journalReply(value: unknown): Journal {
   return {
     items: list(obj(value).items, d => {
       const x = obj(d);
-      return { id: id(x.id), text: str(x.text, 2000), createdAt: date(x.createdAt), reviewDate: date(x.reviewDate), status: oneOf(x.status, ['open', 'closed'] as const), recordedLater: bool(x.recordedLater), replaced: bool(x.replaced), cancelled: x.cancelled === undefined ? false : bool(x.cancelled), reviews: int(x.reviews), receiptIds: list(x.receiptIds, id, 50) };
+      return { id: id(x.id), text: str(x.text, 2000), createdAt: date(x.createdAt), reviewDate: date(x.reviewDate), status: oneOf(x.status, ['open', 'closed'] as const), recordedLater: bool(x.recordedLater), replaced: bool(x.replaced), cancelled: x.cancelled === undefined ? false : bool(x.cancelled), decidedOn: x.decidedOn === null || x.decidedOn === undefined ? null : date(x.decidedOn), reviews: int(x.reviews), receiptIds: list(x.receiptIds, id, 50) };
     }, 5000),
   };
 }
@@ -91,7 +91,7 @@ function Body({ both, receiptIds, reload }: { both: Both; receiptIds: readonly s
   const waitRows: RowItem[] = waiting.map(d => ({ id: d.id, mark: 'busy', what: d.text, note: fill(w.askedOn, { date: dayText(d.at, lang) }) }));
   const events: TimeEvent[] = both.journal.items.map(d => {
     const status = d.replaced ? w.replaced : d.cancelled ? w.cancelled : d.status === 'closed' ? w.closed : fill(w.open, { date: dayText(d.reviewDate, lang) });
-    return { id: d.id, mark: d.status === 'open' && !d.replaced ? 'you' : 'off', date: dayText(d.createdAt, lang), sentence: fill(d.recordedLater ? w.lineLater : w.line, { text: d.text, status }) };
+    return { id: d.id, mark: d.status === 'open' && !d.replaced ? 'you' : 'off', date: dayText(d.decidedOn ?? d.createdAt, lang), sentence: fill(d.recordedLater ? w.lineLater : w.line, { text: d.text, status }) };
   });
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(review);
   return (

@@ -10,7 +10,7 @@ import type { CalculationReceipt } from '../calculator.ts';
 import type { JournalContent, JournalDecision } from '../decision-journal.ts';
 import { validDate } from '../memory.ts';
 import type { DecisionReply, DecisionsReply, InboxReply } from './contracts.ts';
-import { askState, businessToday, core, headlineKey, identifier, input, peekAsk, requireId, text , openReceipt } from './shared.ts';
+import { askState, businessToday, core, headlineKey, identifier, input, peekAsk, requireId, text, openReceipt, unitOf } from './shared.ts';
 
 function receiptIds(value: unknown): string[] {
   check(value === undefined || Array.isArray(value) && value.length <= 10 && value.every(identifier) && new Set(value).size === value.length, 'ASK_INVALID', 'Cite at most ten receipts.');
@@ -36,8 +36,10 @@ export async function draft(ctx: Context, payload: unknown, host: ModuleHost, or
 }
 function defaultReview(today: string) { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 30); return d.toISOString().slice(0, 10); }
 
-function content(ctx: Context, item: { sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string }): JournalContent {
+function content(ctx: Context, item: { sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; decidedOn?: string }): JournalContent {
   return {
+    // The journal keeps the day it was decided and marks the decision recorded later itself.
+    ...(item.decidedOn === undefined ? {} : { decidedOn: item.decidedOn }),
     text: item.sentence, selectedOptionId: 'as-written', ownerId: ctx.memberId, reviewDate: item.reviewDate, hypotheses: [], assumptions: [],
     options: [{ id: 'as-written', label: item.sentence.slice(0, 200), reason: 'Recorded as written by the person deciding.', evidence: item.receiptIds.map(receiptId => ({ receiptId })) }],
     expectedOutcome: { description: 'Asked again on the review date how it went.', measure: 'The person’s own review', population: 'This workspace',
@@ -79,7 +81,15 @@ export async function discard(ctx: Context, payload: unknown, host: ModuleHost) 
 
 async function decisions(host: ModuleHost): Promise<any[]> { return core<any[]>(host, 'decisions.list', {}); }
 const later = (host: ModuleHost, id: string) => (peekAsk(host.store.read()).decided ?? []).some(d => d.decisionId === id);
-const cancelled = (d: any) => d.status === 'closed' && Array.isArray(d.reviews) && d.reviews.at(-1)?.outcome === 'rejected';
+/** Cancelled through `decisions.journal.cancel`, or (older records) closed on a rejected review. */
+const cancelled = (d: any) => d.status === 'cancelled' || (d.status === 'closed' && Array.isArray(d.reviews) && d.reviews.at(-1)?.outcome === 'rejected');
+const statusOf = (d: any) => d.status === 'open' ? 'open' as const : 'closed' as const;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const decidedOnOf = (d: any): string | null => typeof d.decidedOn === 'string' && DAY.test(d.decidedOn) && validDate(d.decidedOn) ? d.decidedOn : null;
+/** Recorded later: the journal says so, or Ask kept the note when it confirmed the draft. */
+const recordedLater = (host: ModuleHost, d: any) => d.recordedLater === true || later(host, d.id);
+const cancellationOf = (d: any) => d.status === 'cancelled' && typeof d.cancellation?.reason === 'string' && typeof d.cancellation?.at === 'string'
+  ? { reason: d.cancellation.reason.slice(0, 2000), at: d.cancellation.at } : null;
 const journal = (d: any) => Array.isArray(d.options) && typeof d.revision === 'number';
 
 export async function inbox(ctx: Context, payload: unknown, host: ModuleHost): Promise<InboxReply> {
@@ -115,8 +125,8 @@ async function waiting(ctx: Context, host: ModuleHost): Promise<InboxReply['wait
 export async function listDecisions(_ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionsReply> {
   input(payload, []);
   const all = await decisions(host);
-  return { items: all.map(d => ({ id: d.id, text: String(d.text), createdAt: d.createdAt, reviewDate: d.reviewDate, status: d.status === 'closed' ? 'closed' as const : 'open' as const,
-    recordedLater: later(host, d.id), replaced: journal(d) && d.revisions.length > 0, cancelled: cancelled(d), reviews: Array.isArray(d.reviews) ? d.reviews.length : 0,
+  return { items: all.map(d => ({ id: d.id, text: String(d.text), createdAt: d.createdAt, reviewDate: d.reviewDate, status: statusOf(d),
+    recordedLater: recordedLater(host, d), replaced: journal(d) && d.revisions.length > 0, cancelled: cancelled(d), decidedOn: decidedOnOf(d), reviews: Array.isArray(d.reviews) ? d.reviews.length : 0,
     receiptIds: Array.isArray(d.receiptIds) ? d.receiptIds : [] })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
 }
 
@@ -130,11 +140,30 @@ export async function getDecision(ctx: Context, payload: unknown, host: ModuleHo
   for (const receiptId of (found.receiptIds ?? []) as string[]) {
     const receipt = snapshots.find(r => r.id === receiptId) ?? await openReceipt(host, ctx, receiptId);
     const figure = receipt.figures.find(f => f.key === headlineKey(receipt));
-    known.push({ receiptId, label: receipt.operation, minor: figure?.minor ?? null, asOf: receipt.asOf });
+    known.push({ receiptId, label: receipt.operation, minor: figure?.minor ?? null, asOf: receipt.asOf, ...unitOf(figure) });
   }
-  return { id: found.id, text: String(found.text), createdAt: found.createdAt, reviewDate: found.reviewDate, status: found.status === 'closed' ? 'closed' : 'open',
-    recordedLater: later(host, found.id), replaced: journal(found) && found.revisions.length > 0, cancelled: cancelled(found), revision: journal(found) ? found.revision : null, known, journal: journal(found),
+  return { id: found.id, text: String(found.text), createdAt: found.createdAt, reviewDate: found.reviewDate, status: statusOf(found),
+    recordedLater: recordedLater(host, found), replaced: journal(found) && found.revisions.length > 0, cancelled: cancelled(found), revision: journal(found) ? found.revision : null, known, journal: journal(found),
+    decidedOn: decidedOnOf(found), cancellation: cancellationOf(found), canCancel: journal(found) && found.status === 'open' && found.by === ctx.memberId,
     reviews: (found.reviews ?? []).map((r: any) => ({ at: r.at, outcome: r.outcome, notes: typeof r.notes === 'string' ? r.notes : null, nextReviewDate: typeof r.nextReviewDate === 'string' ? r.nextReviewDate : null })) };
+}
+
+/**
+ * Cancels an open journal decision this member recorded, through `decisions.journal.cancel`. The
+ * decision is kept with its reason; it is never due for review again. The revision the page loaded
+ * is sent, so a decision changed meanwhile is refused (ASK_CHANGED) rather than cancelled blind.
+ */
+export async function cancel(ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionReply> {
+  const request = input(payload, ['decisionId', 'revision', 'reason'], ['decisionId', 'revision', 'reason']), id = requireId(request.decisionId);
+  check(Number.isSafeInteger(request.revision) && request.revision >= 1, 'ASK_INVALID', 'Reload the decision before cancelling it.');
+  const reason = text(request.reason, 2000);
+  const found = (await decisions(host)).find(d => d.id === id);
+  check(found, 'ASK_NOT_FOUND', 'This decision is unavailable under your current access.');
+  check(journal(found) && found.by === ctx.memberId, 'ASK_REFUSED', 'Only the person who recorded a decision can cancel it here.');
+  check(found.status === 'open', 'ASK_REFUSED', 'Only an open decision can be cancelled.');
+  check(found.revision === request.revision, 'ASK_CHANGED', 'This decision changed since you opened it. Look again before cancelling.');
+  await core(host, 'decisions.journal.cancel', { id, revision: request.revision, reason });
+  return getDecision(ctx, { decisionId: id }, host);
 }
 
 export async function review(ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionReply> {

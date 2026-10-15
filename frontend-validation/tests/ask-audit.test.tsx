@@ -193,7 +193,7 @@ test('the inbox keeps its order, a waiting question does not open as a decision,
 test('a moved check shows the old and the new value, each opening its own receipt', async () => {
   const user = userEvent.setup();
   const rpc = mount(sheet('check.c-1', 'checks'), {
-    'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z',
+    'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, createdAt: '2026-09-05T00:00:00.000Z',
       expected: { minor: '100000', receiptId: 'r-aug' }, results: [{ at: '2026-10-10T00:00:00.000Z', result: 'moved', minor: '120000', receiptId: 'r-new', code: null, because: ['recipes'] }] }),
     'askx.receipt': () => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); },
   });

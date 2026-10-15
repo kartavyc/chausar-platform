@@ -13,7 +13,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import { checkStop, stopToken } from './round4.ts';
 import type { CheckItem, CheckReply, ChecksReply, Fingerprint } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text, translate, openReceipt, unitOf } from './shared.ts';
 
 export function fingerprint(state: State, host: ModuleHost): Fingerprint {
   const dictionary = state.ontology?.current ?? (state.ontology?.operations ? state.ontology : null);
@@ -46,7 +46,7 @@ export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost
   return host.store.update(state => {
     const own = askState(state);
     const item: CheckItem = { id: newId('check'), memberId: ctx.memberId, question, operationId: receipt.operation, request: structuredClone(answer.request),
-      figureKey, expectedMinor: figure.minor, expectedReceiptId: receipt.id, createdAt: now(), results: [], sourceIds: [...receipt.sourceIds], fingerprint: fingerprint(state, host) };
+      figureKey, expectedMinor: figure.minor, expectedReceiptId: receipt.id, ...unitOf(figure), createdAt: now(), results: [], sourceIds: [...receipt.sourceIds], fingerprint: fingerprint(state, host) };
     check(own.checks.filter(c => c.memberId === ctx.memberId).length < CHECKS_PER_MEMBER, 'ASK_INVALID', 'Remove some checks before adding more.');
     own.checks.push(item);
     return { id: item.id };
@@ -65,9 +65,11 @@ async function withheld(host: ModuleHost, item: CheckItem, cache: Map<string, bo
   for (const r of item.results) results.push(r.receiptId !== null && !(await opens(host, r.receiptId, cache)) ? { ...r, minor: null, receiptId: null } : { ...r });
   return { expected: { minor: expected ? item.expectedMinor : null, receiptId: expected ? item.expectedReceiptId : null }, results };
 }
+/** The unit a check's values are drawn in. A check saved before units were typed was money. */
+const shapeOf = (item: CheckItem) => item.unit === undefined ? { unit: 'money' as const, quantityUnit: null } : unitOf(item);
 async function shown(host: ModuleHost, item: CheckItem, cache: Map<string, boolean>): Promise<ChecksReply['items'][number]> {
   const open = await withheld(host, item, cache);
-  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, expected: open.expected, last: open.results.at(-1) ?? null };
+  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, expected: open.expected, last: open.results.at(-1) ?? null, ...shapeOf(item) };
 }
 
 export async function listChecks(ctx: Context, payload: unknown, host: ModuleHost): Promise<ChecksReply> {
@@ -119,7 +121,7 @@ export async function getCheck(ctx: Context, payload: unknown, host: ModuleHost)
   const item = peekAsk(host.store.read()).checks.find(c => c.id === id && c.memberId === ctx.memberId);
   check(item, 'ASK_NOT_FOUND', 'This check is no longer available.');
   const open = await withheld(host, item, new Map());
-  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, createdAt: item.createdAt, expected: open.expected, results: open.results };
+  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, createdAt: item.createdAt, expected: open.expected, results: open.results, ...shapeOf(item) };
 }
 
 export async function removeCheck(ctx: Context, payload: unknown, host: ModuleHost) {

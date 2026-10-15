@@ -6,6 +6,10 @@
  * Words a person reads are chosen by the screen from codes; the engine sends codes and data.
  */
 import type { Period } from '../memory.ts';
+import type { FigureUnit } from './shared.ts';
+export type { FigureUnit };
+/** How a figure is drawn: money as rupees, basis points as a percent, a quantity with its unit, a count as a number, anything else as plain text. */
+export type FigureShape = { unit: FigureUnit; quantityUnit: string | null };
 
 export type Topic = 'sales' | 'collections' | 'cash' | 'stock' | 'tax' | 'other';
 export type PeriodId = 'this-month' | 'last-month' | 'this-quarter' | 'last-quarter' | 'this-year' | 'last-year';
@@ -58,7 +62,7 @@ export type AnswerReply = {
   branch: string | null;
   asOf: string;
   headline: string;
-  figures: { key: string; label: string; minor: string; unit: 'money' | 'basis-points' }[];
+  figures: ({ key: string; label: string; minor: string } & FigureShape)[];
   /** Counted, left out and read, from the receipt's coverage. */
   rows: { read: number; counted: number; excluded: number };
   completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial';
@@ -131,7 +135,7 @@ export type SavedItem = {
   id: string; memberId: string; kind: SavedKind; question: string | null; operationId: string | null; savedAt: string;
   /** Present while the derived values are kept. Removed when a source it used is deleted. */
   receiptId: string | null; request: Record<string, unknown> | null; refId: string | null;
-  headline: { kind: 'money' | 'basis-points'; minor: string } | null; workedOutAt: string | null;
+  headline: { kind: FigureUnit; minor: string; quantityUnit?: string | null } | null; workedOutAt: string | null;
   sourceIds: string[]; deletedOn: string | null;
 };
 export type SavedReply = { items: (Omit<SavedItem, 'memberId' | 'request' | 'sourceIds'> & { stale: null | { reason: 'meaning-changed' | 'books-changed' | 'access-changed' | 'new-rows'; since: string | null }; rebuildable: boolean })[] };
@@ -139,6 +143,8 @@ export type SavedReply = { items: (Omit<SavedItem, 'memberId' | 'request' | 'sou
 export type CheckItem = {
   id: string; memberId: string; question: string; operationId: string; request: Record<string, unknown>;
   figureKey: string; expectedMinor: string; expectedReceiptId: string; createdAt: string;
+  /** The checked figure's unit. Absent on checks saved before units were typed: those were money. */
+  unit?: FigureUnit; quantityUnit?: string | null;
   results: { at: string; result: 'same' | 'moved' | 'cannot-run'; minor: string | null; receiptId: string | null; code: string | null; because: string[] }[];
   sourceIds: string[];
   /** What the check depended on when it last ran (or was saved), to know when it is due. */
@@ -146,7 +152,7 @@ export type CheckItem = {
 };
 export type ChecksReply = {
   /** `expected` is withheld (null) when its receipt no longer opens for this seat; so is each result's value. */
-  items: { id: string; question: string; operationId: string; figureKey: string; expected: { minor: string | null; receiptId: string | null }; last: CheckItem['results'][number] | null }[];
+  items: ({ id: string; question: string; operationId: string; figureKey: string; expected: { minor: string | null; receiptId: string | null }; last: CheckItem['results'][number] | null } & FigureShape)[];
   due: boolean; changed: string[]; lastRunAt: string | null;
 };
 export type Fingerprint = { dictionaryHash: string | null; recipes: string; route: string | null; app: string | null };
@@ -201,7 +207,7 @@ export type InboxReply = {
   due: { id: string; text: string; reviewDate: string }[];
   waiting: { id: string; text: string; at: string }[];
 };
-export type DecisionsReply = { items: { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; reviews: number; receiptIds: string[] }[] };
+export type DecisionsReply = { items: { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; decidedOn: string | null; reviews: number; receiptIds: string[] }[] };
 
 export type SearchReply = { query: string; groups: { kind: 'saved' | 'decision' | 'investigation' | 'check' | 'why'; hits: {
   id: string; text: string; marks: [number, number][];
@@ -260,11 +266,17 @@ export type CheckReply = {
   id: string; question: string; operationId: string; figureKey: string; createdAt: string;
   expected: { minor: string | null; receiptId: string | null };
   results: CheckItem['results'];
-};
+} & FigureShape;
 export type DecisionReply = {
   id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; revision: number | null;
+  /** The day it was decided, when the member gave one; earlier than `createdAt` means recorded later. */
+  decidedOn: string | null;
+  /** Why, and when, a cancelled journal decision was cancelled. */
+  cancellation: { reason: string; at: string } | null;
+  /** True on an open journal decision this member recorded: Ask offers to cancel it. */
+  canCancel: boolean;
   /** What was known then: each receipt as it stood on the day the decision was made. */
-  known: { receiptId: string; label: string; minor: string | null; asOf: string }[];
+  known: ({ receiptId: string; label: string; minor: string | null; asOf: string } & FigureShape)[];
   /** What happened after, in order. */
   reviews: { at: string; outcome: 'accepted' | 'rejected' | 'continue' | 'completed'; notes: string | null; nextReviewDate: string | null }[];
   journal: boolean;
@@ -318,6 +330,7 @@ export type Gst2bLineReply = {
  *   askx.decisions.forward { text!, reviewDate } (phone allowed; becomes a draft only) → { id }
  *   askx.decisions.list  {}                                                → DecisionsReply
  *   askx.decisions.get   { decisionId! }                                   → DecisionReply
+ *   askx.decisions.cancel { decisionId!, revision!, reason! }              → DecisionReply (decisions.journal.cancel)
  *   askx.decisions.review { decisionId!, outcome!: 'accepted'|'rejected'|'continue'|'completed', notes, nextReviewDate } → DecisionReply
  *   askx.search          { query! }                                        → SearchReply
  *   askx.gst2b           { period | periodId, today, registerSourceId, gstr2bSourceId } → Gst2bReply

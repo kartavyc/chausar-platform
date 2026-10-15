@@ -11,7 +11,7 @@ import { Figure } from '../../../parts/Figure';
 import { Button } from '../../../parts/Button';
 import { Label } from '../../../parts/Label';
 import { State } from '../../../patterns/States';
-import { AskPage, bpsFigure, dayText, fill, missingFigure, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
+import { AskPage, dayText, figureOf, fill, missingFigure, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
 import { rebuilt, savedReply, type SavedEntry, type SavedKind, type StaleReason } from './core-replies.ts';
 import { Refusal, useExplain } from './core-words';
@@ -72,7 +72,7 @@ export function SavedScreen(_props: { view: Extract<AskView, { kind: 'saved' }> 
           {items.map(item => {
             const figure: FigureOrMissing = item.deletedOn !== null ? missingFigure('absent')
               : item.headline !== null && item.receiptId !== null
-                ? (item.headline.kind === 'money' ? rowMoneyFigure(item.headline.minor, item.receiptId, ask.view, ask.language, item.stale !== null ? ['stale'] : []) : bpsFigure(item.headline.minor, item.receiptId, item.stale !== null ? ['stale'] : []))
+                ? (item.headline.kind === 'money' ? rowMoneyFigure(item.headline.minor, item.receiptId, ask.view, ask.language, item.stale !== null ? ['stale'] : []) : figureOf(item.headline.kind, item.headline.minor, item.receiptId, item.stale !== null ? ['stale'] : [], item.headline.quantityUnit))
               : missingFigure(item.headline === null ? (item.stale?.reason === 'access-changed' ? 'withheld' : 'not-applicable') : 'unknown');
             const when = item.workedOutAt === null ? null : dayText(item.workedOutAt, ask.language);
             const what = item.question ?? w.noQuestion;

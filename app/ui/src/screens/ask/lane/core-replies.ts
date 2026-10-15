@@ -18,7 +18,17 @@ export const GAPS = ['unreconciled', 'conflicts', 'missing-amounts', 'empty', 'c
 export type Gap = (typeof GAPS)[number];
 const COMPLETENESS = ['reconciled-imports', 'unreconciled-facts', 'empty', 'partial'] as const;
 export type Completeness = (typeof COMPLETENESS)[number];
-export type Unit = 'money' | 'basis-points';
+/** A figure's unit. A quantity carries its own unit word; `other` is a unit this page does not know, drawn as plain text, never rupees. */
+export type Unit = 'money' | 'basis-points' | 'quantity' | 'count' | 'other';
+export interface UnitShape { readonly unit: Unit; readonly quantityUnit: string | null }
+const UNITS = ['money', 'basis-points', 'quantity', 'count'] as const;
+const QUANTITY_UNIT = /^[\p{L}\p{N}][\p{L}\p{N} ._/-]{0,39}$/u;
+/** Reads `unit` (and a quantity's `quantityUnit`) from one figure. Any unit outside the list is `other`. */
+export function unitShape(o: Record<string, unknown>, field: 'unit' | 'kind' = 'unit'): UnitShape {
+  const raw = o[field], unit: Unit = typeof raw === 'string' && (UNITS as readonly string[]).includes(raw) ? raw as Unit : 'other';
+  const q = o.quantityUnit;
+  return { unit, quantityUnit: unit === 'quantity' && typeof q === 'string' && QUANTITY_UNIT.test(q) ? q : null };
+}
 /** Which kind of rule stopped an answer or hides rows (AS-09). A fixed word, never the rule's own text. */
 export const RULE_KINDS = ['branch', 'source', 'seat', 'access', 'marking'] as const;
 export type RuleKind = (typeof RULE_KINDS)[number];
@@ -144,7 +154,7 @@ export function stopReply(value: unknown): { readonly stopped: true } {
   return { stopped: true };
 }
 
-export interface AnswerFigure { readonly key: string; readonly label: string; readonly minor: string; readonly unit: Unit }
+export interface AnswerFigure extends UnitShape { readonly key: string; readonly label: string; readonly minor: string }
 export type GuardMatch = { readonly figureKey: string } | { readonly field: 'rows' | 'excluded' | 'date' | 'ordinal' } | null;
 export interface AnswerReply {
   readonly kind: 'answer';
@@ -167,7 +177,7 @@ export interface AnswerReply {
   readonly explanation: { readonly source: 'template' | 'model'; readonly text: string; readonly replaced: boolean; readonly reason: 'no-model' | 'guard-replaced' | null };
   readonly guard: { readonly status: 'passed' | 'replaced'; readonly lines: readonly { readonly number: string; readonly matched: GuardMatch }[] };
 }
-const figures = (v: unknown) => list(v, f => { const o = obj(f); return { key: str(o.key, 100), label: label(o.label), minor: minor(o.minor), unit: oneOf(o.unit, ['money', 'basis-points'] as const) }; }, 100);
+const figures = (v: unknown) => list(v, f => { const o = obj(f); return { key: str(o.key, 100), label: label(o.label), minor: minor(o.minor), ...unitShape(o) }; }, 100);
 const labels = (v: unknown) => list(v, l => oneOf(l, LABELS), 3);
 const gaps = (v: unknown) => list(v, g => oneOf(g, GAPS), 5);
 const month = (v: unknown) => { const m = str(v, 7); if (!/^\d{4}-\d{2}$/.test(m)) fail(); return m; };
@@ -297,7 +307,7 @@ export type SavedKind = (typeof SAVED_KINDS)[number];
 export type StaleReason = 'meaning-changed' | 'books-changed' | 'access-changed' | 'new-rows';
 export interface SavedEntry {
   readonly id: string; readonly kind: SavedKind; readonly question: string | null; readonly operationId: string | null; readonly savedAt: string;
-  readonly receiptId: string | null; readonly refId: string | null; readonly headline: { readonly kind: Unit; readonly minor: string } | null; readonly workedOutAt: string | null;
+  readonly receiptId: string | null; readonly refId: string | null; readonly headline: { readonly kind: Unit; readonly minor: string; readonly quantityUnit: string | null } | null; readonly workedOutAt: string | null;
   readonly deletedOn: string | null; readonly stale: null | { readonly reason: StaleReason; readonly since: string | null }; readonly rebuildable: boolean;
 }
 export function savedReply(value: unknown): readonly SavedEntry[] {
@@ -306,7 +316,7 @@ export function savedReply(value: unknown): readonly SavedEntry[] {
     return {
       id: id(o.id), kind: oneOf(o.kind, SAVED_KINDS), question: optStr(o.question, 2000), operationId: o.operationId === null ? null : id(o.operationId), savedAt: date(o.savedAt),
       receiptId: o.receiptId === null ? null : id(o.receiptId), refId: o.refId === null ? null : id(o.refId),
-      headline: h === null ? null : { kind: oneOf(h.kind, ['money', 'basis-points'] as const), minor: minor(h.minor) }, workedOutAt: o.workedOutAt === null ? null : date(o.workedOutAt),
+      headline: h === null ? null : (({ unit, quantityUnit }) => ({ kind: unit, minor: minor(h.minor), quantityUnit }))(unitShape(h, 'kind')), workedOutAt: o.workedOutAt === null ? null : date(o.workedOutAt),
       deletedOn: o.deletedOn === null ? null : date(o.deletedOn),
       stale: st === null ? null : { reason: oneOf(st.reason, ['meaning-changed', 'books-changed', 'access-changed', 'new-rows'] as const), since: st.since === null ? null : date(st.since) },
       rebuildable: bool(o.rebuildable),

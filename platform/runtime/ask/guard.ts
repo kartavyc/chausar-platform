@@ -15,6 +15,7 @@
 import type { CalculationReceipt } from '../calculator.ts';
 import { validDate } from '../memory.ts';
 import type { GuardLine } from './contracts.ts';
+import { unitOf } from './shared.ts';
 
 export function asciiDigits(value: string): string {
   return value.normalize('NFKC').replace(/\p{Nd}/gu, digit => {
@@ -153,7 +154,9 @@ function marksOf(tokens: readonly Token[], i: number): Marks {
 /** Every number in a written explanation, and the receipt line it matched, or none. */
 export function guardLines(explanation: string, receipt: Pick<CalculationReceipt, 'figures' | 'rows' | 'coverage'>): GuardLine[] {
   const tokens = tokenize(explanation), time = timeNumbers(tokens);
-  const shown = receipt.figures.map(f => ({ f, numbers: numbersOf(f.display), negative: /^\s*[-\u2212]/.test(f.display) }));
+  const shown = receipt.figures.map(f => ({ f, ...unitOf(f), numbers: numbersOf(f.display), negative: /^\s*[-\u2212]/.test(f.display) }));
+  // A quantity is said with its own unit word right after it ("120 boxes"); its first word is what is compared.
+  const unitWord = (u: string | null) => u === null ? null : u.toLowerCase().split(/[^\p{L}\p{N}]+/u)[0] || null;
   return tokens.flatMap((t, i): GuardLine[] => {
     if (t.kind === 'word') {
       // An amount said in words, or a scale word with no number right before it.
@@ -167,10 +170,16 @@ export function guardLines(explanation: string, receipt: Pick<CalculationReceipt
     if (!/^\d+(?:,\d+)*(?:\.\d+)?$/.test(t.text)) return [{ number: t.text, matched: null }];
     const n = normal(t.text), m = marksOf(tokens, i);
     // A money figure matches only as it is shown: same digits, same sign, no scale and no percent.
-    const money = shown.find(s => s.f.unit === 'money' && s.numbers.includes(n) && !m.scale && !m.percent && m.negative === s.negative);
+    // A quantity or count is never money: it matches only with no currency, scale or percent, and a quantity only with its unit word.
+    const plain = !m.currency && !m.scale && !m.percent;
+    const quantity = shown.find(s => s.unit === 'quantity' && s.numbers.includes(n) && plain && m.negative === s.negative && (unitWord(s.quantityUnit) === null || m.next === unitWord(s.quantityUnit)));
+    if (quantity) return [{ number: t.text, matched: { figureKey: quantity.f.key } }];
+    const money = shown.find(s => s.unit === 'money' && s.numbers.includes(n) && !m.scale && !m.percent && m.negative === s.negative);
     if (money) return [{ number: t.text, matched: { figureKey: money.f.key } }];
-    const points = shown.find(s => s.f.unit === 'basis-points' && s.numbers.includes(n) && ['bps', 'basis'].includes(m.next) && !m.currency && !m.negative === !s.negative);
+    const points = shown.find(s => s.unit === 'basis-points' && s.numbers.includes(n) && ['bps', 'basis'].includes(m.next) && !m.currency && !m.negative === !s.negative);
     if (points) return [{ number: t.text, matched: { figureKey: points.f.key } }];
+    const counted = shown.find(s => s.unit === 'count' && s.numbers.includes(n) && plain && !m.negative && !s.negative && /^\d+$/.test(t.text));
+    if (counted) return [{ number: t.text, matched: { figureKey: counted.f.key } }];
     // A count matches only as a plain count of rows: no currency, sign, scale or percent, and a row word after it.
     const count = !m.currency && !m.negative && !m.scale && !m.percent && COUNT_NOUNS.has(m.next) && /^\d+$/.test(t.text);
     if (count && (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows))) return [{ number: t.text, matched: { field: 'rows' } }];

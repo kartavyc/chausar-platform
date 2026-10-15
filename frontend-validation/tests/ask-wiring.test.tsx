@@ -340,7 +340,7 @@ test('a saved hit without a ref still opens the saved list; a ref of an unknown 
 /* 8. A decision's replaced and cancelled labels. */
 const decision = (over: Record<string, unknown> = {}) => ({
   id: 'dec-1', text: 'Raise prices by 3%', createdAt: '2026-09-02T00:00:00.000Z', reviewDate: '2026-10-02', status: 'closed', recordedLater: false,
-  replaced: true, cancelled: false, revision: null, known: [], reviews: [], journal: true, ...over,
+  replaced: true, cancelled: false, revision: null, decidedOn: null, cancellation: null, canCancel: false, known: [], reviews: [], journal: true, ...over,
 });
 test.each(VIEWS)('a replaced decision and a cancelled one carry their labels (%s)', async view => {
   mount(sheet('decision.dec-1', 'decisions'), { 'askx.decisions.get': () => decision() }, { view });
@@ -386,14 +386,14 @@ const WITHHELD = 'hidden from your seat';
 test.each(VIEWS)('a check whose receipt no longer opens shows the withheld word, not a figure (%s)', async view => {
   const withheld = { at: '2026-10-14T00:00:00.000Z', result: 'same', minor: null, receiptId: null, code: null, because: [] };
   mount({ place: 'ask', sub: 'checks' }, {
-    'askx.checks.list': () => ({ items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', expected: { minor: null, receiptId: null }, last: withheld }], due: false, changed: [], lastRunAt: '2026-10-14T00:00:00.000Z' }),
+    'askx.checks.list': () => ({ items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, expected: { minor: null, receiptId: null }, last: withheld }], due: false, changed: [], lastRunAt: '2026-10-14T00:00:00.000Z' }),
   }, { view });
   const list = await found<HTMLElement>('[data-checks]');
   expect(within(list).getByText(WITHHELD)).toBeTruthy();
   expect(within(list).queryByRole('button', { name: money('100000') })).toBeNull();
   cleanup();
   mount(sheet('check.c-1', 'checks'), {
-    'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: null, receiptId: null }, results: [withheld] }),
+    'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: null, receiptId: null }, results: [withheld] }),
   }, { view });
   const pair = await found<HTMLElement>('[data-check-pair]');
   expect(within(pair).getAllByText(WITHHELD)).toHaveLength(2);
@@ -401,7 +401,7 @@ test.each(VIEWS)('a check whose receipt no longer opens shows the withheld word,
 
 test('a check expected value with only half of it withheld is refused', async () => {
   mount(sheet('check.c-1', 'checks'), {
-    'askx.checks.get': () => ({ id: 'c-1', question: 'Q', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100', receiptId: null }, results: [] }),
+    'askx.checks.get': () => ({ id: 'c-1', question: 'Q', operationId: 'collections.total', figureKey: 'total', unit: 'money', quantityUnit: null, createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100', receiptId: null }, results: [] }),
   });
   expect(await screen.findByText('The reply could not be checked, so it is not shown.')).toBeTruthy();
 });

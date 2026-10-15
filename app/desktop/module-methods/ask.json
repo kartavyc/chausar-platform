@@ -6,6 +6,7 @@
   "askx.checks.remove",
   "askx.checks.run",
   "askx.checks.save",
+  "askx.decisions.cancel",
   "askx.decisions.confirm",
   "askx.decisions.discard",
   "askx.decisions.draft",

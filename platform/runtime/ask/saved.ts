@@ -12,7 +12,7 @@ import { canSeeFact } from '../memory.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { SavedItem, SavedKind, SavedReply } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, isRuleCode, peekAsk, requireId, text, translate , openReceipt } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, isRuleCode, peekAsk, requireId, text, translate, openReceipt, unitOf } from './shared.ts';
 
 export function staleOf(host: ModuleHost, ctx: Context, item: SavedItem, receipt: CalculationReceipt | null, dictionaryHash: string | null): SavedReply['items'][number]['stale'] {
   if (!receipt) return { reason: 'access-changed', since: null };
@@ -56,7 +56,7 @@ export async function save(ctx: Context, payload: unknown, host: ModuleHost) {
     roomFor(own, ctx.memberId);
     const item: SavedItem = { id: newId('saved'), memberId: ctx.memberId, kind: 'answer', question, operationId: receipt.operation, savedAt: now(),
       receiptId: receipt.id, request: structuredClone(answer.request), refId: null,
-      headline: figure ? { kind: figure.unit, minor: figure.minor } : null, workedOutAt: receipt.createdAt, sourceIds: [...receipt.sourceIds], deletedOn: null };
+      headline: figure ? { kind: unitOf(figure).unit, minor: figure.minor, quantityUnit: unitOf(figure).quantityUnit } : null, workedOutAt: receipt.createdAt, sourceIds: [...receipt.sourceIds], deletedOn: null };
     own.saved.push(item);
     return { id: item.id };
   });
@@ -131,7 +131,7 @@ export async function rebuild(ctx: Context, payload: unknown, host: ModuleHost) 
     const found = askState(state).saved.find(s => s.id === id && s.memberId === ctx.memberId);
     check(found && !found.deletedOn, 'ASK_NOT_FOUND', 'This saved item is no longer available.');
     found.receiptId = receipt.id; found.workedOutAt = receipt.createdAt; found.sourceIds = [...receipt.sourceIds];
-    found.headline = figure ? { kind: figure.unit, minor: figure.minor } : null;
+    found.headline = figure ? { kind: unitOf(figure).unit, minor: figure.minor, quantityUnit: unitOf(figure).quantityUnit } : null;
     const answer = state.answers.find(a => a?.receiptId === receipt.id && a.request);
     if (answer) found.request = structuredClone(answer.request);
     return { id: found.id, receiptId: receipt.id };

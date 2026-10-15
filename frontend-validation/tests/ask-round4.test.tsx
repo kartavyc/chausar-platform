@@ -246,7 +246,7 @@ test('a plan being worked out can be stopped', async () => {
   expect(screen.getByText('ASK_STOPPED')).toBeTruthy();
 });
 
-const checks = { items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.received', figureKey: 'total', expected: { minor: '100000', receiptId: 'r-aug' }, last: null }], due: true, changed: [], lastRunAt: null };
+const checks = { items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.received', figureKey: 'total', unit: 'money', quantityUnit: null, expected: { minor: '100000', receiptId: 'r-aug' }, last: null }], due: true, changed: [], lastRunAt: null };
 test('Run all checks can be stopped; Hindi says it in Hindi', async () => {
   const p = pending();
   show({ 'askx.checks.list': () => checks, 'askx.checks.run': () => p.wait(), 'askx.stop': () => p.stop() }, { address: { place: 'ask', sub: 'checks' }, language: 'hi' });

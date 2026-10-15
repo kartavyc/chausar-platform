@@ -31,7 +31,7 @@ All in `platform/runtime/modules/lane-ask.ts`, code in `platform/runtime/ask/`. 
 | `askx.checks.save`, `askx.checks.run`, `askx.checks.remove` | prepare | `askx.checks.list`, `askx.checks.get` are read; `tick` reruns on change |
 | `askx.why.start`, `askx.why.get` | read | `askx.why.guess` is prepare |
 | `askx.whatIf`, `askx.plan`, `askx.forecast` | read | Through `calculation.run`, `forecasts.evaluate` |
-| `askx.decisions.draft`, `confirm`, `discard`, `review` | prepare | Through `decisions.journal.*`; `askx.decisions.forward` is prepare and the only phone method |
+| `askx.decisions.draft`, `confirm`, `discard`, `review`, `cancel` | prepare | Through `decisions.journal.*`; `askx.decisions.forward` is prepare and the only phone method |
 | `askx.decisions.inbox`, `list`, `get`, `askx.search`, `askx.gst2b`, `askx.gst2b.line`, `askx.gst2b.exportIms` | read | `askx.gst2b.tolerance` is prepare |
 
 Refusals are the lane's own fixed codes (listed on the ask line of `laneRefusals` in `app/desktop/preload.cjs`): `ASK_INVALID`, `ASK_NOT_FOUND`, `ASK_NO_DICTIONARY`, `ASK_NO_CALCULATION`, `ASK_STOPPED_BY_RULE`, `ASK_REFUSED`, `ASK_CHANGED`, `ASK_STALE`, `ASK_NOT_GROUPABLE`, `ASK_BRIDGE_NOT_EXACT`, `ASK_CANNOT_REBUILD`, `ASK_NOT_FORECASTABLE`, `ASK_FAILED`. Core refusals are translated into these, so no outside text reaches a screen.
@@ -108,7 +108,7 @@ Each entry's Shows, States, You can, Engine and Rules lines were checked against
 ## Still missing
 
 - Ask a person (AS-08, day 10) and `trust.explain` (AS-09) belong to other lanes.
-- "Recorded later" comes from an optional decided-on date kept by the lane; "cancelled" is a decision whose last review was rejected. The journal itself has neither.
+- "Recorded later" and "cancelled" now come from the journal itself (`decidedOn`, status `cancelled`); the lane's own note and the older "last review rejected" reading remain only for decisions recorded before core-data.
 - The number guard is deliberately strict: number words ("one customer", "doubled") and any non-decimal numeral make it fall back to the template explanation. Dates, months with years, financial years, introduced years ("in 2026", "2026 में") and ordinals are recognised by structure.
 - Asking about another member's receipt id says "stopped by a rule", while an id that does not exist says "not found" (the core's translation); ids are random.
 - See the audit table for each screen's remaining partial items.
@@ -153,3 +153,15 @@ Methods this lane consumes from other lanes:
 | `reportsx.askPerson` | reports-tools-trust | `{ question, reason, receiptId? }` → `{ file, sent: false }` (exists) | — |
 | `books.memoryPropose` | work-books | `{ text, kind, receiptId? }` → memory line `{ id, status }` (exists) | `not-built` |
 | `connectorsx.envelopes`, `connectorsx.gstMatch` | connectors-ext | as served (exist) | older local match on `gstr2b`-kind facts |
+
+## Core-data follow-up
+
+After core-data merged (base 652a84d), the three items its lane document lists for ask:
+
+- **Figure units.** A receipt figure is money, basis points, a quantity in a named unit (stock on hand), or a count (GSTR-2B match counts, bank entries). Ask reads each figure's own unit (`unitOf` in `shared.ts`, `unitShape` in the screens) and carries it, with a quantity's unit word, through the answer, the receipt page, saved answers, checks and the figures a decision cites. A quantity is drawn as "1,200 boxes", a count as a grouped number, and any unit Ask does not know as the digits as written: none of them is ever drawn as rupees. The number guard matches a quantity only with its own unit word and a count only as a plain number, never with a currency mark, a scale or a percent. `askx.run` sends a day (`onDate`), not a period, for a stock calculation, because the calculator counts stock as of a day.
+- **`decisions.journal.cancel`.** `askx.decisions.cancel { decisionId!, revision!, reason! }` cancels an open journal decision that this member recorded. The decision page offers it, with a reason, only to that member. Another member, a stale revision (`ASK_CHANGED`) or an already closed decision is refused. A cancelled decision shows its reason and date, and is never due for review.
+- **`decidedOn`.** A draft's decided-on day goes into the journal content. The list and the decision page read `decidedOn` and the journal's own `recordedLater`; the page says "Decided on … Recorded on …" when they differ.
+
+| Method | Payload | Reply |
+|---|---|---|
+| `askx.decisions.cancel` | `{ decisionId!, revision!, reason! }` | `DecisionReply`, now with `decidedOn`, `cancellation`, `canCancel` and units on `known` |

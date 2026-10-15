@@ -128,7 +128,7 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
   const toReceipt = (receiptId: string) => { if (receiptId !== r.receiptId) ask.go({ kind: 'receipt', receiptId }); };
   const n = (value: number) => countWords(String(value));
   const figLabels: readonly FigureLabel[] = r.demo ? [...r.labels, 'demo-clock'] : r.labels;
-  const figures: Pair[] = r.figures.map(f => ({ name: f.label, figure: figureOf(f.unit, f.minor, r.receiptId, figLabels) }));
+  const figures: Pair[] = r.figures.map(f => ({ name: f.label, figure: figureOf(f.unit, f.minor, r.receiptId, figLabels, f.quantityUnit) }));
   const when: Pair[] = [
     ...(r.period === null ? [] : [{ name: w.period, value: periodText(r.period, lang) }]),
     ...(r.comparePeriod === null ? [] : [{ name: w.compared, value: periodText(r.comparePeriod, lang) }]),
