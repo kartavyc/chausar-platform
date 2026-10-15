@@ -71,6 +71,17 @@ export async function kindTable(ctx: Context, host: Pick<ModuleHost, 'services' 
 }
 
 export const today = (host: Pick<ModuleHost, 'services'>) => dayOf(new Date(host.services.jobs.clock()).toISOString());
+/**
+ * The money an action touches, in whole paise: an `amountMinor` on its payload or on writeback's inner payload.
+ * None means zero. A present but unreadable amount is unknown, and an unknown amount never runs on its own.
+ */
+export function actionAmount(action: { payload?: any }): bigint | null {
+  const found = [action.payload?.amountMinor, action.payload?.payload?.amountMinor].filter(value => value !== undefined);
+  if (!found.length) return 0n;
+  let total = 0n; for (const value of found) { if (typeof value !== 'string' || !/^(0|[1-9]\d{0,17})$/.test(value)) return null; total += BigInt(value); }
+  return total;
+}
+export const amountToday = (state: State, kind: string, day: string) => String(peekLane(state).autonomy.runs.filter(run => run.kind === kind && dayOf(run.at) === day).reduce((sum, run) => sum + BigInt(run.amountMinor ?? '0'), 0n));
 export const usedToday = (state: State, kind: string, day: string) => peekLane(state).autonomy.runs.filter(run => run.kind === kind && dayOf(run.at) === day).length;
 
 /** Integer counts of how often a person agreed (approved) or declined (cancelled) each kind, leaving out what the rule ran itself. */
@@ -109,10 +120,13 @@ export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResul
     if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1 || !reminder || reminder.key === undefined || action.idempotencyKey !== reminder.key
       || action.payload?.invoiceId !== reminder.invoiceId || action.createdBy !== reminder.ownerId) continue;
     if (host.store.read().policy.autonomy !== true) break;
+    const amount = actionAmount(action);
     // The daily count is checked and the run recorded in one transaction, so overlapping ticks cannot exceed it.
     const claimed = await host.store.update(next => {
       const ns = lane(next); if (usedToday(next, kind, day) >= entry.dailyCount || next.policy.autonomy !== true) return false;
-      ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString() });
+      // The daily amount limit (TR-05): the money this action touches plus what ran today stays within it.
+      if (amount === null || BigInt(amountToday(next, kind, day)) + amount > BigInt(entry.dailyAmountMinor ?? '0')) return false;
+      ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString(), ...(amount > 0n ? { amountMinor: String(amount) } : {}) });
       if (ns.autonomy.runs.length > RUNS_LIMIT) ns.autonomy.runs.splice(0, ns.autonomy.runs.length - RUNS_LIMIT);
       audit(next, 'jobsx.autonomy.ran', { actionId: action.id, kind }); return true;
     });

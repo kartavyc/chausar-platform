@@ -25,6 +25,8 @@ type Gateway = {
 type Calculate = (context: Context, request: Record<string, unknown>) => Promise<{ id: string }>;
 
 const CODE = /^[a-z0-9-]{1,32}$/;
+/** The gateway's refusals of the "decide" purpose while core-gateway-auth has not added it: fall back to a lookup. */
+export const DECIDE_UNAVAILABLE = new Set(['INVALID_CONVERSATION_PURPOSE', 'DECIDE_PURPOSE_UNAVAILABLE', 'UNKNOWN_PURPOSE']);
 /** Refusals that mean "no model can help now" rather than a failed step. */
 export const AGENT_UNAVAILABLE = new Set(['SEND_DISABLED', 'DEMO_PROVIDER_DISABLED', 'ROUTE_REVOKED', 'ROUTE_DISABLED', 'MODEL_ROUTE_REQUIRED', 'CREDENTIAL_REQUIRED', 'MANAGED_UNAVAILABLE', 'BUDGET_EXCEEDED', 'NO_APPROVED_OPERATIONS', 'ROUTE_NOT_FOUND', 'CLI_CAPABILITY_REQUIRED']);
 
@@ -55,13 +57,17 @@ export class GatewayAgent implements AgentPort {
     // A local model is priced at zero; its minutes are shown instead.
     return route.kind === 'ollama' ? '0' : String(route.maxCostMinor ?? '0');
   }
-  async decide(item: WorkCase, _options: readonly string[], signal: AbortSignal, context?: Context): Promise<AgentDecision> {
+  async decide(item: WorkCase, options: readonly string[], signal: AbortSignal, context?: Context): Promise<AgentDecision> {
     check(context, 'AGENT_CONTEXT_REQUIRED', 'The model route runs as the job’s owner.');
     const started = this.#clock(); const question = lookupQuestion(item);
+    // Prefer the gateway's "decide" purpose (core-gateway-auth): the model picks one of the offered options.
+    // While the gateway refuses that purpose, the agent stays a lookup and the decision stays with a person.
+    const offered = options.filter(option => CODE.test(option)).slice(0, 10);
     // An unused preview for this exact request is reused, so one approval covers exactly one send.
     const receipts = this.#gateway.store.read().modelReceipts;
     let preview = [...receipts].reverse().find(r => r.kind === 'model-preview' && r.status === 'preview' && r.memberId === context.memberId && r.epoch === context.epoch
-      && r.routeId === this.routeId && r.questionHash === hash(question) && JSON.stringify(r.sourceIds) === JSON.stringify([...item.sourceIds].sort()));
+      && r.routeId === this.routeId && r.questionHash === hash(question) && JSON.stringify(r.sourceIds) === JSON.stringify([...item.sourceIds].sort())
+      && (r.purpose !== 'decide' || JSON.stringify(r.options) === JSON.stringify(offered)));
     // Reuse only a preview that is still current: the same facts, privacy settings and route revision. Otherwise make a fresh one.
     if (preview) {
       const state = this.#gateway.store.read(); const route = state.routes.find((r: any) => r.id === this.routeId);
@@ -70,6 +76,10 @@ export class GatewayAgent implements AgentPort {
       if (!current) preview = undefined;
     }
     // No automatic sample rows: only what the send level allows beyond them reaches the preview you review.
+    if (!preview && offered.length >= 2) {
+      try { preview = await this.#gateway.preview(context, { purpose: 'decide', options: [...offered], question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] }); }
+      catch (error) { if (!DECIDE_UNAVAILABLE.has((error as { code?: string }).code ?? '')) throw error; }
+    }
     preview ??= await this.#gateway.preview(context, { question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] });
     let approvalId: string | undefined;
     if (preview.approvalRequired) {
@@ -89,6 +99,15 @@ export class GatewayAgent implements AgentPort {
     // A measured cost when the route has token rates; otherwise the route's reserved per-call estimate. Local is zero.
     const costMinor = local ? '0' : String(result.receipt?.actualCostMinor ?? result.receipt?.costReservedMinor ?? '0');
     check(/^(0|[1-9]\d{0,17})$/.test(costMinor), 'INVALID_PROVIDER_RESULT', 'The model receipt has no usable cost.');
+    if (result?.kind === 'decision') {
+      // Only an offered option counts; anything else, or no confidence, goes to a person.
+      const option = result.decision?.option; const confidence = result.decision?.confidence;
+      const chosen = typeof option === 'string' && offered.includes(option) ? option : 'ask-owner';
+      const sure = chosen !== 'ask-owner' && typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : 0;
+      return { decision: chosen, confidence: sure, steps: [{ kind: 'question', tool: 'question.model-decision', outcome: chosen === 'ask-owner' ? 'refused' : 'ok', durationMs: 0, units: 0 }],
+        units: 0, durationMs: Math.max(0, this.#clock() - started), costMinor, receiptIds: [], modelReceiptId: result.receipt?.id,
+        note: chosen === 'ask-owner' ? 'The model did not pick one of the offered answers. The decision is yours.' : 'The model picked one of the offered answers.' };
+    }
     const plan = result.plan as { operation: string; period?: { from: string; to: string }; branch?: string; customerId?: string };
     const steps: AgentDecision['steps'] = [{ kind: 'lookup', tool: 'lookup.model-plan', outcome: 'ok', durationMs: 0, units: 0 }];
     const receiptIds: string[] = [];
