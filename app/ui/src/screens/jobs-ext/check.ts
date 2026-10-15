@@ -59,6 +59,15 @@ export function list<T>(item: Check<T>, max = 2000): Check<readonly T[]> {
     return Object.freeze(value.map((entry, i) => item(entry, `${path}[${i}]`)));
   };
 }
+/** A list that drops entries failing their check instead of failing the whole reply (one odd row never blanks a page). */
+export function lenientList<T>(item: Check<T>, max = 2000): Check<readonly T[]> {
+  return (value, path) => {
+    if (!Array.isArray(value) || value.length > max) return fail(path);
+    const kept: T[] = [];
+    value.forEach((entry, i) => { try { kept.push(item(entry, `${path}[${i}]`)); } catch { /* dropped: not drawable */ } });
+    return Object.freeze(kept);
+  };
+}
 export function nullable<T>(inner: Check<T>): Check<T | null> {
   return (value, path) => value === null ? null : inner(value, path);
 }

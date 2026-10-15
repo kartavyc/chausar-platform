@@ -44,7 +44,8 @@ test('job control replies are checked, money stays an exact paise string', () =>
   assert.equal(failureLimit(rules), 3);
   assert.throws(() => run(stopRules, { jobId: 'j1', rules: [] }), InvalidReply);
   assert.equal(run(laneJobList, { jobs: [{ id: 'j1', title: 'Chase', template: 'receivables-week', state: 'scheduled', laneRun: true, spentMinor: '0', budgetMinor: '5000' }], proposals: [] }).jobs.length, 1);
-  assert.throws(() => run(laneJobList, { jobs: [{ id: 'j1', title: 'Chase', template: null, state: 'scheduled', laneRun: 'yes', spentMinor: '0', budgetMinor: '5000' }] }), InvalidReply);
+  assert.equal(run(laneJobList, { jobs: [{ id: 'j1', title: 'Chase', template: null, state: 'scheduled', laneRun: 'yes', spentMinor: '0', budgetMinor: '5000' }] }).jobs.length, 0, 'a malformed row is dropped, not the page');
+  assert.throws(() => run(laneJobList, { jobs: 'none' }), InvalidReply);
   assert.equal(run(skillFile, { path: 'receivables-week/SKILL.md', content: '---\nname: x\n---\n' }).path, 'receivables-week/SKILL.md');
   assert.throws(() => run(skillFile, { path: 'x', content: 'bad\u0000' }), InvalidReply);
   assert.equal(run(proposalList, [{ id: 'p1', origin: 'detector', card: { title: 'Cash' }, evidence: ['Asked three weeks.'], digest: 'd' }]).length, 1);

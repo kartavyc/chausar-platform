@@ -49,10 +49,11 @@ export function budgetPairs(b: Budget, say: Say): Pair[] {
 }
 export function ruleText(r: StopRule, say: Say, language: Language): string {
   switch (r.rule) {
-    case 'runs': return say('jobsx.stop.runs', { limit: r.limit ?? 0, used: r.used ?? 0 });
+    // Missing is words, never zero: a rule without its counts reads as the plain rule name.
+    case 'runs': return r.limit === undefined || r.used === undefined ? say('jobsx.stop.other', { rule: r.rule }) : say('jobsx.stop.runs', { limit: r.limit, used: r.used });
     case 'deadline': return r.at === undefined ? say('jobsx.stop.other', { rule: r.rule }) : say('jobsx.stop.deadline', { date: day(r.at, language) });
     case 'budget': return say('jobsx.stop.budget');
-    case 'failures': return say('jobsx.stop.failures', { limit: r.limit ?? 0, count: r.count ?? 0 });
+    case 'failures': return r.limit === undefined || r.count === undefined ? say('jobsx.stop.other', { rule: r.rule }) : say('jobsx.stop.failures', { limit: r.limit, count: r.count });
     case 'goal': return r.text === undefined ? say('jobsx.stop.other', { rule: r.rule }) : say('jobsx.stop.goal', { text: r.text });
     default: return say('jobsx.stop.other', { rule: r.rule });
   }
@@ -266,6 +267,8 @@ export function JobControlsPage({ props }: { props: PlaceRenderProps }) {
   const [open, setOpen] = useState<{ id: string; origin: HTMLElement | null } | null>(null);
   const close = useCallback(() => setOpen(null), []);
   const canChange = !props.viewer;
+  // Changing a stop rule needs an approving seat (owner or co-founder); an accountant seat prepares only.
+  const canApprove = canChange && ['owner', 'cofounder'].includes(props.member.role);
   const value = loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined;
   const state = value === undefined ? loadedState(loaded) : null;
   const jobs = (value?.jobs ?? []).filter(j => j.laneRun && j.deleted !== true);
@@ -288,7 +291,7 @@ export function JobControlsPage({ props }: { props: PlaceRenderProps }) {
           <DetectSection p={props} host={host} canChange={canChange} />
           <MissedSection p={props} host={host} canChange={canChange} titleOf={titleOf} />
         </div>
-        {openJob !== undefined && <JobSheet key={openJob.id} p={props} host={host} job={openJob} origin={open?.origin ?? null} canChange={canChange} onClose={close} />}
+        {openJob !== undefined && <JobSheet key={openJob.id} p={props} host={host} job={openJob} origin={open?.origin ?? null} canChange={canApprove} onClose={close} />}
       </div>
     </Frame>
   );

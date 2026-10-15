@@ -100,3 +100,30 @@ test('the stock check runs once the dictionary publishes stock_on_hand (core-dat
   assert.deepEqual(await availability(host([]), owner, stock), { available: false, code: 'TEMPLATE_CALCULATION_MISSING', reason: 'Your published meanings have no calculation this job needs.' });
   assert.deepEqual(await availability(host(['stock_on_hand']), owner, stock), { available: true });
 });
+
+test('round 4 review: a model may only propose a reminder; preview refusals are never charged; core missed notes can be marked read', async t => {
+  const { GatewayAgent } = await import('../runtime/jobs-ext/gateway-agent.ts');
+  const gw = (answer: unknown, previewError?: Error): any => ({
+    store: { read: () => ({ modelReceipts: [], routes: [{ id: 'route-api', kind: 'openai-compatible', revision: 1, maxCostMinor: '300', enabled: true }] }) },
+    listRoutes: () => [{ id: 'route-api', kind: 'openai-compatible', revision: 1, maxCostMinor: '300', enabled: true }],
+    preview: async () => { if (previewError) throw previewError; return { id: 'p', approvalRequired: false, purpose: 'decide' }; },
+    execute: async () => ({ kind: 'decision', decision: answer, receipt: { id: 'r', actualCostMinor: '1' } }) });
+  const item: any = { id: 'c', jobId: 'j', template: 'receivables-week', fields: { bucket: '61-90' }, recordIds: [], sourceIds: [], tainted: false };
+  const options = ['remind', 'wait', 'ask-owner']; const signal = new AbortController().signal; const calc = async () => ({ id: 'x' });
+  assert.equal((await new GatewayAgent({ gateway: gw({ option: 'wait', confidence: 0.99 }), routeId: 'route-api', calculate: calc }).decide(item, options, signal, owner)).decision, 'ask-owner', 'waiting or closing a case is a person’s call');
+  const refused = await new GatewayAgent({ gateway: gw(null, Object.assign(new Error('x'), { code: 'PAYLOAD_TOO_LARGE' })), routeId: 'route-api', calculate: calc }).decide(item, options, signal, owner).catch(e => e);
+  assert.equal(refused.code, 'PAYLOAD_TOO_LARGE'); assert.equal(refused.dispatched, false, 'nothing left the machine, so nothing is charged');
+  const asked: any[] = [];
+  const agentTask = { ...gw(null), preview: async (_c: any, r: any) => { asked.push(r); return { id: 'q', approvalRequired: false }; }, execute: async () => ({ kind: 'analysis', plan: { operation: 'aging' }, receipt: { id: 'r' } }) };
+  await new GatewayAgent({ gateway: agentTask, routeId: 'route-api', calculate: calc }).decide({ ...item, template: 'agent-task' }, ['done', 'needs-you'], signal, owner);
+  assert.equal(asked[0].purpose, undefined, 'a job in your own words stays a lookup');
+  // Core-run jobs' missed notes can be marked read.
+  const { ui, engine, clock } = await fixture(t);
+  await ui('trust.update', { autonomy: true });
+  const brief = await ui('jobs.create', { type: 'owner-brief', goal: 'Synthetic owner brief each day', budgetMinor: '10', stopRule: { maxRuns: 5, deadline: new Date(clock.now + 10 * DAY).toISOString() }, catchup: 'skip', intervalMs: DAY, graceMs: 0 });
+  clock.now += 3 * DAY + 1000; await engine.tick();
+  const notes = (await ui('jobsx.missed')).filter((n: any) => n.jobId === brief.id);
+  assert.ok(notes.length >= 1 && notes.every((n: any) => n.seen === false));
+  await ui('jobsx.missed.seen', { ids: notes.map((n: any) => n.id) });
+  assert.ok((await ui('jobsx.missed')).filter((n: any) => n.jobId === brief.id).every((n: any) => n.seen === true));
+});

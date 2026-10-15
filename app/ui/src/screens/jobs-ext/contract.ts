@@ -3,7 +3,7 @@
  * platform/runtime/procedures/methods.ts and platform/runtime/jobs-ext/methods.ts.
  * Money is whole paise as a string and stays a string; nothing here does arithmetic on it.
  */
-import { InvalidReply, bool, count, digest, finite, id, instant, list, literal, nullable, object, oneOf, paise, record, share, text, type Check } from './check.ts';
+import { InvalidReply, bool, count, digest, finite, id, instant, list, literal, nullable, object, oneOf, paise, record, share, text, type Check, lenientList } from './check.ts';
 
 const short = text(400);
 const long = text(4000);
@@ -66,11 +66,11 @@ export type ListedProcedure = ReturnType<typeof listedProcedure>;
 export const procedureList = object({ procedures: list(listedProcedure, 1000) });
 
 export const procedureRun = object({
-  id, at: instant, caseId: id, route: oneOf(ROUTES), costMinor: paise, outcome: oneOf(OUTCOMES),
+  id, at: instant, caseId: text(200), route: oneOf(ROUTES), costMinor: paise, outcome: oneOf(OUTCOMES),
 }, { decision: text(64), confidence: share, note: text(600), latencyMs: count });
 export type ProcedureRun = ReturnType<typeof procedureRun>;
 /** `procedures.get`: one procedure with its stats and the runs the caller may still read. */
-export const procedureDetail = object({ procedure, stats: procedureStats, runs: list(procedureRun, 200) });
+export const procedureDetail = object({ procedure, stats: procedureStats, runs: lenientList(procedureRun, 200) });
 export type ProcedureDetail = ReturnType<typeof procedureDetail>;
 
 // ---- Ready-made jobs --------------------------------------------------------------------
@@ -85,7 +85,7 @@ export const readyMadeList = object({ templates: list(readyMade, 100) });
 const laneJob = object({ id, title: short, template: nullable(name), state: name, laneRun: bool, spentMinor: paise, budgetMinor: paise }, { deleted: bool });
 export type LaneJobRow = ReturnType<typeof laneJob>;
 /** `jobsx.list`: rows with `laneRun: true` are the jobs this lane runs. */
-export const laneJobList = object({ jobs: list(laneJob, 1000) });
+export const laneJobList = object({ jobs: lenientList(laneJob, 1000) });
 
 const modelMeter = object({ routeId: name, costMinor: paise, steps: count, minutes: count, basis: oneOf(['measured', 'estimate', 'zero'] as const) });
 export type ModelMeter = ReturnType<typeof modelMeter>;

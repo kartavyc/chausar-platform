@@ -13,18 +13,18 @@ function fakeRpc(handlers: Record<string, Handler>) {
   return { request: vi.fn(async (method: string, payload: Record<string, unknown>) => { const h = handlers[method]; if (!h) throw refuse('UNKNOWN_METHOD'); return h(payload); }) };
 }
 const place = jobsExtPlaces[0]!;
-function Harness({ rpc, start, language, viewer, view }: { rpc: ReturnType<typeof fakeRpc>; start: Address; language: Language; viewer: boolean; view: View }) {
+function Harness({ rpc, start, language, viewer, view, role }: { rpc: ReturnType<typeof fakeRpc>; start: Address; language: Language; viewer: boolean; view: View; role?: string }) {
   const [address, setAddress] = useState<Address>(start);
   return (
     <TextProvider language={language}>
-      {place.render({ address, language, view, viewer, rpc, member: { id: 'm1', role: viewer ? 'viewer' : 'owner' }, live: () => true, openReceipt: () => {},
+      {place.render({ address, language, view, viewer, rpc, member: { id: 'm1', role: role ?? (viewer ? 'viewer' : 'owner') }, live: () => true, openReceipt: () => {},
         navigate: next => setAddress(next ?? start) })}
     </TextProvider>
   );
 }
-function show(handlers: Record<string, Handler>, opts: { language?: Language; viewer?: boolean; view?: View } = {}) {
+function show(handlers: Record<string, Handler>, opts: { language?: Language; viewer?: boolean; view?: View; role?: string } = {}) {
   const rpc = fakeRpc(handlers);
-  render(<Harness rpc={rpc} start={{ place: 'work', sub: 'procedures' }} language={opts.language ?? 'en'} viewer={opts.viewer ?? false} view={opts.view ?? 'guided'} />);
+  render(<Harness rpc={rpc} start={{ place: 'work', sub: 'procedures' }} language={opts.language ?? 'en'} viewer={opts.viewer ?? false} view={opts.view ?? 'guided'} role={opts.role} />);
   return { rpc };
 }
 const listed = async () => { await waitFor(() => expect(document.querySelector('[data-procedure-list]')).toBeTruthy()); return document.querySelector('[data-procedure-list]') as HTMLElement; };
@@ -87,7 +87,7 @@ test('the sheet shows typed steps, rule buckets and runs; Approve sends the exac
   const steps = await screen.findByText('Work out what each customer owes');
   expect(steps).toBeTruthy();
   expect(screen.getByText('Calculate · Runs the calculation aging.')).toBeTruthy();
-  expect(screen.getByText('Action · Waits for your yes.')).toBeTruthy();
+  expect(screen.getByText('Action · Waits for your yes, unless you let this kind run on its own in Trust.')).toBeTruthy();
   expect(screen.getByText('Lookup · Needs an AI model.')).toBeTruthy();
   expect(screen.getByText('Question · Decided by the case detail days_overdue. Used only when at least 80% sure.')).toBeTruthy();
   expect(screen.getByText('Options: remind, wait')).toBeTruthy();
@@ -157,6 +157,15 @@ test('a viewer reads the list and the sheet but gets no Propose, Approve, Reject
   expect(await screen.findByText('Your seat can read this but not change it.')).toBeTruthy();
   await listed();
   expect(screen.queryByRole('button', { name: /Propose a procedure/ })).toBeNull();
+  await openRow();
+  await screen.findByText('Work out what each customer owes');
+  for (const name of ['Approve', 'Reject', 'Retire']) expect(screen.queryByRole('button', { name })).toBeNull();
+});
+
+test('an accountant seat may propose but gets no Approve, Reject or Retire', async () => {
+  show(base(), { role: 'accountant' });
+  await listed();
+  expect(screen.queryAllByRole('button', { name: /Propose a procedure/ }).length).toBeGreaterThan(0);
   await openRow();
   await screen.findByText('Work out what each customer owes');
   for (const name of ['Approve', 'Reject', 'Retire']) expect(screen.queryByRole('button', { name })).toBeNull();

@@ -224,6 +224,8 @@ export function ProceduresPage({ props }: { props: PlaceRenderProps }) {
   const titles = types.loaded;
   const [open, setOpen] = useState<{ id: string; origin: HTMLElement | null } | null>(null);
   const canChange = !props.viewer;
+  // Approving, rejecting and retiring need an approving seat; proposing needs only a preparing one.
+  const canApprove = canChange && ['owner', 'cofounder'].includes(props.member.role);
   const close = useCallback(() => setOpen(null), []);
   const titleOf = (template: string) => (titles.phase === 'ready' ? titles.value.templates.find(t => t.id === template)?.title : undefined) ?? template;
   const value = loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined;
@@ -266,7 +268,7 @@ export function ProceduresPage({ props }: { props: PlaceRenderProps }) {
         </div>
         {open !== null && (
           <ProcedureSheet key={open.id} p={p} id={open.id} title={openItem === undefined ? say('jobsx.proc.kind') : titleOf(openItem.template)} origin={open.origin}
-            canChange={canChange} onClose={close} onChanged={() => setTick(n => n + 1)} />
+            canChange={canApprove} onClose={close} onChanged={() => setTick(n => n + 1)} />
         )}
       </div>
     </Frame>

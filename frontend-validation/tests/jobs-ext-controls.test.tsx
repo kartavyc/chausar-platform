@@ -149,13 +149,17 @@ test('not built: UNKNOWN_METHOD on the list draws not built; a section without i
   await waitFor(() => expect(document.querySelectorAll('[data-budget] p, [data-stop-rules] p').length).toBeGreaterThan(0));
   expect(within(document.querySelector('[data-budget]') as HTMLElement).getByText(/not built yet/i)).toBeTruthy();
   cleanup();
+  // One malformed row is dropped rather than blanking the page.
   show(handlers({ 'jobsx.list': () => ({ jobs: [{ ...laneJob, spentMinor: 12.5 }] }) }));
+  expect(await screen.findByText('No ready-made jobs are running yet.')).toBeTruthy();
+  cleanup();
+  show(handlers({ 'jobsx.list': () => ({ jobs: 'none' }) }));
   expect(await screen.findByText(/INVALID_REPLY/)).toBeTruthy();
 });
 
 test('empty and viewer: no lane jobs says so; a viewer gets no Find, Save or Mark as read', async () => {
   show(handlers({ 'jobsx.list': () => ({ jobs: [coreJob] }) }));
-  expect(await screen.findByText('No jobs run by job extensions yet.')).toBeTruthy();
+  expect(await screen.findByText('No ready-made jobs are running yet.')).toBeTruthy();
   cleanup();
   show(handlers({ 'jobsx.missed': () => [{ id: 'missed_1', jobId: 'job_1', at: '2026-10-14T09:00:00Z', missed: 1, ran: 0, rule: 'skip', text: 'x', seen: false }] }), { viewer: true });
   expect(await screen.findByText('Your seat can read this but not change it.')).toBeTruthy();

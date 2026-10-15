@@ -204,13 +204,17 @@ export const jobsMethods: Record<string, MethodSpec> = {
   'jobsx.missed': { permission: 'read', handler: (ctx, _p, host) => {
     const state = host.store.read(); const ns = peekLane(state); const mine = jobsOf(host).list(ctx);
     const lanes = ns.missed.filter(m => mine.some(j => j.id === m.jobId)).reverse();
-    const core = mine.filter(j => !isLaneJob(j)).flatMap(j => ledgerMissed(j.ledger).map(item => ({ id: `${j.id}:${item.at}`, jobId: j.id, at: item.at, missed: item.missed, ran: 0, rule: 'skip', text: `${item.missed === 1 ? '1 run was' : `${item.missed} runs were`} missed while this computer slept. Skipped by the job’s rule.`, seen: false })));
+    const core = mine.filter(j => !isLaneJob(j)).flatMap(j => ledgerMissed(j.ledger).map(item => ({ id: `${j.id}:${item.at}`, jobId: j.id, at: item.at, missed: item.missed, ran: 0, rule: 'skip', text: `${item.missed === 1 ? '1 run was' : `${item.missed} runs were`} missed while this computer slept. Skipped by the job’s rule.`, seen: (ns.seenCoreMissed ?? []).includes(`${j.id}:${item.at}`) })));
     return [...lanes, ...core].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200);
   } },
   'jobsx.missed.seen': { permission: 'prepare', handler: (ctx, p, host) => host.store.update(state => {
     check(Array.isArray(p.ids) && p.ids.length <= 200, 'INVALID_REQUEST', 'Name the notes you read.');
     const mine = new Set(jobsOf(host).list(ctx).map(j => j.id)); let count = 0;
-    for (const note of lane(state).missed) if (p.ids.includes(note.id) && mine.has(note.jobId) && !note.seen) { note.seen = true; count++; }
+    const ns = lane(state);
+    for (const note of ns.missed) if (p.ids.includes(note.id) && mine.has(note.jobId) && !note.seen) { note.seen = true; count++; }
+    // Core-run jobs' notes live in their ledgers; their read marks are kept here.
+    for (const id of p.ids) if (typeof id === 'string' && id.length <= 300 && id.indexOf(':') > 0 && mine.has(id.slice(0, id.indexOf(':'))) && !(ns.seenCoreMissed ??= []).includes(id)) { ns.seenCoreMissed.push(id); count++; }
+    if (ns.seenCoreMissed && ns.seenCoreMissed.length > 2000) ns.seenCoreMissed.splice(0, ns.seenCoreMissed.length - 2000);
     return { seen: count };
   }) },
   'jobsx.schedules': { permission: 'read', handler: (ctx, _p, host) => { const ns = peekLane(host.store.read());

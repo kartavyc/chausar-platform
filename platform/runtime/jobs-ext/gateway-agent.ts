@@ -1,8 +1,9 @@
 /**
  * The live agent for jobs, over the core ModelGateway and the routes the owner configured.
  *
- * The gateway accepts only one thing from a model here: an analytical plan that names a published
- * calculation. So this agent is a lookup step, never a decision maker:
+ * With the gateway's "decide" purpose (core-gateway-auth), a receivables case may get a model's proposal to
+ * remind, which still waits for your yes; any other answer goes to you. Without that purpose the gateway accepts
+ * only an analytical plan that names a published calculation, so the agent is a lookup step:
  *   1. it previews a request made of fixed words and typed case codes (no outside text), under the
  *      trust panel's send level;
  *   2. an outside send waits until the owner approves that exact payload (`models.approve`);
@@ -62,12 +63,18 @@ export class GatewayAgent implements AgentPort {
     const started = this.#clock(); const question = lookupQuestion(item);
     // Prefer the gateway's "decide" purpose (core-gateway-auth): the model picks one of the offered options.
     // While the gateway refuses that purpose, the agent stays a lookup and the decision stays with a person.
-    const offered = options.filter(option => CODE.test(option)).slice(0, 10);
+    // Only the receivables job asks the model to decide; a job in your own words stays a lookup until its question can carry the goal.
+    const offered = item.template === 'receivables-week' ? options.filter(option => CODE.test(option)).slice(0, 10) : [];
+    const deciding = offered.length >= 2;
     // An unused preview for this exact request is reused, so one approval covers exactly one send.
     const receipts = this.#gateway.store.read().modelReceipts;
-    let preview = [...receipts].reverse().find(r => r.kind === 'model-preview' && r.status === 'preview' && r.memberId === context.memberId && r.epoch === context.epoch
+    // Candidates: an unused preview of this exact request, either a decide preview with the same options or a lookup.
+    // One that already has your unused approval comes first, so a newer unapproved preview never hides it.
+    const candidates = [...receipts].reverse().filter(r => r.kind === 'model-preview' && r.status === 'preview' && r.memberId === context.memberId && r.epoch === context.epoch
       && r.routeId === this.routeId && r.questionHash === hash(question) && JSON.stringify(r.sourceIds) === JSON.stringify([...item.sourceIds].sort())
-      && (r.purpose !== 'decide' || JSON.stringify(r.options) === JSON.stringify(offered)));
+      && (r.purpose === 'decide' ? deciding && Array.isArray(r.options) && JSON.stringify([...r.options].sort()) === JSON.stringify([...offered].sort()) : true));
+    const approved = (r: any) => receipts.some(a => a.kind === 'outbound-approval' && a.previewId === r.id && !a.used && Date.parse(a.expiresAt) > Date.now());
+    let preview = candidates.find(approved) ?? candidates[0];
     // Reuse only a preview that is still current: the same facts, privacy settings and route revision. Otherwise make a fresh one.
     if (preview) {
       const state = this.#gateway.store.read(); const route = state.routes.find((r: any) => r.id === this.routeId);
@@ -76,11 +83,13 @@ export class GatewayAgent implements AgentPort {
       if (!current) preview = undefined;
     }
     // No automatic sample rows: only what the send level allows beyond them reaches the preview you review.
-    if (!preview && offered.length >= 2) {
+    // A refusal at the preview stage sent nothing, so it is never charged.
+    const unsent = (error: unknown) => Object.assign(error as object, { dispatched: false });
+    if (!preview && deciding) {
       try { preview = await this.#gateway.preview(context, { purpose: 'decide', options: [...offered], question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] }); }
-      catch (error) { if (!DECIDE_UNAVAILABLE.has((error as { code?: string }).code ?? '')) throw error; }
+      catch (error) { if (!DECIDE_UNAVAILABLE.has((error as { code?: string }).code ?? '')) throw unsent(error); }
     }
-    preview ??= await this.#gateway.preview(context, { question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] });
+    if (!preview) { try { preview = await this.#gateway.preview(context, { question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] }); } catch (error) { throw unsent(error); } }
     let approvalId: string | undefined;
     if (preview.approvalRequired) {
       const approval = this.#gateway.store.read().modelReceipts.find(r => r.kind === 'outbound-approval' && r.previewId === preview.id && !r.used && Date.parse(r.expiresAt) > Date.now());
@@ -102,11 +111,12 @@ export class GatewayAgent implements AgentPort {
     if (result?.kind === 'decision') {
       // Only an offered option counts; anything else, or no confidence, goes to a person.
       const option = result.decision?.option; const confidence = result.decision?.confidence;
-      const chosen = typeof option === 'string' && offered.includes(option) ? option : 'ask-owner';
+      // A model may only propose a reminder, which still waits for your yes. Waiting, stopping or closing a case is a person's call.
+      const chosen = option === 'remind' && offered.includes(option) ? option : 'ask-owner';
       const sure = chosen !== 'ask-owner' && typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : 0;
       return { decision: chosen, confidence: sure, steps: [{ kind: 'question', tool: 'question.model-decision', outcome: chosen === 'ask-owner' ? 'refused' : 'ok', durationMs: 0, units: 0 }],
         units: 0, durationMs: Math.max(0, this.#clock() - started), costMinor, receiptIds: [], modelReceiptId: result.receipt?.id,
-        note: chosen === 'ask-owner' ? 'The model did not pick one of the offered answers. The decision is yours.' : 'The model picked one of the offered answers.' };
+        note: chosen === 'ask-owner' ? 'The model did not propose a reminder. The decision is yours.' : 'The model proposed a reminder. It waits for your yes.' };
     }
     const plan = result.plan as { operation: string; period?: { from: string; to: string }; branch?: string; customerId?: string };
     const steps: AgentDecision['steps'] = [{ kind: 'lookup', tool: 'lookup.model-plan', outcome: 'ok', durationMs: 0, units: 0 }];
