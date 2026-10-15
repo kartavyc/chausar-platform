@@ -25,6 +25,12 @@ Installers, the bundled database, the updater, native pieces and the enterprise 
 | `native.databaseStatus` | admin | Bundled PostgreSQL state: absent, uninitialized, stopped, running, needs-upgrade, newer-than-app or unavailable, with the port and the last crash recovery. |
 | `service.status`, `service.plan` | admin | Background-service state, and the exact files and commands an install would use. |
 | `service.install`, `service.uninstall` | admin | `confirmed: true` required. |
+| `native.readerBundle` | read | What the installed app bundles for FR-07: Python, pdfplumber, pypdfium2, Pillow, tesseract and its languages, total size. Reads only the staged manifest. |
+| `native.installReader` | admin | Re-hashes the bundled readers against the manifest; nothing is downloaded. |
+| `native.wake.status`, `native.wake.plan` | admin | The OS wake timer: mechanism, availability, next wake; the exact files and commands a wake would use. |
+| `native.wake.set`, `native.wake.clear` | admin | `confirmed: true` required. One pending Chausar wake, at most 7 days ahead. |
+| `shell.startAtLogin` | read | Whether the app starts at sign-in, by which mechanism, and whether the entry points at this app. |
+| `shell.setStartAtLogin` | admin | `confirmed: true` required. Turns starting at sign-in on or off. |
 
 All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that read outside text (`TAINTED_RELEASE_REQUEST`). Trusted options come only from `EngineOptions.modules.release` (`releasePublicKey`, `channel`, `feedUrl`, `installRoot`, `previewExpiresAt`, `appExecutable`, `resourcesPath`, …). The release refusal codes are on the release line of `laneRefusals` in `app/desktop/preload.cjs`. No screens: the Trust and Tools lanes and the frame draw these.
 
@@ -36,19 +42,23 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 | Windows signing through a cloud key service (DigiCert KeyLocker or SSL.com eSigner) | `scripts/release/windows-sign.cjs` | **experimental** (needs the certificate) |
 | macOS signing and notarization | `builder.json`, `release.yml` | **experimental** (needs an Apple account) |
 | Release CI with checksums | `.github/workflows/release.yml`, `ci.yml` job `release-config`, `scripts/release/checksums.ts`, `sign-update-manifest.ts` | **experimental** (never run on GitHub) |
-| Runtime-binary staging with checksum inventory | `scripts/release/stage-runtime.ts`, `runtime-sources.json` | **supported** (Linux x64 pinned and staged from the real archives; other targets unpinned) |
+| Runtime-binary staging with checksum inventory | `scripts/release/stage-runtime.ts`, `runtime-sources.json`, `linux-libraries.ts` | **supported** (Linux x64 staged for real, self-contained apart from glibc 2.34+; Windows x64/arm64 and macOS pinned and checked against their target's headers but never run) |
 | Bundled PostgreSQL lifecycle: initdb, start, stop, port, crash recovery, upgrade | `platform/runtime/native/postgres-lifecycle.ts`, `desktop-database.ts` (wired into `main.cjs`) | **supported** (Linux x64, real PostgreSQL 17.6 and a 16 → 17 upgrade; other OSes experimental) |
 | Signed update channel, staged rollout, kill switch | `platform/runtime/native/update-channel.ts`, `update-feed-client.ts` | **supported** |
 | Staging, atomic swap, trial launch, automatic and manual rollback | `update-install.ts`, `update-service.ts`, `update-zip.ts`, `update-launch.ts`, `scripts/release/launcher/chausar-launcher.sh` | **supported** (Linux, run with the real built app through the launcher; native installers refuse) |
 | Expiry on preview builds | `update-expiry.ts` | **supported** |
 | Vault copy before a schema change; older app refuses a newer vault | `update-data-guard.ts`, `release.applyUpdate` | **supported** |
-| Native keychain providers (Windows Credential Manager/DPAPI, macOS Keychain, libsecret) | existing `platform/native/keychain` helper and `PlatformKeychain`; status in `native/keychain-status.ts`; manifest writer `scripts/release/keychain-manifest.ts` | **experimental** (not run against a real OS store) |
+| Native keychain providers (Windows Credential Manager/DPAPI, macOS Keychain, libsecret) | existing `platform/native/keychain` helper and `PlatformKeychain`; status in `native/keychain-status.ts`; manifest writer `scripts/release/keychain-manifest.ts`; `scripts/release/verify-keychain-linux.ts` | **supported** on Linux (run against a real gnome-keyring Secret Service); **experimental** on Windows and macOS (not run) |
 | OS background service install | `platform/runtime/native/background-service.ts` | **experimental** (generators and installer tested with a fake runner) |
+| Bundled PDF readers (pdfplumber, pypdfium2, Pillow, tesseract + English) | `scripts/release/stage-readers.ts`, `native/reader-bundle.ts`, `native.readerBundle`/`native.installReader` | **supported** on Linux x64 (real text extraction and OCR through the helper, also in a bare container); **experimental** elsewhere (pins only) |
+| OS wake timer behind `jobsx.setWake` | `native/wake-timer.ts`, `native.wake.*` | **experimental** (code and generated-file checks; no RTC here) |
+| Start at sign-in | `native/start-at-login.ts`, `shell.startAtLogin`, `--start-at-login` in `main.cjs` | **experimental** (Linux autostart file written and read for real; Windows and macOS code only) |
+| Windows launcher | `scripts/release/launcher/chausar-launcher.cmd` | **experimental** (run under Wine only) |
 | Public releases page generator | `scripts/release/releases-page.ts`, `releases.json` | **supported** |
 | Supported and experimental lists generator | `scripts/release/feature-lists.ts`, `supported-evidence.json` | **supported** |
 | Clean public copy with allowlist, scan and licence tags | `scripts/release/public-copy.ts`, `public-allowlist.json` | **supported** (dry run; publishing waits for the licence) |
-| Enterprise server: HTTPS, OIDC, roles, branch scope, browser UI, sessions in PostgreSQL, remote PostgreSQL over TLS | `enterprise/server/` | **experimental** (real PostgreSQL over TLS and a fake identity provider; never deployed) |
-| Enterprise Docker image and compose file | `enterprise/server/Dockerfile`, `compose.yaml` | **experimental** (built and smoke-tested here, 17 of 17; never pushed or deployed) |
+| Enterprise server: HTTPS, OIDC, roles, branch scope, browser UI, sessions and the identity map in PostgreSQL, remote PostgreSQL over TLS (also for investigation search) | `enterprise/server/` | **experimental** (real PostgreSQL over TLS and a fake identity provider; never deployed) |
+| Enterprise Docker image and compose file | `enterprise/server/Dockerfile`, `compose.yaml` | **experimental** (built and smoke-tested here, 24 of 24; never pushed or deployed) |
 
 ## How to use the scripts
 
@@ -70,18 +80,34 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 | `MAC_SIGNING_IDENTITY_MISSING` | An Apple Developer ID certificate and notarization credentials. |
 | `RELEASE_KEY_UNCONFIGURED`, `UPDATES_UNAVAILABLE` | The Ed25519 release key pair; the public half is pinned into the app. |
 | `UPDATE_FEED_NOT_CONFIGURED` | A public update feed URL (hosting is a deployment). |
-| `RUNTIME_SOURCE_UNPINNED`, `RUNTIME_SOURCE_UNAVAILABLE` | SHA-256 pins for the Windows and macOS PostgreSQL and Python archives (Linux x64 is pinned); a PostgreSQL build for Windows on Arm. |
+| `RUNTIME_SOURCE_UNAVAILABLE` | A PostgreSQL build for Windows on Arm (none exists). EDB publishes no checksums, so its Windows and macOS PostgreSQL pins are computed-only; whether that is acceptable is the founder's call. |
 | `LICENCE_UNDECIDED` | The licence choice before the public copy is published. |
 
 ## Still missing
 
-- Nothing has run on Windows or macOS: no installer, signing, keychain store, service manager or launcher there. On Linux nothing ran with Chromium's sandbox on, under FUSE, or through a power cut (only `kill -9`).
-- `scripts/desktop-package.mjs` refuses to package because `package-lock.json` (core) resolves `@electron/node-gyp` over `git+ssh://`; the Linux artifacts were built with the same electron-builder command run directly.
-- The theseus-rs Linux PostgreSQL build links system libraries it does not ship (OpenSSL, libxml2, zstd, lz4, GSSAPI, zlib; glibc 2.34+). No relocatable PostgreSQL 16 archive is pinned for the upgrade's old runtime. Ending orphaned backends after a crash is Linux-only.
-- The enterprise engine is still one writer per workspace: several HTTPS front ends share sessions in PostgreSQL, but not two engines. The identity map stays on that engine's disk; keychain unlock does not work in a container; private token search still needs a loopback database.
+- Nothing has run on Windows or macOS: installers, signing, keychain stores, service managers, the wake timer, start at sign-in, the launcher (the `.cmd` ran only under Wine), staging of the pinned runtimes and readers. On Linux nothing ran with Chromium's sandbox on, under FUSE, through a power cut (only `kill -9`), or with a real RTC wake.
+- The enterprise engine is still one writer per workspace: several HTTPS front ends share sessions and the identity map in PostgreSQL, but a second engine is refused (`VAULT_BUSY`). An administrator's revocation reaches the identity table at that person's next sign-in (their sessions end at once). Keychain unlock does not work in a container.
 - Updates cannot be served from GitHub release-download URLs, which always redirect; the feed and artifacts need a host that serves them directly.
-- The public-copy dry run still finds the 5 npm-author email hits in `package-lock.json` (left for the founder), plus newer hits in other lanes' files (see round 4 below). The 3 invoice-follow-up markers are gone.
-- The Windows launcher is built (round 4) but has run only under Wine, not on Windows.
+- The wake timer and start at sign-in point at the app executable; once the in-place launcher is used they should point at the launcher, or an update leaves them on an old version.
+- Vendored Linux libraries are Ubuntu 22.04's (OpenSSL 3.0.2 with Ubuntu patches); the pins need refreshing with Ubuntu security updates. linux-arm64 is not pinned. Readers for Windows and macOS have pins but no computed library closure (`READER_SOURCE_UNRESOLVED`).
+- The public-copy dry run finds 24 email hits (5 are the npm author's, left for the founder), 7 private-host URLs in tests and 15 branch-name markers, almost all in files other lanes added; they need clearing or allowlisting before publication.
+- connectors-ext's own real-OCR tests still look for tesseract only on the system path; switching their probe to `pdf.status` would run them on the bundle.
+
+## Round 4 contracts
+
+| Method (release) | Caller | Payload → reply | Refusals |
+|---|---|---|---|
+| `native.readerBundle` (read) | connectors-ext `imports.readerStatus` (fills `sizeBytes`) | `{}` → `{ present, reason, python: {version}\|null, packages: {pdfplumber, pypdfium2, Pillow}\|null, tesseract: {version, languages}\|null, sizeBytes\|null, manifestSha256\|null }`; outside the installed app `present: false, reason: 'RUNTIME_NOT_BUNDLED'` | none (absent is a state) |
+| `native.installReader` (admin) | connectors-ext `imports.installReader` | `{}` → `{ installed: true, downloaded: false, verifiedFiles, verifiedBytes, manifestSha256, bundle }` | `READER_BUNDLE_MISSING`, `READER_BUNDLE_CHANGED`, `TAINTED_RELEASE_REQUEST` |
+| `native.wake.status` (admin) | jobs-ext `jobsx.background` (its `wake` field) | `{}` → `{ platform, mechanism: 'windows-task-scheduler'\|'macos-pmset'\|'linux-systemd-user-timer', available, reason?, nextWakeAt: 'YYYY-MM-DDTHH:MM:00Z'\|null, experimental: true }` | `SERVICE_UNAVAILABLE` (no installed app) |
+| `native.wake.set` (admin) | jobs-ext `jobsx.setWake` (should call this and pass the refusal through) | `{ at: ISO with Z or ±HH:MM, confirmed: true }` → the status shape; replaces any pending Chausar wake | `CONFIRMATION_REQUIRED`, `WAKE_TIME_INVALID`, `WAKE_TIME_PAST`, `WAKE_TIME_TOO_FAR` (over 7 days), `WAKE_TIMER_NEEDS_ADMIN`, `WAKE_TIMER_UNAVAILABLE`, `WAKE_TIMER_COMMAND_FAILED`, `SERVICE_UNAVAILABLE` |
+| `native.wake.clear` (admin) | jobs-ext | `{ confirmed: true }` → the status shape | `CONFIRMATION_REQUIRED`, `WAKE_TIMER_NEEDS_ADMIN`, `WAKE_TIMER_COMMAND_FAILED` |
+| `native.wake.plan` (admin) | jobs-ext, reports-tools-trust (to show what would run) | `{ at }` → `{ platform, mechanism, at, elevation: 'none'\|'admin', unitPath, files[{path,content}], install[{command,args}], uninstall[…], display[], command }` | as `set`, without the confirmation |
+| `shell.startAtLogin` (read) | reports-tools-trust TR-12, frame SH-07 | `{}` → `{ platform, mechanism: 'windows-run-key'\|'macos-launch-agent'\|'linux-xdg-autostart', enabled, path, matches: boolean\|null }` | `SERVICE_UNAVAILABLE` |
+| `shell.setStartAtLogin` (admin) | reports-tools-trust TR-12 | `{ enabled: boolean, confirmed: true }` → the same shape | `CONFIRMATION_REQUIRED`, `INVALID_REQUEST`, `START_AT_LOGIN_UNSUPPORTED`, `START_AT_LOGIN_COMMAND_FAILED`, `START_AT_LOGIN_PATH_UNSAFE`, `SERVICE_UNAVAILABLE` |
+| `release.status` (read) | frame-today's update banner (ROUND4-GAPS: it reads core `updates.status` today) | `{}` → `{ configured, version, channel, build: { usable, updateNeeded, expiresAt, … }, vaultCompatible, … }` | none |
+
+All writing methods also refuse phone sessions (`OPEN_DESKTOP`) and requests that read outside text (`TAINTED_RELEASE_REQUEST`). The desktop app launches with `--start-at-login` (tray, no window) and `--background` (wake launches); `main.cjs` accepts both.
 
 ## Full suite
 
