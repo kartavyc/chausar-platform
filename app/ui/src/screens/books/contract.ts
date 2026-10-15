@@ -104,7 +104,8 @@ export const accountRow = object({
     { group: name, under: name, side: oneOf(['debit', 'credit']), cls: name }), 20),
 });
 export type AccountRow = ReturnType<typeof accountRow>;
-export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }) });
+export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }, { sortedAt: instant }) });
+export const accountsProposed = object({ setId: id, accounts: count });
 export const classesReply = object({ classes: list(accountClass, 20) });
 
 const recordKind = oneOf(['customer', 'supplier', 'item']);

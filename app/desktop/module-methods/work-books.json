@@ -2,6 +2,7 @@
   "accounts.classes",
   "accounts.decide",
   "accounts.list",
+  "accounts.propose",
   "approvals.action",
   "approvals.afterRestore",
   "approvals.answerQuestion",

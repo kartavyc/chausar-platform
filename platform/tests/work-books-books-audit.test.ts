@@ -132,7 +132,7 @@ test('BK-17: a line proposed from the ask line waits as proposed; outside conten
 });
 
 test('BK-11: reasons come as codes; the learning lane is asked with no account or customer name', async () => {
-  const f = await setup({ 'learningx.accountsProposals': () => ({ proposals: [{ name: 'Kiran Retail', class: 'income' }] }) });
+  const f = await setup({ 'learningx.accountsList': () => ({ sets: [{ id: 'accounts_1', at: '2026-10-15T00:00:00.000Z', proposals: [{ accountId: 'a1', name: 'Kiran Retail', accountClass: 'sales', confidence: 'high', needsQuestion: false, evidence: [] }] }] }) });
   await f.services.memory.append(owner, [
     fact('i-1', 'tally', { customerId: 'c-1', account: 'Kiran Retail', accountGroup: 'Sundry Debtors' }),
     fact('i-2', 'tally', { customerId: 'c-2', account: 'Mystery Ledger', accountGroup: 'Odd Group' }),
@@ -144,8 +144,8 @@ test('BK-11: reasons come as codes; the learning lane is asked with no account o
   assert.equal(row('Kiran Retail').proposed, 'receivable', 'a customer account is sorted by its group, not by what its name suggests');
   assert.deepEqual(row('Mystery Ledger').because, [{ code: 'group-unsortable', group: 'Odd Group' }]);
   assert.deepEqual(row('Loose Ledger').because, [{ code: 'no-group' }]); assert.equal(row('Loose Ledger').state, 'unsure');
-  const asked = f.calls.filter(c => c.method === 'learningx.accountsProposals');
-  assert.ok(asked.length > 0); assert.ok(asked.every(c => JSON.stringify(c.payload) === '{}'), 'no name is sent');
+  const asked = f.calls.filter(c => c.method === 'learningx.accountsList');
+  assert.ok(asked.length > 0); assert.ok(asked.every(c => JSON.stringify(c.payload) === '{}'), 'reading proposals sends nothing');
 });
 
 test('purge: a source order tried on a copy goes with any source it names', async () => {
@@ -204,4 +204,33 @@ test('BK-14 to BK-09: a source order is tried on a copy, read back, and publishe
   const after = (await engine.request('records.conflicts', {})).conflicts.find((c: any) => c.entityId === 'I1');
   assert.equal(after.picked, 'audit-bank');
   assert.deepEqual(after.claims.find((c: any) => c.sourceId === 'audit-bank').fields.amountMinor, '12000', 'the picked claim’s fields come together from one source');
+});
+
+test('BK-11 round 4: the real learning-ext sorts the chart; its classes map onto ours; Yes goes back to its decision log', async () => {
+  const { learningExtModule } = await import('../runtime/modules/lane-learning-ext.ts');
+  // The stub routes learningx.* to the real learning-ext handlers on the same store.
+  const real: Stub = {};
+  let store!: StateStore; const caller = { ctx: owner };
+  for (const [name, spec] of Object.entries(learningExtModule.methods)) real[name] = (payload: any) => spec.handler(caller.ctx, payload, { store, services: {}, demo: true, directory: '/tmp/x', options: {}, call: async () => { throw new ChausarError('UNKNOWN_METHOD', 'Unknown request.'); } } as ModuleHost);
+  const f = await setup(real); store = f.store;
+  await f.services.memory.append(owner, [
+    fact('i-1', 'tally', { customerId: 'c-1', account: 'Office Rent', accountGroup: 'Odd Group' }),
+    fact('i-2', 'tally', { customerId: 'c-2', account: 'Bank of Synthetic', accountGroup: 'Bank Accounts' }),
+  ]);
+  const before = await f.call(owner, 'accounts.list');
+  assert.deepEqual(before.proposals, { available: true }, 'no set yet');
+  const proposed = await f.call(owner, 'accounts.propose');
+  assert.equal(proposed.accounts, 2); assert.match(proposed.setId, /^accounts_/);
+  const sent = f.calls.find(c => c.method === 'learningx.accountsPropose')!.payload.accounts;
+  assert.ok(sent.every((a: any) => /^acct_[0-9a-f]{24}$/.test(a.id)), 'ids are stable hashes, never names');
+  const after = await f.call(owner, 'accounts.list');
+  assert.ok(after.proposals.sortedAt);
+  const rent = after.accounts.find((a: any) => a.name === 'Office Rent');
+  assert.deepEqual([rent.state, rent.proposed], ['proposed', 'expense'], 'learning-ext indirect-expenses maps onto expense');
+  assert.ok(rent.because.some((b: any) => b.code === 'learned'));
+  assert.equal(after.accounts.find((a: any) => a.name === 'Bank of Synthetic').proposed, 'bank', 'a sortable group still decides by itself');
+  await f.call(owner, 'accounts.decide', { name: 'Office Rent', decision: 'yes' });
+  const decided = f.calls.filter(c => c.method === 'learningx.accountsDecide');
+  assert.equal(decided.length, 1); assert.deepEqual(decided[0].payload.decisions, [{ accountId: sent.find((a: any) => a.name === 'Office Rent').id, choice: 'accepted' }]);
+  await assert.rejects(f.call(viewer, 'accounts.propose'), (e: any) => e.code === 'FORBIDDEN');
 });
