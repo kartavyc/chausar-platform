@@ -9,6 +9,9 @@ const definitions = Object.freeze({
   '/ui/shell.js': ['app/ui/host/shell.js', 'text/javascript; charset=utf-8', 32000],
   '/ui/host.js': ['app/ui/public/host.js', 'text/javascript; charset=utf-8', 2000000],
   '/ui/host.css': ['app/ui/public/host.css', 'text/css; charset=utf-8', 200000],
+  // TL tools (reports-tools-trust): the fixed renderer of the small-app frame, a classic script the
+  // sandboxed srcdoc frame loads from the app's origin under the app's script-src 'self'.
+  '/ui/smallapp-frame.js': ['app/ui/public/smallapp-frame.js', 'text/javascript; charset=utf-8', 64000],
   ...Object.fromEntries(['InstrumentSans-400', 'InstrumentSans-500', 'InstrumentSans-600',
     'DMMono-400', 'DMMono-500', 'IBMPlexMono-500',
     'NotoSansDevanagari-400', 'NotoSansDevanagari-500'].flatMap(name =>
