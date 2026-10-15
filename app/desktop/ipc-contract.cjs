@@ -2,6 +2,7 @@
 
 const REQUEST_CHANNEL = 'chausar:request';
 const STATUS_CHANNEL = 'chausar:engine-status';
+const EVENT_CHANNEL = 'chausar:engine-event'; // core-sync-jobs (round 4): live refresh
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -110,4 +111,4 @@ function assertTrustedSender(event, contents, document = TRUSTED_DOCUMENT) {
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, MODULE_METHODS, validateRequest, assertTrustedSender, publicError });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, EVENT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, MODULE_METHODS, validateRequest, assertTrustedSender, publicError });

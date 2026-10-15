@@ -49,6 +49,7 @@ import { Receipt } from '../parts/Receipt';
 import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
 import { receiptWithDetail, useReceiptDetail } from '../parts/receipt-detail.ts';
 import type { PlaceRpc } from '../places/types.ts';
+import { createLiveEvents, desktopWake, type LiveEvents } from '../places/live-events.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -431,6 +432,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
+  // core-sync-jobs (round 4): one live-refresh source per controller, disposed with it; places receive its `subscribe`.
+  const [liveEvents, setLiveEvents] = useState<LiveEvents | null>(null);
+  useEffect(() => { const created = createLiveEvents(controller.places, desktopWake()); setLiveEvents(created); return () => created.dispose(); }, [controller]);
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -939,7 +943,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
         rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
         navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
-        ...(openLink !== undefined ? { openLink } : {}) });
+        ...(openLink !== undefined ? { openLink } : {}), ...(liveEvents !== null ? { subscribe: liveEvents.subscribe } : {}) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
