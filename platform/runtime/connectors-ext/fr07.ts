@@ -76,6 +76,25 @@ export function fr07Result(envelope: Envelope): Fr07Result {
     kept: { file: 'not-kept', record: 'books-sources-history' },
     imported: envelope.committed ? { importId: envelope.committed.importId, rows: envelope.committed.rows, duplicate: envelope.committed.duplicate } : null };
 }
+/** Release-lane reader bundle (`native.readerBundle`): its size when the installer ships the readers, else null. */
+async function bundledSize(host: ModuleHost): Promise<number | null> {
+  try {
+    const bundle = await host.call('native.readerBundle', {}) as { present?: unknown; sizeBytes?: unknown };
+    return bundle?.present === true && Number.isSafeInteger(bundle.sizeBytes) && (bundle.sizeBytes as number) > 0 ? bundle.sizeBytes as number : null;
+  } catch { return null; }
+}
+/** Nothing is downloaded: `native.installReader` verifies the bundled readers against the release manifest. */
+const UNBUNDLED = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE', 'READER_BUNDLE_MISSING']);
+async function installBundled(ctx: Context, host: ModuleHost) {
+  let verified: { installed?: unknown };
+  try { verified = await host.call('native.installReader', {}) as { installed?: unknown }; }
+  catch (error) {
+    if (UNBUNDLED.has((error as any)?.code)) throw new ChausarError('READER_INSTALL_UNAVAILABLE', 'This build does not include the PDF reader. Install the full release, which bundles Python with pdfplumber, pypdfium2, Pillow and tesseract.');
+    throw error;
+  }
+  check(verified?.installed === true, 'READER_INSTALL_UNAVAILABLE', 'The bundled PDF reader could not be confirmed.');
+  return { installed: true, downloaded: false, ...(await imports.readerStatus(ctx, {}, host)) };
+}
 function envelopeFor(host: ModuleHost, id: unknown): Envelope {
   check(typeof id === 'string' && id.length > 0 && id.length <= 100, REQUEST, 'Choose a file that was read.');
   const found = peekCx(host.store.read()).envelopes.find(item => item.id === id);
@@ -184,13 +203,14 @@ export const imports = {
       // The helper's answer is checked, never trusted: a size is a whole number of bytes, or unknown.
       const sizeBytes = (result.pdfText === true || result.pdfOcr === true) && Number.isSafeInteger(result.sizeBytes) && result.sizeBytes >= 0 ? result.sizeBytes as number : null;
       return { status: result.pdfText === true ? 'installed' : 'not-installed', pdfText: result.pdfText === true, pdfOcr: result.pdfOcr === true,
-        reason: result.pdfText === true ? null : 'PDF_LIBRARY_MISSING', sizeBytes };
+        reason: result.pdfText === true ? null : 'PDF_LIBRARY_MISSING', sizeBytes: sizeBytes ?? await bundledSize(host) };
     } catch (error) {
       return { status: 'not-installed', pdfText: false, pdfOcr: false, reason: typeof (error as any)?.code === 'string' ? (error as any).code : 'HELPER_EXECUTION_FAILED', sizeBytes: null };
     }
   },
-  installReader(_ctx: Context, payload: Record<string, any>) {
+  installReader(ctx: Context, payload: Record<string, any>, host?: ModuleHost) {
     shape(payload, [], []);
-    throw new ChausarError('READER_INSTALL_UNAVAILABLE', 'This build does not download the PDF reader. The installer must bundle Python with pdfplumber, pypdfium2, Pillow and tesseract.');
+    if (!host) throw new ChausarError('READER_INSTALL_UNAVAILABLE', 'This build does not download the PDF reader. The installer must bundle Python with pdfplumber, pypdfium2, Pillow and tesseract.');
+    return installBundled(ctx, host);
   },
 };
