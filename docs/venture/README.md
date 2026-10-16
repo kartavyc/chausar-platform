@@ -66,7 +66,7 @@ This build keeps each business in the engine's encrypted file vault, which the c
 
 ## What is not built
 
-A public hosted web app; durable storage for real books; real outside writes such as payment links, email or posts; agents that read inboxes or the web; screens for client files, hand-off answers, work receipts and the improvement loop (the engine has them); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); agentOS and hosted sandboxes, and containers tried against a real Docker; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
+A public hosted web app; durable storage for real books; real outside writes such as payment links, email or posts; agents that read inboxes or the web; work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); agentOS and hosted sandboxes, and containers tried against a real Docker; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
 
 ## Demo script
 
