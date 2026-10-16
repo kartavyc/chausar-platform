@@ -6,7 +6,7 @@ import { copiedTokens, formatVentureDate, modelWords } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
   BlueprintRecord, CountryProfile, Deliverable, DeliveryModelOutput, IsoDate, Json, ModelTask, OrderRecord, PriceFigure,
-  PriceReceiptRecord, ServiceType, TextPart,
+  PriceReceiptRecord, ServiceType, TextPart, WorkReceiptRecord,
 } from '../contracts.ts';
 import { currentOfferReceipt } from './shared.ts';
 
@@ -18,11 +18,13 @@ export const TEMPLATE_QUESTION = 'Is anything missing that we should know before
 /** Client-facing: the owner copies the outline to a client, so it never says "your plan" (that would read as the client's). */
 export const TEMPLATE_PRICE_SENTENCE = 'Here is the price for this work.';
 
-export type FigureRefEntry = { ref: string; label: string; receiptId: string; figureKey: PriceFigure['key'] };
+/** figureKey is a price figure key, or a work receipt figure key such as 'money-in' or 'group-1'. */
+export type FigureRefEntry = { ref: string; label: string; receiptId: string; figureKey: PriceFigure['key'] | string };
 export type DateRefEntry = { ref: string; label: string; iso: IsoDate };
 /** What the engine offers a draft: words-only labels for the model, receipts and dates kept on the engine side. */
 export type DraftRefs = { figures: FigureRefEntry[]; dates: DateRefEntry[] };
-export type DraftContext = { serviceType: ServiceType; refs: DraftRefs; allowed: readonly string[] };
+/** sections overrides the service type's reply headings, for a report on proven work. */
+export type DraftContext = { serviceType: ServiceType; refs: DraftRefs; allowed: readonly string[]; sections?: readonly string[] };
 
 const UNIT_WORD: Record<string, string> = { month: 'month', project: 'project', hour: 'hour' };
 
@@ -68,14 +70,14 @@ export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receip
 }
 
 /** JSON schema for the draft: closed objects, every property required, no number types. */
-export function deliverySchema(serviceType: ServiceType): Json {
+export function deliverySchema(serviceType: ServiceType, sections: readonly string[] = REQUIRED_SECTIONS[serviceType]): Json {
   return {
     type: 'object', additionalProperties: false, required: ['title', 'sections', 'questionsForClient'],
     properties: {
       title: { type: 'string', description: 'Short title. No digits.' },
       sections: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['heading', 'parts'],
         properties: {
-          heading: { type: 'string', enum: [...REQUIRED_SECTIONS[serviceType]] },
+          heading: { type: 'string', enum: [...sections] },
           parts: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['kind', 'text', 'ref'],
             properties: {
               kind: { type: 'string', enum: ['text', 'figure', 'date'] },
@@ -105,7 +107,7 @@ function closed(value: unknown, keys: readonly string[], what: string): Record<s
  */
 export function validateDraft(raw: unknown, context: DraftContext): Deliverable {
   const output = closed(raw, ['title', 'sections', 'questionsForClient'], 'draft') as unknown as DeliveryModelOutput;
-  const required = REQUIRED_SECTIONS[context.serviceType];
+  const required = context.sections ?? REQUIRED_SECTIONS[context.serviceType];
   const title = modelWords(output.title, 'draft title', 120);
   check(Array.isArray(output.sections) && output.sections.length >= 1 && output.sections.length <= required.length, 'MODEL_OUTPUT_REJECTED', 'The draft needs between one section and every required section.');
   const used = new Set<string>();
@@ -202,7 +204,7 @@ export const TEMPLATE_TITLE = 'Reply outline';
  * The template outline: no AI wrote it and it never read the client's message. One sentence per required section,
  * the plan's total in the second section when a receipt exists, and one question for the client.
  */
-export function templateOutline(serviceType: ServiceType, total: { receiptId: string; figureKey: PriceFigure['key'] } | null): Deliverable {
+export function templateOutline(serviceType: ServiceType, total: { receiptId: string; figureKey: string } | null): Deliverable {
   const headings = REQUIRED_SECTIONS[serviceType];
   const sentences = TEMPLATE_OUTLINES[serviceType];
   const sections = headings.map((heading, index) => {
@@ -214,7 +216,7 @@ export function templateOutline(serviceType: ServiceType, total: { receiptId: st
 }
 
 /** The total ref a template outline uses: offer_1 for rehearsal, the order for a real run. */
-export function templateTotal(refs: DraftRefs, ref: 'offer_1.total' | 'order.total'): { receiptId: string; figureKey: PriceFigure['key'] } | null {
+export function templateTotal(refs: DraftRefs, ref: 'offer_1.total' | 'order.total'): { receiptId: string; figureKey: string } | null {
   const entry = refs.figures.find(figure => figure.ref === ref);
   return entry ? { receiptId: entry.receiptId, figureKey: entry.figureKey } : null;
 }
@@ -227,6 +229,8 @@ export type DeliveryTaskInput = {
   refs: DraftRefs;
   containsClientData: boolean;
   templateTotalRef: 'offer_1.total' | 'order.total';
+  /** The playbook's guidance for the writing step; sent only when there is some. */
+  guidance?: readonly string[];
 };
 
 /** The words a draft may copy that hold digits: tokens with a letter and a digit from the client's message or the idea. */
@@ -248,6 +252,7 @@ export function deliveryTask(input: DeliveryTaskInput): ModelTask<Deliverable> {
       clientRequest: input.clientRequest,
       figures: input.refs.figures.map(figure => ({ ref: figure.ref, label: figure.label })),
       dates: input.refs.dates.map(date => ({ ref: date.ref, label: date.label })),
+      ...(input.guidance?.length ? { guidance: [...input.guidance] } : {}),
     },
     schemaName: 'venture-delivery',
     schema: deliverySchema(input.serviceType),
@@ -258,32 +263,64 @@ export function deliveryTask(input: DeliveryTaskInput): ModelTask<Deliverable> {
   };
 }
 
-function findFigure(receipts: readonly PriceReceiptRecord[], part: { receiptId: string; figureKey: PriceFigure['key'] }): PriceFigure | null {
+/** A price receipt or a work receipt: both carry figures with a key, a label and a display. */
+export type AnyReceipt = PriceReceiptRecord | WorkReceiptRecord;
+
+function findFigure(receipts: readonly AnyReceipt[], part: { receiptId: string; figureKey: string }): { label: string; display: string } | null {
   const receipt = receipts.find(item => item.id === part.receiptId);
-  return receipt?.figures.find(figure => figure.key === part.figureKey) ?? null;
+  return (receipt?.figures as readonly { key: string; label: string; display: string }[] | undefined)?.find(figure => figure.key === part.figureKey) ?? null;
 }
 
 function renderParts(parts: readonly TextPart[], figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string): string {
   return parts.map(part => part.kind === 'text' ? part.text : part.kind === 'figure' ? figure(part) : date(part)).join(' ');
 }
 
-function renderWith(d: Deliverable, figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string): string {
+function renderWith(d: Deliverable, figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string, attachment: ((receiptId: string) => string) | null): string {
   const blocks = [`# ${d.title}`];
   for (const section of d.sections) blocks.push(`## ${section.heading}\n${renderParts(section.parts, figure, date)}`);
   if (d.questionsForClient.length) blocks.push(['Questions for you:', ...d.questionsForClient.map(question => `- ${question}`)].join('\n'));
+  if (attachment) for (const item of d.attachments ?? []) blocks.push(attachment(item.receiptId));
   return blocks.join('\n\n');
 }
 
-/** The draft as the owner sees it. A price shows its receipt label and display, so the label says what the number is. */
-export function renderDeliverable(d: Deliverable, receipts: readonly PriceReceiptRecord[], country: Pick<CountryProfile, 'dateOrder'>): string {
+/**
+ * The draft as the owner sees it. A price shows its receipt label and display, so the label says what the number is.
+ * Attachments (a reconciliation) are rendered by code from their receipt after the agent's words; checks on the
+ * agent's words pass attachments: false.
+ */
+export function renderDeliverable(d: Deliverable, receipts: readonly AnyReceipt[], country: Pick<CountryProfile, 'dateOrder'>, options: { attachments?: boolean } = {}): string {
   return renderWith(d,
     part => { const found = findFigure(receipts, part); return found ? `${found.label}: ${found.display}` : 'Price: [not found in your receipts]'; },
-    part => formatVentureDate(part.iso, country.dateOrder));
+    part => formatVentureDate(part.iso, country.dateOrder),
+    options.attachments === false ? null : receiptId => reconciliationBlock(receipts.find(item => item.id === receiptId), country));
 }
 
 /** The draft as the judge sees it: labels stay, but no amount and no date leaves Chausar under standing consent. */
-export function renderForJudge(d: Deliverable, receipts: readonly PriceReceiptRecord[]): string {
+export function renderForJudge(d: Deliverable, receipts: readonly AnyReceipt[]): string {
   return renderWith(d,
     part => `${findFigure(receipts, part)?.label ?? 'Price'}: [price from Chausar]`,
-    () => '[date from Chausar]');
+    () => '[date from Chausar]',
+    receiptId => {
+      const receipt = receipts.find(item => item.id === receiptId);
+      const rec = receipt && 'reconciliation' in receipt ? receipt.reconciliation : null;
+      if (!rec) return '## Reconciliation\n[reconciliation table from Chausar]';
+      const balance = !rec.statementClosing ? 'the closing balance was not checked' : rec.balanced ? 'the statement balances' : 'the statement does not balance';
+      return `## Reconciliation\n[table worked out by Chausar's calculator: ${balance}; ${rec.unmatchedBank.length ? 'some payments have no bill' : 'every payment has a bill'}; ${rec.unmatchedBills.length ? 'some bills were not paid' : 'every bill was paid'}]`;
+    });
+}
+
+/** The reconciliation, rendered by code from its work receipt: every amount and count is a receipt figure. */
+export function reconciliationBlock(receipt: AnyReceipt | undefined, country: Pick<CountryProfile, 'dateOrder'>): string {
+  const rec = receipt && 'reconciliation' in receipt ? receipt.reconciliation : null;
+  if (!receipt || !rec) return '## Reconciliation\n[the reconciliation receipt was not found]';
+  const blocks = ["## Reconciliation\nWorked out by Chausar's calculator from the files you sent. Every amount comes from a receipt."];
+  blocks.push((receipt.figures as readonly { key: string; label: string; display: string; unit?: string }[]).filter(figure => figure.unit === 'money').map(figure => `${figure.label}: ${figure.display}`).join('\n'));
+  blocks.push(!rec.statementClosing ? 'The statement has no balance column, so the closing balance was not checked.'
+    : rec.balanced ? 'The statement balances.' : 'The statement does not balance. The difference above needs your answer.');
+  const day = (iso: string | null) => (iso ? `${formatVentureDate(iso, country.dateOrder)} ` : '');
+  const count = (key: string) => (receipt.figures as readonly { key: string; display: string }[]).find(figure => figure.key === key)?.display ?? '';
+  blocks.push([`Payments matched to bills: ${count('matched-count')}`, ...rec.matched.map(item => `- ${item.bankText}, ${item.display}, bill: ${item.billText}`)].join('\n'));
+  if (rec.unmatchedBank.length) blocks.push([`Payments with no bill: ${count('unmatched-bank-count')}`, ...rec.unmatchedBank.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
+  if (rec.unmatchedBills.length) blocks.push([`Bills not paid in this statement: ${count('unmatched-bills-count')}`, ...rec.unmatchedBills.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
+  return blocks.join('\n\n');
 }

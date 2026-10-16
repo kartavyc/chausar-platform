@@ -128,7 +128,7 @@ export class Engine {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
       check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
-      const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust },
+      const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
         { ...(this.options.venture ?? {}), demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file' });
       this.#venture = host;
       return host;
@@ -1281,6 +1281,14 @@ export class Engine {
       case 'venture.delivery.review':
       case 'venture.delivery.list':
       case 'venture.capabilities':
+      case 'venture.files.add':
+      case 'venture.files.list':
+      case 'venture.delivery.answer':
+      case 'venture.work.get':
+      case 'venture.improve.status':
+      case 'venture.improve.run':
+      case 'venture.improve.get':
+      case 'venture.improve.adopt':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

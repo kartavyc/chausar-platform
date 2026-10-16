@@ -114,6 +114,62 @@
       "model": "claude-sonnet-5-5",
       "status": 200,
       "mustInclude": [
+        "What we did",
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_report_clean",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Your September books\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"We reconciled your bank statement against your bills, and the statement balances.\",\"ref\":\"\"}]},{\"heading\":\"What we did\",\"parts\":[{\"kind\":\"text\",\"text\":\"We matched each payment to a bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.matched-count\"},{\"kind\":\"text\",\"text\":\"The closing balance we worked out agrees with the statement.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.statement-closing\"}]},{\"heading\":\"What needs your answer\",\"parts\":[{\"kind\":\"text\",\"text\":\"Nothing is open from this month. Please confirm the card sales settlements are all takings from your cafe.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once you confirm, this report is final. The fee for the month is below.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"offer_1.total\"}]}],\"questionsForClient\":[\"Are the card sales settlements all from your cafe?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2600,
+          "output_tokens": 420
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "What we did",
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_report_messy",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Your books for the month\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"We reconciled your statement against your bills. The statement balances, but some payments have no bill and one bill was not paid.\",\"ref\":\"\"}]},{\"heading\":\"What we did\",\"parts\":[{\"kind\":\"text\",\"text\":\"We matched the payments that have a bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.matched-count\"},{\"kind\":\"text\",\"text\":\"These payments still have no bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.unmatched-bank\"}]},{\"heading\":\"What needs your answer\",\"parts\":[{\"kind\":\"text\",\"text\":\"Please tell us what the print shop payment was for, and whether the electricals bill is still unpaid.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once you answer, we will finish the categories and send the report for your review.\",\"ref\":\"\"}]}],\"questionsForClient\":[\"What was the print shop payment for?\",\"Is the Kiran Electricals bill still unpaid?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2600,
+          "output_tokens": 420
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
         "offer_1.total"
       ],
       "body": {
@@ -184,6 +240,195 @@
         "usage": {
           "input_tokens": 1720,
           "output_tokens": 455
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_read",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Look at the statement and the bills\",\"calls\":[{\"tool\":\"files.list\",\"input\":\"{}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f1\\\",\\\"part\\\":\\\"sample\\\"}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f2\\\",\\\"part\\\":\\\"sample\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_reconcile",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Reconcile the statement against the bills\",\"calls\":[{\"tool\":\"books.reconcile\",\"input\":\"{\\\"bank\\\":\\\"f1\\\",\\\"date\\\":\\\"Date\\\",\\\"description\\\":\\\"Narration\\\",\\\"moneyOut\\\":\\\"Withdrawal\\\",\\\"moneyIn\\\":\\\"Deposit\\\",\\\"balance\\\":\\\"Balance\\\",\\\"bills\\\":[{\\\"table\\\":\\\"f2\\\",\\\"vendor\\\":\\\"Supplier\\\",\\\"amount\\\":\\\"Amount\\\",\\\"date\\\":\\\"Bill date\\\",\\\"number\\\":\\\"Bill number\\\"}]}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_done",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"The reconciliation is done\",\"calls\":[],\"finished\":true}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_read",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Look at the statement and the bills\",\"calls\":[{\"tool\":\"files.list\",\"input\":\"{}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f1\\\",\\\"part\\\":\\\"sample\\\"}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f2\\\",\\\"part\\\":\\\"sample\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_reconcile",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Reconcile the statement against the bills\",\"calls\":[{\"tool\":\"books.reconcile\",\"input\":\"{\\\"bank\\\":\\\"f1\\\",\\\"date\\\":\\\"Txn Date\\\",\\\"description\\\":\\\"Description\\\",\\\"moneyOut\\\":\\\"Debit\\\",\\\"moneyIn\\\":\\\"Credit\\\",\\\"balance\\\":\\\"Balance\\\",\\\"bills\\\":[{\\\"table\\\":\\\"f2\\\",\\\"vendor\\\":\\\"Vendor\\\",\\\"amount\\\":\\\"Total\\\",\\\"date\\\":\\\"Date\\\",\\\"number\\\":\\\"Ref\\\"}]}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_ask",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Ask about the payment with no bill\",\"calls\":[{\"tool\":\"handoff.client\",\"input\":\"{\\\"question\\\":\\\"What was the cash withdrawal near the end of the month for?\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_done",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Ready to write the report\",\"calls\":[],\"finished\":true}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
         }
       }
     }

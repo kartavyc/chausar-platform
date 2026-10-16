@@ -130,6 +130,7 @@ export class VentureHost {
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
+      ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     });
   }
 

@@ -56,6 +56,8 @@ async function newEngine(t: any, withRecordings: boolean) {
     const githubFixture = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
     engine = new Engine({ directory, demo: true, storage: 'experimental-file', venture: {
       host: 'test',
+      // Docker is absent here, so the container tier says it needs setup; no docker command runs in this test.
+      sandbox: { process: async () => { throw new Error('docker not found'); } },
       modelTransport: createReplayTransport(modelFixture),
       githubTransport: store => createFixtureGitHubTransport(githubFixture, () => ({
         briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' })),
@@ -244,16 +246,33 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.ok(cards.find(c => c.id === 'zoho-books')?.modes.some(m => m.mode === 'read' && m.status === 'planned'));
   for (const card of cards) if (card.vendorUrl) assert.ok((EXTERNAL_ORIGINS as readonly string[]).includes(new URL(card.vendorUrl).origin), card.vendorUrl);
 
-  // 16. Rehearse all three practice clients with the model, one per request, each judged.
+  // 16. Rehearse all three practice clients with the model, one per request, each judged. The clean and messy
+  // clients send practice files, so their agents read them and reconcile the month with the calculator first.
   await ask('venture.delivery.playbook');
   for (const kind of ['clean', 'messy', 'pushback']) {
     const run = await ask('venture.simulation.run', { scenarioIds: [`bookkeeping-${kind}`] }) as SimulationRunRecord;
-    assert.equal(run.passed, true, JSON.stringify(run.episodes.map(e => e.firstFailure)));
+    assert.equal(run.passed, true, JSON.stringify(run.episodes.map(e => [e.firstFailure, e.checks.filter(c => !c.passed)])));
     assert.equal(run.modelMode, 'model');
     assert.match(run.costDisplay, /^USD /);
     for (const episode of run.episodes) {
       assert.equal(episode.judge.length, 4);
       assert.ok(episode.judge.every(answer => answer.answer === 'yes'), JSON.stringify(episode.judge));
+    }
+    const episode = run.episodes[0];
+    if (kind === 'pushback') { assert.equal(episode.harness ?? null, null); continue; }
+    assert.ok(episode.harness, kind);
+    assert.equal(episode.harness.sections, 'report');
+    assert.ok(episode.harness.proofs.some(proof => proof.kind === 'reconciled'));
+    assert.ok(episode.harness.proofs.some(proof => proof.kind === 'balanced'), 'both practice months balance');
+    assert.ok(episode.renderedText?.includes('## Reconciliation'), episode.renderedText ?? '');
+    assert.ok(episode.renderedText?.includes(kind === 'clean' ? 'Closing balance on the statement: INR 77,730.00' : 'Closing balance on the statement: INR 61,480.00'));
+    const receipt = await ask('venture.work.get', { id: episode.harness.workReceiptIds[0] }) as { operation: string; reconciliation: { matched: unknown[]; unmatchedBank: unknown[]; unmatchedBills: unknown[] } };
+    assert.equal(receipt.operation, 'work.reconcile');
+    assert.deepEqual([receipt.reconciliation.matched.length, receipt.reconciliation.unmatchedBank.length, receipt.reconciliation.unmatchedBills.length], kind === 'clean' ? [5, 0, 0] : [3, 2, 1]);
+    if (kind === 'messy') {
+      assert.equal(episode.harness.handoffs.length, 1);
+      assert.equal(episode.harness.handoffs[0].answeredBy, 'practice-client');
+      assert.ok(episode.turns.some(turn => turn.by === 'agent' && turn.text.startsWith('Question: ')));
     }
   }
   const rehearsed = await ask('venture.launch.status') as LaunchStatus;
@@ -387,7 +406,9 @@ test('the whole venture journey in India, with a model and GitHub answering from
   const capabilities = await ask('venture.capabilities') as CapabilityStatus[];
   const capability = (id: string) => { const found = capabilities.find(c => c.id === id); assert.ok(found, id); return found; };
   assert.equal(capability('tier-wasm').state, process.platform === 'win32' ? 'unavailable' : 'planned');
-  assert.equal(capability('tier-container').state, 'planned');
+  assert.deepEqual([capability('tier-container').state, capability('tier-container').reason], ['needs-setup', 'Needs Docker Desktop.']);
+  assert.equal(capability('tier-wasm-lite').state, 'available');
+  assert.equal(capability('agent-tools').state, 'available');
   assert.equal(capability('tier-hosted').state, 'planned');
   assert.equal(capability('tier-code').group, 'runtime');
   assert.equal(capability('durable-storage').state, 'planned');

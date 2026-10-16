@@ -2,11 +2,11 @@
 // rehearsal -> shadow (practice drafts) -> approve each draft. Approving a sample and auto with spot checks are planned.
 // Each stage changes what the owner can do; shadow needs a passing rehearsal that a real model wrote and a judge answered.
 import { check, type Context, type State } from '../../contracts.ts';
-import { digest, exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
+import { exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { LAUNCH_STAGES } from '../contracts.ts';
 import type { ImprovementReadiness, LaunchStage, LaunchStatus, SimulationRunRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { NOT_JUDGED_REASON } from './judge.ts';
-import { playbookSteps } from './playbook.ts';
+import { expectedPlaybookHash } from './playbook.ts';
 import { scenariosFor } from './scenarios.ts';
 import { acceptedBlueprintOrNull, newestFirst, readAs, serviceTypeOf } from './shared.ts';
 
@@ -45,8 +45,9 @@ function rehearsalRows(state: State, venture: VentureRecord): RowWithRun[] {
   const blueprint = acceptedBlueprintOrNull(state, venture);
   const type = serviceTypeOf(state, venture);
   let currentHash: string | null = null;
-  // A plan without a drafting step has no playbook, so no rehearsal counts for it.
-  try { currentHash = blueprint ? digest(playbookSteps(blueprint)) : null; } catch { currentHash = null; }
+  // A plan without a drafting step has no playbook, so no rehearsal counts for it. The hash is the one ensurePlaybook
+  // would use now: the current playbook when it fits the plan, else a fresh build with the adopted patches.
+  try { currentHash = blueprint ? expectedPlaybookHash(state, venture, blueprint) : null; } catch { currentHash = null; }
   const runs = newestFirst(listRecords(state, 'venture-simulation-run', venture.id)).filter(run => currentHash !== null && run.playbookHash === currentHash);
   return scenariosFor(type).map(scenario => {
     const run = runs.find(item => item.scenarioIds.includes(scenario.id));
@@ -92,10 +93,10 @@ function improvement(state: State, ventureId: string, now: Date): ImprovementRea
   const longEnough = first !== undefined && now.getTime() - Date.parse(first) >= 14 * DAY_MS;
   const due = (judged >= 10 && rejectedOrEdited >= 3) || (judged >= 1 && longEnough);
   return {
-    judged, rejectedOrEdited, due, status: 'planned',
+    judged, rejectedOrEdited, due, status: 'available',
     reason: due
-      ? 'There are enough reviewed drafts to improve the playbook. The improvement loop is planned, not in this build.'
-      : 'The improvement loop is planned. It needs more reviewed drafts first.',
+      ? 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.'
+      : 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.',
   };
 }
 
