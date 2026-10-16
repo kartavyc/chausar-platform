@@ -1,7 +1,8 @@
 // Hosted tier on PostgreSQL: the sealed directory in one row with compare and set, business vaults in rows whose slots
 // come from the tenant and business ids, the settings that turn it on, and two hosted servers sharing one database.
-// The stand-in (hosted-postgres-standin.ts) answers the exact statements and needs no database. The tests named "real
-// PostgreSQL" run only when CHAUSAR_TEST_POSTGRES_URL points at a disposable database on this computer's loopback.
+// The stand-in (hosted-postgres-standin.ts) answers the exact statements and needs no database. The checks against a
+// real PostgreSQL server are a separate qualification run (qualification/hosted-postgres-real.test.ts), outside the
+// open suite.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
@@ -10,7 +11,7 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError } from '../runtime/contracts.ts';
-import { openLoopbackPool, loopbackPostgresUrl, type PostgresPool } from '../runtime/postgres.ts';
+import { loopbackPostgresUrl } from '../runtime/postgres.ts';
 import { AccountService } from '../runtime/hosted/accounts.ts';
 import { HostedApp } from '../runtime/hosted/app.ts';
 import { hostedConfig } from '../runtime/hosted/config.ts';
@@ -341,52 +342,4 @@ test('two hosted servers on one database share sign-in, and a business made on o
   await assert.rejects(stat(join(b.root, 'tenants', tenantId, created.businessId)), (error: any) => error.code === 'ENOENT');
   await b.close();
   assert.equal(db.ended, false, 'the stand-in pool belongs to the test');
-});
-
-// ---------------------------------------------------------------------------------------------------------------------
-// Real PostgreSQL. Skipped unless CHAUSAR_TEST_POSTGRES_URL is set (postgres://user:password@127.0.0.1:5432/database).
-// ---------------------------------------------------------------------------------------------------------------------
-
-const POSTGRES_URL = process.env.CHAUSAR_TEST_POSTGRES_URL;
-const realPostgres = { skip: POSTGRES_URL ? false : 'set CHAUSAR_TEST_POSTGRES_URL to a disposable loopback database to run this' };
-
-async function realPool(t: any): Promise<PostgresPool> {
-  const pool = await openLoopbackPool(loopbackPostgresUrl(POSTGRES_URL!), 'chausar-test');
-  t.after(() => pool.end());
-  return pool;
-}
-
-test('real PostgreSQL: two pools change one directory row at once and every change lands', realPostgres, async t => {
-  const poolA = await realPool(t), poolB = await realPool(t);
-  const custody = HostedCustody.fromKey(custodyKey()), slot = `test.${randomBytes(8).toString('hex')}`;
-  t.after(() => poolA.query('DELETE FROM public.chausar_hosted_directory WHERE slot = $1', [slot]));
-  const a = await PostgresDirectory.open(poolA, custody, { slot }), b = await PostgresDirectory.open(poolB, custody, { slot });
-  await Promise.all(Array.from({ length: 10 }, (_, i) => [
-    a.update(state => { state.users.push(user(`huser_a${i}`)); }),
-    b.update(state => { state.users.push(user(`huser_b${i}`)); }),
-  ]).flat());
-  await a.refresh(); await b.refresh();
-  assert.equal(a.read().users.length, 20);
-  assert.equal(a.read().revision, 20);
-  assert.deepEqual(ids(b.read()).sort(), ids(a.read()).sort());
-  const row = await poolA.query('SELECT revision FROM public.chausar_hosted_directory WHERE slot = $1', [slot]);
-  assert.equal(String(row.rows[0].revision), '20');
-  await a.close(); await b.close();
-});
-
-test('real PostgreSQL: a business vault lives in its own row, opens elsewhere, and is gone after delete', realPostgres, async t => {
-  const pool = await realPool(t), custody = HostedCustody.fromKey(custodyKey());
-  await prepareHostedTables(pool);
-  const key: ActorKey = [newTenantId(), newBusinessId()], slot = hostedVaultSlot(key), passphrase = custody.newVaultPassphrase();
-  t.after(() => pool.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [slot]));
-  const rootA = await folder(t, 'real-a'), rootB = await folder(t, 'real-b');
-  const { business: a } = await BusinessEngine.create({ root: rootA, engineOptions, postgres: pool }, key, { name: 'Real Row Books', passphrase });
-  await a.request('venture.create', { idea: IDEA, countryCode: 'IN' });
-  await a.close();
-  assert.equal((await pool.query('SELECT slot FROM public.chausar_vault_authority WHERE slot = $1', [slot])).rows.length, 1);
-  const b = await BusinessEngine.open({ root: rootB, engineOptions, postgres: pool }, key, passphrase);
-  assert.equal((await b.request('workspace.status', {}) as any).workspace.name, 'Real Row Books');
-  assert.ok((await b.request('venture.get', {}) as any).venture.id);
-  await b.delete(rootB, 'Real Row Books');
-  assert.equal((await pool.query('SELECT slot FROM public.chausar_vault_authority WHERE slot = $1', [slot])).rows.length, 0);
 });
