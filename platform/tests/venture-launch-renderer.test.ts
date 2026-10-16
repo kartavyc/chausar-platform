@@ -168,6 +168,7 @@ function fakeEngine(options: EngineOptions = {}) {
     venture: options.venture ?? false,
     blueprint: options.blueprint === undefined ? 'accepted' as 'draft' | 'accepted' | null : options.blueprint,
     invoice: 'draft' as 'draft' | 'issued',
+    uploads: [...F.uploads],
     questions: F.templateQuestions.filter(question => question.id !== 'q_tax_rate').map(question => ({ ...question, answer: null as any, answerMinor: null, answerBps: null, answeredAt: null })),
   };
   const interviewView = () => {
@@ -236,6 +237,17 @@ function fakeEngine(options: EngineOptions = {}) {
       case 'venture.delivery.run': return F.waitingRun;
       case 'venture.delivery.approve': return F.practiceRun;
       case 'venture.delivery.review': return { ...F.outlineRun, status: payload.verdict, verdict: { choice: payload.verdict, reason: payload.reason ?? null, at: '2026-10-15T09:40:00.000Z' }, editedText: payload.editedText ?? null };
+      case 'venture.delivery.answer': return F.answeredRun;
+      case 'venture.files.list': return world.uploads.filter(item => payload.orderId === undefined || (item.scope.kind === 'order' && item.scope.orderId === payload.orderId));
+      case 'venture.files.add': {
+        const added = { ...F.uploads[0], id: `upload_${world.uploads.length + 1}`, name: payload.name, format: String(payload.name).split('.').pop() as 'csv', bytes: Buffer.from(payload.contentBase64, 'base64').length, scope: { kind: 'order' as const, orderId: payload.orderId } };
+        world.uploads.push(added);
+        return added;
+      }
+      case 'venture.work.get': assert.equal(payload.id, F.workReceipt.id); return F.workReceipt;
+      case 'venture.improve.status': return F.improveIdle;
+      case 'venture.improve.run': return F.improveKeptRun;
+      case 'venture.improve.adopt': return F.adoptedPlaybook;
       case 'models.list': return [];
       default: throw Object.assign(new Error(`Unexpected fixture RPC ${method}.`), { code: 'UNEXPECTED_FIXTURE_RPC' });
     }
@@ -303,7 +315,7 @@ async function harness(engine: EngineOptions = {}, options: HarnessOptions = {})
     catch (error: any) { return { ok: false, status: 400, json: async () => ({ error: { code: error.code, message: error.message } }) }; }
   };
   const context = vm.createContext({
-    document, Node: Element, navigator, crypto: { randomUUID }, URL: TestURL, URLSearchParams, structuredClone, console, Blob: FakeBlob, window,
+    document, Node: Element, navigator, crypto: { randomUUID }, URL: TestURL, URLSearchParams, structuredClone, console, Blob: FakeBlob, window, btoa,
     setTimeout: options.timers ? (callback: () => void) => { callback(); return 1; } : () => 0, clearTimeout() {},
     fetch: options.browser ? browserFetch : () => { throw new Error('Unexpected network in the launch renderer tests.'); },
   });
@@ -851,8 +863,10 @@ test('without launch.js the app keeps its old setup screen and shell', async () 
 /**
  * Words at rest with the fixtures, as counted on 16 October after the second pass. The founder's taste is 35 to 45
  * words on a screen at rest, 60 at most; each place may not grow past its count here without a reason.
+ * Agents grew from 52 to 56 on 16 October with the delivery harness screens: one folded line, "Improvement: not due
+ * yet", says whether the improvement loop is due. A client's files show only inside the opened order.
  */
-const WORDS_AT_REST: Record<string, number> = { today: 50, business: 52, build: 55, clients: 20, agents: 52, money: 57, connections: 31 };
+const WORDS_AT_REST: Record<string, number> = { today: 50, business: 52, build: 55, clients: 20, agents: 56, money: 57, connections: 31 };
 const WORDS_CEILING = 60;
 
 test('each of the seven places stays at its recorded words at rest, 60 at most, with one filled button at most', async t => {
@@ -1240,4 +1254,205 @@ test("Money offers the engine's periods and the owner's own dates, and heads the
   content = find(h.app, node => node.id === 'page-content');
   assert.equal(find(content, node => node.tagName === 'select').value, 'custom');
   assert.equal(find(content, node => node.className === 'launch-eyebrow').textContent, '5 Oct to 12 Oct 2026');
+});
+
+// ---------------------------------------------------------------------------------------------
+// 12: the delivery harness: files on an order, agent turns, the agent's question, the report's reconciliation,
+// and the improvement loop
+// ---------------------------------------------------------------------------------------------
+/** A file the owner picked, as the browser's File gives it to the screen. */
+function pickedFile(name: string, content: string | Uint8Array, size?: number) {
+  const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+  return { name, size: size ?? bytes.length, type: '', arrayBuffer: async () => bytes.slice().buffer };
+}
+const LIVE_MODELS = { ...F.modelsConnected, replay: { active: false, label: null } };
+const squaresIn = (node: Element) => descendants(node).filter(item => item.className.startsWith('launch-sq ')).map(item => item.className.slice('launch-sq '.length));
+
+test('an order lists its files and adds the one the owner picks, as base64 from outside any form', async () => {
+  const h = await place('clients');
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.files.list').map(call => call.payload), [{}], 'one read for every order');
+  const order = find(h.content, node => node.className === 'launch-order');
+  for (const name of ['bank-september.csv', 'bills-september.csv']) assert.ok(text(order).includes(name), name);
+  assert.equal(wordCount(h.content) <= WORDS_AT_REST.clients, true, 'files show only when the order is opened');
+  const input = find(order, node => node.tagName === 'input' && node.attributes.type === 'file') as Element & { files?: unknown[] };
+  assert.equal(input.hidden, true, 'the button stands in for the browser control');
+  assert.equal(input.attributes.accept, '.csv,.xlsx,.pdf');
+  assert.equal(ancestors(input).some(node => node.tagName === 'form'), false);
+  let chooserOpened = 0;
+  input.addEventListener('click', () => { chooserOpened++; });
+  await click(button(order, 'Add a file'));
+  assert.equal(chooserOpened, 1, 'Add a file opens the file chooser');
+
+  const csv = 'Supplier,Amount\nFresh Dairy,"12,000.00"\n';
+  input.files = [pickedFile('bills-october.csv', csv)];
+  await input.dispatch('change'); await flush();
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.files.add').map(call => call.payload), [{ orderId: 'vor_1', name: 'bills-october.csv', contentBase64: Buffer.from(csv).toString('base64') }]);
+  assert.ok(text(order).includes('bills-october.csv'), 'the new file joins the list');
+  assert.equal(input.value, '', 'the chooser is cleared, so the same file can be picked again');
+
+  const before = h.calls.length;
+  input.files = [pickedFile('statement.pdf', new Uint8Array(4), 1_450_001)];
+  await input.dispatch('change'); await flush();
+  assert.equal(h.calls.length, before, 'a file over the limit is refused before any request');
+  assert.ok(text(order).includes('Add a file smaller than one and a half megabytes.'));
+});
+
+test('an order at ten files offers no Add a file, and a refused file shows the engine words where it was added', async () => {
+  const ten = Array.from({ length: 10 }, (_, index) => ({ ...F.uploads[0], id: `upload_${index}`, name: `file-${index}.csv` }));
+  const full = await place('clients', { overrides: { 'venture.files.list': () => ten } });
+  assert.equal(buttons(full.content, 'Add a file').length, 0);
+  assert.ok(text(full.content).includes('Ten files, the most an order holds.'));
+
+  const refuse = () => { throw Object.assign(new Error('This file is named .pdf but is not a PDF.'), { code: 'UNSUPPORTED_UPLOAD' }); };
+  const h = await place('clients', { overrides: { 'venture.files.add': refuse } });
+  const input = find(h.content, node => node.tagName === 'input' && node.attributes.type === 'file') as Element & { files?: unknown[] };
+  input.files = [pickedFile('scan.pdf', 'not a pdf')];
+  await input.dispatch('change'); await flush();
+  const order = find(h.content, node => node.className === 'launch-order');
+  assert.ok(text(order).includes('This file is named .pdf but is not a PDF.'));
+  assert.ok(text(order).includes('UNSUPPORTED_UPLOAD'));
+});
+
+test('a harness turn shows which turn it is, what the tools did in plain words and the exact text to approve', async () => {
+  const h = await place('agents', { overrides: { 'venture.models.status': () => LIVE_MODELS, 'venture.delivery.list': () => [F.turnRun], 'venture.delivery.approve': () => F.askingRun } });
+  await openDraft(h.content, /to approve/);
+  const sheet = openDialog(h.body);
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.files.list').map(call => call.payload), [{ orderId: 'vor_1' }]);
+  const progress = find(sheet, node => node.className === 'launch-progress');
+  assert.equal(text(progress), 'Turn 2 of 4');
+  assert.deepEqual(squaresIn(progress), ['cha', 'now', 'off', 'off'], 'one mark per turn: done, this one, the rest');
+  for (const words of [
+    'Listed the files', 'Read bank-september.csv', 'Read f3', 'There is no file f3.', 'List the files and read the bank statement columns.',
+    'This is exactly what will be sent to Claude Haiku 5.5', F.turnRun.preview!.payloadText, 'Most it can cost: USD 0.0080.',
+    'Tools run on this computer between turns. Nothing reaches the client.',
+  ]) assert.ok(text(sheet).includes(words), words);
+  const approve = button(sheet, 'Approve and send');
+  assert.equal(approve.disabled, true);
+  await tick(find(sheet, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(approve);
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.approve').map(call => call.payload), [{ runId: 'vdr_turn', digest: F.turnRun.preview!.digest }]);
+  // The turn ran: the reconciliation and the hand-off are in the list, and the question waits for the owner.
+  for (const words of ['Reconciled bank-september.csv with the bills', 'Asked you a question', 'The agent asks you', 'Is the payment to Hardware Mart a business cost?']) assert.ok(text(sheet).includes(words), words);
+  assert.equal(descendants(sheet).filter(node => node.className === 'launch-quote').length, 1, 'the open question is asked once, below the turns');
+  assert.ok(control(sheet, 'Your answer'));
+  assert.equal(buttons(sheet, 'Approve and send').length, 0, 'nothing to approve while the agent waits for an answer');
+});
+
+test("the agent's question takes the owner's answer, then the next turn and the write step show their exact text", async () => {
+  const h = await place('agents', { overrides: { 'venture.models.status': () => LIVE_MODELS, 'venture.delivery.list': () => [F.askingRun], 'venture.delivery.approve': () => F.writeRun } });
+  await openDraft(h.content, /to answer/);
+  const sheet = openDialog(h.body);
+  assert.equal(text(find(sheet, node => node.className === 'launch-progress')), 'Turn 2 of 4');
+  assert.ok(text(sheet).includes('Your answer goes into the next turn, which shows you its exact text first.'));
+  await click(button(sheet, 'Send answer'));
+  assert.equal(h.calls.some(call => call.method === 'venture.delivery.answer'), false, 'an empty answer sends nothing');
+  assert.ok(text(sheet).includes('Write your answer first.'));
+  await type(control(sheet, 'Your answer'), `  ${F.ANSWER}  `);
+  await click(button(sheet, 'Send answer'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.answer').map(call => call.payload), [{ runId: 'vdr_turn', answer: F.ANSWER }]);
+  assert.equal(text(find(sheet, node => node.className === 'launch-progress')), 'Turn 3 of 4');
+  assert.ok(text(sheet).includes(`You answered: ${F.ANSWER}`), 'the answer stays with the question');
+  assert.ok(text(sheet).includes(F.answeredRun.preview!.payloadText));
+
+  await tick(find(sheet, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(button(sheet, 'Approve and send'));
+  assert.equal(text(find(sheet, node => node.className === 'launch-progress')), 'Last step: the report');
+  assert.ok(text(sheet).includes('This is exactly what will be sent to Claude Sonnet 5.5'));
+  assert.ok(text(sheet).includes('Totalled bank-september.csv by group'));
+});
+
+test('a client question is asked by the owner, and a forced last step says why the agent stopped', async () => {
+  const toClient = { ...F.askingRun, harness: { ...F.askingRun.harness!, handoffs: [{ ...F.askingRun.harness!.handoffs[0], to: 'client' as const }] } };
+  const asking = await place('agents', { overrides: { 'venture.delivery.list': () => [toClient] } });
+  await openDraft(asking.content, /to answer/);
+  const sheet = openDialog(asking.body);
+  assert.ok(text(sheet).includes('The agent asks the client'));
+  assert.ok(text(sheet).includes('Ask the client, then write what they said.'));
+  assert.ok(control(sheet, "The client's answer"));
+
+  const forced = { ...F.writeRun, harness: { ...F.writeRun.harness!, stopReason: 'The agent used all its turns.' } };
+  const stopped = await place('agents', { overrides: { 'venture.delivery.list': () => [forced] } });
+  await openDraft(stopped.content, /to approve/);
+  assert.ok(text(openDialog(stopped.body)).includes('The agent used all its turns.'));
+});
+
+test('a ready report shows its reconciliation from the work receipt, as a picture and figures, and opens the receipt', async () => {
+  const h = await place('agents', { overrides: { 'venture.delivery.list': () => [F.reportRun] } });
+  await openDraft(h.content, /to review/);
+  const sheet = openDialog(h.body);
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.work.get').map(call => call.payload), [{ id: 'work_reconcile' }]);
+  const reconciliation = find(sheet, node => node.className === 'launch-reconciliation');
+  assert.ok(text(reconciliation).includes('The statement balances.'));
+  const picture = find(reconciliation, node => node.className === 'launch-strip launch-match');
+  assert.deepEqual(squaresIn(picture), ['cha', 'cha', 'cha', 'unsure', 'off'], 'one mark per payment or bill: matched, no bill, not paid');
+  assert.equal(picture.attributes['aria-label'], 'Payments matched to bills: 3. Payments with no bill: 1. Bills not paid in this statement: 1.');
+  for (const words of ['Payments matched to bills', 'Payments with no bill', 'Bills not paid in this statement', 'UPI HARDWARE MART', 'INR 4,500.00', 'Clean Linen CL-77', 'INR 2,200.00']) assert.ok(text(reconciliation).includes(words), words);
+  const receipt = find(reconciliation, node => node.tagName === 'details' && node.children[0]?.textContent === 'Work receipt');
+  assert.equal(receipt.open, false, 'the receipt opens on request');
+  for (const words of ['Opening balance', 'INR 50,000.00', 'Closing balance on the statement', 'INR 37,500.00', 'money out, every row', 'bank-september.csv', 'Receipt work_reconcile']) assert.ok(text(receipt).includes(words), words);
+  assert.ok(text(sheet).includes('Done in 3 turns with 6 tool calls.'));
+  assert.ok(text(reconciliation).includes('NEFT FRESH DAIRY, bill Fresh Dairy FD-118'), 'each match is listed under its count');
+  const report = find(sheet, node => node.tagName === 'pre');
+  assert.equal(text(report), F.reportRun.renderedText!.slice(0, F.reportRun.renderedText!.lastIndexOf('\n\n## Reconciliation\n')), "the agent's words exactly, and the attached reconciliation once, from its receipt");
+});
+
+test('a reconciliation that does not balance, or has no balance column, says so plainly', async () => {
+  const unbalanced = { ...F.workReceipt, reconciliation: { ...F.workReceipt.reconciliation!, balanced: false } };
+  const off = await place('agents', { overrides: { 'venture.delivery.list': () => [F.reportRun], 'venture.work.get': () => unbalanced } });
+  await openDraft(off.content, /to review/);
+  assert.ok(text(openDialog(off.body)).includes('The statement does not balance.'));
+  const noBalance = { ...F.workReceipt, reconciliation: { ...F.workReceipt.reconciliation!, balanced: false, statementClosing: false } };
+  const unchecked = await place('agents', { overrides: { 'venture.delivery.list': () => [F.reportRun], 'venture.work.get': () => noBalance } });
+  await openDraft(unchecked.content, /to review/);
+  assert.ok(text(openDialog(unchecked.body)).includes('The statement has no balance column, so the closing balance was not checked.'));
+});
+
+test('Today lists the agent question to answer and a playbook change to review', async () => {
+  const h = await place('today', { overrides: { 'venture.delivery.list': () => [F.askingRun], 'venture.improve.status': () => F.improveWithCandidate } });
+  assert.ok(text(h.content).includes('A question to answer'));
+  assert.ok(text(h.content).includes('A playbook change to review'));
+  await click(button(h.content, 'A question to answer'));
+  assert.equal(h.renderer.state.page, 'agents');
+});
+
+test('Agents shows improvement readiness, runs the loop, shows the kept change in plain words and adopts it by its digest', async () => {
+  let status: unknown = F.improveIdle;
+  const h = await place('agents', { overrides: {
+    'venture.improve.status': () => status,
+    'venture.improve.run': () => { status = F.improveWithCandidate; return F.improveKeptRun; },
+    'venture.improve.adopt': () => { status = { ...F.improveIdle, activePlaybookId: 'vpb_2', latest: F.improveKeptRun }; return F.adoptedPlaybook; },
+  } });
+  const improvement = () => find(h.content, node => node.className === 'launch-improve');
+  const summary = () => find(improvement(), node => node.tagName === 'summary').textContent;
+  assert.equal(summary(), 'Improvement: not due yet');
+  assert.ok(text(improvement()).includes(F.improveIdle.readiness.reason));
+  assert.ok(text(improvement()).includes('2 drafts reviewed, 1 rejected or edited.'));
+  await click(button(improvement(), 'Run the improvement loop'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.improve.run').map(call => call.payload), [{}]);
+  assert.equal(summary(), 'Improvement: a change to adopt');
+  assert.equal(buttons(improvement(), 'Run the improvement loop').length, 0, 'with a change waiting, Adopt is the one button');
+  assert.ok(button(improvement(), 'Run the loop again'));
+  assert.ok(text(improvement()).includes('2 won, 2 tied, 0 lost'));
+  for (const words of [
+    'Kept a new version', 'The new version won more cases than it lost, with no new critical error.', 'USD 0.0084',
+    'Adds to "Draft the monthly report for review": Keep each section to a few short sentences.',
+  ]) assert.ok(text(improvement()).includes(words), words);
+  assert.deepEqual(squaresIn(find(improvement(), node => node.className === 'launch-strip launch-gate')), ['cha', 'cha', 'off', 'off'], 'won two, tied two, lost none');
+  await click(button(improvement(), 'Adopt this version'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.improve.adopt').map(call => call.payload), [{ runId: 'improve_1', digest: F.improveKeptRun.digest }]);
+  assert.ok(text(improvement()).includes('Now using version 2.'));
+  assert.equal(buttons(improvement(), 'Adopt this version').length, 0);
+});
+
+test('the improvement loop says plainly why it could not run, and a stale change is not adopted', async () => {
+  const notReady = () => { throw Object.assign(new Error('There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.'), { code: 'IMPROVEMENT_NOT_READY' }); };
+  const h = await place('agents', { overrides: { 'venture.improve.run': notReady } });
+  await click(button(h.content, 'Run the improvement loop'));
+  assert.ok(text(h.content).includes('There is nothing to improve yet'));
+
+  const stale = () => { throw Object.assign(new Error('The playbook changed since this run, so its result no longer applies. Run the loop again.'), { code: 'CANDIDATE_STALE' }); };
+  const later = await place('agents', { overrides: { 'venture.improve.status': () => F.improveWithCandidate, 'venture.improve.adopt': stale } });
+  await click(button(later.content, 'Adopt this version'));
+  assert.ok(text(later.content).includes('The playbook changed since this run'));
+  assert.ok(text(later.content).includes('CANDIDATE_STALE'));
 });
