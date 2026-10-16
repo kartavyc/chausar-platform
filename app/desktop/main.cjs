@@ -1,7 +1,7 @@
-const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
@@ -50,7 +50,7 @@ async function startEngine() {
   }
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
-  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment });
+  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
   engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
   await engine.start();
   await reportJobLifecycle();
@@ -81,11 +81,13 @@ if (singleInstance) app.whenReady().then(async () => {
   hostAwake = true;
   powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
   powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // One permission is allowed: the app's own window may write text to the clipboard (Copy brief, Copy invoice). Everything else is refused.
+  const clipboardWrite = (contents, permission) => permission === 'clipboard-sanitized-write' && Boolean(window) && contents === window.webContents && contents.mainFrame?.url === TRUSTED_DOCUMENT;
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(clipboardWrite(contents, permission)));
+  session.defaultSession.setPermissionCheckHandler((contents, permission) => clipboardWrite(contents, permission));
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
-    const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/assets/icon.svg', 'assets/icon.svg']]);
+    const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/launch.js', 'launch.js'], ['/assets/icon.svg', 'assets/icon.svg']]);
     const file = files.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(renderer, file));
@@ -97,6 +99,10 @@ if (singleInstance) app.whenReady().then(async () => {
       const request = validateRequest(input);
       return { ok: true, result: await engine.request(request.method, request.payload) };
     } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input) => {
+    try { assertTrustedSender(event, window?.webContents); await shell.openExternal(validateExternalUrl(input)); return { ok: true }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
   });
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createBackgroundTray(); createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }

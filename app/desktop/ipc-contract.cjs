@@ -34,8 +34,33 @@ const METHODS = Object.freeze([
   'learning.list', 'learning.log', 'learning.preview', 'learning.consent', 'learning.sharing', 'learning.share',
   'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
   'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.verify', 'updates.stage',
+  'venture.countries', 'venture.preview', 'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
+  'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
+  'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
+  'venture.client.add', 'venture.client.list', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
+  'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.build.brief',
+  'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
+  'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
+  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
+  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
 ]);
 const allowedMethods = new Set(METHODS);
+const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
+// A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
+const EXTERNAL_ORIGINS = Object.freeze([
+  'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
+  'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
+  'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com',
+  'https://www.paddle.com', 'https://dodopayments.com', 'https://workspace.google.com', 'https://www.zoho.com', 'https://resend.com',
+  'https://postmarkapp.com', 'https://cal.com', 'https://calendly.com', 'https://calendar.google.com', 'https://www.hubspot.com',
+  'https://attio.com', 'https://business.whatsapp.com', 'https://telegram.org', 'https://slack.com', 'https://discord.com',
+  'https://www.notion.com', 'https://drive.google.com', 'https://linear.app', 'https://www.airtable.com', 'https://www.linkedin.com',
+  'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com',
+  'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
+  'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
+  'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com', 'https://console.anthropic.com', 'https://platform.openai.com',
+]);
+const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 function isRecord(value) {
@@ -77,7 +102,16 @@ function validateRequest(input) {
 function assertTrustedSender(event, contents) {
   if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || event.senderFrame?.url !== TRUSTED_DOCUMENT) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
 }
+// The only links the app opens in the system browser: one https partner link from a user click.
+function validateExternalUrl(input) {
+  if (typeof input !== 'string' || input.length === 0 || input.length > MAX_EXTERNAL_URL) throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
+  let url;
+  try { url = new URL(input); } catch { throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.'); }
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
+  if (!EXTERNAL_ORIGINS.includes(url.origin)) throw failure('EXTERNAL_URL_NOT_ALLOWED', 'Chausar opens only its listed partner sites.');
+  return url.href;
+}
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, validateRequest, assertTrustedSender, publicError });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, publicError });

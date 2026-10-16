@@ -1,0 +1,22 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written brief words shaped like BriefModelOutput for the venture build tests. Not captured from a live account. No paid call was made.",
+  "output": {
+    "whatToBuild": "A simple website for a bookkeeping service for cafes, with plans, a way to ask for a call and a private page where clients upload bills.\nThe owner checks every report before it goes out.",
+    "whoItIsFor": "Cafe and small shop owners who read on a phone and want plain words.",
+    "pages": [
+      { "title": "Home", "purpose": "Say what the service does and show one button to ask for a call." },
+      { "title": "Plans", "purpose": "Show the plans and prices exactly as given." },
+      { "title": "How it works", "purpose": "Explain the steps from upload to report." },
+      { "title": "Ask for a call", "purpose": "A short form that saves the request." },
+      { "title": "Client uploads", "purpose": "A private page where a client uploads bills and statements." }
+    ],
+    "lookAndFeel": "Calm and plain. Lots of white space, one accent colour and large readable text.",
+    "doneMeans": [
+      "Every page works on a phone",
+      "Prices match the brief exactly",
+      "The request form saves a request",
+      "Uploads are private to each client"
+    ]
+  }
+}

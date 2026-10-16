@@ -13,7 +13,49 @@ The screen creates DOM nodes and renders every engine value with text nodes or `
 - Expose encrypted backup/export, locking, and typed-name deletion from the workspace menu. Locking clears in-memory conversation state. Deletion explains that the vault and managed backup/export copies are removed while external copies remain the owner's responsibility. Recovery accepts the saved kit; restore accepts only a managed `.backup` filename and a new workspace folder.
 - Keep engine/storage errors visible. The renderer cannot make PostgreSQL, keychain custody, or an unavailable production capability appear to work.
 
-## Product views and real requests
+## Launch
+
+`app/renderer/launch.js` adds the start-a-business screens beside the twelve original views. It is a classic deferred script that `index.html` loads before the `app.js` module. It defines one frozen `ChausarLaunch` factory and touches nothing until `app.js` calls `create(kit)` with its own helpers (`h`, `request`, `navigate`, `renderShell`, `renderSetup`, `showRecoveryKit`, `openExternal`, `reserveTab`, `saveText`, `state` and the rest). Without `launch.js`, `app.js` behaves exactly as before. The package page is [venture/launch.md](venture/launch.md).
+
+### First run: one question, then a plan
+
+There is no rail, only a top bar with the wordmark and a line of steps.
+
+1. **Idea.** "What service business do you want to start?" One textarea, an example in grey, and the country taken from the browser language ("India, prices in INR. Change"). The only requests are the boot `workspace.status` and `venture.countries`. The idea stays in memory.
+2. **Plan.** `venture.preview { idea, countryCode }` draws the plan from built-in templates. Nothing is saved and no key is asked for. The owner sets a price (per month, project or hour, typed text kept as typed) and says whether they charge tax (a rate field prefilled from the preview). "Tell us more" holds the two optional questions.
+3. **Keep it safe.** Working name and passphrase, in a password field inside its form. The folder is a slug of the working name, and the screen names it as it is typed ("Chausar keeps this business in the workspace folder ledger-cafe-books"), because the engine has no list of workspaces and opening or recovering the business later needs that name. `workspace.create { name, passphrase, pack: 'services', folder }`, then the recovery kit, which shows the folder and saves it in the kit file beside the code (the code stays alone on screen, so it can be pasted into Recover). Then in order: `venture.create`, `venture.interview.next { useTemplate: true }`, one `venture.interview.answer` per question (unanswered optional questions are `{ skipped: true }`), `venture.blueprint.draft { useTemplate: true }`, and `venture.price.quote` for `offer_1` when a price was typed.
+4. **Your plan.** The plan in the vault with each priced offer's receipt total, tax invoice details, Change plan, Rewrite with AI (opens Add your AI when no model is connected) and Accept plan.
+5. **Build.** The brief, the builders, and following the build on GitHub. "Go to your business" opens Today.
+
+An open vault without a business resumes at the idea and skips the passphrase. A vault opened from "I already have a business in Chausar" goes to Today, or back to the idea when it has no business yet.
+
+### The seven places
+
+The rail lists Today, Your business, Build, Clients, Agents, Money and Connections, then one "Back office" group holding the twelve original views with their ids, titles and render functions unchanged. The group opens when a back office view is current.
+
+| Place | Engine methods | What the owner does there |
+| --- | --- | --- |
+| Today | `venture.get`, `venture.delivery.list`, `venture.invoice.list`, `venture.books.summary`, `venture.events`, `receipts.get` | Sees what awaits them, the checklist as "7 of 12", the three money figures (each opens its receipt) and the last six events |
+| Your business | `venture.get`, `venture.blueprint.get`, `venture.blueprint.update`, `venture.blueprint.draft`, `venture.blueprint.accept`, `venture.price.quote`, `venture.preview`, `venture.models.status` | Reads the plan with its labels, opens price receipts, sets prices and tax invoice details, changes or rewrites the plan, accepts it, reads what the business knows |
+| Build | `venture.build.status`, `venture.build.brief`, `venture.build.handoff`, `venture.build.handoffOpened`, `venture.build.link`, `venture.build.sync` | Reads the brief, opens it in Lovable or Replit, copies or saves it, follows the repo read only, checks GitHub |
+| Clients | `venture.client.list`, `venture.client.add`, `venture.order.list`, `venture.order.create`, `venture.receipt.get`, `venture.delivery.run`, `venture.order.deliver`, `venture.invoice.prepare`, `venture.invoice.get`, `venture.invoice.issue`, `venture.payment.record` | Adds clients and orders, drafts a reply, marks an order delivered, prepares, issues, copies and saves an invoice, records a payment |
+| Agents | `venture.launch.status`, `venture.launch.advance`, `venture.simulation.scenarios`, `venture.simulation.run`, `venture.simulation.get`, `venture.delivery.playbook`, `venture.delivery.list`, `venture.delivery.approve`, `venture.delivery.review`, `venture.capabilities`, `venture.models.status` | Rehearses one practice client per request, moves up the launch ladder, approves a send, accepts, edits or rejects a draft reply, reads what agents can do today |
+| Money | `venture.books.summary`, `receipts.get`, `venture.invoice.get` | Reads the books figures and their receipts, the open invoices, and goes to the back office |
+| Connections | `venture.connectors.list`, `venture.build.handoff`, `venture.build.handoffOpened` | Reads each connector's chips; Open only for an available handoff, Visit site for a vendor page |
+| Add your AI (a sheet) | `venture.models.presets`, `venture.models.status`, `venture.models.connect` | Picks an AI, cheapest first, after reading the consent text word for word |
+
+### Rules the launch screens keep
+
+- Engine values become text nodes. There is no `innerHTML`, `eval` or inline style, and a test runs the screens on a fake DOM whose `innerHTML` setter throws.
+- Money on screen is always an engine `display` string. Amounts the owner types go to the engine as typed. The screens never add, round or convert an amount, and never work out a tax rate (a test checks that `launch.js` has no `parseFloat`, `toFixed` or `BigInt`).
+- An API key or GitHub token is typed into a password field that is not inside a form, with `autocomplete="off"`, sent from a button and cleared in `finally`, beside the line "Chausar keeps this in memory only. If your browser offers to save it, choose Never."
+- Outside links go through `openExternal(url)` in `app.js`: only `https`, no user or password, and only origins in `EXTERNAL_ORIGINS` (a copy of the contracts list, compared by a test). The desktop uses `window.chausar.openExternal`. In the browser, a link opened straight from a click (Visit site, Create a read-only key) goes through a temporary `rel="noopener noreferrer"` link. Open in Lovable or Replit must ask the engine first, and a browser blocks a tab opened after a wait without saying so, so `reserveTab()` opens an empty tab inside the click, before any request, cuts its `opener`, and says "Your browser blocked the new tab. Allow pop-ups for Chausar and try again." when the browser refuses; the link is sent to that tab once it passes the checks, and the tab is closed when the request fails or the link is refused. A builder is marked opened (`venture.build.handoffOpened`) only after the link opened or the copy worked. When a copy is refused, the card shows "Save brief" beside the error.
+- Labels are the engine's own: `handoff`, `read`, `write` and `planned` chips, "told by you" and "assumption" on every plan line (each step and each approval carries its own), "planned: agent" on steps an agent can't do yet. A planned chip has no button. Every model and Build screen says when answers come from a synthetic recording. In a demo with recordings the draft reply sheet says so above the payload and the draft, and its send line reads "This is exactly what Chausar would send to {model}. In this demo a synthetic recording answers instead." Waiting lines say "from a synthetic recording" instead of naming the model.
+- While slow work runs (over 100 ms), the area shows a still outline of hairlines and one line of words. Nothing spins, shimmers or pulses; the old loading spinner is now a still mark. When the desktop stops waiting (`REQUEST_TIMEOUT`), rehearsal and approvals read the stored result instead of showing a failure; other actions say "Still working. Check again in a minute."
+- Each place holds at most 120 visible words at rest and one filled button (tested with the fixtures). Detail opens in a sheet on the right or in a row that opens.
+- The look is quiet: type on a plain background, hairlines, ink and grey. Light uses the existing tokens. Dark follows the computer on the launch screens and sheets; the back office keeps its light look. Motion is 120 ms for a button and 200 ms for a sheet, once, and zero when the computer asks for less motion.
+
+## Back office views and real requests
 
 | View | Engine operations | User controls |
 | --- | --- | --- |

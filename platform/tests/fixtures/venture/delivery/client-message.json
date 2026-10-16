@@ -1,0 +1,8 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written practice client message for the venture delivery tests. Not captured from a live account.",
+  "output": {
+    "message": "Hi, I run a small cafe and need my books done for last month. I can send the bank statement and photos of the bills.",
+    "asksForPerson": false
+  }
+}

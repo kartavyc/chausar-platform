@@ -1,0 +1,20 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written blueprint words where a step title claims finished work. Chausar refuses it. Not captured from a live account. No paid call was made.",
+  "output": {
+    "name": "Ledger Cafe Books",
+    "oneLiner": "Monthly books for cafes and small shops, drafted with AI help and checked by you.",
+    "customer": "Cafe and small shop owners who want tidy books without chasing receipts.",
+    "offers": [
+      { "id": "offer_1", "name": "Monthly books", "description": "Bank matching, bill sorting and a short monthly report." },
+      { "id": "offer_2", "name": "Catch up clean up", "description": "A one time tidy up of past months before the monthly service starts." }
+    ],
+    "steps": [
+      { "id": "step_1", "title": "Collect bills and bank statements" },
+      { "id": "step_2", "title": "Your books are reconciled" },
+      { "id": "step_3", "title": "Draft the monthly report for review" },
+      { "id": "step_4", "title": "Send the report to the client" }
+    ],
+    "approvals": ["Every monthly report before it reaches a client", "Any message that asks a client for money"]
+  }
+}

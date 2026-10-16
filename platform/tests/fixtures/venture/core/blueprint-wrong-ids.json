@@ -1,0 +1,20 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written blueprint words where the model renamed an offer id. Chausar must refuse it. Not captured from a live account.",
+  "output": {
+    "name": "Ledger Cafe Books",
+    "oneLiner": "Monthly books for cafes and small shops.",
+    "customer": "Cafe and small shop owners.",
+    "offers": [
+      { "id": "offer_1", "name": "Monthly books", "description": "Bank matching and a short monthly report." },
+      { "id": "offer_3", "name": "Premium books", "description": "Everything in monthly books and more." }
+    ],
+    "steps": [
+      { "id": "step_1", "title": "Collect bills and bank statements" },
+      { "id": "step_2", "title": "Sort and match every entry" },
+      { "id": "step_3", "title": "Draft the monthly report for review" },
+      { "id": "step_4", "title": "Send the report to the client" }
+    ],
+    "approvals": ["Every monthly report before it reaches a client", "Any message that asks a client for money"]
+  }
+}

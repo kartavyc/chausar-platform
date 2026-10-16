@@ -1,0 +1,12 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written judge answers, all yes, for the venture delivery tests. Not captured from a live account.",
+  "output": {
+    "answers": [
+      { "question": "goal-met", "answer": "yes", "reason": "The draft says what will happen and asks for what is missing." },
+      { "question": "tone-fits", "answer": "yes", "reason": "Plain and friendly for a busy cafe owner." },
+      { "question": "policy-followed", "answer": "yes", "reason": "No price was invented and nothing was promised outside the plan." },
+      { "question": "no-unbacked-claims", "answer": "yes", "reason": "It describes the work ahead and never claims finished work." }
+    ]
+  }
+}

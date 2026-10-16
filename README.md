@@ -20,6 +20,29 @@ The interface contains Conversation, Daily Brief, Sources, Dictionary, Memory, D
 
 The synthetic September business bills INR 3,000, receives INR 2,600, earns INR 2,500, refunds INR 100 and has INR 1,100 of imported contribution costs. September net sales are INR 2,400 and contribution is INR 1,300. Billed, received and earned are separate measures. Asking without a period also includes the August comparison record.
 
+## Start a business
+
+The venture launcher takes one sentence about a service business and turns it into a plan, a build brief for Lovable or Replit, practice runs for delivery agents, and a back office where every price, invoice and payment has a receipt. Run it in local web mode and open the printed pairing link:
+
+```sh
+npm start
+```
+
+Or in the desktop window, once the pinned Electron is installed:
+
+```sh
+npm install
+npm run desktop
+```
+
+For the offline demo, model and GitHub answers come from hand-written recordings. They need demo mode plus their own switch, `CHAUSAR_VENTURE_REPLAY=1`:
+
+```sh
+CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
+```
+
+Without any AI connected, built-in templates do the work and say so. This build keeps businesses in experimental file storage, so practise there and don't issue real invoices yet. See [docs/venture/README.md](docs/venture/README.md) for the flow, the honest labels, what is not built and the demo script.
+
 ## Desktop and production setup
 
 ```sh

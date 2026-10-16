@@ -1,0 +1,8 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written practice client who insists on a person, for the venture delivery tests. Not captured from a live account.",
+  "output": {
+    "message": "I would rather talk to a real person about this. Can someone call me?",
+    "asksForPerson": true
+  }
+}

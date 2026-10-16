@@ -7,6 +7,7 @@ import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { check } from './contracts.ts';
+import { ventureHostEnv } from './venture/host-env.ts';
 
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -70,7 +71,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
-      const known: Record<string, string> = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/assets/icon.svg': 'assets/icon.svg' };
+      const known: Record<string, string> = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/launch.js': 'launch.js', '/assets/icon.svg': 'assets/icon.svg' };
       check(known[url.pathname], 'NOT_FOUND', 'This application file does not exist.');
       const path = join(renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
       if (closing) res.setHeader('Connection', 'close');
@@ -105,7 +106,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway });
+  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}) } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

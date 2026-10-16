@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     const error = reply?.error;
     throw Object.assign(new Error(typeof error?.message === 'string' ? error.message : 'The desktop request failed.'), { code: typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED' });
   },
+  openExternal: async url => { const reply = await ipcRenderer.invoke('chausar:open-external', String(url)); if (reply?.ok !== true) throw Object.assign(new Error(reply?.error?.message || 'The link could not be opened.'), { code: reply?.error?.code || 'REQUEST_FAILED' }); },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];
