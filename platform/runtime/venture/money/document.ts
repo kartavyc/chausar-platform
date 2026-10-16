@@ -3,7 +3,7 @@
 import { formatMinor } from '../../currency.ts';
 import { formatVentureDate } from '../records.ts';
 import { oneLine } from './shared.ts';
-import type { ClientRecord, CountryProfile, InvoiceRecord, VentureStorage } from '../contracts.ts';
+import type { ClientRecord, CountryProfile, InvoiceRecord } from '../contracts.ts';
 
 export const RULE_LINE = '----------------------------------------';
 export const EXPERIMENTAL_DOCUMENT_LINE = 'Practice invoice from an experimental Chausar build.';
@@ -26,7 +26,8 @@ export type InvoiceDocumentInput = {
   client: ClientRecord;
   sellerName: string;
   country: CountryProfile;
-  storage: VentureStorage;
+  /** Practice wording while storage is experimental (experimentalStorage in contracts.ts). */
+  experimental: boolean;
 };
 
 /** The invoice as plain text, in the fixed layout of the build spec. */
@@ -56,6 +57,6 @@ export function documentText(input: InvoiceDocumentInput): string {
   lines.push(`Balance  ${money(invoice.balanceMinor)}`);
   lines.push(RULE_LINE);
   lines.push(`Every number on this invoice has a receipt in Chausar: ${invoice.priceReceiptId}`);
-  if (input.storage === 'experimental-file') lines.push(EXPERIMENTAL_DOCUMENT_LINE);
+  if (input.experimental) lines.push(EXPERIMENTAL_DOCUMENT_LINE);
   return lines.join('\n');
 }

@@ -2,7 +2,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -77,6 +77,9 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   workspaceActivation?: EngineWorkspaceActivationOptions;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
   venture?: VentureHostOptions;
+  /** Trusted host composition, never from an RPC: with storage 'postgres', the PostgreSQL vault adapter for a workspace
+   * folder, over a pool the host owns. The hosted server uses it for one slot per business (hosted/runtime/business.ts). */
+  vaultStorage?: (folder: string) => Promise<EncryptedSnapshotAdapter>;
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -442,6 +445,12 @@ export class Engine {
   }
   private async adapter(folder = 'main') {
     if (this.options.storage === 'experimental-file' && this.options.demo) return 'experimental-file' as const;
+    if (this.options.storage === 'postgres' && this.options.vaultStorage) {
+      this.workspacePath(folder); // the same folder-name check as the other storage paths
+      const adapter = await this.options.vaultStorage(folder);
+      if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new ChausarError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
+      return adapter;
+    }
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Production requires configured PostgreSQL. File storage is available only in the explicitly experimental demo.');
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');

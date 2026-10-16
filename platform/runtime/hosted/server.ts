@@ -10,11 +10,12 @@ import { mkdir, open, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
+import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
 import { HostedApp } from './app.ts';
 import { hostedConfig, type HostedConfig } from './config.ts';
 import { HostedCustody } from './custody.ts';
-import { FileDirectory } from './directory.ts';
+import { FileDirectory, PostgresDirectory, type HostedDirectory } from './directory.ts';
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
 
 const rendererDir = fileURLToPath(new URL('../../../app/renderer/', import.meta.url));
@@ -46,7 +47,7 @@ const statusOf = (code: string | undefined) => {
     case 'METHOD_NOT_ALLOWED': return 405;
     case 'RATE_LIMITED': return 429;
     case 'REQUEST_TOO_LARGE': return 413;
-    case 'HOSTED_BUSY': case 'HOSTED_STOPPING': return 503;
+    case 'HOSTED_BUSY': case 'HOSTED_STOPPING': case 'HOSTED_STORAGE_UNAVAILABLE': return 503;
     case 'FORBIDDEN': case 'INVALID_HOST': case 'INVALID_ORIGIN': return 403;
     default: return 400;
   }
@@ -112,6 +113,8 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       check(!closing, 'HOSTED_STOPPING', 'The server is restarting. Try again in a moment.');
       check(req.headers.host === origin.host, 'INVALID_HOST', 'This address is not served here.');
       const url = new URL(req.url ?? '/', origin);
+      // With more than one server process, sessions and sign-ins made by the others are in the shared store.
+      if (url.pathname.startsWith('/api/') && url.pathname !== '/api/health') await app.options.directory.refresh?.();
       const cookies = parseCookies(req.headers.cookie);
       const forwarded = typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : '';
       const address = (options.trustProxy && forwarded) || req.socket.remoteAddress || 'unknown';
@@ -259,11 +262,24 @@ async function devCustody(dataDirectory: string): Promise<HostedCustody> {
   return HostedCustody.fromKey(key);
 }
 
-/** Builds the app from a checked config: custody, the sealed directory, mail, transports, the runtime. */
-export async function startHosted(config: HostedConfig, print: (line: string) => void = line => console.log(line)) {
+/** Opens the sealed directory: the file store, or the PostgreSQL store over a pool the business vaults share. */
+async function openDirectory(config: HostedConfig, custody: HostedCustody, connect: (options: NonNullable<HostedConfig['postgres']>) => Promise<PostgresPool>) {
+  if (config.storage !== 'postgres') return { directory: await FileDirectory.open(config.dataDirectory, custody) as HostedDirectory, pool: undefined };
+  check(config.postgres, 'HOSTED_CONFIG_INVALID', 'PostgreSQL storage needs CHAUSAR_HOSTED_POSTGRES_URL.');
+  const pool = await connect(config.postgres);
+  try { return { directory: await PostgresDirectory.open(pool, custody, { endPoolOnClose: true }) as HostedDirectory, pool }; }
+  catch (error) { await pool.end().catch(() => {}); throw error; }
+}
+
+/**
+ * Builds the app from a checked config: custody, the sealed directory, mail, transports, the runtime. Tests pass a
+ * stand-in for the PostgreSQL connection; the server itself always opens a loopback pool.
+ */
+export async function startHosted(config: HostedConfig, print: (line: string) => void = line => console.log(line),
+  connect: (options: NonNullable<HostedConfig['postgres']>) => Promise<PostgresPool> = options => openLoopbackPool(options, 'chausar-hosted')) {
   await mkdir(config.dataDirectory, { recursive: true, mode: 0o700 });
   const custody = config.custody.kind === 'env' ? HostedCustody.fromKey(config.custody.key) : await devCustody(config.dataDirectory);
-  const directory = await FileDirectory.open(config.dataDirectory, custody);
+  const { directory, pool } = await openDirectory(config, custody, connect);
   try {
     const mailer: Mailer = config.mailer === 'dev-outbox' ? new DevOutbox(print) : new NoMailer();
     const models = await import('../venture/models/index.ts');
@@ -276,7 +292,7 @@ export async function startHosted(config: HostedConfig, print: (line: string) =>
       githubTransport = (store: any) => build.createFixtureGitHubTransport(fixture, () => ({
         briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' }));
     }
-    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport });
+    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool });
     const certificate = config.tls.kind === 'files' ? { cert: await readFile(config.tls.cert), key: await readFile(config.tls.key) } : undefined;
     const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate });
     app.startHousekeeping();
@@ -291,7 +307,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const { http } = await startHosted(config);
   await http.listen(config.listen.host, config.listen.port);
   console.log(`Chausar hosted web (experimental) at ${config.origin}, listening on ${config.listen.host}:${config.listen.port}.`);
-  console.log('Businesses are kept in experimental encrypted file storage. Practise here; nothing is deployed.');
+  console.log(config.storage === 'postgres'
+    ? 'Accounts and businesses are kept in PostgreSQL, sealed and encrypted. Experimental: not yet tested on a real deploy.'
+    : 'Businesses are kept in experimental encrypted file storage. Practise here; nothing is deployed.');
   if (config.custody.kind === 'dev-file') console.log(`Development custody key in ${join(config.dataDirectory, 'dev-custody.key')}. Never use it for real accounts.`);
   if (config.mailer === 'dev-outbox') console.log('Sign-in links are printed here, not emailed.');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void http.close().finally(() => process.exit(0)); });

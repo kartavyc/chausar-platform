@@ -1,11 +1,13 @@
 // Chausar hosted tier: the account directory. Emails, passkeys, sessions, sealed vault keys and usage live in one
-// value, sealed with the custody key and written whole on every change (temp file, flush, rename), by one process that
-// holds a lock. This is the experimental single-server store; a deploy needs the PostgreSQL store docs/venture/hosted.md
-// describes. Business records never live here: each business is its own encrypted vault.
+// value, sealed with the custody key and written whole on every change. The file store writes it to disk (temp file,
+// flush, rename) from one process that holds a lock. The PostgreSQL store keeps the same sealed value in one row with a
+// revision, so more than one server process can share it. Both are experimental until a real deploy has been tested
+// (docs/venture/hosted.md). Business records never live here: each business is its own encrypted vault.
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { check } from '../contracts.ts';
+import { ChausarError, check } from '../contracts.ts';
+import { VAULT_TABLE_SQL, type PostgresPool } from '../postgres.ts';
 import { acquireProcessLock, type ProcessLock } from '../process-lock.ts';
 import type { HostedCustody, Sealed } from './custody.ts';
 import type { UsageEntry } from './limits.ts';
@@ -36,11 +38,16 @@ export function emptyDirectory(): DirectoryState {
 }
 
 export interface HostedDirectory {
-  readonly kind: 'experimental-file' | 'memory';
+  readonly kind: 'experimental-file' | 'memory' | 'postgres';
   /** A copy: changing it changes nothing. */
   read(): DirectoryState;
-  /** One change at a time, on a draft. A throw discards the draft; a return commits it once. */
+  /**
+   * One change at a time, on a draft. A throw discards the draft; a return commits it once. On PostgreSQL a change can
+   * run again on newer state when another server process wrote first, so a change only edits its draft.
+   */
   update<T>(change: (state: DirectoryState) => T | Promise<T>): Promise<T>;
+  /** Catches up with what other server processes wrote. Only the PostgreSQL store has any; the others are always current. */
+  refresh?(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -152,5 +159,155 @@ export class FileDirectory implements HostedDirectory {
     if (this.#closed) return;
     await this.#serial.run(async () => { this.#closed = true; });
     await this.#lock.release();
+  }
+}
+
+/** The statements the PostgreSQL store sends, named so the tests' stand-in answers exactly these and nothing else. */
+export const DIRECTORY_SQL = Object.freeze({
+  table: `CREATE TABLE IF NOT EXISTS public.chausar_hosted_directory (
+      slot TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK (revision > 0),
+      sealed TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+  schemaLock: 'SELECT pg_advisory_xact_lock(hashtext($1))',
+  load: 'SELECT revision, sealed FROM public.chausar_hosted_directory WHERE slot = $1',
+  revision: 'SELECT revision FROM public.chausar_hosted_directory WHERE slot = $1',
+  insert: 'INSERT INTO public.chausar_hosted_directory (slot, revision, sealed) VALUES ($1, $2, $3) ON CONFLICT (slot) DO NOTHING',
+  swap: 'UPDATE public.chausar_hosted_directory SET revision = $2, sealed = $3, updated_at = CURRENT_TIMESTAMP WHERE slot = $1 AND revision = $4',
+});
+
+/** Makes the hosted tables (the directory and the business vaults) once, under a lock, so servers starting together don't race. */
+export async function prepareHostedTables(pool: PostgresPool): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(DIRECTORY_SQL.schemaLock, ['chausar-hosted-schema']);
+    await client.query(DIRECTORY_SQL.table);
+    await client.query(VAULT_TABLE_SQL);
+    await client.query('COMMIT');
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+  finally { client.release(); }
+}
+
+export type PostgresDirectoryOptions = {
+  /** One row per slot. A second deployment sharing the database uses its own slot. */
+  slot?: string;
+  clock?: () => number;
+  /** How many times a change may run before the request gives up, when other servers keep writing first. */
+  maxAttempts?: number;
+  /** Ends the pool on close. The hosted server sets it: the business vaults share the pool and close first. */
+  endPoolOnClose?: boolean;
+};
+
+const unavailable = (error: unknown) =>
+  Object.assign(new ChausarError('HOSTED_STORAGE_UNAVAILABLE', 'The account store is not reachable. Try again in a moment.'), { cause: error });
+const rolledBack = () => new ChausarError('HOSTED_DIRECTORY_INVALID', 'The account store went back to an older copy. Restart the server after a restore.');
+
+/**
+ * The sealed directory in one PostgreSQL row, for one or more server processes. The row holds the same sealed value as
+ * the file store and its revision. A change commits only while the row still has the revision it started from (compare
+ * and set). If another process wrote first, the change runs again on what that process wrote, so no process overwrites
+ * another and a sign-in link still works once. read() answers from the last value this process saw; refresh() catches
+ * up, and the hosted server calls it at the start of every API request.
+ */
+export class PostgresDirectory implements HostedDirectory {
+  readonly kind = 'postgres' as const;
+  #pool: PostgresPool;
+  #custody: HostedCustody;
+  #slot: string;
+  #state: DirectoryState = emptyDirectory();
+  #serial = new Serial();
+  #clock: () => number;
+  #maxAttempts: number;
+  #endPool: boolean;
+  #refreshing: Promise<void> | null = null;
+  #closed = false;
+
+  private constructor(pool: PostgresPool, custody: HostedCustody, slot: string, options: PostgresDirectoryOptions) {
+    this.#pool = pool; this.#custody = custody; this.#slot = slot;
+    this.#clock = options.clock ?? Date.now; this.#maxAttempts = options.maxAttempts ?? 10; this.#endPool = options.endPoolOnClose === true;
+  }
+
+  /** The caller keeps the pool if this throws. */
+  static async open(pool: PostgresPool, custody: HostedCustody, options: PostgresDirectoryOptions = {}): Promise<PostgresDirectory> {
+    const slot = options.slot ?? 'main';
+    check(/^[A-Za-z0-9_.-]{1,100}$/.test(slot), 'INVALID_SLOT', 'Use a named directory slot.');
+    const attempts = options.maxAttempts ?? 10;
+    check(Number.isSafeInteger(attempts) && attempts >= 1 && attempts <= 100, 'INVALID_LIMIT', 'Allow from 1 to 100 attempts per change.');
+    try { await prepareHostedTables(pool); } catch (error) { throw unavailable(error); }
+    const directory = new PostgresDirectory(pool, custody, slot, options);
+    directory.#state = await directory.#load();
+    return directory;
+  }
+
+  read(): DirectoryState { return structuredClone(this.#state); }
+
+  refresh(): Promise<void> {
+    if (this.#closed) return Promise.resolve();
+    return this.#refreshing ??= this.#catchUp().finally(() => { this.#refreshing = null; });
+  }
+
+  update<T>(change: (state: DirectoryState) => T | Promise<T>): Promise<T> {
+    return this.#serial.run(async () => {
+      check(!this.#closed, 'HOSTED_STOPPING', 'The hosted server is stopping.');
+      await this.refresh();
+      for (let attempt = 1; ; attempt++) {
+        const base = this.#state;
+        const draft = structuredClone(base);
+        const result = await change(draft);
+        draft.revision = base.revision + 1;
+        prune(draft, this.#clock());
+        const sealed = JSON.stringify(this.#custody.sealDirectory(Buffer.from(JSON.stringify(draft), 'utf8')));
+        const written = base.revision === 0
+          ? await this.#query(DIRECTORY_SQL.insert, [this.#slot, draft.revision, sealed])
+          : await this.#query(DIRECTORY_SQL.swap, [this.#slot, draft.revision, sealed, base.revision]);
+        if (written.rowCount === 1) { this.#adopt(draft); return structuredClone(result); }
+        // Another process wrote first. Run the change again on what it wrote.
+        check(attempt < this.#maxAttempts, 'HOSTED_BUSY', 'The account store is busy. Try again in a moment.');
+        const latest = await this.#load();
+        if (latest.revision <= base.revision) throw rolledBack();
+        this.#adopt(latest);
+      }
+    });
+  }
+
+  async close() {
+    if (this.#closed) return;
+    await this.#serial.run(async () => { this.#closed = true; });
+    await this.#refreshing?.catch(() => {});
+    if (this.#endPool) await this.#pool.end();
+  }
+
+  /** Revisions only go forward, so an older value read while a newer one commits never replaces it. */
+  #adopt(state: DirectoryState) { if (state.revision >= this.#state.revision) this.#state = state; }
+
+  async #catchUp() {
+    // Taken before the query: the row's revision can only be at or past it, unless the table was put back.
+    const known = this.#state.revision;
+    const result = await this.#query(DIRECTORY_SQL.revision, [this.#slot]);
+    const revision = result.rows.length ? Number(result.rows[0].revision) : 0;
+    if (revision < known) throw rolledBack();
+    if (revision > known) {
+      const latest = await this.#load();
+      if (latest.revision < revision) throw rolledBack();
+      this.#adopt(latest);
+    }
+  }
+
+  async #load(): Promise<DirectoryState> {
+    const result = await this.#query(DIRECTORY_SQL.load, [this.#slot]);
+    if (!result.rows.length) return emptyDirectory();
+    const row = result.rows[0];
+    let sealed: Sealed | null = null;
+    try { sealed = typeof row.sealed === 'string' ? JSON.parse(row.sealed) : null; } catch { sealed = null; }
+    check(sealed && typeof sealed === 'object', 'HOSTED_DIRECTORY_INVALID', 'The account directory row is damaged.');
+    const parsed = JSON.parse(this.#custody.openDirectory(sealed).toString('utf8'));
+    check(parsed?.format === DIRECTORY_FORMAT && Number.isSafeInteger(parsed.revision) && parsed.revision > 0 && String(row.revision) === String(parsed.revision),
+      'HOSTED_DIRECTORY_INVALID', 'The account directory row is damaged.');
+    return parsed;
+  }
+
+  async #query(sql: string, values: unknown[]) {
+    try { return await this.#pool.query(sql, values); }
+    catch (error) { throw unavailable(error); }
   }
 }

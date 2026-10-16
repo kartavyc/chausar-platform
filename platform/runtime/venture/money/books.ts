@@ -6,7 +6,7 @@ import { exactPayload, isoDate, listRecords, readVenture } from '../records.ts';
 import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import { BOOKS_PERIOD_KEYS, booksPeriods, todayLocal } from './dates.ts';
 import { newestFirst } from './shared.ts';
-import type { BooksFigure, BooksPeriodKey, BooksSummary, IsoDate, MinorString, VentureDeps, VentureRecord } from '../contracts.ts';
+import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
 
 export const EXPERIMENTAL_NOTE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';
@@ -99,7 +99,7 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
     }));
 
   const notes = [BOOKS_TAX_NOTE, BOOKS_AGING_NOTE];
-  if (deps.storage === 'experimental-file') notes.push(EXPERIMENTAL_NOTE);
+  if (experimentalStorage(deps)) notes.push(EXPERIMENTAL_NOTE);
   return {
     period: { from, to }, periodKey: custom ? 'custom' : periodKey, periods, today, timeZone: ventureTimeZone(venture.country),
     currency: venture.country.currency, figures, openInvoices, notes,

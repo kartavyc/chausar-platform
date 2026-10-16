@@ -4,6 +4,31 @@ import type { EncryptedSnapshotAdapter, VaultEnvelope } from './vault.ts';
 type Client = { query(sql: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>; release(): void };
 export type PostgresPool = { query(sql: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>; connect(): Promise<Client>; end(): Promise<void> };
 export type PostgresOptions = { host: '127.0.0.1' | '::1'; port: number; user: string; database: string; password: string; vaultSlot: string; maxConnections?: number };
+/** The only database address Chausar dials itself: PostgreSQL on this computer's loopback, without TLS. A hosted
+ * server reaches a managed database through a proxy on its own loopback that carries the TLS (docs/venture/hosted.md). */
+export type LoopbackPostgres = Omit<PostgresOptions, 'vaultSlot'>;
+export const VAULT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS public.chausar_vault_authority (
+      slot TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK (revision >= 0),
+      envelope JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`;
+export function checkLoopbackPostgres(options: LoopbackPostgres) {
+  if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
+}
+/** A pg pool to a loopback server. pg loads only here, so nothing needs it until a database is configured. */
+export async function openLoopbackPool(options: LoopbackPostgres, applicationName: string): Promise<PostgresPool> {
+  checkLoopbackPostgres(options);
+  const moduleName = 'pg'; const pg = await import(moduleName), Pool = pg.Pool ?? pg.default?.Pool;
+  return new Pool({ host: options.host, port: options.port, user: options.user, database: options.database, password: options.password, max: options.maxConnections ?? 3, connectionTimeoutMillis: 5000, application_name: applicationName, ssl: false });
+}
+/** postgres://user:password@127.0.0.1:5432/database, checked like the options above. No query options: there is no TLS to set. */
+export function loopbackPostgresUrl(text: string): LoopbackPostgres {
+  let url: URL;
+  try { url = new URL(text); } catch { throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.'); }
+  if ((url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') || url.search || url.hash) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL without query options.');
+  const options = { host: url.hostname.replace(/^\[|\]$/g, '') as LoopbackPostgres['host'], port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)) };
+  checkLoopbackPostgres(options);
+  return options;
+}
 function exactObjectFields(value: any, fields: string[]) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== fields.length || !fields.every(field => Object.hasOwn(value, field))) throw new ChausarError('CORRUPT_VAULT', 'The stored key wrapper shape is inconsistent.');
 }
@@ -26,13 +51,8 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     if (!/^[A-Za-z0-9_.-]{1,100}$/.test(vaultSlot)) throw new ChausarError('INVALID_SLOT', 'Use a named vault storage slot.');
     this.#pool = pool; this.#slot = vaultSlot; this.#ownPool = ownPool;
   }
-  private static validateOptions(options: PostgresOptions) {
-    if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
-  }
   static async connect(options: PostgresOptions): Promise<PostgresSnapshotAdapter> {
-    PostgresSnapshotAdapter.validateOptions(options);
-    const moduleName = 'pg'; const pg = await import(moduleName), Pool = pg.Pool ?? pg.default?.Pool;
-    const pool = new Pool({ host: options.host, port: options.port, user: options.user, database: options.database, password: options.password, max: options.maxConnections ?? 3, connectionTimeoutMillis: 5000, application_name: 'chausar-vault', ssl: false });
+    const pool = await openLoopbackPool(options, 'chausar-vault');
     try {
       const adapter = new PostgresSnapshotAdapter(pool, options.vaultSlot, true);
       await adapter.initialize(); return adapter;
@@ -43,10 +63,7 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     const adapter = new PostgresSnapshotAdapter(pool, vaultSlot, false); await adapter.initialize(); return adapter;
   }
   private async initialize() {
-    await this.#pool.query(`CREATE TABLE IF NOT EXISTS public.chausar_vault_authority (
-      slot TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK (revision >= 0),
-      envelope JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
+    await this.#pool.query(VAULT_TABLE_SQL);
   }
   async load(): Promise<VaultEnvelope | null> {
     const result = await this.#pool.query('SELECT revision, envelope FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]);

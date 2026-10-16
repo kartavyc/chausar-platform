@@ -1,5 +1,7 @@
-// Hosted tier: the venture runtime contract. The same conformance checks run on the local actor runtime and on the
-// Rivet adapter over an in-memory stand-in. Every actor is a real Engine over a real encrypted vault; no network.
+// Hosted tier: the venture runtime contract. The same conformance checks run on the local actor runtime, on the Rivet
+// adapter over an in-memory stand-in, and on the local runtime with business vaults in PostgreSQL: over the PostgreSQL
+// stand-in always, and over a real server when CHAUSAR_TEST_POSTGRES_URL points at a disposable loopback database.
+// Every actor is a real Engine over a real encrypted vault; no network.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
@@ -7,11 +9,15 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError } from '../runtime/contracts.ts';
+import { loopbackPostgresUrl, openLoopbackPool, type PostgresPool } from '../runtime/postgres.ts';
 import { HostedCustody, newBusinessId, newTenantId, type Sealed } from '../runtime/hosted/custody.ts';
+import { prepareHostedTables } from '../runtime/hosted/directory.ts';
+import { hostedVaultSlot } from '../runtime/hosted/runtime/business.ts';
 import { ACTOR_ACTIONS, ACTOR_EVENTS, type ActorEvent, type ActorKey, type VentureRuntime } from '../runtime/hosted/runtime/contract.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
 import { RIVET_DESCRIPTOR, RivetVentureRuntime, rivetActionName, ventureActorConfig } from '../runtime/hosted/runtime/rivet.ts';
 import type { ModelTransport } from '../runtime/venture/contracts.ts';
+import { createPostgresStandIn } from './hosted-postgres-standin.ts';
 import { createRivetStandIn } from './hosted-rivet-standin.ts';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';
@@ -25,12 +31,18 @@ export const noNetwork: ModelTransport = {
   async process() { throw new ChausarError('MODEL_FAILED', 'No processes in tests.'); },
 };
 
+type Kind = 'local' | 'rivet' | 'local-postgres' | 'local-real-postgres';
+const POSTGRES_URL = process.env.CHAUSAR_TEST_POSTGRES_URL;
+const skipFor = (kind: Kind) => kind === 'local-real-postgres' && !POSTGRES_URL ? 'set CHAUSAR_TEST_POSTGRES_URL to a disposable loopback database to run this' : false;
+
 type Harness = {
   name: string; runtime: VentureRuntime; root: string;
   key(tenant?: string): ActorKey;
   create(key: ActorKey, name: string): Promise<{ recoveryCode: string }>;
   forget(key: ActorKey): void;
   sleep(): Promise<void>;
+  /** On PostgreSQL, whether the business's vault row exists. Null on file storage. */
+  hasRow(key: ActorKey): Promise<boolean | null>;
 };
 
 async function waitFor(condition: () => boolean, label: string) {
@@ -38,7 +50,7 @@ async function waitFor(condition: () => boolean, label: string) {
   assert.ok(condition(), label);
 }
 
-async function harness(t: any, kind: 'local' | 'rivet'): Promise<Harness> {
+async function harness(t: any, kind: Kind): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), `chausar-hosted-runtime-${kind}-`));
   const custody = HostedCustody.fromKey(randomBytes(32).toString('base64url'));
   const sealed = new Map<string, Sealed>();
@@ -48,11 +60,22 @@ async function harness(t: any, kind: 'local' | 'rivet'): Promise<Harness> {
     if (!value) throw new ChausarError('BUSINESS_NOT_FOUND', 'That business is not on your account.');
     return custody.unwrapPassphrase(key[0], key[1], value);
   };
-  const engineOptions = () => ({ demo: true, storage: 'experimental-file' as const, venture: { host: 'hosted-web' as const, modelTransport: noNetwork } });
+  let postgres: PostgresPool | undefined;
+  const slots = new Set<string>();
+  if (kind === 'local-postgres') postgres = createPostgresStandIn().pool;
+  if (kind === 'local-real-postgres') {
+    const pool = postgres = await openLoopbackPool(loopbackPostgresUrl(POSTGRES_URL!), 'chausar-test');
+    t.after(async () => {
+      try { if (slots.size) await pool.query('DELETE FROM public.chausar_vault_authority WHERE slot = ANY($1)', [[...slots]]); }
+      finally { await pool.end(); }
+    });
+  }
+  if (postgres) await prepareHostedTables(postgres);
+  const engineOptions = () => ({ demo: true, storage: postgres ? 'postgres' as const : 'experimental-file' as const, venture: { host: 'hosted-web' as const, modelTransport: noNetwork } });
   let now = Date.parse('2026-10-16T09:00:00.000Z');
   let runtime: VentureRuntime, sleep: () => Promise<void>;
-  if (kind === 'local') {
-    const local = new LocalVentureRuntime({ root, engineOptions, passphrase, idleMs: 60_000, maxAwake: 3, clock: () => now });
+  if (kind !== 'rivet') {
+    const local = new LocalVentureRuntime({ root, engineOptions, passphrase, idleMs: 60_000, maxAwake: 3, clock: () => now, postgres });
     runtime = local;
     sleep = async () => { now += 61_000; await local.sleepIdle(); };
   } else {
@@ -66,16 +89,21 @@ async function harness(t: any, kind: 'local' | 'rivet'): Promise<Harness> {
     name: kind, runtime, root, sleep,
     key: (owner = tenant) => [owner, newBusinessId()] as const,
     async create(key, name) {
+      slots.add(hostedVaultSlot(key));
       const secret = custody.newVaultPassphrase();
       sealed.set(id(key), custody.wrapPassphrase(key[0], key[1], secret));
       return runtime.create(key, { name, passphrase: secret });
     },
     forget(key) { sealed.delete(id(key)); },
+    async hasRow(key) {
+      if (!postgres) return null;
+      return (await postgres.query('SELECT revision, envelope FROM public.chausar_vault_authority WHERE slot = $1', [hostedVaultSlot(key)])).rows.length === 1;
+    },
   };
 }
 
-for (const kind of ['local', 'rivet'] as const) {
-  test(`${kind} runtime: one actor per business, created once, acting through declared actions only`, async t => {
+for (const kind of ['local', 'rivet', 'local-postgres', 'local-real-postgres'] as const) {
+  test(`${kind} runtime: one actor per business, created once, acting through declared actions only`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const key = h.key();
     const created = await h.create(key, 'Ledger Cafe Books');
@@ -93,7 +121,7 @@ for (const kind of ['local', 'rivet'] as const) {
     assert.throws(() => actor.on('not-an-event', () => {}), code('EVENT_NOT_DECLARED'));
   });
 
-  test(`${kind} runtime: declared events reach listeners, and a failed action changes nothing`, async t => {
+  test(`${kind} runtime: declared events reach listeners, and a failed action changes nothing`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const key = h.key();
     await h.create(key, 'Event Books');
@@ -113,7 +141,7 @@ for (const kind of ['local', 'rivet'] as const) {
     assert.equal(after.lastSeq, before.lastSeq);
   });
 
-  test(`${kind} runtime: a sleeping business wakes with its records and without the keys typed into it`, async t => {
+  test(`${kind} runtime: a sleeping business wakes with its records and without the keys typed into it`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const key = h.key();
     await h.create(key, 'Sleepy Books');
@@ -132,7 +160,7 @@ for (const kind of ['local', 'rivet'] as const) {
     assert.equal(woke.connections[0].keyLoaded, false, 'keys live in memory only and go when the business sleeps');
   });
 
-  test(`${kind} runtime: command-line AI never runs on the hosted server`, async t => {
+  test(`${kind} runtime: command-line AI never runs on the hosted server`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const key = h.key();
     await h.create(key, 'Key Only Books');
@@ -148,9 +176,11 @@ for (const kind of ['local', 'rivet'] as const) {
     const capabilities = await actor.action('venture.capabilities', {}, web) as any[];
     assert.equal(capabilities.find(row => row.id === 'hosted-actors').state, 'unverified');
     assert.equal(capabilities.find(row => row.id === 'tier-container').state, 'unavailable');
+    // File storage says planned; PostgreSQL on the hosted server says experimental until a real deploy is tested.
+    assert.equal(capabilities.find(row => row.id === 'durable-storage').state, kind.endsWith('postgres') ? 'unverified' : 'planned');
   });
 
-  test(`${kind} runtime: tenants and businesses never see each other`, async t => {
+  test(`${kind} runtime: tenants and businesses never see each other`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const mine = h.key(), theirs = h.key(newTenantId());
     await h.create(mine, 'Mine Books');
@@ -164,13 +194,15 @@ for (const kind of ['local', 'rivet'] as const) {
     assert.throws(() => h.runtime.get([mine[0], '..'] as any), code('INVALID_ACTOR_KEY'));
   });
 
-  test(`${kind} runtime: destroy needs the business name, then the vault and its folder are gone`, async t => {
+  test(`${kind} runtime: destroy needs the business name, then the vault and its folder are gone`, { skip: skipFor(kind) }, async t => {
     const h = await harness(t, kind);
     const key = h.key();
     await h.create(key, 'Short Lived');
     await assert.rejects(h.runtime.destroy(key, 'Wrong Name'), code('CONFIRMATION_REQUIRED'));
     assert.equal((await h.runtime.get(key).action('workspace.status', {}, web) as any).workspace.name, 'Short Lived');
+    assert.notEqual(await h.hasRow(key), false);
     await h.runtime.destroy(key, 'Short Lived');
+    assert.notEqual(await h.hasRow(key), true, 'on PostgreSQL the vault row is gone too');
     h.forget(key);
     await assert.rejects(stat(join(h.root, key[0], key[1])), (error: any) => error.code === 'ENOENT');
     await assert.rejects(h.runtime.get(key).action('workspace.status', {}, web), code('BUSINESS_NOT_FOUND'));

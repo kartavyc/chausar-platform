@@ -1,9 +1,10 @@
 // Chausar hosted tier: reads the environment into a checked config. Hosted mode is off unless CHAUSAR_HOSTED=1 or the
 // --hosted argument says otherwise.
 // Anything this build can't do safely is refused with a plain reason instead of being half done: a plain-http origin
-// outside development, a missing custody key, the Rivet runtime, PostgreSQL storage, a real mail sender.
+// outside development, a missing custody key, the Rivet runtime, a database off this computer, a real mail sender.
 import { resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
+import { loopbackPostgresUrl, type LoopbackPostgres } from '../postgres.ts';
 import { parseMasterKey } from './custody.ts';
 import { DEFAULT_LIMITS, type HostedLimits } from './limits.ts';
 import type { RelyingParty } from './webauthn.ts';
@@ -19,7 +20,10 @@ export type HostedConfig = {
   trustProxy: boolean;
   mailer: 'dev-outbox' | 'not-configured';
   replay: { model: string | null; github: string | null } | null;
-  storage: 'experimental-file';
+  /** Both are experimental until a real deploy has been tested. */
+  storage: 'experimental-file' | 'postgres';
+  /** With storage 'postgres': a server on this computer's loopback. A managed database is reached through a local TLS proxy. */
+  postgres: LoopbackPostgres | null;
   runtime: 'local';
   limits: HostedLimits;
 };
@@ -65,9 +69,15 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
   const runtimeName = env.CHAUSAR_VENTURE_RUNTIME ?? 'local';
   if (runtimeName === 'rivet') refuse('The Rivet Actors adapter is planned: it is mapped and checked against an in-memory stand-in only. Use the local runtime.');
   if (runtimeName !== 'local') refuse('CHAUSAR_VENTURE_RUNTIME must be local.');
-  const storage = env.CHAUSAR_HOSTED_STORAGE ?? 'experimental-file';
-  if (storage === 'postgres') refuse('PostgreSQL storage for hosted businesses is planned, not wired. This build keeps them in experimental encrypted files.');
-  if (storage !== 'experimental-file') refuse('CHAUSAR_HOSTED_STORAGE must be experimental-file.');
+  const storageName = env.CHAUSAR_HOSTED_STORAGE ?? 'experimental-file';
+  if (storageName !== 'experimental-file' && storageName !== 'postgres') refuse('CHAUSAR_HOSTED_STORAGE must be experimental-file or postgres.');
+  const storage: HostedConfig['storage'] = storageName === 'postgres' ? 'postgres' : 'experimental-file';
+  let postgres: LoopbackPostgres | null = null;
+  if (storage === 'postgres') {
+    const text = env.CHAUSAR_HOSTED_POSTGRES_URL ?? refuse('Set CHAUSAR_HOSTED_POSTGRES_URL, like postgres://chausar:password@127.0.0.1:5432/chausar.');
+    try { postgres = { ...loopbackPostgresUrl(text), maxConnections: 10 }; }
+    catch { refuse('CHAUSAR_HOSTED_POSTGRES_URL must be postgres://user:password@127.0.0.1:port/database (or [::1]), with no query options. Reach a managed database through a TLS proxy on this computer.'); }
+  } else if (env.CHAUSAR_HOSTED_POSTGRES_URL !== undefined) refuse('CHAUSAR_HOSTED_POSTGRES_URL is set but CHAUSAR_HOSTED_STORAGE is not postgres.');
 
   const replayOn = dev && (env.CHAUSAR_VENTURE_REPLAY === '1' || args.includes('--replay'));
   const replay = replayOn ? { model: env.CHAUSAR_VENTURE_MODEL_REPLAY ?? null, github: env.CHAUSAR_VENTURE_GITHUB_REPLAY ?? null } : null;
@@ -87,6 +97,6 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
     dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin },
     listen: { host: listenHost, port }, dataDirectory: resolve(env.CHAUSAR_HOSTED_DATA ?? 'data/hosted'),
     custody, tls, trustProxy: env.CHAUSAR_HOSTED_TRUST_PROXY === '1' && tls.kind === 'proxy',
-    mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage: 'experimental-file', runtime: 'local', limits,
+    mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits,
   };
 }

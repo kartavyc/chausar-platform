@@ -63,6 +63,6 @@ export async function recordPayment(deps: VentureDeps, ctx: Context, payload: un
     tx.replace({ ...payment, booksReceiptId: books.receiptId, booksNote: books.note });
     const invoice = tx.find('venture-invoice', invoiceId);
     check(invoice, 'INVOICE_NOT_FOUND', 'This invoice was not found.');
-    return invoiceView(tx.state, venture, invoice, deps.storage);
+    return invoiceView(tx.state, venture, invoice, deps);
   });
 }

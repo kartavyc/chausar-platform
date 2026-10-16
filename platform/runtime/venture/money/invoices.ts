@@ -14,9 +14,9 @@ import { insertBooksFact, invoiceFact } from './facts.ts';
 import { buildPriceReceipt, receiptFigure, receiptTaxable } from './quote.ts';
 import { halfRateBps, stateName, taxDecision } from './tax.ts';
 import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type {
-  BackOffice, BlueprintRecord, ClientRecord, CountryProfile, InvoiceRecord, InvoiceView, MinorString, PriceFigure,
-  PriceReceiptRecord, TaxTreatment, VentureDeps, VentureRecord, VentureStorage,
+import {
+  experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceRecord,
+  type InvoiceView, type MinorString, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
 } from '../contracts.ts';
 
 const DIGEST_TEXT = /^[A-Za-z0-9]{1,200}$/;
@@ -106,7 +106,8 @@ function pricedBlueprint(state: State, venture: VentureRecord, receipt: PriceRec
 }
 
 /** The full view the screens show for one invoice. */
-export function invoiceView(state: State, venture: VentureRecord, invoice: InvoiceRecord, storage: VentureStorage): InvoiceView {
+export function invoiceView(state: State, venture: VentureRecord, invoice: InvoiceRecord, deps: Pick<VentureDeps, 'storage' | 'host'>): InvoiceView {
+  const experimental = experimentalStorage(deps);
   const client = listRecords(state, 'venture-client', venture.id).find(c => c.id === invoice.clientId);
   check(client, 'CLIENT_NOT_FOUND', 'The client of this invoice was not found.');
   const receipt = listRecords(state, 'venture-price-receipt', venture.id).find(r => r.id === invoice.priceReceiptId);
@@ -120,13 +121,13 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
   }
   if (invoice.booksNote !== null) notes.push(invoice.booksNote);
   for (const payment of payments) if (payment.booksNote !== null && !notes.includes(payment.booksNote)) notes.push(payment.booksNote);
-  if (storage === 'experimental-file') notes.push(EXPERIMENTAL_NOTE);
+  if (experimental) notes.push(EXPERIMENTAL_NOTE);
   return {
     invoice,
     client,
     receipt,
     payments,
-    documentText: documentText({ invoice, client, sellerName: blueprint?.name.value ?? venture.workingName, country: venture.country, storage }),
+    documentText: documentText({ invoice, client, sellerName: blueprint?.name.value ?? venture.workingName, country: venture.country, experimental }),
     figures: invoiceFigures(invoice, receipt),
     notes,
   };
@@ -201,7 +202,7 @@ export async function prepareInvoice(deps: VentureDeps, ctx: Context, payload: u
     invoice.digest = invoiceDigest(invoice);
     const stored = draft ? tx.replace(invoice) : tx.put(invoice);
     tx.emit('invoice-prepared', { invoiceId: stored.id });
-    return invoiceView(tx.state, venture, stored, deps.storage);
+    return invoiceView(tx.state, venture, stored, deps);
   });
 }
 
@@ -250,7 +251,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
     const invoice = tx.find('venture-invoice', invoiceId);
     check(invoice, 'INVOICE_NOT_FOUND', 'This invoice was not found.');
     const stored = tx.replace({ ...invoice, booksReceiptId: books.receiptId, booksNote: books.note });
-    return invoiceView(tx.state, venture, stored, deps.storage);
+    return invoiceView(tx.state, venture, stored, deps);
   });
 }
 
@@ -261,7 +262,7 @@ export async function getInvoice(deps: VentureDeps, ctx: Context, payload: unkno
   const { state, venture } = readVenture(deps, ctx);
   const invoice = listRecords(state, 'venture-invoice', venture.id).find(i => i.id === invoiceId);
   check(invoice, 'INVOICE_NOT_FOUND', 'This invoice was not found.');
-  return invoiceView(state, venture, invoice, deps.storage);
+  return invoiceView(state, venture, invoice, deps);
 }
 
 /** venture.invoice.list (level read): newest first. */

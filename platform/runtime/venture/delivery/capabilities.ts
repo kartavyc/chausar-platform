@@ -47,7 +47,9 @@ export function capabilityList(platform: string, modelStatus?: ModelStatusView, 
     row('tier-actor', 'runtime', 'Agent drafting', 'available', 'Model calls and drafting inside Chausar. No tools and no agent-written code. Not a sandbox.'),
     storage === 'experimental-file'
       ? row('durable-storage', 'storage', 'Durable storage', 'planned', EXPERIMENTAL_STORAGE_NOTICE)
-      : row('durable-storage', 'storage', 'Durable storage', 'available', 'PostgreSQL storage.'),
+      : hosted
+        ? row('durable-storage', 'storage', 'Durable storage', 'unverified', "Experimental: PostgreSQL on this server, not yet tested on a real deploy. Practise here; don't issue real invoices yet.")
+        : row('durable-storage', 'storage', 'Durable storage', 'available', 'PostgreSQL storage.'),
     hosted
       ? row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'unavailable', 'The hosted web app runs no plugins. The desktop app has the back office sandbox.')
       : row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'available', 'The back office plugin sandbox. Delivery agents do not use it yet.'),

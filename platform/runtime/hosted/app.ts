@@ -2,6 +2,7 @@
 // custody, and routes every request to the business actor its session has open. The tenant always comes from the
 // session; a request can name a business only from its own user's list.
 import { check } from '../contracts.ts';
+import type { PostgresPool } from '../postgres.ts';
 import type { ModelTransport, VentureHostOptions } from '../venture/contracts.ts';
 import { AccountService, exact, userView, type Authenticated } from './accounts.ts';
 import { HostedCustody, isBusinessId, newBusinessId } from './custody.ts';
@@ -34,9 +35,11 @@ export type HostedAppOptions = {
   /** The model transport each business's gate wraps: the real HTTPS one, or a synthetic recording. */
   modelTransport: ModelTransport;
   githubTransport: VentureHostOptions['githubTransport'];
+  /** The server's PostgreSQL pool. With it, business vaults are PostgreSQL rows; without it, experimental files. */
+  postgres?: PostgresPool;
   clock?: () => Date;
   /** Tests may pass a runtime built over the same directory and custody. */
-  runtime?: (options: { root: string; passphrase: (key: ActorKey) => Promise<string>; engineOptions: (key: ActorKey) => any }) => VentureRuntime;
+  runtime?: (options: { root: string; passphrase: (key: ActorKey) => Promise<string>; engineOptions: (key: ActorKey) => any; postgres?: PostgresPool }) => VentureRuntime;
 };
 
 export class HostedApp {
@@ -61,7 +64,7 @@ export class HostedApp {
     this.#githubRate = new RateLimiter('github-tenant', options.limits.githubSyncsPerTenant, ms);
     this.#modelGate = new ConcurrencyGate(options.limits.modelConcurrencyPerTenant);
     const root = `${options.root.replace(/[\\/]+$/, '')}/tenants`;
-    const runtimeOptions = { root, passphrase: (key: ActorKey) => this.#passphrase(key), engineOptions: (key: ActorKey) => this.#engineOptions(key) };
+    const runtimeOptions = { root, passphrase: (key: ActorKey) => this.#passphrase(key), engineOptions: (key: ActorKey) => this.#engineOptions(key), postgres: options.postgres };
     this.runtime = options.runtime ? options.runtime(runtimeOptions)
       : new LocalVentureRuntime({ ...runtimeOptions, idleMs: options.limits.actorIdleMs, maxAwake: options.limits.awakeActors, clock: ms });
   }
@@ -97,8 +100,11 @@ export class HostedApp {
       dispatched: () => { this.#dirty.add(id); },
     });
     const venture: VentureHostOptions = { host: 'hosted-web', modelTransport, githubTransport: this.options.githubTransport, clock: this.#clock };
-    return { demo: true, storage: 'experimental-file' as const, version: this.options.version, venture };
+    // The engine keeps its preview profile (demo) on both stores: exact integer arithmetic, labelled experimental.
+    return { demo: true, storage: this.#storage(), version: this.options.version, venture };
   }
+
+  #storage() { return this.options.postgres ? 'postgres' as const : 'experimental-file' as const; }
 
   #key(auth: Authenticated, businessId = auth.session.businessId): ActorKey {
     check(businessId && auth.user.businesses.some(item => item.id === businessId), 'VAULT_LOCKED', 'Choose one of your businesses first.');
@@ -151,10 +157,10 @@ export class HostedApp {
   async #status(auth: Authenticated) {
     const hosted = { email: auth.user.email, businessId: auth.session.businessId, businesses: userView(auth.user).businesses, experimental: true };
     if (!auth.session.businessId || !auth.user.businesses.some(item => item.id === auth.session.businessId)) {
-      return { open: false, storage: 'experimental-file', experimental: true, version: this.options.version, hosted };
+      return { open: false, storage: this.#storage(), experimental: true, version: this.options.version, hosted };
     }
     const status = await this.runtime.get(this.#key(auth)).action('workspace.status', {}, WEB) as Record<string, unknown>;
-    return { ...status, hosted };
+    return { ...status, experimental: true, hosted };
   }
 
   async #createBusiness(auth: Authenticated, input: unknown) {
