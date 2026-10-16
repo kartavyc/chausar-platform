@@ -70,6 +70,7 @@ globalThis.ChausarLaunch = Object.freeze({
     function awaitingOwner(run, stage) {
       if (typeof run?.awaitingYou === 'boolean') return run.awaitingYou;
       if (run?.status === 'waiting-for-you') return true;
+      if (run?.status === 'needs-answer') return stage === 'shadow' || stage === 'approve-each';
       return run?.status === 'ready-for-review' && (!practiceDraft(run, stage) || stage === 'shadow');
     }
     const RUN_WORDS = { 'waiting-for-you': 'to approve', 'needs-answer': 'to answer', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
@@ -92,6 +93,33 @@ globalThis.ChausarLaunch = Object.freeze({
       ['tone', 'The tone is wrong'], ['format', 'The format is wrong'], ['too-long', 'Too long'], ['too-short', 'Too short'], ['wrong-number', 'A number is wrong'],
       ['late', 'Too late'], ['claims-work-not-done', 'Claims work that was not done'], ['other', 'Something else'],
     ];
+    // The delivery harness: client files on an order, the agent's turns and tools, its questions, work receipts.
+    const FORMAT_WORDS = { csv: 'CSV', xlsx: 'XLSX', pdf: 'PDF' };
+    /** The engine's own limits for client files: one desktop request each once encoded, ten to an order. */
+    /** The hosted server takes a request body of at most 256 KB, so a file there (sent base64) stays under 190 KB. */
+    const MAX_FILE_BYTES = hosted ? 190000 : 1450000;
+    const MAX_FILES = 10;
+    const FILES_LINE = 'Files stay in your vault. Parts the agent reads go to your AI only in a turn you approve.';
+    const TOOLS_LINE = 'Tools run on this computer between turns. Nothing reaches the client.';
+    const ANSWER_LINE = 'Your answer goes into the next turn, which shows you its exact text first.';
+    /** Where the reconciliation code attached to a report begins, as the engine renders it (reconciliationBlock). */
+    const RECONCILIATION_HEAD = '\n\n## Reconciliation\n';
+    /** What each tool did, in plain words. name is the file or table the call worked on, as the owner knows it. */
+    const TOOL_WORDS = {
+      'files.list': () => 'Listed the files', 'files.read': name => `Read ${name}`,
+      'dictionary.browse': () => 'Searched your business dictionary', 'dictionary.resolve': () => 'Checked words in your business dictionary',
+      'calc.sum': name => `Added up a column of ${name}`, 'calc.totals': name => `Totalled ${name} by group`,
+      'books.reconcile': name => `Reconciled ${name} with the bills`, 'bills.pick': () => 'Picked bill totals from the PDFs',
+      'sandbox.transform': name => `Ran a row program over ${name} in the light sandbox`, 'sandbox.python': name => `Ran Python over ${name} in a container`,
+      'handoff.client': () => 'Asked the client a question', 'handoff.owner': () => 'Asked you a question',
+      'outbox.propose': () => 'Proposed an outside action. Nothing was sent.',
+    };
+    /** The input field that names the file or table a tool works on. */
+    const TOOL_TARGET = { 'files.read': 'target', 'calc.sum': 'table', 'calc.totals': 'table', 'books.reconcile': 'bank', 'sandbox.transform': 'table', 'sandbox.python': 'table' };
+    const OUTCOME_WORDS = { failed: 'failed', cancelled: 'skipped', timedOut: 'took too long' };
+    const IMPROVE_WORDS = { 'kept-candidate': 'Kept a new version', 'kept-parent': 'Kept the version in use', incomplete: 'Stopped before a change was tried' };
+    const IMPROVE_LINE = 'It rehearses the version in use against one change, with practice clients and your AI, and keeps the change only if it wins.';
+    const ADOPT_LINE = 'New drafts follow it. The version in use now stays stored.';
     const PAYMENT_METHODS = [['bank-transfer', 'Bank transfer'], ['upi', 'UPI'], ['card', 'Card'], ['cash', 'Cash'], ['payment-link', 'Payment link'], ['other', 'Other']];
     const EVENT_WORDS = {
       'venture-created': 'Business started', 'retention-changed': 'Records kept ten years', 'interview-updated': 'Plan answers saved',
@@ -1152,22 +1180,26 @@ globalThis.ChausarLaunch = Object.freeze({
     async function renderToday() {
       const view = await ventureOrNull();
       if (!view) return noVenture();
-      const [runs, invoices, books, events] = await Promise.all([
-        settle(request('venture.delivery.list')), settle(request('venture.invoice.list')), settle(request('venture.books.summary', { period: 'this-month' })), settle(lastEvents(6))]);
+      const [runs, invoices, books, events, improve] = await Promise.all([
+        settle(request('venture.delivery.list')), settle(request('venture.invoice.list')), settle(request('venture.books.summary', { period: 'this-month' })), settle(lastEvents(6)),
+        settle(request('venture.improve.status'))]);
       rememberDay(books.value);
       // Like items share one row, so four waiting drafts read as one line with how many there are.
       // A practice draft stops being news once the business approves each draft: it can't be accepted any more.
       const stage = view.venture.launchStage;
       const kinds = [
         ['waiting', 'A draft to approve', 'drafts to approve', 'agents'],
+        ['asking', 'A question to answer', 'questions to answer', 'agents'],
         ['practice', 'A practice draft to review', 'practice drafts to review', 'agents'],
         ['ready', 'A draft to review', 'drafts to review', 'agents'],
+        ['adopt', 'A playbook change to review', 'playbook changes to review', 'agents'],
         ['invoice', 'A draft invoice to issue', 'draft invoices to issue', 'clients'],
       ];
-      const counts = { waiting: 0, practice: 0, ready: 0, invoice: 0 };
+      const counts = { waiting: 0, asking: 0, practice: 0, ready: 0, adopt: improve.value?.candidate ? 1 : 0, invoice: 0 };
       for (const run of runs.value || []) {
         if (!awaitingOwner(run, stage)) continue;
         if (run.status === 'waiting-for-you') counts.waiting++;
+        else if (run.status === 'needs-answer') counts.asking++;
         else if (run.status === 'ready-for-review') counts[practiceDraft(run, stage) ? 'practice' : 'ready']++;
       }
       for (const invoice of invoices.value || []) if (invoice.status === 'draft') counts.invoice++;
@@ -1218,8 +1250,9 @@ globalThis.ChausarLaunch = Object.freeze({
     async function renderClients() {
       const view = await ventureOrNull();
       if (!view) return noVenture();
-      const [clients, orders, invoices, blueprint] = await Promise.all([
-        request('venture.client.list'), request('venture.order.list'), settle(request('venture.invoice.list')), settle(request('venture.blueprint.get'))]);
+      const [clients, orders, invoices, blueprint, uploads] = await Promise.all([
+        request('venture.client.list'), request('venture.order.list'), settle(request('venture.invoice.list')), settle(request('venture.blueprint.get')),
+        settle(request('venture.files.list', {}))]);
       const listed = orders.slice(0, 12);
       const receipts = await Promise.all(listed.map(order => settle(request('venture.receipt.get', { id: order.priceReceiptId }))));
       const names = Object.fromEntries(clients.map(client => [client.id, client.name]));
@@ -1229,6 +1262,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const orderNodes = listed.map((order, index) => orderRow(order, {
         client: names[order.clientId] || 'A client', offer: offerName(order.offerId), receipt: receipts[index].value,
         invoice: (invoices.value || []).find(invoice => invoice.orderId === order.id && invoice.status !== 'void') || null,
+        files: uploads.value ? uploads.value.filter(upload => upload.scope?.kind === 'order' && upload.scope.orderId === order.id) : null, filesError: uploads.error,
       }));
       return page(head(null, 'Clients'),
         section('Clients', clients.length ? rows(...clients.map(client => row({ mark: 'you', title: client.name, note: [client.email, client.countryCode].filter(Boolean).join(' · ') || null }))) : note('No clients yet.'),
@@ -1236,10 +1270,11 @@ globalThis.ChausarLaunch = Object.freeze({
         section('Orders', orderNodes.length ? h('div', { class: 'launch-rows' }, orderNodes) : note(offers.length ? 'No orders yet.' : 'Accept your plan first, then add orders.'),
           clients.length && offers.length ? actions(quiet('New order', () => openOrderSheet(ctx))) : null));
     }
-    function orderRow(order, { client, offer, receipt, invoice }) {
+    function orderRow(order, { client, offer, receipt, invoice, files, filesError }) {
       const total = figureOf(receipt, 'total');
       const body = h('div', { class: 'launch-more-body' });
       const status = statusLine();
+      const filesHost = filesPart(order, files, filesError);
       const paintActions = () => {
         const draft = quiet('Draft a reply', () => act(draft, status, async () => { await openRunSheet(await request('venture.delivery.run', { orderId: order.id }), client); }));
         const deliver = order.status === 'delivered' || order.status === 'cancelled' ? null : quiet('Mark delivered', () => {
@@ -1250,12 +1285,48 @@ globalThis.ChausarLaunch = Object.freeze({
         const invoiceButton = invoice
           ? quiet(invoice.number ? `Open invoice ${invoice.number}` : 'Open draft invoice', () => act(invoiceButton, status, async () => openInvoiceSheet(await request('venture.invoice.get', { invoiceId: invoice.id }))))
           : quiet('Prepare invoice', () => act(invoiceButton, status, async () => openInvoiceSheet(await request('venture.invoice.prepare', { orderId: order.id }))));
-        body.replaceChildren(note(order.request, 'launch-note launch-request'), actions(draft, deliver, invoiceButton), status);
+        fill(body, note(order.request, 'launch-note launch-request'), filesHost, actions(draft, deliver, invoiceButton), status);
       };
       paintActions();
       return h('details', { class: 'launch-order', 'data-order': order.id }, h('summary', {}, square(order.status === 'delivered' ? 'you' : 'wait'),
         h('span', { class: 'launch-row-title' }, `${client} · ${offer}`), ' ', h('span', { class: 'launch-row-note' }, ORDER_WORDS[order.status] || order.status), ' ',
         total ? h('span', { class: 'launch-fig' }, total.display) : null), body);
+    }
+    /** The client's files on an order: one line each, and Add a file, which opens the computer's own file chooser.
+        The file goes to the engine as base64 in one request; the engine checks its format against its content. */
+    function filesPart(order, files, filesError) {
+      const host = h('div', { class: 'launch-files' });
+      if (!files) { fill(host, ...errorNodes(filesError || new Error("Chausar couldn't read this order's files."))); return host; }
+      const list = [...files];
+      const status = statusLine();
+      // PDF text is read by the Python helper, which never runs on the shared hosted server.
+      const chooser = hosted
+        ? h('input', { type: 'file', accept: '.csv,.xlsx', hidden: true, 'aria-label': 'Choose a CSV or XLSX file' })
+        : h('input', { type: 'file', accept: '.csv,.xlsx,.pdf', hidden: true, 'aria-label': 'Choose a CSV, XLSX or PDF file' });
+      const paint = () => {
+        const full = list.length >= MAX_FILES;
+        fill(host,
+          list.length ? rows(...list.map(file => row({ mark: 'you', title: file.name, note: FORMAT_WORDS[file.format] || file.format }))) : note('No files yet.'),
+          full ? note('Ten files, the most an order holds.') : h('p', { class: 'launch-note' }, FILES_LINE, ' ', link('Add a file', () => chooser.click())),
+          chooser, status);
+      };
+      chooser.addEventListener('change', () => act(null, status, async () => {
+        const chosen = chooser.files?.[0];
+        chooser.value = '';
+        if (!chosen) return;
+        if (chosen.size > MAX_FILE_BYTES) throw new Error(hosted ? 'Add a file smaller than 190 KB. The hosted app takes smaller files than the desktop app.' : 'Add a file smaller than one and a half megabytes.');
+        list.push(await request('venture.files.add', { orderId: order.id, name: chosen.name, contentBase64: await base64Of(chosen) }));
+        paint();
+      }));
+      paint();
+      return host;
+    }
+    /** A picked file's bytes as base64, in slices so a large file does not overflow the call stack. */
+    async function base64Of(file) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let at = 0; at < bytes.length; at += 32768) binary += String.fromCharCode(...bytes.subarray(at, at + 32768));
+      return btoa(binary);
     }
 
     async function openClientSheet(ctx) {
@@ -1341,10 +1412,10 @@ globalThis.ChausarLaunch = Object.freeze({
     async function renderAgents() {
       const view = await ventureOrNull();
       if (!view) return noVenture();
-      const [launchStatus, scenarios, runs, capabilities, models, playbook, orders, clients] = await Promise.all([
+      const [launchStatus, scenarios, runs, capabilities, models, playbook, orders, clients, improve] = await Promise.all([
         settle(request('venture.launch.status')), settle(request('venture.simulation.scenarios')), settle(request('venture.delivery.list')),
         settle(request('venture.capabilities')), modelStatus(), settle(request('venture.delivery.playbook')),
-        settle(request('venture.order.list')), settle(request('venture.client.list'))]);
+        settle(request('venture.order.list')), settle(request('venture.client.list')), settle(request('venture.improve.status'))]);
       const titles = Object.fromEntries((scenarios.value || []).map(scenario => [scenario.id, scenario.title]));
       const templateEntries = launchStatus.value?.rehearsal?.length
         ? launchStatus.value.rehearsal
@@ -1398,20 +1469,24 @@ globalThis.ChausarLaunch = Object.freeze({
       const draftRow = run => {
         const client = clientOf[run.orderId] || 'A client';
         return row({
-          mark: run.status === 'waiting-for-you' || run.status === 'ready-for-review' ? 'wait' : 'you',
+          mark: run.status === 'waiting-for-you' || run.status === 'needs-answer' || run.status === 'ready-for-review' ? 'wait' : 'you',
           title: link(client, () => openRunSheet(run, client, models)),
           note: `${RUN_WORDS[run.status] || run.status}${practiceDraft(run, stage) ? ', practice' : ''}${run.servedBy === 'template' ? ', outline' : ''}`,
         });
       };
       const drafts = runs.value || [];
+      const improveHost = h('div', { class: 'launch-improve' });
+      paintImprove(improveHost, improve.value || null, improve.error);
       return page(head(`Stage: ${STAGE_WORDS[stage] || stage}`, 'Agents'),
         h('p', {}, aiWords, ' ', link(served ? 'Change' : 'Add your AI', () => openAiSheet(reread))), recordingNote(models),
         section(null, rehearsalFold, actions(rehearse), rehearseStatus),
         section(null, ladderHost),
+        section(null, improveHost),
         section('Draft replies', drafts.length ? rows(...drafts.slice(0, 3).map(draftRow)) : note(runs.error ? plain(runs.error.message) : 'No draft replies yet. Draft one from an order on Clients.'),
           drafts.length > 3 ? fold(`${drafts.length - 3} older`, false, rows(...drafts.slice(3, 12).map(draftRow))) : null),
         fold('How agents work', false,
           served ? note(`${presetName(mainTier?.presetId, mainTier?.model)} writes plans and drafts; ${presetName(fastTier?.presetId, fastTier?.model)} does quick work.`) : null,
+          playbook.value ? note(`Playbook version ${playbook.value.version}.`) : null,
           ...(playbook.value ? [rows(...playbook.value.steps.map(step => row({ mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title, note: DONE_BY[step.doneBy] || step.doneBy })))] : errorNodes(playbook.error)),
           section('What agents can do today', ...capabilityNodes)));
     }
@@ -1477,31 +1552,93 @@ globalThis.ChausarLaunch = Object.freeze({
       }))), result];
     }
 
+    /** The improvement loop in one fold: readiness at rest; inside, the last run, a kept change in plain words, Run and Adopt.
+        It never runs on its own. after carries what the owner just did, so the fold stays open with the result in it. */
+    function paintImprove(host, status, error, after = null) {
+      if (!status) { fill(host, ...errorNodes(error)); return; }
+      const result = statusLine();
+      const { readiness, latest, candidate } = status;
+      const repaint = async message => {
+        const fresh = await settle(request('venture.improve.status'));
+        paintImprove(host, fresh.value || status, fresh.error, { message });
+      };
+      const runLoop = () => act(run, result, async () => {
+        await busy(host, 'Rehearsing the version in use and one change', () => request('venture.improve.run', {}), 3);
+        await repaint(null);
+      });
+      // With a change waiting, Adopt is the one button and running again is a quiet link.
+      const run = candidate ? link('Run the loop again', runLoop) : quiet('Run the improvement loop', runLoop);
+      const adopt = candidate ? quiet('Adopt this version', () => act(adopt, result, async () => {
+        const playbook = await request('venture.improve.adopt', { runId: candidate.runId, digest: candidate.digest });
+        await repaint(`Now using version ${playbook.version}.`);
+      })) : null;
+      const words = candidate ? 'Improvement: a change to adopt' : readiness.due ? 'Improvement: ready to run' : 'Improvement: not due yet';
+      fill(host, fold(words, Boolean(after),
+        note(readiness.reason),
+        note(`${readiness.judged} ${readiness.judged === 1 ? 'draft' : 'drafts'} reviewed, ${readiness.rejectedOrEdited} rejected or edited.`),
+        latest ? improvementRow(latest) : null,
+        candidate ? h('div', { class: 'launch-change' }, note('The change', 'launch-strong'), ...candidate.changes.map(item => h('p', { class: 'launch-quote' }, item)), actions(adopt), note(ADOPT_LINE)) : null,
+        after?.message ? note(after.message, 'launch-note launch-done') : null,
+        candidate ? h('p', { class: 'launch-note' }, run) : actions(run), candidate ? null : note(IMPROVE_LINE), result));
+    }
+    /** The last run: what it kept and why, with one mark per practice case: won, tied, lost. */
+    function improvementRow(run) {
+      const gate = [...(run.rounds || [])].reverse().find(round => round.gate)?.gate || null;
+      const reason = run.status === 'incomplete' ? run.incompleteReason : gate?.reason;
+      const picture = gate ? h('span', { class: 'launch-strip launch-gate', role: 'img', 'aria-label': `Won ${gate.wins}, tied ${gate.ties}, lost ${gate.losses} of the practice cases.` },
+        ...Array.from({ length: gate.wins }, () => square('cha')), ...Array.from({ length: gate.ties }, () => square('off')), ...Array.from({ length: gate.losses }, () => square('unsure'))) : null;
+      const caption = gate ? h('span', { class: 'launch-row-note' }, `${gate.wins} won, ${gate.ties} tied, ${gate.losses} lost`) : null;
+      return rows(row({
+        mark: run.status === 'kept-candidate' ? 'cha' : 'off', title: IMPROVE_WORDS[run.status] || run.status,
+        side: h('span', { class: 'launch-fig' }, run.costDisplay),
+        extra: h('div', {}, reason ? h('p', { class: 'launch-row-more' }, reason) : null, picture ? h('p', { class: 'launch-gate-line' }, picture, caption) : null),
+      }));
+    }
+
     /** The draft reply sheet. In a demo with recordings it says, above the payload and the draft, that a synthetic recording answers. */
     async function openRunSheet(run, client, knownModels = null) {
-      const models = knownModels || await modelStatus();
+      // A run with the agent's tools names files by short names (f1, f2); the order's files give them back their own names.
+      const [models, files] = await Promise.all([knownModels || modelStatus(), run.harness ? settle(request('venture.files.list', { orderId: run.orderId })) : null]);
       const replay = replaying(models);
       const body = h('div', { class: 'launch-run' });
       const stage = state.venture?.venture?.launchStage;
+      const receipts = new Map();
+      const workReceipt = id => {
+        if (!receipts.has(id)) receipts.set(id, request('venture.work.get', { id }).catch(error => { receipts.delete(id); throw error; }));
+        return receipts.get(id);
+      };
+      const ctx = { files: files?.value || [], workReceipt };
       const paint = current => {
         const status = statusLine();
         const parts = [];
         const practice = practiceDraft(current, stage);
+        const harness = current.harness || null;
         if (practice) parts.push(warn(PRACTICE_LINE));
+        if (harness) parts.push(progressLine(harness));
+        if (harness?.stopReason && harness.phase === 'write') parts.push(note(harness.stopReason));
+        // What the agent did sits open above the text to approve, and folded after the report once it is written.
+        const done = harness ? turnsDone(current, ctx) : [];
+        const working = current.status === 'waiting-for-you' || current.status === 'needs-answer';
+        const doneFold = done.length ? fold('What the agent did', working, ...done) : null;
+        if (working) parts.push(doneFold);
         if (current.status === 'waiting-for-you' && current.preview && current.canApprove === false) {
           parts.push(recordingNote(models), note("Chausar can't send this one now: its approval ran out or the launch stage changed. Draft it again from the order."), status);
         } else if (current.status === 'waiting-for-you' && current.preview) {
           const model = presetName(current.preview.presetId, current.preview.model);
+          const by = writtenBy(models, current.preview.presetId, current.preview.model);
+          const acting = harness?.phase === 'act';
+          const words = !harness ? `Writing a draft reply ${by}` : acting ? `Running turn ${(harness.used?.turns || 0) + 1} ${by}` : `Writing the report ${by}`;
           const agree = h('input', { type: 'checkbox' });
           const approve = filled('Approve and send', () => act(approve, status, async () => {
             let next;
             try {
-              next = await busy(body, `Writing a draft reply ${writtenBy(models, current.preview.presetId, current.preview.model)}`, () => request('venture.delivery.approve', { runId: current.id, digest: current.preview.digest }));
+              next = await busy(body, words, () => request('venture.delivery.approve', { runId: current.id, digest: current.preview.digest }));
             } catch (error) {
               if (error?.code !== 'REQUEST_TIMEOUT') throw error;
               const list = await request('venture.delivery.list');
               next = (list || []).find(item => item.id === current.id);
-              if (!next || next.status === 'waiting-for-you') throw error;
+              // Still waiting on the same call means the turn has not run; a new call means it ran and the next one waits.
+              if (!next || (next.status === 'waiting-for-you' && next.callId === current.callId)) throw error;
             }
             paint(next);
           }), { disabled: true });
@@ -1510,12 +1647,21 @@ globalThis.ChausarLaunch = Object.freeze({
             note(replay ? `This is exactly what Chausar would send to ${model}. In this demo a synthetic recording answers instead.` : `This is exactly what will be sent to ${model}`, 'launch-strong'),
             h('pre', { class: 'launch-pre' }, current.preview.payloadText),
             note(`Most it can cost: ${current.preview.estimatedMaxCostDisplay}. This approval runs out at ${timeText(current.preview.expiresAt)}.`),
+            acting ? note(TOOLS_LINE) : null,
             h('label', { class: 'launch-check' }, agree, h('span', {}, replay ? 'Approve this exact text once.' : 'Send this exact text once.')), actions(approve), status);
+        } else if (current.status === 'needs-answer' && harness) {
+          parts.push(...questionNodes(current, harness, status, next => paint(next), body));
         } else {
           const text = current.editedText || current.renderedText || '';
           if (current.servedBy === 'template' && !text.startsWith(OUTLINE_LINE)) parts.push(note(OUTLINE_LINE, 'launch-strong'));
           if (current.servedBy === 'model') parts.push(recordingNote(models));
-          if (text) parts.push(h('pre', { class: 'launch-pre' }, text));
+          const attachedIds = (current.deliverable?.attachments || []).filter(item => item.kind === 'reconciliation').map(item => item.receiptId);
+          // Code prints the reconciliation after the agent's words. The sheet shows it once, drawn from its receipt below;
+          // Copy and Save still take the whole report.
+          const cut = attachedIds.length && !current.editedText ? text.lastIndexOf(RECONCILIATION_HEAD) : -1;
+          if (text) parts.push(h('pre', { class: 'launch-pre' }, cut > 0 ? text.slice(0, cut) : text));
+          for (const id of attachedIds) parts.push(reconciliationPart(id, ctx));
+          if (!working) parts.push(doneFold);
           if (current.checks?.length) parts.push(fold('Checks', false, rows(...current.checks.map(check => row({ mark: check.passed ? 'cha' : 'unsure', title: CHECK_WORDS[check.check] || check.check, note: check.passed ? 'passed' : check.detail })))));
           if (current.status === 'ready-for-review') parts.push(...reviewControls(current, status, paint, stage));
           else if (current.verdict) parts.push(note(`You ${current.verdict.choice} this draft${current.verdict.reason ? `: ${(REASON_WORDS.find(([id]) => id === current.verdict.reason) || [])[1] || current.verdict.reason}` : ''}.`));
@@ -1532,6 +1678,112 @@ globalThis.ChausarLaunch = Object.freeze({
       paint(run);
       sheet(`Draft reply for ${client}`, body, () => (onLaunchPage() ? navigate(state.page) : undefined));
     }
+    /** Which turn the run is on, in words, with one mark per turn the agent may take: done, this one, the rest. */
+    function progressLine(harness) {
+      const max = harness.limits?.maxTurns || 0;
+      const used = harness.used?.turns || 0;
+      const current = harness.phase === 'act' ? used + 1 : null;
+      const calls = harness.used?.toolCalls || 0;
+      const words = harness.phase === 'act' ? `Turn ${used + 1} of ${max}`
+        : harness.phase === 'needs-answer' ? `Turn ${used} of ${max}`
+          : harness.phase === 'write' ? 'Last step: the report'
+            : `Done in ${used} ${used === 1 ? 'turn' : 'turns'} with ${calls} tool ${calls === 1 ? 'call' : 'calls'}.`;
+      return h('p', { class: 'launch-progress' }, h('span', {}, words),
+        h('span', { class: 'launch-strip', 'aria-hidden': 'true' }, Array.from({ length: max }, (_, index) => square(index < used ? 'cha' : index + 1 === current ? 'now' : 'off'))));
+    }
+    /** A short name the agent used (f1, f1.s2, t1), as the owner knows it: the file's own name, or a table the agent made. */
+    function shortName(alias, run, files) {
+      const text = plain(alias);
+      const file = /^f(\d{1,3})(?:\.s\d{1,2})?$/.exec(text);
+      if (file) {
+        const id = (run.harness?.uploadIds || [])[parseInt(file[1], 10) - 1];
+        const found = files.find(item => item.id === id);
+        if (found) return found.name;
+      }
+      if (/^t\d{1,3}$/.test(text)) return 'a table it made';
+      return text || 'a file';
+    }
+    /** One tool call in plain words: what it did and to which file, why it failed when it did, and its receipt. */
+    function toolRow(call, run, ctx) {
+      const words = TOOL_WORDS[call.tool];
+      const field = TOOL_TARGET[call.tool];
+      const target = field && call.input && typeof call.input === 'object' ? call.input[field] : null;
+      const title = words ? words(shortName(target, run, ctx.files)) : `Asked for ${plain(call.tool)}, a tool it may not use`;
+      const mark = call.outcome === 'succeeded' ? 'cha' : call.outcome === 'cancelled' ? 'off' : 'unsure';
+      const why = call.outcome === 'succeeded' ? null : (call.envelope?.ok === false && call.envelope.error?.message) || OUTCOME_WORDS[call.outcome] || call.outcome;
+      const receiptHost = h('div');
+      const side = (call.receiptIds || []).map(id => {
+        const open = link('Receipt', () => act(open, receiptHost, async () => { fill(receiptHost, workReceiptBody(await ctx.workReceipt(id))); open.remove(); }));
+        return open;
+      });
+      return row({ mark, title, note: why, side: side.length ? side : null, extra: receiptHost });
+    }
+    /** The agent's turns so far: its own note for each turn, what each tool did, and each question with its answer. */
+    function turnsDone(run, ctx) {
+      const harness = run.harness;
+      return (harness.turns || []).filter(turn => turn.step === 'act').map(turn => h('div', { class: 'launch-turn' },
+        h('p', { class: 'launch-turn-head' }, h('span', { class: 'launch-mono' }, `Turn ${turn.turn}`), h('span', {}, turn.note)),
+        rows(...(harness.toolCalls || []).filter(call => call.turn === turn.turn).map(call => toolRow(call, run, ctx))),
+        ...(harness.handoffs || []).filter(item => item.turn === turn.turn && item.answer !== null).map(item => h('div', { class: 'launch-asked' },
+          h('p', { class: 'launch-quote' }, item.question), note(`${item.to === 'client' ? "The client's answer" : 'You answered'}: ${item.answer}`)))));
+    }
+    /** The agent's open question and a box for the answer. The answer goes to the engine as typed; the next turn waits for approval. */
+    function questionNodes(run, harness, status, paint, host) {
+      const open = [...(harness.handoffs || [])].reverse().find(item => item.answer === null);
+      const toClient = open?.to === 'client';
+      const answer = h('textarea', { rows: 3, maxlength: 2000, value: '' });
+      const send = filled('Send answer', () => act(send, status, async () => {
+        const typed = answer.value.trim();
+        if (!typed) throw new Error('Write your answer first.');
+        paint(await busy(host, 'Preparing the next turn', () => request('venture.delivery.answer', { runId: run.id, answer: typed })));
+      }));
+      return [note(toClient ? 'The agent asks the client' : 'The agent asks you', 'launch-strong'),
+        h('p', { class: 'launch-quote' }, open?.question || ''),
+        toClient ? note('Ask the client, then write what they said.') : null,
+        field(toClient ? "The client's answer" : 'Your answer', answer), actions(send), note(ANSWER_LINE), status];
+    }
+    /** The reconciliation a report carries, from its work receipt: balances or not, a picture of the matches, the gaps, and the receipt. */
+    function reconciliationPart(receiptId, ctx) {
+      const host = h('div', { class: 'launch-reconciliation' }, outline(3));
+      const load = () => ctx.workReceipt(receiptId).then(receipt => fill(host, ...reconciliationNodes(receipt)), error => host.replaceChildren(...errorNodes(error, load)));
+      void load();
+      return host;
+    }
+    function reconciliationNodes(receipt) {
+      const rec = receipt?.reconciliation;
+      if (!rec) return [note('This work receipt holds no reconciliation.')];
+      const [matched, noBill, notPaid] = ['matched-count', 'unmatched-bank-count', 'unmatched-bills-count'].map(key => figureOf(receipt, key));
+      const [mark, words] = !rec.statementClosing ? ['off', 'The statement has no balance column, so the closing balance was not checked.']
+        : rec.balanced ? ['cha', 'The statement balances.'] : ['unsure', 'The statement does not balance.'];
+      const counts = [matched, noBill, notPaid].filter(Boolean);
+      const gap = line => h('p', { class: 'launch-row-more launch-line' }, h('span', {}, [dayText(line.date), line.text].filter(Boolean).join(' ')), h('span', { class: 'launch-fig' }, line.display));
+      // A gap of none is quiet: the amber mark is only for payments or bills that need a look.
+      const countRow = (figure, rowMark, lines) => figure ? row({ mark: figure.minor === '0' ? 'off' : rowMark, title: figure.label, side: h('span', { class: 'launch-fig' }, figure.display), extra: lines.length ? h('div', {}, lines.map(gap)) : null }) : null;
+      const pairs = rec.matched.map(item => ({ date: null, text: `${item.bankText}, bill ${item.billText}`, display: item.display }));
+      return [
+        h('h3', { class: 'launch-section-title' }, 'Reconciliation'),
+        note("Worked out by Chausar's calculator from the files and attached to the report."),
+        h('p', { class: 'launch-state' }, square(mark), h('span', {}, words)),
+        // One mark per payment or bill: green matched, amber a payment with no bill, open a bill not paid. Counts only, no amounts.
+        h('span', { class: 'launch-strip launch-match', role: 'img', 'aria-label': counts.map(item => `${item.label}: ${item.display}.`).join(' ') },
+          ...rec.matched.map(() => square('cha')), ...rec.unmatchedBank.map(() => square('unsure')), ...rec.unmatchedBills.map(() => square('off'))),
+        rows(countRow(matched, 'cha', pairs), countRow(noBill, 'unsure', rec.unmatchedBank), countRow(notPaid, 'off', rec.unmatchedBills)),
+        fold('Work receipt', false, workReceiptBody(receipt)),
+      ];
+    }
+    /** A work receipt: every money figure the calculator worked out, how, from which files, and its id. Its explanation
+        only lists the same figures, so the rows stand for it. */
+    function workReceiptBody(receipt) {
+      const inputsOf = step => (step.inputs.length > 12 ? `${step.inputs.slice(0, 12).join(', ')} and ${step.inputs.length - 12} more` : step.inputs.join(', '));
+      return h('div', { class: 'launch-receipt' },
+        rows(...(receipt.figures || []).filter(item => item.unit !== 'count').map(item => h('div', { class: 'launch-receipt-row' }, h('span', {}, item.label), h('span', { class: 'launch-fig' }, item.display)))),
+        h('div', { class: 'launch-small' },
+          h('p', {}, 'How it was worked out'),
+          h('ol', {}, (receipt.steps || []).map(step => h('li', {}, `${step.rule}: ${inputsOf(step) || 'nothing'} gives ${step.result}`))),
+          h('p', {}, `Read from ${(receipt.inputs?.tables || []).map(table => table.name).join(', ') || 'the files'}. Amounts in the steps are in the smallest unit of ${receipt.currency}.`),
+          h('p', { class: 'launch-mono' }, `Receipt ${receipt.id}`)));
+    }
+
     /** The signal a review left behind: the engine's own field when it sends one, else the newest signal-recorded event for this draft. */
     async function signalFor(run) {
       if (typeof run.signalId === 'string' && run.signalId) return run.signalId;

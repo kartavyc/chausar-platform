@@ -3,10 +3,10 @@
 // is the engine's own display string for a hand-checked receipt (INR 2,499.00 at 18 percent GST:
 // 249900 x 1800 = 449,820,000; plus 5000, divided by 10000, is 44982; 249900 + 44982 = 294882).
 import type {
-  BlueprintRecord, BlueprintView, BooksSummary, BriefRecord, BuildStatus, CapabilityStatus, ClientRecord, ConnectorCard,
-  CountryProfile, DeliveryRunRecord, HandoffPlan, InterviewQuestion, InvoiceView, LaunchStatus, ModelPreset, ModelStatusView,
-  OrderRecord, PlanPreview, PlaybookRecord, PriceReceiptRecord, Scenario, SimulationRunRecord, TermRecord, VentureEventRecord,
-  VentureResults, VentureView,
+  BlueprintRecord, BlueprintView, BooksSummary, BriefRecord, BuildStatus, CapabilityStatus, CaseScore, ClientRecord, ConnectorCard,
+  CountryProfile, DeliveryRunRecord, HandoffPlan, HarnessState, ImprovementRunRecord, ImprovementStatus, InterviewQuestion, InvoiceView,
+  LaunchStatus, ModelPreset, ModelStatusView, OrderRecord, PlanPreview, PlaybookRecord, PriceReceiptRecord, Scenario, SimulationRunRecord,
+  TermRecord, UploadView, VentureEventRecord, VentureResults, VentureView, WorkReceiptRecord,
 } from '../../../../runtime/venture/contracts.ts';
 
 export const label = 'synthetic recording' as const;
@@ -409,3 +409,186 @@ export const capabilities: CapabilityStatus[] = ([
 export const events: VentureEventRecord[] = (['blueprint-accepted', 'brief-ready', 'handoff-prepared', 'handoff-opened', 'repo-linked', 'repo-synced'] as const)
   .map((name, index) => ({ ...base, id: `vev_${index + 9}`, kind: 'venture-event', seq: index + 9, name, data: null }));
 export const LAST_SEQ = 14;
+
+// ---------------------------------------------------------------------------------------------
+// Delivery harness: files on the order, agent turns, a hand-off, a report with its reconciliation, the improvement loop.
+// Hand-checked amounts (INR, paise): opening 5000000 + money in 3000000 - money out 4250000 = closing 3750000, which
+// equals the statement's closing balance. Matched bills 1200000 + 1850000 + 750000 = 3800000; with the one payment
+// that has no bill (450000) that is all of money out, 4250000. One bill of 220000 was not paid in the statement.
+// ---------------------------------------------------------------------------------------------
+const upload = (id: string, name: string, format: UploadView['format'], bytes: number, seed: string): UploadView => ({
+  ...base, id, kind: 'venture-upload', name, format, bytes, digest: hex(seed), scope: { kind: 'order', orderId: order.id }, clientData: true,
+});
+export const uploads: UploadView[] = [upload('upload_bank', 'bank-september.csv', 'csv', 2048, 'a1'), upload('upload_bills', 'bills-september.csv', 'csv', 1024, 'b2')];
+
+type ToolCall = HarnessState['toolCalls'][number];
+const toolCall = (id: string, turn: number, tool: string, input: ToolCall['input'], effect: ToolCall['effect'], extra: Partial<ToolCall> = {}): ToolCall => ({
+  id, turn, tool, input, inputDigest: hex('9'), envelope: { ok: true, result: { done: true } }, outcome: 'succeeded', effect, tier: 'code', receiptIds: [], tableIds: [], ...extra,
+});
+const turnOne: HarnessState['turns'][number] = {
+  turn: 1, step: 'act', note: 'List the files and read the bank statement columns.', finished: false, forced: false, by: 'model', callId: 'vcall_turn1', costMicros: '900',
+  calls: [{ tool: 'files.list', input: '{}' }, { tool: 'files.read', input: '{"target":"f1","part":"columns"}' }, { tool: 'files.read', input: '{"target":"f3","part":"sample"}' }],
+};
+const turnOneCalls: ToolCall[] = [
+  toolCall('t1.1', 1, 'files.list', {}, 'read'),
+  toolCall('t1.2', 1, 'files.read', { target: 'f1', part: 'columns' }, 'read'),
+  toolCall('t1.3', 1, 'files.read', { target: 'f3', part: 'sample' }, 'read', { envelope: { ok: false, error: { code: 'TOOL_FAILED', name: 'ToolFailed', message: 'There is no file f3.' } }, outcome: 'failed' }),
+];
+const reconcileInput = { bank: 'f1', description: 'Narration', moneyOut: 'Withdrawal', moneyIn: 'Deposit', balance: 'Balance', bills: [{ table: 'f2', vendor: 'Supplier', amount: 'Amount', number: 'Bill no' }] };
+const turnTwo: HarnessState['turns'][number] = {
+  turn: 2, step: 'act', note: 'Reconcile the statement with the bills, then ask about the payment with no bill.', finished: false, forced: false, by: 'model', callId: 'vcall_turn2', costMicros: '1100',
+  calls: [{ tool: 'books.reconcile', input: JSON.stringify(reconcileInput) }, { tool: 'handoff.owner', input: '{"question":"Is the payment to Hardware Mart a business cost?"}' }],
+};
+const turnTwoCalls: ToolCall[] = [
+  toolCall('t2.1', 2, 'books.reconcile', reconcileInput, 'compute', { receiptIds: ['work_reconcile'] }),
+  toolCall('t2.2', 2, 'handoff.owner', { question: 'Is the payment to Hardware Mart a business cost?' }, 'handoff'),
+];
+const turnThree: HarnessState['turns'][number] = {
+  turn: 3, step: 'act', note: 'Total the money out by supplier.', finished: true, forced: false, by: 'model', callId: 'vcall_turn3', costMicros: '800',
+  calls: [{ tool: 'calc.totals', input: '{"table":"f1","amountColumn":"Withdrawal","groupColumn":"Narration"}' }],
+};
+const turnThreeCalls: ToolCall[] = [toolCall('t3.1', 3, 'calc.totals', { table: 'f1', amountColumn: 'Withdrawal', groupColumn: 'Narration' }, 'compute', { receiptIds: ['work_totals'] })];
+const question = 'Is the payment to Hardware Mart a business cost?';
+export const ANSWER = 'Yes, it is shop repairs. Treat it as a business cost.';
+const proofs: HarnessState['proofs'] = [
+  { kind: 'file-read', toolCallId: 't1.2', receiptId: null, tableId: 'upload_bank' },
+  { kind: 'reconciled', toolCallId: 't2.1', receiptId: 'work_reconcile', tableId: null },
+  { kind: 'matched', toolCallId: 't2.1', receiptId: 'work_reconcile', tableId: null },
+  { kind: 'balanced', toolCallId: 't2.1', receiptId: 'work_reconcile', tableId: null },
+];
+function harnessState(phase: HarnessState['phase'], turns: HarnessState['turns'], calls: ToolCall[], handoffs: HarnessState['handoffs'], extra: Partial<HarnessState> = {}): HarnessState {
+  const acted = turns.filter(turn => turn.step === 'act').length;
+  return {
+    version: 1, phase, limits: { maxTurns: 4, maxToolCalls: 12, maxCallsPerTurn: 4, maxCostMicros: '250000', keepOutputs: 6, stubChars: 600 },
+    used: { turns: acted, toolCalls: calls.filter(call => call.outcome !== 'cancelled').length, costMicros: '2800' },
+    grant: ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'handoff.client', 'handoff.owner'],
+    turns, toolCalls: calls, handoffs, uploadIds: uploads.map(item => item.id), tableIds: [],
+    workReceiptIds: calls.flatMap(call => call.receiptIds), proofs: calls.some(call => call.tool === 'books.reconcile') ? proofs : proofs.slice(0, 1),
+    sections: calls.some(call => call.tool === 'books.reconcile') ? 'report' : 'reply', stopReason: null, mocks: [], ...extra,
+  };
+}
+const turnPreview = (callId: string, presetId: 'anthropic-haiku-5-5' | 'anthropic-sonnet-5-5', payload: unknown, cost: string, display: string): NonNullable<DeliveryRunRecord['preview']> => ({
+  callId, payloadText: JSON.stringify(payload), digest: hex(callId.slice(-1)), presetId, model: presetId === 'anthropic-haiku-5-5' ? 'claude-haiku-5-5' : 'claude-sonnet-5-5',
+  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: cost, estimatedMaxCostDisplay: display, expiresAt: '2026-10-15T10:00:00.000Z',
+});
+const harnessRun = { ...waitingRun, uploadIds: uploads.map(item => item.id) };
+/** Turn two waits for approval: the agent listed and read the files in turn one, and one read failed. */
+export const turnRun: DeliveryRunRecord = {
+  ...harnessRun, id: 'vdr_turn', callId: 'vcall_turn2',
+  preview: turnPreview('vcall_turn2', 'anthropic-haiku-5-5', { model: 'claude-haiku-5-5', purpose: 'agent-turn', files: ['f1 bank-september.csv', 'f2 bills-september.csv'], history: [{ turn: 1, note: turnOne.note }] }, '8000', 'USD 0.0080'),
+  harness: harnessState('act', [turnOne], turnOneCalls, []),
+};
+/** Turn two reconciled the month and handed off: the run waits for the owner's answer. */
+export const askingRun: DeliveryRunRecord = {
+  ...turnRun, id: 'vdr_turn', status: 'needs-answer', callId: null, preview: null,
+  harness: harnessState('needs-answer', [turnOne, turnTwo], [...turnOneCalls, ...turnTwoCalls], [{ to: 'owner', question, turn: 2, answer: null, answeredBy: null }]),
+};
+/** The owner answered: turn three waits for approval. */
+export const answeredRun: DeliveryRunRecord = {
+  ...turnRun, id: 'vdr_turn', callId: 'vcall_turn3',
+  preview: turnPreview('vcall_turn3', 'anthropic-haiku-5-5', { model: 'claude-haiku-5-5', purpose: 'agent-turn', answers: [{ question, answer: ANSWER }] }, '8000', 'USD 0.0080'),
+  harness: harnessState('act', [turnOne, turnTwo], [...turnOneCalls, ...turnTwoCalls], [{ to: 'owner', question, turn: 2, answer: ANSWER, answeredBy: 'owner' }]),
+};
+/** The agent said it was finished: the write step waits for approval, tools off. */
+export const writeRun: DeliveryRunRecord = {
+  ...turnRun, id: 'vdr_turn', callId: 'vcall_write',
+  preview: turnPreview('vcall_write', 'anthropic-sonnet-5-5', { model: 'claude-sonnet-5-5', purpose: 'delivery', proven: ['The calculator reconciled the bank statement against the bills and checked the closing balance.'] }, '64000', 'USD 0.0640'),
+  harness: harnessState('write', [turnOne, turnTwo, turnThree], [...turnOneCalls, ...turnTwoCalls, ...turnThreeCalls], [{ to: 'owner', question, turn: 2, answer: ANSWER, answeredBy: 'owner' }]),
+};
+const reportText = [
+  '# Your September books', '', '## Summary', 'We read your bank statement and bills and reconciled September.', '',
+  '## What we did', 'The calculator reconciled the statement against your bills. Closing balance worked out: INR 37,500.00', '',
+  '## What needs your answer', 'One bill was not paid in this statement.', '', '## Next steps', 'Tell us if the Clean Linen bill was paid from another account.', '',
+  'Questions for you:', '- Was the Clean Linen bill paid in cash?', '',
+  '## Reconciliation', "Worked out by Chausar's calculator from the files you sent. Every amount comes from a receipt.", '',
+  'Opening balance: INR 50,000.00', 'Money in: INR 30,000.00', 'Money out: INR 42,500.00', 'Closing balance worked out: INR 37,500.00', 'Closing balance on the statement: INR 37,500.00',
+  'Difference: INR 0.00', 'Money out matched to bills: INR 38,000.00', 'Money out with no bill: INR 4,500.00', 'Bills not paid in this statement: INR 2,200.00', '',
+  'The statement balances.', '', 'Payments matched to bills: 3', '- NEFT FRESH DAIRY, INR 12,000.00, bill: Fresh Dairy FD-118', '- NEFT BEAN ROASTERS BR-2209, INR 18,500.00, bill: Bean Roasters BR-2209',
+  '- PUNE POWER, INR 7,500.00, bill: Pune Power PP-0931', '', 'Payments with no bill: 1', '- 18/09/2026 UPI HARDWARE MART, INR 4,500.00', '',
+  'Bills not paid in this statement: 1', '- 22/09/2026 Clean Linen CL-77, INR 2,200.00',
+].join('\n');
+/** The approved write step: a report with the reconciliation attached after the agent's words. */
+export const reportRun: DeliveryRunRecord = {
+  ...turnRun, id: 'vdr_turn', status: 'ready-for-review', callId: null, preview: null, renderedText: reportText,
+  deliverable: { title: 'Your September books', sections: [], questionsForClient: ['Was the Clean Linen bill paid in cash?'], attachments: [{ kind: 'reconciliation', receiptId: 'work_reconcile' }] },
+  checks: [{ check: 'no-done-claims', passed: true, detail: 'Every claim of finished work has a tool proof.' }, { check: 'figures-resolve', passed: true, detail: 'Every figure has a receipt.' }],
+  harness: harnessState('done', [turnOne, turnTwo, turnThree, { turn: 4, step: 'write', note: 'Wrote the reply.', calls: [], finished: true, forced: false, by: 'model', callId: 'vcall_write', costMicros: '6400' }],
+    [...turnOneCalls, ...turnTwoCalls, ...turnThreeCalls], [{ to: 'owner', question, turn: 2, answer: ANSWER, answeredBy: 'owner' }]),
+};
+const money = (key: string, label: string, minor: string, display: string) => ({ key, label, minor, display, currency: 'INR', unit: 'money' as const });
+const count = (key: string, label: string, value: string) => ({ key, label, minor: value, display: value, currency: 'INR', unit: 'count' as const });
+const line = (rowId: string, date: string | null, text: string, amountMinor: string, display: string) => ({ rowId, date, text, amountMinor, display });
+export const workReceipt: WorkReceiptRecord = {
+  ...base, id: 'work_reconcile', kind: 'venture-work-receipt', operation: 'work.reconcile', runRef: { kind: 'delivery', runId: 'vdr_turn' }, currency: 'INR',
+  inputs: {
+    tables: [{ id: 'upload_bank.s1', name: 'bank-september.csv', digest: hex('a1') }, { id: 'upload_bills.s1', name: 'bills-september.csv', digest: hex('b2') }],
+    columns: { 'bank.description': 'Narration', 'bank.moneyOut': 'Withdrawal', 'bank.moneyIn': 'Deposit', 'bank.balance': 'Balance', 'bills.1.vendor': 'Supplier', 'bills.1.amount': 'Amount', 'bills.1.number': 'Bill no' },
+    rowIds: ['r1', 'r2', 'r3', 'r4', 'r5'],
+  },
+  steps: [
+    { op: 'add', inputs: ['r1:3000000'], result: '3000000', rule: 'money in, every row' },
+    { op: 'add', inputs: ['r2:1200000', 'r3:1850000', 'r4:750000', 'r5:450000'], result: '4250000', rule: 'money out, every row' },
+    { op: 'add', inputs: ['5000000', '3000000', '-4250000'], result: '3750000', rule: 'closing balance worked out: opening plus money in less money out' },
+    { op: 'compare', inputs: ['3750000', '3750000'], result: '0', rule: 'the statement closing balance less the one worked out' },
+  ],
+  figures: [
+    money('opening', 'Opening balance', '5000000', 'INR 50,000.00'), money('money-in', 'Money in', '3000000', 'INR 30,000.00'), money('money-out', 'Money out', '4250000', 'INR 42,500.00'),
+    money('computed-closing', 'Closing balance worked out', '3750000', 'INR 37,500.00'), money('statement-closing', 'Closing balance on the statement', '3750000', 'INR 37,500.00'),
+    money('difference', 'Difference', '0', 'INR 0.00'), money('matched', 'Money out matched to bills', '3800000', 'INR 38,000.00'),
+    money('unmatched-bank', 'Money out with no bill', '450000', 'INR 4,500.00'), money('unmatched-bills', 'Bills not paid in this statement', '220000', 'INR 2,200.00'),
+    count('matched-count', 'Payments matched to bills', '3'), count('unmatched-bank-count', 'Payments with no bill', '1'), count('unmatched-bills-count', 'Bills not paid in this statement', '1'),
+  ],
+  reconciliation: {
+    balanced: true, statementClosing: true,
+    matched: [
+      { bankRowId: 'r2', billRowId: 'f2.r1', amountMinor: '1200000', display: 'INR 12,000.00', bankText: 'NEFT FRESH DAIRY', billText: 'Fresh Dairy FD-118', rule: 'amount-and-name' },
+      { bankRowId: 'r3', billRowId: 'f2.r2', amountMinor: '1850000', display: 'INR 18,500.00', bankText: 'NEFT BEAN ROASTERS BR-2209', billText: 'Bean Roasters BR-2209', rule: 'bill-number' },
+      { bankRowId: 'r4', billRowId: 'f2.r3', amountMinor: '750000', display: 'INR 7,500.00', bankText: 'PUNE POWER', billText: 'Pune Power PP-0931', rule: 'amount-only' },
+    ],
+    unmatchedBank: [line('r5', '2026-09-18', 'UPI HARDWARE MART', '450000', 'INR 4,500.00')],
+    unmatchedBills: [line('f2.r4', '2026-09-22', 'Clean Linen CL-77', '220000', 'INR 2,200.00')],
+    moneyIn: [line('r1', '2026-09-05', 'CARD SETTLEMENT', '3000000', 'INR 30,000.00')],
+  },
+  allowedNumbers: ['5000000', '3000000', '4250000', '3750000', '0', '3800000', '450000', '220000', '3', '1'],
+  explanation: 'Opening balance: INR 50,000.00. Money in: INR 30,000.00. Money out: INR 42,500.00. Closing balance worked out: INR 37,500.00. Closing balance on the statement: INR 37,500.00. Difference: INR 0.00.',
+  digest: hex('c3'),
+};
+
+const readiness = (due: boolean): ImprovementStatus['readiness'] => due
+  ? { judged: 12, rejectedOrEdited: 4, due, status: 'available', reason: 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.' }
+  : { judged: 2, rejectedOrEdited: 1, due, status: 'available', reason: 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.' };
+const score = (passed: boolean, checksPassed: number): CaseScore => ({ passed, checksPassed, checksRun: 8, judgeYes: passed ? 4 : 3, critical: null, firstFailure: passed ? null : 'Length' });
+export const improveKeptRun: ImprovementRunRecord = {
+  ...base, id: 'improve_1', kind: 'venture-improvement-run', status: 'kept-candidate', parentPlaybookId: playbook.id, parentHash: playbook.hash, candidatePlaybookId: 'vpb_2',
+  frozen: {
+    pool: [{ scenarioId: 'signal-1', set: 'pool', signalId: 'signal_1' }, { scenarioId: 'signal-2', set: 'pool', signalId: 'signal_2' }],
+    reserve: [{ scenarioId: 'signal-3', set: 'reserve', signalId: 'signal_3' }],
+    rehearsal: scenarios.map(item => ({ scenarioId: item.id, set: 'rehearsal' as const, signalId: null })), digest: hex('5'),
+  },
+  rounds: [{
+    round: 1,
+    diagnosis: { clusters: [{ reason: 'too-long', step: 'draft', level: 'harness', count: 2 }], chosen: { reason: 'too-long', step: 'draft', level: 'harness' } },
+    patch: {
+      id: 'patch_1', level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Keep each section to a few short sentences.',
+      note: { hypothesis: 'Shorter sections should stop the drafts that were rejected as too long.', expectedFixes: ['too-long'], likelyRegressions: ['A section may leave out a detail.'] }, proposedBy: 'model', parentHash: playbook.hash,
+    },
+    refused: null, candidateHash: hex('6'),
+    gate: {
+      cases: [
+        { scenarioId: 'signal-3', set: 'reserve', parent: score(false, 7), candidate: score(true, 8), winner: 'candidate' },
+        { scenarioId: 'bookkeeping-clean', set: 'rehearsal', parent: score(true, 8), candidate: score(true, 8), winner: 'tie' },
+        { scenarioId: 'bookkeeping-messy', set: 'rehearsal', parent: score(false, 7), candidate: score(true, 8), winner: 'candidate' },
+        { scenarioId: 'bookkeeping-pushback', set: 'rehearsal', parent: score(true, 8), candidate: score(true, 8), winner: 'tie' },
+      ],
+      wins: 2, losses: 0, ties: 2, candidateCritical: 0, newBlockFailures: 0, decision: 'keep-candidate', reason: 'The new version won more cases than it lost, with no new critical error.',
+    },
+  }],
+  maxRounds: 2, costMicros: '8400', costDisplay: 'USD 0.0084', modelMode: 'model', incompleteReason: null,
+  changes: ['Adds to "Draft the monthly report for review": Keep each section to a few short sentences.'], digest: hex('7'),
+};
+export const improveIdle: ImprovementStatus = { readiness: readiness(false), activePlaybookId: playbook.id, latest: null, candidate: null };
+export const improveWithCandidate: ImprovementStatus = {
+  readiness: readiness(true), activePlaybookId: playbook.id, latest: improveKeptRun,
+  candidate: { runId: improveKeptRun.id, playbookId: 'vpb_2', digest: improveKeptRun.digest, changes: [...improveKeptRun.changes] },
+};
+export const adoptedPlaybook: PlaybookRecord = { ...playbook, id: 'vpb_2', version: 2, hash: hex('6'), parentId: playbook.id, origin: 'improvement' };
