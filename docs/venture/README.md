@@ -34,6 +34,12 @@ npm install
 npm run desktop
 ```
 
+The hosted web tier, experimental and not deployed: sign in with an email link or a passkey, and the server keeps each business in its own encrypted vault. It starts only with `--hosted` or `CHAUSAR_HOSTED=1`. [hosted.md](hosted.md) says how it works and what a real deploy still needs:
+
+```sh
+npm run start:hosted
+```
+
 The offline demo answers every model and GitHub call from hand-written recordings. It needs demo mode and its own switch, `CHAUSAR_VENTURE_REPLAY=1`, so a leftover variable can never stand in for a real provider:
 
 ```sh
@@ -66,7 +72,7 @@ This build keeps each business in the engine's encrypted file vault, which the c
 
 ## What is not built
 
-A public hosted web app; durable storage for real books; real outside writes such as payment links, email or posts; agents that read files, inboxes or the web; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); the improvement loop; agentOS, containers and hosted sandboxes; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for each.
+A deployed public web app (the hosted tier is written and tested on one computer, see [hosted.md](hosted.md)); durable storage for real books; real outside writes such as payment links, email or posts; agents that read files, inboxes or the web; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); the improvement loop; agentOS, containers and hosted sandboxes; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for each.
 
 ## Demo script
 
@@ -157,4 +163,5 @@ Known limits:
 | [delivery.md](delivery.md) | Playbook, draft replies, rehearsal, launch ladder, capabilities (P5) |
 | [shell.md](shell.md) | The venture host, desktop types, shell and end-to-end tests (P6) |
 | [launch.md](launch.md) | The launch screens in the renderer (P7) |
+| [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
 | [architecture.md](architecture.md) | The target architecture this build follows |
