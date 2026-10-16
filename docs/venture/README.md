@@ -68,7 +68,7 @@ Agents in this build only draft a reply from the client's message. Collecting fi
 
 ## Experimental storage
 
-This build keeps each business in the engine's encrypted file vault, which the code calls an experimental demo. Every money screen says: practise here, don't issue real invoices yet. Real books need the PostgreSQL path, which is not wired for this flow. Records are kept for ten years, and the owner is told.
+This build keeps each business in the engine's encrypted file vault, which the code calls an experimental demo. Every money screen says: practise here, don't issue real invoices yet. Real books need the PostgreSQL path. The hosted server can now keep businesses in PostgreSQL ([hosted.md](hosted.md#postgresql-storage)), but that path is experimental too, so its screens keep the same notice. Records are kept for ten years, and the owner is told.
 
 ## What is not built
 
