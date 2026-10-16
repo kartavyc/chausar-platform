@@ -42,10 +42,17 @@ else {
   try { loopbackPostgresUrl(POSTGRES_URL); } catch (error: any) { refusal = `CHAUSAR_TEST_POSTGRES_URL was refused: ${error?.message}`; }
 }
 
-async function realPool(t: any): Promise<PostgresPool> {
-  const pool = await openLoopbackPool(loopbackPostgresUrl(POSTGRES_URL!), 'chausar-test');
-  t.after(() => pool.end());
-  return pool;
+/** A pool on the real server. Cleanups run in the order they were added, so a test adds its row deletions with
+ * cleanup() and they run before the pools close. */
+async function realPools(t: any, count: number): Promise<{ pools: PostgresPool[]; cleanup(work: () => Promise<unknown>): void }> {
+  const pools: PostgresPool[] = [];
+  for (let i = 0; i < count; i++) pools.push(await openLoopbackPool(loopbackPostgresUrl(POSTGRES_URL!), 'chausar-test'));
+  const cleanups: (() => Promise<unknown>)[] = [];
+  t.after(async () => {
+    try { for (const work of cleanups) await work(); }
+    finally { await Promise.all(pools.map(pool => pool.end())); }
+  });
+  return { pools, cleanup: work => { cleanups.push(work); } };
 }
 
 if (refusal !== null) {
@@ -57,9 +64,9 @@ if (refusal !== null) {
   });
 } else {
   test('real PostgreSQL: two pools change one directory row at once and every change lands', async t => {
-    const poolA = await realPool(t), poolB = await realPool(t);
+    const { pools: [poolA, poolB], cleanup } = await realPools(t, 2);
     const custody = HostedCustody.fromKey(custodyKey()), slot = `test.${randomBytes(8).toString('hex')}`;
-    t.after(() => poolA.query('DELETE FROM public.chausar_hosted_directory WHERE slot = $1', [slot]));
+    cleanup(() => poolA.query('DELETE FROM public.chausar_hosted_directory WHERE slot = $1', [slot]));
     const a = await PostgresDirectory.open(poolA, custody, { slot }), b = await PostgresDirectory.open(poolB, custody, { slot });
     await Promise.all(Array.from({ length: 10 }, (_, i) => [
       a.update(state => { state.users.push(user(`huser_a${i}`)); }),
@@ -75,10 +82,10 @@ if (refusal !== null) {
   });
 
   test('real PostgreSQL: a business vault lives in its own row, opens elsewhere, and is gone after delete', async t => {
-    const pool = await realPool(t), custody = HostedCustody.fromKey(custodyKey());
+    const { pools: [pool], cleanup } = await realPools(t, 1), custody = HostedCustody.fromKey(custodyKey());
     await prepareHostedTables(pool);
     const key: ActorKey = [newTenantId(), newBusinessId()], slot = hostedVaultSlot(key), passphrase = custody.newVaultPassphrase();
-    t.after(() => pool.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [slot]));
+    cleanup(() => pool.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [slot]));
     const rootA = await folder(t, 'real-a'), rootB = await folder(t, 'real-b');
     const { business: a } = await BusinessEngine.create({ root: rootA, engineOptions, postgres: pool }, key, { name: 'Real Row Books', passphrase });
     await a.request('venture.create', { idea: IDEA, countryCode: 'IN' });

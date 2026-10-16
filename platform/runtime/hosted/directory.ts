@@ -188,6 +188,9 @@ export async function prepareHostedTables(pool: PostgresPool): Promise<void> {
   finally { client.release(); }
 }
 
+/** A pool or one checked-out client: what the directory runs statements on. */
+type Queryable = Pick<PostgresPool, 'query'>;
+
 export type PostgresDirectoryOptions = {
   /** One row per slot. A second deployment sharing the database uses its own slot. */
   slot?: string;
@@ -249,25 +252,47 @@ export class PostgresDirectory implements HostedDirectory {
   update<T>(change: (state: DirectoryState) => T | Promise<T>): Promise<T> {
     return this.#serial.run(async () => {
       check(!this.#closed, 'HOSTED_STOPPING', 'The hosted server is stopping.');
-      await this.refresh();
       for (let attempt = 1; ; attempt++) {
-        const base = this.#state;
-        const draft = structuredClone(base);
-        const result = await change(draft);
-        draft.revision = base.revision + 1;
-        prune(draft, this.#clock());
-        const sealed = JSON.stringify(this.#custody.sealDirectory(Buffer.from(JSON.stringify(draft), 'utf8')));
-        const written = base.revision === 0
-          ? await this.#query(DIRECTORY_SQL.insert, [this.#slot, draft.revision, sealed])
-          : await this.#query(DIRECTORY_SQL.swap, [this.#slot, draft.revision, sealed, base.revision]);
-        if (written.rowCount === 1) { this.#adopt(draft); return structuredClone(result); }
-        // Another process wrote first. Run the change again on what it wrote.
+        // Servers take turns: each change holds this slot's lock until it commits, reads the newest row inside it, and
+        // writes with compare and set. Without the turn, a server writing back to back starved a slower one until it
+        // gave up (seen on a real PostgreSQL 17 server, never on the stand-in). The swap stays as the safety net for a
+        // writer that does not take the lock.
+        const outcome = await this.#inTurn(async client => {
+          const latest = await this.#load(client);
+          if (latest.revision < this.#state.revision) throw rolledBack();
+          this.#adopt(latest);
+          const base = this.#state;
+          const draft = structuredClone(base);
+          const result = await change(draft);
+          draft.revision = base.revision + 1;
+          prune(draft, this.#clock());
+          const sealed = JSON.stringify(this.#custody.sealDirectory(Buffer.from(JSON.stringify(draft), 'utf8')));
+          const written = base.revision === 0
+            ? await this.#query(DIRECTORY_SQL.insert, [this.#slot, draft.revision, sealed], client)
+            : await this.#query(DIRECTORY_SQL.swap, [this.#slot, draft.revision, sealed, base.revision], client);
+          return written.rowCount === 1 ? { draft, result } : null;
+        });
+        if (outcome) { this.#adopt(outcome.draft); return structuredClone(outcome.result); }
+        // Someone wrote without taking the turn. Run the change again on what they wrote.
         check(attempt < this.#maxAttempts, 'HOSTED_BUSY', 'The account store is busy. Try again in a moment.');
-        const latest = await this.#load();
-        if (latest.revision <= base.revision) throw rolledBack();
-        this.#adopt(latest);
       }
     });
+  }
+
+  /** Runs work inside one transaction that holds this slot's advisory lock until COMMIT, so changes take turns. */
+  async #inTurn<T>(work: (client: Queryable) => Promise<T | null>): Promise<T | null> {
+    let client: Awaited<ReturnType<PostgresPool['connect']>>;
+    try { client = await this.#pool.connect(); } catch (error) { throw unavailable(error); }
+    try {
+      await this.#query('BEGIN', [], client);
+      await this.#query(DIRECTORY_SQL.schemaLock, [`chausar-hosted-directory:${this.#slot}`], client);
+      const outcome = await work(client);
+      await this.#query(outcome === null ? 'ROLLBACK' : 'COMMIT', [], client);
+      return outcome;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { client.release(); }
   }
 
   async close() {
@@ -293,8 +318,8 @@ export class PostgresDirectory implements HostedDirectory {
     }
   }
 
-  async #load(): Promise<DirectoryState> {
-    const result = await this.#query(DIRECTORY_SQL.load, [this.#slot]);
+  async #load(on: Queryable = this.#pool): Promise<DirectoryState> {
+    const result = await this.#query(DIRECTORY_SQL.load, [this.#slot], on);
     if (!result.rows.length) return emptyDirectory();
     const row = result.rows[0];
     let sealed: Sealed | null = null;
@@ -306,8 +331,8 @@ export class PostgresDirectory implements HostedDirectory {
     return parsed;
   }
 
-  async #query(sql: string, values: unknown[]) {
-    try { return await this.#pool.query(sql, values); }
+  async #query(sql: string, values: unknown[], on: Queryable = this.#pool) {
+    try { return await on.query(sql, values); }
     catch (error) { throw unavailable(error); }
   }
 }

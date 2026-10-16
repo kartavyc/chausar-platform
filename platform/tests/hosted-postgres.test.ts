@@ -50,24 +50,26 @@ async function folder(t: any, label: string) {
 // The directory's compare and set, on the stand-in
 // ---------------------------------------------------------------------------------------------------------------------
 
-test('two servers change the directory at once and neither change is lost', async () => {
+test('two servers change the directory at once: they take turns and neither change is lost', async () => {
   const db = createPostgresStandIn(), custody = HostedCustody.fromKey(custodyKey());
   const a = await PostgresDirectory.open(db.pool, custody), b = await PostgresDirectory.open(db.pool, custody);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  let runs = 0;
+  let runs = 0, bDone = false;
   const slow = a.update(async state => { runs++; state.users.push(user('huser_a')); await gate; return runs; });
   await new Promise(resolve => setImmediate(resolve));
-  await b.update(state => { state.users.push(user('huser_b')); });
+  const other = b.update(state => { state.users.push(user('huser_b')); }).then(() => { bDone = true; });
+  for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(bDone, false, 'the second server waits for its turn while the first change is open');
   release();
-  assert.equal(await slow, 2, 'the change ran again on what the other server wrote');
-  assert.equal(db.conflicts, 1);
-  assert.deepEqual(ids(a.read()), ['huser_b', 'huser_a']);
-  assert.equal(a.read().revision, 2);
+  assert.equal(await slow, 1, 'the first change ran once');
+  await other;
+  assert.equal(db.conflicts, 0, 'taking turns means no change had to run again');
+  assert.deepEqual(ids(b.read()), ['huser_a', 'huser_b'], 'the second change ran on what the first wrote');
   assert.equal(db.directoryRows.get('main')!.revision, 2);
-  assert.deepEqual(ids(b.read()), ['huser_b'], 'read() answers from what this server last saw');
-  await b.refresh();
-  assert.deepEqual(ids(b.read()), ['huser_b', 'huser_a']);
+  assert.deepEqual(ids(a.read()), ['huser_a'], 'read() answers from what this server last saw');
+  await a.refresh();
+  assert.deepEqual(ids(a.read()), ['huser_a', 'huser_b']);
   assert.equal(JSON.stringify([...db.directoryRows.values()]).includes('huser_a@example.com'), false, 'only the sealed value is stored');
 });
 
@@ -82,7 +84,7 @@ test('a sign-in link works once, even when two servers take it at the same momen
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
   const refused = results.find(result => result.status === 'rejected') as PromiseRejectedResult;
   assert.equal(refused.reason.code, 'MAGIC_LINK_INVALID');
-  assert.ok(db.conflicts >= 1, 'both servers really raced for the same row');
+  assert.equal(db.conflicts, 0, 'the second server read the used link in its own turn; no collision was needed');
   await a.directory.refresh!();
   assert.equal(a.directory.read().sessions.length, 1);
   assert.equal(a.directory.read().users.length, 1);
@@ -105,16 +107,20 @@ test('a session made on one server is seen by another once it catches up, and so
   assert.throws(() => a.authenticate(signed.token), code('UNAUTHENTICATED'));
 });
 
-test('a change that keeps losing gives up after its attempts and writes nothing', async () => {
+test('a change that keeps losing to a writer outside the turns gives up after its attempts and writes nothing', async () => {
   const db = createPostgresStandIn(), custody = HostedCustody.fromKey(custodyKey());
   const a = await PostgresDirectory.open(db.pool, custody, { maxAttempts: 3 }), b = await PostgresDirectory.open(db.pool, custody);
   await b.update(state => { state.users.push(user('huser_first')); });
-  let inside = false, n = 0;
-  db.before = async sql => {
-    if (inside || (sql !== DIRECTORY_SQL.swap && sql !== DIRECTORY_SQL.insert)) return;
-    inside = true;
-    try { await b.update(state => { state.users.push(user(`huser_b${n++}`)); }); } finally { inside = false; }
+  // A writer that does not take the turn (an older server, say) writes the row just before each of a's swaps.
+  let n = 0;
+  const writeWithoutTurn = () => {
+    const row = db.directoryRows.get('main')!;
+    const state = JSON.parse(custody.openDirectory(JSON.parse(row.sealed)).toString('utf8')) as DirectoryState;
+    state.users.push(user(`huser_b${n++}`));
+    state.revision = row.revision + 1;
+    db.directoryRows.set('main', { revision: state.revision, sealed: JSON.stringify(custody.sealDirectory(Buffer.from(JSON.stringify(state), 'utf8'))) });
   };
+  db.before = async sql => { if (sql === DIRECTORY_SQL.swap || sql === DIRECTORY_SQL.insert) writeWithoutTurn(); };
   let runs = 0;
   await assert.rejects(a.update(state => { runs++; state.users.push(user('huser_a')); }), code('HOSTED_BUSY'));
   db.before = null;
