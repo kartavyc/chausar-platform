@@ -8,6 +8,8 @@ globalThis.ChausarLaunch = Object.freeze({
   version: 1,
   create(kit) {
     const { h, request, navigate, renderShell, renderSetup, showRecoveryKit, openExternal, reserveTab, saveText, state } = kit;
+    /** True on the experimental hosted web server: no passphrase, no back office, keys held by the server's custody. */
+    const hosted = kit.hosted === true;
 
     // ---------------------------------------------------------------------------------------------
     // Fixed words
@@ -28,6 +30,7 @@ globalThis.ChausarLaunch = Object.freeze({
     // Built-in templates say so wherever they wrote the words, as the Add your AI sheet promises.
     const TEMPLATE_LINE = 'Written from built-in templates, not by AI.';
     const PASSPHRASE_LINE = 'Chausar locks your business with this passphrase. Nobody can reset it, so keep the recovery code you see next.';
+    const CUSTODY_LINE = "Chausar's server keeps this business's vault key, sealed under your account. Keep the recovery code you see next.";
     const TEN_YEARS_LINE = 'Chausar keeps your records for ten years, as tax rules expect.';
     const RECOMMENDED = 'Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans: one Anthropic key';
 
@@ -363,9 +366,11 @@ globalThis.ChausarLaunch = Object.freeze({
         showPlan();
       }));
       idea.addEventListener('input', () => { ob.idea = idea.value; });
-      const other = ob.vaultOpen
-        ? link('Open the back office', () => { state.page = 'conversation'; renderShell(); })
-        : link('I already have a business in Chausar', () => renderSetup());
+      const other = hosted
+        ? link('Your businesses', () => renderSetup())
+        : ob.vaultOpen
+          ? link('Open the back office', () => { state.page = 'conversation'; renderShell(); })
+          : link('I already have a business in Chausar', () => renderSetup());
       frame(null, head(null, 'What service business do you want to start?'), field('Your idea', idea),
         note('For example: monthly bookkeeping for cafes in Pune', 'launch-example'), countryLine, actions(show, other), status,
         note('Nothing is saved until you keep it.'));
@@ -493,8 +498,36 @@ globalThis.ChausarLaunch = Object.freeze({
       })));
     }
 
+    /** Hosted step three: a working name only. The server makes and keeps the vault key; the recovery code shows once. */
+    function showHostedKeepSafe() {
+      const ob = onboarding();
+      const name = textInput(ob.workingName || '', { maxlength: 80, autocomplete: 'organization', placeholder: 'My service business' });
+      const status = statusLine();
+      const submit = h('button', { class: 'launch-btn', type: 'submit' }, 'Keep it');
+      const keepForm = h('form', {
+        class: 'launch-form',
+        onsubmit: event => {
+          event.preventDefault();
+          return act(submit, status, async () => {
+            const workingName = name.value.trim() || 'My service business';
+            const result = await request('workspace.create', { name: workingName, pack: 'services' });
+            ob.workingName = workingName;
+            ob.vaultOpen = true;
+            try { state.status = await request('workspace.status'); } catch { /* the vault is open; the status can be read later */ }
+            state.workspace = result?.workspace || state.status?.workspace || { name: workingName };
+            const recovery = result?.recoveryKit || result?.recoveryCode;
+            const next = () => { void runSetup({ host: null, skipCreate: false }); };
+            if (recovery) showRecoveryKit(recovery, result, next); else next();
+          });
+        },
+      }, field('Working name', name), note(CUSTODY_LINE), note(TEN_YEARS_LINE), warn(EXPERIMENTAL),
+      actions(submit, link('Back to the plan', () => showPlan())), status);
+      frame('keep', head(null, 'Keep your plan safe'), keepForm);
+    }
+
     /** Step three: keep it safe. The passphrase is asked only now, in a password field inside its form. */
     function showKeepSafe() {
+      if (hosted) { showHostedKeepSafe(); return; }
       const ob = onboarding();
       const name = textInput(ob.workingName || '', { maxlength: 80, autocomplete: 'organization', placeholder: 'My service business' });
       const passphrase = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
@@ -1610,7 +1643,7 @@ globalThis.ChausarLaunch = Object.freeze({
             onclick: async () => { try { openInvoiceSheet(await request('venture.invoice.get', { invoiceId: item.invoiceId })); } catch (error) { sheet('Invoice', h('div', {}, ...errorNodes(error))); } },
           }, item.balanceDisplay),
         }))) : note('No open invoices.')),
-        actions(link('Back office books', () => navigate('brief'))));
+        hosted ? null : actions(link('Back office books', () => navigate('brief'))));
     }
 
     async function renderConnections() {
