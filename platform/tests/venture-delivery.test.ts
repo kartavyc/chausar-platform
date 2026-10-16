@@ -19,12 +19,14 @@ import {
   capabilityList, handlers, playbookSteps, renderDeliverable, renderForJudge, runChecks, scenariosFor, templateOutline, validateDraft,
   validatePlaybook,
 } from '../runtime/venture/delivery/index.ts';
+import { playbookHash } from '../runtime/venture/delivery/playbook.ts';
 import { rehearsalRefs, TEMPLATE_OUTLINE_LINE, TEMPLATE_OUTLINES, TEMPLATE_PRICE_SENTENCE, TEMPLATE_QUESTION } from '../runtime/venture/delivery/deliverable.ts';
 import { PRACTICE_CLIENTS } from '../runtime/venture/delivery/scenarios.ts';
 import {
   REASON_CONNECT_AI, REASON_NO_JUDGE, REASON_NOT_JUDGED, REASON_PASS_ALL, REASON_REHEARSE_ALL, REASON_TEMPLATE_DRAFTS,
 } from '../runtime/venture/delivery/launch.ts';
 import { DONE_CLAIM_REASON, PRACTICE_REASON, STAGE_BLOCKED_REASON } from '../runtime/venture/delivery/runs.ts';
+import { HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS } from '../runtime/venture/delivery/harness/sandbox.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -63,7 +65,7 @@ class StubPort implements ModelPort {
   recordCalls = false;
   outputs: Partial<Record<ModelPurpose, unknown[]>> = {};
   used: Partial<Record<ModelPurpose, number>> = {};
-  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50' };
+  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500' };
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
   previews = new Map<string, { digest: string; used: boolean }>();
@@ -271,6 +273,9 @@ function events(env: Env): string[] {
   return listRecords(env.store.read(), 'venture-event').sort((a, b) => a.seq - b.seq).map(event => event.name);
 }
 
+/** An agent turn that uses no tool and says the work is done, so the loop goes straight to the write step. */
+const FINISHED_TURN = { note: 'Nothing to work on with tools here', calls: [], finished: true };
+
 async function queueModel(env: Env, outputs: { client?: string[]; delivery?: string[]; judge?: string[] }) {
   env.models.fast = 'model';
   env.models.main = 'model';
@@ -278,6 +283,8 @@ async function queueModel(env: Env, outputs: { client?: string[]; delivery?: str
     'client-sim': await Promise.all((outputs.client ?? ['client-message']).map(fixture)),
     delivery: await Promise.all((outputs.delivery ?? ['draft-rehearsal']).map(fixture)),
     judge: await Promise.all((outputs.judge ?? ['judge-yes']).map(fixture)),
+    // Bookkeeping's clean and messy practice clients send files, so their episodes run the agent loop first.
+    'agent-turn': [FINISHED_TURN],
   };
   env.models.used = {};
 }
@@ -286,14 +293,21 @@ async function queueModel(env: Env, outputs: { client?: string[]; delivery?: str
 // 1. Playbook
 // ---------------------------------------------------------------------------
 
-test('playbook: seven fixed steps from the accepted plan, stable hash, a new version after a new accepted digest', async () => {
+test('playbook: eight fixed steps from the accepted plan, stable hash, a new version after a new accepted digest', async () => {
   const env = await setup();
   const playbook = await call<PlaybookRecord>(env, 'venture.delivery.playbook');
   assert.deepEqual(playbook.steps.map(step => [step.id, step.kind, step.tier, step.model, step.doneBy]), [
-    ['gather', 'gather', 'actor', 'fast', 'agent'], ['clarify', 'question', 'actor', 'fast', 'agent'], ['price', 'compute', 'code', null, 'agent'],
-    ['draft', 'write', 'actor', 'main', 'agent'], ['verify', 'verify', 'code', null, 'agent'], ['approve', 'approve', 'code', null, 'you'],
-    ['send', 'operator', 'code', null, 'you'],
+    ['gather', 'gather', 'actor', 'fast', 'agent'], ['clarify', 'question', 'actor', 'fast', 'agent'], ['work', 'work', 'wasm-lite', 'fast', 'agent'],
+    ['price', 'compute', 'code', null, 'agent'], ['draft', 'write', 'actor', 'main', 'agent'], ['verify', 'verify', 'code', null, 'agent'],
+    ['approve', 'approve', 'code', null, 'you'], ['send', 'operator', 'code', null, 'you'],
   ]);
+  // Deny by default: only agent steps hold tools, the bookkeeping tools are on the work step, and no step holds an outside write.
+  assert.deepEqual(playbook.steps.filter(step => step.tools?.length).map(step => step.id), ['gather', 'clarify', 'work']);
+  assert.ok(playbook.steps.find(step => step.id === 'work')!.tools!.includes('books.reconcile'));
+  assert.ok(playbook.steps.every(step => !step.tools?.includes('outbox.propose')));
+  assert.equal(playbook.steps.find(step => step.id === 'work')!.title, 'Sort and match every entry');
+  assert.equal(playbook.format, 2);
+  assert.deepEqual(playbook.limits, { maxTurns: 4, maxToolCalls: 12, maxCallsPerTurn: 4, maxCostMicros: '250000', keepOutputs: 6, stubChars: 600 });
   const draft = playbook.steps.find(step => step.id === 'draft')!;
   assert.equal(draft.title, 'Draft the monthly report for review');
   assert.deepEqual(draft.requiredSections, [...REQUIRED_SECTIONS.bookkeeping]);
@@ -301,17 +315,18 @@ test('playbook: seven fixed steps from the accepted plan, stable hash, a new ver
   assert.deepEqual(playbook.steps.find(step => step.id === 'verify')!.checks, CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit'));
   assert.deepEqual(playbook.steps.find(step => step.id === 'send')!.checks, ['no-outside-writes']);
   assert.equal(playbook.validated, true);
-  assert.equal(playbook.tierCeiling, 'actor');
+  assert.equal(playbook.tierCeiling, 'container');
   assert.equal(playbook.version, 1);
   assert.equal(playbook.blueprintDigest, env.blueprint.digest);
-  assert.equal(playbook.hash, digest(playbook.steps));
+  assert.equal(playbook.hash, playbookHash(playbook.steps, { limits: playbook.limits!, aliases: playbook.aliases! }));
+  assert.equal(playbook.hash, digest({ steps: playbook.steps, limits: playbook.limits, aliases: playbook.aliases }));
   assert.equal(env.store.read().conversations.find(r => r.kind === 'venture-record').playbookId, playbook.id);
   assert.ok(events(env).includes('playbook-ready'));
 
   const again = await call<PlaybookRecord>(env, 'venture.delivery.playbook');
   assert.equal(again.id, playbook.id);
   assert.equal(listRecords(env.store.read(), 'venture-playbook').length, 1);
-  assert.equal(validatePlaybook(playbookSteps(env.blueprint)).hash, playbook.hash);
+  assert.equal(validatePlaybook(playbookSteps(env.blueprint), { limits: playbook.limits!, aliases: playbook.aliases! }).hash, playbook.hash);
 
   // A newly accepted plan with the same steps: a new version with the same hash.
   const same = await ventureAction(env.deps, owner, 'admin', 'seed.accept', tx => {
@@ -348,14 +363,21 @@ test('playbook: refuses without an accepted plan, and validatePlaybook refuses e
     ['verify with a model', edit('verify', { model: 'main' })],
     ['approve with a model', edit('approve', { model: 'fast' })],
     ['operator with a model', edit('send', { model: 'main' })],
-    ['a tier above actor', edit('draft', { tier: 'wasm' })],
-    ['a container tier', edit('gather', { tier: 'container' })],
+    ['the planned full sandbox tier', edit('draft', { tier: 'wasm' })],
+    ['the planned hosted tier', edit('gather', { tier: 'hosted' })],
+    ['an unknown tool', edit('gather', { tools: ['files.read', 'inbox.read' as never] })],
+    ['an outside write on an agent step', edit('work', { tools: ['outbox.propose'] })],
+    ['tools on the writing step', edit('draft', { tools: ['files.read'] })],
+    ['tools on a code step', edit('price', { tools: ['calc.sum'] })],
+    ['a work step with no model', edit('work', { model: null })],
     ['a write step without sections', edit('draft', { requiredSections: [] })],
     ['a write step without no-done-claims', edit('draft', { checks: ['no-numeric-prose', 'figures-resolve', 'required-sections'] })],
     ['an operator step before the approve step', [...good.filter(step => step.id !== 'send').slice(0, 5), good.find(step => step.id === 'send')!, good.find(step => step.id === 'approve')!]],
     ['an operator step with no approve step', good.filter(step => step.id !== 'approve')],
   ];
   for (const [name, steps] of broken) assert.throws(() => validatePlaybook(steps), code('INVALID_VENTURE_REQUEST'), name);
+  // The container tier is allowed: a step reaches it only through a tool that checks for Docker first.
+  assert.equal(validatePlaybook(edit('work', { tier: 'container' })).validated, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -568,7 +590,8 @@ test('model rehearsal: one practice client per call, judged, with costs worked o
   const env = await setup();
   await seedOrder(env); // a client and an order exist; rehearsal must never touch them
   await queueModel(env, {});
-  const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
+  // The pushy client sends no files, so the agent drafts in one step with no tool turns.
+  const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-pushback'] });
   assert.equal(run.passed, true, run.episodes[0].firstFailure ?? '');
   assert.equal(run.modelMode, 'model');
   const episode = run.episodes[0];
@@ -656,7 +679,7 @@ test('launch ladder: template rehearsal cannot unlock shadow; judged model runs 
   assert.deepEqual([stage(status, 'approve-sample'), stage(status, 'auto-spot-check')].map(item => [item.allowed, item.status, item.reason]), [
     [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'planned', 'Planned. Not in this build.'],
   ]);
-  assert.equal(status.improvement.status, 'planned');
+  assert.equal(status.improvement.status, 'available');
   assert.equal(status.improvement.due, false);
 
   await call(env, 'venture.simulation.run', { useTemplate: true });
@@ -1101,8 +1124,8 @@ test("Today's list: practice drafts drop off once the stage moves on, and Accept
 test('capabilities: honest states per platform, storage and model tier', async () => {
   const windows = capabilityList('win32');
   assert.deepEqual(windows.map(row => row.id), [
-    'venture-actor', 'venture-events', 'schedules', 'hosted-actors', 'tier-code', 'tier-actor', 'durable-storage', 'tier-wasm-lite', 'tier-wasm',
-    'tier-container', 'tier-hosted', 'model-fast', 'model-main', 'agent-tools', 'handoff-links', 'github-read', 'outside-writes',
+    'venture-actor', 'venture-events', 'schedules', 'hosted-actors', 'tier-code', 'tier-actor', 'improvement-loop', 'durable-storage', 'tier-wasm-lite', 'tier-wasm',
+    'tier-container', 'tier-hosted', 'model-fast', 'model-main', 'agent-tools', 'work-products', 'handoff-links', 'github-read', 'outside-writes',
   ]);
   const row = (list: ReturnType<typeof capabilityList>, id: string) => list.find(item => item.id === id)!;
   assert.equal(row(windows, 'tier-wasm').state, 'unavailable');
@@ -1112,9 +1135,15 @@ test('capabilities: honest states per platform, storage and model tier', async (
   assert.equal(row(windows, 'tier-code').group, 'runtime');
   assert.equal(row(windows, 'tier-actor').group, 'runtime');
   assert.equal(row(windows, 'hosted-actors').state, 'planned');
-  assert.equal(row(windows, 'tier-container').state, 'planned');
+  // Without a check the container row says so; with one it says what the check found.
+  assert.equal(row(windows, 'tier-container').state, 'unverified');
+  assert.equal(row(windows, 'tier-container').reason, 'Chausar has not checked this computer for Docker yet.');
+  assert.deepEqual(row(capabilityList('win32', undefined, 'experimental-file', undefined, { state: 'needs-setup', reason: 'Needs Docker Desktop.' }), 'tier-container').state, 'needs-setup');
+  assert.equal(row(windows, 'tier-wasm-lite').state, 'available');
+  assert.match(row(windows, 'tier-wasm-lite').reason, /row programs/);
   assert.equal(row(windows, 'tier-hosted').state, 'planned');
-  assert.equal(row(windows, 'agent-tools').state, 'planned');
+  assert.equal(row(windows, 'agent-tools').state, 'available');
+  assert.equal(row(windows, 'improvement-loop').state, 'available');
   assert.equal(row(windows, 'outside-writes').state, 'planned');
   assert.equal(row(windows, 'durable-storage').state, 'planned');
   assert.equal(row(windows, 'durable-storage').reason, "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.");
@@ -1131,7 +1160,10 @@ test('capabilities: honest states per platform, storage and model tier', async (
 
   const env = await setup();
   env.models.fast = 'model';
+  // The handler checks for Docker through the injected port: here Docker is missing.
+  env.deps.sandbox = { process: async () => { throw new ChausarError('TIER_UNAVAILABLE', 'docker not found'); } };
   const fromHandler = await call<ReturnType<typeof capabilityList>>(env, 'venture.capabilities');
+  assert.deepEqual([row(fromHandler, 'tier-container').state, row(fromHandler, 'tier-container').reason], ['needs-setup', 'Needs Docker Desktop.']);
   assert.equal(row(fromHandler, 'model-fast').state, 'available');
   assert.equal(row(fromHandler, 'model-main').state, 'needs-setup');
   assert.equal(row(fromHandler, 'tier-wasm').state, process.platform === 'win32' ? 'unavailable' : 'planned');
@@ -1144,13 +1176,54 @@ test('capabilities: honest states per platform, storage and model tier', async (
   assert.deepEqual([row(capabilityList('linux', keyless), 'model-fast').state, row(capabilityList('linux', keyless), 'model-fast').reason], ['needs-setup', 'Enter your key again.']);
 });
 
+test('capabilities on the hosted server: nothing checks for Docker, and the sandbox, tool and work rows say what the hosted code does', async () => {
+  const row = (list: ReturnType<typeof capabilityList>, id: string) => list.find(item => item.id === id)!;
+  // A container check passed in is ignored on the hosted server: containers never run there.
+  const ready = { state: 'unverified' as const, reason: 'Runs agent-written Python in a Docker container.' };
+  const hosted = capabilityList('linux', undefined, 'postgres', undefined, ready, 'hosted-web');
+  assert.deepEqual(hosted.map(item => item.id), capabilityList('linux').map(item => item.id), 'the same rows in the same order');
+  assert.deepEqual([row(hosted, 'tier-container').state, row(hosted, 'tier-container').reason], ['unavailable', HOSTED_NO_CONTAINERS]);
+  assert.deepEqual([row(hosted, 'tier-wasm-lite').state, row(hosted, 'tier-wasm-lite').reason], ['unavailable', HOSTED_NO_AGENT_CODE]);
+  assert.equal(row(hosted, 'hosted-actors').state, 'unverified');
+  assert.equal(row(hosted, 'venture-events').state, 'unverified');
+  assert.equal(row(hosted, 'durable-storage').state, 'unverified');
+  assert.equal(row(hosted, 'agent-tools').state, 'available');
+  assert.match(row(hosted, 'agent-tools').reason, /CSV and XLSX/);
+  assert.match(row(hosted, 'agent-tools').reason, /can't read PDFs or run code they write/);
+  assert.doesNotMatch(row(hosted, 'agent-tools').reason, /Python helper/);
+  assert.match(row(hosted, 'work-products').reason, /in CSV or XLSX/);
+  for (const id of ['tier-code', 'tier-actor', 'improvement-loop']) assert.equal(row(hosted, id).state, 'available', id);
+  for (const item of hosted) assert.deepEqual(houseStyleFindings(item.reason), [], item.reason);
+  // The desktop rows keep the harness's words, and no row on either host says the hosted tier is missing.
+  const desktop = capabilityList('linux', undefined, 'postgres', undefined, ready);
+  assert.deepEqual([row(desktop, 'tier-container').state, row(desktop, 'tier-container').reason], ['unverified', ready.reason]);
+  assert.match(row(desktop, 'agent-tools').reason, /Python helper/);
+  assert.match(row(desktop, 'hosted-actors').reason, /written but not deployed/);
+  for (const list of [hosted, desktop]) for (const item of list) assert.doesNotMatch(item.reason, /not built/, item.id);
+
+  // Through the handler: a hosted business never starts docker, a desktop one does.
+  const env = await setup();
+  const asked: string[][] = [];
+  env.deps.sandbox = { process: async request => { asked.push(request.args); return { exitCode: 0, stdout: '28.0.0', stderr: '', timedOut: false, truncated: false }; } };
+  env.deps.host = 'hosted-web';
+  const fromHosted = await call<ReturnType<typeof capabilityList>>(env, 'venture.capabilities');
+  assert.deepEqual(asked, [], 'no Docker probe on the hosted server');
+  assert.deepEqual([row(fromHosted, 'tier-container').state, row(fromHosted, 'tier-container').reason], ['unavailable', HOSTED_NO_CONTAINERS]);
+  assert.equal(row(fromHosted, 'tier-wasm-lite').state, 'unavailable');
+  env.deps.host = 'desktop';
+  const fromDesktop = await call<ReturnType<typeof capabilityList>>(env, 'venture.capabilities');
+  assert.ok(asked.length >= 1, 'the desktop checks for Docker');
+  assert.equal(row(fromDesktop, 'tier-container').state, 'unverified');
+  assert.equal(row(fromDesktop, 'tier-wasm-lite').state, 'available');
+});
+
 // ---------------------------------------------------------------------------
 // 9. Handler table and schemas
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the twelve delivery methods', () => {
+test('handlers: exactly the twenty delivery methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'delivery');
-  assert.equal(owned.length, 12);
+  assert.equal(owned.length, 20);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
 });
@@ -1178,12 +1251,13 @@ test('schemas: the draft, practice client and judge schemas are closed and have 
   await call(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
   const seen = new Set<string>();
   for (const task of env.models.generated) { assertSchemaSafe(task.schema); seen.add(task.schemaName); }
-  assert.deepEqual([...seen].sort(), ['venture-client-sim', 'venture-delivery', 'venture-judge']);
+  assert.deepEqual([...seen].sort(), ['venture-agent-turn', 'venture-client-sim', 'venture-delivery', 'venture-judge']);
   const deliverySchema = env.models.generated.find(task => task.purpose === 'delivery')!.schema as any;
   assert.deepEqual(deliverySchema.properties.sections.items.properties.heading.enum, [...REQUIRED_SECTIONS.bookkeeping]);
   assert.equal(env.models.generated.find(task => task.purpose === 'delivery')!.maxOutputTokens, 6144);
   assert.equal(env.models.generated.find(task => task.purpose === 'judge')!.maxOutputTokens, 1024);
   assert.equal(env.models.generated.find(task => task.purpose === 'client-sim')!.maxOutputTokens, 1024);
+  assert.equal(env.models.generated.find(task => task.purpose === 'agent-turn')!.maxOutputTokens, 4096);
 });
 
 test('nesting: every model call in rehearsal and delivery runs outside any transaction', async () => {

@@ -25,6 +25,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-brief': 'brief', 'venture-handoff': 'handoff', 'venture-build-follow': 'follow', 'venture-build-read': 'ghread',
   'venture-playbook': 'playbook', 'venture-simulation-run': 'simrun', 'venture-delivery-run': 'delivery', 'venture-signal': 'signal',
   'venture-event': 'vevent',
+  'venture-upload': 'upload', 'venture-work-table': 'worktable', 'venture-work-receipt': 'work', 'venture-improvement-run': 'improve',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -312,6 +313,15 @@ export function doneClaimFindings(value: string): string[] {
     if (match) found.push(match[0]);
   }
   return found;
+}
+
+/** Every done-claim phrase in the text, in order, so each one can be checked against what the tools proved. */
+export function doneClaimMatches(value: string): string[] {
+  const found: { at: number; text: string }[] = [];
+  for (const pattern of [DONE_FIRST_PERSON, DONE_PASSIVE]) {
+    for (const match of value.matchAll(new RegExp(pattern.source, 'gi'))) found.push({ at: match.index ?? 0, text: match[0] });
+  }
+  return found.sort((a, b) => a.at - b.at).map(item => item.text);
 }
 
 /**

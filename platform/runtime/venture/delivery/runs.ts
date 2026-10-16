@@ -1,23 +1,34 @@
 // Chausar venture launcher, delivery package (P5): draft replies for real orders.
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
 // exact text first and is sent once, only after the owner approves it. Nothing here sends anything to a client.
+// With files on the order, the agent loop runs: each model turn holds client data, so each one waits for the owner's
+// approval of its exact text. Tools run on this computer between turns and send nothing anywhere.
 import { check, type Context, type State } from '../../contracts.ts';
-import { exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
-import { DELIVERY_REASONS } from '../contracts.ts';
+import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
+import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
-  BlueprintRecord, CheckId, CheckResult, Deliverable, DeliveryReason, DeliveryRunRecord, DeliveryRunView, ModelPreview, OrderRecord, PlaybookRecord,
-  PriceReceiptRecord, SignalRecord, VentureDeps, VentureRecord,
+  BlueprintRecord, CheckId, CheckResult, ClaimProof, Deliverable, DeliveryReason, DeliveryRunRecord, DeliveryRunView, HarnessState, ModelPreview,
+  ModelTask, OrderRecord, PlaybookRecord, PriceReceiptRecord, SignalRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
 import { firstFailedCheck, runChecks } from './checks.ts';
-import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type DraftRefs } from './deliverable.ts';
-import { ensurePlaybook, verifyChecks } from './playbook.ts';
+import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
+import { dictionaryEntries, manifest, ownerDefinitions } from './harness/dictionary.ts';
+import { buildToolEnv, fileList, madeSoFar, namer, orderUploads, uploadsById } from './harness/env.ts';
+import type { FileLike } from './harness/files.ts';
+import {
+  actTask, answerHandoff, applyTurn, finishWrite, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, skipActs, validateTurn, writeGuidance,
+  writeTask, type AgentTurn, type LoopContext,
+} from './harness/loop.ts';
+import { ensurePlaybook, playbookLimits, verifyChecks } from './playbook.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
+export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
 const MAX_EDITED_CHARS = 20000;
+const MAX_ANSWER_CHARS = 2000;
 
 type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[] };
 
@@ -36,11 +47,14 @@ function draftContext(context: OrderContext, today: string): { refs: DraftRefs; 
   return { refs, offer: { name: offer?.name.value ?? 'Your service', description: offer?.description.value ?? 'The service in your plan.' } };
 }
 
-function checkDraft(context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, renderedText: string): CheckResult[] {
+type DraftCheckExtras = { work?: readonly WorkReceiptRecord[]; proofs?: readonly ClaimProof[]; sections?: readonly string[]; answers?: readonly string[] };
+
+function checkDraft(context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, renderedText: string, extras: DraftCheckExtras = {}): CheckResult[] {
   return runChecks({
     checks: verifyChecks(playbook), deliverable, renderedText, serviceType: context.blueprint.serviceType,
-    allowed: draftAllowedTokens(context.order.request, context.venture.idea), receipts: context.receipts, ventureId: context.venture.id,
+    allowed: copiedTokens(context.order.request, context.venture.idea, ...(extras.answers ?? [])), receipts: [...context.receipts, ...(extras.work ?? [])], ventureId: context.venture.id,
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: deliverable.questionsForClient.length > 0,
+    ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}),
   });
 }
 
@@ -65,16 +79,37 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   // Decide before any preview, so a blocked request records nothing.
-  const template = useTemplate || deps.models.status(ctx).tiers.main.presetId === 'built-in-templates';
+  const status = useTemplate ? null : deps.models.status(ctx);
+  const template = useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const playbook = await ensurePlaybook(deps, ctx);
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
+  const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
+
+  if (!template && uploads.length && playbookGrant(playbook).length) {
+    let harness = newHarnessState(playbookGrant(playbook), playbookLimits(playbook), uploads.map(upload => upload.id));
+    if (status!.tiers.fast.presetId === 'built-in-templates') harness = skipActs(harness, NO_QUICK_AI);
+    const loop = loopContext(deps, ctx, fresh.state, context, playbook, offer, uploads, []);
+    const preview = await deps.models.preview(ctx, nextTask(loop, context, refs, harness, [], uploads, []));
+    check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+    return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
+      const stage = tx.venture!.launchStage;
+      check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      const run: DeliveryRunRecord = {
+        ...baseRun(tx, context.order, playbook), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
+        preview, deliverable: null, renderedText: null, checks: [], harness, uploadIds: uploads.map(upload => upload.id),
+      };
+      tx.put(run);
+      tx.emit('delivery-waiting', { runId: run.id, orderId: run.orderId, practice: run.practice });
+      return runView(run, tx.venture!, Date.parse(tx.now));
+    });
+  }
 
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
-    containsClientData: true, templateTotalRef: 'order.total',
+    containsClientData: true, templateTotalRef: 'order.total', guidance: writeGuidance(playbook),
   }));
 
   if (!preview) {
@@ -106,13 +141,37 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   });
 }
 
+/** answers: the owner's answers to earlier hand-offs; tokens copied from them may be repeated, like the request's. */
+function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[]): LoopContext {
+  const entries = dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
+  return {
+    serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
+    files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
+  };
+}
+
+function answersOf(harness: HarnessState): string[] {
+  return harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
+}
+
+/** The next model task for a run in the act or write phase. The write step's proven list comes from the stored proofs. */
+function nextTask(loop: LoopContext, context: OrderContext, refs: DraftRefs, harness: HarnessState, receipts: readonly WorkReceiptRecord[], files: readonly FileLike[], tables: readonly WorkTableRecord[]): ModelTask<unknown> {
+  if (harness.phase === 'act') return actTask(loop, harness);
+  const answers = answersOf(harness);
+  const proven = provenSentences(harness, receipts, namer({ files: [...files], tables: [...tables] }));
+  return writeTask({
+    ...loop, idea: context.venture.idea, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), priceRefs: refs,
+    templateTotalRef: 'order.total', proven,
+  }, harness, receipts);
+}
+
 function findRun(state: State, venture: VentureRecord, runId: string): DeliveryRunRecord {
   const run = findRecord(state, 'venture-delivery-run', runId);
   check(run && run.ventureId === venture.id, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
   return run;
 }
 
-/** venture.delivery.approve: sends the exact previewed text once, then checks and stores the draft. */
+/** venture.delivery.approve: sends the exact previewed text once, then checks and stores the draft (or runs the turn). */
 export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
   requireAppChannel(ctx, 'venture.delivery.approve');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
@@ -129,7 +188,8 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
-  const { refs } = draftContext(context, todayIso(deps, context.venture));
+  const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
+  if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved });
   const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
 
   let deliverable: Deliverable;
@@ -162,6 +222,118 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
     await markFailedWhenSpent(deps, ctx, run, callId, error);
     throw error;
   }
+}
+
+type HarnessApproval = {
+  state: State; run: DeliveryRunRecord; harness: HarnessState; context: OrderContext; playbook: PlaybookRecord; refs: DraftRefs;
+  offer: { name: string; description: string }; callId: string; approved: string;
+};
+
+/**
+ * One approved turn of the agent loop. An act turn: the model answers, the tools run here, then the next turn (or the
+ * write step) is previewed and waits for the owner. A hand-off waits for the owner's answer instead. The write turn:
+ * the draft is rendered with its attachments, checked against what the tools proved, and stored for review.
+ */
+async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApproval): Promise<DeliveryRunView> {
+  const { run, harness, context, playbook, refs, callId } = a;
+  const files = uploadsById(a.state, context.venture.id, harness.uploadIds);
+  const made = madeSoFar(a.state, harness);
+  const loop = loopContext(deps, ctx, a.state, context, playbook, a.offer, files, answersOf(harness));
+  const task = nextTask(loop, context, refs, harness, made.receipts, files, made.tables);
+  let value: unknown, by: 'model' | 'template', costMicros: string;
+  try {
+    const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw));
+    value = outcome.value; by = outcome.by; costMicros = outcome.costMicros;
+  } catch (error) {
+    await markFailedWhenSpent(deps, ctx, run, callId, error);
+    throw error;
+  }
+
+  try {
+    if (harness.phase === 'act') {
+      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed });
+      const next = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros });
+      const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
+      const preview = next.phase === 'needs-answer' ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
+      check(next.phase === 'needs-answer' || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+      return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+        const current = tx.find('venture-delivery-run', run.id);
+        check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+        const stage = tx.venture!.launchStage;
+        check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+        for (const table of newTables) tx.put(table);
+        for (const receipt of newReceipts) tx.put(receipt);
+        const stored: DeliveryRunRecord = preview
+          ? { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
+          : { ...current, status: 'needs-answer', callId: null, preview: null, harness: next, practice: current.practice || stage === 'shadow' };
+        tx.replace(stored);
+        if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
+        else tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
+        return runView(stored, tx.venture!, Date.parse(tx.now));
+      });
+    }
+
+    const deliverable = value as Deliverable;
+    const done = finishWrite(harness, { by, callId, costMicros });
+    const receipts: AnyReceipt[] = [...context.receipts, ...made.receipts];
+    const renderedText = renderDeliverable(deliverable, receipts, context.venture.country);
+    const answers = harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
+    const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
+      work: made.receipts, proofs: harness.proofs, sections: harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType], answers,
+    });
+    return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+      const current = tx.find('venture-delivery-run', run.id);
+      check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+      const stage = tx.venture!.launchStage;
+      check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      const next: DeliveryRunRecord = {
+        ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: done,
+      };
+      tx.replace(next);
+      recordCheckSignal(tx, run.id, checks);
+      tx.emit('delivery-ready', { runId: run.id, orderId: next.orderId, servedBy: 'model' });
+      return runView(next, tx.venture!, Date.parse(tx.now));
+    });
+  } catch (error) {
+    await markFailedWhenSpent(deps, ctx, run, callId, error);
+    throw error;
+  }
+}
+
+/**
+ * venture.delivery.answer { runId, answer } (app only): the owner answers the agent's hand-off question (their own
+ * decision, or what the client said). The next turn is previewed and waits for approval like every other turn.
+ */
+export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
+  requireAppChannel(ctx, 'venture.delivery.answer');
+  const body = exactPayload(payload, ['runId', 'answer'], ['runId', 'answer']);
+  const runId = identifier(body.runId, 'Draft reply');
+  const answer = plainText(body.answer, 'Answer', { min: 1, max: MAX_ANSWER_CHARS });
+  const { state, venture } = readAs(deps, ctx, 'approve');
+  const run = findRun(state, venture, runId);
+  check(run.status === 'needs-answer' && run.harness?.phase === 'needs-answer', 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
+  check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  const context = orderContext(state, venture, run.orderId);
+  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
+  const files = uploadsById(state, venture.id, run.harness.uploadIds);
+  const made = madeSoFar(state, run.harness);
+  const next = answerHandoff(run.harness, answer, 'owner');
+  const preview = await deps.models.preview(ctx, nextTask(loopContext(deps, ctx, state, context, playbook, offer, files, answersOf(next)), context, refs, next, made.receipts, files, made.tables));
+  check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+  return ventureAction(deps, ctx, 'approve', 'delivery.answer', tx => {
+    const current = tx.find('venture-delivery-run', runId);
+    // The same question this answer was read against: another answer and a new hand-off may have landed meanwhile.
+    check(current && current.status === 'needs-answer' && current.harness?.turns.length === run.harness!.turns.length
+      && current.harness?.handoffs.length === run.harness!.handoffs.length, 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
+    const stage = tx.venture!.launchStage;
+    check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+    const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
+    tx.replace(stored);
+    tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+    return runView(stored, tx.venture!, Date.parse(tx.now));
+  });
 }
 
 /** The stages at which an agent may draft for a real order. Moving down is always allowed, so each step checks again. */
@@ -240,7 +412,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
 
 /**
  * Why a draft can't be accepted as it stands, or null when every check passed. The owner edits or rejects it. A draft
- * that claims finished work gets its own words, since an agent here only had the client's message.
+ * that claims work no tool run proves gets its own words.
  */
 function failedCheckReason(checks: readonly CheckResult[]): string | null {
   const failed = checks.filter(result => !result.passed);
@@ -259,19 +431,21 @@ function acceptableAsIs(checks: readonly CheckResult[]) {
  * a ready agent draft is practice unless the business is at approve each (review refuses Accept otherwise), a draft
  * with a failed check can't be accepted, and a waiting draft is sent only at shadow or approve each while its preview
  * is live. Practice drafts wait for the owner only at shadow, the one stage that makes them; once the stage moves on
- * they drop off Today's list, though they stay in the list for review.
+ * they drop off Today's list, though they stay in the list for review. A run asking a question waits for the owner's
+ * answer while an agent may draft.
  */
 export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: number): DeliveryRunView {
   const stage = venture.launchStage;
   const ready = run.status === 'ready-for-review';
   const waiting = run.status === 'waiting-for-you';
+  const asking = run.status === 'needs-answer';
   const practiceNow = ready ? run.practice || (run.servedBy === 'model' && stage !== 'approve-each')
-    : waiting ? run.practice || stage !== 'approve-each'
+    : waiting || asking ? run.practice || stage !== 'approve-each'
       : run.practice;
   const canApprove = waiting && run.callId !== null && agentStage(stage) && run.preview !== null && Date.parse(run.preview.expiresAt) > nowMs;
   const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks)) : null;
   const canAccept = ready && blocked === null;
-  const awaitingYou = waiting ? canApprove : ready ? !practiceNow || stage === 'shadow' : false;
+  const awaitingYou = waiting ? canApprove : asking ? agentStage(stage) : ready ? !practiceNow || stage === 'shadow' : false;
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };
 }
 
@@ -282,3 +456,4 @@ export async function deliveryListHandler(deps: VentureDeps, ctx: Context, paylo
   const nowMs = deps.clock().getTime();
   return newestFirst(listRecords(state, 'venture-delivery-run', venture.id)).map(run => runView(run, venture, nowMs));
 }
+

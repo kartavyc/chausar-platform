@@ -90,6 +90,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-brief', 'venture-handoff', 'venture-build-follow', 'venture-build-read',
   'venture-playbook', 'venture-simulation-run', 'venture-delivery-run', 'venture-signal',
   'venture-event',
+  // Delivery harness (section 8b): client files, tables the agent's tools made, work receipts, improvement runs.
+  'venture-upload', 'venture-work-table', 'venture-work-receipt', 'venture-improvement-run',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -279,8 +281,8 @@ export const STEP_IDS = ['step_1', 'step_2', 'step_3', 'step_4'] as const;
  * files, inboxes, tools or sending are the owner's, with an agent planned. step_3 is always the drafting step.
  */
 export const STEP_PLAN: readonly { id: string; doneBy: BlueprintStep['doneBy']; capability: StepCapability; note: string }[] = Object.freeze([
-  { id: 'step_1', doneBy: 'you', capability: 'planned', note: 'You gather what the client sends. An agent that reads files and inboxes is planned.' },
-  { id: 'step_2', doneBy: 'you', capability: 'planned', note: 'You do the hands-on work. An agent with the tools for it is planned.' },
+  { id: 'step_1', doneBy: 'you', capability: 'planned', note: 'You collect what the client sends and add the files to the order, where the agent reads them. Reading inboxes for you is planned.' },
+  { id: 'step_2', doneBy: 'you', capability: 'planned', note: 'You do the hands-on work. For bookkeeping, an agent reconciles a month from the files you add, for you to check; other hands-on work is planned.' },
   { id: 'step_3', doneBy: 'agent-then-you', capability: 'drafts-now', note: "An agent drafts a reply from the client's message. You check it." },
   { id: 'step_4', doneBy: 'you', capability: 'planned', note: 'You send it to the client. Sending for you is planned.' },
 ] as const);
@@ -314,10 +316,12 @@ export const MODEL_PRESET_IDS = ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5', 
 export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
 export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
 export type ModelTier = 'fast' | 'main';
-export const MODEL_PURPOSES = ['interview', 'blueprint', 'brief', 'delivery', 'client-sim', 'judge'] as const;
+/** 'agent-turn' is one tool-using turn of a delivery agent (cheap tier); 'improve' proposes one playbook patch. */
+export const MODEL_PURPOSES = ['interview', 'blueprint', 'brief', 'delivery', 'client-sim', 'judge', 'agent-turn', 'improve'] as const;
 export type ModelPurpose = typeof MODEL_PURPOSES[number];
 export const PURPOSE_TIER: Readonly<Record<ModelPurpose, ModelTier>> = Object.freeze({
   interview: 'fast', 'client-sim': 'fast', judge: 'fast', blueprint: 'main', brief: 'main', delivery: 'main',
+  'agent-turn': 'fast', improve: 'main',
 });
 
 export type ModelPriceTable = {
@@ -514,6 +518,18 @@ export type DeliveryModelOutput = {
 };
 export type ClientSimModelOutput = { message: string; asksForPerson: boolean };
 export type JudgeModelOutput = { answers: { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure'; reason: string }[] }; // one per JudgeQuestionId
+/** One agent turn: a short note (words only), up to four tool calls (input is JSON text), and whether the work is done. */
+export type AgentTurnModelOutput = { note: string; calls: { tool: string; input: string }[]; finished: boolean };
+/** One proposed playbook patch at one level, with its change note. value is checked by code per op. */
+export type ImproveModelOutput = {
+  level: AttributionLevel;
+  hypothesis: string;
+  op: PlaybookPatchOp;
+  stepId: string;
+  value: string;
+  expectedFixes: string[];
+  likelyRegressions: string[];
+};
 export type ModelOutputs = {
   interview: InterviewModelOutput;
   blueprint: BlueprintModelOutput;
@@ -521,6 +537,8 @@ export type ModelOutputs = {
   delivery: DeliveryModelOutput;
   'client-sim': ClientSimModelOutput;
   judge: JudgeModelOutput;
+  'agent-turn': AgentTurnModelOutput;
+  improve: ImproveModelOutput;
 };
 
 // ---------------------------------------------------------------------------
@@ -780,7 +798,8 @@ export const EXTERNAL_ORIGINS = Object.freeze([
 // 8. Delivery agents, rehearsal (simulation), launch ladder, signals (P5)
 // ---------------------------------------------------------------------------
 
-export type StepKind = 'gather' | 'question' | 'compute' | 'write' | 'verify' | 'approve' | 'operator';
+/** 'work' is hands-on work with tools (files, the sandbox, the calculator); it never writes to the client. */
+export type StepKind = 'gather' | 'question' | 'work' | 'compute' | 'write' | 'verify' | 'approve' | 'operator';
 export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container' | 'hosted';
 export const CHECK_IDS = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims'] as const;
 export type CheckId = typeof CHECK_IDS[number];
@@ -788,31 +807,47 @@ export type PlaybookStep = {
   id: string;
   kind: StepKind;
   title: string;
-  tier: ExecutionTier; // this build runs 'code' and 'actor' only
+  tier: ExecutionTier; // the lowest tier that can do the step
   model: ModelTier | null; // null for code steps
   doneBy: 'agent' | 'you' | 'agent-then-you';
   requiredSections: string[]; // write steps only
   checks: CheckId[];
+  /** Tools this step may call. Deny by default: a tool not named here is refused. Absent on older records. */
+  tools?: ToolName[];
+  /** Extra instructions for this step, words only. The improvement loop adds and removes these. */
+  guidance?: string[];
 };
 export type PlaybookRecord = RecordBase<'venture-playbook'> & {
   version: number;
-  hash: string; // digest of steps; recorded on every run
+  hash: string; // digest of steps (format 2: of steps, limits and aliases); recorded on every run
   blueprintDigest: string;
   serviceType: ServiceType;
   steps: PlaybookStep[];
   validated: true;
-  tierCeiling: ExecutionTier; // 'actor' in this build
+  tierCeiling: ExecutionTier;
+  /** 2 for playbooks with agent tools. Older records have no format and are rebuilt on first use. */
+  format?: 2;
+  limits?: HarnessLimits;
+  /** Extra words that find a dictionary entry, by entry id. Model-specific exposure, changed by the improvement loop. */
+  aliases?: Record<string, string[]>;
+  /** The patches applied on top of the plan's steps, oldest first. A rebuild for a changed plan applies them again. */
+  patches?: PlaybookPatch[];
+  parentId?: string | null; // the version this one was patched from
+  origin?: 'plan' | 'improvement';
 };
 
 export type TextPart =
   | { kind: 'text'; text: string }
-  | { kind: 'figure'; receiptId: string; figureKey: PriceFigure['key'] }
+  | { kind: 'figure'; receiptId: string; figureKey: PriceFigure['key'] | WorkFigureKey }
   | { kind: 'date'; dateRef: DateRef; iso: IsoDate };
+/** Work that code rendered from a work receipt and attached after the agent's words. */
+export type DeliverableAttachment = { kind: 'reconciliation'; receiptId: string };
 /** A draft reply. Never called a deliverable on screen: agents in this build only draft. */
 export type Deliverable = {
   title: string;
   sections: { heading: string; parts: TextPart[] }[];
   questionsForClient: string[];
+  attachments?: DeliverableAttachment[];
 };
 export type CheckResult = { check: CheckId; passed: boolean; detail: string };
 
@@ -830,6 +865,8 @@ export type Scenario = {
   checks: CheckId[];
   source: 'template' | 'signal';
   signalId: string | null;
+  /** Practice files this made-up client sends; the agent loop works on them. Absent when there are none. */
+  files?: string[];
 };
 export const JUDGE_QUESTIONS = ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'] as const;
 export type JudgeQuestionId = typeof JUDGE_QUESTIONS[number];
@@ -848,6 +885,8 @@ export type Episode = {
   passed: boolean;
   firstFailure: string | null;
   costMicros: MicroString;
+  /** The agent's turns, tool calls and work when the practice client sent files. Absent or null otherwise. */
+  harness?: HarnessState | null;
 };
 export type SimulationRunRecord = RecordBase<'venture-simulation-run'> & {
   playbookId: string;
@@ -865,7 +904,8 @@ export type SimulationRunRecord = RecordBase<'venture-simulation-run'> & {
 
 export const DELIVERY_REASONS = ['wrong-fact', 'missing-fact', 'missing-section', 'off-brief', 'tone', 'format', 'too-long', 'too-short', 'wrong-number', 'late', 'claims-work-not-done', 'other'] as const;
 export type DeliveryReason = typeof DELIVERY_REASONS[number];
-export type DeliveryRunStatus = 'waiting-for-you' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed';
+/** 'needs-answer': the agent handed off with a question, and the run waits for the owner's answer. */
+export type DeliveryRunStatus = 'waiting-for-you' | 'needs-answer' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed';
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   orderId: string;
   playbookId: string;
@@ -880,6 +920,9 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   checks: CheckResult[];
   verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason: DeliveryReason | null; at: IsoTime } | null;
   editedText: string | null;
+  /** The agent loop, for an order with files. Each model turn waits for the owner's approval of its exact text. */
+  harness?: HarnessState | null;
+  uploadIds?: string[]; // the client files this run may read, fixed when the run starts
 };
 /**
  * A delivery run as the screens read it: the stored record plus what the engine would allow right now, at today's
@@ -903,7 +946,7 @@ export type ImprovementReadiness = {
   rejectedOrEdited: number;
   due: boolean; // at least 10 judged with at least 3 rejected or edited, or 14 days with any judged
   reason: string;
-  status: 'planned'; // the improvement loop itself is not in this build
+  status: 'available' | 'planned'; // 'available' since the gated improvement loop (venture.improve.*) landed
 };
 export type LaunchStatus = {
   stage: LaunchStage;
@@ -920,6 +963,207 @@ export type CapabilityState = 'available' | 'needs-setup' | 'unverified' | 'plan
 export type CapabilityStatus = { id: string; group: 'runtime' | 'storage' | 'sandbox' | 'models' | 'connectors'; label: string; state: CapabilityState; reason: string };
 
 // ---------------------------------------------------------------------------
+// 8b. Delivery harness: agent tools, the agent loop, sandboxes, client files, work receipts, improvement
+// ---------------------------------------------------------------------------
+
+/** Every tool a delivery agent can be granted. Names are 'collection.function', the agentOS host-function shape. */
+export const TOOL_NAMES = [
+  'files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve',
+  'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick',
+  'sandbox.transform', 'sandbox.python',
+  'handoff.client', 'handoff.owner', 'outbox.propose',
+] as const;
+export type ToolName = typeof TOOL_NAMES[number];
+/**
+ * read: looks and changes nothing. compute: the calculator, which answers with receipts. sandbox: agent-written code
+ * in a sandbox. handoff: asks a person and ends the turn. outside-write: only ever recorded for the owner's approval.
+ */
+export type ToolEffect = 'read' | 'compute' | 'sandbox' | 'handoff' | 'outside-write';
+/** One execution outcome type, as agentOS has it. */
+export type ExecutionOutcome = 'succeeded' | 'failed' | 'cancelled' | 'timedOut';
+export type ToolError = { code: string; name: string; message: string; details?: Json };
+/** What every tool returns to the agent: the agentOS host-function envelope. */
+export type ToolEnvelope = { ok: true; result: Json } | { ok: false; error: ToolError };
+export type ToolCallRecord = {
+  id: string;
+  turn: number;
+  tool: string; // as the model asked, even when unknown or refused
+  input: Json | null; // the parsed input; null when it did not parse
+  inputDigest: string;
+  envelope: ToolEnvelope;
+  outcome: ExecutionOutcome;
+  effect: ToolEffect | null; // null for an unknown tool
+  tier: ExecutionTier | null;
+  receiptIds: string[]; // work receipts this call made
+  tableIds: string[]; // tables this call made
+};
+export type AgentTurnRecord = {
+  turn: number;
+  step: 'act' | 'write';
+  note: string; // words only; never the model's private reasoning
+  calls: { tool: string; input: string }[];
+  finished: boolean;
+  forced: boolean; // the last allowed step: tools off, say what was found and what is left
+  by: 'model' | 'template';
+  callId: string | null;
+  costMicros: MicroString;
+};
+export type HandoffRequest = { to: 'client' | 'owner'; question: string; turn: number; answer: string | null; answeredBy: 'owner' | 'practice-client' | null };
+/** What a tool run proves. A draft may say work was done only when a proof of that kind exists. */
+export type ClaimProofKind = 'file-read' | 'transformed' | 'totals' | 'matched' | 'reconciled' | 'balanced';
+export type ClaimProof = { kind: ClaimProofKind; toolCallId: string; receiptId: string | null; tableId: string | null };
+export type HarnessLimits = {
+  maxTurns: number; // act turns before the forced last step
+  maxToolCalls: number;
+  maxCallsPerTurn: number;
+  maxCostMicros: MicroString; // this run's model spend cap, on top of the monthly limit
+  keepOutputs: number; // the newest tool results the model sees whole; older ones shrink to stubs
+  stubChars: number;
+};
+export type HarnessState = {
+  version: 1;
+  phase: 'act' | 'write' | 'needs-answer' | 'done' | 'stopped';
+  limits: HarnessLimits;
+  used: { turns: number; toolCalls: number; costMicros: MicroString };
+  grant: ToolName[]; // fixed from the playbook when the run starts; every other tool is refused
+  turns: AgentTurnRecord[];
+  toolCalls: ToolCallRecord[];
+  handoffs: HandoffRequest[];
+  uploadIds: string[];
+  tableIds: string[];
+  workReceiptIds: string[];
+  proofs: ClaimProof[];
+  sections: 'reply' | 'report'; // 'report' once a tool run proved a work product
+  stopReason: string | null; // plain words when the loop stopped early
+  mocks: MockEffect[]; // outside writes the agent proposed: recorded, never carried out
+};
+
+/** A file a client sent, kept in the vault. Its content is client data, except Chausar's made-up practice files. */
+export type UploadFormat = 'csv' | 'xlsx' | 'pdf';
+export type UploadRecord = RecordBase<'venture-upload'> & {
+  name: string;
+  format: UploadFormat;
+  bytes: number;
+  digest: string;
+  contentBase64: string;
+  scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string };
+  clientData: boolean;
+};
+export type UploadView = Omit<UploadRecord, 'contentBase64'>;
+
+/** Which run a table or a work receipt belongs to. */
+export type WorkRunRef =
+  | { kind: 'delivery'; runId: string }
+  | { kind: 'rehearsal'; scenarioId: string; episode: number }
+  | { kind: 'improvement'; runId: string; scenarioId: string };
+export type WorkTableRow = { id: string; cells: Record<string, string> };
+/** A table a tool made: a sandbox program's output, or bills picked from PDFs. Tables read from files are not stored. */
+export type WorkTableRecord = RecordBase<'venture-work-table'> & {
+  name: string;
+  columns: string[];
+  rows: WorkTableRow[];
+  source:
+    | { kind: 'transform'; fromTableId: string; tier: ExecutionTier; driver: string; programDigest: string; moduleDigest: string | null }
+    | { kind: 'picked'; uploadIds: string[] };
+  runRef: WorkRunRef;
+  digest: string;
+};
+/** 'total', 'opening', 'inflows', 'group-1' ... Each figure in a work receipt has a short key. */
+export type WorkFigureKey = string;
+export type WorkFigure = { key: WorkFigureKey; label: string; minor: MinorString; display: string; currency: string; unit: 'money' | 'count' };
+export type WorkStep = { op: 'add' | 'subtract' | 'count' | 'compare' | 'match'; inputs: string[]; result: string; rule: string };
+export type ReconciliationLine = { rowId: string; date: IsoDate | null; text: string; amountMinor: MinorString; display: string };
+export type Reconciliation = {
+  balanced: boolean; // the computed closing balance equals the statement's closing balance
+  statementClosing: boolean; // false when the statement had no balance column, so balanced could not be checked
+  matched: { bankRowId: string; billRowId: string; amountMinor: MinorString; display: string; bankText: string; billText: string; rule: 'agent-key' | 'bill-number' | 'amount-and-name' | 'amount-only' }[];
+  unmatchedBank: ReconciliationLine[]; // money out with no bill
+  unmatchedBills: ReconciliationLine[]; // bills with no payment in the statement
+  moneyIn: ReconciliationLine[];
+};
+/** The calculator's answer for agent work. Every money figure is BigInt arithmetic on amounts code read from the file. */
+export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile';
+  runRef: WorkRunRef;
+  currency: string;
+  inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
+  steps: WorkStep[];
+  figures: WorkFigure[];
+  reconciliation: Reconciliation | null;
+  allowedNumbers: string[];
+  explanation: string; // built by code from the figures
+  digest: string;
+};
+
+/** Where a failure is fixed. A wrong number is never fixed in a prompt: it points at the calculator's inputs. */
+export const ATTRIBUTION_LEVELS = ['harness', 'tools', 'dictionary', 'calculator'] as const;
+export type AttributionLevel = typeof ATTRIBUTION_LEVELS[number];
+export const PLAYBOOK_PATCH_OPS = ['guidance.add', 'guidance.remove', 'tools.grant', 'tools.revoke', 'checks.add', 'limits.turns', 'alias.add'] as const;
+export type PlaybookPatchOp = typeof PLAYBOOK_PATCH_OPS[number];
+export type PlaybookPatch = {
+  id: string;
+  level: AttributionLevel;
+  op: PlaybookPatchOp;
+  stepId: string;
+  value: string;
+  note: { hypothesis: string; expectedFixes: string[]; likelyRegressions: string[] };
+  proposedBy: 'model' | 'chausar';
+  parentHash: string;
+};
+export type ImprovementCase = { scenarioId: string; set: 'pool' | 'reserve' | 'rehearsal'; signalId: string | null };
+export type CaseScore = { passed: boolean; checksPassed: number; checksRun: number; judgeYes: number; critical: string | null; firstFailure: string | null };
+export type GateCase = { scenarioId: string; set: 'reserve' | 'rehearsal'; parent: CaseScore; candidate: CaseScore; winner: 'parent' | 'candidate' | 'tie' };
+export type GateResult = {
+  cases: GateCase[];
+  wins: number;
+  losses: number;
+  ties: number;
+  candidateCritical: number;
+  newBlockFailures: number;
+  decision: 'keep-candidate' | 'keep-parent';
+  reason: string;
+};
+export type Diagnosis = {
+  clusters: { reason: string; step: string; level: AttributionLevel; count: number }[];
+  chosen: { reason: string; step: string; level: AttributionLevel } | null;
+};
+export type ImprovementRound = {
+  round: number;
+  diagnosis: Diagnosis;
+  patch: PlaybookPatch | null;
+  refused: string | null; // why code refused the patch before any spend, or why the round stopped
+  candidateHash: string | null;
+  gate: GateResult | null;
+};
+export type ImprovementRunRecord = RecordBase<'venture-improvement-run'> & {
+  status: 'kept-candidate' | 'kept-parent' | 'incomplete';
+  parentPlaybookId: string;
+  parentHash: string;
+  candidatePlaybookId: string | null; // a new playbook version; the parent is never overwritten
+  frozen: { pool: ImprovementCase[]; reserve: ImprovementCase[]; rehearsal: ImprovementCase[]; digest: string };
+  rounds: ImprovementRound[];
+  maxRounds: number;
+  costMicros: MicroString;
+  costDisplay: string;
+  modelMode: 'model' | 'template' | 'mixed';
+  incompleteReason: string | null;
+  changes: string[]; // plain words for each change the candidate makes
+  digest: string; // what the owner approves to adopt the candidate
+};
+export type ImprovementStatus = {
+  readiness: ImprovementReadiness;
+  activePlaybookId: string | null;
+  latest: ImprovementRunRecord | null;
+  /** The newest kept candidate that is not adopted yet and still fits the current plan. */
+  candidate: { runId: string; playbookId: string; digest: string; changes: string[] } | null;
+};
+
+/** The container tier's process port: Docker only, injected by tests. Nothing else runs through it. */
+export type SandboxProcessRequest = { command: 'docker'; args: string[]; stdin: string; timeoutMs: number; maxOutputBytes: number };
+export type SandboxProcessResponse = { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean; truncated: boolean };
+export type SandboxPorts = { process?: (request: SandboxProcessRequest) => Promise<SandboxProcessResponse> };
+
+// ---------------------------------------------------------------------------
 // 9. Events (the venture actor's broadcast log)
 // ---------------------------------------------------------------------------
 
@@ -929,6 +1173,7 @@ export const VENTURE_EVENTS = [
   'price-quoted', 'client-added', 'order-created', 'order-delivered', 'invoice-prepared', 'invoice-issued', 'payment-recorded',
   'brief-ready', 'handoff-prepared', 'handoff-opened', 'repo-linked', 'repo-synced',
   'playbook-ready', 'simulation-finished', 'launch-stage-changed', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'signal-recorded',
+  'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; name: VentureEventName; data: Json };
@@ -937,7 +1182,8 @@ export type AnyVentureRecord =
   | VentureRecord | InterviewRecord | BlueprintRecord | TermRecord | ModelConnectionRecord | ModelCallRecord
   | PriceReceiptRecord | ClientRecord | OrderRecord | InvoiceRecord | PaymentRecord
   | BriefRecord | HandoffRecord | BuildFollowRecord | GitHubReadRecord
-  | PlaybookRecord | SimulationRunRecord | DeliveryRunRecord | SignalRecord | VentureEventRecord;
+  | PlaybookRecord | SimulationRunRecord | DeliveryRunRecord | SignalRecord | VentureEventRecord
+  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 // ---------------------------------------------------------------------------
@@ -965,6 +1211,9 @@ export const VENTURE_METHODS = [
   'venture.launch.status', 'venture.launch.advance',
   'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list',
   'venture.capabilities',
+  // P5 delivery harness: client files, hand-off answers, work receipts, the gated improvement loop
+  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get',
+  'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /** Answered without a vault, a model or any write. The engine routes them before its vault check. */
@@ -986,11 +1235,14 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.launch.status': 'delivery', 'venture.launch.advance': 'delivery',
   'venture.delivery.run': 'delivery', 'venture.delivery.approve': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
   'venture.capabilities': 'delivery',
+  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
+  'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
+  'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt',
 ] as const);
 /** Methods whose success changes what saved answers may cite; the renderer adds them to evidenceChanges. */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -1048,6 +1300,14 @@ export type VenturePayloads = {
   'venture.delivery.review': { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: DeliveryReason; editedText?: string };
   'venture.delivery.list': Empty;
   'venture.capabilities': Empty;
+  'venture.files.add': { orderId: string; name: string; contentBase64: string };
+  'venture.files.list': { orderId?: string };
+  'venture.delivery.answer': { runId: string; answer: string };
+  'venture.work.get': { id: string };
+  'venture.improve.status': Empty;
+  'venture.improve.run': { maxRounds?: number; useTemplate?: boolean };
+  'venture.improve.get': { runId: string };
+  'venture.improve.adopt': { runId: string; digest: string };
 };
 export type VentureResults = {
   'venture.countries': CountryProfile[];
@@ -1098,6 +1358,14 @@ export type VentureResults = {
   'venture.delivery.review': DeliveryRunView;
   'venture.delivery.list': DeliveryRunView[];
   'venture.capabilities': CapabilityStatus[];
+  'venture.files.add': UploadView;
+  'venture.files.list': UploadView[];
+  'venture.delivery.answer': DeliveryRunView;
+  'venture.work.get': WorkReceiptRecord;
+  'venture.improve.status': ImprovementStatus;
+  'venture.improve.run': ImprovementRunRecord;
+  'venture.improve.get': ImprovementRunRecord;
+  'venture.improve.adopt': PlaybookRecord;
 };
 
 /** Compile-time guards: payload and result maps cover exactly the method list. */
@@ -1124,6 +1392,9 @@ export const VENTURE_ERRORS = [
   'INVALID_EXTERNAL_URL', 'EXTERNAL_URL_NOT_ALLOWED',
   // The hosted web server's per-account rate limits (platform/runtime/hosted/limits.ts) reach model calls through the transport.
   'RATE_LIMITED',
+  'UPLOAD_NOT_FOUND', 'UPLOAD_LIMIT', 'UNSUPPORTED_UPLOAD', 'WORK_RECEIPT_NOT_FOUND', 'DELIVERY_NOT_ASKING',
+  'TOOL_DENIED', 'TOOL_INPUT_INVALID', 'TOOL_FAILED', 'TOOL_TIMEOUT', 'TOOL_SKIPPED', 'TIER_UNAVAILABLE', 'PROGRAM_INVALID', 'SANDBOX_FAILED', 'HARNESS_LIMIT',
+  'IMPROVEMENT_NOT_FOUND', 'IMPROVEMENT_NOT_READY', 'CANDIDATE_STALE',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -1146,6 +1417,8 @@ export type VentureEngineServices = {
   calculator: { calculate(ctx: Context, request: Record<string, unknown>): Promise<any>; receipt(ctx: Context, id: string): any };
   ontology: { current(ctx: Context): any; publish(ctx: Context, draft: any): Promise<any> };
   trust: { updatePolicy(ctx: Context, patch: Record<string, unknown>): Promise<any> };
+  /** The trusted Python helper (platform/runtime/helper.ts). Delivery agents use only its PDF text extraction, never on the hosted web server. */
+  helper?: { run(operation: 'pdf.extract', input: { pdfBase64: string; maxPages?: number }): Promise<{ result: any; receipt: any }> };
 };
 
 export type VentureStorage = 'experimental-file' | 'postgres';
@@ -1168,6 +1441,8 @@ export type VentureDeps = {
   host: VentureHostKind;
   demo: boolean;
   storage: VentureStorage; // 'experimental-file' means every money screen shows the experimental notice
+  /** The container tier's Docker port. Absent means the real one, which spawns docker only when Docker is present, and never on the hosted web server. */
+  sandbox?: SandboxPorts;
 };
 
 export type VentureHandler<M extends VentureMethod> = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<VentureResults[M]>;
@@ -1196,4 +1471,5 @@ export type VentureHostOptions = {
   host?: VentureHostKind;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
   hostProcess?: (request: any) => Promise<any>; // the trusted host's verified process port (the gateway's process), when present
+  sandbox?: SandboxPorts; // tests inject a Docker port; the real one is used otherwise
 };

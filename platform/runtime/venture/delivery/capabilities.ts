@@ -3,6 +3,7 @@
 import { authorize, type Context } from '../../contracts.ts';
 import { exactPayload } from '../records.ts';
 import type { CapabilityState, CapabilityStatus, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureHostKind, VentureStorage } from '../contracts.ts';
+import { cachedContainerAvailability, HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS, WASM_LITE_REASON, type TierAvailability } from './harness/sandbox.ts';
 
 export const EXPERIMENTAL_STORAGE_NOTICE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 export const TEMPLATES_REASON = 'No AI connected; built-in templates write outlines.';
@@ -27,11 +28,15 @@ function modelRow(tier: ModelTier, status: ModelStatusView | undefined, presets:
   return { id, group: 'models', label, state: SERVING_STATE[serving.presetId] ?? 'unverified', reason: serving.reason };
 }
 
+export const CONTAINER_NOT_CHECKED = 'Chausar has not checked this computer for Docker yet.';
+
 /**
- * The capability list, in a fixed order. Without a model status both model rows say they need setup. On the hosted
- * web server ('hosted-web') the hosted rows say experimental, and what never runs on a shared server says so.
+ * The capability list, in a fixed order. Without a model status both model rows say they need setup. Without a
+ * container check the container row says it was not checked; the handler always checks, except on the hosted web
+ * server. There ('hosted-web') the hosted rows say experimental, and what never runs on a shared server says so: no
+ * containers, no agent-written code, no plugins and no PDF reading.
  */
-export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[], host: VentureHostKind = 'desktop'): CapabilityStatus[] {
+export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[], container?: TierAvailability, host: VentureHostKind = 'desktop'): CapabilityStatus[] {
   const row = (id: string, group: CapabilityStatus['group'], label: string, state: CapabilityState, reason: string): CapabilityStatus => ({ id, group, label, state, reason });
   const hosted = host === 'hosted-web';
   return [
@@ -43,29 +48,35 @@ export function capabilityList(platform: string, modelStatus?: ModelStatusView, 
     hosted
       ? row('hosted-actors', 'runtime', 'Hosted business actors', 'unverified', 'Experimental: one actor per business on this server. Not yet tested on a real deploy.')
       : row('hosted-actors', 'runtime', 'Hosted business actors', 'planned', 'The hosted web tier is written but not deployed; Rivet Actors are the candidate runtime.'),
-    row('tier-code', 'runtime', 'Code steps', 'available', 'Runs inside Chausar. No tools and no agent-written code. Not a sandbox.'),
-    row('tier-actor', 'runtime', 'Agent drafting', 'available', 'Model calls and drafting inside Chausar. No tools and no agent-written code. Not a sandbox.'),
+    row('tier-code', 'runtime', 'Code steps', 'available', 'The calculator, the checks and the agent loop run inside Chausar. Not a sandbox.'),
+    row('tier-actor', 'runtime', 'Agent turns', 'available', 'Agents call tools in a loop with limits on turns, tool calls and spend. On a real order each turn waits for you to approve its exact text. Not a sandbox.'),
+    row('improvement-loop', 'runtime', 'Improvement loop', 'available', 'Tries one playbook change at a time on your held-back cases and practice clients, and keeps it only if it wins. You adopt each change.'),
     storage === 'experimental-file'
       ? row('durable-storage', 'storage', 'Durable storage', 'planned', EXPERIMENTAL_STORAGE_NOTICE)
       : hosted
         ? row('durable-storage', 'storage', 'Durable storage', 'unverified', "Experimental: PostgreSQL on this server, not yet tested on a real deploy. Practise here; don't issue real invoices yet.")
         : row('durable-storage', 'storage', 'Durable storage', 'available', 'PostgreSQL storage.'),
     hosted
-      ? row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'unavailable', 'The hosted web app runs no plugins. The desktop app has the back office sandbox.')
-      : row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'available', 'The back office plugin sandbox. Delivery agents do not use it yet.'),
+      ? row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'unavailable', HOSTED_NO_AGENT_CODE)
+      : row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'available', WASM_LITE_REASON),
     platform === 'win32'
       ? row('tier-wasm', 'sandbox', 'Full sandbox', 'unavailable', 'Not available on Windows yet.')
       : row('tier-wasm', 'sandbox', 'Full sandbox', 'planned', 'Planned: agentOS.'),
     hosted
-      ? row('tier-container', 'sandbox', 'Containers', 'unavailable', 'Containers never run on the shared hosted server.')
-      : row('tier-container', 'sandbox', 'Containers', 'planned', 'Needs Docker Desktop.'),
+      ? row('tier-container', 'sandbox', 'Containers', 'unavailable', HOSTED_NO_CONTAINERS)
+      : row('tier-container', 'sandbox', 'Containers', container?.state ?? 'unverified', container?.reason ?? CONTAINER_NOT_CHECKED),
     row('tier-hosted', 'sandbox', 'Hosted sandboxes', 'planned', 'Needs your own E2B, Sail or Cloudflare account.'),
     modelRow('fast', modelStatus, presets),
     modelRow('main', modelStatus, presets),
-    row('agent-tools', 'connectors', 'Agent tools', 'planned', "Agents can't read files, inboxes or the web yet; they draft from the client's message."),
+    hosted
+      ? row('agent-tools', 'connectors', 'Agent tools', 'available', "Agents read the CSV and XLSX files you add to an order, search your business dictionary, use the calculator and hand questions back to you. On this server they can't read PDFs or run code they write, and they can't read inboxes or the web.")
+      : row('agent-tools', 'connectors', 'Agent tools', 'available', "Agents read the files you add to an order (CSV and XLSX; PDF text through Chausar's Python helper), search your business dictionary, use the calculator and hand questions back to you. They can't read inboxes or the web."),
+    hosted
+      ? row('work-products', 'connectors', 'Work products', 'available', 'Bookkeeping: a reconciled month from a bank statement and bills in CSV or XLSX, with receipts. Other service types get replies; their hands-on work stays with you.')
+      : row('work-products', 'connectors', 'Work products', 'available', 'Bookkeeping: a reconciled month from a bank statement and bills, with receipts. Other service types get replies; their hands-on work stays with you.'),
     row('handoff-links', 'connectors', 'Builder handoffs', 'available', 'Lovable and Replit open with your brief; Bolt and v0 get it copied.'),
     row('github-read', 'connectors', 'GitHub reading', 'available', 'Tested on recordings, not yet on a live account.'),
-    row('outside-writes', 'connectors', 'Outside writes', 'planned', 'Payment links, email and posts wait for a later build.'),
+    row('outside-writes', 'connectors', 'Outside writes', 'planned', 'Payment links, email and posts wait for a later build. Agents never hold them.'),
   ];
 }
 
@@ -76,5 +87,7 @@ export async function capabilitiesHandler(deps: VentureDeps, ctx: Context, paylo
   let presets: ModelPreset[] | undefined;
   try { status = deps.models.status(ctx); } catch { status = undefined; }
   try { presets = deps.models.presets(); } catch { presets = undefined; }
-  return capabilityList(process.platform, status, deps.storage, presets, deps.host);
+  // The hosted server never checks for Docker: containers never run there, so there is nothing to look for.
+  const container = deps.host === 'hosted-web' ? undefined : await cachedContainerAvailability(deps.sandbox, deps.clock().getTime());
+  return capabilityList(process.platform, status, deps.storage, presets, container, deps.host);
 }

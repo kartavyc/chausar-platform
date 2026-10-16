@@ -1,8 +1,10 @@
 // Chausar venture launcher, delivery package (P5): deterministic checks on a draft reply.
 // Code checks run before any judge. Each returns a plain sentence the owner can read.
-import { assertNoNumbers, doneClaimFindings, houseStyleFindings } from '../records.ts';
+import { assertNoNumbers, doneClaimMatches, houseStyleFindings } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
-import type { CheckId, CheckResult, Deliverable, MockEffect, PriceReceiptRecord, ServiceType } from '../contracts.ts';
+import type { CheckId, CheckResult, ClaimProof, Deliverable, MockEffect, ServiceType } from '../contracts.ts';
+import type { AnyReceipt } from './deliverable.ts';
+import { claimBacked } from './harness/claims.ts';
 import { quote } from './shared.ts';
 
 export const MIN_DRAFT_CHARS = 40;
@@ -15,8 +17,8 @@ export type CheckInput = {
   serviceType: ServiceType;
   /** Tokens with a letter and a digit copied from the client's message and the idea (copiedTokens). */
   allowed: readonly string[];
-  /** Every price receipt of this venture. */
-  receipts: readonly PriceReceiptRecord[];
+  /** Every price receipt of this venture, and the work receipts of this run. */
+  receipts: readonly AnyReceipt[];
   ventureId: string;
   /** Outside effects of the episode, and the mock mode each connector operation was given. */
   mocks: readonly MockEffect[];
@@ -25,6 +27,10 @@ export type CheckInput = {
   turnLimit: number;
   /** True when at least one agent draft in the episode asked the client a question. */
   askedQuestions: boolean;
+  /** The headings the draft needed: the service type's reply headings unless the run reported proven work. */
+  sections?: readonly string[];
+  /** What tool runs proved. A done claim passes only when a proof of its kind exists; none means the client's message only. */
+  proofs?: readonly ClaimProof[];
 };
 
 /** Every piece of model words in a draft: the title, each text part and each question. */
@@ -58,7 +64,7 @@ function figuresResolve(input: CheckInput): CheckResult {
 
 function requiredSections(input: CheckInput): CheckResult {
   const present = new Set(input.deliverable.sections.map(section => section.heading));
-  const missing = REQUIRED_SECTIONS[input.serviceType].filter(heading => !present.has(heading));
+  const missing = (input.sections ?? REQUIRED_SECTIONS[input.serviceType]).filter(heading => !present.has(heading));
   return missing.length
     ? { check: 'required-sections', passed: false, detail: `Missing sections: ${missing.join(', ')}.` }
     : { check: 'required-sections', passed: true, detail: 'Every required section is there.' };
@@ -98,11 +104,17 @@ function questionsRaised(input: CheckInput): CheckResult {
 }
 
 function noDoneClaims(input: CheckInput): CheckResult {
+  const proofs = input.proofs ?? [];
+  let backed = 0;
   for (const piece of wordPieces(input.deliverable)) {
-    const found = doneClaimFindings(piece);
-    if (found.length) return { check: 'no-done-claims', passed: false, detail: `The draft claims work that was not done: "${quote(found[0])}"` };
+    for (const claim of doneClaimMatches(piece)) {
+      if (!claimBacked(claim, proofs)) return { check: 'no-done-claims', passed: false, detail: `The draft claims work that was not done: "${quote(claim)}"` };
+      backed += 1;
+    }
   }
-  return { check: 'no-done-claims', passed: true, detail: 'The draft describes work ahead and never claims it is done.' };
+  return backed
+    ? { check: 'no-done-claims', passed: true, detail: 'Every claim of finished work matches a tool run that proves it.' }
+    : { check: 'no-done-claims', passed: true, detail: 'The draft describes work ahead and never claims it is done.' };
 }
 
 const RUNNERS: Readonly<Record<CheckId, (input: CheckInput) => CheckResult>> = {

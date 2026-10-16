@@ -1,6 +1,6 @@
 # Hosted web tier (experimental)
 
-The hosted web tier lets someone use Chausar in a browser without installing anything: they sign in with their email or a passkey, and the server keeps their businesses. It is written as code on branch `b2c/hosted-web`, with PostgreSQL storage added on `b2c/hosted-postgres`, and tested on one computer. **Nothing is deployed.** Every hosted feature is labelled experimental until a real deploy has been tested, and the screens say so.
+The hosted web tier lets someone use Chausar in a browser without installing anything: they sign in with their email or a passkey, and the server keeps their businesses. It is written as code on branch `b2c/hosted-web`, with PostgreSQL storage added on `b2c/hosted-postgres` and the delivery harness joined on `b2c/integrate`, and tested on one computer. **Nothing is deployed.** Every hosted feature is labelled experimental until a real deploy has been tested, and the screens say so.
 
 The desktop app and local web mode (`npm start`) are unchanged. Hosted mode is a separate server that starts only when asked.
 
@@ -150,6 +150,24 @@ The cost is one more process to run and watch, and its TLS settings have to be c
 
 Key-only. The two command-line options (Claude Code and Codex) say "Runs only in the desktop app" and can't be connected; the hosted transport refuses to start any process. Keys live in the server's memory only, never on its disk, and go when the business sleeps.
 
+## Delivery agents on the hosted server
+
+The delivery harness ([harness.md](harness.md)) runs here too. Agents work on the files the owner adds to an order with tools in a bounded loop, each turn of a real order waits for the owner's approval of its exact text, and the improvement loop rehearses on the practice clients. The calculator, the checks, the dictionary and reading CSV and XLSX all run inside the business's engine, so none of them starts a process. Everything that would start one is off:
+
+| Part | On the hosted server | Why |
+|---|---|---|
+| CSV and XLSX files | Read by code in the engine | Nothing to start |
+| PDF files | Refused when added (`TIER_UNAVAILABLE`); PDF text is never read here | Reading it needs Chausar's Python helper, which never runs on a shared server |
+| Row programs (`sandbox.transform`) | Refused (`TIER_UNAVAILABLE`); the agent isn't offered the tool | Off until the founder decides whether agent-written code may run on a shared server |
+| Python in a container (`sandbox.python`) | Refused (`TIER_UNAVAILABLE`); not offered; nothing checks for Docker | Containers never run on a shared server |
+| Bills picked from PDFs (`bills.pick`) | Refused (`TIER_UNAVAILABLE`); not offered | Needs PDF text |
+
+A playbook keeps the tools it grants. The host decides only what the agent is offered and what runs: a call to a refused tool comes back to the agent as a `TIER_UNAVAILABLE` envelope with the reason, before its input is read. The capability list's light sandbox and container rows use the same words, and its agent tools row says PDFs and agent-written code are off here.
+
+Bookkeeping's work product still works here. `books.reconcile` reads the bank statement and the bills from CSV or XLSX with code and adds with BigInt, so a reconciled month needs no sandbox. Without row programs the agent can't make its own match keys, so matching uses the other three passes: a bill number in the bank text, the same amount and the supplier's name, then an amount that is unique on both sides. A test runs a real order on a hosted host this way: the agent reads both files, its row program and Python calls are refused, and the month reconciles and balances with receipts.
+
+One more limit comes from the server itself: a request body is at most 256 KB, so a file added here can be at most about 190 KB (it travels base64 encoded), against 1.45 MB on the desktop. A larger one is refused with `REQUEST_TOO_LARGE` before it reaches the engine.
+
 ## Limits
 
 | Limit | Default | Where |
@@ -176,9 +194,9 @@ The front page signs in and lists businesses. `/api/rpc` accepts only:
 
 - `venture.countries` and `venture.preview`, before any business;
 - `workspace.status`, `workspace.create` (a name only), `workspace.open` (a business id from the list), `workspace.lock`, `workspace.delete` (the exact name);
-- every other venture method, and `receipts.get`.
+- every other venture method, the delivery harness's included (with the limits in [Delivery agents on the hosted server](#delivery-agents-on-the-hosted-server)), and `receipts.get`.
 
-Everything else answers `HOSTED_NOT_AVAILABLE`: backups and exports to the server's disk, file imports, plugins, the Python helper, MCP, the conversation views and the rest of the back office. Those stay in the desktop app.
+Everything else answers `HOSTED_NOT_AVAILABLE`: backups and exports to the server's disk, the back office's file imports, plugins, the Python helper, MCP, the conversation views and the rest of the back office. Those stay in the desktop app.
 
 ## Honest labels
 
@@ -191,7 +209,9 @@ Everything else answers `HOSTED_NOT_AVAILABLE`: backups and exports to the serve
 | Passkeys | experimental | Checked with a software authenticator in tests, not yet with real devices on a real domain |
 | Rivet Actors adapter | planned | In-memory stand-in only |
 | Schedules, cron, queues, workflows | planned | No venture action needs them yet |
-| Containers and plugins | unavailable on hosted | Never on a shared server |
+| Containers and plugins | unavailable on hosted | Never on a shared server; nothing checks for Docker there |
+| Agent-written code (the light sandbox) | unavailable on hosted | Off until the founder decides; the desktop app runs it |
+| PDF reading (the Python helper) | unavailable on hosted | The helper never runs on a shared server, so PDFs are refused when added |
 | Command-line AI | unavailable on hosted | Desktop only |
 
 ## What a real deploy needs
@@ -239,6 +259,7 @@ On Windows with Node 24.13.1, with no network beyond this computer's loopback an
 - Not run: the tests marked "real PostgreSQL" (two in `hosted-postgres.test.ts`, six in `hosted-runtime.test.ts`). This computer has no PostgreSQL server and the repo's `node_modules` (with `pg`) is not installed, so they skip with a reason. They need a run against a disposable database before the PostgreSQL path is trusted.
 - `hosted-server.test.ts`: the server over real sockets: headers, host and origin checks, cookies, the bearer, the allow-list, two tenants that never meet, the event stream, limits, and the venture journey from the idea to an accepted plan with the synthetic recordings, the cost reaching the account ledger.
 - The full typecheck with `typescript@5.9.3` against the repo `tsconfig.json`, and `node scripts/check.mjs` (487 files with the PostgreSQL work): both clean.
+- After the delivery harness was merged in (branch `b2c/integrate`): `node scripts/check.mjs` (504 files) and the full typecheck, both clean; every `venture-*.test.ts` and `hosted-*.test.ts` file run one after another, 315 tests, 307 pass, 0 fail, 8 skipped (the real PostgreSQL tests); and the parity and shell files (`desktop-harness`, `desktop-ipc-methods`, `desktop-renderer`, `desktop-main`, `desktop-packaging`, `server`), 57 of 57. New tests check that on a hosted host nothing checks for Docker, row programs, Python, containers and PDFs are refused with `TIER_UNAVAILABLE` and not offered, the capability rows use the same words, and a real bookkeeping order reconciles from CSV. Removing any one of those guards on purpose fails at least one of them. The whole suite was not run after the merge.
 - One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else running. On `b2c/hosted-web`: 2,777 tests, 2,776 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 22 minutes. On `b2c/hosted-postgres`: 2,802 tests, 2,793 pass, 0 fail, 9 skipped (that DuckDB proof and the eight real PostgreSQL tests), in about 26 minutes.
 - `npm run start:hosted` with the recordings, in the browser: an email link from the console signed in; the front page listed no business, then started one; the shared app asked for a working name only, made the vault on the server and showed the recovery code once; the seven places opened with no back office and "Hosted, experimental"; a reload kept the session; the command-line AI rows said desktop only and a back office request answered `HOSTED_NOT_AVAILABLE`. At 375 px the front page fit. Passkeys were not tried in the browser: that would raise the computer's own passkey prompt, so they are checked with the software authenticator only.
 

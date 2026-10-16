@@ -176,6 +176,9 @@ for (const kind of ['local', 'rivet', 'local-postgres', 'local-real-postgres'] a
     const capabilities = await actor.action('venture.capabilities', {}, web) as any[];
     assert.equal(capabilities.find(row => row.id === 'hosted-actors').state, 'unverified');
     assert.equal(capabilities.find(row => row.id === 'tier-container').state, 'unavailable');
+    // Agent-written code and PDF reading stay off on a shared server (the delivery harness refuses them there too).
+    assert.equal(capabilities.find(row => row.id === 'tier-wasm-lite').state, 'unavailable');
+    assert.match(capabilities.find(row => row.id === 'agent-tools').reason, /can't read PDFs or run code they write/);
     // File storage says planned; PostgreSQL on the hosted server says experimental until a real deploy is tested.
     assert.equal(capabilities.find(row => row.id === 'durable-storage').state, kind.endsWith('postgres') ? 'unverified' : 'planned');
   });

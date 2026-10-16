@@ -3,6 +3,7 @@
 // Scenario words hold no digits and never copy a real client's request.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { listRecords } from '../records.ts';
+import { practiceFileNames } from './harness/practice.ts';
 import type { State } from '../../contracts.ts';
 import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, SignalRecord } from '../contracts.ts';
 
@@ -157,12 +158,14 @@ export const PRACTICE_CLIENTS: Readonly<Record<ServiceType, TypeScenarios>> = Ob
 export function scenariosFor(type: ServiceType): Scenario[] {
   return SCENARIO_KINDS.map(kind => {
     const client = PRACTICE_CLIENTS[type][kind];
-    return {
+    const scenario: Scenario = {
       id: `${type}-${kind}`, serviceType: type, title: TITLES[kind], persona: client.persona, brief: client.brief,
       expectedOutcome: client.expectedOutcome, stoppingCriteria: ['deliverable-ready', 'client-asks-for-person', 'turn-limit'],
       turnLimit: 2, episodes: 1, mocks: { ...MOCKS }, checks: [...(kind === 'messy' ? MESSY_CHECKS : BASE_CHECKS)],
       source: 'template', signalId: null,
     };
+    const files = practiceFileNames(scenario);
+    return files.length ? { ...scenario, files } : scenario;
   });
 }
 
@@ -210,6 +213,7 @@ export function signalScenario(signal: SignalRecord, type: ServiceType): Scenari
     checks: CHECK_IDS.filter(id => focus.has(id)),
     source: 'signal',
     signalId: signal.id,
+    ...(practiceFileNames({ id: messy.id, serviceType: type, source: 'signal' }).length ? { files: practiceFileNames({ id: messy.id, serviceType: type, source: 'signal' }) } : {}),
   };
 }
 

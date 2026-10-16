@@ -5,14 +5,15 @@ import { modelWords } from '../records.ts';
 import { JUDGE_QUESTIONS } from '../contracts.ts';
 import type { JudgeAnswer, JudgeQuestionId, ModelTask } from '../contracts.ts';
 
-export const JUDGE_POLICY = 'Never promise a price, a date or a result that is not in the plan. Never claim work was done: the agent only had the client message.';
+export const JUDGE_POLICY = 'Never promise a price, a date or a result that is not in the plan. Never claim work was done unless the proven list shows it.';
 export const NOT_JUDGED_REASON = 'No AI judge connected.';
 
 export const JUDGE_INSTRUCTIONS = 'You check a practice reply that an agent drafted for a made-up client of a small service business. '
   + 'Answer each question with yes, no or unsure, and give one short reason. '
   + 'goal-met: does the draft serve the expected outcome? tone-fits: does the tone suit this client? '
-  + 'policy-followed: does the draft follow the policy? no-unbacked-claims: does the draft avoid claiming any work was already done? '
-  + 'The agent only had the client message, so a draft that says it read, checked, matched, sent or finished anything gets no for no-unbacked-claims. '
+  + 'policy-followed: does the draft follow the policy? no-unbacked-claims: does the draft avoid claiming work that the proven list does not show? '
+  + 'With an empty proven list the agent only had the client message, so a draft that says it read, checked, matched, sent or finished anything gets no for no-unbacked-claims. '
+  + 'Nothing is ever sent or filed for the client, so a claim of sending or filing always gets no. '
   + 'Prices and dates appear as placeholders that Chausar fills in; never judge their amounts. Never write digits. Plain words, no dashes.';
 
 const JUDGE_SCHEMA = {
@@ -27,7 +28,8 @@ const JUDGE_SCHEMA = {
   },
 };
 
-export type JudgeInput = { expectedOutcome: string; persona: string; draft: string; figureLabels: string[] };
+/** proven: plain sentences, words only, on what tool runs did; empty when the agent only had the client message. */
+export type JudgeInput = { expectedOutcome: string; persona: string; draft: string; figureLabels: string[]; proven?: string[] };
 type RawAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure'; reason: string };
 
 /** Exactly one answer per judge question, in the fixed order; reasons go through the number guard. */
@@ -52,7 +54,7 @@ export function judgeTask(input: JudgeInput): ModelTask<RawAnswer[]> {
   return {
     purpose: 'judge',
     instructions: JUDGE_INSTRUCTIONS,
-    input: { expectedOutcome: input.expectedOutcome, persona: input.persona, policy: JUDGE_POLICY, draft: input.draft, figureLabels: [...input.figureLabels] },
+    input: { expectedOutcome: input.expectedOutcome, persona: input.persona, policy: JUDGE_POLICY, draft: input.draft, figureLabels: [...input.figureLabels], proven: [...(input.proven ?? [])] },
     schemaName: 'venture-judge',
     schema: JUDGE_SCHEMA,
     validate: validateJudge,

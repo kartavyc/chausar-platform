@@ -72,7 +72,7 @@ globalThis.ChausarLaunch = Object.freeze({
       if (run?.status === 'waiting-for-you') return true;
       return run?.status === 'ready-for-review' && (!practiceDraft(run, stage) || stage === 'shadow');
     }
-    const RUN_WORDS = { 'waiting-for-you': 'to approve', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
+    const RUN_WORDS = { 'waiting-for-you': 'to approve', 'needs-answer': 'to answer', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
     const ORDER_WORDS = { open: 'open', invoiced: 'invoiced', delivered: 'delivered', cancelled: 'cancelled' };
     const BUILD_WORDS = {
       'waiting-for-repo': 'Waiting for the repo', 'repo-connected': 'Repo connected', 'builder-making-changes': 'The builder is making changes',
