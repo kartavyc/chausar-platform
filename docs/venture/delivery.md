@@ -2,7 +2,7 @@
 
 This package is how agents help with client work in this build: a playbook they follow, practice runs with made-up clients, a launch ladder, draft replies to real orders, and an honest list of what the build can do.
 
-One rule shapes all of it. An agent here only has the client's message. It has not opened a file, an inbox, an account or a website, so it drafts and promises; it never reports work as done. A check refuses any sentence like "we matched each entry" or "your books are reconciled", and the judge asks the same question.
+One rule shapes all of it: a draft may say work was done only when a tool run proved it. With no files, an agent has only the client's message, so it drafts and promises and never reports work as done; a check refuses any sentence like "we matched each entry" or "your books are reconciled", and the judge asks the same question. With files, the agent works through them with tools in a bounded loop, and a claim passes only when a tool run of the matching kind backs it. The loop, the tools, the sandbox, the work products and the improvement loop are described in [harness.md](harness.md).
 
 ## Files
 
@@ -18,27 +18,30 @@ One rule shapes all of it. An agent here only has the client's message. It has n
 | `launch.ts` | The launch ladder: `venture.launch.status` and `.advance` |
 | `runs.ts` | Real orders: `venture.delivery.run`, `.approve`, `.review` and `.list` |
 | `capabilities.ts` | `capabilityList` and `venture.capabilities` |
+| `improve.ts` | The gated improvement loop: `venture.improve.status`, `.run`, `.get` and `.adopt` |
+| `harness/` | The delivery harness: tools, the agent loop, client files, the work calculator, the dictionary, the sandbox tiers ([harness.md](harness.md)) |
 | `shared.ts` | Small read helpers |
 
-Tests: `platform/tests/venture-delivery.test.ts`, with synthetic recordings in `platform/tests/fixtures/venture/delivery/`.
+Tests: `platform/tests/venture-delivery.test.ts`, with synthetic recordings in `platform/tests/fixtures/venture/delivery/`, and `venture-harness.test.ts` and `venture-harness-runs.test.ts` for the harness.
 
 ## The playbook
 
-`venture.delivery.playbook` builds the playbook from the accepted plan. It needs an accepted plan (`BLUEPRINT_NOT_ACCEPTED`). If the newest playbook was built from the same plan digest, it is returned as it is; otherwise a new version is validated, stored, linked from the venture record, and `playbook-ready` is emitted.
+`venture.delivery.playbook` returns the playbook the business uses: the one the venture record points at. It needs an accepted plan (`BLUEPRINT_NOT_ACCEPTED`). When that playbook was built from the same plan digest in the harness format, it is returned as it is; otherwise a new version is built from the plan, the patches the owner adopted are applied again where they still fit, and the version is validated, stored, linked from the venture record, and `playbook-ready` is emitted. Versions are never overwritten.
 
-| Step | Kind | Tier | Model | Done by | Checks |
-| --- | --- | --- | --- | --- | --- |
-| gather | gather | actor | fast | agent | |
-| clarify | question | actor | fast | agent | questions-raised |
-| price | compute | code | none | agent | figures-resolve |
-| draft (the plan's step 3 title) | write | actor | main | agent | the six draft checks |
-| verify | verify | code | none | agent | every check except questions-raised and turn-limit |
-| approve | approve | code | none | you | |
-| send | operator | code | none | you | no-outside-writes |
+| Step | Kind | Tier | Model | Done by | Tools | Checks |
+| --- | --- | --- | --- | --- | --- | --- |
+| gather | gather | actor | fast | agent | files, dictionary, hand-offs | |
+| clarify | question | actor | fast | agent | dictionary.resolve, hand-offs | questions-raised |
+| work (the plan's step 2 title) | work | wasm-lite | fast | agent | calculator, reconcile, bills, sandbox, hand-offs | |
+| price | compute | code | none | agent | | figures-resolve |
+| draft (the plan's step 3 title) | write | actor | main | agent | none: tools off | the six draft checks |
+| verify | verify | code | none | agent | | every check except questions-raised and turn-limit |
+| approve | approve | code | none | you | | |
+| send | operator | code | none | you | | no-outside-writes |
 
-In this build the gather, clarify and draft steps run as **one** delivery model call over the client's message only. Steps 1, 2 and 4 of the plan (collect the files, do the hands-on work, send) stay with the owner, marked `planned: agent` by the plan's `STEP_PLAN`. The send step is the owner copying an accepted draft; Chausar sends nothing.
+With no files the gather, clarify and draft steps still run as **one** delivery model call over the client's message. With files they run as the agent loop in [harness.md](harness.md): act turns that call the agent steps' tools, then the write step. Collecting files from the client and sending stay with the owner; the send step is the owner copying an accepted draft, and Chausar sends nothing. Each step can carry guidance lines that the improvement loop adds and removes; the writing step's guidance reaches the drafting model.
 
-`validatePlaybook` refuses duplicate ids, a code, approval or operator step with a model, any tier above `actor` (sandboxes are planned), a writing step without required sections or without the done-claim check, and an operator step that comes before an approval step. The hash is the digest of the steps, and every rehearsal and real run records it.
+`validatePlaybook` refuses duplicate ids, a code, approval or operator step with a model, a work step without one, a tier above `container` or one that is planned (`wasm`, `hosted`), an unknown tool, tools on any step that is not an agent step (the writing step has them off), any outside-write tool, a writing step without required sections or without the done-claim check, and an operator step that comes before an approval step. The hash covers the steps, the limits and the dictionary words, and every rehearsal and real run records it.
 
 ## Draft replies
 
@@ -57,9 +60,13 @@ The template outline is what runs when no AI serves the drafting tier: one sente
 
 `no-numeric-prose`, `figures-resolve`, `required-sections`, `no-outside-writes`, `house-style`, `length-bounds` (40 to 12,000 characters), `turn-limit`, `questions-raised` and `no-done-claims`. Each returns a plain sentence. `no-outside-writes` always passes in this build, and its sentence says why: every outside effect is only recorded.
 
+With the harness, `figures-resolve` also accepts the run's work receipts, `required-sections` asks for the report headings (Summary, What we did, What needs your answer, Next steps) once a tool run proved a work product, and `no-done-claims` passes a claim only when a tool run proved that kind of work (the table is in [harness.md](harness.md)). House style and length are checked on the agent's words; the reconciliation Chausar attaches is code-rendered from a receipt and holds client text, so it is left out of those two.
+
 ## Rehearsal
 
-`venture.simulation.run { scenarioIds?, episodes?, useTemplate? }` builds the playbook first (its own transaction), then for each practice client: a client turn, an agent draft, and, when the draft asked questions, one more client turn and one more draft. What would have been sent is recorded as a mock effect (a digest, never sent). Then the checks, then the judge when a model serves the fast tier. Every model call runs outside any transaction; one transaction stores the run at the end, moves the venture from `build` to `rehearsal`, and emits `simulation-finished`. With one practice client per request, a request makes at most five model calls.
+`venture.simulation.run { scenarioIds?, episodes?, useTemplate? }` builds the playbook first (its own transaction), then for each practice client: a client turn, an agent draft, and, when the draft asked questions, one more client turn and one more draft. What would have been sent is recorded as a mock effect (a digest, never sent). Then the checks, then the judge when a model serves the fast tier. Every model call runs outside any transaction; one transaction stores the run at the end, moves the venture from `build` to `rehearsal`, and emits `simulation-finished`. With one practice client per request and no practice files, a request makes at most five model calls.
+
+Bookkeeping's clean and messy practice clients send practice files. When an AI serves quick work, their episodes run the agent loop instead: the client turn, up to four act turns, a practice client answer for each hand-off while the scenario's turns allow, the write step and the judge, so at most nine model calls. The tables and work receipts the tools made are stored with the run, and the episode keeps the loop's record (`harness`).
 
 Costs come from the model port's outcomes and are summed with BigInt. When any outcome came from an unconfirmed price table, the display ends with "(estimate, price unconfirmed)".
 
@@ -85,7 +92,7 @@ When shadow is closed, the reason says why, in words that match what the rehears
 
 ## Real orders
 
-`venture.delivery.run { orderId, useTemplate? }` decides first whether a template or a model will write, so a blocked request stores nothing. A template outline works at any stage and is ready at once. An agent draft needs shadow or approve each; it stores the exact text the model will receive and waits.
+`venture.delivery.run { orderId, useTemplate? }` decides first whether a template or a model will write, so a blocked request stores nothing. A template outline works at any stage and is ready at once. An agent draft needs shadow or approve each; it stores the exact text the model will receive and waits. When the order has files (`venture.files.add`), the run is the agent loop: each turn waits for approval of its exact text, a hand-off waits in `needs-answer` for `venture.delivery.answer`, and the last approval stores the report with its reconciliation attached. The stage rules below apply to every turn.
 
 `venture.delivery.approve { runId, digest }` reads the waiting draft outside any transaction, then asks the model port to send the approved text once (the port claims the call first, so two approvals send once). The draft is rendered and checked, and one action stores it. A failed check stores a `check-failed` signal. Before anything is sent, approve refuses with `LAUNCH_STAGE_BLOCKED` unless the stage is shadow or approve each now, so a draft made at approve each and approved after a move down to rehearsal never reaches the model. The store step checks the stage again (it can move while the call is out): at shadow the answer is stored as a practice draft whatever the stage was when the draft was made; at rehearsal nothing is stored and the run is marked `failed`.
 

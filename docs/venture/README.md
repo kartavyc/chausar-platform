@@ -58,7 +58,7 @@ $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tes
 | Synthetic recording | A hand-written answer shaped like a real one. Every model and Build screen says so when one is in use. |
 | Practice draft | A draft made at the shadow stage. It can't be copied, saved or accepted. |
 
-Agents in this build only draft a reply from the client's message. Collecting files, doing the hands-on work and sending stay with the owner, marked `planned: agent`.
+Agents work on the files the owner adds to an order with tools in a bounded loop, and each turn on a real order waits for the owner's approval of its exact text. For bookkeeping they reconcile a month from a bank statement and bills, with receipts; other service types get replies. Agent-written code runs in the light sandbox (WebAssembly, on every computer) or in Docker where it is set up. A draft may say work was done only when a tool run proved it. Collecting files from clients and sending stay with the owner. See [harness.md](harness.md).
 
 ## Experimental storage
 
@@ -66,7 +66,7 @@ This build keeps each business in the engine's encrypted file vault, which the c
 
 ## What is not built
 
-A public hosted web app; durable storage for real books; real outside writes such as payment links, email or posts; agents that read files, inboxes or the web; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); the improvement loop; agentOS, containers and hosted sandboxes; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for each.
+A public hosted web app; durable storage for real books; real outside writes such as payment links, email or posts; agents that read inboxes or the web; screens for client files, hand-off answers, work receipts and the improvement loop (the engine has them); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); agentOS and hosted sandboxes, and containers tried against a real Docker; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
 
 ## Demo script
 
