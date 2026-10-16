@@ -1,6 +1,6 @@
 # Chausar B2C: target architecture
 
-Written 15 October 2026 for the founder and revised after review. It replaces the SMB books-companion architecture (`D:\claude\chausar-2\CHAUSAR-ARCHITECTURE.md`) for this iteration; the books engine described there stays, as the back office. Nothing here claims a part exists today. `BUILD-SPEC.md` says exactly what this run builds.
+Written 15 October 2026 for the founder and revised after review. Updated 16 October for the hosted web tier and the delivery harness. It replaces the SMB books-companion architecture (`D:\claude\chausar-2\CHAUSAR-ARCHITECTURE.md`) for this iteration; the books engine described there stays, as the back office. Nothing here claims a part exists today. `BUILD-SPEC.md` says exactly what this run builds.
 
 ## 1. The idea in one minute
 
@@ -11,7 +11,7 @@ They type one sentence and see a plan at once, then set a price and say whether 
 Two rules bind everything:
 
 - **The AI never does arithmetic.** Prices, tax, totals and costs come from deterministic code that writes a receipt. Model text with a number in it is refused, unless it's a word like "B2B" copied from the owner's own words.
-- **Never fake a capability.** Every connector and every place agent work can run is labelled `handoff`, `read`, `write` or `planned`, and the label matches what the code does today. Agents in this build only draft from the client's message, so they never say they read, matched or sent anything.
+- **Never fake a capability.** Every connector and every place agent work can run is labelled `handoff`, `read`, `write` or `planned`, and the label matches what the code does today. An agent may say work is done only when a tool run proves it, and it never says it sent anything.
 
 ## 2. The user's journey
 
@@ -27,7 +27,8 @@ Two rules bind everything:
  6 Add your AI  optional: your own key or CLI; templates work without one
  7 Rehearse     agents practise on three made-up clients; checks first, then a judge
  8 Launch       rehearsal -> shadow (practice drafts) -> approve each draft
- 9 Run          order -> draft reply -> you approve -> invoice -> payment -> books with receipts
+ 9 Run          order + files -> agent works with tools -> draft with work receipts -> you approve
+                -> invoice -> payment -> books with receipts
 ```
 
 The first useful output comes after one sentence. The passphrase comes only when the owner keeps the plan; it moves to the computer's keychain later.
@@ -46,7 +47,7 @@ The first useful output comes after one sentence. The passphrase comes only when
 
 **What.** A one-page plan: two offers, four delivery steps, two approvals, back office settings.
 
-**How.** Code builds the structure from a template for the service type, before anything is saved. The model, once connected, only writes words into named slots, and a structure hash proves nothing moved while it wrote. The owner types the price; the calculator turns it into a receipt. Each step says who does it today. In this build an agent can only draft a reply from the client's message, so "collect the files" and "sort the entries" are yours, marked `planned: agent`.
+**How.** Code builds the structure from a template for the service type, before anything is saved. The model, once connected, only writes words into named slots, and a structure hash proves nothing moved while it wrote. The owner types the price; the calculator turns it into a receipt. Each step says who does it today. You add the client's files to the order and the agent reads them; for bookkeeping an agent reconciles the month from those files for you to check. Reading inboxes, other hands-on work and sending stay yours, marked planned.
 
 **Reference.** helix-foundry: code computes structure, the model writes descriptions, a proposal is validated and accepted by digest. snapshift: decide first, then fill a fixed schema. SubQ Snap: decisions as typed questions instead of free text.
 
@@ -90,11 +91,11 @@ The first useful output comes after one sentence. The passphrase comes only when
 
 ### Piece 8. Delivery agents and their playbook
 
-**What.** A playbook per business: typed steps (gather, question, compute, write, verify, approve, operator), versioned and hashed. Its output is a draft reply, never a finished deliverable.
+**What.** A playbook per business: typed steps (gather, question, compute, write, verify, approve, operator), versioned and hashed, run by a harness. Agents use tools in a bounded loop on the files the owner adds to an order. For bookkeeping the result is a real work product: a month reconciled from a bank statement and bills, with receipts. Other service types get a reply; their hands-on work stays with the owner.
 
-**How.** Code steps do arithmetic and checks. Model steps write words or choose from closed lists. Numbers and dates appear only as references the engine fills in, shown with their label ("Total: INR 2,948.82"). The client's message is treated as information, never as instructions. A check refuses any sentence that claims finished work ("we matched", "your books are reconciled"), and the judge asks the same question. A playbook is validated before it runs, and every run records its hash.
+**How.** A cheap model takes up to four act turns. Each turn it calls tools, deny by default: read a file (CSV, XLSX, PDF text through the Python helper), search the business dictionary, ask the calculator for sums, reconcile a statement, run its own row program in the sandbox, or hand a question to the client or owner, which ends the turn. Every tool answers with one envelope (`ok` and a result, or a typed error). Limits on turns, tool calls and spend force a last write step with tools off. On a real order every model turn waits for the owner to approve its exact text. Numbers and dates appear only as references to receipts, shown with their label ("Total: INR 2,948.82"). The client's message and files are information, never instructions. A sentence that claims finished work passes only when a tool run proves it. A playbook is validated before it runs, and every run records its hash.
 
-**Reference.** AgentRun (Grep.ai): the model decides what a thing is, code decides what follows, with a verify pass and replay instead of rerun. Harness Learning: the harness is a versioned program improved by small patches. Factory Environments: only validated definitions run, and each run leaves the same record.
+**Reference.** AgentRun (Grep.ai): the model decides what a thing is, code decides what follows, with a verify pass and replay instead of rerun. agentOS: tools as host functions with one JSON envelope and deny-by-default permissions. xiryn: hand-offs end the turn. Factory Environments: only validated definitions run, and each run leaves the same record. `docs/venture/harness.md` has the detail.
 
 ### Piece 9. Rehearsal and the launch ladder
 
@@ -102,17 +103,19 @@ The first useful output comes after one sentence. The passphrase comes only when
 
 **How.** A simulated client writes the request, the agent drafts, and every outside effect is a record-only mock. Deterministic checks run first, then a cheap judge answers four typed questions. Shadow needs a passing, judged rehearsal with a real model; its drafts are practice only and can't be copied or accepted. Without a model, Chausar gives a template outline that says no AI wrote it. Owner rejections and edits become signals, and a signal can become a new rehearsal case.
 
-**Reference.** DigitalOcean Signals and Simulations (the cneuralnetwork post): personas, expected outcomes, turn limits, mock tools, baseline against candidate. AgentRun and EvoOntology: a held-back set the author never sees before anything is promoted.
+**The improvement loop.** A failed or rejected run is diagnosed and pinned to one level. Chausar writes one typed playbook change with a note, then runs the old and new playbook on the business's held-back cases and practice clients. The change is kept only if it wins, versions are never overwritten, and the owner adopts each change.
+
+**Reference.** Harness Learning: the harness is a versioned program improved by one tested patch at a time, behind a paired gate. DigitalOcean Signals and Simulations (the cneuralnetwork post): personas, expected outcomes, turn limits, mock tools, baseline against candidate. AgentRun and EvoOntology: a held-back set the author never sees before anything is promoted.
 
 ### Piece 10. Where agent work runs
 
 | Tier | What | State in this build |
 |---|---|---|
-| Code | Calculator, receipts, checks | Available; runs inside Chausar, not a sandbox |
-| Actor | Model calls and drafting inside the engine | Available; no tools and no agent-written code |
-| WASM, light | The existing plugin sandbox | Available in the back office; agents don't use it yet |
+| Code | Calculator, receipts, checks, the agent loop | Available; runs inside Chausar, not a sandbox |
+| Actor | Agent turns with tools inside the engine | Available, with limits on turns, tool calls and spend |
+| WASM, light | The agent's own row programs, in a separate process with no file, network or process access | Available on the desktop; off on the hosted server |
 | WASM, full | agentOS virtual machine | Unavailable on Windows; planned elsewhere |
-| Container | Docker per agent, browser work, acceptance checks | Planned ("Needs Docker Desktop") |
+| Container | The agent's Python in Docker | Only where Docker is found ("Needs Docker Desktop"); never on the hosted server; not yet tried on a real Docker |
 | Hosted | E2B, Sail or Cloudflare under your own account | Planned ("Needs your account") |
 
 **Reference.** agentOS (host functions as the only bridge to trusted code), the mlejva (E2B) post on why sandboxes alone aren't enough, the danlovesproofs post on pay-by-the-minute sandboxes, the danieljvdm post on Durable Objects, and Factory Environments. Drivers will use the person's own account and stay labelled until tested.
@@ -144,7 +147,7 @@ renderer (app.js + launch.js) --+-- desktop: Electron IPC, allow-listed methods 
                                 +-- web: loopback HTTP /api/rpc, pairing token ----+--> one Engine --> vault
 ```
 
-In this run the web app is **local web mode**: the engine runs on the person's computer and their browser opens the printed pairing link. A public hosted web app needs sign-in, per-user vault custody, TLS and tenancy. That's a later tier, with Rivet Actors (one actor per business) as the candidate runtime. CLI model routes stay on the person's own computer; a hosted web app will use keys only. Long model work runs one rehearsal client per request, so the desktop's request timer never cuts it off.
+There are two web modes. **Local web mode**: the engine runs on the person's computer and their browser opens the printed pairing link. **The hosted web tier** (experimental, off unless the server starts with `--hosted`): sign-in by email link or passkey, the server holds each business's vault key, one actor per business in Rivet's shape (a Rivet adapter is planned), files or PostgreSQL for storage, key-only AI with rate and spend limits. It is written and tested on one computer and not deployed; PostgreSQL has been tested against a stand-in, not a real server. On the hosted server no agent tool starts a process: no containers, no agent-written code and no PDF reading, until the founder decides. `docs/venture/hosted.md` lists what a deploy still needs. CLI model routes stay on the person's own computer; a hosted web app will use keys only. Long model work runs one rehearsal client per request, so the desktop's request timer never cuts it off.
 
 ## 5. Models
 
@@ -181,23 +184,24 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 
 **Reused:** the encrypted vault and permission checks; the calculator, currency helpers, receipts and number guard; the GSTIN checksum; the `services` dictionary pack; facts and memory; the trust policy; backup and export; the desktop shell, IPC allow-list, loopback web server and the twelve back office views; the Claude Code and Codex CLI builders and the Codex host profile.
 
-**New:** the venture desk (`platform/runtime/venture/`); the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the launch screens; an allow-listed way to open partner links.
+**New:** the venture desk (`platform/runtime/venture/`); the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the delivery harness (tools, the agent loop, the light sandbox for agent code, work receipts, the improvement loop); the hosted web tier; the launch screens; an allow-listed way to open partner links.
 
 ## 8. What is not in this build, and why
 
 | Not built | Why |
 |---|---|
-| A public hosted web app | Needs accounts, TLS and tenancy; this run allows no deploys |
-| Durable storage for real books | The file vault is the engine's experimental demo; PostgreSQL isn't wired for this flow |
+| A deployed public web app | The hosted tier is written and tested on one computer; a deploy needs TLS, a managed database and a real PostgreSQL test run, and no deploys were allowed |
+| Durable storage for real books on the desktop | The desktop file vault is the engine's experimental demo; PostgreSQL is wired for the hosted tier only |
 | Real outside writes (payment links, email, posts) | No paid services in this run; writes need sandbox evidence first |
-| Agents that read files, inboxes or the web | Needs connectors and a sandbox tier |
+| Agents that read inboxes or the web | Needs connectors; agents read only the files the owner adds |
+| Agent-written code and PDF reading on the hosted server | Off there until the founder decides whether agent code may run on a shared server |
+| Work products for service types other than bookkeeping | Bookkeeping came first; the others get replies |
 | Approve a sample, auto with spot checks | Needs a sampling rule and a measured record |
 | Lovable and Replit MCP, a GitHub App, webhooks, Zoho sign-in | OAuth and app reviews, and they'd spend the person's credits |
 | India e-invoicing (IRN), cross-border VAT reverse charge | Needs portal access and per-country rules |
 | Automatic polling and schedules | Sync is a click for now |
 | Keys in the OS keychain | Keys live in memory and are entered again after a restart |
-| The improvement loop | Needs more judged deliveries first |
-| agentOS, containers, hosted sandboxes | No Windows sidecar; Docker and vendor accounts aren't assumed |
+| agentOS and hosted sandboxes; containers tried on a real Docker | No Windows sidecar; Docker and vendor accounts aren't assumed |
 | Several businesses in one vault | One currency and dictionary per vault |
 
 ## 9. Words
@@ -209,7 +213,9 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 | Receipt | The proof behind a number: inputs, steps, rounding, figures |
 | Handoff | Chausar prepares it, you finish it in the other product |
 | Playbook | The typed list of steps a delivery agent follows |
-| Draft reply | What an agent writes from the client's message, for you to check |
+| Draft reply | What an agent writes from the client's message and its tool results, for you to check |
+| Work receipt | The proof behind an agent's work: which files and rows a tool used and what it found |
+| Improvement loop | One tested playbook change at a time, kept only if it beats the old one |
 | Rehearsal | Practice runs with made-up clients and record-only effects |
 | Practice draft | A shadow-stage draft that can't go to a client |
 | Template outline | Text from built-in templates when no AI is connected |
