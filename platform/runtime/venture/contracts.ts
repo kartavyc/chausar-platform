@@ -1122,6 +1122,8 @@ export const VENTURE_ERRORS = [
   'PLAYBOOK_NOT_FOUND', 'SCENARIO_NOT_FOUND', 'SIMULATION_NOT_FOUND', 'SIGNAL_NOT_FOUND',
   'LAUNCH_STAGE_BLOCKED', 'STAGE_PLANNED', 'DELIVERY_NOT_FOUND', 'DELIVERY_NOT_WAITING', 'DELIVERY_NOT_READY', 'PRACTICE_DRAFT',
   'INVALID_EXTERNAL_URL', 'EXTERNAL_URL_NOT_ALLOWED',
+  // The hosted web server's per-account rate limits (platform/runtime/hosted/limits.ts) reach model calls through the transport.
+  'RATE_LIMITED',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -1147,6 +1149,8 @@ export type VentureEngineServices = {
 };
 
 export type VentureStorage = 'experimental-file' | 'postgres';
+/** Where the engine runs: the desktop window, local web mode, the experimental hosted web server, or a test. */
+export type VentureHostKind = 'desktop' | 'local-web' | 'hosted-web' | 'test';
 export type VentureDeps = {
   store: StateStore;
   clock: () => Date;
@@ -1154,7 +1158,7 @@ export type VentureDeps = {
   services: VentureEngineServices;
   github: GitHubTransport;
   secrets: SecretShelf;
-  host: 'desktop' | 'local-web' | 'test';
+  host: VentureHostKind;
   demo: boolean;
   storage: VentureStorage; // 'experimental-file' means every money screen shows the experimental notice
 };
@@ -1168,7 +1172,7 @@ export type ModelPortOptions = {
   clock: () => Date;
   transport: ModelTransport;
   secrets: SecretShelf;
-  host: 'desktop' | 'local-web' | 'test';
+  host: VentureHostKind;
   demo: boolean;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
 };
@@ -1182,7 +1186,7 @@ export type VentureHostOptions = {
   modelReplayPath?: string;
   githubReplayPath?: string;
   clock?: () => Date;
-  host?: 'desktop' | 'local-web' | 'test';
+  host?: VentureHostKind;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
   hostProcess?: (request: any) => Promise<any>; // the trusted host's verified process port (the gateway's process), when present
 };

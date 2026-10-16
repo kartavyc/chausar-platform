@@ -92,10 +92,15 @@ export const AVAILABILITY_REASONS = Object.freeze({
   codexMissing: 'Needs the reviewed Codex host profile. See docs/venture/models.md.',
   codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
   templates: 'Nothing is sent anywhere.',
+  hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
 });
 
-/** Availability as of now: the Claude Code check result and the Codex host profile both change it. */
-export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; codexProfile: boolean }): { availability: ModelAvailability; availabilityReason: string } {
+/**
+ * Availability as of now: the Claude Code check result and the Codex host profile both change it. On the hosted web
+ * server no command-line tool ever runs, so both are unavailable there whatever the server has installed.
+ */
+export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; codexProfile: boolean; hosted?: boolean }): { availability: ModelAvailability; availabilityReason: string } {
+  if (live.hosted && (id === 'claude-code-cli' || id === 'codex-cli')) return { availability: 'unavailable', availabilityReason: AVAILABILITY_REASONS.hostedCli };
   switch (id) {
     case 'anthropic-haiku-5-5':
     case 'anthropic-sonnet-5-5':

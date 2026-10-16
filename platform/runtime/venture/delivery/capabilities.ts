@@ -2,7 +2,7 @@
 // Every row's state matches what the code does today. Planned work says planned; nothing is dressed up.
 import { authorize, type Context } from '../../contracts.ts';
 import { exactPayload } from '../records.ts';
-import type { CapabilityState, CapabilityStatus, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureStorage } from '../contracts.ts';
+import type { CapabilityState, CapabilityStatus, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureHostKind, VentureStorage } from '../contracts.ts';
 
 export const EXPERIMENTAL_STORAGE_NOTICE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 export const TEMPLATES_REASON = 'No AI connected; built-in templates write outlines.';
@@ -27,24 +27,36 @@ function modelRow(tier: ModelTier, status: ModelStatusView | undefined, presets:
   return { id, group: 'models', label, state: SERVING_STATE[serving.presetId] ?? 'unverified', reason: serving.reason };
 }
 
-/** The capability list, in a fixed order. Without a model status both model rows say they need setup. */
-export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[]): CapabilityStatus[] {
+/**
+ * The capability list, in a fixed order. Without a model status both model rows say they need setup. On the hosted
+ * web server ('hosted-web') the hosted rows say experimental, and what never runs on a shared server says so.
+ */
+export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[], host: VentureHostKind = 'desktop'): CapabilityStatus[] {
   const row = (id: string, group: CapabilityStatus['group'], label: string, state: CapabilityState, reason: string): CapabilityStatus => ({ id, group, label, state, reason });
+  const hosted = host === 'hosted-web';
   return [
     row('venture-actor', 'runtime', 'One record per business', 'available', 'One durable record per business in your vault. Every change is one committed action.'),
-    row('venture-events', 'runtime', 'Event log', 'available', 'The app reads the event log; there is no push yet.'),
+    hosted
+      ? row('venture-events', 'runtime', 'Event log', 'unverified', 'The hosted server sends new events to the page after each action. Experimental.')
+      : row('venture-events', 'runtime', 'Event log', 'available', 'The app reads the event log; there is no push yet.'),
     row('schedules', 'runtime', 'Schedules', 'planned', 'Repo checks and briefs run when you click, for now.'),
-    row('hosted-actors', 'runtime', 'Hosted business actors', 'planned', 'A hosted web app is not built; Rivet Actors are the candidate runtime.'),
+    hosted
+      ? row('hosted-actors', 'runtime', 'Hosted business actors', 'unverified', 'Experimental: one actor per business on this server. Not yet tested on a real deploy.')
+      : row('hosted-actors', 'runtime', 'Hosted business actors', 'planned', 'The hosted web tier is written but not deployed; Rivet Actors are the candidate runtime.'),
     row('tier-code', 'runtime', 'Code steps', 'available', 'Runs inside Chausar. No tools and no agent-written code. Not a sandbox.'),
     row('tier-actor', 'runtime', 'Agent drafting', 'available', 'Model calls and drafting inside Chausar. No tools and no agent-written code. Not a sandbox.'),
     storage === 'experimental-file'
       ? row('durable-storage', 'storage', 'Durable storage', 'planned', EXPERIMENTAL_STORAGE_NOTICE)
       : row('durable-storage', 'storage', 'Durable storage', 'available', 'PostgreSQL storage.'),
-    row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'available', 'The back office plugin sandbox. Delivery agents do not use it yet.'),
+    hosted
+      ? row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'unavailable', 'The hosted web app runs no plugins. The desktop app has the back office sandbox.')
+      : row('tier-wasm-lite', 'sandbox', 'Light sandbox', 'available', 'The back office plugin sandbox. Delivery agents do not use it yet.'),
     platform === 'win32'
       ? row('tier-wasm', 'sandbox', 'Full sandbox', 'unavailable', 'Not available on Windows yet.')
       : row('tier-wasm', 'sandbox', 'Full sandbox', 'planned', 'Planned: agentOS.'),
-    row('tier-container', 'sandbox', 'Containers', 'planned', 'Needs Docker Desktop.'),
+    hosted
+      ? row('tier-container', 'sandbox', 'Containers', 'unavailable', 'Containers never run on the shared hosted server.')
+      : row('tier-container', 'sandbox', 'Containers', 'planned', 'Needs Docker Desktop.'),
     row('tier-hosted', 'sandbox', 'Hosted sandboxes', 'planned', 'Needs your own E2B, Sail or Cloudflare account.'),
     modelRow('fast', modelStatus, presets),
     modelRow('main', modelStatus, presets),
@@ -62,5 +74,5 @@ export async function capabilitiesHandler(deps: VentureDeps, ctx: Context, paylo
   let presets: ModelPreset[] | undefined;
   try { status = deps.models.status(ctx); } catch { status = undefined; }
   try { presets = deps.models.presets(); } catch { presets = undefined; }
-  return capabilityList(process.platform, status, deps.storage, presets);
+  return capabilityList(process.platform, status, deps.storage, presets, deps.host);
 }

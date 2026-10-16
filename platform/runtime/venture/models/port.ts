@@ -12,7 +12,7 @@ import type {
   ModelOutcome, ModelPort, ModelPortOptions, ModelPreset, ModelPresetId, ModelPreview, ModelPurpose, ModelStatusView, ModelTask, ModelTier,
   VentureDeps,
 } from '../contracts.ts';
-import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
   SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, codexCommand, codexHost, codexPlan, parseClaudeCli, parseCodexCli, type CliPlan, type CodexHost,
@@ -158,11 +158,14 @@ function failureOf(error: unknown, fallback: { code: string; message: string }):
 export function createModelPort(options: ModelPortOptions): ModelPort {
   const { store, clock, transport, secrets } = options;
   const actionDeps = { store, clock } as unknown as VentureDeps;
-  const codex: CodexHost | null = codexHost(options.codexCli);
+  const hosted = options.host === 'hosted-web';
+  // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
+  const codex: CodexHost | null = hosted ? null : codexHost(options.codexCli);
   const cliFound = new Set<ModelPresetId>();
   const pending = new Map<string, Pending>();
 
   const problemOf = (spec: PresetSpec): { code: string; message: string } | null => {
+    if (hosted && spec.runsOn === 'this-computer') return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.hostedCli };
     if (spec.needsKey && !secrets.has(SECRET(spec.id))) return { code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing };
     if (spec.kind === 'codex-cli' && !codex) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
     return null;
@@ -183,7 +186,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     if (spec.kind === 'template') return { usable: true, reason: AVAILABILITY_REASONS.templates };
     if (state.policy.send === 'nothing') return { usable: false, reason: MESSAGES.sendDisabled };
     if (spec.kind === 'claude-cli' && !cliFound.has(spec.id)) return { usable: true, reason: MESSAGES.claudeConnected };
-    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex }).availabilityReason };
+    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted }).availabilityReason };
   };
 
   const prepare = (connection: ConnectionRecord, spec: PresetSpec, task: ModelTask<unknown>): Prepared => {
@@ -345,12 +348,13 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     },
 
     presets(): ModelPreset[] {
-      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex };
+      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted };
       return PRESETS.map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
     },
 
     async checkCli(presetId: ModelPresetId): Promise<void> {
       check(presetId === 'claude-code-cli' || presetId === 'codex-cli', 'INVALID_VENTURE_REQUEST', 'Only the command-line options can be checked on this computer.');
+      check(!hosted, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
       const claude = presetId === 'claude-code-cli';
       const missing = claude
         ? 'Claude Code was not found on this computer. Install it and sign in, then try again.'
@@ -414,7 +418,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     },
 
     async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
-      check(ctx?.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
+      check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
       check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The claim is the first await: two approvals of one preview send at most once.
       const claimed: { held?: Pending } = {};

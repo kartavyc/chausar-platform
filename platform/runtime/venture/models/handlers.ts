@@ -6,7 +6,7 @@ import type { ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDe
 import { currentVenture, exactPayload, identifier, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
-import { endpointFor, presetSpec } from './presets.ts';
+import { AVAILABILITY_REASONS, endpointFor, presetSpec } from './presets.ts';
 import type { ConnectionRecord } from './types.ts';
 
 const SECRET = (id: ModelPresetId) => `model:${id}` as const;
@@ -26,6 +26,7 @@ async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promi
   check((MODEL_PRESET_IDS as readonly unknown[]).includes(input.presetId), 'INVALID_VENTURE_REQUEST', 'Choose one of the listed AI options.');
   const presetId = input.presetId as ModelPresetId;
   const spec = presetSpec(presetId);
+  check(!(deps.host === 'hosted-web' && spec.runsOn === 'this-computer'), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
   const live = deps.models.presets().find(preset => preset.id === presetId);
   check(live && live.availability !== 'unavailable', 'PRESET_UNAVAILABLE', live?.availabilityReason ?? 'This AI option is not available here.');
   check(presetId !== 'codex-cli' || live.availability !== 'needs-setup', 'PRESET_UNAVAILABLE', live.availabilityReason);

@@ -227,10 +227,18 @@ export function bpsPercent(bps: string): string {
   return `${whole}.${digits.endsWith('0') ? digits.slice(0, 1) : digits}`;
 }
 
-/** Owner approvals happen inside the app: desktop window or the paired local browser, never phone or MCP. */
+/**
+ * Inside the app: the desktop window or the paired local browser (both 'desktop'), or a signed-in owner on the hosted
+ * web app ('web'). Never phone or MCP, and never a request whose source text is tainted.
+ */
+export function isAppChannel(ctx: Context | undefined): boolean {
+  return (ctx?.channel === 'desktop' || ctx?.channel === 'web') && !ctx.sourceTainted;
+}
+
+/** Owner approvals happen inside the app, never phone or MCP. */
 export function requireAppChannel(ctx: Context, method: VentureMethod) {
   if (!APP_ONLY_METHODS.includes(method)) return;
-  check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
+  check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
