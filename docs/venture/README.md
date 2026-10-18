@@ -9,15 +9,20 @@ Two rules hold everywhere:
 
 ## The journey
 
-1. **Idea.** One question: "What service business do you want to start?" Country comes from the browser.
-2. **Plan.** A one-page plan appears at once from built-in templates. Nothing is saved yet. The owner sets a price and says whether they charge tax.
-3. **Keep it.** A working name and a passphrase open an encrypted vault. The recovery code is shown once. Prices become receipts and the owner accepts the plan.
-4. **Build.** Chausar writes a build brief, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
-5. **Connect.** Starter cards for the owner's country, with honest chips on all 64 connectors.
-6. **Add your AI.** Optional. The owner's own Anthropic or OpenAI key, or a command-line tool on this computer. Templates work without any of them.
-7. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
-8. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
-9. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)).
+
+1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates.
+2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list.
+3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no digits, no numbers in words, no prices, no markup. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
+4. **Set your prices.** The owner types each price. Nothing is added up yet.
+5. **Keep it.** A working name and a passphrase open an encrypted vault. The recovery code is shown once. The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan.
+6. **Build.** Chausar writes a build brief from the plan's own pages, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
+7. **Connect.** Starter cards for the owner's country and the plan's tools, with honest chips on all 64 connectors.
+8. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
+9. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
+10. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.
+
+The hosted web tier keeps the earlier order for now: idea, template plan, keep it, then Add your AI inside the vault.
 
 ## Run it
 
@@ -76,19 +81,20 @@ A deployed public web app (the hosted tier is written and tested on one computer
 
 ## Demo script
 
-Start the replay demo above and open the pairing link. Then:
+Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and folder, so it never meets a server on 4317 or the repo's `data/` folder: add `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` to the command. Then:
 
-1. Idea: "Monthly bookkeeping for cafes and small shops in Pune." Country: India. Show my plan.
-2. Plan: Per month, 2499. Tax: Yes, 18. Keep this plan.
-3. Keep it safe: name "Ledger Cafe Books", a passphrase of 12 or more characters. Keep the recovery code.
-4. Your plan: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Add your AI: the recommended Anthropic row with any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Rewrite with AI, then Accept plan.
-5. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
-6. Agents: Rehearse, then Move to shadow.
-7. Clients: add "Cafe Aroma Demo" (India, Maharashtra). New order for the first offer with the request "Please close my September books. The bank statement and bills are in the shared folder." Draft a reply, Approve and send, and see the practice draft. Move to approve each; draft again, approve, Accept.
-8. Mark delivered; Prepare invoice; Issue; Record payment of 2948.82.
-9. Money: open a receipt, then open the back office and find the same receipt there.
+1. Connect an AI: Paste an API key, Anthropic, any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Tick I agree for each consent text, then Connect.
+2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India. The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills) and "My landlord won't fix the heating." (not a service). Any other sentence has no recording and says so.
+3. Your plan: Ledger Cafe Books, written from a synthetic recording. Set your prices: Monthly books 2499 per month. Tax: yes, 18. Keep this plan.
+4. Keep it safe: name "Ledger Cafe Books", a passphrase of 12 or more characters. Save the recovery code.
+5. Your plan in the vault: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Rewrite with AI (the words change, the blocks stay), then Accept plan.
+6. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
+7. Agents: Rehearse, then Move to shadow.
+8. Clients: add "Cafe Aroma Demo" (India, Maharashtra). New order for the first offer with the request "Please close my September books. The bank statement and bills are in the shared folder." Draft a reply, Approve and send, and see the practice draft. Move to approve each; draft again, approve, Accept.
+9. Mark delivered; Prepare invoice; Issue; Record payment of 2948.82.
+10. Money: open a receipt, then open the back office and find the same receipt there.
 
-Every model and Build screen should say the answers come from a synthetic recording. Then run once more with no variables set, using built-in templates only: the plan, the brief, rehearsal (template, not judged), a template outline for an order, an invoice and a payment all work, and shadow stays blocked.
+Every model and Build screen should say the answers come from a synthetic recording. Then run once more with no variables set and choose Continue without AI: the built-in plan, the brief, rehearsal (template, not judged), a template outline for an order, an invoice and a payment all work, and shadow stays blocked. To see the Claude Code row connect, add `CHAUSAR_CLAUDE_CODE_TERMS=accepted`; the demo has Claude Code answers for decide and compose only.
 
 ## How the desktop is checked
 
@@ -151,6 +157,19 @@ Known limits:
 - "Practise this" looks for the review among the newest 500 events. An older review needs the engine to name its signal on the draft.
 - There is no separate fixed price model; "Per project" covers fixed price work.
 
+## Onboarding v2, 18 October
+
+The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`) added the draft desk, the composer, the block library and the view registry. This package added the recordings, the end-to-end test, the demo answers and these docs. The renderer package's screens had not landed when this was written.
+
+How it was checked, on Windows with Node 24.13.1:
+
+- `node --test platform/tests/venture-onboarding-e2e.test.ts`: 9 of 9. The new journey on recordings, from Connect to an issued invoice (see [onboarding.md](onboarding.md#how-it-is-tested)).
+- `venture-e2e.test.ts` (2 of 2, now also checking that "Connect your AI" is the first checklist item) and `venture-docs.test.ts`, plus the engine package's `venture-compose.test.ts` and `venture-draft.test.ts`.
+- `node scripts/check.mjs` and a scoped typecheck with `typescript@5.9.3` over the three test files this package owns.
+- The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0). The browser screens wait for the renderer package.
+
+What this pass changed in the demo replay: the composer answers above; the template plan rewrite now matches only a template plan's request, and the composed one only a composed plan's, so neither answers the other; and the bookkeeping agent turns from the end-to-end recording, without which rehearsal of the reconciling agent stopped with `FIXTURE_MISSING` in the demo (that gap predates onboarding v2).
+
 ## Package pages
 
 | Page | What it covers |
@@ -163,6 +182,7 @@ Known limits:
 | [delivery.md](delivery.md) | Playbook, draft replies, rehearsal, launch ladder, capabilities (P5) |
 | [harness.md](harness.md) | The delivery harness: tools, client files, work receipts, the sandbox tiers and the improvement loop |
 | [shell.md](shell.md) | The venture host, desktop types, shell and end-to-end tests (P6) |
-| [launch.md](launch.md) | The launch screens in the renderer (P7) |
+| [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the open box, the block library, the view registry, the composer and its number guard, the draft desk |
+| [launch.md](launch.md) | The launch screens in the renderer (P7), and the onboarding v2 screens |
 | [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
 | [architecture.md](architecture.md) | The target architecture this build follows |

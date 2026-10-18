@@ -110,3 +110,53 @@ test('the architecture Connectors table claims exactly the modes the catalogue m
     }
   }
 });
+
+test('onboarding.md names every block id and view id, gives the ChatGPT row its exact words and its sources, and models.md describes the Claude Code gate', async () => {
+  const contracts = await import('../runtime/venture/onboarding-contracts.ts');
+  const onboarding = lf(await readFile(new URL('onboarding.md', docsFolder), 'utf8'));
+  const blockIds = [
+    ...contracts.OFFER_BLOCK_IDS, ...contracts.STEP_BLOCK_IDS, ...contracts.APPROVAL_BLOCK_IDS, ...contracts.PAGE_BLOCK_IDS,
+    ...contracts.TOOL_BLOCK_IDS, ...contracts.QUESTION_BLOCK_IDS, ...contracts.NOTE_BLOCK_IDS,
+  ];
+  for (const id of blockIds) assert.ok(onboarding.includes(`\`${id}\``), `onboarding.md names the block ${id}`);
+  for (const id of contracts.VIEW_IDS) assert.ok(onboarding.includes(`\`${id}\``), `onboarding.md names the view ${id}`);
+  for (const view of contracts.VIEW_REGISTRY) assert.ok(onboarding.includes(view.heading), `onboarding.md gives the heading of ${view.id}`);
+  assert.ok(onboarding.includes(contracts.AI_OPTION_WORDS['chatgpt-sign-in'].why), 'the ChatGPT row is described in its exact words');
+  assert.ok(onboarding.includes('checked 18 Oct 2026'));
+  for (const source of [
+    'https://developers.openai.com/siwc',
+    'https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites',
+    'https://help.openai.com/en/articles/20001410-sign-in-with-chatgpt',
+    'https://openai.com/form/sign-in-with-chatgpt-interest/',
+  ]) assert.ok(onboarding.includes(source), source);
+  for (const words of [contracts.NOT_A_SERVICE_WORDS, contracts.COMPOSE_REFUSED_WORDS]) assert.ok(onboarding.includes(words), words);
+  for (const method of contracts.ONBOARDING_METHODS) assert.ok(onboarding.includes(`\`${method}\``), `onboarding.md names ${method}`);
+  assert.ok(onboarding.includes('CHAUSAR_PORT=4391') && onboarding.includes('.b2c-work/demo-data'), 'the demo runs on its own port and folder');
+
+  const models = lf(await readFile(new URL('models.md', docsFolder), 'utf8'));
+  const { AVAILABILITY_REASONS } = await import('../runtime/venture/models/presets.ts');
+  assert.match(models, /^## The Claude Code terms gate$/m);
+  assert.ok(models.includes('CHAUSAR_CLAUDE_CODE_TERMS'));
+  assert.ok(models.includes(AVAILABILITY_REASONS.claudeTerms), 'models.md quotes the gate words the code shows');
+  assert.ok(models.includes(contracts.AI_OPTION_WORDS.codex.why), 'models.md quotes the Codex words');
+
+  const readme = lf(await readFile(new URL('README.md', docsFolder), 'utf8'));
+  assert.ok(readme.includes('[onboarding.md](onboarding.md)'), 'README links the onboarding page');
+  assert.equal(readme.includes('One question: "What service business do you want to start?"'), false, 'the journey no longer starts with the old question');
+});
+
+test('every relative link in the venture docs points at a file that exists', async () => {
+  const names = (await readdir(docsFolder)).filter(name => name.endsWith('.md'));
+  for (const name of names) {
+    // Code spans and fenced blocks are not links.
+    const text = lf(await readFile(new URL(name, docsFolder), 'utf8')).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const target = match[1].split('#')[0];
+      if (!target || /^[a-z]+:/i.test(target)) continue;
+      try { await readFile(new URL(target, new URL(name, docsFolder))); } catch (error: any) {
+        if (error?.code === 'EISDIR') continue;
+        assert.fail(`docs/venture/${name} links to ${match[1]}, which does not exist`);
+      }
+    }
+  }
+});

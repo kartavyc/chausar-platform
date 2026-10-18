@@ -23,7 +23,7 @@ Code: `platform/runtime/venture/models/`. Tests: `platform/tests/venture-models.
 | Claude Haiku 5.5 | `claude-haiku-5-5` | fast | yes | USD 0.10 / 0.50, Anthropic list price for prompts up to 100K tokens | ready |
 | Claude Sonnet 5.5 | `claude-sonnet-5-5` | main | yes | USD 2 / 10, Anthropic list price | ready |
 | GPT-6 Luna | `gpt-6-luna`, or the id the owner types | fast, main | yes | USD 0.10 / 0.50, from a third-party tracker, not confirmed by OpenAI | unverified |
-| Claude Code on this computer | `claude-sonnet-5-5` | fast, main | no | none (your own plan) | needs setup until found, then unverified |
+| Claude Code on this computer | `claude-sonnet-5-5` | fast, main | no | none (your own plan) | needs setup while the terms gate is closed (the default); once open, needs setup until found, then unverified |
 | Codex on this computer | `gpt-6-luna` | fast, main | no | none (your own plan) | needs the reviewed host profile, then unverified |
 | Built-in templates (no AI) | none | fast, main | no | none | ready |
 
@@ -94,6 +94,48 @@ Codex is offered only when the engine starts with a reviewed host profile:
 - `CHAUSAR_CODEX_CLI_EVIDENCE_SHA256`: the SHA256 of that file.
 
 `loadCodexCliHostGateway` in `codex-cli-host.ts` reads both, checks the recorded help, version and features against the pinned executable, and hands the profile and its process port to the venture host. Without them, Codex shows "Needs the reviewed Codex host profile."
+
+## Before the vault: the draft desk (onboarding v2)
+
+Since 18 October onboarding starts by connecting an AI, before any vault exists. The engine keeps that AI in a draft desk, in memory only: a secret shelf for the key, an in-memory store with one draft business record and the draft connection and call records, and the same model port as the vault. So every rule above holds before the vault too: each call is written down before it is sent, the monthly limit, the consent digest, one dispatch, the client-data guard. [onboarding.md](onboarding.md#the-draft-desk-the-ai-before-any-vault) describes its lifetime (sixty minutes idle, paused on Keep it safe, wiped on lock, open, restart) and the handover into the vault.
+
+| Method | What it does before the vault |
+| --- | --- |
+| `venture.ai.options` | The four Connect rows, each with the weakest status of its presets, the presets with live availability, the draft status, and whether any row that can connect is not yet checked with a live account |
+| `venture.ai.connect` | The same checks as `venture.models.connect`, app only; refuses `built-in-templates` (no AI is simply no connection here); the key goes to the draft shelf |
+| `venture.ai.disconnect` | Disconnects a draft connection |
+| `venture.ai.status` | The draft status, with `scope: 'before-vault'` and `idleUntil` (null while paused or with nothing connected) |
+| `venture.ai.calls` | The draft "What was sent" list, newest first, failed calls included |
+
+When the business is kept, the draft connections and calls move into the vault with the same ids and times, and the key moves to the vault host's shelf after the write commits. The send setting moves to "send question shapes" then, as it does when an AI is connected in the vault. Once a vault holds a business, these methods refuse `VENTURE_EXISTS`; the vault's own methods take over.
+
+New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `compose` (main tier) builds the plan from blocks. Both carry only the owner's own sentence and the country, never client data.
+
+### The Connect rows and their words
+
+| Row | Presets | Words at rest |
+| --- | --- | --- |
+| Paste an API key | `anthropic-haiku-5-5` and `anthropic-sonnet-5-5` (one key, the recommended pair), `openai-gpt-6-luna` | Can connect |
+| Claude Code on this computer | `claude-code-cli` | Needs setup while the terms gate is closed |
+| Codex on this computer | `codex-cli` | Needs setup without the reviewed host profile |
+| Sign in with ChatGPT | none | Not open yet |
+
+No row's words say "works": nothing in this build has been tried with a live account.
+
+**Sign in with ChatGPT** has no preset, no route and no request. OpenAI documents it, but lets only open-source tools, personal hobby projects and partners it picks use a ChatGPT plan; Chausar is commercial and hasn't been approved. Its words and sources are on [onboarding.md](onboarding.md#sign-in-with-chatgpt-real-but-not-open-to-chausar-yet).
+
+**Codex** stays on the owner's own `codex login`, with the words "OpenAI hasn't said yet that apps like Chausar may use a ChatGPT plan this way. It needs the reviewed Codex install on this computer." Chausar never reads `auth.json`.
+
+## The Claude Code terms gate
+
+Anthropic's legal page says a product that runs Claude Code needs Anthropic's Commercial Terms accepted. Chausar hasn't accepted them yet, and that is the founder's action, so the route is gated in code:
+
+- `CHAUSAR_CLAUDE_CODE_TERMS`, read by `host-env.ts` into `VentureHostOptions.claudeCodeTerms`. Only the value `accepted` opens the gate. Any other value, or none, means `pending`, the default in every build. It comes from the host's own settings, never from a request.
+- While pending, `availabilityOf('claude-code-cli', ...)` answers needs setup with "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.", before the vault and in the vault alike. `venture.ai.connect` and `venture.models.connect` refuse the preset with `PRESET_UNAVAILABLE` and those words, and the screens show no "Check and connect".
+- Once open, the route behaves as before: `claude --version` first, then needs setup until Claude Code is found, then unverified.
+- To open it: the founder accepts the terms for Chausar, the lead records the date and the words in `STATE.md`, and the desktop build sets `CHAUSAR_CLAUDE_CODE_TERMS=accepted`.
+
+The gate doesn't replace the other conditions from Anthropic's pages, which hold either way: Chausar never reads `.credentials.json` or sets `CLAUDE_CODE_OAUTH_TOKEN`, never shows a sign-in of its own, passes no flag that removes sign-in methods, and says that plans have limits made for one person.
 
 ## Replay
 
