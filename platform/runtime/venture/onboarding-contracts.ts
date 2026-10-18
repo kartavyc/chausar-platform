@@ -309,7 +309,7 @@ export type DraftAi = { connections: ModelConnectionRecord[]; calls: ModelCallRe
 export type DraftCompose = { decision: ComposeDecision; decideOutput: DecideModelOutput; output: ComposeModelOutput; plan: ComposedPlan };
 /** Trusted host composition (engine to venture host to deps), never from a payload. */
 export interface DraftHandoverPort {
-  /** Connected draft connections and every draft call, or null when nothing is connected. */
+  /** Connected draft connections and every draft call, or null when nothing is connected and no call was made. */
   ai(): DraftAi | null;
   /** The held session when it has a plan and its id matches, else null. */
   compose(composeId: string): DraftCompose | null;

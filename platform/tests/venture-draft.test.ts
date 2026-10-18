@@ -280,3 +280,55 @@ test('app channel: connect, decide and fill refuse a phone or tainted context', 
   await assert.rejects(engine.request('venture.compose.decide', { text: DOG_TEXT, countryCode: 'ZZ' }), code('UNKNOWN_COUNTRY'));
 
 });
+
+test('handover after every connection was disconnected: the calls made before the vault still move in, and no AI is claimed', async t => {
+  const { engine } = await engineFor(t, { responses: DOG_RESPONSES });
+  const connected = await connectPair(engine);
+  const { plan } = await compose(engine, DOG_TEXT, 'GB');
+  for (const connection of connected.connections) await engine.request('venture.ai.disconnect', { connectionId: connection.id });
+  const draftCalls = await engine.request('venture.ai.calls', {}) as ModelCallRecord[];
+  assert.equal(draftCalls.length, 2);
+  await engine.request('workspace.create', { name: 'Shift Paws Leeds', passphrase: PASSPHRASE, pack: 'services' });
+  const view = await engine.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', composeId: plan.composeId, composedDigest: plan.digest }) as VentureView;
+  const state = engine.vault!.read();
+  const calls = state.conversations.filter((record: any) => record.kind === 'venture-model-call' && record.ventureId === view.venture.id);
+  assert.deepEqual(calls.map((call: any) => call.id).sort(), draftCalls.map(call => call.id).sort(), 'the calls the plan names are in the vault');
+  const [blueprint] = state.conversations.filter((record: any) => record.kind === 'venture-blueprint');
+  assert.ok(blueprint.modelCallIds.every((id: string) => calls.some((call: any) => call.id === id)), 'every call id the blueprint names resolves');
+  assert.deepEqual((await engine.request('venture.models.calls', {}) as ModelCallRecord[]).map(call => call.purpose), ['compose', 'decide']);
+  // No connection was left, so none is adopted, no key moves, and the checklist does not say an AI is connected.
+  assert.equal(state.conversations.some((record: any) => record.kind === 'venture-model-connection'), false);
+  assert.deepEqual((await engine.request('venture.models.status', {}) as ModelStatusView).connections, []);
+  assert.equal(view.checklist.find(item => item.id === 'ai')!.done, false);
+  await assert.rejects(engine.request('venture.compose.get', {}), code('VENTURE_EXISTS'));
+});
+
+test('a phone or tainted context learns nothing about the vault: it is refused as outside the app before VENTURE_EXISTS', async t => {
+  const { engine } = await engineFor(t, { responses: DOG_RESPONSES });
+  await engine.request('workspace.create', { name: 'Order of checks', passphrase: PASSPHRASE, pack: 'services' });
+  await engine.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', workingName: 'Order of checks' });
+  const phone: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'phone' };
+  for (const method of ['venture.ai.status', 'venture.compose.get', 'venture.ai.options']) {
+    await assert.rejects(engine.requestAs(phone, method, {}), code('APP_APPROVAL_REQUIRED'), method);
+    await assert.rejects(engine.request(method, {}), code('VENTURE_EXISTS'), method);
+  }
+});
+
+test('the Claude Code gate holds at run time: a connection made while it was open does not run once it is closed', async t => {
+  const responses = [claudeCliEntry('decide', DOG_DECIDE, ['chausar-decide-v1']), claudeCliEntry('compose', DOG_COMPOSE, ['chausar-compose-v1'])];
+  const { engine, directory } = await engineFor(t, { claudeCodeTerms: 'accepted', responses });
+  const options = await engine.request('venture.ai.options', {}) as AiOptionsView;
+  await engine.request('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: presetOf(options, 'claude-code-cli').consentDigest });
+  const { plan } = await compose(engine, DOG_TEXT, 'GB');
+  await engine.request('workspace.create', { name: 'Gate later', passphrase: PASSPHRASE, pack: 'services' });
+  await engine.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', composeId: plan.composeId, composedDigest: plan.digest });
+  await engine.request('workspace.lock', {});
+  // The same vault on an engine whose host has not accepted the terms.
+  const closed = (await engineFor(t, { claudeCodeTerms: 'pending', responses, directory })).engine;
+  t.after(async () => { await closed.close().catch(() => {}); });
+  await closed.request('workspace.open', { passphrase: PASSPHRASE });
+  const status = await closed.request('venture.models.status', {}) as ModelStatusView;
+  assert.equal(status.tiers.main.presetId, 'claude-code-cli');
+  assert.deepEqual([status.tiers.main.usable, status.tiers.main.reason], [false, AVAILABILITY_REASONS.claudeTerms]);
+  await assert.rejects(closed.request('venture.blueprint.draft', {}), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
+});

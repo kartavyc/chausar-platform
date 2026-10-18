@@ -265,6 +265,11 @@ const HAS_DIGIT = /\p{Nd}/u;
 const HAS_LETTER = /\p{L}/u;
 
 const ALL_CAPITALS = /^\p{Lu}{2,5}$/u;
+const OTHER_NUMBER = /[\p{No}\p{Nl}]/u;
+/** The letters of a digit token that make it an amount rather than a name: currency codes, rupees and magnitudes. */
+const MONEY_TOKEN_LETTERS: ReadonlySet<string> = new Set([
+  'inr', 'gbp', 'usd', 'eur', 'aud', 'cad', 'sgd', 'aed', 'nzd', 'jpy', 'rs', 'k', 'mn', 'bn', 'cr', 'lakh', 'lakhs', 'crore', 'crores',
+]);
 
 /**
  * Tokens the AI may copy from the owner's own words, lower-cased: tokens that hold both a letter and a digit (B2B,
@@ -289,9 +294,13 @@ export function copiedTokens(...inputs: string[]): string[] {
 export function assertNoNumbers(value: string, field: string, allowed: readonly string[] = []) {
   const message = `The ${field} contained a number. Numbers come from Chausar's calculator, not the AI.`;
   check(!MONEY_SIGN.test(value) && !MAGNITUDE.test(value), 'MODEL_OUTPUT_REJECTED', message);
+  // Number characters that are not digits: fractions such as one half, superscripts, circled and Roman numeral signs.
+  check(!OTHER_NUMBER.test(value), 'MODEL_OUTPUT_REJECTED', message);
   for (const match of value.matchAll(TOKEN)) {
     if (!HAS_DIGIT.test(match[0])) continue;
     check(HAS_LETTER.test(match[0]) && allowed.includes(match[0].toLowerCase()), 'MODEL_OUTPUT_REJECTED', message);
+    // A token copied from the owner may be a name (B2B, Web3), never an amount (15GBP, Rs500, 20k).
+    check(!MONEY_TOKEN_LETTERS.has(match[0].toLowerCase().replace(/[^\p{L}]/gu, '')), 'MODEL_OUTPUT_REJECTED', message);
   }
 }
 
@@ -306,6 +315,9 @@ const SPELLED_NUMBERS: ReadonlySet<string> = new Set([
   'pound', 'pounds', 'pence', 'penny', 'pennies', 'quid', 'dollar', 'dollars', 'buck', 'bucks', 'cent', 'cents', 'rupee', 'rupees',
   'paise', 'euro', 'euros', 'yen', 'dirham', 'dirhams', 'rand', 'franc', 'francs', 'peso', 'pesos',
   'free', 'discount', 'discounts', 'discounted',
+  // Beyond the spec's list, the same rule: zero, the other ordinals, and money slang.
+  'zero', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'thirtieth', 'fortieth',
+  'fiftieth', 'hundredth', 'thousandth', 'quadruple', 'tenner', 'tenners', 'fiver', 'fivers',
 ]);
 const CURRENCY_CODES: ReadonlySet<string> = new Set(['INR', 'GBP', 'USD', 'EUR', 'AUD', 'CAD', 'SGD', 'AED', 'NZD', 'JPY']);
 const ALLOWED_COMPOUNDS: ReadonlySet<string> = new Set(['second-hand']);
@@ -385,11 +397,16 @@ export function tidyWords(value: string, multiline = false): string {
   return dashless.replace(/\r\n?/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).filter(line => line.length > 0).join('\n');
 }
 
+const HIDDEN_CHARACTER = /[\p{Cf}\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
+
 export type ModelWordsOptions = { allowed?: readonly string[]; multiline?: boolean };
 
 /** Model words: tidy, bounded, no numbers, no line that starts a markdown heading. */
 export function modelWords(value: unknown, field: string, max = 400, options: ModelWordsOptions = {}): string {
   check(typeof value === 'string', 'MODEL_OUTPUT_REJECTED', `The ${field} was not text.`);
+  // Hidden characters (zero-width spaces, soft hyphens, controls) could split a word past the checks below
+  // (a zero-width space inside "two" still shows as "two"), so model words never carry them.
+  check(!HIDDEN_CHARACTER.test(value), 'MODEL_OUTPUT_REJECTED', `The ${field} held hidden characters. Chausar shows plain words only.`);
   const words = tidyWords(value, options.multiline === true);
   check(words.length >= 1 && words.length <= max, 'MODEL_OUTPUT_REJECTED', `The ${field} was empty or too long.`);
   check(!/^#/m.test(words), 'MODEL_OUTPUT_REJECTED', `The ${field} tried to start a heading.`);

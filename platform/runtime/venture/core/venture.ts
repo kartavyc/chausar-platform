@@ -197,7 +197,9 @@ export async function createVenture(deps: VentureDeps, ctx: Context, payload: un
       };
       tx.put(interview);
     }
-    if (connections.length && ai) {
+    // Every call made before the vault is adopted, even when no connection is left: the plan's records name them,
+    // and they count toward this month's cap. Only connected connections come along and announce themselves.
+    if (ai) {
       for (const connection of connections) tx.put(rebased(connection, tx));
       for (const call of ai.calls) tx.put(rebased(call, tx));
       for (const connection of connections) tx.emit('model-connected', { presetId: connection.presetId, tiers: [...connection.tiers] });

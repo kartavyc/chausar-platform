@@ -20,7 +20,7 @@ import {
 import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
-import { AVAILABILITY_REASONS, PRESETS, availabilityOf, presetSpec, type PresetSpec } from './presets.ts';
+import { AVAILABILITY_REASONS, PRESETS, availabilityOf, claudeTermsOpen, presetSpec, type PresetSpec } from './presets.ts';
 import { assertSchemaSafe } from './schema.ts';
 import {
   HTTP_TIMEOUT_MS, PREVIEW_TTL_MS, PROCESS_TIMEOUT_MS, STALE_DISPATCH_MESSAGE, STALE_DISPATCH_MS, VERSION_CHECK_TIMEOUT_MS, isPlainRecord,
@@ -167,6 +167,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
   const problemOf = (spec: PresetSpec): { code: string; message: string } | null => {
     if (hosted && spec.runsOn === 'this-computer') return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.hostedCli };
+    // The Claude Code terms gate holds at run time too: a connection made while it was open never runs once it is closed.
+    if (spec.kind === 'claude-cli' && !claudeTermsOpen(claudeTerms)) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.claudeTerms };
     if (spec.needsKey && !secrets.has(SECRET(spec.id))) return { code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing };
     if (spec.kind === 'codex-cli' && !codex) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
     return null;

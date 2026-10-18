@@ -272,7 +272,8 @@ export function composeInput(decision: ComposeDecision, problem: string | null =
   return input;
 }
 
-const MONEY_QUESTION = /\b(price|prices|charge|cost|fee|fees|rate|rates|pay)\b/i;
+// The spec's list, and the other forms of the same words: Chausar asks about money itself, never the AI.
+const MONEY_QUESTION = /\b(price|prices|pricing|priced|charge|charges|charging|cost|costs|costing|fee|fees|rate|rates|pay|paid|paying|payment|payments|budget|budgets|spend|spending|money|afford)\b/i;
 type ComposeContext = { views: readonly ViewId[]; allowed: readonly string[] };
 
 function list(value: unknown, label: string, [min, max]: readonly [number, number]): unknown[] {
@@ -345,7 +346,9 @@ export function validateCompose(raw: unknown, ctx: ComposeContext): ComposeModel
   const tools = list(body.tools, 'tools', BLOCK_LIMITS.tools).map(item => {
     const tool = exactPayload(item, ['block', 'reason'], ['block', 'reason'], REJECTED);
     if (!isToolBlock(tool.block)) reject('A tool was not one of the listed tools.');
-    check(catalogueEntry(tool.block as string)?.category !== 'payments', REJECTED, 'Payment tools come from the country, not the AI.');
+    const entry = catalogueEntry(tool.block as string);
+    check(entry, REJECTED, 'A tool was not one of the listed tools.');
+    check(entry.category !== 'payments', REJECTED, 'Payment tools come from the country, not the AI.');
     return { block: tool.block as ToolBlockId, reason: composeWords(tool.reason, 'toolReason', allowed) };
   });
   unique(tools.map(tool => tool.block), 'A tool was listed twice.');
@@ -363,6 +366,7 @@ export function validateCompose(raw: unknown, ctx: ComposeContext): ComposeModel
     if (q.kind === 'choice') {
       check(given.length >= 2 && given.length <= 4, REJECTED, 'A choice question needs two to four answers.');
       choices = given.map(choice => composeWords(choice, 'choice', allowed));
+      check(!choices.some(choice => MONEY_QUESTION.test(choice)), REJECTED, 'An answer choice was about money. Chausar asks about prices itself.');
       unique(choices.map(choice => choice.toLowerCase()), 'A question offered the same answer twice.');
     } else {
       check(given.length === 0, REJECTED, 'A question with a typed answer has no choices.');
@@ -525,6 +529,10 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
   return { ...plan, digest: planDigest(plan) } as ComposedPlan;
 }
 
+const RECHECK_FAILED = 'Your plan could not be checked again. Make it again from what you wrote.';
+/** The largest owner price ownerPrice accepts, in minor units. */
+const MAX_OWNER_PRICE_MINOR = 1_000_000_000_000n;
+
 /**
  * Re-checks a held plan before venture.create adopts it: the stored model output passes every compose rule again,
  * and assembling it again with the owner's edits gives exactly the held plan's digest.
@@ -536,13 +544,17 @@ export function revalidateComposed(held: DraftCompose): ComposedPlan {
   rebuilt.offers.forEach((offer, index) => {
     const kept = plan.offers[index];
     if (!kept) return;
+    // The owner's pricing is checked again too: a model the block allows, and a price only as ownerPrice makes them.
+    check(offer.allowedPricing.includes(kept.pricing.model), 'INVALID_VENTURE_REQUEST', RECHECK_FAILED);
+    const minor = kept.pricing.unitPriceMinor;
+    check(minor === null || (/^[1-9]\d{0,12}$/.test(minor) && BigInt(minor) <= MAX_OWNER_PRICE_MINOR), 'INVALID_VENTURE_REQUEST', RECHECK_FAILED);
     offer.pricing = structuredClone(kept.pricing);
     offer.priceDisplay = kept.priceDisplay;
   });
   rebuilt.questions.forEach((question, index) => { question.answer = structuredClone(plan.questions[index]?.answer ?? null); });
   rebuilt.backOffice = structuredClone(plan.backOffice);
   rebuilt.digest = planDigest(rebuilt);
-  check(rebuilt.digest === plan.digest, 'INVALID_VENTURE_REQUEST', 'Your plan could not be checked again. Make it again from what you wrote.');
+  check(rebuilt.digest === plan.digest, 'INVALID_VENTURE_REQUEST', RECHECK_FAILED);
   return rebuilt;
 }
 

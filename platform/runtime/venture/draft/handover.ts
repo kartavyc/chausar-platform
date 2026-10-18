@@ -25,8 +25,11 @@ export function createHandover(source: HandoverSource): DraftHandoverPort {
       if (!parts) return null;
       const state = parts.store.read();
       const connections = records(state, 'venture-model-connection').filter(connection => connection.status === 'connected');
-      if (!connections.length) return null;
-      return structuredClone({ connections, calls: records(state, 'venture-model-call') });
+      const calls = records(state, 'venture-model-call');
+      // Calls made before the vault go along even when every connection was disconnected since: they were sent and
+      // paid for, the kept plan names them, and "What was sent" in the vault must list them.
+      if (!connections.length && !calls.length) return null;
+      return structuredClone({ connections, calls });
     },
     compose(composeId: string): DraftCompose | null {
       const session = source.session();

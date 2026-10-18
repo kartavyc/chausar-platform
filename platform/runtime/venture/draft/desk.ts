@@ -63,9 +63,10 @@ export class DraftDesk {
   async request(ctx: Context, method: string, payload: unknown): Promise<unknown> {
     check((DRAFT_METHODS as readonly string[]).includes(method), 'INVALID_VENTURE_REQUEST', 'This venture request is not supported.');
     check(this.#options.host !== 'hosted-web', 'HOSTED_NOT_AVAILABLE', HOSTED_WORDS);
-    check(!this.#options.ventureExists(), 'VENTURE_EXISTS', VENTURE_EXISTS_WORDS);
+    // Who asks comes first: a phone, MCP or tainted context learns nothing about the vault or the draft.
     check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     check(ctx.role === 'owner' || ctx.role === 'cofounder', 'FORBIDDEN', 'An owner sets up the AI and the plan.');
+    check(!this.#options.ventureExists(), 'VENTURE_EXISTS', VENTURE_EXISTS_WORDS);
     this.#expireIfIdle();
     this.#touch();
     const generation = this.#generation;

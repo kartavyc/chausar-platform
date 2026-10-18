@@ -275,6 +275,38 @@ test('validateCompose refuses every rule of section 6.4', () => {
   validateCompose(clone(CAFE_COMPOSE), { views: CAFE_DECIDE.views, allowed: copiedTokens(CAFE_TEXT) });
 });
 
+test('the number guard has no side doors: number signs, hidden characters, copied amounts and money in answer choices', () => {
+  const cases: [string, (plan: any) => void][] = [
+    ['a fraction sign', p => { p.offers[0].description = 'Walks at ½ the usual time.'; }],
+    ['a superscript', p => { p.offers[1].description = 'Covers dogs² while you are away.'; }],
+    ['a Roman numeral sign', p => { p.name = 'Shift Paws Ⅲ'; }],
+    ['a zero-width space inside two', p => { p.offers[1].description = 'Covers tw​o dogs while you are away.'; }],
+    ['a soft hyphen inside twenty', p => { p.oneLiner = 'Walks for twen­ty nurses in Leeds.'; }],
+    ['zero', p => { p.offers[0].description = 'Walks with zero waiting.'; }],
+    ['money slang', p => { p.offers[0].description = 'A walk for a tenner.'; }],
+  ];
+  for (const [label, change] of cases) assert.throws(() => validateCompose(dogWith(change), DOG_CTX), rejected(), label);
+  // A price the owner wrote is not copied into the AI's words, even as one letter-and-digit token.
+  for (const [text, word] of [['Dog walks at 15GBP each for nurses in Leeds.', '15GBP'], ['Dog walks at Rs500 for nurses in Pune.', 'Rs500'], ['Dog walks for nurses, 20k a year.', '20k']]) {
+    const ctx = { views: DOG_DECIDE.views, allowed: copiedTokens(text) };
+    assert.ok(ctx.allowed.includes(word.toLowerCase()), word);
+    assert.throws(() => validateCompose(dogWith(p => { p.offers[0].description = `Regular walks from ${word}.`; }), ctx), rejected(/number/), word);
+  }
+  // Names the owner wrote with a digit still pass.
+  validateCompose(dogWith(p => { p.oneLiner = 'Dog walks for B2B teams in Leeds.'; }), { views: DOG_DECIDE.views, allowed: copiedTokens('Help B2B teams with dog walks in Leeds.') });
+  // Questions and their answer choices never ask about money, in any form of the word.
+  const excel = { views: EXCEL_DECIDE.views, allowed: copiedTokens(EXCEL_TEXT) };
+  const excelWith = (change: (plan: any) => void) => { const plan = clone(EXCEL_COMPOSE) as any; change(plan); return plan; };
+  const money: [string, (plan: any) => void][] = [
+    ['a budget question', p => { p.questions[1].text = 'What is your budget?'; }],
+    ['a paying question', p => { p.questions[1].text = 'Who is paying for the lessons?'; }],
+    ['a choice about payment', p => { p.questions[0].choices = ['Office workers', 'Anyone who can afford it']; }],
+    ['a choice about spending', p => { p.questions[0].choices = ['Office workers', 'Teams with money to spend']; }],
+  ];
+  for (const [label, change] of money) assert.throws(() => validateCompose(excelWith(change), excel), rejected(/money/), label);
+  validateCompose(clone(EXCEL_COMPOSE), excel);
+});
+
 // ---------------------------------------------------------------------------
 // Assembly and owner edits (pure)
 // ---------------------------------------------------------------------------
