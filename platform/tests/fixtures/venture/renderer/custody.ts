@@ -17,13 +17,13 @@ export const computerWindows: ComputerCustodyView = {
 export function computerUnavailable(reason: DeviceUnavailableReason): ComputerCustodyView {
   return { available: false, scheme: null, reason, checked: false, where: CUSTODY_WORDS.unavailable[reason], loss: null };
 }
-export function custodyView(options: { unlock?: UnlockMode; recovery?: 'made' | 'not-made' | 'unknown'; computer?: ComputerCustodyView; open?: boolean; lastError?: string | null } = {}): CustodyView {
+export function custodyView(options: { unlock?: UnlockMode; recovery?: 'made' | 'not-made' | 'unknown'; computer?: ComputerCustodyView; open?: boolean; lastError?: string | null; storage?: 'experimental-file' | 'postgres' } = {}): CustodyView {
   const computer = options.computer ?? computerWindows;
   if (options.open === false) return { computer, business: null };
   return {
     computer,
     business: {
-      folder: 'leeds-shift-walkers', unlock: options.unlock ?? 'this-computer', recovery: options.recovery ?? 'made', storage: 'experimental-file',
+      folder: 'leeds-shift-walkers', unlock: options.unlock ?? 'this-computer', recovery: options.recovery ?? 'made', storage: options.storage ?? 'experimental-file',
       backups: { auto: true, count: 3, newestAt: '2026-10-18T09:30:00.000Z', nextDueAt: '2026-10-18T15:30:00.000Z', lastError: options.lastError ?? null },
     },
   };

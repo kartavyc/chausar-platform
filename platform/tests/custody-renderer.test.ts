@@ -39,6 +39,37 @@ test('the switch: off opens with this computer, on asks for the passphrase, and 
   assert.ok(visibleText(stuck.panel).includes(CUSTODY_WORDS.unavailable.blocked), "the engine's reason, word for word");
 });
 
+test('the threat fold names the recovery code only when one was made; without one it says the key loses everything, and links to make one', async () => {
+  const fold = (panel: Element) => find(panel, node => node.tagName === 'details' && node.children[0]?.textContent === 'What this protects');
+  const made = await trust({ custody: { view: K.custodyView({ recovery: 'made' }) } });
+  assert.ok(text(fold(made.panel)).includes(`${CUSTODY_WORDS.loss['windows-dpapi']} Your recovery code still opens your business and its backups.`));
+
+  for (const recovery of ['not-made', 'unknown'] as const) {
+    const none = await trust({ custody: { view: K.custodyView({ recovery }) } });
+    const words = text(fold(none.panel));
+    assert.equal(words.includes('Your recovery code still opens'), false, `${recovery}: no recovery code is promised`);
+    assert.ok(words.includes(`${CUSTODY_WORDS.loss['windows-dpapi']} With no recovery code, losing this computer's key loses your business and all its backups.`), recovery);
+    await click(button(fold(none.panel), 'Make a recovery code'));
+    assert.equal(openDialog(none.body).attributes['aria-label'], 'Make a recovery code', `${recovery}: the link opens the sheet`);
+  }
+});
+
+test('where the key is: this computer only while it opens the business; a passphrase leaves no key here; PostgreSQL storage is not called local', async () => {
+  const off = await trust();
+  assert.ok(visibleText(off.panel).includes(CUSTODY_WORDS.where['windows-dpapi']));
+
+  const on = await trust({ custody: { view: K.custodyView({ unlock: 'passphrase' }) } });
+  assert.equal(visibleText(on.panel).includes(CUSTODY_WORDS.where['windows-dpapi']), false, 'Windows keeps nothing for a business locked with a passphrase');
+  assert.ok(visibleText(on.panel).includes('Your passphrase opens it; this computer keeps no key for it.'));
+
+  const database = await trust({ custody: { view: K.custodyView({ storage: 'postgres' }) } });
+  const header = find(database.panel, node => node.tagName === 'p' && node.parent?.tagName === 'header', 'Expected the header line.');
+  assert.equal(visibleText(database.panel).includes('Encrypted on this computer.'), false, 'the database may be on another host');
+  assert.ok(visibleText(database.panel).includes('Encrypted with a key this computer keeps.'), header.textContent);
+  const locked = await trust({ custody: { view: K.custodyView({ storage: 'postgres', unlock: 'passphrase' }) } });
+  assert.ok(visibleText(locked.panel).includes('Encrypted. Your passphrase opens it.'));
+});
+
 test('turning it on sends the typed passphrase, shows the recovery code once, and clears the fields', async () => {
   const h = await trust({ custody: { view: K.custodyView({ recovery: 'not-made' }) } });
   await click(switchOf(h.panel));

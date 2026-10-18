@@ -447,9 +447,6 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-card{position:relative;z-index:1;overflow:hidden;border-radius:24px;background:var(--ob-card);box-shadow:var(--ob-shadow)}
 .ob-first .ob-card{animation:ob-settle var(--ob-t4) var(--ob-ease) both}
 @keyframes ob-settle{from{opacity:0;transform:translateY(24px) rotate(1.5deg)}to{opacity:1;transform:none}}
-.ob-card.ob-card-outline,.ob-site.ob-card-outline{background:transparent;box-shadow:none;outline:2px dashed var(--ob-field-deco);outline-offset:-2px}
-.ob-card-outline .ob-tile{background:transparent}
-.ob-card-outline .ob-cblank i,.ob-card-outline .ob-sbody i,.ob-card-outline .ob-snav i,.ob-card-outline .ob-snav em,.ob-card-outline .ob-bar i{background:var(--ob-field-deco)}
 .ob-tile{position:relative;height:176px;background:var(--ob-tile)}
 .ob-ill{display:block;width:100%;height:100%}
 .ob-sh{transition:fill var(--ob-t4) ease}
@@ -458,7 +455,6 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-sh-k{fill:var(--ob-shape-ink)}
 .ob-sh-p{fill:var(--ob-pale)}
 .ob-sh-t{fill:var(--ob-tile)}
-.ob-card-outline .ob-sh{fill:none;stroke:var(--ob-field-deco);stroke-width:2;stroke-dasharray:6 5}
 .ob-badge{position:absolute;right:16px;bottom:-14px;z-index:2;display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 9px;border:1px solid var(--ob-card-line);border-radius:999px;background:var(--ob-card);color:var(--ob-ink);font-size:12.5px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .ob-badge.ob-badge-new{animation:ob-badge var(--ob-t4) var(--ob-ease) both}
 @keyframes ob-badge{from{opacity:0;transform:translateY(-8px) scale(.9)}to{opacity:1;transform:none}}
@@ -467,6 +463,7 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-note-shape{position:absolute;left:18px;top:18px;width:24px;height:24px;border-radius:7px;background:var(--ob-sec);transform:rotate(45deg)}
 /* the live preview: the business coming together in real words, prototype B's card and website card */
 .ob-cbody{display:grid;gap:2px;padding:18px 22px 20px}
+.ob-cbody:empty{display:none}
 .ob-ckind{margin:0 0 2px;overflow:hidden;font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-accent)}
 .ob-cname{display:-webkit-box;margin:0;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:26px;font-weight:760;line-height:1.15;letter-spacing:-.025em;color:var(--ob-ink);overflow-wrap:anywhere}
 .ob-ph{color:var(--ob-mute)!important}
@@ -481,40 +478,24 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-cprice b{font:700 13.5px/1.35 var(--ob-mono);color:var(--ob-ink)}
 .ob-cprice.ob-cprice-new{animation:ob-swap var(--ob-t1) ease both}
 .ob-cprice.ob-unset{font-style:italic}
-.ob-cempty i{display:block;border-radius:6px;background:var(--ob-card-line)}
-.ob-coffers.ob-cempty i{height:56px;border:1.5px dashed var(--ob-card-line);border-radius:14px;background:none}
-.ob-cblank{display:flex;flex-direction:column;gap:8px}
-.ob-cblank i{display:block;width:46%;height:10px;border-radius:5px;background:var(--ob-card-line)}
-.ob-cblank i+i{width:78%}
 .ob-card:has(.ob-coffer) .ob-tile{height:128px}
-.ob-site{position:absolute;right:-26px;bottom:0;z-index:2;width:260px;overflow:hidden;border-radius:14px;background:var(--ob-card);box-shadow:var(--ob-shadow);transform:rotate(-4deg);transition:transform var(--ob-t4) var(--ob-ease)}
+.ob-site{position:absolute;right:-26px;bottom:0;z-index:2;width:260px;padding-bottom:12px;overflow:hidden;border-radius:14px;background:var(--ob-card);box-shadow:var(--ob-shadow);transform:rotate(-4deg);transition:transform var(--ob-t4) var(--ob-ease)}
 .ob-first .ob-site,.ob-site.ob-site-new{animation:ob-settle var(--ob-t4) var(--ob-ease) both}
 .ob-site-front .ob-site{z-index:3;transform:rotate(-2deg) translateY(-14px) scale(1.04)}
 .ob-bar{display:flex;align-items:center;gap:5px;padding:7px 9px;border-bottom:1px solid var(--ob-card-line)}
 .ob-bar i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ob-card-line)}
-.ob-saddr{flex:1;height:12px;margin-left:6px;border-radius:5px;background:var(--ob-tile)}
 .ob-snav{display:flex;align-items:center;gap:6px;min-width:0;padding:9px 12px 0}
 .ob-snav em{flex:none;width:11px;height:11px;border-radius:3px;background:var(--ob-accent)}
 .ob-sname{min-width:0;overflow:hidden;font-size:10.5px;font-weight:800;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-ink)}
 .ob-spages{display:flex;gap:8px;min-width:0;margin:6px 0 0;padding:0 12px;overflow:hidden;list-style:none}
 .ob-spages li{flex:0 1 auto;min-width:0;overflow:hidden;font-size:9.5px;font-weight:600;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-mute)}
-.ob-spages.ob-cempty i{width:22px;height:5px}
-.ob-shead{display:-webkit-box;min-height:29px;margin:8px 0 0;padding:0 12px;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12.5px;font-weight:800;line-height:1.2;letter-spacing:-.01em;color:var(--ob-ink)}
-div.ob-shead.ob-cempty i{width:72%;height:12px;background:var(--ob-tile)}
-.ob-soffers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 0;padding:0 12px 12px;list-style:none}
+.ob-spages.ob-soutline i{display:block;width:26px;height:9px;border:1px dashed var(--ob-field-deco);border-radius:4px}
+.ob-shead{display:-webkit-box;margin:8px 0 0;padding:0 12px;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12.5px;font-weight:800;line-height:1.2;letter-spacing:-.01em;color:var(--ob-ink)}
+.ob-soffers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 0;padding:0 12px;list-style:none}
 .ob-soffers li{min-width:0;min-height:30px;padding:5px 7px;border:1px solid var(--ob-card-line);border-radius:7px}
 .ob-soffers b{display:block;overflow:hidden;font-size:9.5px;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-ink)}
 .ob-soffers span{display:block;overflow:hidden;font:600 8.5px/1.4 var(--ob-mono);white-space:nowrap;text-overflow:ellipsis;color:var(--ob-mute)}
-div.ob-soffers.ob-cempty i{height:28px;border:1px dashed var(--ob-card-line);border-radius:7px;background:none}
-.ob-site.ob-card-outline .ob-saddr,.ob-site.ob-card-outline .ob-sbody i,.ob-site.ob-card-outline .ob-snav i,.ob-site.ob-card-outline .ob-snav em,.ob-site.ob-card-outline .ob-bar i{background:var(--ob-field-deco)}
-.ob-site.ob-card-outline .ob-snav i{display:block;width:18px;height:5px;border-radius:3px}
-.ob-site.ob-card-outline .ob-snav em{margin-right:auto}
-.ob-sbody{display:grid;gap:6px;padding:8px 12px 14px}
-.ob-sbody i{display:block;height:8px;border-radius:4px}
-.ob-sbody i:nth-child(1){width:72%;height:12px}
-.ob-sbody i:nth-child(2){width:88%}
-.ob-sbody i:nth-child(3){width:40%;height:16px;border-radius:999px}
-/* the phone strip: the same shapes, small, sticky; no words */
+/* the phone strip: the same shapes, small, sticky; the kind, the name and the line being typed */
 .ob-strip{display:none}
 @media (max-width:1100px){.ob-ask{padding:clamp(24px,7vh,64px) 36px 40px 40px}.ob-site{right:-10px}}
 @media (max-width:860px){
@@ -538,6 +519,7 @@ div.ob-soffers.ob-cempty i{height:28px;border:1px dashed var(--ob-card-line);bor
 .ob-st-words{display:grid;flex:1;grid-template-columns:minmax(0,1fr);gap:1px;min-width:0}
 .ob-st-kind{overflow:hidden;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-accent)}
 .ob-st-name{overflow:hidden;font-size:15px;font-weight:760;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-ink)}
+.ob-st-line{overflow:hidden;font-size:12.5px;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-ink2)}
 .ob-st-lock{display:grid;flex:none;place-items:center;width:30px;height:30px;margin-left:auto;border:1px solid var(--ob-card-line);border-radius:999px;background:var(--ob-card)}
 .ob-field{display:none}
 .ob-root[data-step="open"] .ob-strip{display:none}
@@ -584,6 +566,9 @@ html:has(.ob-root) .modal :focus-visible{outline:3px solid var(--ob-ring);outlin
 .ob-biz .ob-btn,.ob-biz .ob-ghost{min-width:96px}
 .ob-biz-pass,.ob-biz>.launch-status{grid-column:1/-1}
 .ob-biz-pass .ob-actions{margin-top:8px}
+.ob-biz-folder{overflow:hidden;font:600 12px/1.4 var(--ob-mono);white-space:nowrap;text-overflow:ellipsis;color:var(--ob-mute)}
+.ob-file{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:4px 0 14px}
+.ob-file-name{min-width:0;overflow:hidden;font-size:14px;white-space:nowrap;text-overflow:ellipsis;color:var(--ob-ink2)}
 .ob-backups{display:grid;gap:12px}
 .ob-backup-rows{display:grid;gap:8px;padding-top:8px}
 .ob-backup{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 14px;padding:10px 14px;border:1.5px solid var(--ob-line);border-radius:14px;background:var(--ob-card)}

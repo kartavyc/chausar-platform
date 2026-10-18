@@ -397,7 +397,9 @@ globalThis.ChausarLaunch = Object.freeze({
       : [['ai', 'AI'], ['idea', 'Idea'], ['plan', 'Plan'], ['accept', 'Accept'], ['build', 'Build']]);
     const SEGMENT_OF = Object.freeze({
       ai: 'ai', idea: 'idea', working: 'plan', plan: 'plan', prices: 'plan', 'not-a-service': 'plan', refused: 'plan', error: 'plan',
-      keep: hosted ? 'keep' : 'accept', code: hosted ? 'keep' : 'accept', setup: hosted ? 'keep' : 'accept', open: 'accept', build: 'build',
+      // On this computer, Choose a passphrase and its recovery code come before the plan is accepted, and also from
+      // Trust & access, so they name no segment.
+      keep: hosted ? 'keep' : null, code: hosted ? 'keep' : null, setup: hosted ? 'keep' : 'accept', open: 'accept', build: 'build',
     });
 
     /** "with Claude Code (Sonnet 5.5)" for a tool on the owner's plan, else "with Claude Haiku 5.5". */
@@ -542,14 +544,15 @@ globalThis.ChausarLaunch = Object.freeze({
         site: { pages: (plan.pages || []).map(item => item.title.value) },
       };
     }
-    /** The card body and the website card for one preview. null draws shapes only, with no words. */
-    function previewParts(preview, outline) {
+    /** The card body and the website card for one preview. null draws shapes only, with no words and no bars.
+        pageOutlines is how many page outlines to draw while the AI writes a plan with a website (0 for none). */
+    function previewParts(preview, pageOutlines = 0) {
       const before = lastPreview;
       const seen = before?.offers || new Map();
       const prices = new Map();
       if (!preview) {
         lastPreview = { offers: prices, site: false };
-        return { body: [h('div', { class: 'ob-cblank' }, h('i'), h('i'))], site: null };
+        return { body: [], site: null };
       }
       const placeholder = !preview.name;
       const kind = preview.kind ? h('p', { class: 'ob-ckind' }, preview.kind) : null;
@@ -562,7 +565,8 @@ globalThis.ChausarLaunch = Object.freeze({
         const priceKey = offer.price ? `${offer.price.before || ''}|${offer.price.figure}` : '';
         prices.set(offer.id, priceKey);
         const fresh = !seen.has(offer.id);
-        const changed = !fresh && seen.get(offer.id) !== priceKey && Boolean(priceKey);
+        // A price the owner is still typing changes with each key, so only the engine's own words fade in.
+        const changed = !fresh && seen.get(offer.id) !== priceKey && Boolean(priceKey) && !offer.price?.live;
         const cls = ['ob-coffer'];
         if (fresh && before) cls.push('ob-slot', SLOT_DELAYS[freshIds.indexOf(offer.id)] || SLOT_DELAYS[5]);
         const price = offer.price
@@ -573,23 +577,24 @@ globalThis.ChausarLaunch = Object.freeze({
         return h('li', { class: cls.join(' '), 'data-offer': offer.id },
           h('div', { class: 'ob-ctop' }, h('span', { class: 'ob-coname' }, offer.name), offer.per ? h('span', { class: 'ob-cper' }, offer.per) : null), price);
       });
-      const offers = offerRows.length
-        ? h('ul', { class: 'ob-coffers' }, offerRows)
-        : h('div', { class: 'ob-coffers ob-cempty' }, h('i'), h('i'));
+      // No offers yet: nothing is drawn for them, rather than empty boxes that look like fields to fill in.
+      const offers = offerRows.length ? h('ul', { class: 'ob-coffers' }, offerRows) : null;
       let site = null;
-      if (outline) site = h('div', { class: 'ob-site ob-card-outline' }, h('div', { class: 'ob-bar' }, h('i'), h('i'), h('i'), h('span', { class: 'ob-saddr' })),
-        h('div', { class: 'ob-snav' }, h('em'), h('i'), h('i'), h('i')), h('div', { class: 'ob-sbody' }, h('i'), h('i'), h('i')));
-      else if (preview.site) {
-        const pages = (preview.site.pages || []).slice(0, 4);
+      if (preview.site || pageOutlines) {
+        // The small website card: the name, the pages, the line and the offers in real words. There is no web
+        // address yet, so none is drawn. While the AI writes, only the page list is outlined.
+        const pages = (preview.site?.pages || []).slice(0, 4);
         const siteOffers = (preview.offers || []).slice(0, 2);
+        const outlines = Array.from({ length: pages.length ? 0 : pageOutlines }, () => h('i'));
         site = h('div', { class: before && !before.site ? 'ob-site ob-site-new' : 'ob-site' },
-          h('div', { class: 'ob-bar' }, h('i'), h('i'), h('i'), h('span', { class: 'ob-saddr' })),
+          h('div', { class: 'ob-bar' }, h('i'), h('i'), h('i')),
           h('div', { class: 'ob-snav' }, h('em'), h('span', { class: placeholder ? 'ob-sname ob-ph' : 'ob-sname' }, preview.name || PREVIEW_WORDS.name)),
-          pages.length ? h('ul', { class: 'ob-spages' }, pages.map(title => h('li', {}, title))) : h('div', { class: 'ob-spages ob-cempty' }, h('i'), h('i'), h('i')),
-          preview.line ? h('p', { class: 'ob-shead' }, preview.line) : h('div', { class: 'ob-shead ob-cempty' }, h('i')),
+          pages.length ? h('ul', { class: 'ob-spages' }, pages.map(title => h('li', {}, title)))
+            : outlines.length ? h('div', { class: 'ob-spages ob-soutline' }, outlines) : null,
+          preview.line ? h('p', { class: 'ob-shead' }, preview.line) : null,
           siteOffers.length
             ? h('ul', { class: 'ob-soffers' }, siteOffers.map(offer => h('li', {}, h('b', {}, offer.name), offer.price ? h('span', {}, offer.price.figure) : null)))
-            : h('div', { class: 'ob-soffers ob-cempty' }, h('i'), h('i')));
+            : null);
       }
       lastPreview = { offers: prices, site: Boolean(site) };
       return { body: [kind, name, line, offers], site };
@@ -621,10 +626,14 @@ globalThis.ChausarLaunch = Object.freeze({
         ask.append(item);
       }
       let preview = spec.preview === undefined ? null : spec.preview;
-      // The phone strip: the small shapes, then the kind and the name once the plan has them, and the lock mark once kept.
+      // The phone strip: the small shapes, the kind once the engine decides it, the name (or "Your business" until
+      // there is one), the line the owner is typing until the plan has a kind or a name, and the lock mark once kept.
       const stripRects = sixRects();
       const stripWords = h('span', { class: 'ob-st-words' });
-      const paintStrip = () => fill(stripWords, preview?.kind ? h('span', { class: 'ob-st-kind' }, preview.kind) : null, preview?.name ? h('span', { class: 'ob-st-name' }, preview.name) : null);
+      const paintStrip = () => fill(stripWords,
+        preview?.kind ? h('span', { class: 'ob-st-kind' }, preview.kind) : null,
+        preview ? h('span', { class: preview.name ? 'ob-st-name' : 'ob-st-name ob-ph' }, preview.name || PREVIEW_WORDS.name) : null,
+        preview?.line && !preview.name && !preview.kind ? h('span', { class: 'ob-st-line' }, preview.line) : null);
       paintStrip();
       const stripLock = h('span', { class: 'ob-st-lock', hidden: spec.locked ? null : true }, lockMark());
       const strip = h('div', { class: 'ob-strip', 'aria-hidden': 'true' }, h('span', { class: 'ob-mt' }, svg('svg', { viewBox: '34 4 212 168', preserveAspectRatio: 'xMidYMid meet' }, stripRects)), stripWords, stripLock);
@@ -640,7 +649,7 @@ globalThis.ChausarLaunch = Object.freeze({
         body);
       const stage = h('div', { class: `ob-stage${spec.siteFront ? ' ob-site-front' : ''}` }, cardNode);
       const paintPreview = () => {
-        const parts = previewParts(preview, Boolean(spec.outline && spec.site));
+        const parts = previewParts(preview, spec.outline ? spec.site || 0 : 0);
         fill(body, ...parts.body);
         for (const old of Array.from(stage.children)) if (old !== cardNode) old.remove();
         if (parts.site) stage.append(parts.site);
@@ -670,7 +679,7 @@ globalThis.ChausarLaunch = Object.freeze({
         /** New prices for the offer rows, as the engine's receipts come back: { [offerId]: price }. */
         setPrices: priced => {
           if (!preview?.offers) return;
-          preview = { ...preview, offers: preview.offers.map(offer => (priced[offer.id] ? { ...offer, price: priced[offer.id] } : offer)) };
+          preview = { ...preview, offers: preview.offers.map(offer => (offer.id in priced ? { ...offer, price: priced[offer.id] || null } : offer)) };
           paintPreview();
         },
         setPreview: next => { preview = next; paintPreview(); },
@@ -968,7 +977,7 @@ globalThis.ChausarLaunch = Object.freeze({
       obFrame('idea', [
         obTitle('What do you want to do?'), obLead('An idea, a skill or a problem.'), obAlert(message),
         ideaBox, countryLine, status, examples, changeAi ? h('p', { class: 'ob-change-ai' }, changeAi) : null, returning,
-      ], { shapes: 'idle', preview: { line: ob.idea.trim() || null }, focus: false });
+      ], { shapes: 'idle', preview: { line: ob.idea.trim() || null, site: { pages: [] } }, focus: false });
       focusOnDesk(box);
       if (!ob.countries) {
         try { ob.countries = await request('venture.countries'); }
@@ -1062,7 +1071,7 @@ globalThis.ChausarLaunch = Object.freeze({
     /** The preview while the AI works: the sentence as typed, then the engine's reading of it and its kind once decide answers. */
     function workingPreview(text) {
       const decision = onboarding().decision;
-      return { kind: decision?.family ? SERVICE_TYPE_LABELS[decision.family.value] || null : null, line: decision?.reading?.value || plain(text).trim() || null };
+      return { kind: decision?.family ? SERVICE_TYPE_LABELS[decision.family.value] || null : null, line: decision?.reading?.value || plain(text).trim() || null, site: { pages: [] } };
     }
     /** Still outlines in the shapes of the decided views, each under its fixed heading. Nothing spins or loops. */
     function showWorking(text, views) {
@@ -1228,7 +1237,13 @@ globalThis.ChausarLaunch = Object.freeze({
           amountNode = h('button', { class: 'ob-fig', type: 'button', 'aria-label': `Change the price of ${offer.name.value}`, onclick: () => { editing.add(offer.id); swapRow(node, offer.id); } }, offer.priceDisplay);
         } else {
           const amount = textInput(ob.typed[offer.id] ?? '', { inputmode: 'decimal', 'aria-label': `Price of ${offer.name.value}, in ${currency}` });
-          amount.addEventListener('input', () => { ob.typed[offer.id] = amount.value; });
+          // The preview shows the owner's own text beside the currency code while they type, as typed: nothing is
+          // read as a number. The engine's display replaces it once the price is sent.
+          amount.addEventListener('input', () => {
+            ob.typed[offer.id] = amount.value;
+            const typed = plain(amount.value).trim();
+            card?.setPrices({ [offer.id]: typed ? { figure: `${currency} ${typed}`, after: PREVIEW_WORDS.beforeTax, live: true } : typedPrice(offer.priceDisplay) });
+          });
           amount.addEventListener('change', () => act(null, status, async () => {
             await sendPrice(offer.id, amount.value);
             editing.delete(offer.id);
@@ -1419,7 +1434,7 @@ globalThis.ChausarLaunch = Object.freeze({
           ...preview.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)),
           note(`Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`)),
         obActions(obBtn('Set your price', () => showTemplatePrices()), obLink('Change what I wrote', () => showOpenBox())),
-      ], { shapes: preview.serviceType?.value || 'other', preview: templatePreview(preview, ob.price) });
+      ], { shapes: preview.serviceType?.value || 'other', preview: templatePreview(preview, ob.price, templateName()) });
     }
     function showTemplatePrices() {
       const ob = onboarding();
@@ -1431,7 +1446,7 @@ globalThis.ChausarLaunch = Object.freeze({
       if (ob.rate == null) ob.rate = rateQuestion?.prefill ?? '';
       const status = statusLine();
       const amount = textInput(ob.price, { inputmode: 'decimal', 'aria-label': `Your price, in ${country.currency}` });
-      amount.addEventListener('input', () => { ob.price = amount.value; card?.setPreview(templatePreview(preview, amount.value)); });
+      amount.addEventListener('input', () => { ob.price = amount.value; card?.setPreview(templatePreview(preview, amount.value, templateName())); });
       const pricing = choiceRow(PRICING, ob.pricing, value => {
         ob.pricing = value;
         ob.price = amount.value;
@@ -1477,7 +1492,7 @@ globalThis.ChausarLaunch = Object.freeze({
         h('p', { class: 'launch-tax-line' }, taxChip, ' ', toggle('Change', taxBody)), taxBody,
         h('div', {}, toggle('Tell us more (optional)', extraBody), extraBody),
         obActions(keep), status,
-      ], { shapes: preview.serviceType?.value || 'other', preview: templatePreview(preview, ob.price) });
+      ], { shapes: preview.serviceType?.value || 'other', preview: templatePreview(preview, ob.price, templateName()) });
     }
 
     /** The in-vault plan from built-in templates, when a business has no plan yet: price and tax inline, as before. */
@@ -1574,6 +1589,12 @@ globalThis.ChausarLaunch = Object.freeze({
     function keptName() {
       const ob = onboarding();
       return plain(ob.mode === 'ai' && ob.plan ? ob.plan.name.value : ob.preview?.serviceLabel).trim() || 'My service business';
+    }
+    /** The built-in plan's name in the preview before Keep: the name the vault will get, so nothing jumps at Keep.
+        Hosted asks for a working name at Keep it, so its preview waits for that. */
+    function templateName() {
+      if (hosted) return null;
+      return plain(state.workspace?.name).trim() || plain(onboarding().workingName).trim() || keptName();
     }
     /** The preview of the plan being kept, named once the vault holds it. */
     function keptPreview() {
@@ -1879,18 +1900,31 @@ globalThis.ChausarLaunch = Object.freeze({
     function paintWelcome(error, list, failed = null) {
       const businesses = [...(list?.businesses || [])].sort((a, b) => plain(b.openedAt).localeCompare(plain(a.openedAt)));
       const status = statusLine();
+      // Two businesses with the same name (two built-in bookkeeping plans, say) are told apart by their folder.
+      const shownName = business => plain(business.name || business.folder);
+      const named = new Map();
+      for (const business of businesses) named.set(shownName(business), (named.get(shownName(business)) || 0) + 1);
+      // One filled button on the screen: the first row's, or the row asking for its passphrase while it asks.
+      let asking = null;
+      const painters = new Map();
       const rowNode = (business, index) => {
         const node = h('div', { class: 'ob-biz', 'data-folder': business.folder });
         const rowStatus = statusLine();
-        const words = h('div', { class: 'ob-biz-words' }, h('span', { class: 'ob-biz-name' }, business.name || business.folder),
+        const twin = named.get(shownName(business)) > 1 && business.name;
+        const words = h('div', { class: 'ob-biz-words' }, h('span', { class: 'ob-biz-name' }, shownName(business)),
+          twin ? h('span', { class: 'ob-biz-folder' }, `Folder: ${business.folder}`) : null,
           h('span', { class: `ob-chip ob-chip-${business.opens}` }, OPENS_CHIPS[business.opens] || business.opens));
-        const paint = (asking = false) => {
-          const kind = index === 0 ? obBtn : obGhost;
-          let action = null, extra = null;
+        const paint = (open = false) => {
+          const kind = (asking ? asking === business.folder : index === 0) ? obBtn : obGhost;
+          let action = null, extra = null, askField = null;
           if (business.opens === 'with-this-computer') {
             action = kind('Open', () => act(action, rowStatus, async () => { await opened(await request('workspace.open', { folder: business.folder })); }));
-          } else if (business.opens === 'needs-passphrase' && !asking) {
-            action = kind('Open', () => paint(true));
+          } else if (business.opens === 'needs-passphrase' && !open) {
+            action = kind('Open', () => {
+              asking = business.folder;
+              for (const [folder, repaint] of painters) if (folder !== business.folder) repaint(false);
+              paint(true);
+            });
           } else if (business.opens === 'needs-passphrase') {
             const passphrase = h('input', { type: 'password', value: '', autocomplete: 'current-password', 'aria-label': `Passphrase for ${business.name || business.folder}` });
             const go = obBtn('Open', () => act(go, rowStatus, async () => {
@@ -1902,12 +1936,15 @@ globalThis.ChausarLaunch = Object.freeze({
             }));
             passphrase.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault?.(); go.click(); } });
             extra = h('div', { class: 'ob-biz-pass' }, passphraseField('Passphrase', passphrase), obActions(go));
-            focusOnDesk(passphrase);
+            askField = passphrase;
           } else {
             action = obGhost('Use my recovery code', () => showRecover(list, business.folder));
           }
           fill(node, words, action, extra, rowStatus);
+          // The owner opened the field: the cursor goes in, once it is in the page, whatever the pointer.
+          if (askField) { try { askField.focus(); } catch { /* focus is a convenience */ } }
         };
+        painters.set(business.folder, paint);
         paint(false);
         if (failed?.folder === business.folder) showError(rowStatus, failed.error);
         return node;
@@ -1937,7 +1974,7 @@ globalThis.ChausarLaunch = Object.freeze({
         obFold('More options', h('p', { class: 'ob-u-links' },
           obLink('Restore a backup', () => showRestoreBackup(list)), ' ', obLink('Use a recovery code', () => showRecover(list)),
           byFolder ? ' ' : null, byFolder, ' ', retry, sample ? ' ' : null, sample)),
-      ], { shapes: 'lockShut' });
+      ], { shapes: 'lockShut', preview: businesses.length ? { name: shownName(businesses[0]) } : null, locked: businesses.length > 0 });
     }
     /** The old typed way in, for a business the list can't show (PostgreSQL storage) or an empty list. */
     function showOpenByFolder() {
@@ -2006,12 +2043,17 @@ globalThis.ChausarLaunch = Object.freeze({
           });
         },
       }, field(businesses.length ? 'Business' : 'Vault folder', folder), field('Recovery code', code), reason, pair.node, obActions(submit), status);
-      obFrame('back', [obBack(() => openExisting('', list)), obTitle('Use your recovery code.'), obLead('It opens your business, and this computer keeps the key again.'), formNode], { shapes: 'lockShut' });
+      const chosenName = () => { const item = businesses.find(entry => entry.folder === plain(folder.value)); return item?.name ? plain(item.name) : null; };
+      if (businesses.length) folder.addEventListener('change', () => { const name = chosenName(); card?.setPreview(name ? { name } : null); card?.setLocked(Boolean(name)); });
+      const named = businesses.length ? chosenName() : null;
+      obFrame('back', [obBack(() => openExisting('', list)), obTitle('Use your recovery code.'), obLead('It opens your business, and this computer keeps the key again.'), formNode],
+        { shapes: 'lockShut', preview: named ? { name: named } : null, locked: Boolean(named) });
     }
     /** Restore a backup before opening: every backup on this computer, newest first, grouped by business. */
     async function showRestoreBackup(list) {
       const host = h('div', { class: 'ob-backups' }, outline(3));
       obFrame('back', [obBack(() => openExisting('', list)), obTitle('Restore a backup.'), obLead('Backups on this computer, newest first.'), host], { shapes: 'lockShut' });
+      const generation = state.generation;
       let found;
       try { found = await request('workspace.backups.list'); }
       catch (error) { fill(host, ...errorNodes(error, () => showRestoreBackup(list))); return; }
@@ -2022,6 +2064,8 @@ globalThis.ChausarLaunch = Object.freeze({
       const shown = [...groups.entries()].map(([name, items]) => obFold(name, h('div', { class: 'ob-backup-rows' }, items.map(backup => restoreRow(backup, list)))));
       if (shown[0]) shown[0].open = true;
       fill(host, ...shown);
+      const first = backups[0]?.name ? plain(backups[0].name) : null;
+      if (first && generation === state.generation) { card?.setPreview({ name: first }); card?.setLocked(true); }
     }
     function restoreRow(backup, list) {
       const node = h('div', { class: 'ob-backup', 'data-file': backup.file });
@@ -2057,14 +2101,19 @@ globalThis.ChausarLaunch = Object.freeze({
     }
     /** Move a business here: the move file from the other computer and its one-time code. */
     function showMoveHere(list) {
-      const file = h('input', { type: 'file', accept: '.backup,application/json', 'aria-label': 'The move file' });
+      // The browser's own file control stays hidden; Chausar's button opens it, by mouse or keyboard.
+      const file = h('input', { type: 'file', accept: '.backup,application/json', hidden: true, tabindex: '-1', 'aria-label': 'The move file' });
+      const chosenWords = h('span', { class: 'ob-file-name' }, 'No file chosen yet.');
+      const choose = obGhost('Choose the move file', () => file.click());
+      file.addEventListener('change', () => { const picked = file.files?.[0]; chosenWords.textContent = picked ? plain(picked.name) : 'No file chosen yet.'; });
+      const fileRow = h('div', { class: 'ob-file' }, choose, chosenWords, file);
       const code = h('input', { type: 'password', value: '', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'The move code' });
       const pair = newPassphrasePair();
       const reason = h('p', { class: 'ob-hint', hidden: true });
       const status = statusLine();
       const go = obBtn('Move it here', () => act(go, status, async () => {
         const chosen = file.files?.[0];
-        if (!chosen) { nudge(file.parentElement); throw new Error('Choose the move file first.'); }
+        if (!chosen) { nudge(fileRow); throw new Error('Choose the move file first.'); }
         let fileText = await chosen.text();
         const payload = { fileText, transferCode: code.value.trim() };
         try {
@@ -2083,7 +2132,7 @@ globalThis.ChausarLaunch = Object.freeze({
       }));
       obFrame('back', [
         obBack(() => openExisting('', list)), obTitle('Move a business here.'), obLead('Choose the file from your other computer and type its code.'),
-        field('The move file', file), field('The move code', code), reason, pair.node, obActions(go), status,
+        fileRow, field('The move code', code), reason, pair.node, obActions(go), status,
       ], { shapes: 'lockShut' });
     }
     const applyWorkspaceStatus = status => (typeof kit.applyWorkspaceStatus === 'function' ? kit.applyWorkspaceStatus(status) : afterOpen());
@@ -3435,6 +3484,15 @@ globalThis.ChausarLaunch = Object.freeze({
       ]),
     });
     const LOSS_TAIL = ' Your recovery code still opens your business and its backups.';
+    /** With no recovery code, the computer's key is the only way in to the business and to every backup sealed with it. */
+    const NO_CODE_LOSS = "With no recovery code, losing this computer's key loses your business and all its backups.";
+    /** In passphrase mode the key record is gone: this computer keeps nothing for the business. */
+    const PASSPHRASE_WHERE = 'Your passphrase opens it; this computer keeps no key for it.';
+    /** The header: where the business is kept and what opens it. PostgreSQL storage may be on another host. */
+    function custodyHeader(business) {
+      if (business.storage !== 'postgres') return 'Encrypted on this computer.';
+      return business.unlock === 'passphrase' ? 'Encrypted. Your passphrase opens it.' : 'Encrypted with a key this computer keeps.';
+    }
     /** Back to Trust & access once a code was shown on its own screen. */
     function backToTrust() { closeSheet(); state.page = 'trust'; renderShell(); }
     /** A passphrase field for a sheet: Show beside it, never kept, cleared after each send. */
@@ -3488,14 +3546,19 @@ globalThis.ChausarLaunch = Object.freeze({
         note: `${BACKUP_KIND_WORDS[backup.kind] || backup.kind}. ${backup.opensNow ? 'Opens the way your business opens now.' : 'Opens with an older passphrase or code.'}`,
         side: link('Restore', () => openRestoreSheet(backup, refresh)),
       }));
+      // The loss line names the recovery code only when one was made; without one, the key is the only way in.
+      const lossLine = on || !computer.loss ? null : made ? note(`${computer.loss}${LOSS_TAIL}`)
+        : h('p', { class: 'launch-note' }, `${computer.loss} ${NO_CODE_LOSS} `, link('Make a recovery code', () => openRecoverySheet(mode, made)));
       const threats = [
-        ...(on ? THREAT_WORDS.passphrase : THREAT_WORDS['this-computer'].map((line, index) => (index === 0 && computer.available ? `${line} ${computer.where}` : line))),
-        on || !computer.loss ? null : `${computer.loss}${LOSS_TAIL}`,
-        ...THREAT_WORDS.both,
+        ...(on ? THREAT_WORDS.passphrase : THREAT_WORDS['this-computer'].map((line, index) => (index === 0 && computer.available ? `${line} ${computer.where}` : line))).map(line => note(line)),
+        lossLine,
+        ...THREAT_WORDS.both.map(line => note(line)),
       ].filter(Boolean);
+      // Where the key is: this computer's storage only while it opens the business; a passphrase leaves nothing here.
+      const where = mode === 'this-computer' ? (computer.available ? note(computer.where) : null) : note(PASSPHRASE_WHERE);
       fill(host,
-        head('Encrypted on this computer.', 'Keeping your business safe'),
-        computer.available ? note(computer.where) : null,
+        head(custodyHeader(business), 'Keeping your business safe'),
+        where,
         section(null, h('div', { class: 'launch-switch-row' }, toggleSwitch, note(switchWords, 'launch-note launch-switch-words'))),
         section(null, row({ mark: made ? 'you' : 'wait', title: recoveryWords, side: makeCode })),
         section(null, row({ mark: business.backups.lastError ? 'unsure' : 'cha', title: backupHead, extra: last, side: backupNow }),
@@ -3503,7 +3566,7 @@ globalThis.ChausarLaunch = Object.freeze({
         section(null, quiet('Move to another computer', () => openMoveSheet(mode))),
         business.storage === 'experimental-file' ? warn(EXPERIMENTAL) : null,
         note(TEN_YEARS_LINE),
-        fold('What this protects', false, ...threats.map(line => note(line))),
+        fold('What this protects', false, ...threats),
         status);
     }
     function openPassphraseOn(refresh) {

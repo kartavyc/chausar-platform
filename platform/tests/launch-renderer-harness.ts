@@ -116,7 +116,9 @@ export class Element {
   remove() { if (this.parent) { this.parent.children = this.parent.children.filter(child => child !== this); this.parent = undefined; } }
   showModal() { this.open = true; }
   close() { if (!this.open) return; this.open = false; void this.dispatch('close'); }
-  focus() {}
+  /** The last element focused, and whether it was in the page then: focus() on a detached field does nothing in a browser. */
+  static focused: { node: Element; attached: boolean } | null = null;
+  focus() { Element.focused = { node: this, attached: ancestors(this).some(parent => parent.tagName === 'body') }; }
   scrollIntoView() {}
   querySelectorAll(selector: string) { return descendants(this).slice(1).filter(node => matches(node, selector)); }
   querySelector(selector: string) { return this.querySelectorAll(selector)[0] ?? null; }

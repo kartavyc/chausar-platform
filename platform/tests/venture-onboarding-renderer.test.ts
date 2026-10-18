@@ -236,6 +236,13 @@ test('Working shows still outlines in the decided views; the plan draws each vie
   assert.deepEqual(descendants(hh.app).filter(node => hasClass(node, 'ob-outline')).map(node => node.attributes['data-view']), ['offers-first', 'pages', 'notes']);
   assert.ok(text(hh.app).includes('Writing your plan with Claude Sonnet 5.5. This can take a minute.'));
   assert.equal(descendants(hh.app).some(node => /spin|loading/.test(node.className)), false, 'no spinner');
+  // The website card while the AI writes: the name placeholder and the engine's reading in real words; only the
+  // page list is outlined, and there is no address bar to fill.
+  const site = find(rightPane(hh), node => hasClass(node, 'ob-site'));
+  assert.deepEqual(visibleText(site).map(item => item.trim()).filter(Boolean), ['Your business', hh.world.draft.decision!.reading!.value]);
+  assert.equal(descendants(site).filter(node => node.tagName === 'i' && ancestors(node).some(parent => hasClass(parent, 'ob-soutline'))).length, 3, 'three page outlines');
+  assert.equal(descendants(site).filter(node => node.tagName === 'i' && !ancestors(node).some(parent => hasClass(parent, 'ob-soutline') || hasClass(parent, 'ob-bar'))).length, 0, 'no other bars');
+  assert.equal(descendants(site).some(node => node.tagName === 'span' && !node.textContent && ancestors(node).some(parent => hasClass(parent, 'ob-bar'))), false, 'no empty address pill');
   fill.gate.release(); await flush();
   assert.equal(step(hh), 'plan');
   const lead = find(hh.app, node => node.tagName === 'section' && node.attributes['data-view'] === 'offers-first');
@@ -357,6 +364,7 @@ test('no protected storage: the engine says why, two passphrase fields, the reco
   assert.equal(title(h.app), 'Choose a passphrase.');
   assert.ok(visibleText(h.app).includes(CUSTODY_WORDS.unavailable.blocked), "the engine's own reason");
   assert.equal(descendants(h.app).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 2);
+  assert.equal(descendants(h.app).some(node => hasClass(node, 'ob-progress')), false, 'no segment name: the plan is not accepted yet');
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
   await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
   await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
@@ -365,6 +373,7 @@ test('no protected storage: the engine says why, two passphrase fields, the reco
     { name: kept.name.value, pack: 'services', folder: null, passphrase: 'long-enough-passphrase' },
   ], 'first without a passphrase, then with the one the owner chose');
   assert.equal(step(h), 'code');
+  assert.equal(descendants(h.app).some(node => hasClass(node, 'ob-progress')), false, 'the recovery code screen names no segment either');
   assert.equal(find(h.app, node => hasClass(node, 'ob-code')).textContent, 'DEMO-RECOVERY-CODE');
   assert.ok(text(h.app).includes('in the folder leeds-shift-walkers'), 'the code screen names the folder the engine chose');
   await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
@@ -493,13 +502,23 @@ test('pairing and Welcome back are drawn in look B and send what the old screens
   assert.equal(hasClass(button(rowsAtRest[0], 'Open'), 'ob-btn'), true, 'the first row is filled');
   assert.equal(hasClass(button(rowsAtRest[1], 'Open'), 'ob-ghost'), true, 'the others are ghost');
   // A passphrase row opens its own field; Open sends the folder and the passphrase, then clears it.
+  Element.focused = null;
+  const focused = () => Element.focused;
   await click(button(rowsAtRest[1], 'Open'));
   const pass = find(h.app, node => node.attributes['aria-label'] === 'Passphrase for Ledger Cafe Books');
   assert.equal(pass.attributes.type, 'password');
+  assert.equal(focused()?.node, pass, 'the cursor goes in the field the owner opened');
+  assert.equal(focused()?.attached, true, 'focused once the field is in the page, not before');
+  assert.equal(filledAtRest(h.app).length, 1, 'one filled button while a row asks for its passphrase');
+  assert.equal(hasClass(button(find(h.app, node => hasClass(node, 'ob-biz-pass')), 'Open'), 'ob-btn'), true, "the asking row's Open is the filled one");
+  assert.equal(hasClass(button(rowsAtRest[0], 'Open'), 'ob-ghost'), true, 'the first row steps back to ghost');
   await type(pass, 'long-enough-passphrase');
   await click(button(find(h.app, node => hasClass(node, 'ob-biz-pass')), 'Open'));
   assert.deepEqual(callsOf(h, 'workspace.open').map(call => call.payload), [{ folder: 'ledger-cafe-books', passphrase: 'long-enough-passphrase' }]);
   assert.equal(pass.value, '', 'the passphrase is cleared');
+  // Two businesses with the same name are told apart by their folder; a name of its own shows no folder.
+  const twins = await boot({ custody: { businesses: [{ ...K.leeds, name: 'Bookkeeping studio', folder: 'bookkeeping-studio' }, { ...K.leeds, name: 'Bookkeeping studio', folder: 'bookkeeping-studio-2', openedAt: '2026-10-17T09:30:00.000Z' }, K.ledger] } });
+  assert.deepEqual(descendants(twins.app).filter(node => hasClass(node, 'ob-biz-folder')).map(node => node.textContent), ['Folder: bookkeeping-studio', 'Folder: bookkeeping-studio-2']);
   // A this-computer row sends the folder only.
   const quick = await boot({ custody: { businesses: [K.leeds, K.ledger] } });
   await click(button(find(quick.app, node => hasClass(node, 'ob-biz') && node.attributes['data-folder'] === 'leeds-shift-walkers'), 'Open'));
@@ -564,11 +583,19 @@ test('Welcome back: an incomplete or empty list offers the typed folder; a backu
   assert.equal(title(move.app), 'Move a business here.');
   const file = find(move.app, node => node.tagName === 'input' && node.attributes.type === 'file');
   assert.equal(file.attributes.accept, '.backup,application/json');
+  assert.equal(file.hidden, true, "the browser's own file control is hidden");
+  let picked = 0;
+  file.addEventListener('click', () => { picked++; });
+  await click(button(move.app, 'Choose the move file'));
+  assert.equal(picked, 1, "Chausar's button opens the file chooser");
+  assert.ok(text(move.app).includes('No file chosen yet.'));
   const code = find(move.app, node => node.attributes['aria-label'] === 'The move code');
   assert.equal(code.attributes.type, 'password');
   assert.equal(code.attributes.autocomplete, 'off');
   assert.equal(ancestors(code).some(node => node.tagName === 'form'), false, 'the code field sits outside any form');
-  (file as unknown as { files: unknown[] }).files = [{ text: async () => K.MOVE_TEXT }];
+  (file as unknown as { files: unknown[] }).files = [{ name: 'chausar-move-2026-10-18.backup', text: async () => K.MOVE_TEXT }];
+  await file.dispatch('change');
+  assert.ok(text(move.app).includes('chausar-move-2026-10-18.backup'), "the chosen file's name beside the button");
   await type(code, K.MOVE_CODE);
   await click(button(move.app, 'Move it here')); await flush();
   assert.deepEqual(callsOf(move, 'workspace.transfer.import').map(call => call.payload), [{ fileText: K.MOVE_TEXT, transferCode: K.MOVE_CODE }]);
@@ -757,7 +784,7 @@ test('the live preview shows the business in real words: each from the engine, t
     assert.equal(descendants(pane).some(node => 'style' in node.attributes), false, `${label}: no inline style`);
     const strip = find(h.app, node => hasClass(node, 'ob-strip'));
     assert.equal(strip.attributes['aria-hidden'], 'true');
-    for (const phrase of phrases(strip)) assert.ok(allowed.has(phrase) || Object.values(SERVICE_TYPE_LABELS).includes(phrase), `${label}: the strip holds only the kind and the name, not "${phrase}"`);
+    for (const phrase of phrases(strip)) assert.ok(allowed.has(phrase) || phrase === 'Your business' || Object.values(SERVICE_TYPE_LABELS).includes(phrase), `${label}: the strip holds only the kind, the name and the typed line, not "${phrase}"`);
     return phrases(pane);
   };
   const planWords = (plan: typeof O.dogPlan) => [plan.name.value, plan.oneLiner.value, plan.familyLabel, ...plan.offers.map(offer => offer.name.value), ...plan.offers.map(offer => offer.priceDisplay).filter((item): item is string => Boolean(item)), ...plan.pages.map(item => item.title.value)];
@@ -765,9 +792,16 @@ test('the live preview shows the business in real words: each from the engine, t
   const h = await boot(connected(), { language: 'en-GB' });
   let shown = check(h, 'idea', new Set());
   assert.ok(shown.includes('Your business') && shown.includes('Takes shape as you type.'), 'placeholders before anything is typed');
+  const site = () => find(rightPane(h), node => hasClass(node, 'ob-site'), 'Expected the website card.');
+  assert.ok(visibleText(site()).includes('Your business'), 'the website card from the first screen');
   await type(find(h.app, node => node.tagName === 'textarea'), O.DOG_TEXT);
   shown = check(h, 'idea, typed', new Set([O.DOG_TEXT]));
   assert.ok(shown.includes(O.DOG_TEXT), 'the sentence, live, as typed');
+  assert.ok(visibleText(site()).includes(O.DOG_TEXT), 'the website card takes the typed line too');
+  assert.deepEqual(phrases(find(h.app, node => hasClass(node, 'ob-strip'))), ['Your business', O.DOG_TEXT], 'the phone strip moves as the owner types');
+  assert.equal(descendants(rightPane(h)).some(node => hasClass(node, 'ob-coffers')), false, 'no empty offer boxes before there are offers');
+  assert.equal(descendants(rightPane(h)).some(node => node.tagName === 'i' && !ancestors(node).some(parent => hasClass(parent, 'ob-bar'))), false, 'no grey bars, only the three dots of the window');
+  assert.equal(descendants(rightPane(h)).some(node => hasClass(node, 'ob-ckind')), false, 'no kind is guessed from the typed words');
   await click(goButton(h.app)); await flush();
   const plan = h.world.draft.plan!;
   shown = check(h, 'plan', new Set(planWords(plan)));
@@ -777,7 +811,10 @@ test('the live preview shows the business in real words: each from the engine, t
   assert.equal(plan.pages.slice(4).some(item => shown.includes(item.title.value)), false);
   await click(button(h.app, 'Set your prices'));
   const walks = find(h.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
-  await type(walks, '18'); await walks.dispatch('change'); await flush();
+  await type(walks, '18');
+  shown = check(h, 'prices, typing', new Set([...planWords(plan), 'GBP 18']));
+  assert.ok(shown.includes('GBP 18') && shown.includes('before tax'), "the owner's own text beside the currency code while typing, before the engine formats it");
+  await walks.dispatch('change'); await flush();
   const priced = h.world.draft.plan!;
   shown = check(h, 'prices', new Set(planWords(priced)));
   assert.ok(shown.includes(priced.offers[0].priceDisplay!) && shown.includes('before tax'), "the engine's display string, before tax");
@@ -803,15 +840,26 @@ test('the live preview shows the business in real words: each from the engine, t
   const preview = { ...F.preview, idea: 'Monthly bookkeeping for cafes.' };
   const templateWords = new Set([preview.serviceLabel, preview.oneLiner.value, ...preview.offers.map(offer => offer.name.value), 'INR 2,499']);
   check(built, 'built-in plan', templateWords);
+  assert.equal(find(rightPane(built), node => hasClass(node, 'ob-cname')).textContent, preview.serviceLabel, 'the name the business will be kept under, so it does not jump at Keep');
   await click(button(built.app, 'Set your price'));
   await type(find(built.app, node => node.attributes['aria-label'] === 'Your price, in INR'), '2,499');
   shown = check(built, 'built-in prices', templateWords);
   assert.ok(shown.includes('INR 2,499'), 'as typed, not formatted');
 
-  // Before a business exists on Welcome back and pairing: shapes only, no words.
+  // Welcome back: the newest business's name, already on the left, and that it is encrypted. No grey bars.
   const back = await boot({ custody: { businesses: [K.ledger] } });
+  assert.deepEqual(phrases(rightPane(back)), ['Encrypted on this computer', K.ledger.name]);
+  assert.deepEqual(phrases(find(back.app, node => hasClass(node, 'ob-strip'))), [K.ledger.name]);
+  assert.equal(descendants(rightPane(back)).some(node => node.tagName === 'i'), false, 'no grey bars');
+  // Restore names the business whose backups are listed first; Move a business here shows the card with no words or bars.
+  const options = find(back.app, node => node.tagName === 'details' && summaryOf(node)?.textContent === 'More options');
+  await open(options);
+  await click(button(options, 'Restore a backup')); await flush();
+  assert.deepEqual(phrases(rightPane(back)), ['Encrypted on this computer', K.backups[0].name]);
+  await click(button(back.app, 'Back')); await flush();
+  await click(button(back.app, 'Move from another computer'));
   assert.deepEqual(phrases(rightPane(back)), []);
-  assert.deepEqual(phrases(find(back.app, node => hasClass(node, 'ob-strip'))), []);
+  assert.equal(descendants(rightPane(back)).some(node => node.tagName === 'i'), false, 'no grey bars');
 });
 
 // ---------------------------------------------------------------------------------------------
