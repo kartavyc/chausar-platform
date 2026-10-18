@@ -121,6 +121,10 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 }
 
 /** The sole product authority. The renderer receives named, bounded results only. */
+/** The recovery state a move file says it carries (plaintext metadata, written by transfer.export). */
+function transferHint(parsed: any): RecoveryState {
+  return parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
+}
 export class Engine {
   options: EngineOptions;
   readonly version: string;
@@ -835,16 +839,27 @@ export class Engine {
         if (!custody) throw deviceKeysUnavailable('not-configured');
         const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
       }
-      const folder = payload.folder === null ? slugFolder(name, await files.takenFolders()) : payload.folder ?? 'main';
+      const taken = payload.folder === null ? await files.takenFolders() : null;
+      let folder: string = taken ? slugFolder(name, taken) : payload.folder ?? 'main';
       this.workspacePath(folder);
       let wroteCard = false, record: DeviceKeyRecord | null = null;
       const secret = computer ? randomBytes(32) : null;
       try {
-        if (custody && !(await files.readCard(folder))) {
-          await files.writeCard(newCard({ folder, name, demo: !!payload.demo, unlock: computer ? 'this-computer' : 'passphrase', recovery: computer ? 'not-made' : 'made', state: 'creating' }));
-          wroteCard = true;
+        let result!: Awaited<ReturnType<typeof Vault.create>>;
+        for (;;) {
+          if (custody && !(await files.readCard(folder))) {
+            await files.writeCard(newCard({ folder, name, demo: !!payload.demo, unlock: computer ? 'this-computer' : 'passphrase', recovery: computer ? 'not-made' : 'made', state: 'creating' }));
+            wroteCard = true;
+          }
+          try { result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder) }); break; }
+          catch (error) {
+            // The engine picked the folder, and an old vault with no card holds that slot (PostgreSQL storage
+            // keeps no folder to find): take the next name instead. slugFolder stops after -99.
+            if (!taken || (error as ChausarError).code !== 'VAULT_EXISTS') throw error;
+            if (wroteCard) { await files.removeCard(folder).catch(() => {}); wroteCard = false; }
+            taken.push(folder); folder = slugFolder(name, taken); this.workspacePath(folder);
+          }
         }
-        const result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder) });
         if (custody && secret) {
           try { record = await custody.keys.protect(result.vault.vaultId, secret); await files.writeKey(record); }
           catch (error) {
@@ -875,18 +890,39 @@ export class Engine {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear();
       const folder = payload.folder ?? payload.path ?? 'main'; this.workspacePath(folder);
       const custody = this.custodyHost(), typed = payload.passphrase !== undefined && payload.passphrase !== null;
-      let passphrase = payload.passphrase;
-      if (custody && !typed) {
-        const files = this.custodyFiles(), card = await files.readCard(folder);
-        if (card?.unlock === 'passphrase') throw new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
+      const files = this.custodyFiles(), card = custody ? await files.readCard(folder) : null;
+      const unlockWith = async (passphrase: string) => Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+      const unlockFailed = (error: unknown) => (error as ChausarError)?.code === 'UNLOCK_FAILED';
+      const passphraseRequired = () => new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
+      // A lock change cut short (KEYCHAIN-SPEC 3.1, 3.2) leaves its marker on the card: the vault may already open the new way.
+      const changing = card?.pending === 'to-passphrase' || card?.pending === 'to-this-computer';
+      let vault: Vault, how: 'this-computer' | 'typed';
+      if (!custody || typed) {
+        try { vault = await unlockWith(payload.passphrase); how = 'typed'; }
+        catch (error) {
+          const secret = custody && changing && unlockFailed(error) && card?.vaultId ? await this.existingComputerSecret(card.vaultId) : null;
+          if (!secret) throw error;
+          try { vault = await unlockWith(secret); how = 'this-computer'; } catch { throw error; }
+        }
+      } else if (card?.unlock === 'passphrase') {
+        // Try this computer's key only when the change to it was cut short, or a key record for the vault is on disk.
+        const record = card.vaultId ? await files.readKey(card.vaultId) : null;
+        const secret = card.vaultId && (card.pending === 'to-this-computer' || record) ? await this.existingComputerSecret(card.vaultId) : null;
+        if (!secret) throw passphraseRequired();
+        try { vault = await unlockWith(secret); how = 'this-computer'; }
+        catch (error) { if (unlockFailed(error)) throw passphraseRequired(); throw error; }
+      } else {
         // No card and no envelope to read (PostgreSQL storage, or no such folder): it needs a passphrase.
-        passphrase = await this.computerSecret(card?.vaultId ?? await files.folderVaultId(folder));
+        const secret = await this.computerSecret(card?.vaultId ?? await files.folderVaultId(folder));
+        try { vault = await unlockWith(secret); how = 'this-computer'; }
+        catch (error) {
+          // Turning the passphrase on was cut short after the rewrap: only the passphrase opens it now.
+          if (unlockFailed(error)) throw card?.pending === 'to-passphrase' ? passphraseRequired() : deviceKeyFailed();
+          throw error;
+        }
       }
-      let vault: Vault;
-      try { vault = await Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
-      catch (error) { if (custody && !typed && (error as ChausarError).code === 'UNLOCK_FAILED') throw deviceKeyFailed(); throw error; }
       await this.attachSafely(vault);
-      await this.afterOpen(folder, custody && !typed ? 'this-computer' : 'typed');
+      await this.afterOpen(folder, how);
       return { workspace: this.store().read().workspace };
     }
     if (method === 'workspace.recover') {
@@ -1911,7 +1947,10 @@ export class Engine {
     const custody = this.custodyHost(); if (!custody) throw deviceKeysUnavailable('not-configured');
     const record = vaultId ? await custody.files.readKey(vaultId) : null;
     if (!record) throw new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
-    const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+    // A business already kept by this computer: no passphrase opens it, so never say "Chausar asks for a passphrase".
+    const probe = await custody.keys.probe();
+    if (!probe.available) throw probe.reason === 'not-configured' || probe.reason === 'platform' ? deviceKeyFailed(probe.reason)
+      : Object.assign(new ChausarError('DEVICE_KEY_FAILED', CUSTODY_WORDS.lock.keyNotAnswering), { reason: probe.reason });
     let secret: Buffer | null;
     try { secret = await custody.keys.unprotect(record); } catch { throw deviceKeyFailed(); }
     if (!secret) throw deviceKeyFailed();
@@ -1968,9 +2007,14 @@ export class Engine {
     const header = await files.backupHeader(newest.name);
     this.#schedule = { ...this.#schedule, lastAt: newest.at, lastRevision: header?.vaultId === vault.vaultId ? header.revision : null };
   }
+  /** Re-seal this vault's managed backups and encrypted exports with the live wrappers (KEYCHAIN-SPEC 4.4). Skipped when
+   * this folder opens with this computer and another folder of the same vault is locked with a passphrase: the backups
+   * are shared by workspace id, and resealing them would quietly undo that passphrase. */
   private async resealManaged() {
-    const vault = this.store(), files = this.custodyFiles();
-    const paths = (await files.backupFiles(vault.read().workspace.id)).map(file => join(files.backups, file.name));
+    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
+    if (this.#openUnlock !== 'passphrase' && (await files.listCards()).some(card => card.state === 'ready' && card.vaultId === vault.vaultId
+      && card.folder !== this.#openFolder && card.unlock === 'passphrase')) return { resealed: [], skipped: [] };
+    const paths = [...(await files.backupFiles(workspaceId)).map(file => join(files.backups, file.name)), ...await files.exportFiles(workspaceId)];
     return vault.resealBackups(paths);
   }
   private async backupView(name: string): Promise<BackupView> {
@@ -1993,9 +2037,28 @@ export class Engine {
     }
     return this.backupView(name);
   }
-  private async safetyBackup(): Promise<BackupView | null> {
+  /** A safety copy before a lock change. Best effort, except with no recovery code yet: then it is the only way back
+   * if the change is cut short, so the change is refused (SAFETY_BACKUP_FAILED) and nothing changes. */
+  private async safetyBackup(required = false): Promise<BackupView | null> {
     try { return await this.writeBackup('safety'); }
-    catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); return null; }
+    catch (error) {
+      this.#schedule.lastError = (error as Error).message.slice(0, 300);
+      if (required) throw new ChausarError('SAFETY_BACKUP_FAILED', CUSTODY_WORDS.lock.safetyBackupFailed);
+      return null;
+    }
+  }
+  /** Puts a lock change that failed partway back the way it was, with the secret the vault opened with before.
+   * When even that fails, the card keeps its marker and the next open tries both ways in. Never throws. */
+  private async undoLockChange(card: VaultCard, secret: string | null, made: DeviceKeyRecord | null) {
+    const custody = this.custodyHost(), vault = this.vault; if (!custody || !vault || !secret) return;
+    try {
+      await vault.rewrapPassphrase(secret);
+      await custody.files.writeCard({ ...card, pending: null, wrappersDigest: vault.wrappersDigest });
+    } catch { return; }
+    this.#openUnlock = card.unlock;
+    if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); }
+    // The undo made a new wrapper (a new salt), so bring the backups to it again.
+    await this.resealManaged().catch(() => {});
   }
   /** At a tick: an automatic backup when one is due (KEYCHAIN-SPEC 4.1). Never throws. */
   private async backupTick() {
@@ -2039,12 +2102,24 @@ export class Engine {
     check(card.unlock === 'this-computer', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
     check(typeof payload.passphrase === 'string' && payload.passphrase.length >= 12 && payload.passphrase.length <= 1024, 'WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
     const files = this.custodyFiles();
-    await this.safetyBackup();
-    await vault.rewrapPassphrase(payload.passphrase);
-    // A passphrase can be forgotten and nobody can reset it, so the owner always leaves holding a recovery code.
-    const recoveryCode = card.recovery === 'made' ? null : await vault.rewrapRecovery();
-    const next: VaultCard = { ...card, unlock: 'passphrase', recovery: 'made', pending: 'forget', wrappersDigest: vault.wrappersDigest };
-    await files.writeCard(next); this.#openUnlock = 'passphrase';
+    await this.safetyBackup(card.recovery !== 'made');
+    // The secret it opens with now, to put things back if a step below fails.
+    const before = await this.existingComputerSecret(vault.vaultId);
+    // The marker goes on the card before the rewrap, so a crash after it still finds the way in (workspace.open).
+    await files.writeCard({ ...card, pending: 'to-passphrase' });
+    let recoveryCode: string | null = null, next: VaultCard;
+    try {
+      await vault.rewrapPassphrase(payload.passphrase);
+      // A passphrase can be forgotten and nobody can reset it, so the owner always leaves holding a recovery code.
+      recoveryCode = card.recovery === 'made' ? null : await vault.rewrapRecovery();
+      next = { ...card, unlock: 'passphrase', recovery: 'made', pending: 'forget', wrappersDigest: vault.wrappersDigest };
+      await files.writeCard(next);
+    } catch (error) {
+      // Even a failed rewrap may have reached the disk, so commit the old secret again either way.
+      await this.undoLockChange(card, before, null);
+      throw error;
+    }
+    this.#openUnlock = 'passphrase';
     await this.resealManaged();
     await this.forgetKeyIfUnused(vault.vaultId, card.folder);
     await files.writeCard({ ...next, pending: null });
@@ -2054,6 +2129,8 @@ export class Engine {
   private async passphraseOff(payload: any) {
     const custody = this.custodyHost()!, vault = this.store(), card = await this.currentCard();
     check(card.unlock === 'passphrase', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
+    // Other devices pull with the passphrase; a secret only this computer holds would shut them out of new revisions.
+    check(!(this.services.sync?.status(this.context).enabled), 'SYNC_NEEDS_PASSPHRASE', CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
     check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
     const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
     let secret = await this.existingComputerSecret(vault.vaultId), made: DeviceKeyRecord | null = null;
@@ -2063,11 +2140,21 @@ export class Engine {
       catch (error) { if (made) await custody.keys.forget(made).catch(() => {}); throw error instanceof ChausarError && error.code === 'DEVICE_KEY_FAILED' ? error : deviceKeyFailed(); }
       finally { bytes.fill(0); }
     }
-    await this.safetyBackup();
-    try { await vault.rewrapPassphrase(secret); }
+    try { await this.safetyBackup(card.recovery !== 'made'); }
     catch (error) { if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); } throw error; }
-    const next: VaultCard = { ...card, unlock: 'this-computer', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
-    await custody.files.writeCard(next); this.#openUnlock = 'this-computer';
+    // The marker goes on the card before the rewrap; the key record stays until the change is settled either way.
+    await custody.files.writeCard({ ...card, pending: 'to-this-computer' });
+    let next: VaultCard;
+    try {
+      await vault.rewrapPassphrase(secret);
+      next = { ...card, unlock: 'this-computer', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
+      await custody.files.writeCard(next);
+    } catch (error) {
+      // The typed passphrase was just checked, so it puts the vault back; then the new key record goes.
+      await this.undoLockChange(card, payload.passphrase, made);
+      throw error;
+    }
+    this.#openUnlock = 'this-computer';
     await this.resealManaged();
     await custody.files.writeCard({ ...next, pending: null });
     await vault.update(state => audit(state, 'custody.passphrase-off', {}));
@@ -2143,15 +2230,19 @@ export class Engine {
       try {
         if (secret) { record = await custody!.keys.protect(vault.vaultId, secret); await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url')); }
         else await vault.rewrapPassphrase(payload.passphrase);
+        // The card goes down before attaching, so if attaching fails the list still shows the right way in.
+        const state = vault.read();
+        await files.writeCard(newCard({ folder, vaultId: vault.vaultId, workspaceId: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo,
+          unlock: computer ? 'this-computer' : 'passphrase', recovery: transferHint(parsed), wrappersDigest: vault.wrappersDigest }));
       } catch (error) {
+        await files.removeCard(folder).catch(() => {});
         await vault.delete().catch(() => {});
         if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
         throw error instanceof ChausarError ? error : deviceKeyFailed();
       } finally { secret?.fill(0); }
       await this.attachSafely(vault);
     } finally { await files.removeTransfer(path).catch(() => {}); }
-    const hint = parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
-    await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: hint });
+    await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
     return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
   }
   private async forgetBusiness(folder: string | null, vaultId: string) {

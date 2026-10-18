@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   DPAPI_ARGS, DPAPI_SCRIPT, KEY_SERVICE, LINUX_ENV_NAMES, SECRET_TOOL, SECURITY, execFileRun, linuxDeviceKeyStore, macDeviceKeyStore,
-  memoryDeviceKeyStore, noDeviceKeyStore, osDeviceKeyStore, windowsDeviceKeyStore, type RunProcess,
+  PROBE_RETRY_MS, memoProbe, memoryDeviceKeyStore, noDeviceKeyStore, osDeviceKeyStore, windowsDeviceKeyStore, type ProbeResult, type RunProcess,
 } from '../runtime/device-custody.ts';
 import { CUSTODY_WORDS } from '../runtime/workspace-custody-contracts.ts';
 
@@ -25,6 +25,14 @@ function fakeRun(answers: Answer[] | ((call: Call) => Answer)) {
 }
 const code = (expected: string, reason?: string) => (error: any) => error.code === expected && (reason === undefined || error.reason === reason);
 const secret = () => randomBytes(32);
+/** The DPAPI stdin: three lines, op, entropy and base64 data, and nothing else. */
+function stdinLines(input: string) {
+  assert.ok(input.endsWith('\n'));
+  const lines = input.slice(0, -1).split('\n');
+  assert.equal(lines.length, 3, 'exactly three lines');
+  const [op, entropy, data] = lines;
+  return { op, entropy, data };
+}
 const leaks = (text: string, value: Buffer) => text.includes(value.toString('base64')) || text.includes(value.toString('base64url')) || text.includes(value.toString('hex'));
 
 test('Windows: the exact PowerShell path, arguments and environment; the secret travels only on stdin', async () => {
@@ -43,8 +51,7 @@ test('Windows: the exact PowerShell path, arguments and environment; the secret 
   assert.deepEqual(call.options.env, { SystemRoot: 'C:\\Windows' }, 'the child gets SystemRoot and nothing else');
   assert.equal(call.options.timeoutMs, 20_000);
   assert.ok(!leaks(call.args.join(' '), value), 'the secret is never in the argument list');
-  const input = JSON.parse(call.input);
-  assert.deepEqual(Object.keys(input).sort(), ['data', 'entropy', 'op']);
+  const input = stdinLines(call.input);
   assert.equal(input.op, 'protect'); assert.equal(input.entropy, 'chausar.device-key.v1:vault-a'); assert.equal(input.data, value.toString('base64'));
   assert.equal(record.scheme, 'windows-dpapi'); assert.equal(record.vaultId, 'vault-a'); assert.equal(record.blob, blob.toString('base64'));
   assert.equal(record.format, 'chausar.device-key.v1');
@@ -57,7 +64,7 @@ test('Windows: OK parsing on unprotect, and every failure becomes a fixed word w
   const store = windowsDeviceKeyStore(run, { SystemRoot: 'C:\\Windows' }, () => true);
   const record = { format: 'chausar.device-key.v1' as const, vaultId: 'vault-a', scheme: 'windows-dpapi' as const, blob: randomBytes(40).toString('base64'), createdAt: new Date().toISOString() };
   assert.ok((await store.unprotect(record))!.equals(value));
-  const input = JSON.parse(calls[0].input);
+  const input = stdinLines(calls[0].input);
   assert.equal(input.op, 'unprotect'); assert.equal(input.entropy, 'chausar.device-key.v1:vault-a'); assert.equal(input.data, record.blob);
 
   const stdoutSecret = `MODE:ConstrainedLanguage ${value.toString('base64')}`;
@@ -80,7 +87,7 @@ test('Windows: the probe protects one sample, once per store; exit 3 means block
   assert.deepEqual(await Promise.all([store.probe(), store.probe()]), [{ available: true }, { available: true }]);
   assert.deepEqual(await store.probe(), { available: true });
   assert.equal(calls.length, 1, 'the probe runs at most once per store');
-  assert.equal(JSON.parse(calls[0].input).entropy, 'chausar.device-key.v1:probe');
+  assert.equal(stdinLines(calls[0].input).entropy, 'chausar.device-key.v1:probe');
   assert.deepEqual(await windowsDeviceKeyStore(fakeRun([{ code: 3, stdout: 'MODE:ConstrainedLanguage' }]).run, { SystemRoot: 'C:\\Windows' }, () => true).probe(), { available: false, reason: 'blocked' });
   assert.deepEqual(await windowsDeviceKeyStore(fakeRun([{ code: null, timedOut: true }]).run, { SystemRoot: 'C:\\Windows' }, () => true).probe(), { available: false, reason: 'failed' });
   const none = fakeRun([]);
@@ -210,4 +217,45 @@ test('device-custody.ts never logs, never reads stderr, and never uses a shell',
   assert.match(source, /stdio: \['pipe', 'pipe', 'ignore'\]/, 'stderr is ignored at the source');
   assert.match(source, /shell: false/);
   assert.doesNotMatch(source, /EncodedCommand|ExecutionPolicy|pwsh/);
+});
+
+test('Windows: the script reads stdin with .NET calls only, so module logging never records the secret', () => {
+  // PowerShell module logging (event 4103, or 800 in the Windows PowerShell log) writes every cmdlet's parameter values.
+  // The only cmdlet allowed is Add-Type, with a fixed assembly name; stdin never passes through a cmdlet or a pipeline.
+  assert.doesNotMatch(DPAPI_SCRIPT, /\|/, 'no pipeline at all');
+  assert.doesNotMatch(DPAPI_SCRIPT, /ConvertFrom-Json|ReadToEnd|Out-|Write-|\$input\b/i);
+  const cmdlets = DPAPI_SCRIPT.match(/\b[A-Z][a-z]+-[A-Z][A-Za-z]+\b/g) ?? [];
+  assert.deepEqual([...new Set(cmdlets)], ['Add-Type']);
+  assert.match(DPAPI_SCRIPT, /^Add-Type -AssemblyName System\.Security$/m);
+  assert.equal(DPAPI_SCRIPT.match(/\[Console\]::In\.ReadLine\(\)/g)?.length, 3, 'op, entropy and data, one line each');
+});
+
+test('the probe keeps a success for good, but asks again after a failure once PROBE_RETRY_MS has passed', async () => {
+  let now = 1_000_000, runs = 0;
+  const answers: ProbeResult[] = [{ available: false, reason: 'failed' }, { available: false, reason: 'locked' }, { available: true }];
+  const probe = memoProbe(async () => { runs++; return answers.shift()!; }, () => now);
+  assert.deepEqual(await Promise.all([probe(), probe()]), [{ available: false, reason: 'failed' }, { available: false, reason: 'failed' }]);
+  assert.equal(runs, 1, 'calls at the same time share one attempt');
+  now += PROBE_RETRY_MS - 1;
+  assert.deepEqual(await probe(), { available: false, reason: 'failed' }, 'a burst inside the window answers from memory');
+  assert.equal(runs, 1);
+  now += 1;
+  assert.deepEqual(await probe(), { available: false, reason: 'locked' }, 'after the window the OS is asked again');
+  now += PROBE_RETRY_MS;
+  assert.deepEqual(await probe(), { available: true });
+  now += 10 * PROBE_RETRY_MS;
+  assert.deepEqual(await probe(), { available: true });
+  assert.equal(runs, 3, 'a success is never asked again');
+  let threw = 0;
+  const throwing = memoProbe(async () => { threw++; if (threw === 1) throw new Error('cold start'); return { available: true }; }, () => now);
+  assert.deepEqual(await throwing(), { available: false, reason: 'failed' });
+  now += PROBE_RETRY_MS;
+  assert.deepEqual(await throwing(), { available: true }, 'a throw counts as a failure and is retried too');
+
+  // The Windows store uses the same rule: right after a slow cold start (a timeout), no second PowerShell starts.
+  const slow = fakeRun([{ code: null, timedOut: true }, { code: 0, stdout: `OK:${randomBytes(40).toString('base64')}` }]);
+  const store = windowsDeviceKeyStore(slow.run, { SystemRoot: 'C:\\Windows' }, () => true);
+  assert.deepEqual(await store.probe(), { available: false, reason: 'failed' });
+  assert.deepEqual(await store.probe(), { available: false, reason: 'failed' });
+  assert.equal(slow.calls.length, 1, 'inside the window no new PowerShell starts');
 });

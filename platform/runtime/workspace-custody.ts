@@ -19,9 +19,13 @@ export type VaultCard = {
   /** The business name, readable on disk so Welcome back can list it before opening (K7). */
   name: string | null; demo: boolean | null;
   unlock: UnlockMode; recovery: RecoveryState; wrappersDigest: string | null;
-  state: 'creating' | 'ready'; pending: null | 'reseal' | 'forget';
+  /** 'to-passphrase' and 'to-this-computer' are written before a lock change rewraps the vault. When one is still set,
+   * the change was cut short, so opening tries both ways in and the next successful open clears it. */
+  state: 'creating' | 'ready'; pending: CardPending;
   createdAt: string; openedAt: string | null;
 };
+export type CardPending = null | 'reseal' | 'forget' | 'to-passphrase' | 'to-this-computer';
+export const CARD_PENDING: readonly CardPending[] = Object.freeze([null, 'reseal', 'forget', 'to-passphrase', 'to-this-computer']);
 export const FOLDER_RULE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const VAULT_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 /** Names beside the vault folders that are never a business. */
@@ -134,8 +138,11 @@ export class CustodyFiles {
     const rows: BusinessOnComputer[] = [];
     for (const card of cards) {
       if (card.state !== 'ready') continue;
+      const key = !!card.vaultId && !!await this.readKey(card.vaultId);
+      // A lock change cut short: list the way in it was moving to, since that is the likely one now (open tries both).
       let opens: BusinessOnComputer['opens'] = 'needs-passphrase';
-      if (card.unlock === 'this-computer') opens = card.vaultId && await this.readKey(card.vaultId) ? 'with-this-computer' : 'key-missing';
+      if (card.unlock === 'this-computer' && card.pending !== 'to-passphrase') opens = key ? 'with-this-computer' : 'key-missing';
+      else if (card.unlock === 'passphrase' && card.pending === 'to-this-computer' && key) opens = 'with-this-computer';
       rows.push({ folder: card.folder, name: card.name, demo: card.demo, unlock: card.unlock, opens, recovery: card.recovery, openedAt: card.openedAt, listedFrom: 'card' });
     }
     rows.sort((a, b) => (b.openedAt ?? '').localeCompare(a.openedAt ?? '') || a.folder.localeCompare(b.folder));
@@ -191,6 +198,17 @@ export class CustodyFiles {
     }
     return { backups: views, more: files.length > BACKUP_LIST_MAX };
   }
+  /** This business's encrypted exports (`exports/chausar-<workspaceId>-<ms>.vault`), absolute paths. Plaintext exports are left out. */
+  async exportFiles(workspaceId: string): Promise<string[]> {
+    const folder = await this.#folder(join(this.directory, 'exports'), false); if (!folder) return [];
+    const prefix = `chausar-${workspaceId}-`, found: string[] = [];
+    for (const name of await readdir(folder)) {
+      if (!name.startsWith(prefix) || !/^\d{1,16}\.vault$/.test(name.slice(prefix.length))) continue;
+      try { const info = await lstat(join(folder, name)); if (info.isFile() && !info.isSymbolicLink()) found.push(join(folder, name)); }
+      catch { /* removed while listing */ }
+    }
+    return found.sort();
+  }
   async removeBackup(name: string) { await this.#remove(this.backups, name); }
   async transferFile(text: string): Promise<string> {
     const folder = await this.#folder(this.transfers, true);
@@ -207,7 +225,7 @@ export function validCard(card: any): card is VaultCard {
   return !!card && card.format === CARD_FORMAT && typeof card.folder === 'string' && FOLDER_RULE.test(card.folder)
     && (card.vaultId === null || typeof card.vaultId === 'string' && VAULT_ID.test(card.vaultId))
     && ['this-computer', 'passphrase'].includes(card.unlock) && ['made', 'not-made', 'unknown'].includes(card.recovery)
-    && ['creating', 'ready'].includes(card.state) && [null, 'reseal', 'forget'].includes(card.pending)
+    && ['creating', 'ready'].includes(card.state) && CARD_PENDING.includes(card.pending)
     && (card.name === null || typeof card.name === 'string' && card.name.length <= 200);
 }
 export function newCard(fields: Partial<VaultCard> & Pick<VaultCard, 'folder' | 'unlock' | 'recovery'>): VaultCard {

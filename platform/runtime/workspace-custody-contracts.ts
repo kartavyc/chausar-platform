@@ -98,6 +98,8 @@ export const CUSTODY_ERRORS = Object.freeze([
   'DEVICE_KEYS_UNAVAILABLE', 'DEVICE_KEY_FAILED', 'PASSPHRASE_REQUIRED', 'PASSPHRASE_WRONG', 'CUSTODY_UNCHANGED',
   'TRANSFER_CODE_WRONG', 'TRANSFER_INVALID', 'TRANSFER_TOO_LARGE', 'TRANSFER_SAME_BUSINESS',
   'BACKUP_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'SYNC_NEEDS_PASSPHRASE',
+  /** Its words are CUSTODY_WORDS.lock.safetyBackupFailed. */
+  'SAFETY_BACKUP_FAILED',
 ] as const);
 
 /** DEVICE_KEYS_UNAVAILABLE carries CUSTODY_WORDS.unavailable[reason] as its message and `reason` on the error.
@@ -137,5 +139,14 @@ export const CUSTODY_WORDS = Object.freeze({
     BACKUP_NOT_FOUND: 'That backup is not in the backups folder.',
     BACKUP_OTHER_BUSINESS: 'This backup belongs to another business.',
     SYNC_NEEDS_PASSPHRASE: 'Device sync needs a business locked with a passphrase.',
+  }),
+  /** Words for changing the lock and for opening, beside the errors above. */
+  lock: Object.freeze({
+    /** DEVICE_KEY_FAILED when opening a this-computer business and the computer's protected storage didn't answer. */
+    keyNotAnswering: "This computer's protected storage didn't answer. Try again, or use your recovery code.",
+    /** SAFETY_BACKUP_FAILED: a lock change with no recovery code yet needs its safety copy first. */
+    safetyBackupFailed: "Chausar couldn't save a copy of your business first, so nothing changed. Make a recovery code, then try again.",
+    /** Show before turning the passphrase on while `recovery` is 'not-made'. A recovery code made now doesn't open older copies. */
+    outsideCopies: 'Copies you saved outside Chausar before now will stop opening after this change. Chausar updates the copies in its own backups and exports folders.',
   }),
 });

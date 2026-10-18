@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Engine } from '../runtime/engine.ts';
-import { Vault } from '../runtime/vault.ts';
+import { Vault, wrappersDigestOf } from '../runtime/vault.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
 import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER } from '../runtime/workspace-custody-contracts.ts';
 import { keepBackups, makeTransferCode, normalizeTransferCode, parseBackupName, slugFolder } from '../runtime/workspace-custody.ts';
@@ -407,6 +407,207 @@ test('secrets scan: no computer secret or passphrase anywhere; recovery and move
 });
 
 // ---------------------------------------------------------------- real Windows DPAPI on this computer
+
+// ---------------------------------------------------------------- a lock change cut short, and the review's other fixes
+
+const readCard = async (directory: string, folderName: string) => JSON.parse(await readFile(join(directory, 'custody', 'cards', `${folderName}.json`), 'utf8'));
+const keyFileExists = (directory: string, vaultId: string) => readFile(join(directory, 'custody', 'keys', `${vaultId}.json`)).then(() => true, () => false);
+const diskFault = (code: string) => Object.assign(new Error(`${code}: the disk refused`), { code });
+/** Lets the first call through and makes every later one fail, as when the disk fills or a rename keeps failing. */
+function failAfterFirst<T extends (...args: any[]) => Promise<any>>(work: T, code = 'ENOSPC'): T {
+  let calls = 0;
+  return (async (...args: any[]) => { if (++calls > 1) throw diskFault(code); return work(...args); }) as T;
+}
+
+test('turning the passphrase on, cut short after the rewrap: put back in place; if even that fails, the passphrase opens it and the next open settles the card', async t => {
+  const directory = await folder(t), keys = memoryDeviceKeyStore();
+  const { engine, ask } = engineAt(t, directory, { keys });
+  const { folder: name } = await ask('workspace.create', { name: 'Cut Short', pack: 'services', folder: null });
+
+  // A failure after the rewrap (here the recovery code's commit) puts the vault back with the computer secret.
+  let vault = (engine as any).vault;
+  vault.rewrapRecovery = async () => { throw diskFault('EPERM'); };
+  await assert.rejects(ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE }), /EPERM/);
+  let card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending, card.recovery, card.wrappersDigest], ['this-computer', null, 'not-made', vault.wrappersDigest]);
+  assert.equal((await ask('workspace.custody.get')).business.unlock, 'this-computer');
+  assert.equal(keys.items(), 1);
+  await ask('workspace.lock');
+  assert.equal((await ask('workspace.list')).businesses[0].opens, 'with-this-computer');
+  await ask('workspace.open', { folder: name });
+
+  // Now the undo fails too, as after a crash: the vault opens only with the passphrase, and the card says so.
+  vault = (engine as any).vault;
+  vault.rewrapRecovery = async () => { throw diskFault('EPERM'); };
+  vault.rewrapPassphrase = failAfterFirst(vault.rewrapPassphrase.bind(vault));
+  await assert.rejects(ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE }), /EPERM/);
+  card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending], ['this-computer', 'to-passphrase'], 'the marker stays on the card');
+  await ask('workspace.lock');
+  const row = (await ask('workspace.list')).businesses[0];
+  assert.deepEqual([row.folder, row.opens], [name, 'needs-passphrase'], 'Welcome back shows the passphrase field for it');
+  await assert.rejects(ask('workspace.open', { folder: name }), (error: any) => error.code === 'PASSPHRASE_REQUIRED' && error.message === CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED,
+    'not DEVICE_KEY_FAILED: the passphrase is the way in now');
+  await ask('workspace.open', { folder: name, passphrase: PASSPHRASE });
+  card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending, card.recovery], ['passphrase', null, 'not-made'], 'the next open settled the card');
+  assert.equal((await ask('workspace.status')).unlock, 'passphrase');
+  assert.equal(keys.items(), 0, 'and forgot the computer key');
+  assert.equal(await keyFileExists(directory, card.vaultId), false);
+  assert.ok((await ask('workspace.backups.list')).backups.every((backup: any) => backup.opensNow), 'and resealed the backups');
+});
+
+test('turning the passphrase off, cut short: a failed card write is undone with the typed passphrase; after a crash the computer key opens it, typed or not', async t => {
+  const directory = await folder(t), keys = memoryDeviceKeyStore();
+  const { engine, ask } = engineAt(t, directory, { keys });
+  const { folder: name } = await ask('workspace.create', { name: 'Off Cut', pack: 'services', folder: null, passphrase: PASSPHRASE });
+  const files = (engine as any).custodyFiles(), writeCard = files.writeCard.bind(files);
+  const refuseThisComputerCards = () => { files.writeCard = async (card: any) => { if (card.unlock === 'this-computer') throw diskFault('EPERM'); return writeCard(card); }; };
+
+  // The card write after the rewrap fails: the typed passphrase puts the vault back, and the new key goes.
+  refuseThisComputerCards();
+  await assert.rejects(ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE }), /EPERM/);
+  files.writeCard = writeCard;
+  let card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending], ['passphrase', null]);
+  assert.equal(keys.items(), 0); assert.equal(await keyFileExists(directory, card.vaultId), false);
+  await ask('workspace.lock');
+  await assert.rejects(ask('workspace.open', { folder: name }), code('PASSPHRASE_REQUIRED'));
+  await ask('workspace.open', { folder: name, passphrase: PASSPHRASE });
+
+  // As after a crash: the rewrap reached the disk and nothing after it did.
+  const crash = () => {
+    const vault = (engine as any).vault;
+    vault.rewrapPassphrase = failAfterFirst(vault.rewrapPassphrase.bind(vault));
+    refuseThisComputerCards();
+  };
+  crash();
+  await assert.rejects(ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE }), /EPERM/);
+  files.writeCard = writeCard;
+  card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending], ['passphrase', 'to-this-computer']);
+  assert.equal(keys.items(), 1, 'the key record stays until the change is settled');
+  await ask('workspace.lock');
+  assert.equal((await ask('workspace.list')).businesses[0].opens, 'with-this-computer');
+  await ask('workspace.open', { folder: name });
+  card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending], ['this-computer', null], 'opening with no passphrase tried the key record and settled the card');
+
+  // The same crash once more, then the owner types the old passphrase: the computer key still gets in.
+  await ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE });
+  crash();
+  await assert.rejects(ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE }), /EPERM/);
+  files.writeCard = writeCard;
+  await ask('workspace.lock');
+  await ask('workspace.open', { folder: name, passphrase: PASSPHRASE });
+  assert.equal((await ask('workspace.status')).unlock, 'this-computer');
+  assert.deepEqual([(await readCard(directory, name)).unlock, (await readCard(directory, name)).pending], ['this-computer', null]);
+});
+
+test('with no recovery code yet, a safety copy that fails stops the lock change before anything changes', async t => {
+  const directory = await folder(t), keys = memoryDeviceKeyStore();
+  const { engine, ask } = engineAt(t, directory, { keys });
+  const { folder: name } = await ask('workspace.create', { name: 'No Copy', pack: 'services', folder: null });
+  const vault = (engine as any).vault, digest = vault.wrappersDigest;
+  vault.backup = async () => { throw Object.assign(new Error('Snapshot-only backup cannot omit managed private artifacts.'), { code: 'ARTIFACT_BACKUP_REQUIRED' }); };
+  await assert.rejects(ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE }), (error: any) =>
+    error.code === 'SAFETY_BACKUP_FAILED' && error.message === CUSTODY_WORDS.lock.safetyBackupFailed);
+  const card = await readCard(directory, name);
+  assert.deepEqual([card.unlock, card.pending, vault.wrappersDigest, keys.items()], ['this-computer', null, digest, 1], 'nothing changed');
+  assert.match((await ask('workspace.custody.get')).business.backups.lastError, /private artifacts/);
+  // With a recovery code made, the safety copy is best effort again.
+  await ask('workspace.custody.recoveryCode');
+  const on = await ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE });
+  assert.deepEqual([on.custody.business.unlock, on.recoveryCode], ['passphrase', null]);
+});
+
+test('encrypted exports are resealed with the backups; a copy restored with a recovery code never unlocks the original passphrase backups', async t => {
+  const directory = await folder(t);
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Export Shop', pack: 'services', folder: null });
+  const sealed = (await ask('workspace.export', { confirmed: true })).path, plain = (await ask('workspace.export', { confirmed: true, plaintext: true })).path;
+  const plainBefore = await readFile(plain, 'utf8');
+  await ask('workspace.custody.passphraseOn', { passphrase: PASSPHRASE });
+  const card = await readCard(directory, 'export-shop');
+  assert.equal(wrappersDigestOf(JSON.parse(await readFile(sealed, 'utf8')).envelope), card.wrappersDigest, 'the .vault export opens the way the business opens now');
+  assert.equal(await readFile(plain, 'utf8'), plainBefore, 'a plaintext export is left alone');
+  await ask('workspace.lock');
+  const opened = await Vault.restore({ directory: join(directory, 'check-export'), backupFile: sealed, passphrase: PASSPHRASE, storage: 'experimental-file' });
+  assert.equal(opened.read().workspace.name, 'Export Shop'); await opened.close();
+
+  // The original is locked with a passphrase; a copy is restored before opening with the recovery code alone.
+  const other = await folder(t), second = engineAt(t, other);
+  const created = await second.ask('workspace.create', { name: 'Locked Original', pack: 'services', folder: null, passphrase: PASSPHRASE });
+  const backup = await second.ask('workspace.backups.create');
+  await second.ask('workspace.lock');
+  const original = await readCard(other, created.folder);
+  const restored = await second.ask('workspace.restore', { backupFile: backup.file, folder: null, recoveryCode: created.recoveryCode });
+  assert.equal(restored.folder, 'locked-original-restored');
+  assert.equal((await second.ask('workspace.status')).unlock, 'this-computer');
+  await second.ask('workspace.custody.recoveryCode');
+  const header = JSON.parse(await readFile(join(other, 'backups', backup.file), 'utf8')).envelope;
+  assert.equal(wrappersDigestOf(header), original.wrappersDigest, "the original's backups keep its passphrase");
+  await second.ask('workspace.lock');
+  await assert.rejects(second.ask('workspace.restore', { backupFile: backup.file, folder: null }), code('DEVICE_KEY_FAILED'), "this computer's login doesn't open them");
+  await second.ask('workspace.restore', { backupFile: backup.file, folder: null, passphrase: PASSPHRASE });
+});
+
+test('turning the passphrase off is refused while device sync is on', async t => {
+  const directory = await folder(t), keys = memoryDeviceKeyStore();
+  const { engine, ask } = engineAt(t, directory, { keys });
+  await ask('workspace.create', { name: 'Synced Shop', pack: 'services', folder: null, passphrase: PASSPHRASE });
+  const sync = (engine as any).services.sync, status = sync.status.bind(sync);
+  sync.status = (context: any) => ({ ...status(context), enabled: true });
+  await assert.rejects(ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE }), (error: any) =>
+    error.code === 'SYNC_NEEDS_PASSPHRASE' && error.message === CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
+  assert.deepEqual([(await ask('workspace.custody.get')).business.unlock, keys.items()], ['passphrase', 0]);
+  sync.status = status;
+  assert.equal((await ask('workspace.custody.passphraseOff', { passphrase: PASSPHRASE })).custody.business.unlock, 'this-computer');
+});
+
+test("when this computer's protected storage doesn't answer, opening says so in its own words, and a later try works", async t => {
+  const directory = await folder(t), inner = memoryDeviceKeyStore();
+  let down = false;
+  const keys: DeviceKeyStore = { scheme: inner.scheme, protect: inner.protect, unprotect: inner.unprotect, forget: inner.forget,
+    probe: async () => down ? { available: false, reason: 'failed' } : inner.probe() };
+  const { ask } = engineAt(t, directory, { keys });
+  const { folder: name } = await ask('workspace.create', { name: 'Slow Start', pack: 'services', folder: null });
+  await ask('workspace.lock');
+  down = true;
+  await assert.rejects(ask('workspace.open', { folder: name }), (error: any) =>
+    error.code === 'DEVICE_KEY_FAILED' && error.reason === 'failed' && error.message === CUSTODY_WORDS.lock.keyNotAnswering && !/asks for a passphrase/.test(error.message));
+  down = false;
+  assert.equal((await ask('workspace.open', { folder: name })).workspace.name, 'Slow Start');
+});
+
+test('a business named like an old vault slot with no card takes the next name instead of failing', async t => {
+  const directory = await folder(t);
+  const old = engineAt(t, directory, { keys: null });
+  await old.ask('workspace.create', { name: 'Main', pack: 'services', passphrase: PASSPHRASE });
+  await old.engine.close();
+  const { engine, ask } = engineAt(t, directory);
+  // On PostgreSQL storage the old slot has no folder on disk, so nothing marks the name as taken.
+  (engine as any).custodyFiles().takenFolders = async () => [];
+  const created = await ask('workspace.create', { name: 'Main', pack: 'services', folder: null });
+  assert.equal(created.folder, 'main-2');
+  assert.equal(await readFile(join(directory, 'custody', 'cards', 'main.json')).then(() => true, () => false), false, 'the creating card for the taken slot was removed');
+  assert.equal((await ask('workspace.status')).workspace.name, 'Main');
+});
+
+test('a move whose attach fails stays listed with the right way in, and opens later with no passphrase', async t => {
+  const here = await folder(t, 'chausar-move-a-'), there = await folder(t, 'chausar-move-b-');
+  const a = engineAt(t, here, { keys: memoryDeviceKeyStore() }), b = engineAt(t, there, { keys: memoryDeviceKeyStore() });
+  await a.ask('workspace.create', { name: 'Half Moved', pack: 'services', folder: null });
+  const exported = await a.ask('workspace.transfer.export');
+  (b.engine as any).attach = async () => { throw new Error('attach failed'); };
+  await assert.rejects(b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), /attach failed/);
+  delete (b.engine as any).attach;
+  const { businesses } = await b.ask('workspace.list');
+  assert.equal(businesses.length, 1);
+  assert.deepEqual([businesses[0].name, businesses[0].opens, businesses[0].unlock, businesses[0].listedFrom], ['Half Moved', 'with-this-computer', 'this-computer', 'card']);
+  await assert.rejects(b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), code('TRANSFER_SAME_BUSINESS'));
+  assert.equal((await b.ask('workspace.open', { folder: businesses[0].folder })).workspace.name, 'Half Moved');
+});
 
 test('Windows for real: a business made with no passphrase opens again in a new engine on the same folder', { skip: process.platform !== 'win32' }, async t => {
   const directory = await folder(t, 'chausar-dpapi-engine-');

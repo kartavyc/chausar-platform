@@ -20,7 +20,7 @@ export type DeviceKeyRecord = {
 export type ProbeResult = { available: true } | { available: false; reason: DeviceUnavailableReason };
 export interface DeviceKeyStore {
   readonly scheme: DeviceScheme | null;
-  /** One real round trip with the OS, at most once per store. Never throws. */
+  /** One real round trip with the OS. A success is kept for the store's life; a failure is asked again after PROBE_RETRY_MS. Never throws. */
   probe(): Promise<ProbeResult>;
   /** Hands the secret to the OS; returns the record to write (no secret in clear). Throws DEVICE_KEY_FAILED. */
   protect(vaultId: string, secret: Buffer): Promise<DeviceKeyRecord>;
@@ -45,9 +45,22 @@ export function deviceKeyFailed(reason: DeviceUnavailableReason = 'failed'): Cha
 }
 function checkVaultId(vaultId: string) { if (typeof vaultId !== 'string' || !VAULT_ID.test(vaultId)) throw deviceKeyFailed(); }
 function checkSecret(secret: Buffer) { if (!Buffer.isBuffer(secret) || secret.length < 16 || secret.length > 256) throw deviceKeyFailed(); }
-function memo(work: () => Promise<ProbeResult>): () => Promise<ProbeResult> {
-  let pending: Promise<ProbeResult> | null = null;
-  return () => pending ??= work().catch((): ProbeResult => ({ available: false, reason: 'failed' }));
+/** How long a failed probe answers from memory before the next call asks the OS again. */
+export const PROBE_RETRY_MS = 15_000;
+/** Keeps a successful probe for the life of the store. A failure (a slow cold start, a locked keyring) is kept only
+ * for PROBE_RETRY_MS, so a burst of calls doesn't start many processes, and then the next call asks again. */
+export function memoProbe(work: () => Promise<ProbeResult>, clock: () => number = Date.now, retryMs = PROBE_RETRY_MS): () => Promise<ProbeResult> {
+  let pending: Promise<ProbeResult> | null = null, failedAt: number | null = null;
+  return () => {
+    if (pending && (failedAt === null || clock() - failedAt < retryMs)) return pending;
+    failedAt = null;
+    const attempt: Promise<ProbeResult> = work().catch((): ProbeResult => ({ available: false, reason: 'failed' })).then(result => {
+      if (!result.available && pending === attempt) failedAt = clock();
+      return result;
+    });
+    pending = attempt;
+    return attempt;
+  };
 }
 function record(vaultId: string, scheme: DeviceScheme, fields: { blob?: string; item?: { service: string; account: string } }): DeviceKeyRecord {
   return { format: DEVICE_KEY_FORMAT, vaultId, scheme, ...fields, createdAt: new Date().toISOString() };
@@ -86,11 +99,13 @@ export const DPAPI_SCRIPT = [
   "$ProgressPreference = 'SilentlyContinue'",
   "if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { [Console]::Out.Write('MODE:' + $ExecutionContext.SessionState.LanguageMode); exit 3 }",
   'Add-Type -AssemblyName System.Security',
-  '$in = [Console]::In.ReadToEnd() | ConvertFrom-Json',
-  '$entropy = [Text.Encoding]::UTF8.GetBytes([string]$in.entropy)',
+  // Three stdin lines (op, entropy, base64 data), read with .NET calls only. No cmdlet and no pipeline touches them:
+  // PowerShell module logging writes each cmdlet's parameter values to the event log (event 4103).
+  '$op = [Console]::In.ReadLine()',
+  '$entropy = [Text.Encoding]::UTF8.GetBytes([Console]::In.ReadLine())',
+  '$data = [Convert]::FromBase64String([Console]::In.ReadLine())',
   '$scope = [Security.Cryptography.DataProtectionScope]::CurrentUser',
-  '$data = [Convert]::FromBase64String([string]$in.data)',
-  'switch ([string]$in.op) {',
+  'switch ($op) {',
   "  'protect' { $blob = [Security.Cryptography.ProtectedData]::Protect($data, $entropy, $scope); $back = [Security.Cryptography.ProtectedData]::Unprotect($blob, $entropy, $scope); if ([Convert]::ToBase64String($back) -ne [Convert]::ToBase64String($data)) { exit 4 }; [Console]::Out.Write('OK:' + [Convert]::ToBase64String($blob)) }",
   "  'unprotect' { [Console]::Out.Write('OK:' + [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Unprotect($data, $entropy, $scope))) }",
   '  default { exit 5 }',
@@ -109,7 +124,7 @@ export function windowsDeviceKeyStore(run: RunProcess = execFileRun, environment
   };
   async function call(op: 'protect' | 'unprotect', entropy: string, data: Buffer): Promise<{ ok: true; data: Buffer } | { ok: false; reason: DeviceUnavailableReason }> {
     const shell = executable(); if (!shell) return { ok: false, reason: 'platform' };
-    const input = JSON.stringify({ op, entropy, data: data.toString('base64') }) + '\n';
+    const input = `${op}\n${entropy}\n${data.toString('base64')}\n`;
     let result: Awaited<ReturnType<RunProcess>>;
     try { result = await run(shell.path, DPAPI_ARGS, input, { timeoutMs: WINDOWS_TIMEOUT, env: shell.env }); }
     catch { return { ok: false, reason: 'failed' }; }
@@ -124,7 +139,7 @@ export function windowsDeviceKeyStore(run: RunProcess = execFileRun, environment
   }
   return {
     scheme: 'windows-dpapi',
-    probe: memo(async () => {
+    probe: memoProbe(async () => {
       const sample = randomBytes(32);
       try { const answer = await call('protect', dpapiEntropy('probe'), sample); return answer.ok ? { available: true } : { available: false, reason: answer.reason }; }
       finally { sample.fill(0); }
@@ -185,7 +200,7 @@ export function macDeviceKeyStore(run: RunProcess = execFileRun, environment: No
   }
   return {
     scheme: 'macos-keychain',
-    probe: memo(async () => {
+    probe: memoProbe(async () => {
       const account = `probe-${randomBytes(8).toString('hex')}`;
       const stored = await store(account, randomBytes(32).toString('base64url'));
       if (stored) { await remove(account); return { available: false, reason: stored }; }
@@ -255,7 +270,7 @@ export function linuxDeviceKeyStore(run: RunProcess = execFileRun, environment: 
   }
   return {
     scheme: 'linux-secret-service',
-    probe: memo(async () => {
+    probe: memoProbe(async () => {
       const account = `probe-${randomBytes(8).toString('hex')}`;
       const stored = await store(account, randomBytes(32).toString('base64url'));
       if (stored) { if (stored !== 'no-keyring') await remove(account); return { available: false, reason: stored }; }
@@ -300,7 +315,7 @@ export function memoryDeviceKeyStore(): DeviceKeyStore & { items(): number } {
   return {
     scheme: 'memory',
     items: () => items.size,
-    probe: memo(async () => ({ available: true })),
+    probe: memoProbe(async () => ({ available: true })),
     async protect(vaultId, secret) {
       checkVaultId(vaultId); checkSecret(secret);
       const account = `${vaultId}.${randomBytes(6).toString('hex')}`;
