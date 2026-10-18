@@ -4,7 +4,7 @@
 // and is then assembled by the engine's own pure assembly, so every plan here has the shape the engine really sends.
 // No amount is worked out here: prices are the owner's typed text, formatted by the engine's own patch function.
 import type { AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan, ComposeModelOutput, DecideModelOutput, OpenBoxKind, WrittenBy } from '../../../../runtime/venture/onboarding-contracts.ts';
-import type { BlueprintView, CountryProfile, ModelCallRecord, ModelPreset, ModelPresetId, ModelStatusView, PriceReceiptRecord, VentureView } from '../../../../runtime/venture/contracts.ts';
+import type { BlueprintView, CountryProfile, ModelCallRecord, ModelPreset, ModelPresetId, ModelStatusView, PriceFigure, PriceReceiptRecord, VentureView } from '../../../../runtime/venture/contracts.ts';
 import { assembleComposed, makeDecision, validateCompose, validateDecide } from '../../../../runtime/venture/core/compose.ts';
 import { countryProfile } from '../../../../runtime/venture/core/countries.ts';
 import { aiOptionsView } from '../../../../runtime/venture/draft/handlers.ts';
@@ -311,3 +311,35 @@ export const composedBlueprintView: BlueprintView = {
   offerReceipts: { offer_1: composedReceipt, offer_2: null },
 };
 export const composedBlueprintAccepted: BlueprintView = { ...composedBlueprintView, blueprint: { ...composedBlueprintView.blueprint, status: 'accepted' } };
+
+// ---------------------------------------------------------------------------------------------
+// The longest kept plan: three priced offers in the vault, each with a receipt, for the words-at-rest test
+// ---------------------------------------------------------------------------------------------
+/** A receipt for one offer at its typed price, not registered for tax, so the total is the price the engine formatted. */
+export function receiptFor(offerId: string, currency: string, minor: string, display: string): PriceReceiptRecord {
+  const money = (key: PriceFigure['key'], label: string, value: string, shown: string): PriceFigure => ({ key, label, minor: value, display: shown, currency });
+  const zero = `${currency} 0.00`;
+  return {
+    ...composedReceipt, id: `vpr_${offerId}`, subject: { type: 'offer', offerId }, currency,
+    inputs: { ...composedReceipt.inputs, unitPriceMinor: minor },
+    steps: composedReceipt.steps.map(item => ({ ...item, inputs: item.inputs.map(value => (value === '1800' ? minor : value)), resultMinor: item.resultMinor === '1800' ? minor : item.resultMinor })),
+    figures: [money('unit', 'Unit price', minor, display), money('subtotal', 'Subtotal', minor, display), money('discount', 'Discount', '0', zero),
+      money('taxable', 'Taxable amount', minor, display), money('tax', 'VAT, not registered', '0', zero), money('total', 'Total', minor, display)],
+    totalMinor: minor, allowedNumbers: [minor, '0', '1'], explanation: `1 at ${display}, no VAT = ${display}.`,
+  };
+}
+/** The blueprint the vault holds after venture.create adopts a composed plan, with a receipt for every priced offer. */
+export function composedBlueprintFor(plan: ComposedPlan, venture: VentureView): { venture: VentureView; draft: BlueprintView; accepted: BlueprintView } {
+  const view: VentureView = { ...venture, venture: { ...venture.venture, idea: plan.text, workingName: plan.name.value, country: plan.country, serviceType: plan.family.value } };
+  const offers = plan.offers.map(({ allowedPricing: _allowed, priceDisplay: _display, ...offer }) => offer);
+  const receipts = Object.fromEntries(plan.offers.map(offer => [offer.id, offer.pricing.unitPriceMinor && offer.priceDisplay
+    ? receiptFor(offer.id, plan.country.currency, offer.pricing.unitPriceMinor, offer.priceDisplay) : null]));
+  const blueprint = {
+    ...composedBlueprintView.blueprint, serviceType: plan.family.value, name: plan.name, oneLiner: plan.oneLiner, customer: plan.customer, offers,
+    deliverySteps: plan.steps, approvals: plan.approvals.map(({ block: _block, ...line }) => line), backOffice: { ...plan.backOffice },
+    composition: { id: 'composition_demo_max', composeId: plan.composeId, kind: plan.kind, views: plan.views },
+    approvalBlocks: plan.approvals.map(item => item.block), pages: plan.pages, tools: plan.tools.map(item => ({ block: item.block, reason: item.reason })), notes: plan.notes,
+  } as BlueprintView['blueprint'];
+  const draft: BlueprintView = { blueprint, offerReceipts: receipts };
+  return { venture: view, draft, accepted: { ...draft, blueprint: { ...blueprint, status: 'accepted' } } };
+}

@@ -254,7 +254,7 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-seg{display:block;height:4px;overflow:hidden;border-radius:4px;background:var(--ob-line)}
 .ob-seg i{display:block;width:0;height:100%;border-radius:4px;background:var(--ob-accent)}
 .ob-progress li.done .ob-seg i,.ob-progress li.now .ob-seg i{width:100%}
-.ob-progress li.now .ob-seg i{animation:ob-fill var(--ob-t5) var(--ob-ease) both}
+.ob-progress li.ob-seg-new .ob-seg i{animation:ob-fill var(--ob-t5) var(--ob-ease) both}
 .ob-progress::after{content:attr(data-count);display:none;font-size:13px;font-weight:650;color:var(--ob-mute);font-variant-numeric:tabular-nums}
 @keyframes ob-fill{from{width:0}to{width:100%}}
 /* the split page */
@@ -446,7 +446,8 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-sh-p{fill:var(--ob-pale)}
 .ob-sh-t{fill:var(--ob-tile)}
 .ob-card-outline .ob-sh{fill:none;stroke:var(--ob-field-deco);stroke-width:2;stroke-dasharray:6 5}
-.ob-badge{position:absolute;right:16px;bottom:-14px;z-index:2;display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 9px;border:1px solid var(--ob-card-line);border-radius:999px;background:var(--ob-card);color:var(--ob-ink);font-size:12.5px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.12);animation:ob-badge var(--ob-t4) var(--ob-ease) both}
+.ob-badge{position:absolute;right:16px;bottom:-14px;z-index:2;display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 9px;border:1px solid var(--ob-card-line);border-radius:999px;background:var(--ob-card);color:var(--ob-ink);font-size:12.5px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.ob-badge.ob-badge-new{animation:ob-badge var(--ob-t4) var(--ob-ease) both}
 @keyframes ob-badge{from{opacity:0;transform:translateY(-8px) scale(.9)}to{opacity:1;transform:none}}
 .ob-lock-mark{display:block;width:14px;height:14px;fill:var(--ob-accent)}
 .ob-lock-mark .ob-lock-loop{fill:none;stroke:var(--ob-accent);stroke-width:1.6}

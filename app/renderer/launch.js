@@ -374,7 +374,15 @@ globalThis.ChausarLaunch = Object.freeze({
     const WHO_CHIP = Object.freeze({ you: 'You', agent: 'Agent', 'agent-then-you': 'Agent drafts' });
     const PRICING_WORDS = Object.freeze({ monthly: 'per month', project: 'per project', hourly: 'per hour' });
     const PURPOSE_WORDS = Object.freeze({ decide: 'Reading what you wrote', compose: 'Writing your plan' });
-    const CALL_WORDS = Object.freeze({ completed: 'answered', failed: 'refused', dispatching: 'sending', preview: 'not sent', expired: 'not sent' });
+    const CALL_WORDS = Object.freeze({ completed: 'answered', failed: 'failed', dispatching: 'sending', preview: 'not sent', expired: 'not sent' });
+    /** A failed call in words that match why it failed: only the AI itself refuses; Chausar's checks reject. */
+    const FAILED_CALL_WORDS = Object.freeze({ MODEL_OUTPUT_REJECTED: "failed Chausar's checks", MODEL_REFUSAL: 'refused' });
+    /** A copy of OPEN_BOX_TEXT in platform/runtime/venture/onboarding-contracts.ts: the engine's length limits for the sentence. */
+    const OPEN_BOX_TEXT = Object.freeze({ min: 10, max: 2000 });
+    const TOO_SHORT_WORDS = 'Say a little more: at least 10 characters.';
+    const TOO_LONG_WORDS = 'Keep it shorter: at most 2000 characters.';
+    /** Errors from decide that are about what was typed, not the AI: they go back to the open box. */
+    const OPEN_BOX_ERRORS = Object.freeze(['INVALID_VENTURE_REQUEST', 'UNKNOWN_COUNTRY']);
     const EXAMPLES = Object.freeze([
       ['Dog walking for nurses', 'Dog walking for busy nurses in Leeds.'],
       ["I'm good at Excel", "I'm good at Excel and I want to teach it."],
@@ -389,18 +397,24 @@ globalThis.ChausarLaunch = Object.freeze({
       keep: 'keep', code: 'keep', setup: 'keep', open: 'accept', build: 'build',
     });
 
+    /** "with Claude Code (Sonnet 5.5)" for a tool on the owner's plan, else "with Claude Haiku 5.5". */
+    function modelWords(presetId, model) {
+      if (presetId === 'claude-code-cli' || presetId === 'codex-cli') return `with ${presetName(presetId)} (${MODEL_NAMES[model] || model})`;
+      return `with ${presetName(presetId, model)}`;
+    }
     /** "with Claude Haiku 5.5", "with Claude Code (Sonnet 5.5)", "with Codex (GPT-6 Luna)" or "from a synthetic recording". */
     function tierWords(models, tier) {
       const current = models?.tiers?.[tier];
       if (replaying(models)) return writtenBy(models);
-      if (current && (current.presetId === 'claude-code-cli' || current.presetId === 'codex-cli')) {
-        return `with ${presetName(current.presetId)} (${MODEL_NAMES[current.model] || current.model})`;
-      }
-      return writtenBy(models, current?.presetId, current?.model);
+      return modelWords(current?.presetId, current?.model);
     }
-    /** The plan's author: a replay plan says so even if the status changed since. */
+    /** The plan's author, from the plan's own writtenBy: who wrote it, even if the owner connected another AI since.
+        Only a plan without writtenBy falls back to the live status. A replay plan says so. */
     function planByWords(plan, models) {
-      return plan?.writtenBy?.replay || replaying(models) ? 'from a synthetic recording' : tierWords(models, 'main');
+      const by = plan?.writtenBy;
+      if (by?.replay) return 'from a synthetic recording';
+      if (by?.presetId) return modelWords(by.presetId, by.model);
+      return replaying(models) ? 'from a synthetic recording' : tierWords(models, 'main');
     }
 
     // The shapes on the right: six rects, x, y, width, height, corner, turn (degrees about the centre), colour, opacity.
@@ -475,6 +489,9 @@ globalThis.ChausarLaunch = Object.freeze({
 
     let firstFrame = true;
     let card = null;
+    /** The progress segment and the lock badge of the last frame: each moves only when it changes, so motion happens once. */
+    let lastSegment = null;
+    let lastLocked = false;
     /**
      * The look B frame: header (brand and progress), the left pane with every reading word, the phone strip, and the
      * decorative right pane. Returns the left pane's inner host. The card spec says what the right pane draws.
@@ -484,9 +501,11 @@ globalThis.ChausarLaunch = Object.freeze({
       state.generation++;
       const segment = SEGMENT_OF[step];
       const at = segment ? PROGRESS.findIndex(([id]) => id === segment) : -1;
+      const newSegment = segment !== lastSegment;
+      lastSegment = segment || null;
       const progress = at < 0 ? null : h('nav', { class: 'ob-progress', 'aria-label': 'Progress', 'data-count': `${at + 1}/${PROGRESS.length}` },
         h('ol', {}, PROGRESS.map(([id, words], index) => h('li', {
-          class: index === at ? 'now' : index < at ? 'done' : null, 'aria-current': index === at ? 'step' : null,
+          class: index === at ? (newSegment ? 'now ob-seg-new' : 'now') : index < at ? 'done' : null, 'aria-current': index === at ? 'step' : null,
           'aria-label': index === at ? null : `${words}, ${index < at ? 'done' : 'not yet'}`,
         }, h('span', { class: 'ob-seg', 'aria-hidden': 'true' }, h('i')), index === at ? h('span', { class: 'ob-seg-name' }, words) : null))));
       const top = h('header', { class: 'ob-top' }, h('div', { class: 'ob-brand' }, brandMark(), h('span', {}, 'Chausar')), progress);
@@ -502,7 +521,9 @@ globalThis.ChausarLaunch = Object.freeze({
       const stripLock = h('span', { class: 'ob-st-lock', hidden: spec.locked ? null : true }, lockMark());
       const strip = h('div', { class: 'ob-strip', 'aria-hidden': 'true' }, h('span', { class: 'ob-mt' }, svg('svg', { viewBox: '34 4 212 168', preserveAspectRatio: 'xMidYMid meet' }, stripRects)), stripLock);
       const cardRects = sixRects();
-      const badge = h('span', { class: 'ob-badge', hidden: spec.locked && spec.lockWords !== false ? null : true }, lockMark(), RIGHT_PANE_WORDS[1]);
+      const badgeShown = Boolean(spec.locked && spec.lockWords !== false);
+      const badge = h('span', { class: badgeShown && !lastLocked ? 'ob-badge ob-badge-new' : 'ob-badge', hidden: badgeShown ? null : true }, lockMark(), RIGHT_PANE_WORDS[1]);
+      lastLocked = Boolean(spec.locked);
       const nameNode = spec.name ? h('h2', { class: 'ob-cname' }, spec.name) : null;
       const lineNode = spec.name ? h('p', { class: 'ob-ctag', hidden: spec.line ? null : true }, spec.line || '') : null;
       const chips = spec.chips ? h('div', { class: 'ob-cchips' }, Array.from({ length: Math.min(3, spec.chips) }, () => h('i'))) : null;
@@ -526,7 +547,11 @@ globalThis.ChausarLaunch = Object.freeze({
       paintShapes(groups, spec.shapes || 'idle');
       card = {
         setShapes: key => paintShapes(groups, key),
-        setLocked: on => { badge.hidden = !on || spec.lockWords === false; stripLock.hidden = !on; },
+        setLocked: on => {
+          const show = on && spec.lockWords !== false;
+          if (show && badge.hidden && !lastLocked) badge.classList.add('ob-badge-new');
+          badge.hidden = !show; stripLock.hidden = !on; lastLocked = Boolean(on);
+        },
         setLine: words => { if (lineNode) { lineNode.textContent = words || ''; lineNode.hidden = !words; } },
       };
       const title = typeof ask.querySelector === 'function' ? ask.querySelector('h1') : null;
@@ -639,7 +664,11 @@ globalThis.ChausarLaunch = Object.freeze({
         try { view = await request('venture.ai.options'); }
         catch (caught) { error = caught; }
       }
-      const skip = h('p', { class: 'ob-skip' }, obLink('Continue without AI', () => { ob.mode = 'template'; void showOpenBox(); }));
+      // With an AI already connected for plans, the skip link can't promise "without AI": the AI stays connected and is
+      // kept with the business, so it says what it really gives, a built-in plan, and Back keeps the connection in use.
+      const usable = current => servedByModel(current, 'main');
+      const skipLink = current => h('p', { class: 'ob-skip' }, obLink(usable(current) ? 'Use a built-in plan' : 'Continue without AI', () => { ob.mode = 'template'; void showOpenBox(); }));
+      const skip = skipLink(ob.ai);
       if (!view) {
         obFrame('ai', [obTitle('Connect an AI first.'), h('div', { class: 'ob-errors' }, ...errorNodes(error, () => showConnect(message))), skip], { shapes: 'ai' });
         return;
@@ -648,12 +677,14 @@ globalThis.ChausarLaunch = Object.freeze({
       const presets = Object.fromEntries((view.presets || []).map(preset => [preset.id, preset]));
       const half = halfConnected(view.status);
       const rows = view.options.map(option => aiRow(option, presets, half));
+      const keepCurrent = usable(view.status) ? obBack(() => afterConnected(view.status)) : null;
       obFrame('ai', [
-        obTitle('Connect an AI first.'),
+        keepCurrent,
+        obTitle(keepCurrent ? 'Change your AI.' : 'Connect an AI first.'),
         obAlert(message),
         h('div', { class: 'ob-ai-rows' }, rows),
         view.unchecked ? h('p', { class: 'ob-quiet-line' }, AI_UNCHECKED_LINE) : null,
-        skip,
+        skipLink(view.status),
       ], { shapes: 'ai' });
       if (half) { const keyRow = rows.find(node => node.getAttribute('data-option') === 'api-key'); if (keyRow) keyRow.open = true; }
     }
@@ -788,8 +819,10 @@ globalThis.ChausarLaunch = Object.freeze({
       ideaBox.append(go);
       const countryLine = h('p', { class: 'ob-country' });
       go.addEventListener('click', () => act(go, status, async () => {
-        const value = box.value.trim();
+        const value = box.value.replace(/\r\n/g, '\n').trim();
         if (!value) { nudge(ideaBox); throw new Error('Write one sentence about what you want to do.'); }
+        if (value.length < OPEN_BOX_TEXT.min) { nudge(ideaBox); throw new Error(TOO_SHORT_WORDS); }
+        if (value.length > OPEN_BOX_TEXT.max) { nudge(ideaBox); throw new Error(TOO_LONG_WORDS); }
         ob.idea = value;
         if (ob.mode === 'ai') { await makePlan(value); return; }
         if (ob.preview?.idea !== value || ob.preview?.country?.code !== ob.countryCode) { ob.tax = null; ob.rate = null; ob.extra = {}; }
@@ -801,7 +834,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const examples = obFold('Examples', h('div', { class: 'ob-chips' }, EXAMPLES.map(([words, sentence]) => h('button', {
         class: 'ob-example', type: 'button', onclick: () => { box.value = sentence; ob.idea = sentence; card?.setLine(sentence); focusOnDesk(box); },
       }, words))));
-      const changeAi = hosted ? null : ob.mode === 'ai' ? obLink('Change AI', () => showConnect()) : obLink('Connect an AI', () => showConnect());
+      const changeAi = hosted ? null : obLink(ob.mode === 'ai' || servedByModel(ob.ai, 'main') ? 'Change AI' : 'Connect an AI', () => showConnect());
       const returning = hosted
         ? h('p', { class: 'ob-returning' }, obLink('Your businesses', () => renderSetup()))
         : ob.vaultOpen
@@ -853,15 +886,37 @@ globalThis.ChausarLaunch = Object.freeze({
       const ob = onboarding();
       const countryCode = ob.countryCode || 'XX';
       const held = ob.decision;
-      if (held && held.kind !== 'not-a-service' && held.text === text && held.country?.code === countryCode) { await fillPlan(); return; }
+      if (sameSentence(held, text, countryCode)) { await fillPlan(); return; }
+      // A new sentence: the held decision and plan were for other words, so nothing of them may be shown or filled again.
+      ob.decision = null; ob.plan = null; ob.typed = {}; ob.sent = {};
       showWorking(text, null);
       let decision;
       try { decision = await request('venture.compose.decide', { text, countryCode }); }
-      catch (error) { composeError(error, () => makePlan(text)); return; }
+      catch (error) {
+        if (OPEN_BOX_ERRORS.includes(error?.code)) { await showOpenBox(error.message); return; }
+        composeError(error, () => makePlan(text));
+        return;
+      }
       ob.decision = decision;
-      ob.plan = null; ob.typed = {}; ob.sent = {};
       if (decision.kind === 'not-a-service') { showNotAService(); return; }
       await fillPlan();
+    }
+    /** Whether the held decision is for this sentence and country, so a fill may reuse it. */
+    function sameSentence(decision, text, countryCode) {
+      return Boolean(decision && decision.kind !== 'not-a-service' && decision.text === text && decision.country?.code === countryCode);
+    }
+    /** The engine no longer holds the plan (idle for an hour, or restarted): back to Connect, keeping an open vault. */
+    function planGone() {
+      const ob = onboarding();
+      ob.decision = null; ob.plan = null; ob.typed = {}; ob.sent = {};
+      void showConnect(CLEARED_LINE);
+    }
+    /** One owner edit before the vault. A plan the engine lost sends the owner back to Connect instead of failing in place. */
+    async function draftUpdate(patch) {
+      const ob = onboarding();
+      try { ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch }); }
+      catch (error) { if (error?.code === 'COMPOSE_NOT_FOUND') planGone(); throw error; }
+      return ob.plan;
     }
     async function fillPlan() {
       const ob = onboarding();
@@ -874,14 +929,9 @@ globalThis.ChausarLaunch = Object.freeze({
       showComposedPlan({ fresh: true });
     }
     function composeError(error, retry) {
-      const ob = onboarding();
       if (error?.code === 'COMPOSE_REFUSED') { showRefused(); return; }
       if (error?.code === 'COMPOSE_NOT_A_SERVICE') { showNotAService(); return; }
-      if (error?.code === 'COMPOSE_NOT_FOUND' || error?.code === 'NO_MODEL_CONNECTED') {
-        ob.decision = null; ob.plan = null;
-        void showConnect(CLEARED_LINE);
-        return;
-      }
+      if (error?.code === 'COMPOSE_NOT_FOUND' || error?.code === 'NO_MODEL_CONNECTED') { planGone(); return; }
       showModelError(error, retry);
     }
     /** Still outlines in the shapes of the decided views, each under its fixed heading. Nothing spins or loops. */
@@ -957,7 +1007,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const ob = onboarding();
       const status = statusLine();
       const send = answer => act(null, status, async () => {
-        ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { answers: [{ questionId: question.id, answer }] } });
+        await draftUpdate({ answers: [{ questionId: question.id, answer }] });
       });
       if (question.kind === 'choice') {
         const current = question.answer?.choiceId || '';
@@ -987,7 +1037,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const by = call.replay ? 'a synthetic recording' : presetName(call.presetId, call.model);
       return row({
         mark: call.status === 'completed' ? 'cha' : call.status === 'failed' ? 'unsure' : 'off', title: PURPOSE_WORDS[call.purpose] || call.purpose,
-        note: `${by}, ${CALL_WORDS[call.status] || call.status}`,
+        note: `${by}, ${(call.status === 'failed' && FAILED_CALL_WORDS[call.error?.code]) || CALL_WORDS[call.status] || call.status}`,
         extra: h('div', {}, call.error?.message ? h('p', { class: 'launch-row-more' }, call.error.message) : null,
           fold('Exact text sent', false, h('pre', { class: 'launch-pre' }, call.payloadText || ''))),
       });
@@ -1037,7 +1087,7 @@ globalThis.ChausarLaunch = Object.freeze({
         const value = typed.trim();
         const offer = ob.plan.offers.find(item => item.id === offerId);
         if (ob.sent[offerId] === value || (!value && !offer?.pricing?.unitPriceMinor)) return;
-        ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { offers: [{ id: offerId, unitPrice: value || null }] } });
+        await draftUpdate({ offers: [{ id: offerId, unitPrice: value || null }] });
         ob.sent[offerId] = value;
       };
       const paintRow = offer => {
@@ -1063,7 +1113,7 @@ globalThis.ChausarLaunch = Object.freeze({
           pricingNode = picker(allowed.map(model => [model, PRICING_WORDS[model]]), offer.pricing.model);
           pricingNode.setAttribute('aria-label', `How ${offer.name.value} is charged`);
           pricingNode.addEventListener('change', () => act(null, status, async () => {
-            ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { offers: [{ id: offer.id, pricingModel: pricingNode.value }] } });
+            await draftUpdate({ offers: [{ id: offer.id, pricingModel: pricingNode.value }] });
           }));
         } else pricingNode = h('span', { class: 'ob-per' }, PRICING_WORDS[offer.pricing.model] || offer.pricing.model);
         fill(node, h('span', { class: 'ob-offer-name' }, offer.name.value), amountNode, pricingNode, status);
@@ -1083,7 +1133,7 @@ globalThis.ChausarLaunch = Object.freeze({
         const rate = textInput(ob.rate ?? (registered ? '' : ob.plan.taxRateQuestion?.prefill || ''), { inputmode: 'decimal', 'aria-label': `${backOffice.taxLabel} rate, in percent` });
         const rateField = h('div', { hidden: ob.tax !== true && !registered ? true : null }, field(ob.plan.taxRateQuestion?.text || `What ${backOffice.taxLabel} rate do you charge, in percent?`, rate));
         const send = patch => act(null, status, async () => {
-          ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch });
+          await draftUpdate(patch);
           const open = node.open;
           paintTax();
           const again = taxHost.children?.[0];
@@ -1105,6 +1155,10 @@ globalThis.ChausarLaunch = Object.freeze({
       paintTax();
       const status = statusLine();
       const keep = obBtn('Keep this plan', () => act(keep, status, async () => {
+        // The engine must still hold this plan before a vault is made for it.
+        const held = await request('venture.compose.get');
+        if (!held?.plan || held.plan.composeId !== ob.plan.composeId) { planGone(); return; }
+        ob.plan = held.plan;
         for (const offer of ob.plan.offers) {
           const typed = ob.typed[offer.id];
           if (typeof typed === 'string' && typed.trim() !== (ob.sent[offer.id] ?? '')) await sendPrice(offer.id, typed);
@@ -1112,7 +1166,7 @@ globalThis.ChausarLaunch = Object.freeze({
         if (ob.tax === true && !ob.plan.backOffice.taxRegistered.value) {
           const typedRate = plain(ob.rate).trim();
           if (!typedRate) throw new Error(`Enter your ${ob.plan.backOffice.taxLabel} rate, in percent, or choose No.`);
-          ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { taxRegistered: true, taxRate: typedRate } });
+          await draftUpdate({ taxRegistered: true, taxRate: typedRate });
         }
         if (ob.vaultOpen) await runComposedSetup(); else showKeepSafe();
       }));
@@ -1126,22 +1180,42 @@ globalThis.ChausarLaunch = Object.freeze({
     async function runComposedSetup() {
       const ob = onboarding();
       const plan = ob.plan;
-      const statusNode = h('p', { class: 'ob-working', role: 'status' }, 'Saving your plan and pricing it with receipts.');
+      const priced = plan.offers.filter(offer => offer.pricing.unitPriceMinor);
+      const statusNode = h('p', { class: 'ob-working', role: 'status' }, priced.length ? 'Saving your plan and pricing it with receipts.' : 'Saving your plan.');
       const host = h('div', { class: 'ob-setup' });
       obFrame('setup', [obTitle('Setting up your plan'), statusNode, host], { shapes: 'lockShut', locked: true, lockWords: !hosted });
+      ob.quoted ??= [];
       try {
-        const payload = { idea: plan.text, countryCode: plan.country.code };
-        const name = plain(ob.workingName || plan.name.value).trim();
-        if (name.length >= 2 && name.length <= 80) payload.workingName = name;
-        payload.composeId = plan.composeId;
-        payload.composedDigest = plan.digest;
-        try { state.venture = await request('venture.create', payload); }
-        catch (error) { if (error?.code !== 'VENTURE_EXISTS') throw error; }
-        for (const offer of plan.offers) if (offer.pricing.unitPriceMinor) await request('venture.price.quote', { offerId: offer.id });
+        // Once create has committed, the engine has wiped the draft, so a retry only prices what is left.
+        if (!ob.created) {
+          const payload = { idea: plan.text, countryCode: plan.country.code };
+          const name = plain(ob.workingName || plan.name.value).trim();
+          if (name.length >= 2 && name.length <= 80) payload.workingName = name;
+          payload.composeId = plan.composeId;
+          payload.composedDigest = plan.digest;
+          try { state.venture = await request('venture.create', payload); }
+          catch (error) {
+            if (error?.code !== 'VENTURE_EXISTS') {
+              // A create that timed out may still have committed: the vault then holds the business, and that counts.
+              const existing = await settle(request('venture.get'));
+              if (!existing.value) {
+                if (error?.code === 'COMPOSE_NOT_FOUND') { planGone(); return; }
+                throw error;
+              }
+              state.venture = existing.value;
+            }
+          }
+          ob.created = true;
+        }
+        for (const offer of priced) {
+          if (ob.quoted.includes(offer.id)) continue;
+          await request('venture.price.quote', { offerId: offer.id });
+          ob.quoted.push(offer.id);
+        }
       } catch (error) {
         const retry = () => runComposedSetup();
         statusNode.hidden = true;
-        fill(host, ...errorNodes(error, retry), obActions(obBtn('Try again', retry), obLink('Back to the plan', () => showComposedPlan())));
+        fill(host, ...errorNodes(error, retry), obActions(obBtn('Try again', retry), ob.created ? null : obLink('Back to the plan', () => showComposedPlan())));
         return;
       }
       state.onboarding = null;
@@ -1159,7 +1233,10 @@ globalThis.ChausarLaunch = Object.freeze({
     function showRefused() {
       const ob = onboarding();
       const status = statusLine();
-      const again = obBtn('Try again', () => act(again, status, async () => { if (ob.decision) await fillPlan(); else await makePlan(ob.idea); }));
+      // Try again fills the held decision only when it is for the sentence on screen; otherwise it reads the sentence again.
+      const again = obBtn('Try again', () => act(again, status, async () => {
+        if (sameSentence(ob.decision, ob.idea, ob.countryCode || 'XX')) await fillPlan(); else await makePlan(ob.idea);
+      }));
       obFrame('refused', [
         obTitle("There's no plan to show."), obLead(COMPOSE_REFUSED_WORDS),
         obActions(again, obLink('Change what I wrote', () => showOpenBox()), obLink('Use a built-in plan', () => useBuiltIn())), status,
@@ -1172,7 +1249,7 @@ globalThis.ChausarLaunch = Object.freeze({
       obFrame('error', [
         obTitle("The AI didn't answer."),
         h('p', { class: 'ob-alert', role: 'alert' }, plain(error?.message || error)),
-        obActions(again, obLink('Change AI', () => showConnect())), status,
+        obActions(again, obLink('Change what I wrote', () => showOpenBox()), obLink('Change AI', () => showConnect())), status,
       ], { shapes: 'idle' });
     }
     /** The built-in plan, from the sentence the owner wrote. It says plainly that it was not fitted to it. */
@@ -1638,7 +1715,15 @@ globalThis.ChausarLaunch = Object.freeze({
         repaint();
         return;
       }
+      await learnToolNames(blueprintView.blueprint?.tools);
       host.replaceChildren(planBody({ view, blueprintView, models, mode, host }));
+    }
+    /** The kept plan stores only tool ids. Names come from the composed plan in this session, else from the connector
+        catalogue, so a reload never shows a raw id where the owner saw a name. A failed read leaves the ids. */
+    async function learnToolNames(tools) {
+      if (!(tools || []).some(item => !toolNames[item.block])) return;
+      const { value } = await settle(request('venture.connectors.list', {}));
+      for (const cardItem of Array.isArray(value) ? value : []) if (cardItem?.id && cardItem.name && !toolNames[cardItem.id]) toolNames[cardItem.id] = cardItem.name;
     }
 
     function planBody(ctx) {
@@ -1700,11 +1785,13 @@ globalThis.ChausarLaunch = Object.freeze({
         plan.notes?.length ? fold('Check before you start', open, ...plan.notes.map(item => note(item.text))) : null,
       ];
       if (mode === 'onboarding') {
-        // Onboarding shows the name, the offers with their receipts and Accept at rest; the rest is one fold away.
-        const by = plan.source !== 'model' ? ', from built-in templates' : replaying(models) ? ', from a synthetic recording' : '';
+        // Onboarding shows the name, the offers with their receipts and Accept at rest; the rest is one fold away. The
+        // version number and the Offers heading wait for the place: with three priced offers they would take Accept over
+        // 45 words. Who wrote the plan still shows at rest when it was not the connected AI.
+        const by = plan.source !== 'model' ? 'From built-in templates' : replaying(models) ? 'From a synthetic recording' : null;
         return h('div', { class: 'launch-plan-body' },
-          head(`Version ${plan.version}${by}`, plan.name.value),
-          section('Offers', rows(...offerRows)),
+          head(by, plan.name.value),
+          section(null, rows(...offerRows)),
           actions(accept, quiet('Change plan', () => openChangeSheet(ctx))),
           status,
           fold('More of your plan', open,
@@ -2943,7 +3030,7 @@ globalThis.ChausarLaunch = Object.freeze({
       agents: renderAgents, money: renderMoney, connections: renderConnections,
     });
     /** The renderer's copies of the onboarding contract, for the test that compares them. */
-    const copies = Object.freeze({ CLAUDE_TERMS_REASON, VIEWS, KIND_LABELS, AI_OPTION_IDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, AI_HALF_CONNECTED_WORDS, NOT_A_SERVICE_WORDS, COMPOSE_REFUSED_WORDS, RIGHT_PANE_WORDS });
+    const copies = Object.freeze({ CLAUDE_TERMS_REASON, OPEN_BOX_TEXT, VIEWS, KIND_LABELS, AI_OPTION_IDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, AI_HALF_CONNECTED_WORDS, NOT_A_SERVICE_WORDS, COMPOSE_REFUSED_WORDS, RIGHT_PANE_WORDS });
     return Object.freeze({ pages, views, firstRun, afterOpen, pairing, openExisting, showRecoveryCode, copies });
   },
 });

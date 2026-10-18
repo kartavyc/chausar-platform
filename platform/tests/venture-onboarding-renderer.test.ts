@@ -15,7 +15,7 @@ import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
 import { Vault } from '../runtime/vault.ts';
 import * as O from './fixtures/venture/renderer/onboarding.ts';
 import {
-  Element, KEY, ancestors, button, buttons, click, control, cssSource, descendants, find, flush, harness, hasClass, launchSource, restText, restWords, root, text, tick, type, visibleText,
+  Element, KEY, ancestors, button, buttons, click, control, cssSource, descendants, find, flush, harness, hasClass, launchSource, place, restText, restWords, root, text, tick, type, visibleText,
 } from './launch-renderer-harness.ts';
 import type { EngineOptions, HarnessOptions } from './launch-renderer-harness.ts';
 
@@ -256,7 +256,8 @@ test('not a service shows the refusal and offers a built-in plan with no fill; a
   const sent = find(refused.app, node => node.tagName === 'details' && summaryOf(node)?.textContent === 'What was sent');
   await open(sent);
   assert.deepEqual(callsOf(refused, 'venture.ai.calls').map(call => call.payload), [{ limit: 20 }]);
-  assert.ok(text(sent).includes('Writing your plan') && text(sent).includes('refused'));
+  assert.ok(text(sent).includes('Writing your plan') && text(sent).includes("failed Chausar's checks"), 'a rejected answer says it failed the checks');
+  assert.equal(text(sent).includes('refused'), false, 'nobody refused: the AI answered and Chausar rejected it');
   await click(button(refused.app, 'Try again'));
   assert.equal(callsOf(refused, 'venture.compose.fill').length, 2, 'Try again fills again with the same decision');
   assert.equal(callsOf(refused, 'venture.compose.decide').length, 1);
@@ -395,7 +396,8 @@ test('pairing and Welcome back are drawn in look B and send what the old screens
 // ---------------------------------------------------------------------------------------------
 /**
  * Accept and Build reuse the business and build places (52 and 55 words as places). In onboarding they fold what
- * they can; these are the measured counts with the composed fixtures, inside the budget of 45 (founder flag F10).
+ * they can (founder flag F10): Accept drops the version number and the Offers heading, which leaves the longest
+ * composed plan (three priced four-word offers, a sixty-character name, a replay) at exactly 45; Build measures 44.
  */
 const BUDGETS: Record<string, number> = {
   pair: 35, ai: 45, idea: 45, working: 45, plan: 45, prices: 45, 'not-a-service': 35, refused: 40, error: 45,
@@ -509,6 +511,37 @@ test('words at rest: every screen within its budget with the longest answers, th
   measure(t, 'back', back);
 });
 
+test('words at rest on Accept and Build with the longest composed plan: three priced offers, each with a receipt', async t => {
+  let fixture: ReturnType<typeof O.composedBlueprintFor> | null = null;
+  let accepted = false;
+  const h = await boot({ draft: { ai: O.statusClaudeCode, held: { key: 'maxOffers', decision: O.maxDecisions.maxOffers, plan: O.maxPlans.maxOffers } }, overrides: {
+    'venture.get': () => fixture?.venture ?? null,
+    'venture.blueprint.get': () => (accepted ? fixture!.accepted : fixture!.draft),
+    'venture.blueprint.accept': () => { accepted = true; return fixture!.accepted; },
+    'venture.price.quote': (_method, payload) => fixture!.draft.offerReceipts[payload.offerId],
+  } }, { language: 'en-AE' });
+  await click(button(h.app, 'Set your prices'));
+  for (const offer of O.maxPlans.maxOffers.offers) {
+    const input = find(h.app, node => node.attributes['aria-label'] === `Price of ${offer.name.value}, in AED`);
+    await type(input, '1250'); await input.dispatch('change'); await flush();
+  }
+  await click(button(h.app, 'Keep this plan'));
+  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
+  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  fixture = O.composedBlueprintFor(h.world.draft.plan!, O.composedVentureView);
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(button(h.app, 'Continue')); await flush();
+  assert.equal(step(h), 'open');
+  assert.deepEqual(callsOf(h, 'venture.price.quote').map(call => call.payload.offerId), ['offer_1', 'offer_2', 'offer_3'], 'a receipt for every priced offer');
+  for (const offer of O.maxPlans.maxOffers.offers) assert.ok(text(h.app).includes(offer.name.value));
+  assert.ok(visibleText(h.app).includes('From a synthetic recording'), 'who wrote it still shows at rest');
+  assert.equal(measure(t, 'open', h), 45, 'the longest plan fills the budget exactly');
+  await click(button(h.app, 'Accept plan')); await flush();
+  assert.equal(step(h), 'build');
+  measure(t, 'build', h);
+});
+
 test('model names come from the live status: a replay says synthetic recording, a replay plan says so too, Claude Code names Sonnet', async () => {
   const replay = await boot({ draft: { ai: O.statusPairReplay, replay: true }, overrides: { 'venture.compose.fill': () => new Promise(() => {}) } }, { language: 'en-GB' });
   await askAndHold(replay, O.DOG_TEXT);
@@ -610,4 +643,199 @@ test('the onboarding screens never compute money and never style elements from s
   for (const pattern of [/Number\(/, /parseInt/, /Math\./, /\*\s*\d/, /\d\s*\*/, /\/\s*100\b/]) assert.equal(pattern.test(prices), false, `the prices screen holds ${pattern}`);
   const index = await readFile(join(root, 'app/renderer/index.html'), 'utf8');
   assert.match(index, /<meta name="color-scheme" content="light dark">/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Going back, trying again and losing the draft: the screen never shows a plan for other words or a false error
+// ---------------------------------------------------------------------------------------------
+const refuse = (code: string, message: string) => () => { throw Object.assign(new Error(message), { code }); };
+const CLEARED = 'Your AI and plan were only kept in memory, and they were cleared. Connect again.';
+async function lockIt(h: H) {
+  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
+  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+}
+async function continuePastCode(h: H) {
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(button(h.app, 'Continue')); await flush();
+}
+const heldDog = (rest: EngineOptions = {}, ai = O.statusPair): EngineOptions => ({ ...rest, draft: { ai, held: { key: 'dog', decision: O.dogDecision, plan: O.dogPlan } } });
+
+test('a new sentence refused by decide, then Try again, reads the new sentence and never fills the old plan', async () => {
+  const h = await boot(heldDog({ overrides: { 'venture.compose.decide': refuse(O.COMPOSE_REFUSED.code, O.COMPOSE_REFUSED.message) } }), { language: 'en-GB' });
+  assert.equal(title(h.app), O.dogPlan.name.value);
+  await click(button(h.app, 'Change what I wrote'));
+  await askFor(h, O.CAFE_TEXT);
+  assert.equal(step(h), 'refused');
+  await click(button(h.app, 'Try again')); await flush();
+  assert.deepEqual(callsOf(h, 'venture.compose.decide').map(call => call.payload), [{ text: O.CAFE_TEXT, countryCode: 'GB' }, { text: O.CAFE_TEXT, countryCode: 'GB' }], 'Try again reads the new sentence');
+  assert.equal(callsOf(h, 'venture.compose.fill').length, 0, 'the old plan is never filled for the new words');
+  assert.equal(text(h.app).includes(O.dogPlan.name.value), false, 'the old plan is not shown');
+  assert.equal(step(h), 'refused');
+});
+
+test('a sentence under ten characters is caught in the box; decide refusing what was typed goes back to the box, not the AI error', async () => {
+  const h = await boot(connected());
+  await askFor(h, 'Tutoring');
+  assert.equal(step(h), 'idea');
+  assert.ok(text(h.app).includes('Say a little more: at least 10 characters.'));
+  assert.equal(callsOf(h, 'venture.compose.decide').length, 0, 'nothing is sent');
+
+  const typed = await boot(connected({}, { overrides: { 'venture.compose.decide': refuse('INVALID_VENTURE_REQUEST', 'What you want to do contains characters Chausar cannot keep.') } }));
+  await askFor(typed, O.CAFE_TEXT);
+  assert.equal(step(typed), 'idea', 'back to the box');
+  assert.ok(text(typed.app).includes('What you want to do contains characters Chausar cannot keep.'));
+  assert.equal(text(typed.app).includes("The AI didn't answer."), false);
+  assert.equal(find(typed.app, node => node.tagName === 'textarea').value, O.CAFE_TEXT, 'the sentence stays in the box');
+
+  const failing = await boot(connected({}, { overrides: { 'venture.compose.fill': refuse('MODEL_FAILED', O.PASS_THROUGH.MODEL_FAILED) } }));
+  await askFor(failing, O.CAFE_TEXT);
+  assert.equal(step(failing), 'error');
+  await click(button(failing.app, 'Change what I wrote'));
+  assert.equal(step(failing), 'idea', 'the AI error screen has a way back to the box');
+});
+
+test('a plan the engine lost sends the owner back to Connect: on a price, on Keep this plan, and on venture.create with the vault kept', async () => {
+  // A price typed after the engine dropped the plan.
+  const price = await boot(heldDog(), { language: 'en-GB' });
+  await click(button(price.app, 'Set your prices'));
+  price.world.draft.plan = null; price.world.draft.decision = null; price.world.draft.ai = O.statusNone;
+  const walks = find(price.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
+  await type(walks, '18'); await walks.dispatch('change'); await flush();
+  assert.equal(step(price), 'ai');
+  assert.ok(text(price.app).includes(CLEARED));
+
+  // Keep this plan with nothing new typed: the engine is asked first, so no vault is made for a plan it lost.
+  const keep = await boot(heldDog(), { language: 'en-GB' });
+  await click(button(keep.app, 'Set your prices'));
+  keep.world.draft.plan = null; keep.world.draft.decision = null;
+  await click(button(keep.app, 'Keep this plan'));
+  assert.equal(step(keep), 'ai');
+  assert.ok(text(keep.app).includes(CLEARED));
+  assert.equal(callsOf(keep, 'workspace.create').length, 0);
+
+  // venture.create after the vault: the plan is gone, the vault stays open, and the next plan goes straight to setup.
+  let creates = 0;
+  const hh: H = await boot(heldDog({ overrides: {
+    'venture.create': () => {
+      creates++;
+      if (creates === 1) throw Object.assign(new Error('Your plan was only kept in memory, and it is gone. Make it again.'), { code: 'COMPOSE_NOT_FOUND' });
+      const world = hh.world;
+      world.venture = true; world.composed = true; world.blueprint = 'draft'; world.draft.plan = null; world.draft.decision = null;
+      return O.composedVentureView;
+    },
+  } }), { language: 'en-GB' });
+  await click(button(hh.app, 'Set your prices'));
+  await click(button(hh.app, 'Keep this plan'));
+  await lockIt(hh);
+  await continuePastCode(hh);
+  assert.equal(step(hh), 'ai', 'back to Connect');
+  assert.ok(text(hh.app).includes(CLEARED));
+  assert.equal(callsOf(hh, 'venture.get').length, 1, 'the vault was asked whether the business was made after all');
+  await click(button(hh.app, 'Back'));
+  assert.equal(step(hh), 'idea');
+  assert.equal(buttons(hh.app, 'Open the back office').length, 1, 'the vault is still open');
+  await askFor(hh, O.DOG_TEXT);
+  await click(button(hh.app, 'Set your prices'));
+  await click(button(hh.app, 'Keep this plan')); await flush();
+  assert.equal(step(hh), 'open', 'straight to setup and Accept, no second vault');
+  assert.equal(callsOf(hh, 'workspace.create').length, 1);
+  assert.equal(creates, 2);
+});
+
+test('setup after a create that committed: a timed out create counts once the vault has the business, and a failed quote retries to Accept', async () => {
+  let quotes = 0;
+  const hh: H = await boot(heldDog({ overrides: {
+    'venture.create': () => {
+      const world = hh.world;
+      world.venture = true; world.composed = true; world.blueprint = 'draft'; world.draft.plan = null; world.draft.decision = null;
+      throw Object.assign(new Error('Chausar took too long to answer.'), { code: 'REQUEST_TIMEOUT' });
+    },
+    'venture.price.quote': () => {
+      quotes++;
+      if (quotes === 1) throw Object.assign(new Error('The calculator could not price this offer.'), { code: 'INVALID_AMOUNT' });
+      return O.composedReceipt;
+    },
+  } }), { language: 'en-GB' });
+  await click(button(hh.app, 'Set your prices'));
+  const walks = find(hh.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
+  await type(walks, '18'); await walks.dispatch('change'); await flush();
+  await click(button(hh.app, 'Keep this plan'));
+  await lockIt(hh);
+  await continuePastCode(hh);
+  assert.equal(step(hh), 'setup');
+  assert.ok(text(hh.app).includes('The calculator could not price this offer.'));
+  assert.equal(buttons(hh.app, 'Back to the plan').length, 0, 'no way back to a plan the engine no longer holds');
+  await click(button(hh.app, 'Try again')); await flush();
+  assert.equal(step(hh), 'open', 'Try again reaches Accept');
+  assert.equal(callsOf(hh, 'venture.create').length, 1, 'create is not sent again once it committed');
+  assert.deepEqual(callsOf(hh, 'venture.price.quote').map(call => call.payload), [{ offerId: 'offer_1' }, { offerId: 'offer_1' }]);
+});
+
+test('Setting up says receipts only when an offer has a price to quote', async () => {
+  const slow = await boot(heldDog({ overrides: { 'venture.create': () => new Promise(() => {}) } }), { language: 'en-GB' });
+  await click(button(slow.app, 'Set your prices'));
+  await click(button(slow.app, 'Keep this plan'));
+  await lockIt(slow);
+  await continuePastCode(slow);
+  assert.equal(step(slow), 'setup');
+  assert.ok(visibleText(slow.app).includes('Saving your plan.'));
+  assert.equal(text(slow.app).includes('receipts'), false);
+});
+
+test('the eyebrow names the AI that wrote the plan, even after the owner connected another', async () => {
+  const h = await boot(heldDog({}, O.statusLuna));
+  assert.ok(visibleText(h.app).includes('Drafted with Claude Sonnet 5.5.'), "the plan's own writtenBy");
+  assert.equal(text(h.app).includes('GPT-6 Luna'), false);
+  const plan = O.planFor('dog', O.dogDecision, { presetId: 'claude-code-cli', model: 'claude-sonnet-5-5', replay: false });
+  const claude = await boot({ draft: { ai: O.statusPair, held: { key: 'dog', decision: O.dogDecision, plan } } });
+  assert.ok(visibleText(claude.app).includes('Drafted with Claude Code (Sonnet 5.5).'));
+});
+
+test('with an AI connected, Change AI offers Back and a built-in plan, never "without AI"', async () => {
+  const h = await boot(connected());
+  assert.equal(buttons(h.app, 'Connect an AI').length, 0);
+  await click(button(h.app, 'Change AI'));
+  assert.equal(step(h), 'ai');
+  assert.equal(buttons(h.app, 'Continue without AI').length, 0, 'the AI stays connected, so the link may not say without AI');
+  assert.equal(buttons(h.app, 'Use a built-in plan').length, 1);
+  await click(button(h.app, 'Back'));
+  assert.equal(step(h), 'idea');
+  await askFor(h, O.DOG_TEXT);
+  assert.equal(callsOf(h, 'venture.compose.decide').length, 1, 'Back keeps using the connected AI');
+  await click(button(h.app, 'Change what I wrote'));
+  await click(button(h.app, 'Change AI'));
+  await click(button(h.app, 'Use a built-in plan'));
+  assert.equal(step(h), 'idea');
+  assert.equal(buttons(h.app, 'Change AI').length, 1, 'still connected, so the box says Change AI');
+});
+
+test('after a reload the kept plan names its tools from the connector catalogue, never by id', async () => {
+  const p = await place('business', { overrides: { 'venture.get': () => O.composedVentureView, 'venture.blueprint.get': () => O.composedBlueprintView } });
+  const tools = find(p.content, node => node.tagName === 'details' && node.children[0]?.textContent === 'Tools to connect');
+  assert.ok(text(tools).includes('Cal.com: Clients pick walk times that fit their shifts.'));
+  assert.equal(text(tools).includes('cal-com:'), false);
+  assert.deepEqual(p.calls.filter(call => call.method === 'venture.connectors.list').map(call => call.payload), [{}]);
+});
+
+test('motion happens once: the progress segment fills when it changes and the lock badge drops in once', async () => {
+  const h = await boot(heldDog(), { language: 'en-GB' });
+  const segment = () => find(h.app, node => node.tagName === 'li' && hasClass(node, 'now'));
+  assert.equal(hasClass(segment(), 'ob-seg-new'), true, 'the first plan frame fills its segment');
+  await click(button(h.app, 'Set your prices'));
+  assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'prices is the same segment: no refill');
+  await click(button(h.app, 'Back'));
+  assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'back to the plan: no refill');
+  await click(button(h.app, 'Set your prices'));
+  await click(button(h.app, 'Keep this plan'));
+  assert.equal(hasClass(segment(), 'ob-seg-new'), true, 'Keep safe is a new segment');
+  await lockIt(h);
+  assert.equal(step(h), 'code');
+  assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'the code screen is still Keep safe');
+  const badge = find(h.app, node => hasClass(node, 'ob-badge'));
+  assert.equal(badge.hidden, false);
+  assert.equal(hasClass(badge, 'ob-badge-new'), false, 'the badge dropped in on Keep it safe and does not again');
+  assert.match(cssSource, /\.ob-progress li\.ob-seg-new \.ob-seg i\{animation:ob-fill/);
+  assert.match(cssSource, /\.ob-badge\.ob-badge-new\{animation:ob-badge/);
+  assert.equal(/\.ob-progress li\.now \.ob-seg i\{animation/.test(cssSource), false);
 });
