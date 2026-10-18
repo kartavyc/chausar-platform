@@ -3,6 +3,7 @@
 import type { VentureHandlerTable } from '../contracts.ts';
 import { capabilitiesHandler } from './capabilities.ts';
 import { filesAddHandler, filesListHandler } from './harness/files.ts';
+import { delegateGetHandler } from './harness/delegate-get.ts';
 import { workGetHandler } from './harness/work-get.ts';
 import { improveAdoptHandler, improveGetHandler, improveRunHandler, improveStatusHandler } from './improve.ts';
 import { launchAdvanceHandler, launchStatusHandler } from './launch.ts';
@@ -27,6 +28,7 @@ export const handlers: VentureHandlerTable = {
   'venture.files.list': filesListHandler,
   'venture.delivery.answer': deliveryAnswerHandler,
   'venture.delivery.delegate': deliveryDelegateHandler,
+  'venture.delegate.get': delegateGetHandler,
   'venture.work.get': workGetHandler,
   'venture.improve.status': improveStatusHandler,
   'venture.improve.run': improveRunHandler,

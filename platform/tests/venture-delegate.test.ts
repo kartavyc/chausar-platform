@@ -337,6 +337,8 @@ test('real order: nothing starts before the owner approves the exact brief; the 
     assert.equal(record.untrusted, true);
     assert.equal(record.approvedDigest, request.digest);
     assert.equal(record.reportedCost, 'USD 0.0421');
+    assert.deepEqual(await call(env, 'venture.delegate.get', { id: record.id }), record, 'the owner reads it back as stored');
+    await assert.rejects(call(env, 'venture.delegate.get', { id: 'delegaterun_missing' }), code('DELEGATE_RUN_NOT_FOUND'));
     assert.deepEqual(record.outputs.filter(output => output.text !== null).map(output => output.name).sort(), ['figures.json', 'summary.md', 'tables/matched.csv']);
     assert.equal(record.outputs.find(output => output.name === 'big.txt')!.note, 'Too large for Chausar to keep.');
     const link = record.outputs.find(output => output.name === 'link.md');

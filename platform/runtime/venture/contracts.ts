@@ -1280,8 +1280,8 @@ export const VENTURE_METHODS = [
   // P5 delivery harness: client files, hand-off answers, work receipts, the gated improvement loop
   'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get',
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
-  // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex
-  'venture.delivery.delegate',
+  // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
+  'venture.delivery.delegate', 'venture.delegate.get',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /** Answered without a vault, a model or any write. The engine routes them before its vault check. */
@@ -1305,7 +1305,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.capabilities': 'delivery',
   'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
-  'venture.delivery.delegate': 'delivery',
+  'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -1373,6 +1373,7 @@ export type VenturePayloads = {
   'venture.files.list': { orderId?: string };
   'venture.delivery.answer': { runId: string; answer: string };
   'venture.delivery.delegate': { runId: string; digest: string; decision: 'approve' | 'decline' };
+  'venture.delegate.get': { id: string };
   'venture.work.get': { id: string };
   'venture.improve.status': Empty;
   'venture.improve.run': { maxRounds?: number; useTemplate?: boolean };
@@ -1432,6 +1433,7 @@ export type VentureResults = {
   'venture.files.list': UploadView[];
   'venture.delivery.answer': DeliveryRunView;
   'venture.delivery.delegate': DeliveryRunView;
+  'venture.delegate.get': DelegateRunRecord;
   'venture.work.get': WorkReceiptRecord;
   'venture.improve.status': ImprovementStatus;
   'venture.improve.run': ImprovementRunRecord;
@@ -1466,7 +1468,7 @@ export const VENTURE_ERRORS = [
   'UPLOAD_NOT_FOUND', 'UPLOAD_LIMIT', 'UNSUPPORTED_UPLOAD', 'WORK_RECEIPT_NOT_FOUND', 'DELIVERY_NOT_ASKING',
   'TOOL_DENIED', 'TOOL_INPUT_INVALID', 'TOOL_FAILED', 'TOOL_TIMEOUT', 'TOOL_SKIPPED', 'TIER_UNAVAILABLE', 'PROGRAM_INVALID', 'SANDBOX_FAILED', 'HARNESS_LIMIT',
   'IMPROVEMENT_NOT_FOUND', 'IMPROVEMENT_NOT_READY', 'CANDIDATE_STALE',
-  'DELIVERY_NOT_BRIEFING', 'DELEGATE_DECLINED', 'DELEGATE_FAILED',
+  'DELIVERY_NOT_BRIEFING', 'DELEGATE_DECLINED', 'DELEGATE_FAILED', 'DELEGATE_RUN_NOT_FOUND',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 

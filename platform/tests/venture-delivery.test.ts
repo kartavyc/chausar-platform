@@ -1221,9 +1221,9 @@ test('capabilities on the hosted server: nothing checks for Docker, and the sand
 // 9. Handler table and schemas
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the twenty-one delivery methods', () => {
+test('handlers: exactly the twenty-two delivery methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'delivery');
-  assert.equal(owned.length, 21);
+  assert.equal(owned.length, 22);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
 });

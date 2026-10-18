@@ -1456,3 +1456,175 @@ test('the improvement loop says plainly why it could not run, and a stale change
   assert.ok(text(later.content).includes('The playbook changed since this run'));
   assert.ok(text(later.content).includes('CANDIDATE_STALE'));
 });
+
+// ---------------------------------------------------------------------------------------------
+// Heavy work: a brief for the owner's own Claude Code or Codex, what came back, and the untrusted record
+// ---------------------------------------------------------------------------------------------
+const delegateReceipt = (_method: string, payload: Record<string, any>) => {
+  const receipt = F.delegateReceipts[payload.id];
+  assert.ok(receipt, `Unknown work receipt ${payload.id}`);
+  return receipt;
+};
+const agentDid = (sheet: Element) => find(sheet, node => node.tagName === 'details' && node.children[0]?.textContent === 'What the agent did');
+
+test('a brief waiting shows the tool and version, the exact brief, its files, the time limit and where the tool sends what it reads', async () => {
+  const h = await place('agents', { overrides: { 'venture.models.status': () => LIVE_MODELS, 'venture.delivery.list': () => [F.briefRun], 'venture.delivery.delegate': () => F.delegatedRun } });
+  assert.ok(text(draftRow(h.content, /brief to approve/)).includes(CLIENT));
+  await openDraft(h.content, /brief to approve/);
+  const sheet = openDialog(h.body);
+  assert.equal(text(find(sheet, node => node.className === 'launch-progress')), 'Turn 2 of 4');
+  for (const words of [
+    'The agent asks to hand this job to Claude Code', 'Claude Code 2.1.0 on this computer gets this exact brief and copies of the files.',
+    'Files: bank-september.csv, bills-september.csv. It stops after 10 minutes.',
+    'Claude Code sends what it reads to Anthropic under your own plan.',
+    'Wrote a brief for Claude Code', 'The statement is long, so hand the sorting to Claude Code.',
+  ]) assert.ok(text(sheet).includes(words), words);
+  find(sheet, node => node.tagName === 'pre' && node.textContent === F.briefText, 'the exact brief, as the tool gets it');
+  assert.equal(agentDid(sheet).open, true, 'what the agent did sits open while the run waits on the owner');
+  for (const hidden of ['claude.cmd', '2000000', 'USD 2']) assert.equal(text(sheet).includes(hidden), false, `no ${hidden} on screen`);
+  assert.equal(buttons(sheet, 'Approve and send').length, 0);
+  assert.equal(descendants(sheet).filter(node => node.className === 'launch-btn').length, 1, 'Approve and start is the one filled button');
+  assert.ok(button(sheet, 'Decline'));
+
+  await click(button(sheet, 'Approve and start'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.delegate').map(call => call.payload), [{ runId: 'vdr_turn', digest: F.delegation.digest, decision: 'approve' }]);
+  assert.equal(buttons(sheet, 'Approve and start').length, 0, 'the brief is settled');
+  assert.ok(text(sheet).includes('Handed the job to Claude Code'));
+  assert.ok(text(sheet).includes('This is exactly what will be sent to Claude Haiku 5.5'), 'the next turn shows its exact text');
+  assert.equal(h.rejected.length, 0);
+});
+
+test('while the owner\'s tool works the sheet shows a still outline and one line, for as long as it takes', async () => {
+  let finish!: (value: unknown) => void;
+  const h = await place('agents', { overrides: { 'venture.delivery.list': () => [F.briefRun], 'venture.delivery.delegate': () => new Promise(accept => { finish = accept; }) } }, { timers: true });
+  await openDraft(h.content, /brief to approve/);
+  const sheet = openDialog(h.body);
+  button(sheet, 'Approve and start').click();
+  await flush();
+  assert.ok(text(sheet).includes('Claude Code is working on copies of the files. This can take up to 10 minutes.'));
+  assert.ok(find(sheet, node => node.className === 'launch-outline'));
+  assert.equal(buttons(sheet, 'Approve and start').length + buttons(sheet, 'Decline').length, 0, 'nothing to click twice while it runs');
+  finish(F.delegatedRun); await flush();
+  assert.ok(text(sheet).includes('Handed the job to Claude Code'));
+  assert.equal(descendants(sheet).filter(node => node.className === 'launch-outline').length, 0);
+});
+
+test('an approve that is refused shows the engine words where the brief was, and the brief stays', async () => {
+  const off = () => { throw Object.assign(new Error('Sending is off for this workspace, so the tool was not started. Change it on Trust & access.'), { code: 'SEND_DISABLED' }); };
+  const h = await place('agents', { overrides: { 'venture.delivery.list': () => [F.briefRun], 'venture.delivery.delegate': off } });
+  await openDraft(h.content, /brief to approve/);
+  const sheet = openDialog(h.body);
+  await click(button(sheet, 'Approve and start'));
+  assert.ok(text(sheet).includes('Sending is off for this workspace, so the tool was not started.'));
+  assert.ok(text(sheet).includes('SEND_DISABLED'));
+  assert.ok(button(sheet, 'Approve and start'), 'the brief can still be approved or declined');
+});
+
+test('Decline tells the agent and shows the next turn; the declined brief reads plainly', async () => {
+  const h = await place('agents', { overrides: { 'venture.models.status': () => LIVE_MODELS, 'venture.delivery.list': () => [F.briefRun], 'venture.delivery.delegate': () => F.declinedRun } });
+  await openDraft(h.content, /brief to approve/);
+  const sheet = openDialog(h.body);
+  await click(button(sheet, 'Decline'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.delegate').map(call => call.payload), [{ runId: 'vdr_turn', digest: F.delegation.digest, decision: 'decline' }]);
+  assert.ok(text(sheet).includes('You declined the brief'));
+  assert.ok(text(sheet).includes('This is exactly what will be sent to Claude Haiku 5.5'));
+  assert.equal(buttons(sheet, 'What Claude Code made').length, 0, 'a declined brief made nothing');
+});
+
+test('what the agent did says what the tool did in plain words, with its file names and figure refs, never its numbers', async () => {
+  const h = await place('agents', { overrides: { 'venture.models.status': () => LIVE_MODELS, 'venture.delivery.list': () => [F.delegatedRun] } });
+  await openDraft(h.content, /to approve/);
+  const did = agentDid(openDialog(h.body));
+  for (const words of [
+    'Handed the job to Claude Code', 'Made summary.md, by-supplier.csv, figures.json and chart.png.',
+    'Figures the calculator worked out again: w2.total, w3.total.',
+  ]) assert.ok(text(did).includes(words), words);
+  for (const hidden of [F.TOOL_SUMMARY, F.MASKED_SUMMARY, 'Sorted', '42500', '31000', '38,000']) assert.equal(text(did).includes(hidden), false, `no "${hidden}" in what the agent did`);
+  assert.equal(buttons(did, 'Receipt').length, 2, 'one receipt per figure the calculator worked out');
+
+  const late = await place('agents', { overrides: { 'venture.delivery.list': () => [F.timedOutRun] } });
+  await openDraft(late.content, /to approve/);
+  const lateDid = agentDid(openDialog(late.body));
+  assert.ok(text(lateDid).includes('Claude Code ran past its time limit'));
+  assert.ok(text(lateDid).includes('Made by-supplier.csv.'));
+  assert.equal(text(lateDid).includes('Figures the calculator'), false);
+
+  const failedCall = { ...F.timedOutRun.harness!.toolCalls.at(-1)!, outcome: 'failed' as const, envelope: { ok: false as const, error: { code: 'DELEGATE_FAILED', name: 'DelegateFailed', message: 'Claude Code stopped with an error. It left 0 files.' } } };
+  const failedRun = { ...F.timedOutRun, harness: { ...F.timedOutRun.harness!, toolCalls: [...F.timedOutRun.harness!.toolCalls.slice(0, -1), failedCall] } };
+  const failed = await place('agents', { overrides: { 'venture.delivery.list': () => [failedRun] } });
+  await openDraft(failed.content, /to approve/);
+  const failedDid = agentDid(openDialog(failed.body));
+  assert.ok(text(failedDid).includes('Claude Code stopped with an error'));
+  assert.ok(text(failedDid).includes('Claude Code stopped with an error. It left 0 files.'), 'the engine says why');
+});
+
+test('what Claude Code made opens on request, labelled as written by another AI and not checked, with figures against the calculator', async () => {
+  const h = await place('agents', { overrides: {
+    'venture.delivery.list': () => [F.delegatedRun], 'venture.work.get': delegateReceipt,
+    'venture.delegate.get': (_method, payload) => { assert.equal(payload.id, 'delegaterun_1'); return F.delegateRecord; },
+  } });
+  await openDraft(h.content, /to approve/);
+  const sheet = openDialog(h.body);
+  assert.equal(h.calls.some(call => call.method === 'venture.delegate.get'), false, 'nothing is read until the owner asks');
+  await click(button(sheet, 'What Claude Code made'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delegate.get').map(call => call.payload), [{ id: 'delegaterun_1' }]);
+  const made = find(sheet, node => node.className === 'launch-delegated');
+  for (const words of [
+    'Written by Claude Code, another AI, on this computer. Chausar has not checked it.', 'Claude Code finished and left 4 files.',
+    'Money out', 'same as the calculator', 'Money in', "differs; only the calculator's total may be cited",
+    'Bills total', 'It names a PDF; the calculator reads amounts from tables.',
+    '3 numbers in its summary were not worked out again.', 'It printed a cost of USD 0.42 on your plan. Chausar did not check it or count it.',
+    'summary.md', 'by-supplier.csv', 'figures.json', 'chart.png', 'Kept by name only.', 'Record delegaterun_1',
+  ]) assert.ok(text(made).includes(words), words);
+  assert.equal(buttons(sheet, 'What Claude Code made').length, 0, 'the link gives way to what it opened');
+  const summaryFile = find(made, node => node.tagName === 'details' && node.children[0]?.textContent === 'summary.md');
+  assert.equal(summaryFile.open, false, "each file's text opens on request");
+  assert.ok(text(summaryFile).includes(F.TOOL_SUMMARY), "the file is shown as the tool wrote it");
+  assert.ok(find(made, node => node.tagName === 'details' && node.children[0]?.textContent === 'The end of its log'));
+  // The calculator's own figure opens from its receipt; the tool's value is never shown beside it.
+  for (const claimed of ['42500.00', '31000', '38,000']) assert.equal(visibleText(made).join(' ').includes(claimed), false, `the tool's ${claimed} is not drawn as a figure`);
+  const moneyOut = find(made, node => node.className === 'launch-row' && node.textContent.startsWith('Money out'));
+  await click(button(moneyOut, 'Receipt'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.work.get').map(call => call.payload), [{ id: 'work_delegate_out' }]);
+  assert.ok(text(moneyOut).includes('INR 42,500.00'));
+  assert.ok(text(moneyOut).includes('Receipt work_delegate_out'));
+});
+
+test('a brief whose tool never reported back can be declined, and one still running offers nothing to click', async () => {
+  const h = await place('agents', { overrides: { 'venture.delivery.list': () => [{ ...F.strandedRun, awaitingYou: true }], 'venture.delivery.delegate': () => F.declinedRun } });
+  await openDraft(h.content, /brief to approve/);
+  const sheet = openDialog(h.body);
+  assert.ok(text(sheet).includes('Claude Code was started and has not reported back. Chausar may have closed while it worked.'));
+  assert.equal(buttons(sheet, 'Approve and start').length, 0);
+  await click(button(sheet, 'Decline'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.delegate').map(call => call.payload), [{ runId: 'vdr_turn', digest: F.delegation.digest, decision: 'decline' }]);
+
+  const working = await place('agents', { overrides: { 'venture.delivery.list': () => [{ ...F.strandedRun, awaitingYou: false }] } });
+  await openDraft(working.content, /brief to approve/);
+  const busySheet = openDialog(working.body);
+  assert.ok(text(busySheet).includes('Claude Code is working on it. Check again in a few minutes.'));
+  assert.equal(buttons(busySheet, 'Approve and start').length + buttons(busySheet, 'Decline').length, 0);
+});
+
+test('Today lists a brief waiting for the owner as awaiting them', async () => {
+  const h = await place('today', { overrides: { 'venture.delivery.list': () => [{ ...F.briefRun, awaitingYou: true }] } });
+  assert.ok(text(h.content).includes('A brief to approve'));
+  await click(button(h.content, 'A brief to approve'));
+  assert.equal(h.renderer.state.page, 'agents');
+  const later = await place('today', { overrides: { 'venture.delivery.list': () => [{ ...F.briefRun, awaitingYou: false }] } });
+  assert.equal(text(later.content).includes('A brief to approve'), false, "the engine's awaitingYou decides");
+});
+
+test('the heavy-work capability rows read like the other sandbox rows', async () => {
+  const h = await place('agents');
+  const how = find(h.content, node => node.tagName === 'details' && node.children[0]?.textContent === 'How agents work');
+  const rowOf = (title: string) => find(how, node => node.className === 'launch-row' && node.children[1]?.children[0]?.textContent === title, `Expected the ${title} row.`);
+  const claude = rowOf('Heavy work: Claude Code'), codex = rowOf('Heavy work: Codex'), containers = rowOf('Containers');
+  assert.ok(text(claude).includes('unverified'));
+  assert.ok(text(claude).includes('Claude Code 2.1.0 is on this computer. Not yet tried on a real order.'));
+  assert.ok(text(codex).includes('needs setup'));
+  assert.ok(text(codex).includes('Codex is not on this computer. Install it and sign in, then look again.'));
+  const shape = (node: Element): unknown => ({ tag: node.tagName, cls: node.className, children: node.children.filter(child => child.tagName !== '#text').map(shape) });
+  assert.deepEqual(shape(claude), shape(containers));
+  assert.deepEqual(squaresIn(claude), ['off']);
+});
