@@ -183,6 +183,31 @@ test('the onboarding v2 captures are all saved in screens/onboarding-v2, and the
   }
 });
 
+/** The live walk of 19 October (keychain custody): nineteen screens in four variants, twenty moments in light at 1366 px.
+ * Number 20 is left out on purpose: that capture showed a real recovery code, so the walk captured the code screen
+ * again later (33) with its characters hidden. */
+const LIVE_SCREENS = [
+  '01-pair', '02-connect', '04-open-box', '05-open-box-typed', '06-working', '07-plan', '09-prices', '10-setting-up', '11-accept',
+  '12-build', '16-welcome-back', '18-trust-off', '21-trust-on', '22-welcome-back-passphrase', '27-backups', '33-recovery-code',
+  '37-restore-before-opening', '38-move-here', '40-welcome-back-two',
+];
+const LIVE_MOMENTS = [
+  '03-connect-key', '08-prices-typing', '13-today', '14-reopened', '15-workspace-menu', '17-opened-again', '19-lock-sheet',
+  '23-welcome-back-typed', '24-unlocked', '25-stop-asking', '26-trust-off-again', '28-client-added', '29-restore-sheet', '30-restored',
+  '31-clients-after-restore', '32-new-code-sheet', '34-move-code', '35-today-with-code', '36-welcome-back-options', '39-second-accept',
+];
+
+test('the onboarding v3 live walk captures are all saved in screens/onboarding-v3, and the docs point there', async () => {
+  const saved = new Set(await readdir(new URL('screens/onboarding-v3/', docsFolder)));
+  const wanted = [...LIVE_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`)), ...LIVE_MOMENTS.map(moment => `${moment}-light.png`)];
+  assert.equal(wanted.length, 96);
+  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every capture the walk names');
+  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
+  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
+    assert.ok(lf(await readFile(new URL(page, docsFolder), 'utf8')).includes('screens/onboarding-v3/'), `${page} points at the live walk's captures`);
+  }
+});
+
 test('the venture docs cite no file from the local .b2c-work folder as a source, since a clone does not have it', async () => {
   const names = (await readdir(docsFolder)).filter(name => name.endsWith('.md') && name !== 'architecture.md');
   for (const name of names) {

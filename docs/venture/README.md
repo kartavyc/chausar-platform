@@ -9,7 +9,7 @@ Two rules hold everywhere:
 
 ## The journey
 
-Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/).
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/). Since the keychain change of 19 October there is nothing to type to keep the plan, and the right side of each screen shows the business coming together in real words; that flow was walked against the real engine and this computer's Windows key store, and its captures are in [`screens/onboarding-v3/`](screens/onboarding-v3/).
 
 1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates, and "Open my business" takes a returning owner to Welcome back, since every restart starts on this screen.
 2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
@@ -22,7 +22,7 @@ Since 18 October onboarding connects an AI first and asks one open question ([on
 9. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
 10. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.
 
-The hosted web tier keeps the earlier order for now: idea, template plan, keep it, then Add your AI inside the vault.
+The hosted web tier keeps the earlier order and its server custody for now: idea, template plan, keep it, then Add your AI inside the vault. Its screens show the same live preview.
 
 ## Run it
 
@@ -77,7 +77,7 @@ This build keeps each business in the engine's encrypted file vault, which the c
 
 ## What is not built
 
-A deployed public web app (the hosted tier is written and tested on one computer, see [hosted.md](hosted.md)); durable storage for real books on the desktop; real outside writes such as payment links, email or posts; agents that read inboxes or the web (agents read the files the owner adds to an order, see [harness.md](harness.md)); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); agentOS and hosted sandboxes, and containers tried against a real Docker; agent-written code and PDF reading on the hosted server, which stay off there until the founder decides; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
+A deployed public web app (the hosted tier is written and tested on one computer, see [hosted.md](hosted.md)); durable storage for real books on the desktop; real outside writes such as payment links, email or posts; agents that read inboxes or the web (agents read the files the owner adds to an order, see [harness.md](harness.md)); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; AI keys in the computer's keychain (AI keys live in memory and are typed again after a restart; the vault key has been kept by the computer since 19 October); the vault key on a Mac or a Linux desktop run for real (written and tested with fake processes only); Electron's safeStorage; agentOS and hosted sandboxes, and containers tried against a real Docker; agent-written code and PDF reading on the hosted server, which stay off there until the founder decides; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
 
 ## Demo script
 
@@ -230,7 +230,28 @@ Known limits:
 
 The founder's decisions of 18 October, built on the screens: no Keep it safe step (the vault is made, named from the business, when the owner keeps the plan); Welcome back lists this computer's businesses, and one that opens with this computer opens by itself; Trust & access has "Lock with a passphrase", the recovery code, automatic encrypted backups with restore, and moving to another computer with a file and a one-time code; and the live preview on the right shows the business coming together in real words, like prototype B. The screens are in [onboarding.md](onboarding.md#keeping-the-plan-welcome-back-and-the-live-preview-keychain-custody-18-october); the engine is in [docs/custody.md](../custody.md).
 
-What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px: [`screens/60-idea-typed`](screens/60-idea-typed-light.png) to [`screens/78-hosted-prices`](screens/78-hosted-prices-light.png). Not run here: a walk against the real engine with this computer's DPAPI (that is the integration pass), and any Mac or Linux keychain.
+What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px: [`screens/60-idea-typed`](screens/60-idea-typed-light.png) to [`screens/78-hosted-prices`](screens/78-hosted-prices-light.png). Not run in that package: a walk against the real engine with this computer's DPAPI (the integration pass below did it), and any Mac or Linux keychain.
+
+## Keychain custody: integration, 19 October
+
+The engine package (`ec365e1` to `b1c4ef8`) and the renderer package (`91fa07d` to `a3df067`) were joined on `b2c/onboarding-v2`, walked against the real engine, and what the walk found was fixed. The engine side is in [docs/custody.md](../custody.md) and the screens in [onboarding.md](onboarding.md#the-live-walk-19-october).
+
+What this pass changed:
+
+- **The onboarding end-to-end test keeps the plan the way the screens do now:** `workspace.create` with no passphrase and `folder: null`, the engine composed with custody as `server.ts` composes it (an in-memory key store stands in for the operating system's), then a restart that lists the business by name, finds an automatic backup and opens it with no passphrase. The rehearsal case still keeps its plan with a passphrase, as on a computer with no protected storage.
+- **The Show button in Trust's passphrase sheets** sat at the bottom corner of the sheet, outside its field; it now sits in the field, as on the onboarding screens. The browser's own reveal eye is hidden beside it, so there is one way to show a passphrase.
+- **The lock badge** on the recovery code screen opened from Trust was cut off by the card's edge; on a card with no words under its tile it now sits inside the tile.
+- **The workspace menu** no longer says "Keep your recovery kit separately." for a business this computer opens, which may have no recovery code; it says the backups and the export stay encrypted.
+- A docs test checks that the live walk's captures are all saved and that this page, [launch.md](launch.md) and [onboarding.md](onboarding.md) point at them.
+
+How it was checked, on Windows 11 with Node 24.13.1:
+
+- `node scripts/check.mjs` (531 files) and the full typecheck with `typescript@5.9.3` against the repo `tsconfig.json`: both clean.
+- Every `venture-*`, `hosted-*`, `desktop-*`, `server*`, `vault*`, `workspace-backup*`, renderer, `device-custody`, `workspace-custody` and `worker` test (55 files, run together): 747 of 749 at first; the two failures were one test in `workspace-backup-activation` ("owner deactivation", `BACKUP_SOURCE_CHANGED`) that passes on its own (43 of 43) and in the serial run below. The onboarding end-to-end test: 10 of 10. The renderer tests after the fixes: 140 of 140.
+- The live walk in [onboarding.md](onboarding.md#the-live-walk-19-october): first visit to an accepted plan with no passphrase, a restart that opened the business by itself, Welcome back opening it from the list, the passphrase switch on, a restart and the passphrase, the switch off, a backup made and restored, a recovery code and a move code made in this-computer mode, and a second business listed beside the first. The DPAPI key store was the real one.
+- One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else heavy running: 2,997 tests, 2,996 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 25 minutes. Two sentences of docs changed after it, and the docs test was run again: 8 of 8.
+
+Known limits: the move was not imported on a second computer in the walk (the tests import one between two engines); the passphrase fallback and the hosted preview were checked by tests, not walked; no Mac or Linux key store has been run; the Electron window was not opened.
 
 ## Package pages
 

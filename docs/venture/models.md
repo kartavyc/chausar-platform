@@ -97,7 +97,7 @@ Codex is offered only when the engine starts with a reviewed host profile:
 
 ## Before the vault: the draft desk (onboarding v2)
 
-Since 18 October onboarding starts by connecting an AI, before any vault exists. The engine keeps that AI in a draft desk, in memory only: a secret shelf for the key, an in-memory store with one draft business record and the draft connection and call records, and the same model port as the vault. So every rule above holds before the vault too: each call is written down before it is sent, the monthly limit, the consent digest, one dispatch, the client-data guard. [onboarding.md](onboarding.md#the-draft-desk-the-ai-before-any-vault) describes its lifetime (sixty minutes idle, paused on Keep it safe, wiped on lock, open, restart) and the handover into the vault.
+Since 18 October onboarding starts by connecting an AI, before any vault exists. The engine keeps that AI in a draft desk, in memory only: a secret shelf for the key, an in-memory store with one draft business record and the draft connection and call records, and the same model port as the vault. So every rule above holds before the vault too: each call is written down before it is sent, the monthly limit, the consent digest, one dispatch, the client-data guard. [onboarding.md](onboarding.md#the-draft-desk-the-ai-before-any-vault) describes its lifetime (sixty minutes idle, paused while Keep this plan makes the vault, wiped on lock, open, restart) and the handover into the vault.
 
 | Method | What it does before the vault |
 | --- | --- |
