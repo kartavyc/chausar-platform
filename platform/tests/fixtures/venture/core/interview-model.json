@@ -1,0 +1,21 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written interview output for the core tests, shaped like InterviewModelOutput. Not captured from a live account. No paid call was made.",
+  "output": {
+    "serviceType": "bookkeeping",
+    "questions": [
+      {
+        "field": "customer",
+        "kind": "choice",
+        "text": "Who will your first clients be?",
+        "choices": ["Cafes and small restaurants", "Small shops", "Freelancers"]
+      },
+      {
+        "field": "channel",
+        "kind": "text",
+        "text": "How will clients send you their bills and statements?",
+        "choices": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+/* Chausar hosted sign-in and businesses. Quiet: type on a plain background, hairlines, no cards or colour blocks.
+   Light uses the app's paper and ink; dark follows the computer. Motion: none. */
+:root{--bg:#f7f6f1;--fg:#252e2b;--fg2:#3b4247;--mute:#747a74;--line:#e4e5dc;--line2:#d5dade;--red:#aa493d;--font:system-ui,"Segoe UI",sans-serif;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#070809;--fg:#e8ebee;--fg2:#b7bcc1;--mute:#8b9197;--line:#15191c;--line2:#262d32;--red:#e24b4a}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--font)}
+.top{display:flex;align-items:baseline;gap:12px;height:56px;padding:18px 28px 0;border-bottom:1px solid var(--line)}
+.wordmark{font:500 14px/1 var(--mono);letter-spacing:.01em}
+.tag{font-size:12px;color:var(--mute)}
+.flow{max-width:520px;margin:0 auto;padding:48px 24px 96px}
+h1{font-size:24px;font-weight:500;letter-spacing:-.01em;margin:0 0 20px}
+h2{font-size:13px;font-weight:500;color:var(--mute);margin:36px 0 8px;text-transform:none}
+p{margin:0 0 12px}
+.mute{color:var(--mute);font-size:13px}
+.warn{color:var(--fg2);font-size:13px;border-left:2px solid var(--line2);padding-left:10px}
+.error{color:var(--red);font-size:13px;min-height:1.5em}
+label{display:block;font-size:13px;color:var(--mute);margin:0 0 6px}
+input{width:100%;padding:9px 0;border:0;border-bottom:1px solid var(--line2);background:transparent;color:var(--fg);font:inherit;border-radius:0}
+input:focus-visible,button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 6px}
+button{font:inherit;cursor:pointer}
+.btn{min-height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--fg);color:var(--bg);font-weight:500;font-size:14px}
+.quiet{min-height:36px;padding:0 4px;border:0;background:none;color:var(--fg);text-decoration:underline;text-underline-offset:3px;font-size:14px}
+.danger{color:var(--red)}
+button:disabled{opacity:.55;cursor:wait}
+ul.list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+ul.list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+ul.list li span{overflow-wrap:anywhere}
+@media (max-width:480px){.top{padding:18px 16px 0}.flow{padding:32px 16px 72px}}

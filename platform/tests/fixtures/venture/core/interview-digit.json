@@ -1,0 +1,15 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written interview output with a number the model invented. Chausar must refuse it. Not captured from a live account.",
+  "output": {
+    "serviceType": "bookkeeping",
+    "questions": [
+      {
+        "field": "customer",
+        "kind": "choice",
+        "text": "Will you start with 5 cafes or more?",
+        "choices": ["Yes", "No"]
+      }
+    ]
+  }
+}

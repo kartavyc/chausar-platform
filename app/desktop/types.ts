@@ -17,6 +17,10 @@ import type { InvestigationSearchRequest } from '../../platform/runtime/investig
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
 import type { ConversationHistoryService, ConversationResultReference } from '../../platform/runtime/conversation-history.ts';
 import type { ModelRequest } from '../../platform/runtime/gateway.ts';
+import type { VentureMethod, VenturePayloads, VentureResults } from '../../platform/runtime/venture/contracts.ts';
+
+/** Venture methods whose payload has at least one required field; the others may be called without a payload. */
+type VentureRequiredMethod = { [M in VentureMethod]: {} extends VenturePayloads[M] ? never : M }[VentureMethod];
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -128,9 +132,10 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
 type OptionalPayloads = { 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
-export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
+export type DesktopPayload<M extends DesktopMethod> = M extends VentureMethod ? VenturePayloads[M] : M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends VentureMethod ? VentureResults[M] :
   M extends 'forecasts.evaluate' | 'forecasts.get' ? SavedForecastEvaluation :
   M extends 'alerts.create' | 'alerts.publish' | 'alerts.get' ? BusinessAlert : M extends 'alerts.evaluate' ? AlertEvaluation : M extends 'alerts.list' ? BusinessAlert[] :
   M extends 'sync.writer.status' | 'sync.writer.review' ? SyncWriterStatus : M extends 'sync.reconcile' ? Awaited<ReturnType<SyncService['reconcile']>> :
@@ -144,7 +149,9 @@ export type DesktopResult<M extends DesktopMethod> =
   M extends 'research.search' ? Awaited<ReturnType<ResearchSearchService['search']>> :
   M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;
 export interface DesktopBridge {
-  request<M extends DesktopMethod>(method: M, ...args: M extends keyof RequiredPayloads ? [payload: DesktopPayload<M>] : [payload?: DesktopPayload<M>]): Promise<DesktopResult<M>>;
+  request<M extends DesktopMethod>(method: M, ...args: M extends keyof RequiredPayloads | VentureRequiredMethod ? [payload: DesktopPayload<M>] : [payload?: DesktopPayload<M>]): Promise<DesktopResult<M>>;
+  /** Opens one listed https partner link in the system browser, from an owner click. Rejects with { code } when refused. */
+  openExternal(url: string): Promise<void>;
   onEngineStatus(callback: (status: EngineStatus) => void): () => void;
 }
 declare global { interface Window { chausar?: Readonly<DesktopBridge>; } }

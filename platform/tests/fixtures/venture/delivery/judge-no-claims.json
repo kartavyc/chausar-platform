@@ -1,0 +1,12 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written judge answers with a no on no-unbacked-claims, for the venture delivery tests. Not captured from a live account.",
+  "output": {
+    "answers": [
+      { "question": "goal-met", "answer": "yes", "reason": "The draft covers the request." },
+      { "question": "tone-fits", "answer": "unsure", "reason": "A little stiff for a cafe owner." },
+      { "question": "policy-followed", "answer": "yes", "reason": "No price was invented." },
+      { "question": "no-unbacked-claims", "answer": "no", "reason": "It suggests the work was already done although the agent only had the message." }
+    ]
+  }
+}

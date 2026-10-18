@@ -1,0 +1,20 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written practice draft reply that leaves out the Next steps section, for the venture delivery tests. Not captured from a live account.",
+  "output": {
+    "title": "Your monthly books plan",
+    "sections": [
+      { "heading": "Summary", "parts": [
+        { "kind": "text", "text": "Thanks for the details. Here is how we will close your books for last month.", "ref": "" }
+      ] },
+      { "heading": "What we will do", "parts": [
+        { "kind": "text", "text": "Once your files arrive, we will sort the bills and match each one to a bank entry.", "ref": "" },
+        { "kind": "figure", "text": "", "ref": "offer_1.total" }
+      ] },
+      { "heading": "What we need from you", "parts": [
+        { "kind": "text", "text": "Please send last month's bank statement and photos of your bills.", "ref": "" }
+      ] }
+    ],
+    "questionsForClient": []
+  }
+}

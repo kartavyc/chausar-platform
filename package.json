@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node platform/runtime/server.ts --demo",
     "start:production": "node platform/runtime/server.ts",
+    "start:hosted": "node platform/runtime/hosted/server.ts --hosted --dev",
     "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
     "check": "node scripts/check.mjs",

@@ -22,7 +22,7 @@ export const money = (value: string | bigint, currency = 'INR') => {
   return `${currency === 'INR' ? '₹' : currency + ' '}${negative ? '-' : ''}${(absolute / 100n).toLocaleString('en-IN')}.${String(absolute % 100n).padStart(2, '0')}`;
 };
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
-export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean };
+export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'web' | 'phone' | 'mcp'; sourceTainted?: boolean };
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
 export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[] };
 export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string };
