@@ -1,9 +1,10 @@
 // P-e2e-docs (onboarding v2): connect an AI first, one open box, a plan made from checked blocks, then the journey
 // as before, through the real Engine with demo mode, experimental file storage and a temp folder. Every model answer
-// comes from a hand-written recording in fixtures/venture/onboarding/ (labelled synthetic recording); no network.
+// comes from a hand-written recording in fixtures/venture/onboarding/ (labelled synthetic recording), and GitHub answers
+// from the existing recording in fixtures/venture/e2e/github-sync.json; no network.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
@@ -11,7 +12,7 @@ import { numberGuard } from '../runtime/calculator.ts';
 import { formatMinor } from '../runtime/currency.ts';
 import { assertNoNumbers, assertNoSpelledNumbers, copiedTokens } from '../runtime/venture/records.ts';
 import type {
-  BlueprintView, BriefRecord, ClientRecord, GitHubTransport, InvoiceView, ModelCallRecord, ModelPreset, ModelReplayFixture,
+  BlueprintView, BriefRecord, BuildStatus, ClientRecord, InvoiceView, ModelCallRecord, ModelPreset, ModelReplayFixture,
   ModelStatusView, OrderRecord, PlaybookRecord, PriceReceiptRecord, SimulationRunRecord, VentureView,
 } from '../runtime/venture/contracts.ts';
 import {
@@ -23,12 +24,14 @@ import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
 import { NOTE_BLOCKS } from '../runtime/venture/core/blocks.ts';
 import { CONNECTOR_CATALOGUE } from '../runtime/venture/build/catalogue.ts';
+import { createFixtureGitHubTransport } from '../runtime/venture/build/index.ts';
 import { RLS_LINE, SIGN_IN_LINE } from '../runtime/venture/build/brief-lint.ts';
 import { kindByRules } from './fixtures/venture/onboarding/kind-rules.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
 const KEY = 'sk-ant-test-onboarding-e2e-not-a-real-key-5d21';
-const noGitHub: GitHubTransport = { kind: 'fixture', read: async () => ({ status: 404, etag: null, body: '{"message":"Not Found"}', rateRemaining: null }) };
+const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
+const githubRecording = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
 
 type Recording = ModelReplayFixture & { text: string; countryCode: string };
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.stack ?? error?.message); return true; };
@@ -44,7 +47,10 @@ async function newEngine(t: any, fixture: ModelReplayFixture, options: { claudeC
   const engine = new Engine({
     directory, demo: true, storage: 'experimental-file',
     venture: {
-      host: 'test', modelTransport: createReplayTransport(fixture), githubTransport: noGitHub,
+      host: 'test', modelTransport: createReplayTransport(fixture),
+      // The existing GitHub recording; its AGENTS.md carries the id of the newest brief.
+      githubTransport: store => createFixtureGitHubTransport(githubRecording, () => ({
+        briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' })),
       // Docker is absent here, so no container command runs.
       sandbox: { process: async () => { throw new Error('docker not found'); } },
       ...(options.claudeCodeTerms ? { claudeCodeTerms: options.claudeCodeTerms } : {}),
@@ -53,6 +59,22 @@ async function newEngine(t: any, fixture: ModelReplayFixture, options: { claudeC
   t.after(async () => { await engine.close().catch(() => {}); if (!options.directory) await rm(directory, { recursive: true, force: true }); });
   const ask = (method: string, payload: Record<string, unknown> = {}): Promise<any> => engine.request(method, payload);
   return { engine, ask, directory };
+}
+
+async function filesUnder(directory: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true }).catch(() => [])) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) out.push(...await filesUnder(path)); else out.push(path);
+  }
+  return out;
+}
+
+/** The key is in no file under the engine's folder, in no call record (payload or error) and in no vault record. */
+async function assertKeyNowhere(engine: Engine, directory: string, calls: ModelCallRecord[]) {
+  for (const file of await filesUnder(directory)) assert.equal((await readFile(file)).includes(KEY), false, file);
+  assert.equal(JSON.stringify(calls).includes(KEY), false, 'no call record holds the key');
+  if (engine.vault) assert.equal(JSON.stringify(engine.vault.read()).includes(KEY), false, 'no vault record holds the key');
 }
 
 function presetOf(options: AiOptionsView, id: ModelPreset['id']): ModelPreset {
@@ -111,7 +133,7 @@ test('the recordings: each sentence is classified as the deterministic rules say
 
 test('onboarding end to end: connect first, compose a fitted plan from blocks, keep it safe, then price, accept, build, rehearse and invoice', async t => {
   const dog = await recording('dog-walking-gb.json');
-  const { engine, ask } = await newEngine(t, dog);
+  const { engine, ask, directory } = await newEngine(t, dog);
 
   // 1. Connect, before any vault: ChatGPT is not open, the API key row can connect but is unverified.
   assert.equal((await ask('workspace.status')).open, false);
@@ -194,6 +216,7 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
     assert.equal(call.containsClientData, false);
     assert.equal(call.replay, true);
   }
+  await assertKeyNowhere(engine, directory, sent);
 
   // 5. The plan in the vault: version 1, written by the model, with its blocks. Prices become receipts, then accept.
   const v1 = (await ask('venture.blueprint.get') as BlueprintView).blueprint;
@@ -229,6 +252,11 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   assert.equal(brief.markdown.includes('A signed-in client sees only their own requests and files'), false);
   assert.ok(brief.markdown.includes(formatMinor('1800', 'GBP')), 'the price is copied from the receipt');
 
+  // Follow the build on GitHub, read only, from the existing recording (its repo name is the recording's, not this plan's).
+  await ask('venture.build.link', { repo: 'https://github.com/demo-owner/ledger-cafe-books', token: GITHUB_TOKEN });
+  const sync = await ask('venture.build.sync') as BuildStatus;
+  assert.deepEqual([sync.lastCommit?.by, sync.briefMarker, sync.uiWorkflow, sync.checks], ['lovable', 'found', 'found', 'passed']);
+
   const playbook = await ask('venture.delivery.playbook') as PlaybookRecord;
   const draftStep = playbook.steps.find(step => step.id === 'draft')!;
   assert.equal(draftStep.title, v1.deliverySteps.find(step => step.block === 'draft-reply')!.title.value, 'the drafting step is found by its block');
@@ -254,12 +282,26 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   const receiptDisplays = new Set(orderReceipt.figures.map(figure => figure.display));
   for (const amount of amounts) assert.ok(receiptDisplays.has(amount), `${amount} comes from the receipt`);
 
-  // Nothing anywhere holds the key.
-  assert.equal(JSON.stringify(engine.vault!.read()).includes(KEY), false);
+  // numberGuard on the invoice text. The whole text also holds the invoice number, the issue and due dates and the
+  // receipt id, which are not money and never in a price receipt, so the guard runs on the money lines between the two
+  // rules, and the lines outside them are checked to hold no money at all.
+  const sections = issued.documentText.split(/^-{8,}$/m);
+  assert.equal(sections.length, 3, 'the invoice has a header, money lines and a footer');
+  assert.ok(sections[1].includes(formatMinor('1800', 'GBP')));
+  assert.equal(numberGuard(sections[1], orderReceipt).accepted, true);
+  for (const outside of [sections[0], sections[2]]) assert.doesNotMatch(outside, /GBP/, 'no money outside the guarded lines');
+
+  // At the end of the journey: no file, call record or vault record holds the key.
+  await assertKeyNowhere(engine, directory, await ask('venture.models.calls', { limit: 100 }) as ModelCallRecord[]);
 });
 
 test('the number guard and the repair: a digit or a price in words is refused once and repaired, markup too', async t => {
-  for (const [name, refusedText] of [['digit-then-repair.json', 'Walks for 2 dogs'], ['spelled-price-then-repair.json', 'Twenty pounds a walk'], ['markup-in-words.json', '<b>']] as const) {
+  const cases = [
+    ['digit-then-repair.json', 'Walks for 2 dogs', 'The offer name contained a number.'],
+    ['spelled-price-then-repair.json', 'Twenty pounds a walk', 'The offer description wrote a number or a price in words.'],
+    ['markup-in-words.json', '<b>', 'The offer description held markup or a link.'],
+  ] as const;
+  for (const [name, refusedText, rule] of cases) {
     const fixture = await recording(name);
     const { ask } = await newEngine(t, fixture);
     await connectPair(ask);
@@ -271,9 +313,13 @@ test('the number guard and the repair: a digit or a price in words is refused on
     const calls = await ask('venture.ai.calls') as ModelCallRecord[];
     const compose = calls.filter(call => call.purpose === 'compose');
     assert.deepEqual(compose.map(call => call.status), ['completed', 'failed'], `${name}: newest first, the repair completed after the first answer failed`);
+    // The first answer was refused for the intended rule, not for some other reason.
+    assert.equal(compose[1].error?.code, 'MODEL_OUTPUT_REJECTED', name);
+    assert.ok(compose[1].error?.message.startsWith(rule), `${name}: ${compose[1].error?.message}`);
     const repair = compose.find(call => call.payloadText.includes('chausar-recompose-v1'));
     assert.ok(repair, `${name}: the repair call carries its own marker`);
-    assert.match(repair.payloadText, /Your last answer was refused/);
+    assert.equal(repair, compose[0]);
+    assert.ok(repair.payloadText.includes('Your last answer was refused: ' + rule), `${name}: the repair names the same rule`);
     assert.equal(repair.payloadText.includes(refusedText), false, `${name}: the rejected text is never sent back`);
   }
 });
@@ -289,6 +335,10 @@ test('refused twice: an unknown block id in both answers gives COMPOSE_REFUSED, 
   assert.equal(state.plan, null, 'no plan is ever kept from a refused answer');
   const failed = (await ask('venture.ai.calls') as ModelCallRecord[]).filter(call => call.purpose === 'compose');
   assert.deepEqual(failed.map(call => call.status), ['failed', 'failed']);
+  const rule = 'An offer used a block Chausar does not have.';
+  for (const call of failed) assert.deepEqual(call.error, { code: 'MODEL_OUTPUT_REJECTED', message: rule }, 'both answers were refused for the unknown block');
+  const repair = failed.find(call => call.payloadText.includes('chausar-recompose-v1'));
+  assert.ok(repair && repair.payloadText.includes('Your last answer was refused: ' + rule), 'the repair names the rule');
 });
 
 test('a decide answer with two lead views is repaired once; a sentence that is not a service gets no views and no plan', async t => {
@@ -298,6 +348,10 @@ test('a decide answer with two lead views is repaired once; a sentence that is n
   const decision = await first.ask('venture.compose.decide', { text: repaired.text, countryCode: 'GB' }) as ComposeDecision;
   assert.deepEqual(decision.views, ['offers-first', 'pages', 'notes']);
   assert.equal(decision.callIds.length, 2);
+  const decides = (await first.ask('venture.ai.calls') as ModelCallRecord[]).filter(call => call.purpose === 'decide');
+  assert.deepEqual(decides.map(call => call.status), ['completed', 'failed']);
+  assert.deepEqual(decides[1].error, { code: 'MODEL_OUTPUT_REJECTED', message: 'Pick exactly one lead view.' }, 'refused for the two lead views');
+  assert.ok(decides[0].payloadText.includes('chausar-redecide-v1') && decides[0].payloadText.includes('Your last answer was refused: Pick exactly one lead view.'));
   const plan = await first.ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
   assert.equal(plan.calls.decide.length, 2);
 
@@ -391,4 +445,39 @@ test('the offline demo replay answers the composer for the demo idea and the thr
   const landlord = await ask('venture.compose.decide', { text: "My landlord won't fix the heating.", countryCode: 'GB' }) as ComposeDecision;
   assert.equal(landlord.kind, 'not-a-service');
   await assert.rejects(ask('venture.compose.decide', { text: 'Kite repairs for beach clubs on the coast.', countryCode: 'GB' }), code('FIXTURE_MISSING'), 'a sentence with no recording says so; nothing is made up');
+});
+
+test('a composed plan rehearses with the model: the demo bookkeeping plan is kept, priced, accepted and judged on all three practice clients', async t => {
+  const demo = JSON.parse(await readFile(new URL('./fixtures/venture/demo/model-replay.json', import.meta.url), 'utf8')) as ModelReplayFixture;
+  const { ask } = await newEngine(t, demo);
+  await connectPair(ask);
+  const text = 'Monthly bookkeeping for cafes and small shops in Pune.';
+  const decision = await ask('venture.compose.decide', { text, countryCode: 'IN' }) as ComposeDecision;
+  let plan = await ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
+  assert.deepEqual([plan.family?.value, plan.offers.map(offer => offer.block)], ['bookkeeping', ['retainer', 'one-off-project']]);
+  assert.equal(plan.steps.filter(step => step.block === 'draft-reply').length, 1);
+  plan = await ask('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', unitPrice: '2499' }, { id: 'offer_2', unitPrice: '9999' }], taxRegistered: false } }) as ComposedPlan;
+  await ask('workspace.create', { name: 'Ledger Cafe Books', passphrase: PASSPHRASE, pack: 'services' });
+  const view = await ask('venture.create', { idea: text, countryCode: 'IN', workingName: 'Ledger Cafe Books', composeId: plan.composeId, composedDigest: plan.digest }) as VentureView;
+  assert.equal(view.venture.serviceType, 'bookkeeping');
+  const v1 = (await ask('venture.blueprint.get') as BlueprintView).blueprint;
+  assert.equal(v1.source, 'model');
+  for (const offer of v1.offers) await ask('venture.price.quote', { offerId: offer.id });
+  await ask('venture.blueprint.accept', { digest: (await ask('venture.blueprint.get') as BlueprintView).blueprint.digest });
+  await ask('venture.delivery.playbook');
+
+  for (const kind of ['clean', 'messy', 'pushback']) {
+    const run = await ask('venture.simulation.run', { scenarioIds: [`bookkeeping-${kind}`] }) as SimulationRunRecord;
+    assert.equal(run.modelMode, 'model', kind);
+    assert.equal(run.passed, true, JSON.stringify(run.episodes.map(episode => episode.firstFailure)));
+    for (const episode of run.episodes) {
+      assert.equal(episode.judge.length, 4, kind);
+      assert.ok(episode.judge.every(answer => answer.answer === 'yes'), JSON.stringify(episode.judge));
+    }
+  }
+  const launch = await ask('venture.launch.status') as { rehearsal: { scenarioId: string; passed: boolean; judged: boolean }[] };
+  assert.deepEqual(launch.rehearsal.map(r => [r.scenarioId, r.passed, r.judged]).sort(),
+    [['bookkeeping-clean', true, true], ['bookkeeping-messy', true, true], ['bookkeeping-pushback', true, true]]);
+  const judged = (await ask('venture.models.calls', { limit: 100 }) as ModelCallRecord[]).filter(call => call.purpose === 'judge');
+  assert.ok(judged.length > 0 && judged.every(call => call.status === 'completed' && call.replay), 'the judge answered from the demo recording');
 });

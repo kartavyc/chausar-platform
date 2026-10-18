@@ -9,7 +9,7 @@ Two rules hold everywhere:
 
 ## The journey
 
-Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)).
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). Steps 1 to 4 describe the engine and the spec's screens: the engine side is built and tested, but the browser screens arrive with the renderer package, which hadn't landed when this was written. Until then the app still shows the old first screen.
 
 1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates.
 2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list.
@@ -81,7 +81,15 @@ A deployed public web app (the hosted tier is written and tested on one computer
 
 ## Demo script
 
-Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and folder, so it never meets a server on 4317 or the repo's `data/` folder: add `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` to the command. Then:
+Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and folder, so it never meets a server on 4317 or the repo's `data/` folder. In PowerShell:
+
+```powershell
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
+```
+
+In sh, put `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` in front of the replay command above. `.b2c-work/` is a local working folder outside the repository; the demo makes its vault there.
+
+Steps 1 to 3 use the new onboarding screens, which arrive with the renderer package; until it lands, the engine answers these steps through `/api/rpc` but the browser still shows the old first screen. Then:
 
 1. Connect an AI: Paste an API key, Anthropic, any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Tick I agree for each consent text, then Connect.
 2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India. The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills) and "My landlord won't fix the heating." (not a service). Any other sentence has no recording and says so.
@@ -163,10 +171,12 @@ The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`) added the draft des
 
 How it was checked, on Windows with Node 24.13.1:
 
-- `node --test platform/tests/venture-onboarding-e2e.test.ts`: 9 of 9. The new journey on recordings, from Connect to an issued invoice (see [onboarding.md](onboarding.md#how-it-is-tested)).
+- `node --test platform/tests/venture-onboarding-e2e.test.ts`: 10 of 10. The new journey on recordings, from Connect to an issued invoice, with GitHub followed from the existing recording and the number guard run on the invoice's money lines; the reason each refused answer was refused; and a judged rehearsal of a composed plan (see [onboarding.md](onboarding.md#how-it-is-tested)).
 - `venture-e2e.test.ts` (2 of 2, now also checking that "Connect your AI" is the first checklist item) and `venture-docs.test.ts`, plus the engine package's `venture-compose.test.ts` and `venture-draft.test.ts`.
 - `node scripts/check.mjs` and a scoped typecheck with `typescript@5.9.3` over the three test files this package owns.
-- The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0). The browser screens wait for the renderer package.
+- The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0).
+
+Still to do, because they need the renderer package and the integration pass: the walk of the new screens in the browser, the captures `screens/40-pair` to `screens/54-welcome-back` (each as `-light`, `-dark`, `-375-light` and `-375-dark`), and the measured words at rest for each screen, Accept and Build included. `venture-docs.test.ts` already holds the capture list: it passes while none of the sixty exist and fails if only some do.
 
 What this pass changed in the demo replay: the composer answers above; the template plan rewrite now matches only a template plan's request, and the composed one only a composed plan's, so neither answers the other; and the bookkeeping agent turns from the end-to-end recording, without which rehearsal of the reconciling agent stopped with `FIXTURE_MISSING` in the demo (that gap predates onboarding v2).
 

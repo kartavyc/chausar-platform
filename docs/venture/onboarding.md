@@ -4,7 +4,7 @@ The founder's decisions of 18 October 2026 changed how a new owner starts. The o
 
 Now the owner connects an AI first, then types one sentence about what they want to do. The AI reads it, picks views from a fixed list and builds a plan from Chausar's checked library of blocks. Code checks every id and every word. The AI chooses; Chausar draws. It never writes markup, a number or a price.
 
-The spec is `.b2c-work/ONBOARDING-SPEC.md` (revision 2). This page says what the build does.
+The spec (revision 2) and the research behind the ChatGPT row are local working notes in `.b2c-work/`, a folder that isn't in the repository. This page says what the build does and carries what a reader needs from them.
 
 ## The flow
 
@@ -53,7 +53,7 @@ The founder is right that OpenAI now documents a way for other apps to use a Cha
 
 So the row has no control that pretends; its only link opens the API key row on OpenAI. The token rule is not the blocker: the one-hour access token and the thirty-day refresh token could live on a memory-only shelf, with a sign-in again after each restart, and no token file would exist. Eligibility is the blocker. If the local app is open-sourced, or OpenAI approves Chausar through its interest form, this could be built (founder flag F1). Nobody has applied.
 
-Sources for this row, checked 18 Oct 2026 (from `.b2c-work/R7-ai-signin.md`):
+Sources for this row, checked 18 Oct 2026 (the research note itself is a local working file, not in the repository):
 
 - https://developers.openai.com/siwc
 - https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
@@ -171,13 +171,13 @@ venture.compose.fill { composeId }
 
 ## The screens
 
-The renderer package builds these screens in look B, "bold and graphic", from `.b2c-work/onboarding-options/b-bold/index.html`: a split layout with the asking on the left and the business assembling as shapes on the right, light and dark, one column at phone width. Pairing, Keep it safe, the recovery code and Welcome back move to the same look. The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
+The renderer package builds these screens in look B, "bold and graphic", from a prototype the founder picked (a local working file, not in the repository): a split layout with the asking on the left and the business assembling as shapes on the right, light and dark, one column at phone width. Pairing, Keep it safe, the recovery code and Welcome back move to the same look. The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
 
-The spec gives every screen one budget of 45 words at rest, counting the header, both halves and every closed fold's summary together (the recovery code itself is not counted). With every model string at its cap, the worst cases it works out are: Connect 42, the open box 37, Working 37, Plan 44, Set your prices 44, Keep it safe 40, the recovery code 41. Accept and Build reuse the business and build places; the renderer package measures them and records them against founder flag F10. The renderer test counts each screen; this page will carry the measured numbers once that package lands.
+The spec gives each screen a budget of words at rest, counting the header, both halves and every closed fold's summary together (the recovery code itself is not counted). The budget is 45 or less, and lower on some screens: Pair 35, Not a service 35, Refused 40, Setting up 25 and Welcome back 40. With every model string at its cap, the worst cases it works out are: Pair 30, Connect 42, the open box 37, Working 37, Plan 44, Set your prices 44, Not a service 31, Refused 39, Keep it safe 40, the recovery code 41, Setting up 19, Welcome back 32. Accept and Build reuse the business and build places (52 and 55 words as places); the renderer package folds what it can and either meets 45 or records the measured count as an exception under founder flag F10, for the founder to accept or cut. The renderer test is to count each screen; this page will carry the measured numbers once that package lands.
 
 Every "with <model>" line on these screens is to come from the live status (the plan records who wrote it in `writtenBy`, with `replay` set for a recording). In the replay demo, Working and Plan are to say "from a synthetic recording" and name no model.
 
-The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their tests (`venture-onboarding-renderer.test.ts`). [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words.
+The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their tests (`venture-onboarding-renderer.test.ts`, to be added with that package). [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words.
 
 ## After Keep it safe
 
@@ -195,8 +195,8 @@ The kept plan becomes the records that already existed, so everything downstream
 |---|---|
 | `venture-compose.test.ts` (engine package) | the fixed words, the schemas, every validation rule and the number guard cases, the repair, assembly, later plan versions keeping the blocks, and that no runtime file imports from the tests |
 | `venture-draft.test.ts` (engine package) | the draft desk through the real engine: connect, the half-connected pair, the Claude Code gate, lifetime and idle expiry, the handover, and that the key is in no result, record, error or file |
-| `venture-onboarding-e2e.test.ts` | the whole new journey on recordings: connect before any vault, compose "Dog walking for busy nurses in Leeds" in the United Kingdom, type GBP 18 and GBP 60.50, keep it safe, adopt the plan and the AI, receipts equal to the typed prices, accept, a brief with the plan's pages and no client-area lines, a playbook that credits no agent with the walks, a template rehearsal, an order, an issued invoice whose total is the receipt total; the repaired and refused recordings; the skill and problem plans; the Claude Code route with the gate open and closed; a restart before Keep it safe; and the demo replay |
-| `venture-onboarding-renderer.test.ts` (renderer package) | the screens, their words at rest, the right pane, the CSS tokens and the copies of the contract lists |
+| `venture-onboarding-e2e.test.ts` | the whole new journey on recordings: connect before any vault, compose "Dog walking for busy nurses in Leeds" in the United Kingdom, type GBP 18 and GBP 60.50, keep it safe, adopt the plan and the AI, receipts equal to the typed prices, accept, a brief with the plan's pages and no client-area lines, a playbook that credits no agent with the walks, GitHub followed read only from the existing recording, a template rehearsal, an order, an issued invoice whose total is the receipt total and whose money lines pass the number guard, and no key in any file, call record or vault record; the repaired and refused recordings, each checked for the rule it was refused by and a repair that names that rule; a judged rehearsal of a composed plan (the demo bookkeeping plan, on all three practice clients); the skill and problem plans; the Claude Code route with the gate open and closed; a restart before Keep it safe; and the demo replay |
+| `venture-onboarding-renderer.test.ts` (renderer package, not landed yet) | to be checked by it: the screens, their words at rest, the right pane, the CSS tokens and the copies of the contract lists |
 
 The recordings are in `platform/tests/fixtures/venture/onboarding/` ([README](../../platform/tests/fixtures/venture/onboarding/README.md)). All are hand-written and labelled synthetic recording.
 
@@ -204,8 +204,16 @@ The recordings are in `platform/tests/fixtures/venture/onboarding/` ([README](..
 
 The offline demo answers the composer for the demo idea ("Monthly bookkeeping for cafes and small shops in Pune."), the three open-box examples and the landlord sentence. Any other sentence has no recording and says so (`FIXTURE_MISSING`); nothing is made up. While other agents share this worktree, run it on its own port and folder so it never meets the founder's server on 4317 or the repo's `data/` folder:
 
+In sh:
+
 ```sh
 CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
+```
+
+In PowerShell:
+
+```powershell
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
 ```
 
 Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo has Claude Code answers for decide and compose only.
@@ -214,4 +222,4 @@ Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo ha
 
 ## Founder flags
 
-Section 12 of the spec lists every choice the founder may want to reverse (F1 to F23). The ones this page touches most: F1 (ChatGPT sign-in not built), F2 (Codex on the ChatGPT login), F3 (the Claude Code gate), F4 (hosted keeps today's order), F5 (no tax or total before Keep it safe), F7 (sixty minutes idle, paused on Keep it safe), F8 (one repair call each), F10 (one budget of 45 words per screen), F18 (a personal problem is refused, and a built-in plan is still offered), F21 (word caps), F23 (numbers in words refused).
+Section 12 of the spec (a local working note) lists every choice the founder may want to reverse (F1 to F23). The ones this page touches most: F1 (ChatGPT sign-in not built), F2 (Codex on the ChatGPT login), F3 (the Claude Code gate), F4 (hosted keeps today's order), F5 (no tax or total before Keep it safe), F7 (sixty minutes idle, paused on Keep it safe), F8 (one repair call each), F10 (45 words or fewer per screen, lower on some, with a recorded exception possible for Accept and Build), F18 (a personal problem is refused, and a built-in plan is still offered), F21 (word caps), F23 (numbers in words refused).

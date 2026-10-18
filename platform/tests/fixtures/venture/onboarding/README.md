@@ -21,4 +21,4 @@ Every model string in a valid answer keeps within its word cap and holds no numb
 
 `kind-rules.ts` is the test-only open-box classifier, owned by the engine package. The recordings test checks that each sentence's recorded kind matches it. The product never classifies by keywords.
 
-The offline demo has its own copy of the composer answers (the demo idea, the three open-box examples and the landlord sentence) in `../demo/model-replay.json`.
+The offline demo has its own copy of the composer answers (the demo idea, the three open-box examples and the landlord sentence) in `../demo/model-replay.json`. The end-to-end test also walks that demo replay's composed bookkeeping plan through a judged rehearsal, and follows GitHub from the existing recording in `../e2e/github-sync.json`.

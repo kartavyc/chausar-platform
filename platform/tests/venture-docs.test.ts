@@ -160,3 +160,35 @@ test('every relative link in the venture docs points at a file that exists', asy
     }
   }
 });
+
+/** The onboarding v2 captures the spec asks for: fifteen screens, each in four variants. */
+const ONBOARDING_SCREENS = [
+  '40-pair', '41-connect', '42-connect-key', '43-open-box', '44-working', '45-plan-idea', '46-plan-skill', '47-plan-problem',
+  '48-prices', '49-refused', '50-keep-safe', '51-recovery-code', '52-accept', '53-build', '54-welcome-back',
+];
+const VARIANTS = ['-light', '-dark', '-375-light', '-375-dark'];
+
+test('the onboarding v2 captures are all there or none are, and the docs say they are pending while none are', async () => {
+  const saved = new Set(await readdir(new URL('screens/', docsFolder)));
+  const wanted = ONBOARDING_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`));
+  assert.equal(wanted.length, 60);
+  const present = wanted.filter(name => saved.has(name));
+  // Every saved capture in the 40 to 54 range is one of the names above.
+  for (const name of saved) if (/^(4\d|5[0-4])-/.test(name)) assert.ok(wanted.includes(name), `screens/${name} is not one of the spec's captures`);
+  if (present.length === 0) {
+    // Until the renderer package lands, the README says the captures are still to do.
+    const readme = lf(await readFile(new URL('README.md', docsFolder), 'utf8'));
+    assert.ok(readme.includes('Still to do, because they need the renderer package'), 'README says the captures are pending');
+    return;
+  }
+  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'once any capture is saved, all sixty are');
+});
+
+test('the venture docs cite no file from the local .b2c-work folder as a source, since a clone does not have it', async () => {
+  const names = (await readdir(docsFolder)).filter(name => name.endsWith('.md') && name !== 'architecture.md');
+  for (const name of names) {
+    const text = lf(await readFile(new URL(name, docsFolder), 'utf8'));
+    // The demo's own vault folder is the one .b2c-work path a reader is meant to type.
+    for (const match of text.matchAll(/\.b2c-work\/[^\s`'")]+/g)) assert.equal(match[0], '.b2c-work/demo-data', `docs/venture/${name} cites ${match[0]}`);
+  }
+});
