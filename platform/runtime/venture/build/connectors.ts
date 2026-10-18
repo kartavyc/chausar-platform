@@ -71,15 +71,18 @@ export function connectorCard(item: CatalogueEntry, starter: boolean): Connector
 }
 
 /**
- * Starter ids: the accepted plan's starterConnectorIds, or before acceptance the default six with the
- * country's first payment rail. No venture yet: none.
+ * Starter ids: the accepted plan's starterConnectorIds; before acceptance a composed plan's own (its tools), or else
+ * the default six with the country's first payment rail. No venture yet: none.
  */
 export function starterIds(state: State, venture: VentureRecord | null): string[] {
   if (!venture) return [];
+  const blueprints = listRecords(state, 'venture-blueprint', venture.id);
   if (venture.acceptedBlueprintId) {
-    const accepted = listRecords(state, 'venture-blueprint', venture.id).find(b => b.id === venture.acceptedBlueprintId);
+    const accepted = blueprints.find(b => b.id === venture.acceptedBlueprintId);
     if (accepted) return [...accepted.starterConnectorIds];
   }
+  const composed = blueprints.filter(b => Array.isArray(b.tools)).sort((a, b) => a.version - b.version).pop();
+  if (composed) return [...composed.starterConnectorIds];
   const rail = venture.country?.paymentRails?.[0] ?? null;
   return STARTER_CONNECTORS.flatMap(id => id === '<payment-rail>' ? (rail ? [rail] : []) : [id]);
 }

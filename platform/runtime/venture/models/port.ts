@@ -159,6 +159,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const { store, clock, transport, secrets } = options;
   const actionDeps = { store, clock } as unknown as VentureDeps;
   const hosted = options.host === 'hosted-web';
+  const claudeTerms = options.claudeCodeTerms;
   // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
   const codex: CodexHost | null = hosted ? null : codexHost(options.codexCli);
   const cliFound = new Set<ModelPresetId>();
@@ -186,7 +187,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     if (spec.kind === 'template') return { usable: true, reason: AVAILABILITY_REASONS.templates };
     if (state.policy.send === 'nothing') return { usable: false, reason: MESSAGES.sendDisabled };
     if (spec.kind === 'claude-cli' && !cliFound.has(spec.id)) return { usable: true, reason: MESSAGES.claudeConnected };
-    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted }).availabilityReason };
+    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted, claudeTerms }).availabilityReason };
   };
 
   const prepare = (connection: ConnectionRecord, spec: PresetSpec, task: ModelTask<unknown>): Prepared => {
@@ -348,7 +349,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     },
 
     presets(): ModelPreset[] {
-      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted };
+      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted, claudeTerms };
       return PRESETS.map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
     },
 

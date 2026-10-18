@@ -264,10 +264,21 @@ const TOKEN = /[\p{L}\p{Nd}]+(?:[-./'\u2019][\p{L}\p{Nd}]+)*/gu;
 const HAS_DIGIT = /\p{Nd}/u;
 const HAS_LETTER = /\p{L}/u;
 
-/** Tokens that hold both a letter and a digit (B2B, Web3, GPT-6, Q3) in the owner's own words, lower-cased. */
+const ALL_CAPITALS = /^\p{Lu}{2,5}$/u;
+
+/**
+ * Tokens the AI may copy from the owner's own words, lower-cased: tokens that hold both a letter and a digit (B2B,
+ * Web3, GPT-6, Q3), and all-capital tokens of two to five letters (CAD, SEO), so a currency code the owner wrote
+ * ("CAD drawings") is not refused as money. The digit rule ignores tokens without a digit, so the second kind
+ * changes nothing there.
+ */
 export function copiedTokens(...inputs: string[]): string[] {
   const found = new Set<string>();
-  for (const input of inputs) for (const match of input.matchAll(TOKEN)) if (HAS_DIGIT.test(match[0]) && HAS_LETTER.test(match[0])) found.add(match[0].toLowerCase());
+  for (const input of inputs) {
+    for (const match of input.matchAll(TOKEN)) {
+      if ((HAS_DIGIT.test(match[0]) && HAS_LETTER.test(match[0])) || ALL_CAPITALS.test(match[0])) found.add(match[0].toLowerCase());
+    }
+  }
   return [...found].sort();
 }
 
@@ -281,6 +292,45 @@ export function assertNoNumbers(value: string, field: string, allowed: readonly 
   for (const match of value.matchAll(TOKEN)) {
     if (!HAS_DIGIT.test(match[0])) continue;
     check(HAS_LETTER.test(match[0]) && allowed.includes(match[0].toLowerCase()), 'MODEL_OUTPUT_REJECTED', message);
+  }
+}
+
+// Numbers and money written as words (onboarding spec 6.5). One, first and once stay allowed ("one sentence",
+// "your first client"); every other cardinal from two up, ordinal from second up, multiplier and currency name is
+// refused, because numbers come only from Chausar's calculator.
+const SPELLED_NUMBERS: ReadonlySet<string> = new Set([
+  'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+  'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety',
+  'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'twentieth',
+  'dozen', 'dozens', 'half', 'halves', 'quarter', 'double', 'twice', 'triple',
+  'pound', 'pounds', 'pence', 'penny', 'pennies', 'quid', 'dollar', 'dollars', 'buck', 'bucks', 'cent', 'cents', 'rupee', 'rupees',
+  'paise', 'euro', 'euros', 'yen', 'dirham', 'dirhams', 'rand', 'franc', 'francs', 'peso', 'pesos',
+  'free', 'discount', 'discounts', 'discounted',
+]);
+const CURRENCY_CODES: ReadonlySet<string> = new Set(['INR', 'GBP', 'USD', 'EUR', 'AUD', 'CAD', 'SGD', 'AED', 'NZD', 'JPY']);
+const ALLOWED_COMPOUNDS: ReadonlySet<string> = new Set(['second-hand']);
+const WORD = /[\p{L}\p{Nd}]+(?:[-'\u2019][\p{L}\p{Nd}]+)*/gu;
+
+/**
+ * The AI never writes numbers in words either: refuses spelled cardinals and ordinals (two upward, second upward),
+ * multipliers (half, double, twice), currency names, upper-case currency codes the owner did not write, and price
+ * words (free, discount). "stress-free" and "second-hand" pass; any other hyphenated compound with such a word is
+ * refused ("two-day"). allowed comes from copiedTokens over the owner's own words.
+ */
+export function assertNoSpelledNumbers(value: string, field: string, allowed: readonly string[] = []) {
+  const message = `The ${field} wrote a number or a price in words. Numbers come from Chausar's calculator, not the AI.`;
+  for (const match of value.matchAll(WORD)) {
+    const token = match[0];
+    const lower = token.toLowerCase().replace(/\u2019/g, "'");
+    if (ALLOWED_COMPOUNDS.has(lower)) continue;
+    if (CURRENCY_CODES.has(token)) check(allowed.includes(lower), 'MODEL_OUTPUT_REJECTED', message);
+    const parts = lower.split('-');
+    parts.forEach((part, index) => {
+      const word = part.replace(/'s$/, '').replace(/'$/, '');
+      if (!SPELLED_NUMBERS.has(word)) return;
+      if (word === 'free' && index > 0) return; // joined by a hyphen before it: stress-free, fee-free
+      check(false, 'MODEL_OUTPUT_REJECTED', message);
+    });
   }
 }
 

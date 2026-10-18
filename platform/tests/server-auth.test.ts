@@ -119,3 +119,19 @@ test('owner token validation never discloses bootstrap credentials to anonymous 
   const scoped = await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${viewer.token}` } }); assert.equal(scoped.status, 401); assert.equal((await scoped.json() as any).token, undefined);
   const owner = await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${token}` } }); assert.equal(owner.status, 200); assert.equal((await owner.json() as any).token, token);
 });
+
+test('the nine draft methods need the trusted local owner bootstrap session, never a member session', async t => {
+  const { rpc, member } = await fixture(t);
+  const cofounder = await member('Partner', 'cofounder', ['*']);
+  const methods = ['venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
+    'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update'];
+  for (const method of methods) {
+    const refused = await rpc(method, {}, cofounder.token);
+    assert.equal(refused.status, 403, method);
+    assert.equal(refused.error?.code ?? refused.code, 'FORBIDDEN', method);
+  }
+  const options = await rpc('venture.ai.options', {});
+  assert.equal(options.status, 200);
+  assert.deepEqual(options.result.options.map((option: any) => option.id), ['api-key', 'claude-code', 'codex', 'chatgpt-sign-in']);
+  assert.equal((await rpc('venture.compose.get', {})).result, null);
+});

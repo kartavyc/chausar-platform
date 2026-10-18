@@ -1290,3 +1290,35 @@ test('static: every error code the package throws is listed, and no file does fl
     assert.deepEqual(houseStyleFindings(source), [], name);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Onboarding v2: playbooks from composed plans
+// ---------------------------------------------------------------------------
+
+function composedPlan(steps: { block: string; title: string }[]): any {
+  return {
+    serviceType: 'other',
+    deliverySteps: steps.map((step, index) => ({
+      id: `step_${index + 1}`, block: step.block, title: { value: step.title, label: 'assumption', by: 'model' },
+      doneBy: step.block === 'draft-reply' ? 'agent-then-you' : 'you', capability: step.block === 'draft-reply' ? 'drafts-now' : 'planned', note: '',
+    })),
+  };
+}
+
+test('composed playbook: in-person work is never an agent step; only a hands-on-work step names the work step', () => {
+  const walks = playbookSteps(composedPlan([
+    { block: 'book-time', title: 'Agree walk times' }, { block: 'in-person-work', title: 'Walk the dogs' },
+    { block: 'draft-reply', title: 'Reply to owners' }, { block: 'get-paid', title: 'Get paid' },
+  ]));
+  assert.equal(walks.some(step => step.doneBy === 'agent' && step.title === 'Walk the dogs'), false);
+  assert.equal(walks.find(step => step.id === 'work')!.title, 'Do the hands-on work with tools');
+  assert.equal(walks.find(step => step.id === 'draft')!.title, 'Reply to owners', 'the drafting step is found by block, not by step_3');
+  const books = playbookSteps(composedPlan([
+    { block: 'collect-inputs', title: 'Collect bills' }, { block: 'meet-client', title: 'Meet the owner' },
+    { block: 'hands-on-work', title: 'Match bills to bank' }, { block: 'draft-reply', title: 'Write the summary' },
+  ]));
+  assert.equal(books.find(step => step.id === 'work')!.title, 'Match bills to bank');
+  assert.equal(books.find(step => step.id === 'draft')!.title, 'Write the summary');
+  assert.equal(books.some(step => step.title === 'Meet the owner'), false, 'a meeting belongs to the owner alone');
+  assert.throws(() => playbookSteps(composedPlan([{ block: 'book-time', title: 'Agree a time' }, { block: 'in-person-work', title: 'Do the work' }, { block: 'get-paid', title: 'Get paid' }])), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+});

@@ -291,7 +291,8 @@ export type CompositionRecord = RecordBase<'venture-composition'> & {
   composeId: string;
   text: string;
   textDigest: string;
-  kind: PlanKind;
+  /** The open-box kind. Named planKind because `kind` is the record kind from RecordBase ('venture-composition'). */
+  planKind: PlanKind;
   family: ServiceType;
   reading: string;
   views: ViewSelection[];

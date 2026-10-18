@@ -1518,6 +1518,8 @@ export type ModelPortOptions = {
   host: VentureHostKind;
   demo: boolean;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
+  /** The Claude Code terms gate; absent is 'pending'. */
+  claudeCodeTerms?: 'accepted' | 'pending';
 };
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */

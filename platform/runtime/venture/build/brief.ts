@@ -9,6 +9,7 @@ import type {
   VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { copiedTokens, digest, exactPayload, listRecords, modelWords, readVenture, tidyWords, ventureAction } from '../records.ts';
+import type { BriefLint } from '../contracts.ts';
 import {
   ANON_KEY_LINE, BRIEF_HEADINGS, LINTAPPLE_LINE, NO_TRACKING_LINE, RLS_LINE, SIGN_IN_LINE, UI_POLICY_LINE, WORKFLOW_LINE, WORKFLOW_STEPS_LINE,
   lintBrief,
@@ -78,16 +79,41 @@ function sentence(value: string): string {
   return /[.!?]$/.test(words) ? words : `${words}.`;
 }
 
-/** Template brief words for a service type. Only the business name and customer line come from the plan. */
-export function briefTemplateWords(serviceType: ServiceType, plan: { name: string; customer: string }): BriefModelOutput {
+/** Words for a composed plan with no client area: the parts of the template that assume one are left out. */
+export const OPEN_SITE_WORDS = Object.freeze({
+  intro: 'A public website for',
+  visitors: 'Visitors learn what the business does, see the offers and prices, and ask to start.',
+  uploads: 'Keep client uploads private to that client.',
+  clientArea: 'A signed-in client sees only their own requests and files',
+  composedPages: 'Use these pages, in this order. Add the legal pages the country line asks for on top of them.',
+});
+
+/** The plan's own pages (a composed plan), 4 to 6 of them, as brief pages. Null for a template plan. */
+export function planPages(blueprint: BlueprintRecord): { title: string; purpose: string }[] | null {
+  const pages = blueprint.pages;
+  if (!pages || pages.length === 0) return null;
+  return pages.map(page => ({ title: tidyWords(page.title.value), purpose: sentence(page.purpose.value) }));
+}
+
+/** A composed plan has a private client area only when one of its pages is the client-area block. Template plans always do. */
+export function hasClientArea(blueprint: BlueprintRecord): boolean {
+  return !blueprint.pages || blueprint.pages.length === 0 || blueprint.pages.some(page => page.block === 'client-area');
+}
+
+/**
+ * Template brief words for a service type. Only the business name and customer line come from the plan, and for a
+ * composed plan its own pages; without a client-area page the lines that assume a private client area are left out.
+ */
+export function briefTemplateWords(serviceType: ServiceType, plan: { name: string; customer: string; pages?: { title: string; purpose: string }[] | null; clientArea?: boolean }): BriefModelOutput {
   const detail = TEMPLATE_WORK[serviceType] ?? TEMPLATE_WORK.other;
   const fixed = TEMPLATE_FIXED_WORDS;
+  const clientArea = plan.clientArea !== false;
   return {
-    whatToBuild: `${fixed.intro} ${tidyWords(plan.name)}. ${detail.work} ${fixed.visitors}`,
+    whatToBuild: clientArea ? `${fixed.intro} ${tidyWords(plan.name)}. ${detail.work} ${fixed.visitors}` : `${OPEN_SITE_WORDS.intro} ${tidyWords(plan.name)}. ${OPEN_SITE_WORDS.visitors}`,
     whoItIsFor: `${sentence(plan.customer)} ${fixed.reader}`,
-    pages: fixed.pages.map(page => ({ title: page.title, purpose: page.purpose || detail.area })),
+    pages: plan.pages ? plan.pages.map(page => ({ ...page })) : fixed.pages.map(page => ({ title: page.title, purpose: page.purpose || detail.area })),
     lookAndFeel: fixed.lookAndFeel,
-    doneMeans: [...fixed.doneMeans],
+    doneMeans: clientArea ? [...fixed.doneMeans] : fixed.doneMeans.filter(line => line !== OPEN_SITE_WORDS.clientArea),
   };
 }
 
@@ -188,6 +214,8 @@ export type BriefParts = {
   taxLabel: string;
   paymentRail: string;
   country: CountryProfile;
+  /** False for a composed plan without a client-area page: no sign-in, row security or private-upload lines. */
+  clientArea?: boolean;
 };
 
 /** The markdown, assembled by code in the fixed order. */
@@ -206,9 +234,11 @@ export function assembleBrief(parts: BriefParts): string {
     [h[1], words.whoItIsFor],
     [h[2], 'Show these prices exactly as written. Do not round, convert or add tax yourself.', ...parts.offers.map(item => offerLine(item, parts.taxLabel))],
     [h[3], ...words.pages.map((page, i) => `${i + 1}. ${page.title}: ${page.purpose}`)],
-    [h[4],
-      'Collect only the fields each form needs. Show a consent line on every form. Keep client uploads private to that client.',
-      RLS_LINE, SIGN_IN_LINE, ANON_KEY_LINE, NO_TRACKING_LINE],
+    parts.clientArea === false
+      ? [h[4], 'Collect only the fields each form needs. Show a consent line on every form.', ANON_KEY_LINE, NO_TRACKING_LINE]
+      : [h[4],
+        `Collect only the fields each form needs. Show a consent line on every form. ${OPEN_SITE_WORDS.uploads}`,
+        RLS_LINE, SIGN_IN_LINE, ANON_KEY_LINE, NO_TRACKING_LINE],
     [h[5], `Chausar is the back office. Do not build invoices, totals, tax maths or a ledger. Put every pay button link in one file, site.config.ts, as a placeholder the owner fills in. Keep secrets out of the code. Payments use ${connectorName(parts.paymentRail)}.`],
     [h[6], words.lookAndFeel,
       '- Use the system font stack, starting with system-ui.',
@@ -236,12 +266,26 @@ export function briefIdFor(ventureId: string, version: number): string {
   return `chb_${hash(`${ventureId}:${version}`).slice(0, 8)}`;
 }
 
+/**
+ * The lint for this plan. A composed plan without a client-area page has no private area, so the row security and
+ * sign-in lines are left out of its brief on purpose; their required-text findings are dropped, nothing else.
+ */
+export function lintFor(markdown: string, receipts: readonly PriceReceiptRecord[], briefId: string, clientArea: boolean): BriefLint {
+  const lint = lintBrief(markdown, receipts, briefId);
+  if (clientArea) return lint;
+  const dropped = /^Section 5 must keep the (row level security|sign-in) line word for word\.$/;
+  const findings = lint.findings.filter(finding => !(finding.rule === 'required-text' && dropped.test(finding.message)));
+  return { ok: findings.length === 0, findings };
+}
+
 /** The model task: plan words only, never amounts and never client data. */
 export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, template: () => BriefModelOutput): ModelTask<BriefModelOutput> {
   const allowed = copiedTokens(venture.idea);
+  const pages = planPages(blueprint);
+  const instructions = pages ? `${BRIEF_INSTRUCTIONS} ${OPEN_SITE_WORDS.composedPages}${hasClientArea(blueprint) ? '' : ' There is no signed-in client area: do not add one.'}` : BRIEF_INSTRUCTIONS;
   return {
     purpose: 'brief',
-    instructions: BRIEF_INSTRUCTIONS,
+    instructions,
     input: {
       serviceType: blueprint.serviceType,
       name: blueprint.name.value,
@@ -250,6 +294,7 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
       offers: blueprint.offers.map(offer => ({ name: offer.name.value, description: offer.description.value })),
       steps: blueprint.deliverySteps.map(step => step.title.value),
       country: venture.country.name,
+      ...(pages ? { pages } : {}),
     },
     schemaName: 'venture-brief',
     schema: BRIEF_SCHEMA,
@@ -272,7 +317,9 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
   const blueprint = acceptedBlueprint(state, venture);
   pricedOffers(state, venture, blueprint); // refuse PRICE_REQUIRED before any model call
 
-  const template = () => briefTemplateWords(blueprint.serviceType, { name: blueprint.name.value, customer: blueprint.customer.value });
+  const template = () => briefTemplateWords(blueprint.serviceType, {
+    name: blueprint.name.value, customer: blueprint.customer.value, pages: planPages(blueprint), clientArea: hasClientArea(blueprint),
+  });
   let words: BriefModelOutput;
   let wordsBy: 'model' | 'template' = 'template';
   let modelCallId: string | null = null;
@@ -293,15 +340,16 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     const version = tx.list('venture-brief').reduce((max, brief) => Math.max(max, brief.version), 0) + 1;
     const briefId = briefIdFor(current.id, version);
     const receipts = offers.flatMap(item => item.receipt ? [item.receipt] : []);
+    const clientArea = hasClientArea(plan);
     const markdown = assembleBrief({
       briefId, serviceType: plan.serviceType, words, offers, taxLabel: plan.backOffice.taxLabel,
-      paymentRail: plan.backOffice.paymentRail, country: current.country,
+      paymentRail: plan.backOffice.paymentRail, country: current.country, clientArea,
     });
     const record: BriefRecord = {
       ...tx.base('venture-brief'),
       briefId, version, markdown, chars: markdown.length, digest: digest(markdown), blueprintDigest: plan.digest,
       priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId,
-      lint: lintBrief(markdown, receipts, briefId),
+      lint: lintFor(markdown, receipts, briefId, clientArea),
     };
     const stored = tx.put(record);
     tx.emit('brief-ready', { briefId, version, lintOk: record.lint.ok });
