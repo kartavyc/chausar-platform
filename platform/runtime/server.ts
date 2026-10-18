@@ -8,6 +8,13 @@ import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { check } from './contracts.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
+import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
+import { workspaceCustodyEnv } from './workspace-custody.ts';
+
+/** Only the trusted local owner bootstrap session may send these (never a member session). */
+export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  ...CUSTODY_METHODS]);
 
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -67,7 +74,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');
         const data = await body(req);
         if (url.pathname === '/mcp') return send(200, await engine.requestAs(context, 'mcp.handle', data));
-        if (['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover', 'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update'].includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
+        if (BOOTSTRAP_ONLY_METHODS.includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
@@ -77,8 +84,9 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
       if (closing) res.setHeader('Connection', 'close');
       res.writeHead(200, { 'Content-Type': types[ext] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
     } catch (error) {
-      const e = error as Error & { code?: string }; const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'UNAUTHENTICATED' ? 401 : e.code?.includes('FORBIDDEN') || e.code === 'INVALID_HOST' || e.code === 'INVALID_ORIGIN' ? 403 : e.code === 'METHOD_NOT_ALLOWED' ? 405 : 400;
-      send(status, { error: { code: e.code ?? 'REQUEST_FAILED', message: e.message } });
+      const e = error as Error & { code?: string; reason?: unknown }; const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'UNAUTHENTICATED' ? 401 : e.code?.includes('FORBIDDEN') || e.code === 'INVALID_HOST' || e.code === 'INVALID_ORIGIN' ? 403 : e.code === 'METHOD_NOT_ALLOWED' ? 405 : 400;
+      // DEVICE_KEYS_UNAVAILABLE carries why, so the page can show the engine's words without guessing.
+      send(status, { error: { code: e.code ?? 'REQUEST_FAILED', message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}) } });
     }
   });
   return {
@@ -106,7 +114,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}) } });
+  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}) } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

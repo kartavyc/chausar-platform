@@ -135,3 +135,30 @@ test('the nine draft methods need the trusted local owner bootstrap session, nev
   assert.deepEqual(options.result.options.map((option: any) => option.id), ['api-key', 'claude-code', 'codex', 'chatgpt-sign-in']);
   assert.equal((await rpc('venture.compose.get', {})).result, null);
 });
+
+test('the ten custody methods need the trusted local owner bootstrap session, never a member session', async t => {
+  const { rpc, member } = await fixture(t);
+  const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
+  const { BOOTSTRAP_ONLY_METHODS } = await import('../runtime/server.ts');
+  for (const method of CUSTODY_METHODS) assert.ok(BOOTSTRAP_ONLY_METHODS.includes(method), method);
+  const cofounder = await member('Partner', 'cofounder', ['*']);
+  for (const method of CUSTODY_METHODS) {
+    const refused = await rpc(method, {}, cofounder.token);
+    assert.equal(refused.status, 403, method);
+    assert.equal(refused.error?.code, 'FORBIDDEN', method);
+  }
+  const custody = await rpc('workspace.custody.get', {});
+  assert.equal(custody.status, 200);
+  assert.equal(custody.result.computer.reason, 'not-configured', 'this test engine is composed without workspaceCustody');
+  const list = await rpc('workspace.list', {});
+  assert.equal(list.status, 200); assert.deepEqual(list.result.businesses.map((row: any) => row.folder), ['main']);
+});
+
+test('a DEVICE_KEYS_UNAVAILABLE answer carries its reason beside the words', async t => {
+  const { rpc } = await fixture(t);
+  await rpc('workspace.lock', {});
+  const refused = await rpc('workspace.create', { name: 'No keys here', pack: 'services', folder: null });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.error.code, 'DEVICE_KEYS_UNAVAILABLE');
+  assert.equal(refused.error.reason, 'not-configured');
+});

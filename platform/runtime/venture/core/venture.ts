@@ -18,7 +18,7 @@ import { engineQuestions, storedQuestion, taxRateQuestion } from './interview.ts
 import { classifyIdea } from './service-types.ts';
 import { DEFAULT_WORKING_NAME, labelled } from './words.ts';
 
-/** Records are kept for ten years, as tax rules expect; the owner is told on the Keep it safe screen. */
+/** Records are kept for ten years, as tax rules expect; the owner is told under More of your plan and in Trust. */
 export const VENTURE_RETENTION_DAYS = 3650;
 
 export function buildView(state: State): VentureView | null {
