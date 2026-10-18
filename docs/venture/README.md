@@ -15,7 +15,7 @@ Since 18 October onboarding connects an AI first and asks one open question ([on
 2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
 3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no digits, no numbers in words, no prices, no markup. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
 4. **Set your prices.** The owner types each price. Nothing is added up yet.
-5. **Keep it.** A working name and a passphrase open an encrypted vault. The recovery code is shown once. The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan.
+5. **Keep it.** Keep this plan makes the encrypted vault, named after the business, and this computer keeps its key for the owner's login: no passphrase and no folder to type (since the keychain change; a passphrase is asked only where the computer has no protected storage, and hosted keeps its own Keep it). The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan. Next time the app opens, the business opens by itself; Trust & access holds the optional passphrase, the recovery code, the automatic backups and moving to another computer.
 6. **Build.** Chausar writes a build brief from the plan's own pages, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
 7. **Connect.** Starter cards for the owner's country and the plan's tools, with honest chips on all 64 connectors.
 8. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
@@ -94,7 +94,7 @@ Then:
 1. Connect an AI: Paste an API key, Anthropic, any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Tick I agree for each consent text, then Connect.
 2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India (Based in, Change). The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills), "My landlord won't fix the heating." (not a service) and "Bike repairs at home for families in Bristol.", whose two plan answers both use a block Chausar doesn't have, so the screen says "There's no plan to show." Any other sentence has no recording and says so.
 3. Your plan: Ledger Cafe Books, drafted from a synthetic recording. Set your prices: Monthly books 2499 per month. Open "Tax: not registered", answer Yes and type 18. Keep this plan.
-4. Keep it safe: name "Ledger Cafe Books", a passphrase of 12 or more characters. Save the recovery code.
+4. Nothing to type: the vault is made with the plan's name, and this computer keeps the key. (Where the engine has no protected storage, it asks for a passphrase of 12 or more characters and shows the recovery code once.)
 5. Your plan in the vault: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Rewrite with AI (the words change, the blocks stay), then Accept plan.
 6. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
 7. Agents: Rehearse, then Move to shadow.
@@ -224,8 +224,13 @@ No screen needed the F10 exception: Accept fits 45 by showing the version and th
 Known limits:
 
 - The walk was done in headless Edge, not in the Electron window or the app's own browser pane; the desktop window still needs `npm install`.
-- The engine can't say whether a vault exists before one is opened, so a returning owner always sees Connect first and uses "Open my business".
-- Welcome back opens the folder named in More options (`main` by default); an owner who named their folder differently types it there, as before.
+- At the time of this walk the engine couldn't say whether a vault existed before one was opened, so a returning owner saw Connect first and typed a folder name on Welcome back. The keychain change replaced both: `workspace.list` lists this computer's businesses (see below).
+
+## Keychain custody: the renderer (19 October)
+
+The founder's decisions of 18 October, built on the screens: no Keep it safe step (the vault is made, named from the business, when the owner keeps the plan); Welcome back lists this computer's businesses, and one that opens with this computer opens by itself; Trust & access has "Lock with a passphrase", the recovery code, automatic encrypted backups with restore, and moving to another computer with a file and a one-time code; and the live preview on the right shows the business coming together in real words, like prototype B. The screens are in [onboarding.md](onboarding.md#keeping-the-plan-welcome-back-and-the-live-preview-keychain-custody-18-october); the engine is in [docs/custody.md](../custody.md).
+
+What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px: [`screens/60-idea-typed`](screens/60-idea-typed-light.png) to [`screens/78-hosted-prices`](screens/78-hosted-prices-light.png). Not run here: a walk against the real engine with this computer's DPAPI (that is the integration pass), and any Mac or Linux keychain.
 
 ## Package pages
 

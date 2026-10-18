@@ -19,16 +19,33 @@ The spec (revision 2) and the research behind the ChatGPT row are local working 
        |  code checks every block id, count, word cap and word: no digits, no numbers in words, no prices, no markup
 4  Here's your plan           drawn by Chausar's own code from the blocks
 5  Set your prices            typed by the owner; nothing is added up yet
-6  Keep it safe               working name, passphrase, recovery code shown once
-7  Setting up                 the plan, the AI and "What was sent" move into the vault; prices become receipts
-8  Accept, Build, then the seven places, as before
+       |  Keep this plan: Chausar makes the encrypted vault itself, named after the business, and this
+       |  computer keeps its key for the owner's login (no passphrase, no folder; see "Keeping the plan" below)
+6  Setting up                 the plan, the AI and "What was sent" move into the vault; prices become receipts
+7  Accept, Build, then the seven places, as before
 ```
 
 Side paths:
 
 - **Continue without AI** (a quiet link on Connect): the open box, then today's built-in template plan, labelled "Built-in plan, not fitted to what you wrote."
-- **Already have a business? Open it** (on the open box) and **Open my business** (on Connect, since every restart starts there): Welcome back, the passphrase, recovery, restore, the sample business.
+- **Already have a business? Open it** (on the open box) and **Open my business** (on Connect): Welcome back, which lists this computer's businesses (below).
 - **Hosted web** keeps today's order for now (idea, template plan, keep, then Add your AI inside the vault). Connect-first there needs a draft desk per session behind the hosted rate limits (founder flag F4).
+
+## Keeping the plan, Welcome back and the live preview (keychain custody, 18 October)
+
+The founder's later decisions of 18 October removed the Keep it safe step. The engine side is in [docs/custody.md](../custody.md); this is what the screens do.
+
+- **Keep this plan** sends `workspace.create { name, pack: 'services', folder: null }` with no passphrase key. The name is the composed plan's name, or the built-in plan's kind of service. The engine picks the folder from the name and asks this computer to keep the vault key. Then Setting up, Accept and Build, as before. Progress has five segments here: AI, Idea, Plan, Accept, Build.
+- **No protected storage.** When the engine answers `DEVICE_KEYS_UNAVAILABLE`, one screen, "Choose a passphrase.", shows the engine's own reason, two passphrase fields, then the recovery code once. Nothing else changes.
+- **Opening the app.** A held draft or a connected draft AI resumes onboarding. Otherwise `workspace.list`: one business that opens with this computer (and that its owner didn't close) opens straight away; more, or one locked with a passphrase, show Welcome back; none starts at Connect.
+- **Welcome back** lists the businesses on this computer, newest opened first, two at rest and the rest under "More businesses". Each row has its name, a chip ("Opens with this computer", "Needs your passphrase" or "This computer's key is missing") and Open. A passphrase row opens its own field. "Start a new business" and "Move from another computer" sit under the rows; More options holds "Restore a backup", "Use a recovery code" (the business is chosen from the list, and a new passphrase is asked only when the engine says this computer can't keep the key), "Open by folder name" (only when the list is incomplete or empty), "Try the engine again" and, on the experimental engine, the sample business.
+- **Restore a backup** lists `workspace.backups.list` by business, each with its day and time and its kind ("Automatic", "You made it", "Before a change"), and sends the file's name, never a path. **Move a business here** takes the move file and its code; the code field is a password field outside any form and is cleared after each send.
+- **Trust & access** starts with "Keeping your business safe": the "Lock with a passphrase" switch, the recovery code, the automatic backups with Back up now and a confirmed restore, "Move to another computer" (the code in chunks of four and "Save the file") and "What this protects". The same panel opens from the workspace menu as "Backups and lock". In this-computer mode the menu's "Lock vault" reads "Close this business". Today shows one quiet line while the business has no recovery code.
+- **Hosted web** keeps server custody, Keep it and its recovery code, and never calls a custody method.
+
+**The live preview.** The right side shows the business coming together in real words, like the founder's prototype B: the kind, the name, the one line, each offer with how it is charged and its price, and a small website card with the first four page names, the line and the offers. Every word there is an engine answer, the owner's own typing, or one of five fixed phrases ("Your business", "Takes shape as you type.", "Price not set", "before tax", "Encrypted on this computer"). A price is the engine's `priceDisplay` before the vault, the receipt's total label and display after it, or, on the built-in plan, the owner's typed text beside the currency code. The renderer adds, rounds and formats nothing. There is no web address. The pane stays `aria-hidden`, and it isn't counted in the 45 words at rest. At phone width a strip under the header shows the small shapes, the kind and the name. Hosted gets the same preview, without the lock words.
+
+Words at rest, header and left pane, measured by the renderer test with the longest answers: Pair 30, Connect 45, the open box 35, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Choose a passphrase 36, the recovery code 36, Setting up 9, Accept 45 (the longest plan) or 30, Build 44, Welcome back 38 (three businesses, the longest name, the typed folder offered) or 20 (none). The captures, light and dark at 1366 px and 375 px, are `screens/60-*` to `78-*`: [prices](screens/63-prices-light.png), [setting up](screens/64-setup-light.png), [Accept](screens/65-accept-light.png), [Welcome back](screens/68-welcome-back-light.png), [Trust, off](screens/72-trust-off-light.png), [backups](screens/75-trust-backups-light.png), [moving](screens/76-trust-move-light.png). They come from the renderer fixtures in headless Edge, not from a live engine.
 
 ## Connecting an AI
 
@@ -85,7 +102,7 @@ Before a business is kept, the engine holds everything in a **draft desk**, in m
 | First `venture.ai.*` or `venture.compose.*` request | Made (loaded on first use) |
 | Any draft request | The idle timer starts again at sixty minutes |
 | Sixty minutes with no draft request | Cleared: keys, records and plan. The next fill or update answers `COMPOSE_NOT_FOUND`, and decide answers `NO_MODEL_CONNECTED`, so the screen can send the owner back to Connect. |
-| `workspace.create` (Keep it safe) | Kept, timer paused, so the passphrase and the recovery code can't wipe the plan |
+| `workspace.create` (Keep this plan) | Kept, timer paused, so making the vault can't wipe the plan |
 | `venture.create` succeeds | Adopted into the vault, then wiped |
 | `venture.create` fails | Kept as it was; the owner can try again |
 | `workspace.open`, `recover`, `restore`, lock, close | Cleared |
@@ -168,20 +185,20 @@ venture.compose.fill { composeId }
 2. **Digits and signs.** No digit unless the token also holds a letter and was copied from the owner's own sentence (so "B2B" passes and "2 dogs" doesn't); no currency signs, percent or magnitude words.
 3. **Numbers and money in words.** Cardinals from two upward, ordinals from second upward, dozen, half, quarter, double, twice, triple, currency names, currency codes the owner didn't write themselves, and the price words free, discount and discounted. "One sentence", "your first client", "stress-free" and "second-hand" are allowed. "Twenty pounds a walk" is refused and repaired (founder flag F23).
 4. **Ids and choices** are enums and refs, never free text.
-5. **Prices** are typed by the owner, parsed by code into the currency's smallest unit, and shown back as the engine formats them. Before Keep it safe the plan shows only what the owner typed: no tax and no total (founder flag F5). After it, each priced offer gets a calculator receipt.
+5. **Prices** are typed by the owner, parsed by code into the currency's smallest unit, and shown back as the engine formats them. Before the plan is kept it shows only what the owner typed: no tax and no total (founder flag F5). After it, each priced offer gets a calculator receipt.
 6. **The renderer** never parses or works out an amount. It sends the typed text as typed and shows the engine's words.
 
 ## The screens
 
-The renderer package builds these screens in look B, "bold and graphic", from a prototype the founder picked (a local working file, not in the repository): a split layout with the asking on the left and the business assembling as shapes on the right, light and dark, one column at phone width. Pairing, Keep it safe, the recovery code and Welcome back move to the same look. The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
+The renderer package builds these screens in look B, "bold and graphic", from a prototype the founder picked (a local working file, not in the repository): a split layout with the asking on the left and the business assembling on the right (in real words since the keychain change; see above), light and dark, one column at phone width. Pairing, Keep it safe, the recovery code and Welcome back move to the same look. The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
 
-Each screen has a budget of words at rest, counting the header, both halves and every closed fold's summary together (the recovery code itself is not counted). The budget is 45 or less, and lower on some screens: Pair 35, Not a service 35, Refused 40, Setting up 25 and Welcome back 40. Measured by the renderer test with every model string at its cap: Pair 30, Connect 45, the open box 37, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Keep it safe 40, the recovery code 41, Setting up 14, Accept 45, Build 44, Welcome back 32. Accept fits by showing the version and the Offers heading only on the Your business place, so no screen needed the F10 exception. The demo walk's own counts are in [README.md](README.md#onboarding-v2-integration-18-october).
+Each screen has a budget of words at rest: 45 or less, and lower on Pair 35, Not a service 35, Refused 40 and Setting up 25 (Welcome back was 40 and is 45 now that it lists businesses). The recovery code and the experimental-storage line are counted on their own, and since the keychain change so is the live preview; the current counts are in the section above. At the onboarding v2 integration, with the header and both halves counted together and every model string at its cap, the renderer test measured: Pair 30, Connect 45, the open box 37, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Keep it safe 40, the recovery code 41, Setting up 14, Accept 45, Build 44, Welcome back 32. Accept fits by showing the version and the Offers heading only on the Your business place, so no screen needed the F10 exception. The demo walk's own counts are in [README.md](README.md#onboarding-v2-integration-18-october).
 
 Every "with <model>" line on these screens comes from the live status, and the plan screen names who wrote the plan from its own `writtenBy` (with `replay` set for a recording), so a plan written by Sonnet still says Sonnet after the owner connects another AI. In the replay demo, Working and Plan say "from a synthetic recording" and name no model.
 
 The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their test `venture-onboarding-renderer.test.ts`. [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/).
 
-## After Keep it safe
+## After the plan is kept
 
 The kept plan becomes the records that already existed, so everything downstream (receipts, the build brief, the playbook, rehearsal, orders, invoices) reads the same records as before. [core.md](core.md#composed-plans-onboarding-v2) explains how. In short:
 
@@ -198,7 +215,8 @@ The kept plan becomes the records that already existed, so everything downstream
 | `venture-compose.test.ts` (engine package) | the fixed words, the schemas, every validation rule and the number guard cases, the repair, assembly, later plan versions keeping the blocks, and that no runtime file imports from the tests |
 | `venture-draft.test.ts` (engine package) | the draft desk through the real engine: connect, the half-connected pair, the Claude Code gate, lifetime and idle expiry, the handover, and that the key is in no result, record, error or file |
 | `venture-onboarding-e2e.test.ts` | the whole new journey on recordings: connect before any vault, compose "Dog walking for busy nurses in Leeds" in the United Kingdom, type GBP 18 and GBP 60.50, keep it safe, adopt the plan and the AI, receipts equal to the typed prices, accept, a brief with the plan's pages and no client-area lines, a playbook that credits no agent with the walks, GitHub followed read only from the existing recording, a template rehearsal, an order, an issued invoice whose total is the receipt total and whose money lines pass the number guard, and no key in any file, call record or vault record; the repaired and refused recordings, each checked for the rule it was refused by and a repair that names that rule; a judged rehearsal of a composed plan (the demo bookkeeping plan, on all three practice clients); the skill and problem plans; the Claude Code route with the gate open and closed; a restart before Keep it safe; and the demo replay |
-| `venture-onboarding-renderer.test.ts` (renderer package) | every screen through the real `launch.js` and `app.js` on a fake engine: Connect first, the honest chips, the recommended and half-connected pair, a plan tier with no quick tier staying on Connect, the Claude Code gate, the open box, the decided views, not a service and refused, prices sent as typed, Keep it safe to Build in order, the recovery code chunks, a reload, pairing, Welcome back and the way back in from Connect, words at rest within each budget with the longest answers, the right pane, the CSS tokens, VAT kept in capitals, no control characters, and the renderer's copies of the contract lists |
+| `venture-onboarding-renderer.test.ts` (renderer package) | every screen through the real `launch.js` and `app.js` on a fake engine: Connect first, the honest chips, the recommended and half-connected pair, a plan tier with no quick tier staying on Connect, the Claude Code gate, the open box, the decided views, not a service and refused, prices sent as typed, Keep this plan with no passphrase to Build in order, the passphrase fallback, five progress segments, the start-up choices, Welcome back's list, recovery, restore and move, the recovery code chunks, a reload, pairing, words at rest within each budget with the longest answers, the live preview's words and their sources, hosted's own Keep it, the CSS tokens, VAT kept in capitals, no control characters, and the renderer's copies of the contract lists |
+| `custody-renderer.test.ts` (renderer package) | the Trust panel: the switch off, on, and on but disabled with the engine's reason; turning it on with the recovery code shown once; turning it off with the current passphrase; making a recovery code with and without the passphrase; backups, Back up now and a confirmed restore; moving, with the code in chunks of four and the file saved as given; Today's line and the workspace menu's "Close this business"; the copies of the custody words |
 
 The recordings are in `platform/tests/fixtures/venture/onboarding/` ([README](../../platform/tests/fixtures/venture/onboarding/README.md)). All are hand-written and labelled synthetic recording.
 
