@@ -101,7 +101,7 @@ test('no "works": while a row holds a preset not built in, none of its words or 
 
 test('the ChatGPT row says exactly why it is not open and names no other route', () => {
   const why = AI_OPTION_WORDS['chatgpt-sign-in'].why;
-  assert.equal(why, "OpenAI lets only open-source tools, personal hobby projects and partners it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been approved yet. Use an OpenAI key for now.");
+  assert.equal(why, "OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been picked yet. Use an OpenAI key for now.");
   assert.doesNotMatch(why, /Codex|Claude|Anthropic/);
   assert.equal(AI_OPTION_WORDS['chatgpt-sign-in'].line, 'Not open to Chausar yet.');
 });

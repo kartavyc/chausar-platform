@@ -109,7 +109,7 @@ Since 18 October onboarding starts by connecting an AI, before any vault exists.
 
 When the business is kept, the draft connections and calls move into the vault with the same ids and times, and the key moves to the vault host's shelf after the write commits. The send setting moves to "send question shapes" then, as it does when an AI is connected in the vault. Once a vault holds a business, these methods refuse `VENTURE_EXISTS`; the vault's own methods take over.
 
-New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `compose` (main tier) builds the plan from blocks. Both carry only the owner's own sentence and the country, never client data.
+New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `compose` (main tier) builds the plan from blocks. Both carry only the owner's own sentence and the country, never client data. Routes are chosen by tier, so the open box needs both: the Connect screen moves on only when the quick and the plan tier can both serve. The recommended pair connects Haiku 5.5 first, then Sonnet 5.5; GPT-6 Luna, Claude Code and Codex each serve both tiers.
 
 ### The Connect rows and their words
 
@@ -122,7 +122,7 @@ New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `
 
 No row's words say "works": nothing in this build has been tried with a live account.
 
-**Sign in with ChatGPT** has no preset, no route and no request. OpenAI documents it, but lets only open-source tools, personal hobby projects and partners it picks use a ChatGPT plan; Chausar is commercial and hasn't been approved. Its words and sources are on [onboarding.md](onboarding.md#sign-in-with-chatgpt-real-but-not-open-to-chausar-yet).
+**Sign in with ChatGPT** has no preset, no route and no request. OpenAI documents it, but lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan; Chausar is a commercial app and hasn't been picked. Paid or remotely hosted apps go through OpenAI's interest form first. Checked again on 18 October against OpenAI's plan usage page and its cookbook. Its words and sources are on [onboarding.md](onboarding.md#sign-in-with-chatgpt-real-but-not-open-to-chausar-yet).
 
 **Codex** stays on the owner's own `codex login`, with the words "OpenAI hasn't said yet that apps like Chausar may use a ChatGPT plan this way. It needs the reviewed Codex install on this computer." Chausar never reads `auth.json`.
 
@@ -133,6 +133,7 @@ Anthropic's legal page says a product that runs Claude Code needs Anthropic's Co
 - `CHAUSAR_CLAUDE_CODE_TERMS`, read by `host-env.ts` into `VentureHostOptions.claudeCodeTerms`. Only the value `accepted` opens the gate. Any other value, or none, means `pending`, the default in every build. It comes from the host's own settings, never from a request.
 - While pending, `availabilityOf('claude-code-cli', ...)` answers needs setup with "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.", before the vault and in the vault alike. `venture.ai.connect` and `venture.models.connect` refuse the preset with `PRESET_UNAVAILABLE` and those words, and the screens show no "Check and connect".
 - Once open, the route behaves as before: `claude --version` first, then needs setup until Claude Code is found, then unverified.
+- The gate is checked again on every call, not only on connect. A connection made while the setting was `accepted` stops working if it goes back to `pending`: the model port refuses the call with `PRESET_UNAVAILABLE` and the terms words, and `venture.models.status` shows that tier as not usable with the same reason.
 - To open it: the founder accepts the terms for Chausar, the lead records the date and the words in `STATE.md`, and the desktop build sets `CHAUSAR_CLAUDE_CODE_TERMS=accepted`.
 
 The gate doesn't replace the other conditions from Anthropic's pages, which hold either way: Chausar never reads `.credentials.json` or sets `CLAUDE_CODE_OAUTH_TOKEN`, never shows a sign-in of its own, passes no flag that removes sign-in methods, and says that plans have limits made for one person.

@@ -256,7 +256,7 @@ export const AI_OPTION_WORDS: Readonly<Record<AiOptionId, { label: string; line:
   },
   'chatgpt-sign-in': {
     label: 'Sign in with ChatGPT', line: 'Not open to Chausar yet.',
-    why: "OpenAI lets only open-source tools, personal hobby projects and partners it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been approved yet. Use an OpenAI key for now.",
+    why: "OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been picked yet. Use an OpenAI key for now.",
   },
 });
 export type AiOption = {

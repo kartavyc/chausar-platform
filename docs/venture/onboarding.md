@@ -27,7 +27,7 @@ The spec (revision 2) and the research behind the ChatGPT row are local working 
 Side paths:
 
 - **Continue without AI** (a quiet link on Connect): the open box, then today's built-in template plan, labelled "Built-in plan, not fitted to what you wrote."
-- **Already have a business? Open it** (on the open box): Welcome back, the passphrase, recovery, restore, the sample business.
+- **Already have a business? Open it** (on the open box) and **Open my business** (on Connect, since every restart starts there): Welcome back, the passphrase, recovery, restore, the sample business.
 - **Hosted web** keeps today's order for now (idea, template plan, keep, then Add your AI inside the vault). Connect-first there needs a draft desk per session behind the hosted rate limits (founder flag F4).
 
 ## Connecting an AI
@@ -41,21 +41,23 @@ Each row on Connect has one status, the weakest of its presets, in this order: r
 | Codex on this computer | The owner's own `codex exec` on the reviewed host profile, on their own `codex login`. | needs setup without the reviewed profile, else unverified | Needs setup or Can connect |
 | Sign in with ChatGPT | Nothing. No preset, no route, no request, no button. | not open | Not open yet |
 
-Cheap by default: the recommended row connects Haiku 5.5 for decide and Sonnet 5.5 for compose with one Anthropic key. Claude Code runs Sonnet 5.5 for both tiers in this milestone (one model per connection, founder flag F12), and the screens are to name it "Claude Code (Sonnet 5.5)".
+Cheap by default: the recommended row connects Haiku 5.5 for decide and Sonnet 5.5 for compose with one Anthropic key. Claude Code runs Sonnet 5.5 for both tiers in this milestone (one model per connection, founder flag F12), and the screens name it "Claude Code (Sonnet 5.5)".
 
-If the second call of the recommended pair fails, the first stays connected and `venture.ai.status` shows the quick tier only. The spec has the screen say "Connected for quick work only.", show the engine's words and the key field again, and offer "Connect Sonnet 5.5 for plans", which sends only the second call; Connect doesn't move on until there is a usable plan model.
+If the second call of the recommended pair fails, the first stays connected and `venture.ai.status` shows the quick tier only. The screen says "Connected for quick work only.", shows the engine's words and the key field again, and offers "Connect Sonnet 5.5 for plans", which sends only the second call. Connect doesn't move on until both the quick and the plan tier can serve, because decide runs on the quick tier.
 
 ### Sign in with ChatGPT: real, but not open to Chausar yet
 
 The founder is right that OpenAI now documents a way for other apps to use a ChatGPT plan: OAuth 2 with PKCE at `auth.openai.com`, a `127.0.0.1` callback and the `chatgpt.tokens.use.direct` scope. It isn't open to every app. The row's words, shown when it is opened, are exactly:
 
-> OpenAI lets only open-source tools, personal hobby projects and partners it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been approved yet. Use an OpenAI key for now.
+> OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been picked yet. Use an OpenAI key for now.
 
 So the row has no control that pretends; its only link opens the API key row on OpenAI. The token rule is not the blocker: the one-hour access token and the thirty-day refresh token could live on a memory-only shelf, with a sign-in again after each restart, and no token file would exist. Eligibility is the blocker. If the local app is open-sourced, or OpenAI approves Chausar through its interest form, this could be built (founder flag F1). Nobody has applied.
 
-Sources for this row, checked 18 Oct 2026 (the research note itself is a local working file, not in the repository):
+Sources for this row, checked 18 Oct 2026 (the research note itself is a local working file, not in the repository). The integration pass read the first two again the same day: OpenAI's plan usage page covers open-source and locally hosted apps and sends paid or remotely hosted apps to the interest form, and the cookbook names open-source projects, personal projects that run locally and selected private apps. Chausar's desktop app runs on the owner's computer, but it is a paid, closed app, so it needs OpenAI's approval first.
 
 - https://developers.openai.com/siwc
+- https://developers.openai.com/siwc/token-sharing-open-source
+- https://developers.openai.com/cookbook/articles/sign-in-with-chatgpt
 - https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
 - https://help.openai.com/en/articles/20001410-sign-in-with-chatgpt
 - https://openai.com/form/sign-in-with-chatgpt-interest/
@@ -173,11 +175,11 @@ venture.compose.fill { composeId }
 
 The renderer package builds these screens in look B, "bold and graphic", from a prototype the founder picked (a local working file, not in the repository): a split layout with the asking on the left and the business assembling as shapes on the right, light and dark, one column at phone width. Pairing, Keep it safe, the recovery code and Welcome back move to the same look. The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
 
-The spec gives each screen a budget of words at rest, counting the header, both halves and every closed fold's summary together (the recovery code itself is not counted). The budget is 45 or less, and lower on some screens: Pair 35, Not a service 35, Refused 40, Setting up 25 and Welcome back 40. With every model string at its cap, the worst cases it works out are: Pair 30, Connect 42, the open box 37, Working 37, Plan 44, Set your prices 44, Not a service 31, Refused 39, Keep it safe 40, the recovery code 41, Setting up 19, Welcome back 32. Accept and Build reuse the business and build places (52 and 55 words as places); the renderer package folds what it can and either meets 45 or records the measured count as an exception under founder flag F10, for the founder to accept or cut. The renderer test is to count each screen; this page will carry the measured numbers once that package lands.
+Each screen has a budget of words at rest, counting the header, both halves and every closed fold's summary together (the recovery code itself is not counted). The budget is 45 or less, and lower on some screens: Pair 35, Not a service 35, Refused 40, Setting up 25 and Welcome back 40. Measured by the renderer test with every model string at its cap: Pair 30, Connect 45, the open box 37, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Keep it safe 40, the recovery code 41, Setting up 14, Accept 45, Build 44, Welcome back 32. Accept fits by showing the version and the Offers heading only on the Your business place, so no screen needed the F10 exception. The demo walk's own counts are in [README.md](README.md#onboarding-v2-integration-18-october).
 
-Every "with <model>" line on these screens is to come from the live status (the plan records who wrote it in `writtenBy`, with `replay` set for a recording). In the replay demo, Working and Plan are to say "from a synthetic recording" and name no model.
+Every "with <model>" line on these screens comes from the live status, and the plan screen names who wrote the plan from its own `writtenBy` (with `replay` set for a recording), so a plan written by Sonnet still says Sonnet after the owner connects another AI. In the replay demo, Working and Plan say "from a synthetic recording" and name no model.
 
-The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their tests (`venture-onboarding-renderer.test.ts`, to be added with that package). [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words.
+The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their test `venture-onboarding-renderer.test.ts`. [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/).
 
 ## After Keep it safe
 
@@ -196,13 +198,13 @@ The kept plan becomes the records that already existed, so everything downstream
 | `venture-compose.test.ts` (engine package) | the fixed words, the schemas, every validation rule and the number guard cases, the repair, assembly, later plan versions keeping the blocks, and that no runtime file imports from the tests |
 | `venture-draft.test.ts` (engine package) | the draft desk through the real engine: connect, the half-connected pair, the Claude Code gate, lifetime and idle expiry, the handover, and that the key is in no result, record, error or file |
 | `venture-onboarding-e2e.test.ts` | the whole new journey on recordings: connect before any vault, compose "Dog walking for busy nurses in Leeds" in the United Kingdom, type GBP 18 and GBP 60.50, keep it safe, adopt the plan and the AI, receipts equal to the typed prices, accept, a brief with the plan's pages and no client-area lines, a playbook that credits no agent with the walks, GitHub followed read only from the existing recording, a template rehearsal, an order, an issued invoice whose total is the receipt total and whose money lines pass the number guard, and no key in any file, call record or vault record; the repaired and refused recordings, each checked for the rule it was refused by and a repair that names that rule; a judged rehearsal of a composed plan (the demo bookkeeping plan, on all three practice clients); the skill and problem plans; the Claude Code route with the gate open and closed; a restart before Keep it safe; and the demo replay |
-| `venture-onboarding-renderer.test.ts` (renderer package, not landed yet) | to be checked by it: the screens, their words at rest, the right pane, the CSS tokens and the copies of the contract lists |
+| `venture-onboarding-renderer.test.ts` (renderer package) | every screen through the real `launch.js` and `app.js` on a fake engine: Connect first, the honest chips, the recommended and half-connected pair, a plan tier with no quick tier staying on Connect, the Claude Code gate, the open box, the decided views, not a service and refused, prices sent as typed, Keep it safe to Build in order, the recovery code chunks, a reload, pairing, Welcome back and the way back in from Connect, words at rest within each budget with the longest answers, the right pane, the CSS tokens, VAT kept in capitals, no control characters, and the renderer's copies of the contract lists |
 
 The recordings are in `platform/tests/fixtures/venture/onboarding/` ([README](../../platform/tests/fixtures/venture/onboarding/README.md)). All are hand-written and labelled synthetic recording.
 
 ## The demo
 
-The offline demo answers the composer for the demo idea ("Monthly bookkeeping for cafes and small shops in Pune."), the three open-box examples and the landlord sentence. Any other sentence has no recording and says so (`FIXTURE_MISSING`); nothing is made up. While other agents share this worktree, run it on its own port and folder so it never meets the founder's server on 4317 or the repo's `data/` folder:
+The offline demo answers the composer for the demo idea ("Monthly bookkeeping for cafes and small shops in Pune."), the three open-box examples, the landlord sentence, and "Bike repairs at home for families in Bristol.", whose two plan answers both use a block Chausar doesn't have, so the refused screen can be seen. Any other sentence has no recording and says so (`FIXTURE_MISSING`); nothing is made up. While other agents share this worktree, run it on its own port and folder so it never meets the founder's server on 4317 or the repo's `data/` folder:
 
 In sh:
 

@@ -168,20 +168,19 @@ const ONBOARDING_SCREENS = [
 ];
 const VARIANTS = ['-light', '-dark', '-375-light', '-375-dark'];
 
-test('the onboarding v2 captures are all there or none are, and the docs say they are pending while none are', async () => {
-  const saved = new Set(await readdir(new URL('screens/', docsFolder)));
+test('the onboarding v2 captures are all saved in screens/onboarding-v2, and the docs point there', async () => {
+  const saved = new Set(await readdir(new URL('screens/onboarding-v2/', docsFolder)));
   const wanted = ONBOARDING_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`));
   assert.equal(wanted.length, 60);
-  const present = wanted.filter(name => saved.has(name));
-  // Every saved capture in the 40 to 54 range is one of the names above.
-  for (const name of saved) if (/^(4\d|5[0-4])-/.test(name)) assert.ok(wanted.includes(name), `screens/${name} is not one of the spec's captures`);
-  if (present.length === 0) {
-    // Until the renderer package lands, the README says the captures are still to do.
-    const readme = lf(await readFile(new URL('README.md', docsFolder), 'utf8'));
-    assert.ok(readme.includes('Still to do, because they need the renderer package'), 'README says the captures are pending');
-    return;
+  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every screen in light and dark, at 1366 px and 375 px');
+  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
+  // The older captures stay at the top of screens/; none of the onboarding v2 names land there.
+  for (const name of await readdir(new URL('screens/', docsFolder))) assert.equal(/^(4\d|5[0-4])-/.test(name), false, `screens/${name} belongs in screens/onboarding-v2`);
+  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
+    const text = lf(await readFile(new URL(page, docsFolder), 'utf8'));
+    assert.ok(text.includes('screens/onboarding-v2/'), `${page} points at the captures`);
+    assert.equal(text.includes('Still to do, because they need the renderer package'), false, `${page} no longer says the screens are pending`);
   }
-  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'once any capture is saved, all sixty are');
 });
 
 test('the venture docs cite no file from the local .b2c-work folder as a source, since a clone does not have it', async () => {

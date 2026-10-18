@@ -9,10 +9,10 @@ Two rules hold everywhere:
 
 ## The journey
 
-Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). Steps 1 to 4 describe the engine and the spec's screens: the engine side is built and tested, but the browser screens arrive with the renderer package, which hadn't landed when this was written. Until then the app still shows the old first screen.
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/).
 
-1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates.
-2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list.
+1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates, and "Open my business" takes a returning owner to Welcome back, since every restart starts on this screen.
+2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
 3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no digits, no numbers in words, no prices, no markup. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
 4. **Set your prices.** The owner types each price. Nothing is added up yet.
 5. **Keep it.** A working name and a passphrase open an encrypted vault. The recovery code is shown once. The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan.
@@ -89,11 +89,11 @@ $env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $e
 
 In sh, put `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` in front of the replay command above. `.b2c-work/` is a local working folder outside the repository; the demo makes its vault there.
 
-Steps 1 to 3 use the new onboarding screens, which arrive with the renderer package; until it lands, the engine answers these steps through `/api/rpc` but the browser still shows the old first screen. Then:
+Then:
 
 1. Connect an AI: Paste an API key, Anthropic, any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Tick I agree for each consent text, then Connect.
-2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India. The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills) and "My landlord won't fix the heating." (not a service). Any other sentence has no recording and says so.
-3. Your plan: Ledger Cafe Books, written from a synthetic recording. Set your prices: Monthly books 2499 per month. Tax: yes, 18. Keep this plan.
+2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India (Based in, Change). The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills), "My landlord won't fix the heating." (not a service) and "Bike repairs at home for families in Bristol.", whose two plan answers both use a block Chausar doesn't have, so the screen says "There's no plan to show." Any other sentence has no recording and says so.
+3. Your plan: Ledger Cafe Books, drafted from a synthetic recording. Set your prices: Monthly books 2499 per month. Open "Tax: not registered", answer Yes and type 18. Keep this plan.
 4. Keep it safe: name "Ledger Cafe Books", a passphrase of 12 or more characters. Save the recovery code.
 5. Your plan in the vault: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Rewrite with AI (the words change, the blocks stay), then Accept plan.
 6. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
@@ -167,7 +167,7 @@ Known limits:
 
 ## Onboarding v2, 18 October
 
-The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`) added the draft desk, the composer, the block library and the view registry. This package added the recordings, the end-to-end test, the demo answers and these docs. The renderer package's screens had not landed when this was written.
+The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`, and the review fixes in `901be97`) added the draft desk, the composer, the block library and the view registry. The renderer package (`f0e3da4`, `2788ebc`) drew every onboarding screen in look B. The end-to-end package (`31459d2`, `9c14254`, `e72664c`) added the recordings, the end-to-end test, the demo answers and these docs. The integration pass below joined them.
 
 How it was checked, on Windows with Node 24.13.1:
 
@@ -176,9 +176,56 @@ How it was checked, on Windows with Node 24.13.1:
 - `node scripts/check.mjs` and a scoped typecheck with `typescript@5.9.3` over the three test files this package owns.
 - The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0).
 
-Still to do, because they need the renderer package and the integration pass: the walk of the new screens in the browser, the captures `screens/40-pair` to `screens/54-welcome-back` (each as `-light`, `-dark`, `-375-light` and `-375-dark`), and the measured words at rest for each screen, Accept and Build included. `venture-docs.test.ts` already holds the capture list: it passes while none of the sixty exist and fails if only some do.
-
 What this pass changed in the demo replay: the composer answers above; the template plan rewrite now matches only a template plan's request, and the composed one only a composed plan's, so neither answers the other; and the bookkeeping agent turns from the end-to-end recording, without which rehearsal of the reconciling agent stopped with `FIXTURE_MISSING` in the demo (that gap predates onboarding v2).
+
+## Onboarding v2 integration, 18 October
+
+The three packages were joined in one worktree on branch `b2c/onboarding-v2`, their hand-off notes applied, the new screens walked in the browser against the real engine, and what the walk found fixed.
+
+What changed in this pass:
+
+- **The quick tier.** The engine reads the sentence on the quick tier, so Connect now moves on only when both the quick and the plan tier can serve. Before, a connection for plans alone would have shown the open box and then refused every sentence.
+- **A way back in from the first screen.** Every restart starts on Connect, because the engine opens locked and can't list vaults. Connect now has "Open my business" beside "Continue without AI", which goes to Welcome back. It rests at 45 words, inside its budget.
+- **VAT read "vat".** A stray control character in `launch.js` had turned a pattern's word boundary into a backspace, so every tax name was lower cased inside a sentence. Fixed, and a test now checks the renderer files for control characters. The same fault is on `main`.
+- **The ChatGPT row's words** follow OpenAI's own wording, checked again on 18 October: "OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been picked yet. Use an OpenAI key for now." Before, it said "personal hobby projects", which isn't OpenAI's phrase.
+- **The brief lint** takes a `clientArea` option, so a composed plan with no client area doesn't need the row security and sign-in lines; before, the build package filtered those two findings after the fact.
+- **The demo** has one sentence whose plan is refused twice, so the refused screen can be seen offline. The end-to-end test checks it.
+- **Look B fixes from the walk:** each Connect row shows a chevron, so it reads as something that opens; the currency code sits beside its price field and every row lines up; Accept and Build use the same title, eyebrow and fold style as the other onboarding screens; the storage line on Keep it safe has room before the button; Accept has top room at phone width.
+
+How it was checked, on Windows with Node 24.13.1:
+
+- `node scripts/check.mjs` (524 files) and a full typecheck with `typescript@5.9.3` against the repo `tsconfig.json` (654 files), unfiltered: both clean.
+- Every `venture-*`, `hosted-*`, `desktop-*` and `server` test, and the renderer tests (`venture-launch-renderer`, `venture-onboarding-renderer`, `desktop-renderer`, `decision-journal-renderer`, `conversation-*-renderer`, `definition-disclosure-renderer`, `workspace-backup-renderer`, `phone-web-preview`, `conversation-acceptance`): 567 of 567 across 44 files. The end-to-end test `venture-onboarding-e2e` passes 10 of 10.
+- The local web demo on port 4391 with the replay switch and its own vault folder, walked in headless Edge over the DevTools protocol by clicking and typing in the real page: pair, Connect, the API key row, the recommended pair, the open box, Working (held while the plan was written, to capture it), the three Examples as an idea, a skill and a problem, the landlord sentence, the refused sentence, the demo idea, Set your prices with GST at 18, Keep it safe, the recovery code, Setting up, Accept, Build and Today; then a restart, "Open my business" and Welcome back; then a fresh engine with Continue without AI and the built-in plan. Each of the fifteen screens was captured in light and dark at 1366 px and at 375 px. Nothing scrolls sideways at either width.
+- One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else running: 2,933 tests, 2,932 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 26 minutes. A small spacing change on Keep it safe came after it; the renderer, docs and desktop renderer tests, the check and the typecheck were run again after that change and pass.
+
+Words at rest, counted the way the renderer test counts them (header, both halves and closed folds' summaries; the recovery code and the storage line not counted):
+
+| Screen | Budget | Longest answers (renderer test) | Demo walk |
+| --- | --- | --- | --- |
+| Pair | 35 | 30 | 30 |
+| Connect | 45 | 45 | 45 |
+| Open box | 45 | 37 | 36 |
+| Working | 45 | 37 | 30 |
+| Plan | 45 | 43 | 26 (idea), 37 (skill), 35 (problem) |
+| Set your prices | 45 | 44 | 33 |
+| Not a service | 35 | 31 | 31 |
+| Refused | 40 | 39 | 39 |
+| Keep it safe | 45 | 40 | 39 |
+| Recovery code | 45 | 41 | 41 |
+| Setting up | 25 | 14 | 19 |
+| Accept | 45 | 45 | 32 |
+| Build | 45 | 44 | 39 |
+| Welcome back | 40 | 32 | 32 |
+| Built-in plan | 45 | 33 | 33 |
+
+No screen needed the F10 exception: Accept fits 45 by showing the version and the Offers heading only on the Your business place.
+
+Known limits:
+
+- The walk was done in headless Edge, not in the Electron window or the app's own browser pane; the desktop window still needs `npm install`.
+- The engine can't say whether a vault exists before one is opened, so a returning owner always sees Connect first and uses "Open my business".
+- Welcome back opens the folder named in More options (`main` by default); an owner who named their folder differently types it there, as before.
 
 ## Package pages
 
