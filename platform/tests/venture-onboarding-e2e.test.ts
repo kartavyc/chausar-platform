@@ -424,7 +424,7 @@ test('a new Engine on the same folder before Keep it safe starts empty: the draf
   await assert.rejects(second.ask('venture.compose.decide', { text: dog.text, countryCode: 'GB' }), code('NO_MODEL_CONNECTED'));
 });
 
-test('the offline demo replay answers the composer for the demo idea and the three open-box examples, and nothing else', async t => {
+test('the offline demo replay answers the composer for the demo idea, the three open-box examples and one refused sentence, and nothing else', async t => {
   const demo = JSON.parse(await readFile(new URL('./fixtures/venture/demo/model-replay.json', import.meta.url), 'utf8')) as ModelReplayFixture;
   const sentences: [string, string, OpenBoxKind, string][] = [
     ['Monthly bookkeeping for cafes and small shops in Pune.', 'IN', 'idea', 'offers-first'],
@@ -444,6 +444,13 @@ test('the offline demo replay answers the composer for the demo idea and the thr
   }
   const landlord = await ask('venture.compose.decide', { text: "My landlord won't fix the heating.", countryCode: 'GB' }) as ComposeDecision;
   assert.equal(landlord.kind, 'not-a-service');
+  // The demo's one refused sentence: both plan answers use a block Chausar does not have, so the refused screen shows.
+  const bike = await ask('venture.compose.decide', { text: 'Bike repairs at home for families in Bristol.', countryCode: 'GB' }) as ComposeDecision;
+  assert.deepEqual([bike.kind, bike.views], ['idea', ['offers-first', 'pages', 'notes']]);
+  await assert.rejects(ask('venture.compose.fill', { composeId: bike.composeId }), (error: any) => error.code === 'COMPOSE_REFUSED' && error.message === COMPOSE_REFUSED_WORDS);
+  const refused = (await ask('venture.ai.calls') as ModelCallRecord[]).filter(call => call.purpose === 'compose' && call.payloadText.includes('Bike repairs at home'));
+  assert.deepEqual(refused.map(call => [call.status, call.error?.message]), [['failed', 'An offer used a block Chausar does not have.'], ['failed', 'An offer used a block Chausar does not have.']]);
+  assert.equal((await ask('venture.compose.get') as { plan: ComposedPlan | null }).plan, null, 'no plan is kept from the refused answers');
   await assert.rejects(ask('venture.compose.decide', { text: 'Kite repairs for beach clubs on the coast.', countryCode: 'GB' }), code('FIXTURE_MISSING'), 'a sentence with no recording says so; nothing is made up');
 });
 

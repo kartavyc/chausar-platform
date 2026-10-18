@@ -1,6 +1,6 @@
 {
   "label": "synthetic recording",
-  "note": "Hand-written responses shaped like the Anthropic Messages API (and Claude Code JSON output for the composer) for the offline demo. The composer answers the demo idea and the three open-box examples (dog walking, the Excel skill, cafe bills) and the landlord sentence; any other sentence has no recording. The other answers are the same whatever you type, except that each delivery fixture matches only its own figure refs or practice files, the agent turns match their practice files and each plan rewrite matches its own kind of plan. Not captured from a live account. No paid call was made.",
+  "note": "Hand-written responses shaped like the Anthropic Messages API (and Claude Code JSON output for the composer) for the offline demo. The composer answers the demo idea and the three open-box examples (dog walking, the Excel skill, cafe bills) and the landlord sentence, and one sentence (\"Bike repairs at home for families in Bristol.\") whose two plan answers both use a block Chausar does not have, so the demo can show the refused screen; any other sentence has no recording. The other answers are the same whatever you type, except that each delivery fixture matches only its own figure refs or practice files, the agent turns match their practice files and each plan rewrite matches its own kind of plan. Not captured from a live account. No paid call was made.",
   "responses": [
     {
       "purpose": "decide",
@@ -546,6 +546,90 @@
         "usage": {
           "input_tokens": 960,
           "output_tokens": 40
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"idea\",\"family\":\"other\",\"reading\":\"Fix bikes at the homes of families in Bristol\",\"views\":[\"offers-first\",\"pages\",\"notes\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 980,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Doorstep Bike Fixes\",\"oneLiner\":\"Bike repairs at the door for busy families in Bristol.\",\"customer\":\"Families in Bristol with bikes that need fixing and no time to visit a shop.\",\"offers\":[{\"block\":\"bike-repair\",\"name\":\"Doorstep repair\",\"description\":\"A visit to fix the bike where it stands.\",\"pricingModel\":\"project\"},{\"block\":\"package\",\"name\":\"Family bike check\",\"description\":\"Every bike in the house checked and tuned.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"book-time\",\"title\":\"Agree a visit\"},{\"block\":\"in-person-work\",\"title\":\"Fix the bikes\"},{\"block\":\"draft-reply\",\"title\":\"Reply to families\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say who the repairs are for, with one button to book.\"},{\"block\":\"offers-prices\",\"title\":\"Repairs and prices\",\"purpose\":\"Each repair offer with its price.\"},{\"block\":\"booking\",\"title\":\"Book a visit\",\"purpose\":\"Pick a time for a visit to your home.\"}],\"tools\":[{\"block\":\"cal-com\",\"reason\":\"Families pick a visit time that suits them.\"}],\"questions\":[],\"notes\":[\"insurance\",\"safety\"],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\",\"offer_2\"]},\"pages\":{\"lead\":[\"page_1\",\"page_3\"]},\"notes\":{\"lead\":[\"insurance\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-recompose-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Doorstep Bike Fixes\",\"oneLiner\":\"Bike repairs at the door for busy families in Bristol.\",\"customer\":\"Families in Bristol with bikes that need fixing and no time to visit a shop.\",\"offers\":[{\"block\":\"bike-repair\",\"name\":\"Doorstep repair\",\"description\":\"A visit to fix the bike where it stands.\",\"pricingModel\":\"project\"},{\"block\":\"package\",\"name\":\"Family bike check\",\"description\":\"Every bike in the house checked and tuned.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"book-time\",\"title\":\"Agree a visit\"},{\"block\":\"in-person-work\",\"title\":\"Fix the bikes\"},{\"block\":\"draft-reply\",\"title\":\"Reply to families\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say who the repairs are for, with one button to book.\"},{\"block\":\"offers-prices\",\"title\":\"Repairs and prices\",\"purpose\":\"Each repair offer with its price.\"},{\"block\":\"booking\",\"title\":\"Book a visit\",\"purpose\":\"Pick a time for a visit to your home.\"}],\"tools\":[{\"block\":\"cal-com\",\"reason\":\"Families pick a visit time that suits them.\"}],\"questions\":[],\"notes\":[\"insurance\",\"safety\"],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\",\"offer_2\"]},\"pages\":{\"lead\":[\"page_1\",\"page_3\"]},\"notes\":{\"lead\":[\"insurance\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
         }
       }
     },
