@@ -70,6 +70,8 @@ export const statusPair: AiStatusView = status([haikuConnection, sonnetConnectio
 export const statusPairReplay: AiStatusView = { ...statusPair, replay: { active: true, label: 'synthetic recording' } };
 /** The first call of the pair connected and the second did not: quick work only. */
 export const statusHalf: AiStatusView = status([haikuConnection], { fast: tier('anthropic-haiku-5-5', 'claude-haiku-5-5'), main: templatesTier });
+/** Sonnet for plans with nothing for quick work: the open box can't read a sentence yet. */
+export const statusMainOnly: AiStatusView = status([sonnetConnection], { fast: templatesTier, main: tier('anthropic-sonnet-5-5', 'claude-sonnet-5-5') });
 export const statusLuna: AiStatusView = status([connection('vmc_draft_luna', 'openai-gpt-6-luna', 'gpt-6-luna', ['fast', 'main'], 'openai-responses', 'https://api.openai.com/v1/responses')],
   { fast: tier('openai-gpt-6-luna', 'gpt-6-luna'), main: tier('openai-gpt-6-luna', 'gpt-6-luna') });
 /** Claude Code on this computer: one model, Sonnet 5.5, for both tiers. */

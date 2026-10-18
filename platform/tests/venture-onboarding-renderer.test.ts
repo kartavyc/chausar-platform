@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  AI_HALF_CONNECTED_WORDS, AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, COMPOSE_REFUSED_WORDS, KIND_LABELS, NOT_A_SERVICE_WORDS, VIEW_REGISTRY,
+  AI_HALF_CONNECTED_WORDS, AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, COMPOSE_REFUSED_WORDS, KIND_LABELS, NOT_A_SERVICE_WORDS, OPEN_BOX_TEXT, VIEW_REGISTRY,
 } from '../runtime/venture/onboarding-contracts.ts';
 import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
 import { Vault } from '../runtime/vault.ts';
@@ -147,6 +147,26 @@ test('half connected: the second call fails, the screen says so, asks for the ke
   const reloaded = await boot({ draft: { ai: O.statusHalf } });
   assert.equal(optionRow(reloaded.app, 'api-key').open, true);
   assert.ok(buttons(reloaded.app, 'Connect Sonnet 5.5 for plans').length === 1);
+});
+
+test('an AI for plans with nothing for quick work stays on Connect, because the engine reads the sentence on the quick tier', async () => {
+  const h = await boot({ draft: { ai: O.statusMainOnly } });
+  assert.equal(step(h), 'ai');
+  assert.equal(title(h.app), 'Connect an AI first.', 'no Back, since the open box could not be used');
+  assert.equal(callsOf(h, 'venture.compose.get').length, 0, 'no held plan is asked for');
+  assert.ok(text(screen(h)).includes('Continue without AI'), 'the skip link still promises no AI, since none can plan yet');
+});
+
+test('a returning owner can open their business from the first screen, since every restart starts on Connect', async () => {
+  const h = await boot();
+  assert.equal(step(h), 'ai');
+  await click(button(screen(h), 'Open my business'));
+  assert.equal(step(h), 'back');
+  assert.equal(title(h.app), 'Welcome back.');
+  // Once an AI is connected for plans, Connect is "Change your AI." and the open box carries the way back in.
+  const connected = await boot({ draft: { ai: O.statusPair } });
+  await click(button(screen(connected), 'Change AI'));
+  assert.equal(buttons(screen(connected), 'Open my business').length, 0);
 });
 
 test('Claude Code waits behind the terms gate; once open, Check and connect sends only the preset and consent; Codex says why', async () => {
@@ -353,6 +373,16 @@ test('a reload with a connected AI and a held plan resumes on the plan, from eng
   assert.equal(title(h.app), O.dogPlan.name.value);
   assert.deepEqual(methods(h), ['workspace.status', 'venture.ai.status', 'venture.compose.get']);
   for (const storage of ['localStorage', 'sessionStorage', 'indexedDB']) assert.equal(launchSource.includes(storage), false, `${storage} is never touched`);
+});
+
+test('a tax made of capitals keeps them inside a sentence, and the renderer sources hold no control characters', async () => {
+  const h = await boot({ draft: { ai: O.statusPair, held: { key: 'dog', decision: O.dogDecision, plan: O.dogPlan } } });
+  assert.equal(O.dogPlan.backOffice.taxLabel, 'VAT');
+  assert.ok(text(screen(h)).includes('Tax: not registered for VAT.'), 'VAT stays in capitals');
+  // A stray control character once turned a regex's \b into a backspace, so "VAT" read "vat".
+  for (const [name, source] of [['launch.js', launchSource], ['styles.css', cssSource]]) {
+    assert.equal(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(source), false, `${name} holds a control character`);
+  }
 });
 
 test('pairing and Welcome back are drawn in look B and send what the old screens sent', async () => {
@@ -633,6 +663,7 @@ test('the renderer copies of the view registry, kind labels, AI rows, chips and 
   assert.equal(copies.NOT_A_SERVICE_WORDS, NOT_A_SERVICE_WORDS);
   assert.equal(copies.COMPOSE_REFUSED_WORDS, COMPOSE_REFUSED_WORDS);
   assert.equal(copies.CLAUDE_TERMS_REASON, AVAILABILITY_REASONS.claudeTerms);
+  assert.deepEqual({ ...copies.OPEN_BOX_TEXT }, { ...OPEN_BOX_TEXT });
   assert.deepEqual([...copies.RIGHT_PANE_WORDS], ['Your business', 'Locked on this computer']);
 });
 

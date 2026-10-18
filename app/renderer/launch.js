@@ -41,7 +41,7 @@ globalThis.ChausarLaunch = Object.freeze({
     const RAIL_NAMES = { razorpay: 'Razorpay', cashfree: 'Cashfree', paypal: 'PayPal', stripe: 'Stripe', 'lemon-squeezy': 'Lemon Squeezy', paddle: 'Paddle' };
     // Chausar does not take payments: the site carries pay links and the owner records each payment.
     // Tax names read lower case inside a sentence unless they are letters like GST or VAT.
-    const taxInSentence = label => /^[A-Z]{2,}/.test(label || '') ? label : String(label || '').toLowerCase();
+    const taxInSentence = label => /^[A-Z]{2,}\b/.test(label || '') ? label : String(label || '').toLowerCase();
     const railWords = rail => `Clients pay through ${RAIL_NAMES[rail] || rail} links on your site, and you record each payment here.`;
     const BUILDER_NAMES = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
     const LINK_BUILDERS = ['lovable', 'replit'];
@@ -632,7 +632,7 @@ globalThis.ChausarLaunch = Object.freeze({
       try { status = await request('venture.ai.status'); }
       catch (error) { await showConnect(null, error); return; }
       ob.ai = status;
-      if (!servedByModel(status, 'main')) { await showConnect(); return; }
+      if (!readyForPlans(status)) { await showConnect(); return; }
       ob.mode = 'ai';
       let held = null;
       try { held = await request('venture.compose.get'); } catch { held = null; }
@@ -645,6 +645,10 @@ globalThis.ChausarLaunch = Object.freeze({
       if (held?.decision?.kind === 'not-a-service') { showNotAService(); return; }
       await showOpenBox();
     }
+    /** The open box needs both tiers: the engine reads the sentence on the quick tier and writes the plan on the main one. */
+    function readyForPlans(status) { return servedByModel(status, 'main') && servedByModel(status, 'fast'); }
+    /** The engine's reason for the first tier that can't serve yet. */
+    function notReadyReason(status) { return (servedByModel(status, 'main') ? status?.tiers?.fast : status?.tiers?.main)?.reason || null; }
     /** The first call of the recommended pair connected and the second did not: quick work only. */
     function halfConnected(status) {
       return servedByModel(status, 'fast') && !servedByModel(status, 'main') && status?.tiers?.fast?.presetId === 'anthropic-haiku-5-5';
@@ -666,8 +670,11 @@ globalThis.ChausarLaunch = Object.freeze({
       }
       // With an AI already connected for plans, the skip link can't promise "without AI": the AI stays connected and is
       // kept with the business, so it says what it really gives, a built-in plan, and Back keeps the connection in use.
-      const usable = current => servedByModel(current, 'main');
-      const skipLink = current => h('p', { class: 'ob-skip' }, obLink(usable(current) ? 'Use a built-in plan' : 'Continue without AI', () => { ob.mode = 'template'; void showOpenBox(); }));
+      const usable = current => readyForPlans(current);
+      // A returning owner lands here too after every restart (the engine starts locked), so the first screen also opens
+      // an existing business, as the open box does.
+      const skipLink = current => h('p', { class: 'ob-skip' }, obLink(usable(current) ? 'Use a built-in plan' : 'Continue without AI', () => { ob.mode = 'template'; void showOpenBox(); }),
+        hosted || ob.vaultOpen || usable(current) ? null : obLink('Open my business', () => openExisting()));
       const skip = skipLink(ob.ai);
       if (!view) {
         obFrame('ai', [obTitle('Connect an AI first.'), h('div', { class: 'ob-errors' }, ...errorNodes(error, () => showConnect(message))), skip], { shapes: 'ai' });
@@ -774,7 +781,7 @@ globalThis.ChausarLaunch = Object.freeze({
           if (model.value.trim()) payload.model = model.value.trim();
           result = await request('venture.ai.connect', payload);
         } finally { key.value = ''; delete payload.apiKey; }
-        if (!servedByModel(result, 'main')) throw new Error(result?.tiers?.main?.reason || 'GPT-6 Luna is not ready for plans yet.');
+        if (!readyForPlans(result)) throw new Error(notReadyReason(result) || 'GPT-6 Luna is not ready for plans yet.');
         afterConnected(result);
       }), { disabled: true });
       consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked; });
@@ -796,7 +803,7 @@ globalThis.ChausarLaunch = Object.freeze({
       if (option.canConnect || !claude) {
         connect = obBtn(claude ? 'Check and connect' : 'Connect', () => act(connect, status, async () => {
           const result = await request('venture.ai.connect', { presetId: preset.id, consentDigest: preset.consentDigest });
-          if (!servedByModel(result, 'main')) throw new Error(result?.tiers?.main?.reason || `${presetName(preset.id)} is not ready for plans yet.`);
+          if (!readyForPlans(result)) throw new Error(notReadyReason(result) || `${presetName(preset.id)} is not ready for plans yet.`);
           afterConnected(result);
         }), { disabled: true });
         consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked || !option.canConnect; });

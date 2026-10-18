@@ -318,7 +318,7 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-root .launch-choice.on{border-color:var(--ob-accent);background:var(--ob-accent-soft);color:var(--ob-ink)}
 .ob-root .launch-note{color:var(--ob-ink2);font-size:14.5px}
 .ob-root .launch-chip,.ob-root .launch-label{color:var(--ob-mute)}
-.ob-root .launch-warn{color:var(--ob-sec-ink)}
+.ob-root .launch-warn{margin:14px 0 18px;color:var(--ob-sec-ink)}
 .ob-root .launch-error{color:var(--ob-red)}
 .ob-root .launch-consent-text{border-left:2px solid var(--ob-line2)}
 .ob-check,.ob-root .launch-check{display:flex;align-items:center;gap:12px;margin:0 0 6px;font-size:16px;font-weight:600;cursor:pointer}
@@ -328,7 +328,10 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-ai-row{border-bottom:1.5px solid var(--ob-line)}
 .ob-ai-row>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:62px;padding:12px 0;list-style:none;cursor:pointer}
 .ob-ai-row>summary::-webkit-details-marker{display:none}
-.ob-ai-label{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.ob-ai-row>summary::after{content:"";flex:none;width:7px;height:7px;margin:-4px 4px 0 0;border-right:2px solid var(--ob-mute);border-bottom:2px solid var(--ob-mute);transform:rotate(45deg);transition:transform var(--ob-t2) var(--ob-ease)}
+.ob-ai-row[open]>summary::after{margin-top:4px;transform:rotate(-135deg)}
+.ob-ai-row>summary:hover::after{border-color:var(--ob-ink)}
+.ob-ai-label{flex:1;min-width:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
 .ob-chip{flex:none;padding:4px 12px;border-radius:999px;background:var(--ob-accent-soft);color:var(--ob-ink);font-size:13px;font-weight:700;white-space:nowrap}
 .ob-chip-needs-setup,.ob-chip-unavailable{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ob-line2);color:var(--ob-ink2)}
 .ob-chip-not-open{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ob-line2);color:var(--ob-mute)}
@@ -399,16 +402,20 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 @keyframes ob-slot{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
 /* prices: one row per offer; the engine formats every amount */
 .ob-price-rows{display:grid;gap:0;border-top:1.5px solid var(--ob-line)}
-.ob-price-row{display:grid;grid-template-columns:minmax(0,1fr) 170px auto;align-items:end;gap:6px 16px;padding:14px 0;border-bottom:1.5px solid var(--ob-line)}
+.ob-price-row{display:grid;grid-template-columns:minmax(0,1fr) 206px 124px;align-items:center;gap:8px 16px;padding:14px 0;border-bottom:1.5px solid var(--ob-line)}
 .ob-price-row>.ob-offer-name{align-self:center}
 .ob-price-row .launch-field{margin:0}
-.ob-price-row .launch-field label{font-size:12.5px;color:var(--ob-mute);font-family:var(--ob-mono)}
+.ob-price-row .launch-field label{font-size:14px;font-weight:700;color:var(--ob-mute);font-family:var(--ob-mono)}
+.ob-root .ob-price-row .launch-field.ob-amount{display:flex;flex-direction:row;align-items:center;gap:10px}
+.ob-root .ob-price-row .launch-field.ob-amount input{flex:1;min-width:0;width:100%}
 .ob-price-row .launch-field input{font-family:var(--ob-mono)}
 .ob-price-row>.launch-status{grid-column:1/-1}
-.ob-per{align-self:center;font-size:14px;color:var(--ob-mute);white-space:nowrap}
+.ob-per{align-self:center;font-size:14.5px;color:var(--ob-mute);white-space:nowrap}
+.ob-price-row select{width:100%}
 .ob-price-row select{min-height:44px;padding:8px 34px 8px 12px;border:1.5px solid var(--ob-line2);border-radius:12px;font-size:14px}
 .ob-fig{align-self:center;justify-self:start;padding:6px 10px;border:0;border-radius:10px;background:var(--ob-accent-soft);color:var(--ob-ink);font:700 15px/1.3 var(--ob-mono);font-variant-numeric:tabular-nums;cursor:pointer}
 .ob-tax{margin-top:18px}
+.ob-tax .launch-field input{max-width:200px}
 /* keep it safe and the forms */
 .ob-form{margin:0}
 .ob-form .ob-actions{margin-top:6px}
@@ -418,9 +425,15 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-k-2{animation-delay:30ms}.ob-k-3{animation-delay:60ms}.ob-k-4{animation-delay:90ms}.ob-k-5{animation-delay:120ms}.ob-k-6{animation-delay:150ms}.ob-k-7{animation-delay:180ms}.ob-k-8{animation-delay:210ms}.ob-k-9{animation-delay:240ms}.ob-k-10{animation-delay:270ms}.ob-k-11{animation-delay:300ms}.ob-k-12{animation-delay:330ms}
 .ob-row2{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
 /* the plan in the vault and Build, inside the frame */
-.ob-root .launch-title{margin:4px 0 16px;font-size:clamp(30px,2.8vw + 4px,44px);font-weight:760;line-height:1.08;letter-spacing:-.028em}
-.ob-root .launch-eyebrow{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ob-mute)}
-.ob-root .launch-more>summary{font-size:15px;font-weight:650}
+.ob-root .launch-title{margin:0 0 18px;font-size:clamp(34px,3.55vw + 4px,54px);font-weight:760;line-height:1.04;letter-spacing:-.032em;text-wrap:balance;overflow-wrap:anywhere}
+.ob-root .launch-eyebrow{margin:0 0 8px;font-size:15px;font-weight:650;letter-spacing:0;text-transform:none;color:var(--ob-accent-hi)}
+.ob-root .launch-row-title{font-size:17px;font-weight:650}
+.ob-root .launch-row{min-height:56px}
+.ob-root .launch-more>summary{display:inline-flex;align-items:center;gap:8px;padding:6px 0;font-size:15px;font-weight:650;color:var(--ob-mute)}
+.ob-root .launch-more>summary::after{content:none}
+.ob-root .launch-more>summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform var(--ob-t2) var(--ob-ease)}
+.ob-root .launch-more[open]>summary::before{transform:rotate(45deg)}
+.ob-root .launch-more>summary:hover,.ob-root .launch-more[open]>summary{color:var(--ob-ink)}
 .ob-root .launch-rows>*{border-color:var(--ob-line)}
 /* the right pane: decorative, it repeats the left pane in shapes */
 .ob-field{position:sticky;top:16px;isolation:isolate;display:flex;align-items:center;justify-content:center;height:calc(100vh - 80px);min-height:520px;margin:0 16px 16px 0;padding:40px 36px;overflow:hidden;border-radius:30px;background:var(--ob-field)}
@@ -496,13 +509,14 @@ html:has(.ob-root) .launch-sheet{background:var(--ob-bg);color:var(--ob-ink)}
 .ob-st-lock{display:grid;place-items:center;width:30px;height:30px;margin-left:auto;border:1px solid var(--ob-card-line);border-radius:999px;background:var(--ob-card)}
 .ob-field{display:none}
 .ob-root[data-step="open"] .ob-strip{display:none}
+.ob-root[data-step="open"] .ob-ask{padding-top:18px}
 .ob-root[data-step="open"] .ob-field{position:relative;top:auto;display:flex;height:auto;min-height:0;margin:0 16px 16px;padding:24px 16px 22px;border-radius:26px}
 .ob-btn,.ob-root .launch-btn:not(.quiet){width:100%}
 .ob-actions{flex-direction:column;align-items:stretch;gap:8px}
 .ob-actions .ob-link{align-self:center}
 .ob-step{grid-template-columns:36px minmax(0,1fr)}
 .ob-step .ob-who{grid-column:2;justify-self:start}
-.ob-price-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.ob-price-row{grid-template-columns:minmax(0,1fr) auto}
 .ob-price-row>.ob-offer-name{grid-column:1/-1}
 .ob-code{font-size:19px}
 .ob-ai-label{font-size:16.5px}
