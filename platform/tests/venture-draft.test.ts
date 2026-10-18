@@ -240,6 +240,9 @@ test('handover: venture.create writes the composition, the answered interview, b
   // The keys reached the vault shelf: a rewrite reaches the model.
   const rewritten = (await engine.request('venture.blueprint.draft', {}) as BlueprintView).blueprint;
   assert.deepEqual([rewritten.version, rewritten.source, rewritten.name.value], [2, 'model', 'Shift Paws']);
+  // Before acceptance the starter connectors are the composed plan's own: its tools, the country's rail and the books.
+  const starters = await engine.request('venture.connectors.list', { starterOnly: true }) as { id: string }[];
+  assert.deepEqual(starters.map(card => card.id).sort(), ['cal-com', 'chausar-books', 'github', 'lovable', 'stripe', 'whatsapp']);
   // The draft is empty and closed now.
   await assert.rejects(engine.request('venture.compose.get', {}), code('VENTURE_EXISTS'));
 });

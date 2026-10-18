@@ -541,7 +541,9 @@ async function filesUnder(directory: string): Promise<string[]> {
 
 test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault two stay two', async () => {
   const runtime = new URL('../runtime/', import.meta.url);
-  for (const file of await filesUnder(runtime.pathname.replace(/^\/([A-Za-z]:)/, '$1'))) {
+  const files = await filesUnder(decodeURIComponent(runtime.pathname).replace(/^\/([A-Za-z]:)/, '$1'));
+  assert.ok(files.length > 100, 'the scan reads the runtime files');
+  for (const file of files) {
     const source = await readFile(file, 'utf8');
     assert.doesNotMatch(source, /from\s+['"][^'"]*platform\/tests\/|from\s+['"](?:\.\.\/)+tests\/|import\(\s*['"][^'"]*\/tests\//, relative(process.cwd(), file));
   }
