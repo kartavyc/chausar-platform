@@ -995,4 +995,8 @@ test('a template brief keeps every line as before: the template pages, the clien
   assert.match(words.whatToBuild, /^A public website and a private client area for Ledger Cafe Books\./);
   const lint = lintFor('x', [], 'chb_abcd1234', true);
   assert.ok(lint.findings.some(finding => finding.rule === 'required-text' && /row level security/.test(finding.message)), 'the template lint still asks for the row security line');
+  // Without a client area only the row security and sign-in lines stop being required; every other line still is.
+  const open = lintFor('x', [], 'chb_abcd1234', false).findings.filter(finding => finding.rule === 'required-text').map(finding => finding.message);
+  assert.equal(open.some(message => /row level security|sign-in line/.test(message)), false);
+  assert.ok(open.some(message => /anon key line/.test(message)) && open.some(message => /lintapple install line/.test(message)));
 });

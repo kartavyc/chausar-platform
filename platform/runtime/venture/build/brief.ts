@@ -266,16 +266,9 @@ export function briefIdFor(ventureId: string, version: number): string {
   return `chb_${hash(`${ventureId}:${version}`).slice(0, 8)}`;
 }
 
-/**
- * The lint for this plan. A composed plan without a client-area page has no private area, so the row security and
- * sign-in lines are left out of its brief on purpose; their required-text findings are dropped, nothing else.
- */
+/** The lint for this plan: a composed plan without a client-area page doesn't need the row security and sign-in lines. */
 export function lintFor(markdown: string, receipts: readonly PriceReceiptRecord[], briefId: string, clientArea: boolean): BriefLint {
-  const lint = lintBrief(markdown, receipts, briefId);
-  if (clientArea) return lint;
-  const dropped = /^Section 5 must keep the (row level security|sign-in) line word for word\.$/;
-  const findings = lint.findings.filter(finding => !(finding.rule === 'required-text' && dropped.test(finding.message)));
-  return { ok: findings.length === 0, findings };
+  return lintBrief(markdown, receipts, briefId, { clientArea });
 }
 
 /** The model task: plan words only, never amounts and never client data. */
