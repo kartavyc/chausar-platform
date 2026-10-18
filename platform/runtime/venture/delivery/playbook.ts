@@ -16,12 +16,13 @@ import { toolSpec } from './harness/tools.ts';
 import { acceptedBlueprint, latestPlaybook, readAs } from './shared.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
-const TIER_ORDER: readonly ExecutionTier[] = ['code', 'actor', 'wasm-lite', 'wasm', 'container', 'hosted'];
+const TIER_ORDER: readonly ExecutionTier[] = ['code', 'actor', 'wasm-lite', 'wasm', 'container', 'owner-cli', 'hosted'];
 /**
  * The highest tier a playbook may name. The light sandbox runs everywhere; containers run only where Docker is set
- * up, and a step asks for them only through a tool that checks first. agentOS and hosted sandboxes are planned.
+ * up, and the owner's own command-line tool only where it is installed, after the owner approves a brief; a step asks
+ * for either only through a tool that checks first. agentOS and hosted sandboxes are planned.
  */
-export const TIER_CEILING: ExecutionTier = 'container';
+export const TIER_CEILING: ExecutionTier = 'owner-cli';
 const PLANNED_TIERS: readonly ExecutionTier[] = ['wasm', 'hosted'];
 const CODE_ONLY_KINDS: readonly StepKind[] = ['compute', 'verify', 'approve', 'operator'];
 const AGENT_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
@@ -30,7 +31,7 @@ const AGENT_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 export const VERIFY_CHECKS: readonly CheckId[] = CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit');
 export const DRAFT_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'house-style', 'length-bounds', 'no-done-claims'];
 const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner'];
-const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner'];
+const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate'];
 
 /** The eight fixed steps for an accepted plan. */
 export function playbookSteps(blueprint: BlueprintRecord): PlaybookStep[] {

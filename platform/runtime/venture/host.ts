@@ -131,6 +131,7 @@ export class VentureHost {
       demo: options.demo,
       storage: options.storage,
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
+      ...(options.delegate ? { delegate: options.delegate } : {}),
     });
   }
 

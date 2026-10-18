@@ -80,7 +80,7 @@ test('after workspace.create, every other venture method called with {} reaches 
   const engine = await engineOn(t, transport);
   await engine.request('workspace.create', { name: 'Venture reach test', passphrase: PASSPHRASE, pack: 'services' });
   const methods = VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method));
-  assert.equal(methods.length, 54);
+  assert.equal(methods.length, 55);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });

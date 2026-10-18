@@ -86,6 +86,8 @@ Two guards keep client details out of calls that run under standing consent:
 
 The stored `payloadText` is the HTTP body (never a key), or for the command-line tools `{ command, args, stdin }` with the schema file path written as `<schema-file>`.
 
+These routes answer one model call each, with no tools. Handing a whole job to Claude Code or Codex, with its own tools in a locked folder after the owner approves the brief, is the delivery harness's heavy-work tier: see [harness.md](harness.md#heavy-work-your-own-claude-code-or-codex).
+
 ### Setting up Codex
 
 Codex is offered only when the engine starts with a reviewed host profile:

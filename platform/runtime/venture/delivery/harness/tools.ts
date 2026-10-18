@@ -2,16 +2,17 @@
 // agentOS envelope, {ok: true, result} or {ok: false, error: {code, name, message}}. Deny by default: a tool works
 // only when the playbook grants it to the run. Nothing here writes outside Chausar; an outside write is only ever
 // recorded for the owner's approval. Money comes back as calculator receipts the draft cites by reference. On the
-// shared hosted server the tools that need agent-written code, a container or the Python helper are refused before
-// they start, and the agent is not offered them.
+// shared hosted server the tools that need agent-written code, a container, the Python helper or the owner's own
+// command-line tool are refused before they start, and the agent is not offered them.
 import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import { TOOL_NAMES } from '../../contracts.ts';
 import type {
-  ClaimProof, ClaimProofKind, DateOrder, ExecutionOutcome, ExecutionTier, Json, MockEffect, RecordBase, SandboxPorts, ToolCallRecord,
+  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
+import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
 import { browse, DICTIONARY_KINDS, resolve, type DictionaryEntry, type DictionaryKind } from './dictionary.ts';
 import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, type FileLike, type SourceTable } from './files.ts';
 import { labelFinding, runPythonTransform, runRowProgram, tierRefusal } from './sandbox.ts';
@@ -41,9 +42,11 @@ export type ToolEnv = {
   now: () => string;
   /** Tokens with a letter and a digit the agent may repeat, copied from the client's words and the idea (B2B, Q3). */
   allowed: readonly string[];
+  /** The owner's command-line tools found and checked for this run. Empty in rehearsals and on the hosted server. */
+  delegateOffer?: readonly DelegateAvailability[];
 };
 
-type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect };
+type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft };
 type Field =
   | { type: 'text'; required: boolean; max: number; about: string }
   | { type: 'enum'; required: boolean; values: readonly string[]; about: string }
@@ -311,6 +314,27 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
       return { result: { recorded: true, sent: false, note: 'Nothing was sent. The owner approves and sends outside actions; this build only records them.' }, mock };
     },
   },
+  'agent.delegate': {
+    name: 'agent.delegate', effect: 'delegate', tier: 'owner-cli', endsTurn: true,
+    summary: "Hands a big job to the owner's own Claude Code or Codex on this computer, with copies of the order's files. Write the brief in words; the owner approves it before anything starts. Ends your turn. The result comes back as file names, a summary with its digits hidden, and figure refs for totals the calculator worked out again.",
+    input: {
+      brief: text('What the tool should do, in plain words. No amounts.', 4000),
+      cli: { type: 'enum', required: false, values: ['claude-code', 'codex'], about: 'Which tool, when both are set up. Defaults to the first one found.' },
+      files: { type: 'list', required: false, max: 10, item: text('A file such as f1.', 12), about: 'The files to copy into its folder. Defaults to every file on the order.' },
+      minutes: { type: 'enum', required: false, values: DELEGATE_MINUTES, about: 'Its time limit in minutes. Defaults to ten.' },
+    },
+    async run(env, input) {
+      // Rehearsals and improvement runs work on made-up clients under standing consent: they never start the tool.
+      if (env.runRef.kind !== 'delivery') throw new ChausarError('TIER_UNAVAILABLE', REAL_ORDER_ONLY);
+      const offer = env.delegateOffer ?? [];
+      const chosen = input.cli ? offer.find(item => item.cli === input.cli) : offer[0];
+      if (!chosen) throw new ChausarError('TIER_UNAVAILABLE', input.cli ? `${DELEGATE_LABELS[input.cli as 'claude-code' | 'codex']} is not set up on this computer.` : 'Neither Claude Code nor Codex is set up on this computer.');
+      const files = input.files ? [...new Set((input.files as string[]).map(alias => fileOf(env, alias)))] : env.files;
+      if (!files.length) fail('This order has no files to hand over.');
+      const draft = prepareDelegation({ offer: chosen, task: input.brief, files, minutes: input.minutes ? parseInt(input.minutes, 10) : 10, allowed: env.allowed });
+      return { result: { waiting: true, tool: chosen.cli, note: 'The owner reads this brief and approves or declines it before anything starts.' }, delegate: draft };
+    },
+  },
 };
 
 function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: string[][], how: { tier: ExecutionTier; driver: string; programDigest: string; moduleDigest: string | null }): ToolResult {
@@ -340,7 +364,8 @@ export function toolSpec(name: string): Spec | null {
 
 /**
  * Why a tool can't run on this host, or null. Only the hosted web server refuses any: there it runs no agent-written
- * code and no containers (the tool's tier), and picking bills from PDFs needs the Python helper, which never runs there.
+ * code, no containers and no command-line tool of the owner's (the tool's tier), and picking bills from PDFs needs the
+ * Python helper, which never runs there.
  */
 export function hostRefusal(host: VentureHostKind | undefined, name: ToolName): string | null {
   if (host !== 'hosted-web') return null;
@@ -401,7 +426,7 @@ function failure(code: string, message: string): ToolEnvelope {
   return { ok: false, error: { code, name: errorName(code), message: message.slice(0, 600) } };
 }
 
-export type ToolOutcome = { record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] };
+export type ToolOutcome = { record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null };
 
 /**
  * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields; otherwise run
@@ -416,7 +441,7 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
       id, turn, tool: call.tool.slice(0, 60), input, inputDigest: digest(inputText), envelope, outcome: state,
       effect: spec?.effect ?? null, tier: spec?.tier ?? null, receiptIds: (extra.receipts ?? []).map(item => item.id), tableIds: (extra.tables ?? []).map(item => item.id),
     },
-    proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [],
+    proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [], delegate: extra.delegate ?? null,
   });
   if (!spec) return outcome(failure('TOOL_DENIED', `There is no tool called ${call.tool.slice(0, 60)}.`), 'failed', null);
   if (!grant.includes(spec.name)) return outcome(failure('TOOL_DENIED', `${spec.name} is not granted to this agent. Use only the tools you were given.`), 'failed', null);
@@ -441,7 +466,8 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     // later never adds a table or a receipt, so the short names stay stable.
     env.tables.push(...(result.tables ?? []));
     env.receipts.push(...(result.receipts ?? []));
-    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [] });
+    const delegate: DelegationRequest | null = result.delegate ? { ...result.delegate, toolCallId: id, turn } : null;
+    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate });
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : 'TOOL_FAILED';
     const message = error instanceof ChausarError ? error.message : 'The tool failed.';

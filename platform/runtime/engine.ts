@@ -1298,6 +1298,7 @@ export class Engine {
       case 'venture.improve.run':
       case 'venture.improve.get':
       case 'venture.improve.adopt':
+      case 'venture.delivery.delegate':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

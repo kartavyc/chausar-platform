@@ -15,7 +15,7 @@ const SUMS = /\b(add(?:s|ed|ing)? up|sum(?:s|med|ming)?|totals?|totalling|totali
 
 /** The tools each service type's agents may ever hold. The bookkeeping tools stay with bookkeeping. */
 export function toolCeiling(type: ServiceType): ToolName[] {
-  const base: ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'calc.sum', 'calc.totals', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner'];
+  const base: ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'calc.sum', 'calc.totals', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate'];
   return type === 'bookkeeping' ? [...base, 'books.reconcile', 'bills.pick'] : base;
 }
 

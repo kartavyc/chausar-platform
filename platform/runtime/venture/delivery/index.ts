@@ -7,7 +7,7 @@ import { workGetHandler } from './harness/work-get.ts';
 import { improveAdoptHandler, improveGetHandler, improveRunHandler, improveStatusHandler } from './improve.ts';
 import { launchAdvanceHandler, launchStatusHandler } from './launch.ts';
 import { playbookHandler } from './playbook.ts';
-import { deliveryAnswerHandler, deliveryApproveHandler, deliveryListHandler, deliveryReviewHandler, deliveryRunHandler } from './runs.ts';
+import { deliveryAnswerHandler, deliveryApproveHandler, deliveryDelegateHandler, deliveryListHandler, deliveryReviewHandler, deliveryRunHandler } from './runs.ts';
 import { simulationFromSignalHandler, simulationGetHandler, simulationRunHandler, simulationScenariosHandler } from './simulate.ts';
 
 export const handlers: VentureHandlerTable = {
@@ -26,6 +26,7 @@ export const handlers: VentureHandlerTable = {
   'venture.files.add': filesAddHandler,
   'venture.files.list': filesListHandler,
   'venture.delivery.answer': deliveryAnswerHandler,
+  'venture.delivery.delegate': deliveryDelegateHandler,
   'venture.work.get': workGetHandler,
   'venture.improve.status': improveStatusHandler,
   'venture.improve.run': improveRunHandler,

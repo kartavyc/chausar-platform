@@ -26,6 +26,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-playbook': 'playbook', 'venture-simulation-run': 'simrun', 'venture-delivery-run': 'delivery', 'venture-signal': 'signal',
   'venture-event': 'vevent',
   'venture-upload': 'upload', 'venture-work-table': 'worktable', 'venture-work-receipt': 'work', 'venture-improvement-run': 'improve',
+  'venture-delegate-run': 'delegaterun',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

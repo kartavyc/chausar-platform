@@ -315,7 +315,7 @@ test('playbook: eight fixed steps from the accepted plan, stable hash, a new ver
   assert.deepEqual(playbook.steps.find(step => step.id === 'verify')!.checks, CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit'));
   assert.deepEqual(playbook.steps.find(step => step.id === 'send')!.checks, ['no-outside-writes']);
   assert.equal(playbook.validated, true);
-  assert.equal(playbook.tierCeiling, 'container');
+  assert.equal(playbook.tierCeiling, 'owner-cli');
   assert.equal(playbook.version, 1);
   assert.equal(playbook.blueprintDigest, env.blueprint.digest);
   assert.equal(playbook.hash, playbookHash(playbook.steps, { limits: playbook.limits!, aliases: playbook.aliases! }));
@@ -1125,7 +1125,7 @@ test('capabilities: honest states per platform, storage and model tier', async (
   const windows = capabilityList('win32');
   assert.deepEqual(windows.map(row => row.id), [
     'venture-actor', 'venture-events', 'schedules', 'hosted-actors', 'tier-code', 'tier-actor', 'improvement-loop', 'durable-storage', 'tier-wasm-lite', 'tier-wasm',
-    'tier-container', 'tier-hosted', 'model-fast', 'model-main', 'agent-tools', 'work-products', 'handoff-links', 'github-read', 'outside-writes',
+    'tier-container', 'tier-owner-claude', 'tier-owner-codex', 'tier-hosted', 'model-fast', 'model-main', 'agent-tools', 'work-products', 'handoff-links', 'github-read', 'outside-writes',
   ]);
   const row = (list: ReturnType<typeof capabilityList>, id: string) => list.find(item => item.id === id)!;
   assert.equal(row(windows, 'tier-wasm').state, 'unavailable');
@@ -1221,9 +1221,9 @@ test('capabilities on the hosted server: nothing checks for Docker, and the sand
 // 9. Handler table and schemas
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the twenty delivery methods', () => {
+test('handlers: exactly the twenty-one delivery methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'delivery');
-  assert.equal(owned.length, 20);
+  assert.equal(owned.length, 21);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
 });
