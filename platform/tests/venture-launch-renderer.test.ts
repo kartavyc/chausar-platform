@@ -1,371 +1,71 @@
 // Launch renderer (P7): runs the real launch.js and app.js in one vm context with a fake DOM whose innerHTML and
 // outerHTML setters throw, the real preload, and the real IPC contract validator. The engine is a fake that
 // answers from the typed synthetic fixtures in fixtures/venture/renderer. No network, no Electron, no model.
+// The harness itself lives in launch-renderer-harness.ts, shared with the onboarding renderer test.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import vm from 'node:vm';
 import { EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES } from '../runtime/venture/contracts.ts';
-import type { BooksPeriodChoice, BooksSummary, DeliveryRunRecord, DeliveryRunView, ModelPreset, Scenario, VentureEventRecord } from '../runtime/venture/contracts.ts';
+import type { DeliveryRunRecord, DeliveryRunView, ModelPreset, Scenario, VentureEventRecord } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import * as F from './fixtures/venture/renderer/results.ts';
-
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const require = createRequire(import.meta.url);
-const contract = require(join(root, 'app/desktop/ipc-contract.cjs'));
-const [appSource, launchSource, preloadSource, cssSource] = await Promise.all(
-  ['app/renderer/app.js', 'app/renderer/launch.js', 'app/desktop/preload.cjs', 'app/renderer/styles.css'].map(path => readFile(join(root, path), 'utf8')));
-const LAUNCH_IDS = ['today', 'business', 'build', 'clients', 'agents', 'money', 'connections'];
-const BACK_OFFICE_IDS = ['conversation', 'brief', 'sources', 'dictionary', 'memory', 'decisions', 'actions', 'jobs', 'trust', 'models', 'plugins', 'activity'];
-const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
-const KEY = 'sk-ant-demo-0000000000000000000000';
-const RECORDING = 'AI answers here come from a synthetic recording.';
-const BOTH_RECORDED = 'AI answers and GitHub reads here come from a synthetic recording.';
-const CLIENT = 'Cafe Aroma Demo';
-/** The fixtures' business is in India, so the engine's day basis is Asia/Kolkata. */
-const ZONE = 'Asia/Kolkata';
-function ownerDay(zone = ZONE) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-const PERIODS: BooksPeriodChoice[] = [
-  { key: 'all', label: 'All time', from: '2026-10-01', to: '2026-10-31' }, { key: 'this-month', label: 'This month', from: '2026-10-01', to: '2026-10-31' },
-  { key: 'last-month', label: 'Last month', from: '2026-09-01', to: '2026-09-30' }, { key: 'this-year', label: 'This year', from: '2026-01-01', to: '2026-12-31' },
-];
-/** The books summary as the engine now answers it: a named period or the owner's own dates, on the owner's calendar. */
-function booksFor(payload: { period?: string; from?: string; to?: string }): BooksSummary {
-  const custom = payload.from !== undefined || payload.to !== undefined;
-  const chosen = PERIODS.find(item => item.key === (payload.period ?? 'all'))!;
-  return {
-    ...F.booksSummary, period: { from: payload.from ?? chosen.from, to: payload.to ?? chosen.to }, periodKey: custom ? 'custom' : chosen.key,
-    periods: PERIODS, today: ownerDay(), timeZone: ZONE,
-  };
-}
-
-type Handler = (event: { target: Element; currentTarget: Element; preventDefault(): void }) => unknown;
-class Element {
-  readonly tagName: string;
-  children: Element[] = [];
-  attributes: Record<string, string> = {};
-  readonly listeners = new Map<string, Handler[]>();
-  value = '';
-  checked = false;
-  disabled = false;
-  hidden = false;
-  open = false;
-  className = '';
-  id = '';
-  namespaceURI = '';
-  ownText = '';
-  parent?: Element;
-  readonly dataset: Record<string, string> = {};
-  readonly classList = {
-    add: (...names: string[]) => { this.className = [...new Set([...this.className.split(/\s+/).filter(Boolean), ...names])].join(' '); },
-    remove: (...names: string[]) => { this.className = this.className.split(/\s+/).filter(name => !names.includes(name)).join(' '); },
-    toggle: (name: string, force?: boolean) => {
-      const present = this.className.split(/\s+/).includes(name), wanted = force ?? !present;
-      if (wanted) this.classList.add(name); else this.classList.remove(name);
-      return wanted;
-    },
-    contains: (name: string) => this.className.split(/\s+/).includes(name),
-  };
-  constructor(tag: string) { this.tagName = tag; }
-  get textContent(): string { return this.ownText + this.children.map(child => child.textContent).join(''); }
-  set textContent(value: string) { this.ownText = String(value); this.children = []; }
-  set innerHTML(_value: string) { throw new Error('Renderer must build safe text nodes.'); }
-  set outerHTML(_value: string) { throw new Error('Renderer must build safe text nodes.'); }
-  get parentElement() { return this.parent; }
-  setAttribute(key: string, value: unknown) {
-    this.attributes[key] = String(value);
-    if (key === 'value') this.value = String(value);
-    if (key === 'id') this.id = String(value);
-    if (key === 'disabled') this.disabled = true;
-    if (key === 'hidden') this.hidden = true;
-    if (key === 'open') this.open = true;
-    if (key.startsWith('data-')) this.dataset[key.slice(5)] = String(value);
-  }
-  getAttribute(key: string) { return this.attributes[key] ?? null; }
-  removeAttribute(key: string) { delete this.attributes[key]; if (key === 'disabled') this.disabled = false; }
-  /** Like the DOM: strings become text nodes. A null would be drawn as the word "null" in a browser, so it fails here. */
-  append(...items: (Element | string)[]) {
-    const first = this.children.length === 0;
-    const children = items.map(item => {
-      if (item == null) throw new Error('append(null) would draw the text "null" in a browser.');
-      if (typeof item === 'string') { const node = new Element('#text'); node.textContent = item; return node; }
-      return item;
-    });
-    for (const child of children) { child.remove(); child.parent = this; this.children.push(child); }
-    if (this.tagName === 'select' && first && children.length) this.value = children[0].value;
-  }
-  replaceChildren(...children: (Element | string)[]) { for (const child of this.children) child.parent = undefined; this.children = []; this.ownText = ''; this.append(...children); }
-  addEventListener(name: string, handler: Handler) { const handlers = this.listeners.get(name) ?? []; handlers.push(handler); this.listeners.set(name, handlers); }
-  async dispatch(name: string) {
-    if (this.disabled && name === 'click') return;
-    for (const handler of this.listeners.get(name) ?? []) await handler({ target: this, currentTarget: this, preventDefault() {} });
-  }
-  click() { void this.dispatch('click'); }
-  remove() { if (this.parent) { this.parent.children = this.parent.children.filter(child => child !== this); this.parent = undefined; } }
-  showModal() { this.open = true; }
-  close() { if (!this.open) return; this.open = false; void this.dispatch('close'); }
-  focus() {}
-  scrollIntoView() {}
-  querySelectorAll(selector: string) { return descendants(this).slice(1).filter(node => matches(node, selector)); }
-  querySelector(selector: string) { return this.querySelectorAll(selector)[0] ?? null; }
-}
-function matches(node: Element, selector: string) {
-  if (selector.startsWith('.')) return node.className.split(/\s+/).includes(selector.slice(1));
-  if (selector.startsWith('#')) return node.id === selector.slice(1);
-  return node.tagName === selector;
-}
-function descendants(node: Element): Element[] { return [node, ...node.children.flatMap(descendants)]; }
-function find(node: Element, predicate: (item: Element) => boolean, message = 'Expected a renderer control.') { const found = descendants(node).find(predicate); assert.ok(found, message); return found; }
-function buttons(node: Element, label: string) { return descendants(node).filter(item => item.tagName === 'button' && item.textContent === label); }
-function button(node: Element, label: string) { const found = buttons(node, label)[0]; assert.ok(found, `Expected button "${label}".`); return found; }
-function control(node: Element, label: string) {
-  const field = find(node, item => (item.className === 'launch-field' || item.className === 'field') && item.children[0]?.textContent === label, `Expected field "${label}".`);
-  return field.children[1];
-}
-function ancestors(node: Element) { const list: Element[] = []; for (let parent = node.parent; parent; parent = parent.parent) list.push(parent); return list; }
-function openDialog(body: Element) { const found = descendants(body).filter(item => item.tagName === 'dialog' && item.open).at(-1); assert.ok(found, 'Expected an open sheet or dialog.'); return found; }
-async function flush(times = 6) { for (let i = 0; i < times; i++) await new Promise<void>(accept => setImmediate(accept)); }
-async function click(node: Element) { await node.dispatch('click'); await flush(); }
-async function type(input: Element, value: string) { input.value = value; await input.dispatch('input'); }
-async function tick(box: Element) { box.checked = true; await box.dispatch('change'); }
-
-/** Words a person reads at rest: closed details show only their summary; hidden nodes and closed dialogs show nothing. */
-function visibleText(node: Element): string[] {
-  if (node.hidden || (node.tagName === 'dialog' && !node.open)) return [];
-  if (node.tagName === 'option') return [];
-  if (node.tagName === 'select') return [descendants(node).find(item => item.tagName === 'option' && item.value === node.value)?.textContent ?? ''];
-  if (node.tagName === 'details' && !node.open) { const summary = node.children.find(child => child.tagName === 'summary'); return summary ? visibleText(summary) : []; }
-  const own = [node.ownText];
-  if (node.attributes.placeholder) own.push(node.attributes.placeholder);
-  if (node.tagName === 'input' && node.attributes.type !== 'password' && node.attributes.type !== 'checkbox') own.push(node.value);
-  return [...own, ...node.children.flatMap(visibleText)];
-}
-function wordCount(node: Element) { return visibleText(node).join(' ').split(/\s+/).filter(token => /[\p{L}\p{N}]/u.test(token)).length; }
-function text(node: Element) { return node.textContent; }
-/** A draft reply row on Agents whose words match; the client's name on it is the button that opens the draft. */
-function draftRow(node: Element, words: RegExp) {
-  const found = descendants(node).filter(item => item.className === 'launch-row' && words.test(item.textContent))[0];
-  assert.ok(found, `Expected a draft row matching ${words}.`);
-  return found;
-}
-async function openDraft(node: Element, words: RegExp) { await click(button(draftRow(node, words), CLIENT)); }
+import * as O from './fixtures/venture/renderer/onboarding.ts';
+import {
+  BACK_OFFICE_IDS, BOTH_RECORDED, CLIENT, EXPERIMENTAL, Element, KEY, LAUNCH_IDS, PERIODS, RECORDING, ZONE, ancestors, appSource, booksFor, button, buttons, click,
+  control, cssSource, descendants, draftRow, hasClass, find, flush, harness, indexSource, launchSource, makeTab, openDialog, openDraft, ownerDay, place, root, text, tick, type, visibleText, wordCount,
+} from './launch-renderer-harness.ts';
+import type { EngineOptions, FakeTab, HarnessOptions } from './launch-renderer-harness.ts';
 
 // ---------------------------------------------------------------------------------------------
-// The fake engine
+// 1 to 3: connect an AI first, or continue without one: the open box, the built-in plan, keep it safe
 // ---------------------------------------------------------------------------------------------
-type Dispatch = (method: string, payload: Record<string, any>) => unknown;
-type EngineOptions = { open?: boolean; venture?: boolean; blueprint?: 'draft' | 'accepted' | null; models?: 'connected' | 'templates'; build?: 'followed' | 'unfollowed'; overrides?: Record<string, Dispatch> };
-function fakeEngine(options: EngineOptions = {}) {
-  const world = {
-    open: options.open ?? false,
-    venture: options.venture ?? false,
-    blueprint: options.blueprint === undefined ? 'accepted' as 'draft' | 'accepted' | null : options.blueprint,
-    invoice: 'draft' as 'draft' | 'issued',
-    uploads: [...F.uploads],
-    questions: F.templateQuestions.filter(question => question.id !== 'q_tax_rate').map(question => ({ ...question, answer: null as any, answerMinor: null, answerBps: null, answeredAt: null })),
-  };
-  const interviewView = () => {
-    const next = world.questions.find(question => question.answer === null) ?? null;
-    return { interview: { id: 'vin_demo', kind: 'venture-interview', ventureId: 'vnt_demo', memberId: 'owner', epoch: 1, at: '2026-10-15T09:30:00.000Z', serviceType: { value: 'bookkeeping', label: 'assumption', by: 'template' }, questions: world.questions, modelCallIds: [], source: 'template' }, next, done: next === null, asked: world.questions.filter(question => question.answer !== null).length, limit: 6 };
-  };
-  const dispatch: Dispatch = (method, payload) => {
-    const override = options.overrides?.[method];
-    if (override) return override(method, payload);
-    switch (method) {
-      case 'workspace.status': return { open: world.open, workspace: world.open ? { name: 'Ledger Cafe Books' } : undefined, storage: 'experimental-file', experimental: true, version: '0.1.0-preview.1' };
-      case 'workspace.create': world.open = true; return { workspace: { name: payload.name }, recoveryKit: 'DEMO-RECOVERY-CODE', recoveryCode: 'DEMO-RECOVERY-CODE', experimental: true };
-      case 'venture.countries': return F.countries;
-      case 'venture.preview': return { ...F.preview, idea: payload.idea };
-      case 'venture.create': world.venture = true; return F.ventureView;
-      case 'venture.get': return world.venture ? F.ventureView : null;
-      case 'venture.events': return payload.limit === 1 && !payload.afterSeq ? { events: F.events.slice(0, 1), lastSeq: F.LAST_SEQ } : { events: F.events, lastSeq: F.LAST_SEQ };
-      case 'venture.interview.next': return interviewView();
-      case 'venture.interview.answer': {
-        const question = world.questions.find(item => item.id === payload.questionId);
-        assert.ok(question, `Unknown question ${payload.questionId}`);
-        question.answer = payload.answer;
-        if (question.id === 'q_tax') {
-          const rate = F.templateQuestions.find(item => item.id === 'q_tax_rate')!;
-          world.questions = world.questions.filter(item => item.id !== 'q_tax_rate');
-          if (payload.answer.yes) world.questions.push({ ...rate, answer: null, answerMinor: null, answerBps: null, answeredAt: null });
-        }
-        return interviewView();
-      }
-      case 'venture.blueprint.draft': world.blueprint = 'draft'; return F.blueprintDraftView;
-      case 'venture.blueprint.get': return world.blueprint === 'draft' ? F.blueprintDraftView : world.blueprint === 'accepted' ? F.blueprintView : null;
-      case 'venture.blueprint.update': return F.blueprintDraftView;
-      case 'venture.blueprint.accept': world.blueprint = 'accepted'; return F.blueprintView;
-      case 'venture.price.quote': return F.offerReceipt;
-      case 'venture.receipt.get': return payload.id === F.orderReceipt.id ? F.orderReceipt : F.offerReceipt;
-      case 'venture.models.presets': return F.presets;
-      case 'venture.models.status': return options.models === 'templates' ? F.modelsTemplatesOnly : F.modelsConnected;
-      case 'venture.models.connect': return F.modelsConnected;
-      case 'venture.build.status': return options.build === 'unfollowed' ? F.buildStatusUnfollowed : F.buildStatus;
-      case 'venture.build.brief': return F.brief;
-      case 'venture.build.handoff': return F.handoffPlans[payload.builder as 'lovable' | 'replit' | 'bolt'];
-      case 'venture.build.handoffOpened': return { ...F.buildStatus.handoffs[0], id: payload.handoffId, openedAt: '2026-10-15T09:31:00.000Z' };
-      case 'venture.build.link': return F.buildStatus.follow;
-      case 'venture.build.sync': return F.lastStatus;
-      case 'venture.connectors.list': return F.connectors;
-      case 'venture.client.list': return [F.client];
-      case 'venture.client.add': return F.client;
-      case 'venture.order.list': return [F.order];
-      case 'venture.order.create': return F.order;
-      case 'venture.order.deliver': return { ...F.order, status: 'delivered', deliveredOn: payload.deliveredOn };
-      case 'venture.invoice.list': return [F.invoiceDraftView.invoice];
-      case 'venture.invoice.prepare': return F.invoiceDraftView;
-      case 'venture.invoice.get': return world.invoice === 'draft' ? F.invoiceDraftView : F.invoiceIssuedView;
-      case 'venture.invoice.issue': world.invoice = 'issued'; return F.invoiceIssuedView;
-      case 'venture.payment.record': return F.invoiceIssuedView;
-      case 'venture.books.summary': return booksFor(payload);
-      case 'receipts.get': return F.calculatorReceipt;
-      case 'venture.delivery.playbook': return F.playbook;
-      case 'venture.simulation.scenarios': return F.scenarios;
-      case 'venture.simulation.get': return F.simulationRun(String(payload.runId).replace(/^vsr_/, ''), { runId: payload.runId });
-      case 'venture.simulation.run': return F.simulationRun(payload.scenarioIds[0]);
-      case 'venture.launch.status': return F.launchStatus;
-      case 'venture.launch.advance': return { ...F.launchStatus, stage: payload.to };
-      case 'venture.capabilities': return F.capabilities;
-      case 'venture.delivery.list': return [F.waitingRun, F.practiceRun, F.outlineRun];
-      case 'venture.delivery.run': return F.waitingRun;
-      case 'venture.delivery.approve': return F.practiceRun;
-      case 'venture.delivery.review': return { ...F.outlineRun, status: payload.verdict, verdict: { choice: payload.verdict, reason: payload.reason ?? null, at: '2026-10-15T09:40:00.000Z' }, editedText: payload.editedText ?? null };
-      case 'venture.delivery.answer': return F.answeredRun;
-      case 'venture.files.list': return world.uploads.filter(item => payload.orderId === undefined || (item.scope.kind === 'order' && item.scope.orderId === payload.orderId));
-      case 'venture.files.add': {
-        const added = { ...F.uploads[0], id: `upload_${world.uploads.length + 1}`, name: payload.name, format: String(payload.name).split('.').pop() as 'csv', bytes: Buffer.from(payload.contentBase64, 'base64').length, scope: { kind: 'order' as const, orderId: payload.orderId } };
-        world.uploads.push(added);
-        return added;
-      }
-      case 'venture.work.get': assert.equal(payload.id, F.workReceipt.id); return F.workReceipt;
-      case 'venture.improve.status': return F.improveIdle;
-      case 'venture.improve.run': return F.improveKeptRun;
-      case 'venture.improve.adopt': return F.adoptedPlaybook;
-      case 'models.list': return [];
-      default: throw Object.assign(new Error(`Unexpected fixture RPC ${method}.`), { code: 'UNEXPECTED_FIXTURE_RPC' });
-    }
-  };
-  return { world, dispatch };
-}
-
-// ---------------------------------------------------------------------------------------------
-// The harness: real preload, real IPC contract, both renderer scripts in one vm context
-// ---------------------------------------------------------------------------------------------
-/** A browser tab the page opened with window.open: it records where the page sent it and whether it was closed. */
-type FakeTab = { opener: unknown; closed: boolean; url: string | null; location: { replace(url: string): void }; close(): void };
-function makeTab(): FakeTab {
-  const tab: FakeTab = { opener: { page: 'chausar' }, closed: false, url: null, location: { replace: (url: string) => { tab.url = url; } }, close: () => { tab.closed = true; } };
-  return tab;
-}
-/** Blob and URL for saveText: each saved file is kept so a test can read its name, type and text. */
-class FakeBlob { readonly text: string; readonly type: string; constructor(parts: unknown[], options: { type?: string } = {}) { this.text = parts.map(String).join(''); this.type = options.type ?? ''; } }
-type HarnessOptions = { openExternal?: (url: string) => unknown; clipboard?: boolean | 'refuse'; timers?: boolean; browser?: { open: () => FakeTab | null } };
-async function harness(engine: EngineOptions = {}, options: HarnessOptions = {}) {
-  const fake = fakeEngine(engine);
-  const calls: { method: string; payload: any }[] = [], rejected: unknown[] = [], opened: string[] = [], externalInvokes: unknown[] = [], clipboard: string[] = [];
-  const anchors: Element[] = [], blobs = new Map<string, FakeBlob>(), opens: { args: unknown[]; callsBefore: number }[] = [];
-  const TestURL = class extends URL {};
-  Object.defineProperty(TestURL, 'createObjectURL', { value: (blob: FakeBlob) => { const id = `blob:chausar-test/${blobs.size + 1}`; blobs.set(id, blob); return id; } });
-  Object.defineProperty(TestURL, 'revokeObjectURL', { value: () => {} });
-  const saved = () => anchors.filter(node => node.attributes.download).map(node => ({ filename: node.attributes.download, type: blobs.get(node.attributes.href)?.type, text: blobs.get(node.attributes.href)?.text }));
-  const ipcRenderer = {
-    async invoke(channel: string, envelope: unknown) {
-      if (channel === 'chausar:open-external') {
-        externalInvokes.push(envelope);
-        try { const url = contract.validateExternalUrl(envelope); await options.openExternal?.(url); opened.push(url); return { ok: true }; }
-        catch (error) { return structuredClone({ ok: false, error: contract.publicError(error) }); }
-      }
-      assert.equal(channel, 'chausar:request');
-      const wire = structuredClone(envelope);
-      let call: { method: string; payload: any };
-      try { call = contract.validateRequest(wire); } catch (error) { rejected.push({ wire, error: contract.publicError(error) }); return structuredClone({ ok: false, error: contract.publicError(error) }); }
-      calls.push(call);
-      try { return structuredClone({ ok: true, result: await fake.dispatch(call.method, call.payload) }); }
-      catch (error) { return structuredClone({ ok: false, error: contract.publicError(error) }); }
-    },
-    on() {}, removeListener() {},
-  };
-  let exposed: unknown;
-  vm.runInNewContext(preloadSource, { require(name: string) { assert.equal(name, 'electron'); return { ipcRenderer, contextBridge: { exposeInMainWorld(key: string, api: unknown) { assert.equal(key, 'chausar'); exposed = api; } } }; } }, { filename: join(root, 'app/desktop/preload.cjs') });
-  const body = new Element('body'), app = new Element('div'), notifications = new Element('div');
-  app.id = 'app'; notifications.id = 'notifications'; body.append(app, notifications);
-  const document = {
-    body, createElement: (tag: string) => { const node = new Element(tag); if (tag === 'a') anchors.push(node); return node; },
-    createTextNode: (value: unknown) => { const node = new Element('#text'); node.textContent = String(value); return node; },
-    createElementNS: (namespace: string, tag: string) => { const node = new Element(tag); node.namespaceURI = namespace; return node; },
-    getElementById: (id: string) => descendants(body).find(node => node.id === id) ?? null, querySelectorAll: (selector: string) => body.querySelectorAll(selector),
-  };
-  const navigator = options.clipboard === false ? undefined : { language: 'en-IN', clipboard: { writeText: async (value: string) => { if (options.clipboard === 'refuse') throw new Error("Failed to execute 'writeText' on 'Clipboard': Write permission denied."); clipboard.push(value); } } };
-  const window: Record<string, unknown> = { location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} };
-  if (options.browser) window.open = (...args: unknown[]) => { opens.push({ args, callsBefore: calls.length }); return options.browser!.open(); };
-  else window.chausar = exposed;
-  /** The paired browser's transport: the same fake engine behind /api/rpc, answered as the local server answers. */
-  const browserFetch = async (path: string, init: { body: string }) => {
-    assert.equal(path, '/api/rpc');
-    const call = JSON.parse(init.body) as { method: string; payload: any };
-    calls.push(call);
-    try { const result = await fake.dispatch(call.method, call.payload); return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify({ result: result ?? null })) }; }
-    catch (error: any) { return { ok: false, status: 400, json: async () => ({ error: { code: error.code, message: error.message } }) }; }
-  };
-  const context = vm.createContext({
-    document, Node: Element, navigator, crypto: { randomUUID }, URL: TestURL, URLSearchParams, structuredClone, console, Blob: FakeBlob, window, btoa,
-    setTimeout: options.timers ? (callback: () => void) => { callback(); return 1; } : () => 0, clearTimeout() {},
-    fetch: options.browser ? browserFetch : () => { throw new Error('Unexpected network in the launch renderer tests.'); },
-  });
-  vm.runInContext(launchSource, context, { filename: join(root, 'app/renderer/launch.js') });
-  assert.match(appSource, /\bboot\(\);\s*$/);
-  vm.runInContext(appSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__launchTest = { launch, boot, navigate, renderShell, applyWorkspaceStatus, renderModels, openExternal, request, state, EXTERNAL_ORIGINS, evidenceChanges: [...evidenceChanges] };', context, { filename: join(root, 'app/renderer/app.js') });
-  const renderer = context.__launchTest;
-  if (options.browser) renderer.state.token = 'paired-browser-token';
-  const after = (method: string) => calls.slice(calls.findIndex(call => call.method === method));
-  return { renderer, calls, rejected, opened, externalInvokes, clipboard, body, app, world: fake.world, after, anchors, opens, saved };
-}
-/** Boots straight into the shell with a business, then opens one place. */
-async function place(id: string, engine: EngineOptions = {}, options: HarnessOptions = {}) {
-  const h = await harness({ open: true, venture: true, ...engine }, options);
+const FOLDER_LINE = (folder: string) => `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`;
+const title = (host: Element) => find(host, node => hasClass(node, 'ob-title')).textContent;
+const goButton = (host: Element) => find(host, node => node.attributes['aria-label'] === 'Make my plan', 'Expected the round go button.');
+/** Filled buttons a person can see at rest: the look B button and the reused launch button. */
+const filledAtRest = (host: Element) => descendants(host).filter(node => node.tagName === 'button' && (hasClass(node, 'ob-btn') || node.className === 'launch-btn') && !ancestors(node).some(parent => parent.hidden || (parent.tagName === 'details' && !parent.open)));
+/** Boots on Connect, then takes "Continue without AI" to the open box: the built-in templates path. */
+async function withoutAi(engine: EngineOptions = {}, options: HarnessOptions = {}) {
+  const h = await harness(engine, options);
   await h.renderer.boot(); await flush();
-  if (id !== 'today') { await h.renderer.navigate(id); await flush(); }
-  const content = find(h.app, node => node.id === 'page-content');
-  return { ...h, content };
+  assert.equal(title(h.app), 'Connect an AI first.');
+  await click(button(h.app, 'Continue without AI'));
+  return h;
+}
+/** From the open box to the built-in plan, then its price screen. */
+async function builtInPlan(h: Awaited<ReturnType<typeof harness>>, idea: string) {
+  await type(find(h.app, node => node.tagName === 'textarea'), idea);
+  await click(goButton(h.app));
 }
 
-// ---------------------------------------------------------------------------------------------
-// 1 to 3: one question first, a plan at once, keep it safe
-// ---------------------------------------------------------------------------------------------
-test('first screen asks one question with one textarea and makes only the boot and country requests', async () => {
-  const h = await harness();
-  await h.renderer.boot(); await flush();
-  const title = find(h.app, node => node.className === 'launch-title');
-  assert.equal(title.textContent, 'What service business do you want to start?');
+test('first screen connects an AI first; without one the open box asks one question with one textarea', async () => {
+  const h = await withoutAi();
+  assert.equal(title(h.app), 'What do you want to do?');
   assert.equal(descendants(h.app).filter(node => node.tagName === 'textarea').length, 1);
   assert.equal(descendants(h.body).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 0);
-  assert.deepEqual(h.calls.map(call => call.method), ['workspace.status', 'venture.countries']);
-  assert.match(text(h.app), /India, prices in INR\./);
-  assert.match(text(h.app), /Nothing is saved until you keep it\./);
-  assert.equal(descendants(h.app).filter(node => node.className === 'launch-btn').length, 1, 'one filled button');
+  assert.deepEqual(h.calls.map(call => call.method), ['workspace.status', 'venture.ai.status', 'venture.ai.options', 'venture.countries']);
+  assert.match(text(h.app), /Based in India/);
+  assert.ok(buttons(h.app, 'Connect an AI').length === 1, 'without an AI the box offers to connect one');
+  assert.ok(filledAtRest(h.app).length <= 1, 'one filled button at most');
   assert.equal(h.rejected.length, 0);
 });
 
-test('"Show my plan" sends exactly the idea and country and shows the plan with no vault or passphrase', async () => {
-  const h = await harness();
-  await h.renderer.boot(); await flush();
-  await type(find(h.app, node => node.tagName === 'textarea'), 'Monthly bookkeeping for cafes and small shops in Pune.');
-  await click(button(h.app, 'Show my plan'));
+test('the round go button sends exactly the idea and country for a built-in plan, labelled as one, with no vault or passphrase', async () => {
+  const h = await withoutAi();
+  await builtInPlan(h, 'Monthly bookkeeping for cafes and small shops in Pune.');
   assert.deepEqual(h.calls.at(-1), { method: 'venture.preview', payload: { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN' } });
   assert.deepEqual(Object.keys(h.calls.at(-1)!.payload).sort(), ['countryCode', 'idea']);
+  assert.ok(visibleText(h.app).includes('Built-in plan, not fitted to what you wrote.'), 'the built-in plan says so at rest');
   for (const words of ['Monthly books', 'Catch up', 'Collect bills and bank statements', 'Draft the monthly report for review', 'Set your price']) assert.ok(text(h.app).includes(words), words);
   assert.equal(descendants(h.app).filter(node => node.className === 'launch-chip' && node.textContent === 'planned: agent').length, 3);
+  await click(button(h.app, 'Set your price'));
+  assert.equal(title(h.app), 'Set your price.');
   assert.ok(descendants(h.app).some(node => node.className === 'launch-chip' && node.textContent === 'Assumption: not registered for GST'));
   assert.equal(descendants(h.body).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 0);
   assert.equal(h.calls.some(call => call.method === 'workspace.create'), false);
-  assert.equal(descendants(h.app).filter(node => node.className === 'launch-btn').length, 1, 'one filled button');
+  assert.ok(filledAtRest(h.app).length <= 1, 'one filled button at most');
 });
 
 test('every plan step and every approval carries its own label, before and after the plan is kept', async () => {
@@ -375,17 +75,15 @@ test('every plan step and every approval carries its own label, before and after
     deliverySteps: F.preview.deliverySteps.map((step, index) => (index === 1 ? { ...step, title: told(step.title) } : step)),
     approvals: [F.preview.approvals[0], told(F.preview.approvals[1])],
   };
-  const labelsIn = (host: Element, title: string) => {
-    const part = find(host, node => (node.className === 'launch-section' || node.tagName === 'details') && node.children[0]?.textContent === title, `Expected the "${title}" part.`);
+  const labelsIn = (host: Element, words: string) => {
+    const part = find(host, node => (node.className === 'launch-section' || node.tagName === 'details') && node.children[0]?.textContent === words, `Expected the "${words}" part.`);
     return {
       steps: descendants(part).filter(node => node.className === 'launch-row').map(row => descendants(row).find(node => node.className.split(' ').includes('launch-row-label'))?.textContent),
       approvals: descendants(part).filter(node => node.className.split(' ').includes('launch-approval')).map(line => [line.children[0].textContent, line.children.at(-1)!.textContent]),
     };
   };
-  const h = await harness({ overrides: { 'venture.preview': () => preview } });
-  await h.renderer.boot(); await flush();
-  await type(find(h.app, node => node.tagName === 'textarea'), 'Monthly bookkeeping for cafes.');
-  await click(button(h.app, 'Show my plan'));
+  const h = await withoutAi({ overrides: { 'venture.preview': () => preview } });
+  await builtInPlan(h, 'Monthly bookkeeping for cafes.');
   assert.deepEqual(labelsIn(h.app, 'Steps').steps, ['assumption', 'told by you', 'assumption', 'assumption']);
   assert.deepEqual(labelsIn(h.app, 'You approve').approvals, [['Every monthly report before it reaches a client', 'assumption'], ['Any message that asks a client for money', 'told by you']]);
   // Chausar takes no payments itself, so the back office line never says it does.
@@ -399,10 +97,9 @@ test('every plan step and every approval carries its own label, before and after
 });
 
 test('keeping the plan creates a services vault, then sets up the business in order with typed answers', async () => {
-  const h = await harness();
-  await h.renderer.boot(); await flush();
-  await type(find(h.app, node => node.tagName === 'textarea'), 'Monthly bookkeeping for cafes and small shops in Pune.');
-  await click(button(h.app, 'Show my plan'));
+  const h = await withoutAi();
+  await builtInPlan(h, 'Monthly bookkeeping for cafes and small shops in Pune.');
+  await click(button(h.app, 'Set your price'));
   await type(find(h.app, node => node.attributes['aria-label'] === 'Your price, in INR'), '2,499');
   await click(button(h.app, 'Change'));
   await click(button(h.app, 'Yes'));
@@ -411,30 +108,33 @@ test('keeping the plan creates a services vault, then sets up the business in or
   await click(button(h.app, 'Small shops'));
   await click(button(h.app, 'Keep this plan'));
 
+  assert.equal(title(h.app), 'Keep it safe.');
   assert.ok(text(h.app).includes('Chausar keeps your records for ten years, as tax rules expect.'));
   assert.ok(text(h.app).includes(EXPERIMENTAL), 'experimental notice on Keep it safe');
-  const folderLine = (folder: string) => `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`;
-  assert.ok(text(h.app).includes(folderLine('my-service-business')), 'the folder is shown before the owner keeps the plan');
+  assert.ok(text(h.app).includes(FOLDER_LINE('my-service-business')), 'the folder is named before the owner keeps the plan');
   assert.equal(control(h.app, 'Working name').value, '', 'the example name is a placeholder, so typing starts a fresh name');
   assert.equal(control(h.app, 'Working name').attributes.placeholder, 'My service business');
   await type(control(h.app, 'Working name'), 'Ledger Cafe Books');
-  assert.ok(text(h.app).includes(folderLine('ledger-cafe-books')), 'the folder follows the working name as it is typed');
+  assert.ok(text(h.app).includes(FOLDER_LINE('ledger-cafe-books')), 'the folder follows the working name as it is typed');
+  assert.equal(control(h.app, 'Vault folder').value, 'ledger-cafe-books');
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Confirm passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
   await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
   assert.deepEqual(h.calls.find(call => call.method === 'workspace.create'), { method: 'workspace.create', payload: { name: 'Ledger Cafe Books', passphrase: 'long-enough-passphrase', pack: 'services', folder: 'ledger-cafe-books' } });
-  assert.equal(control(h.app, 'Passphrase').value, '', 'passphrase cleared');
 
-  const kit = openDialog(h.body);
-  assert.ok(text(kit).includes('Workspace folder: ledger-cafe-books.'), 'the recovery kit screen names the folder');
-  await click(descendants(kit).find(node => node.tagName === 'button' && node.textContent.includes('Save recovery kit'))!);
-  const [savedKit] = h.saved();
-  assert.equal(savedKit.filename, 'chausar-recovery-kit.txt');
-  assert.match(savedKit.text!, /^Chausar recovery kit\nWorkspace: Ledger Cafe Books\nWorkspace folder: ledger-cafe-books\n/);
-  assert.ok(savedKit.text!.includes('DEMO-RECOVERY-CODE'), 'the saved kit holds the folder and the code together');
-  assert.equal(descendants(kit).find(node => node.className === 'recovery-secret')!.textContent, 'DEMO-RECOVERY-CODE', 'the code itself stays alone, so it can be pasted into Recover');
-  await tick(find(kit, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(kit, 'Enter my workspace')); await flush();
+  // The recovery code screen, in look B, shown once.
+  assert.equal(title(h.app), 'Save your recovery code.');
+  assert.ok(text(h.app).includes(FOLDER_LINE('ledger-cafe-books')), 'the recovery code screen names the folder');
+  assert.equal(find(h.app, node => hasClass(node, 'ob-code')).textContent, 'DEMO-RECOVERY-CODE', 'the chunks are the exact code');
+  await click(button(h.app, 'Save as file'));
+  const [savedCode] = h.saved();
+  assert.equal(savedCode.filename, 'chausar-recovery-code.txt');
+  assert.match(savedCode.text!, /^Chausar recovery code\nWorkspace: Ledger Cafe Books\nWorkspace folder: ledger-cafe-books\n/);
+  assert.ok(savedCode.text!.split('\n').includes('DEMO-RECOVERY-CODE'), 'the saved file holds the exact code on its own line');
+  const go = button(h.app, 'Continue');
+  assert.equal(go.disabled, true, 'Continue waits for the box');
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(go); await flush();
   const sequence = h.after('venture.create').slice(0, 11);
   assert.deepEqual(sequence, [
     { method: 'venture.create', payload: { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN', workingName: 'Ledger Cafe Books' } },
@@ -455,33 +155,30 @@ test('keeping the plan creates a services vault, then sets up the business in or
 });
 
 test('without a price the price question is skipped and no quote is asked for', async () => {
-  const h = await harness();
-  await h.renderer.boot(); await flush();
-  await type(find(h.app, node => node.tagName === 'textarea'), 'Podcast editing for small creators.');
-  await click(button(h.app, 'Show my plan'));
+  const h = await withoutAi();
+  await builtInPlan(h, 'Podcast editing for small creators.');
+  await click(button(h.app, 'Set your price'));
   await click(button(h.app, 'Per hour'));
   assert.deepEqual(h.calls.at(-1), { method: 'venture.preview', payload: { idea: 'Podcast editing for small creators.', countryCode: 'IN', pricingModel: 'hourly' } }, 'the plan is asked for again, worded for hourly work');
   assert.equal(find(h.app, node => node.className === 'launch-choice on').textContent, 'Per hour', 'the choice stays after the plan is drawn again');
   await click(button(h.app, 'Keep this plan'));
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Confirm passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
   await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
   assert.equal(h.calls.find(call => call.method === 'workspace.create')!.payload.folder, 'my-service-business');
-  const kit = openDialog(h.body);
-  await tick(find(kit, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(kit, 'Enter my workspace')); await flush();
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(button(h.app, 'Continue')); await flush();
   const answers = h.calls.filter(call => call.method === 'venture.interview.answer').map(call => [call.payload.questionId, call.payload.answer]);
   assert.deepEqual(answers, [['q_1', { skipped: true }], ['q_2', { skipped: true }], ['q_pricing_model', { choiceId: 'hourly' }], ['q_price', { skipped: true }], ['q_tax', { yes: false }]]);
   assert.equal(h.calls.some(call => call.method === 'venture.price.quote'), false);
 });
 
-test('an open vault with no business resumes at the idea and keeps the plan without asking for a passphrase', async () => {
-  const h = await harness({ open: true, venture: false, blueprint: null });
-  await h.renderer.boot(); await flush();
-  assert.equal(find(h.app, node => node.className === 'launch-title').textContent, 'What service business do you want to start?');
+test('an open vault with no business resumes at Connect and keeps the plan without asking for a passphrase', async () => {
+  const h = await withoutAi({ open: true, venture: false, blueprint: null });
+  assert.equal(title(h.app), 'What do you want to do?');
   assert.ok(buttons(h.app, 'Open the back office').length === 1);
-  await type(find(h.app, node => node.tagName === 'textarea'), 'Monthly bookkeeping for cafes.');
-  await click(button(h.app, 'Show my plan'));
+  await builtInPlan(h, 'Monthly bookkeeping for cafes.');
+  await click(button(h.app, 'Set your price'));
   await click(button(h.app, 'Keep this plan')); await flush();
   assert.equal(h.calls.some(call => call.method === 'workspace.create'), false);
   assert.deepEqual(h.calls.find(call => call.method === 'venture.create')!.payload, { idea: 'Monthly bookkeeping for cafes.', countryCode: 'IN', workingName: 'Ledger Cafe Books' });
@@ -538,6 +235,15 @@ test('Add your AI connects the recommended pair with consent, a key outside any 
   await click(button(find(sheet, node => node.dataset.preset === 'built-in-templates'), 'Keep using templates'));
   assert.deepEqual(h.calls.filter(call => call.method === 'venture.models.connect').at(-1)!.payload, { presetId: 'built-in-templates', consentDigest: F.presets[5].consentDigest });
   assert.equal(h.rejected.length, 0);
+});
+
+test('while the Claude Code terms gate is closed, the Add your AI sheet says why and offers no Check and connect', async () => {
+  const h = await place('today', { overrides: { 'venture.models.presets': () => O.presets } });
+  await click(button(h.content, 'Add your AI (optional)'));
+  const claude = find(openDialog(h.body), node => node.dataset.preset === 'claude-code-cli');
+  assert.ok(text(claude).includes('needs setup'), 'the row reads needs setup');
+  assert.ok(text(claude).includes("Chausar hasn't yet accepted Anthropic's terms for running Claude Code."), 'the terms words');
+  assert.equal(buttons(claude, 'Check and connect').length, 0, 'no connect control while the gate is closed');
 });
 
 test('Add your AI says beside ready that the Anthropic rows were not checked with a live key, once', async () => {
@@ -783,12 +489,10 @@ test('the shell draws seven launch places, then the twelve back office views und
 
 test('engine text such as an img tag stays a text node', async () => {
   const unsafe = { ...F.preview, oneLiner: { ...F.preview.oneLiner, value: F.UNSAFE_TEXT }, serviceLabel: F.UNSAFE_TEXT };
-  const engine = await harness({ overrides: { 'venture.preview': () => unsafe } });
-  await engine.renderer.boot(); await flush();
-  await type(find(engine.app, node => node.tagName === 'textarea'), F.UNSAFE_TEXT);
-  await click(button(engine.app, 'Show my plan'));
+  const engine = await withoutAi({ overrides: { 'venture.preview': () => unsafe } });
+  await builtInPlan(engine, F.UNSAFE_TEXT);
   assert.ok(descendants(engine.app).filter(node => node.tagName === '#text' && node.textContent === F.UNSAFE_TEXT).length >= 2);
-  assert.equal(descendants(engine.app).some(node => node.tagName === 'img'), false);
+  assert.equal(descendants(engine.app).some(node => node.tagName === 'img' && node.attributes.src !== './assets/icon.svg'), false, 'only the brand mark is an image');
   const build = await place('build');
   assert.ok(text(build.content).includes(F.UNSAFE_TEXT), 'brief text containing markup is shown as text');
   assert.equal(descendants(build.content).some(node => node.tagName === 'img'), false, 'only the app icon is an image');
@@ -815,7 +519,11 @@ test('launch.js and the launch styles follow the house rules', () => {
     for (const token of match[1].trim().split(/\s+/)) if (/^\d+$/.test(token)) assert.equal(token, '1', 'animations run once');
   }
   assert.match(launchCss, /prefers-reduced-motion:reduce\)\{[^}]*0ms/);
+  assert.match(launchCss, /prefers-reduced-motion:reduce\)\{\.ob-root \*,/, 'the reduced-motion rule covers look B');
   assert.match(launchCss, /prefers-color-scheme:dark/);
+  // Look B sets geometry by attributes and colour by classes: the CSP allows no inline style.
+  for (const banned of ['.style', "setAttribute('style'", 'style=']) assert.equal(launchSource.includes(banned), false, `launch.js: ${banned}`);
+  assert.match(indexSource, /<meta name="color-scheme" content="light dark">/, 'index.html offers light and dark');
   assert.equal(/\.loading:before\{[^}]*animation/.test(cssSource), false, 'the spinner is a still mark');
 });
 

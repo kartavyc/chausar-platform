@@ -1,5 +1,5 @@
 'use strict';
-/* Chausar launch screens: one question first, a plan at once, then seven places.
+/* Chausar launch screens: connect an AI, say what you want to do, a plan drawn from checked blocks, then seven places.
    A classic deferred script that runs before app.js. It defines one frozen global and does no work until
    app.js calls create(kit): no document, storage, timer or network access when it loads.
    Engine values always become text nodes. The screen never does money arithmetic: every amount it shows is
@@ -7,7 +7,7 @@
 globalThis.ChausarLaunch = Object.freeze({
   version: 1,
   create(kit) {
-    const { h, request, navigate, renderShell, renderSetup, showRecoveryKit, openExternal, reserveTab, saveText, state } = kit;
+    const { h, request, navigate, renderShell, renderSetup, openExternal, reserveTab, saveText, state } = kit;
     /** True on the experimental hosted web server: no passphrase, no back office, keys held by the server's custody. */
     const hosted = kit.hosted === true;
 
@@ -339,26 +339,241 @@ globalThis.ChausarLaunch = Object.freeze({
     function writtenBy(models, presetId, model) { return replaying(models) ? 'from a synthetic recording' : `with ${presetName(presetId, model)}`; }
 
     // ---------------------------------------------------------------------------------------------
-    // Onboarding: Idea, Plan, Keep it safe, then the plan in the vault and Build. No rail.
+    // Onboarding, look B: connect an AI, one open box, a plan drawn from checked blocks, prices, keep it safe,
+    // then the plan in the vault and Build. The left pane holds every word a person reads; the right pane only
+    // repeats it with shapes. The AI chooses blocks and views; this code draws them and never invents a word.
     // ---------------------------------------------------------------------------------------------
-    function onboarding() {
-      if (!state.onboarding) state.onboarding = { idea: '', countryCode: null, countries: null, preview: null, pricing: 'monthly', price: '', tax: null, rate: null, extra: {}, workingName: '', vaultOpen: false };
-      return state.onboarding;
+    /** Copies of the onboarding contract (platform/runtime/venture/onboarding-contracts.ts). A test compares them. */
+    const VIEWS = Object.freeze({
+      'offers-first': Object.freeze({ role: 'lead', heading: 'What you sell', shape: 'cards', rows: 2 }),
+      'steps-first': Object.freeze({ role: 'lead', heading: 'How the work gets done', shape: 'flow', rows: 3 }),
+      'audience-first': Object.freeze({ role: 'lead', heading: 'Who it helps', shape: 'statement', rows: 2 }),
+      pages: Object.freeze({ role: 'support', heading: 'Your website', shape: 'site', rows: 3 }),
+      tools: Object.freeze({ role: 'support', heading: 'Tools to connect', shape: 'chips', rows: 3 }),
+      questions: Object.freeze({ role: 'support', heading: 'Quick questions', shape: 'asks', rows: 2 }),
+      notes: Object.freeze({ role: 'support', heading: 'Check before you start', shape: 'lines', rows: 2 }),
+    });
+    const KIND_LABELS = Object.freeze({ idea: 'Your idea, as a service', skill: 'Your skill, as a service', problem: 'A service that fixes this' });
+    const AI_OPTION_IDS = Object.freeze(['api-key', 'claude-code', 'codex', 'chatgpt-sign-in']);
+    const AI_STATUS_CHIPS = Object.freeze({ ready: 'Can connect', unverified: 'Can connect', 'needs-setup': 'Needs setup', unavailable: 'Not here', 'not-open': 'Not open yet' });
+    const AI_UNCHECKED_LINE = 'Not yet checked with a live account.';
+    const AI_HALF_CONNECTED_WORDS = 'Connected for quick work only.';
+    const NOT_A_SERVICE_WORDS = 'Chausar plans services you sell to other people. Try saying what you could do for them.';
+    /** AVAILABILITY_REASONS.claudeTerms in platform/runtime/venture/models/presets.ts: the Claude Code terms gate is closed. */
+    const CLAUDE_TERMS_REASON = "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.";
+    const COMPOSE_REFUSED_WORDS = "The AI's answer failed Chausar's checks again. No plan was saved. Both tries are listed under What was sent.";
+    /** The only words the right pane may show; every other word there would repeat the left pane. */
+    const RIGHT_PANE_WORDS = Object.freeze(['Your business', 'Locked on this computer']);
+    /** Tool names from the composed plan's connector cards, for the kept plan, which stores only the tool ids. */
+    const toolNames = {};
+    const MEMORY_LINE = 'Chausar keeps this in memory until you keep your plan.';
+    const CLEARED_LINE = 'Your AI and plan were only kept in memory, and they were cleared. Connect again.';
+    const BUILT_IN_LINE = 'Built-in plan, not fitted to what you wrote.';
+    const PAIR_LINE = 'One key: Claude Haiku 5.5 for quick work, Sonnet 5.5 for plans.';
+    const MODEL_NAMES = Object.freeze({ 'claude-haiku-5-5': 'Haiku 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'gpt-6-luna': 'GPT-6 Luna' });
+    const WHO_CHIP = Object.freeze({ you: 'You', agent: 'Agent', 'agent-then-you': 'Agent drafts' });
+    const PRICING_WORDS = Object.freeze({ monthly: 'per month', project: 'per project', hourly: 'per hour' });
+    const PURPOSE_WORDS = Object.freeze({ decide: 'Reading what you wrote', compose: 'Writing your plan' });
+    const CALL_WORDS = Object.freeze({ completed: 'answered', failed: 'refused', dispatching: 'sending', preview: 'not sent', expired: 'not sent' });
+    const EXAMPLES = Object.freeze([
+      ['Dog walking for nurses', 'Dog walking for busy nurses in Leeds.'],
+      ["I'm good at Excel", "I'm good at Excel and I want to teach it."],
+      ['Cafes lose track of bills', 'Small cafes lose track of their bills.'],
+    ]);
+    /** The six progress segments; only the current one shows its name. Hosted web has no AI step before the vault. */
+    const PROGRESS = Object.freeze(hosted
+      ? [['idea', 'Idea'], ['plan', 'Plan'], ['keep', 'Keep safe'], ['accept', 'Accept'], ['build', 'Build']]
+      : [['ai', 'AI'], ['idea', 'Idea'], ['plan', 'Plan'], ['keep', 'Keep safe'], ['accept', 'Accept'], ['build', 'Build']]);
+    const SEGMENT_OF = Object.freeze({
+      ai: 'ai', idea: 'idea', working: 'plan', plan: 'plan', prices: 'plan', 'not-a-service': 'plan', refused: 'plan', error: 'plan',
+      keep: 'keep', code: 'keep', setup: 'keep', open: 'accept', build: 'build',
+    });
+
+    /** "with Claude Haiku 5.5", "with Claude Code (Sonnet 5.5)", "with Codex (GPT-6 Luna)" or "from a synthetic recording". */
+    function tierWords(models, tier) {
+      const current = models?.tiers?.[tier];
+      if (replaying(models)) return writtenBy(models);
+      if (current && (current.presetId === 'claude-code-cli' || current.presetId === 'codex-cli')) {
+        return `with ${presetName(current.presetId)} (${MODEL_NAMES[current.model] || current.model})`;
+      }
+      return writtenBy(models, current?.presetId, current?.model);
     }
-    function frame(step, ...content) {
+    /** The plan's author: a replay plan says so even if the status changed since. */
+    function planByWords(plan, models) {
+      return plan?.writtenBy?.replay || replaying(models) ? 'from a synthetic recording' : tierWords(models, 'main');
+    }
+
+    // The shapes on the right: six rects, x, y, width, height, corner, turn (degrees about the centre), colour, opacity.
+    const SHAPES = Object.freeze({
+      idle: [[98, 46, 38, 38, 9, 0, 'p', 1], [144, 46, 38, 38, 9, 0, 'p', 1], [98, 92, 38, 38, 9, 0, 'p', 1], [144, 92, 38, 38, 9, 0, 'p', 1], [129, 77, 22, 22, 11, 0, 's', 1], [204, 40, 12, 12, 6, 0, 'a', 0]],
+      ai: [[118, 34, 44, 44, 8, 45, 'a', 1], [70, 82, 32, 32, 6, 45, 's', 1], [178, 82, 32, 32, 6, 45, 'p', 1], [124, 110, 32, 32, 6, 45, 'k', 1], [134, 88, 12, 12, 6, 0, 's', 1], [204, 40, 12, 12, 6, 0, 'a', 0]],
+      bookkeeping: [[72, 30, 110, 128, 12, -6, 'p', 1], [92, 22, 110, 128, 12, 0, 'k', 1], [110, 46, 62, 10, 5, 0, 's', 1], [110, 68, 46, 10, 5, 0, 'p', 1], [168, 96, 60, 60, 30, 0, 's', 1], [52, 36, 18, 18, 9, 0, 'a', 1]],
+      research: [[64, 106, 24, 52, 6, 0, 'p', 1], [96, 80, 24, 78, 6, 0, 'a', 1], [128, 56, 24, 102, 6, 0, 'p', 1], [150, 24, 82, 82, 41, 0, 's', 1], [208, 96, 16, 54, 8, -45, 'k', 1], [166, 40, 50, 50, 25, 0, 't', 1]],
+      content: [[66, 24, 118, 132, 14, 0, 'a', 1], [86, 48, 70, 10, 5, 0, 'p', 1], [86, 70, 84, 10, 5, 0, 'p', 1], [86, 92, 48, 10, 5, 0, 'p', 1], [164, 92, 50, 50, 8, 45, 's', 1], [206, 32, 24, 24, 12, 0, 'k', 1]],
+      consulting: [[60, 98, 82, 58, 10, -6, 'p', 1], [138, 98, 82, 58, 10, 6, 'a', 1], [133, 94, 14, 66, 7, 0, 'k', 1], [118, 30, 44, 44, 8, 45, 'k', 1], [169, 52, 4, 30, 2, 0, 'k', 1], [164, 80, 14, 14, 7, 0, 's', 1]],
+      studio: [[58, 56, 82, 82, 14, -8, 'a', 1], [140, 34, 82, 82, 41, 0, 's', 1], [148, 98, 60, 60, 8, 45, 'k', 1], [214, 122, 20, 20, 10, 0, 'p', 1], [40, 36, 16, 16, 4, 0, 'p', 1], [110, 140, 40, 10, 5, 0, 'p', 1]],
+      agency: [[56, 62, 92, 70, 12, -6, 'a', 1], [138, 36, 74, 74, 37, 0, 's', 1], [150, 108, 62, 42, 8, 0, 'k', 1], [70, 146, 140, 10, 5, 0, 'p', 1], [214, 40, 16, 16, 8, 0, 'p', 1], [44, 40, 18, 18, 4, 45, 'k', 1]],
+      support: [[58, 34, 122, 72, 18, 0, 'a', 1], [108, 88, 112, 62, 18, 0, 's', 1], [80, 58, 62, 10, 5, 0, 'p', 1], [130, 112, 52, 10, 5, 0, 'k', 1], [214, 34, 18, 18, 9, 0, 'p', 1], [46, 126, 20, 20, 10, 0, 'k', 1]],
+      other: [[80, 92, 120, 66, 12, 0, 'a', 1], [100, 54, 80, 46, 10, 0, 's', 1], [120, 24, 40, 36, 8, 0, 'k', 1], [60, 148, 160, 10, 5, 0, 'p', 1], [214, 52, 20, 20, 10, 0, 'p', 1], [52, 62, 16, 16, 8, 0, 'p', 1]],
+      lockOpen: [[124, 16, 64, 72, 32, 0, 'k', 1], [136, 28, 40, 60, 20, 0, 't', 1], [88, 80, 104, 80, 16, 0, 'a', 1], [128, 100, 24, 24, 12, 0, 't', 1], [135, 112, 10, 28, 5, 0, 't', 1], [110, 60, 100, 20, 0, 0, 't', 1]],
+      lockShut: [[108, 34, 64, 78, 32, 0, 'k', 1], [120, 46, 40, 66, 20, 0, 't', 1], [88, 80, 104, 80, 16, 0, 'a', 1], [128, 100, 24, 24, 12, 0, 't', 1], [135, 112, 10, 28, 5, 0, 't', 1], [110, 80, 100, 0, 0, 0, 't', 0]],
+    });
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    function svg(tag, attrs = {}, ...children) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [key, value] of Object.entries(attrs)) if (value != null) node.setAttribute(key, String(value));
+      for (const child of children.flat()) if (child) node.append(child);
+      return node;
+    }
+    /** Motion is off when the computer asks for less of it, and in any window that cannot run it. */
+    function calm() {
+      try { return typeof globalThis.matchMedia !== 'function' || typeof globalThis.requestAnimationFrame !== 'function' || globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+      catch { return true; }
+    }
+    const round = value => String(Math.round(value * 100) / 100);
+    let lastShapes = null;
+    let shapeFrame = 0;
+    /** Draws a shape set into every given rect group: colours by class and geometry by attributes, never an inline style. */
+    function paintShapes(groups, key) {
+      const def = SHAPES[key] || SHAPES.idle;
+      def.forEach(([, , , , , , colour], index) => groups.forEach(rects => rects[index].setAttribute('class', `ob-sh ob-sh-${colour}`)));
+      const target = def.map(([x, y, w, hgt, rx, turn, , opacity]) => [x, y, w, hgt, rx, turn, opacity]);
+      const draw = geometry => geometry.forEach(([x, y, w, hgt, rx, turn, opacity], index) => groups.forEach(rects => {
+        const rect = rects[index];
+        rect.setAttribute('x', round(x)); rect.setAttribute('y', round(y));
+        rect.setAttribute('width', round(Math.max(0, w))); rect.setAttribute('height', round(Math.max(0, hgt)));
+        rect.setAttribute('rx', round(Math.max(0, rx))); rect.setAttribute('opacity', round(opacity));
+        rect.setAttribute('transform', `rotate(${round(turn)} ${round(x + w / 2)} ${round(y + hgt / 2)})`);
+      }));
+      const from = lastShapes;
+      lastShapes = target;
+      if (shapeFrame && typeof globalThis.cancelAnimationFrame === 'function') globalThis.cancelAnimationFrame(shapeFrame);
+      shapeFrame = 0;
+      if (!from || calm()) { draw(target); return; }
+      draw(from);
+      let start = null;
+      const step = now => {
+        if (start === null) start = now;
+        const t = Math.min(1, Math.max(0, (now - start) / 360));
+        const eased = 1 - (1 - t) * (1 - t) * (1 - t);
+        draw(from.map((values, index) => values.map((value, at) => value + (target[index][at] - value) * eased)));
+        shapeFrame = t < 1 ? globalThis.requestAnimationFrame(step) : 0;
+      };
+      shapeFrame = globalThis.requestAnimationFrame(step);
+    }
+    const sixRects = () => Array.from({ length: 6 }, () => svg('rect'));
+    function lockMark() {
+      return svg('svg', { viewBox: '0 0 14 14', class: 'ob-lock-mark', 'aria-hidden': 'true' },
+        svg('rect', { x: 2, y: 6, width: 10, height: 7, rx: 2 }), svg('path', { d: 'M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6', class: 'ob-lock-loop' }));
+    }
+    function arrowMark() {
+      return svg('svg', { viewBox: '0 0 24 24', class: 'ob-arrow', 'aria-hidden': 'true' }, svg('path', { d: 'M5 12h14M13 6l6 6-6 6' }));
+    }
+    function brandMark() {
+      return h('img', { src: './assets/icon.svg', alt: '', width: 28, height: 28, class: 'ob-brand-mark' });
+    }
+
+    let firstFrame = true;
+    let card = null;
+    /**
+     * The look B frame: header (brand and progress), the left pane with every reading word, the phone strip, and the
+     * decorative right pane. Returns the left pane's inner host. The card spec says what the right pane draws.
+     */
+    function obFrame(step, content, spec = {}) {
       closeSheet();
       state.generation++;
-      const flow = h('main', { class: 'launch-flow', id: 'launch-flow' }, step ? stepsLine(step) : null, ...content);
-      const root = h('div', { class: 'launch-root' }, h('header', { class: 'launch-top' }, h('span', { class: 'launch-wordmark' }, 'chausar')), flow);
+      const segment = SEGMENT_OF[step];
+      const at = segment ? PROGRESS.findIndex(([id]) => id === segment) : -1;
+      const progress = at < 0 ? null : h('nav', { class: 'ob-progress', 'aria-label': 'Progress', 'data-count': `${at + 1}/${PROGRESS.length}` },
+        h('ol', {}, PROGRESS.map(([id, words], index) => h('li', {
+          class: index === at ? 'now' : index < at ? 'done' : null, 'aria-current': index === at ? 'step' : null,
+          'aria-label': index === at ? null : `${words}, ${index < at ? 'done' : 'not yet'}`,
+        }, h('span', { class: 'ob-seg', 'aria-hidden': 'true' }, h('i')), index === at ? h('span', { class: 'ob-seg-name' }, words) : null))));
+      const top = h('header', { class: 'ob-top' }, h('div', { class: 'ob-brand' }, brandMark(), h('span', {}, 'Chausar')), progress);
+      const ask = h('div', { class: 'ob-ask-in' });
+      const items = content.flat().filter(item => item != null && item !== false);
+      let rise = 0;
+      for (const item of items) {
+        if (typeof item === 'object' && item.classList && rise < 6) item.classList.add(`ob-in-${++rise}`);
+        ask.append(item);
+      }
+      // The phone strip: the same shapes, small, and a lock mark once the vault is shut. No words.
+      const stripRects = sixRects();
+      const stripLock = h('span', { class: 'ob-st-lock', hidden: spec.locked ? null : true }, lockMark());
+      const strip = h('div', { class: 'ob-strip', 'aria-hidden': 'true' }, h('span', { class: 'ob-mt' }, svg('svg', { viewBox: '34 4 212 168', preserveAspectRatio: 'xMidYMid meet' }, stripRects)), stripLock);
+      const cardRects = sixRects();
+      const badge = h('span', { class: 'ob-badge', hidden: spec.locked && spec.lockWords !== false ? null : true }, lockMark(), RIGHT_PANE_WORDS[1]);
+      const nameNode = spec.name ? h('h2', { class: 'ob-cname' }, spec.name) : null;
+      const lineNode = spec.name ? h('p', { class: 'ob-ctag', hidden: spec.line ? null : true }, spec.line || '') : null;
+      const chips = spec.chips ? h('div', { class: 'ob-cchips' }, Array.from({ length: Math.min(3, spec.chips) }, () => h('i'))) : null;
+      const noteBadge = spec.noteBadge ? h('span', { class: 'ob-note-shape' }) : null;
+      const cardNode = h('article', { class: `ob-card${spec.outline ? ' ob-card-outline' : ''}` },
+        h('div', { class: 'ob-tile' }, svg('svg', { class: 'ob-ill', viewBox: '0 0 280 176', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' }, cardRects), badge, noteBadge),
+        h('div', { class: 'ob-cbody' }, nameNode, lineNode, chips, spec.name || chips ? null : h('div', { class: 'ob-cblank' }, h('i'), h('i'))));
+      const site = spec.site ? h('div', { class: `ob-site${spec.outline ? ' ob-card-outline' : ''}` },
+        h('div', { class: 'ob-bar' }, h('i'), h('i'), h('i')),
+        h('div', { class: 'ob-snav' }, h('em'), Array.from({ length: Math.min(6, spec.site) }, () => h('i'))),
+        h('div', { class: 'ob-sbody' }, h('i'), h('i'), h('i'))) : null;
+      const deco = svg('svg', { class: 'ob-deco', viewBox: '0 0 600 700', preserveAspectRatio: 'xMidYMid slice', 'aria-hidden': 'true' },
+        svg('path', { class: 'ob-d1', d: 'M0 470a230 230 0 0 1 230 230H0Z' }), svg('circle', { class: 'ob-d2', cx: 560, cy: 60, r: 150 }), svg('circle', { class: 'ob-d2', cx: 560, cy: 60, r: 96 }),
+        svg('g', { class: 'ob-d3' }, [470, 500, 530].flatMap(cx => [560, 590, 620].map(cy => svg('circle', { cx, cy, r: 5 })))));
+      const field = h('aside', { class: 'ob-field', 'aria-hidden': 'true' }, deco, h('div', { class: `ob-stage${site ? ' with-site' : ''}` }, cardNode, site));
+      const root = h('div', { class: `ob-root${firstFrame ? ' ob-first' : ''}${spec.fresh ? ' ob-fresh' : ''}`, 'data-step': step },
+        top, h('main', { class: 'ob-wrap' }, h('section', { class: 'ob-ask' }, strip, ask), field));
+      firstFrame = false;
       document.getElementById('app').replaceChildren(root);
-      return flow;
+      const groups = [cardRects, stripRects];
+      paintShapes(groups, spec.shapes || 'idle');
+      card = {
+        setShapes: key => paintShapes(groups, key),
+        setLocked: on => { badge.hidden = !on || spec.lockWords === false; stripLock.hidden = !on; },
+        setLine: words => { if (lineNode) { lineNode.textContent = words || ''; lineNode.hidden = !words; } },
+      };
+      const title = typeof ask.querySelector === 'function' ? ask.querySelector('h1') : null;
+      if (title && spec.focus !== false) { try { title.focus(); } catch { /* focus is a convenience */ } }
+      return ask;
     }
-    function stepsLine(current) {
-      const steps = [['idea', 'Idea'], ['plan', 'Plan'], ['keep', 'Keep it safe'], ['accept', 'Accept'], ['build', 'Build']];
-      const at = steps.findIndex(([id]) => id === current);
-      return h('ol', { class: 'launch-steps', 'aria-label': 'Steps' }, steps.map(([id, words], index) => h('li', {
-        class: index === at ? 'now' : index < at ? 'done' : '', 'aria-current': index === at ? 'step' : null,
-      }, square(index === at ? 'now' : index < at ? 'you' : 'off'), words)));
+    const obTitle = words => h('h1', { class: 'ob-title', tabindex: '-1' }, words);
+    const obLead = words => h('p', { class: 'ob-lead' }, words);
+    const obEyebrow = words => h('p', { class: 'ob-eyebrow' }, words);
+    const obBtn = (words, onclick, attrs = {}) => h('button', { class: 'ob-btn', type: 'button', onclick, ...attrs }, words);
+    const obGhost = (words, onclick, attrs = {}) => h('button', { class: 'ob-ghost', type: 'button', onclick, ...attrs }, words);
+    const obLink = (words, onclick, attrs = {}) => h('button', { class: 'ob-link', type: 'button', onclick, ...attrs }, words);
+    const obActions = (...children) => h('div', { class: 'ob-actions' }, ...children);
+    const obFold = (summary, ...children) => h('details', { class: 'ob-more' }, h('summary', {}, summary), h('div', { class: 'ob-more-in' }, ...children));
+    function obBack(onclick) {
+      return h('button', { class: 'ob-back', type: 'button', onclick }, svg('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true' }, svg('path', { d: 'M10 3 5 8l5 5' })), 'Back');
+    }
+    function obAlert(message) { return message ? h('p', { class: 'ob-alert', role: 'alert' }, plain(message)) : null; }
+    /** A field nudges sideways once when what was typed can't be used. */
+    function nudge(node) {
+      if (!node?.classList) return;
+      node.classList.remove('ob-nudge');
+      if (!calm()) globalThis.requestAnimationFrame(() => node.classList.add('ob-nudge'));
+    }
+    /** A passphrase field with Show beside it. The field never sits in browser storage and is cleared after each send. */
+    function passphraseField(labelText, control, withShow = true) {
+      if (!withShow) return field(labelText, control);
+      const show = h('button', { class: 'ob-eye', type: 'button', 'aria-pressed': 'false' }, 'Show');
+      show.addEventListener('click', () => {
+        const visible = control.getAttribute('type') === 'text';
+        control.setAttribute('type', visible ? 'password' : 'text');
+        show.setAttribute('aria-pressed', visible ? 'false' : 'true');
+      });
+      const node = field(labelText, control);
+      node.classList.add('ob-pass');
+      node.append(show);
+      return node;
+    }
+
+    function onboarding() {
+      if (!state.onboarding) {
+        state.onboarding = {
+          mode: hosted ? 'template' : 'ai', idea: '', countryCode: null, countries: null, ai: null, decision: null, plan: null, typed: {}, sent: {},
+          preview: null, pricing: 'monthly', price: '', tax: null, rate: null, extra: {}, workingName: '', vaultOpen: false,
+        };
+      }
+      return state.onboarding;
     }
     /** Puts the cursor in the field on a computer with a mouse; a phone keeps its keyboard closed until the owner taps. */
     function focusOnDesk(control) {
@@ -374,38 +589,232 @@ globalThis.ChausarLaunch = Object.freeze({
       } catch { return null; }
     }
 
-    /** Step one: the idea. The only requests are the boot status and the country list. */
+    // ---------------------------------------------------------------------------------------------
+    // Step one: connect an AI. The key stays in the engine's memory; nothing is kept in this window.
+    // ---------------------------------------------------------------------------------------------
+    /** The first screen. Hosted web keeps today's order: the open box first, the AI after the vault. */
     function firstRun() {
-      onboarding().vaultOpen = false;
-      void showIdea().catch(error => frame(null, page(...errorNodes(error, firstRun))));
+      const ob = onboarding();
+      ob.vaultOpen = false;
+      void startFlow();
+    }
+    /** Where the owner is: an AI connected for plans goes on to the open box or the held plan; otherwise Connect. */
+    async function startFlow() {
+      const ob = onboarding();
+      ob.decision = null; ob.plan = null; ob.typed = {}; ob.sent = {};
+      if (hosted) { ob.mode = 'template'; await showOpenBox(); return; }
+      let status;
+      try { status = await request('venture.ai.status'); }
+      catch (error) { await showConnect(null, error); return; }
+      ob.ai = status;
+      if (!servedByModel(status, 'main')) { await showConnect(); return; }
+      ob.mode = 'ai';
+      let held = null;
+      try { held = await request('venture.compose.get'); } catch { held = null; }
+      if (held?.decision) {
+        ob.decision = held.decision;
+        ob.idea = held.decision.text;
+        ob.countryCode = held.decision.country?.code || ob.countryCode;
+      }
+      if (held?.plan) { ob.plan = held.plan; showComposedPlan(); return; }
+      if (held?.decision?.kind === 'not-a-service') { showNotAService(); return; }
+      await showOpenBox();
+    }
+    /** The first call of the recommended pair connected and the second did not: quick work only. */
+    function halfConnected(status) {
+      return servedByModel(status, 'fast') && !servedByModel(status, 'main') && status?.tiers?.fast?.presetId === 'anthropic-haiku-5-5';
+    }
+    function afterConnected(status) {
+      const ob = onboarding();
+      ob.ai = status;
+      ob.mode = 'ai';
+      void showOpenBox();
     }
 
-    async function showIdea() {
+    async function showConnect(message = null, failure = null) {
       const ob = onboarding();
-      const idea = h('textarea', { rows: 3, maxlength: 2000, value: ob.idea, placeholder: 'One sentence is enough' });
-      const countryLine = h('div', { class: 'launch-country' });
+      let view = null;
+      let error = failure;
+      if (!error) {
+        try { view = await request('venture.ai.options'); }
+        catch (caught) { error = caught; }
+      }
+      const skip = h('p', { class: 'ob-skip' }, obLink('Continue without AI', () => { ob.mode = 'template'; void showOpenBox(); }));
+      if (!view) {
+        obFrame('ai', [obTitle('Connect an AI first.'), h('div', { class: 'ob-errors' }, ...errorNodes(error, () => showConnect(message))), skip], { shapes: 'ai' });
+        return;
+      }
+      ob.ai = view.status;
+      const presets = Object.fromEntries((view.presets || []).map(preset => [preset.id, preset]));
+      const half = halfConnected(view.status);
+      const rows = view.options.map(option => aiRow(option, presets, half));
+      obFrame('ai', [
+        obTitle('Connect an AI first.'),
+        obAlert(message),
+        h('div', { class: 'ob-ai-rows' }, rows),
+        view.unchecked ? h('p', { class: 'ob-quiet-line' }, AI_UNCHECKED_LINE) : null,
+        skip,
+      ], { shapes: 'ai' });
+      if (half) { const keyRow = rows.find(node => node.getAttribute('data-option') === 'api-key'); if (keyRow) keyRow.open = true; }
+    }
+    /** What a preset can do now, in the chip's words and the engine's note: "Can connect · Not yet checked with a live key." */
+    function presetState(preset) {
+      const chipWords = AI_STATUS_CHIPS[preset.availability] || preset.availability;
+      const verified = verificationOf(preset);
+      return verified ? `${chipWords} · ${verified}` : chipWords;
+    }
+    function aiRow(option, presets, half) {
+      const body = h('div', { class: 'ob-ai-body' });
+      const row = h('details', { class: 'ob-ai-row', 'data-option': option.id },
+        h('summary', {}, h('span', { class: 'ob-ai-label' }, option.label), h('span', { class: `ob-chip ob-chip-${option.status}` }, AI_STATUS_CHIPS[option.status] || option.status)),
+        body);
+      const parts = [note(option.line), note(option.why)];
+      if (option.id !== 'chatgpt-sign-in') parts.push(note(MEMORY_LINE, 'launch-note ob-memory'));
+      if (option.id === 'api-key') {
+        const panel = h('div', { class: 'ob-provider' });
+        const haiku = presets['anthropic-haiku-5-5'], sonnet = presets['anthropic-sonnet-5-5'], luna = presets['openai-gpt-6-luna'];
+        const paint = provider => {
+          row.setAttribute('data-provider', provider);
+          fill(panel, provider === 'openai' ? (luna ? lunaPanel(luna) : null) : (haiku && sonnet ? pairPanel(haiku, sonnet, half) : null));
+        };
+        const choose = choiceRow([['anthropic', 'Anthropic'], ['openai', 'OpenAI']], 'anthropic', paint);
+        row.chooseProvider = provider => { const target = Array.from(choose.children || []).find(child => child.textContent === (provider === 'openai' ? 'OpenAI' : 'Anthropic')); if (target) target.click(); };
+        parts.push(choose, panel);
+        paint('anthropic');
+      } else if (option.id === 'claude-code' || option.id === 'codex') {
+        const preset = presets[option.presetIds[0]];
+        if (preset) parts.push(cliPanel(preset, option));
+      } else {
+        parts.push(h('p', { class: 'ob-row-actions' }, obLink('Use an OpenAI key instead', () => {
+          const keyRow = Array.from(document.querySelectorAll('details')).find(node => node.getAttribute('data-option') === 'api-key');
+          if (!keyRow) return;
+          keyRow.open = true;
+          row.open = false;
+          keyRow.chooseProvider?.('openai');
+        })));
+      }
+      fill(body, ...parts);
+      return row;
+    }
+    /** The recommended pair: one Anthropic key, Haiku for quick work, then Sonnet for plans. */
+    function pairPanel(haiku, sonnet, startHalf) {
+      const host = h('div', { class: 'ob-pair', 'data-preset': 'recommended' });
+      const paint = (halfState, failure = null) => {
+        const key = secretInput('Your Anthropic key');
+        const consent = consentBlock(haiku.consentText);
+        const status = statusLine();
+        const words = halfState ? 'Connect Sonnet 5.5 for plans' : 'Connect';
+        const connect = obBtn(words, () => act(connect, status, async () => {
+          let result = null;
+          try {
+            if (!key.value) { nudge(key); throw new Error('Paste your Anthropic key first.'); }
+            if (!halfState) await request('venture.ai.connect', { presetId: haiku.id, consentDigest: haiku.consentDigest, apiKey: key.value, tiers: ['fast'] });
+            try { result = await request('venture.ai.connect', { presetId: sonnet.id, consentDigest: sonnet.consentDigest, apiKey: key.value, tiers: ['main'] }); }
+            catch (error) { result = { failed: error }; }
+          } finally { key.value = ''; }
+          if (result?.failed) { paint(true, result.failed); return; }
+          if (!servedByModel(result, 'main')) { paint(true, new Error(result?.tiers?.main?.reason || 'Sonnet 5.5 is not ready for plans yet.')); return; }
+          afterConnected(result);
+        }), { disabled: true });
+        consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked; });
+        fill(host,
+          halfState ? h('p', { class: 'ob-half' }, AI_HALF_CONNECTED_WORDS) : h('p', { class: 'launch-strong' }, PAIR_LINE),
+          failure ? h('div', { class: 'ob-errors' }, ...errorNodes(failure)) : null,
+          note(presetState(haiku), 'launch-note launch-unverified'),
+          field('Your Anthropic key', key, KEY_LINE), haiku.keyHint ? note(haiku.keyHint) : null,
+          consent.node, sonnet.consentText !== haiku.consentText ? h('p', { class: 'launch-consent-text' }, sonnet.consentText) : null,
+          obActions(connect), status);
+      };
+      paint(startHalf);
+      return host;
+    }
+    function lunaPanel(preset) {
+      const key = secretInput('Your OpenAI key');
+      const model = textInput(preset.model || '', { maxlength: 64 });
+      const consent = consentBlock(preset.consentText);
       const status = statusLine();
-      const show = filled('Show my plan', () => act(show, status, async () => {
-        const value = idea.value.trim();
-        if (!value) throw new Error('Write one sentence about the business you want to start.');
+      const verified = verificationOf(preset);
+      const connect = obBtn('Connect', () => act(connect, status, async () => {
+        const payload = { presetId: preset.id, consentDigest: preset.consentDigest };
+        let result;
+        try {
+          if (!key.value) { nudge(key); throw new Error('Paste your OpenAI key first.'); }
+          payload.apiKey = key.value;
+          if (model.value.trim()) payload.model = model.value.trim();
+          result = await request('venture.ai.connect', payload);
+        } finally { key.value = ''; delete payload.apiKey; }
+        if (!servedByModel(result, 'main')) throw new Error(result?.tiers?.main?.reason || 'GPT-6 Luna is not ready for plans yet.');
+        afterConnected(result);
+      }), { disabled: true });
+      consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked; });
+      return h('div', { class: 'ob-luna', 'data-preset': preset.id },
+        h('p', { class: 'launch-strong' }, 'GPT-6 Luna.'),
+        note(presetState(preset), 'launch-note launch-unverified'),
+        note(reasonWithout(preset.availabilityReason, verified)),
+        field('Your OpenAI key', key, KEY_LINE), preset.keyHint ? note(preset.keyHint) : null,
+        field('Model id, as your account shows it', model),
+        consent.node, obActions(connect), status);
+    }
+    /** Claude Code and Codex: the owner's own sign-in on this computer. Chausar never reads their token files. */
+    function cliPanel(preset, option) {
+      const consent = consentBlock(preset.consentText);
+      const status = statusLine();
+      const verified = verificationOf(preset);
+      const claude = preset.id === 'claude-code-cli';
+      let connect = null;
+      if (option.canConnect || !claude) {
+        connect = obBtn(claude ? 'Check and connect' : 'Connect', () => act(connect, status, async () => {
+          const result = await request('venture.ai.connect', { presetId: preset.id, consentDigest: preset.consentDigest });
+          if (!servedByModel(result, 'main')) throw new Error(result?.tiers?.main?.reason || `${presetName(preset.id)} is not ready for plans yet.`);
+          afterConnected(result);
+        }), { disabled: true });
+        consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked || !option.canConnect; });
+      }
+      return h('div', { class: 'ob-cli', 'data-preset': preset.id },
+        note(presetState(preset), 'launch-note launch-unverified'),
+        note(reasonWithout(preset.availabilityReason, verified)),
+        consent.node, connect ? obActions(connect) : null, status);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Step two: one open box. Any sentence: an idea, a skill or a problem.
+    // ---------------------------------------------------------------------------------------------
+    async function showOpenBox(message = null) {
+      const ob = onboarding();
+      const box = h('textarea', { rows: 2, maxlength: 2000, value: ob.idea, placeholder: "I'm good at fixing bikes", 'aria-label': 'What you want to do' });
+      const status = statusLine();
+      const ideaBox = h('div', { class: 'ob-idea' }, box);
+      const go = h('button', { class: 'ob-go', type: 'button', 'aria-label': 'Make my plan' }, arrowMark());
+      ideaBox.append(go);
+      const countryLine = h('p', { class: 'ob-country' });
+      go.addEventListener('click', () => act(go, status, async () => {
+        const value = box.value.trim();
+        if (!value) { nudge(ideaBox); throw new Error('Write one sentence about what you want to do.'); }
         ob.idea = value;
+        if (ob.mode === 'ai') { await makePlan(value); return; }
         if (ob.preview?.idea !== value || ob.preview?.country?.code !== ob.countryCode) { ob.tax = null; ob.rate = null; ob.extra = {}; }
         ob.preview = await request('venture.preview', previewPayload(value));
-        showPlan();
+        showTemplatePlan();
       }));
-      idea.addEventListener('input', () => { ob.idea = idea.value; });
-      const other = hosted
-        ? link('Your businesses', () => renderSetup())
+      box.addEventListener('input', () => { ob.idea = box.value; card?.setLine(box.value.trim()); });
+      box.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault?.(); go.click(); } });
+      const examples = obFold('Examples', h('div', { class: 'ob-chips' }, EXAMPLES.map(([words, sentence]) => h('button', {
+        class: 'ob-example', type: 'button', onclick: () => { box.value = sentence; ob.idea = sentence; card?.setLine(sentence); focusOnDesk(box); },
+      }, words))));
+      const changeAi = hosted ? null : ob.mode === 'ai' ? obLink('Change AI', () => showConnect()) : obLink('Connect an AI', () => showConnect());
+      const returning = hosted
+        ? h('p', { class: 'ob-returning' }, obLink('Your businesses', () => renderSetup()))
         : ob.vaultOpen
-          ? link('Open the back office', () => { state.page = 'conversation'; renderShell(); })
-          : link('I already have a business in Chausar', () => renderSetup());
-      frame(null, head(null, 'What service business do you want to start?'), field('Your idea', idea),
-        note('For example: monthly bookkeeping for cafes in Pune', 'launch-example'), countryLine, actions(show, other), status,
-        note('Nothing is saved until you keep it.'));
-      focusOnDesk(idea);
+          ? h('p', { class: 'ob-returning' }, obLink('Open the back office', () => { state.page = 'conversation'; renderShell(); }))
+          : h('p', { class: 'ob-returning' }, 'Already have a business? ', obLink('Open it', () => openExisting()));
+      obFrame('idea', [
+        obTitle('What do you want to do?'), obLead('An idea, a skill or a problem.'), obAlert(message),
+        ideaBox, countryLine, status, examples, changeAi ? h('p', { class: 'ob-change-ai' }, changeAi) : null, returning,
+      ], { shapes: 'idle', name: RIGHT_PANE_WORDS[0], line: ob.idea.trim() || null, focus: false });
+      focusOnDesk(box);
       if (!ob.countries) {
         try { ob.countries = await request('venture.countries'); }
-        catch (error) { countryLine.replaceChildren(...errorNodes(error, showIdea)); }
+        catch (error) { countryLine.replaceChildren(...errorNodes(error, showOpenBox)); }
       }
       if (!ob.countryCode) {
         const region = browserRegion();
@@ -418,14 +827,12 @@ globalThis.ChausarLaunch = Object.freeze({
       const country = ob.countries.find(item => item.code === ob.countryCode) || ob.countries.find(item => item.code === 'XX') || ob.countries[0];
       if (!country) return;
       ob.countryCode = country.code;
-      const words = country.code === 'XX' ? `${country.name}.` : `${country.name}, prices in ${country.currency}.`;
-      host.replaceChildren(h('span', { class: 'launch-note' }, words), ' ', link('Change', () => {
+      host.replaceChildren(h('span', {}, `Based in ${country.name}`), ' · ', obLink('Change', () => {
         const choose = picker(ob.countries.map(item => [item.code, item.name]), ob.countryCode);
         choose.addEventListener('change', () => { ob.countryCode = choose.value; paintCountry(host); });
         host.replaceChildren(field('Country', choose));
       }));
     }
-
     /** What venture.preview needs: the idea, the country, and how the owner charges once they chose other than per month. */
     function previewPayload(idea) {
       const ob = onboarding();
@@ -433,13 +840,435 @@ globalThis.ChausarLaunch = Object.freeze({
       if (ob.pricing && ob.pricing !== 'monthly') payload.pricingModel = ob.pricing;
       return payload;
     }
-    /** Step two: the plan from built-in templates, before any vault. Price and tax are set here, inline. */
-    function showPlan() {
-      const ob = onboarding();
-      frame('plan', draftPlanBody(ob.preview, { inVault: ob.vaultOpen, onKeep: () => (ob.vaultOpen ? runSetup({ host: null, skipCreate: false }) : showKeepSafe()) }));
+    /** The sentence as the owner wrote it, cut to eight words for the Working screen. The engine has the whole of it. */
+    function shortQuote(text) {
+      const words = plain(text).trim().split(/\s+/).filter(Boolean);
+      return words.length > 8 ? `${words.slice(0, 8).join(' ')}…` : words.join(' ');
     }
 
-    function draftPlanBody(preview, { inVault, onKeep, onRepaint = showPlan }) {
+    // ---------------------------------------------------------------------------------------------
+    // Working, then the plan: decide picks the views, fill writes the blocks, this code draws them.
+    // ---------------------------------------------------------------------------------------------
+    async function makePlan(text) {
+      const ob = onboarding();
+      const countryCode = ob.countryCode || 'XX';
+      const held = ob.decision;
+      if (held && held.kind !== 'not-a-service' && held.text === text && held.country?.code === countryCode) { await fillPlan(); return; }
+      showWorking(text, null);
+      let decision;
+      try { decision = await request('venture.compose.decide', { text, countryCode }); }
+      catch (error) { composeError(error, () => makePlan(text)); return; }
+      ob.decision = decision;
+      ob.plan = null; ob.typed = {}; ob.sent = {};
+      if (decision.kind === 'not-a-service') { showNotAService(); return; }
+      await fillPlan();
+    }
+    async function fillPlan() {
+      const ob = onboarding();
+      const decision = ob.decision;
+      showWorking(decision.text, decision.views);
+      let plan;
+      try { plan = await request('venture.compose.fill', { composeId: decision.composeId }); }
+      catch (error) { composeError(error, fillPlan); return; }
+      ob.plan = plan;
+      showComposedPlan({ fresh: true });
+    }
+    function composeError(error, retry) {
+      const ob = onboarding();
+      if (error?.code === 'COMPOSE_REFUSED') { showRefused(); return; }
+      if (error?.code === 'COMPOSE_NOT_A_SERVICE') { showNotAService(); return; }
+      if (error?.code === 'COMPOSE_NOT_FOUND' || error?.code === 'NO_MODEL_CONNECTED') {
+        ob.decision = null; ob.plan = null;
+        void showConnect(CLEARED_LINE);
+        return;
+      }
+      showModelError(error, retry);
+    }
+    /** Still outlines in the shapes of the decided views, each under its fixed heading. Nothing spins or loops. */
+    function showWorking(text, views) {
+      const ob = onboarding();
+      const words = views
+        ? `Writing your plan ${tierWords(ob.ai, 'main')}. This can take a minute.`
+        : `Reading what you wrote ${tierWords(ob.ai, 'fast')}.`;
+      obFrame('working', [
+        h('p', { class: 'ob-quote' }, shortQuote(text)),
+        h('p', { class: 'ob-working', role: 'status', 'aria-live': 'polite' }, words),
+        views ? h('div', { class: 'ob-outlines' }, views.map(outlineView)) : null,
+      ], { shapes: 'idle', outline: true, site: views?.includes('pages') ? 3 : 0 });
+    }
+    function outlineView(id) {
+      const spec = VIEWS[id];
+      if (!spec) return null;
+      const line = width => h('i', { class: `ob-sk w${width}` });
+      const shapes = {
+        cards: () => Array.from({ length: spec.rows }, () => h('div', { class: 'ob-sk-card' }, line(2), line(3))),
+        flow: () => Array.from({ length: spec.rows }, () => h('div', { class: 'ob-sk-step' }, h('span', { class: 'ob-sk-node' }), line(2))),
+        statement: () => Array.from({ length: spec.rows }, (_, index) => line(index ? 3 : 1)),
+        site: () => [h('div', { class: 'ob-sk-site' }, Array.from({ length: spec.rows }, () => h('i')))],
+        chips: () => [h('div', { class: 'ob-sk-chips' }, Array.from({ length: spec.rows }, () => h('i')))],
+        asks: () => Array.from({ length: spec.rows }, () => h('div', { class: 'ob-sk-ask' }, line(3), h('span', { class: 'ob-sk-pill' }))),
+        lines: () => Array.from({ length: spec.rows }, (_, index) => line(index % 2 ? 2 : 3)),
+      };
+      return h('section', { class: `ob-outline ob-outline-${spec.shape}`, 'data-view': id, 'aria-hidden': 'true' },
+        h('h2', { class: 'ob-view-head' }, spec.heading), h('div', { class: 'ob-outline-body' }, (shapes[spec.shape] || shapes.lines)()));
+    }
+
+    /** One drawing function per view id, from text nodes only. place is lead (at rest), fold (its own fold) or more. */
+    function viewNode(selection, plan, place) {
+      const spec = VIEWS[selection?.id];
+      if (!spec) return null;
+      const leadIds = Array.isArray(selection.lead) ? selection.lead : [];
+      const ordered = (items, idOf) => {
+        const first = leadIds.map(id => items.find(item => idOf(item) === id)).filter(Boolean);
+        return place === 'lead' ? first : [...first, ...items.filter(item => !leadIds.includes(idOf(item)))];
+      };
+      let body;
+      switch (selection.id) {
+        case 'offers-first':
+          body = h('ul', { class: 'ob-offers' }, ordered(plan.offers, offer => offer.id).map(offer => h('li', { class: 'ob-offer', 'data-offer': offer.id },
+            h('span', { class: 'ob-offer-name' }, offer.name.value), place === 'lead' ? null : note(offer.description.value))));
+          break;
+        case 'steps-first':
+          body = h('ol', { class: 'ob-flow' }, ordered(plan.steps, step => step.id).map(step => h('li', { class: `ob-step ob-by-${step.doneBy}`, 'data-step-id': step.id },
+            h('span', { class: 'ob-node', 'aria-hidden': 'true' }), h('span', { class: 'ob-step-title' }, step.title.value),
+            h('span', { class: 'ob-who' }, WHO_CHIP[step.doneBy] || step.doneBy), place === 'lead' ? null : note(step.note, 'launch-note ob-step-note'))));
+          break;
+        case 'audience-first':
+          body = h('div', { class: 'ob-audience' }, h('p', { class: 'ob-audience-who' }, selection.who?.value || ''), h('p', { class: 'ob-audience-pain' }, selection.pain?.value || ''));
+          break;
+        case 'pages':
+          body = h('ol', { class: 'ob-pages' }, ordered(plan.pages, item => item.id).map(item => h('li', {}, h('span', { class: 'launch-strong' }, item.title.value), ' ', h('span', { class: 'launch-note' }, item.purpose.value))));
+          break;
+        case 'tools':
+          body = h('ul', { class: 'ob-tools' }, ordered(plan.tools, item => item.block).map(item => h('li', {}, h('span', { class: 'launch-strong' }, item.card?.name || item.block), ' ', h('span', { class: 'launch-note' }, item.reason.value))));
+          break;
+        case 'questions':
+          body = h('div', { class: 'ob-questions' }, ordered(plan.questions, item => item.id).map(questionControl));
+          break;
+        case 'notes':
+          body = h('ul', { class: 'ob-notes' }, ordered(plan.notes, item => item.block).map(item => h('li', {}, item.text)));
+          break;
+        default: return null;
+      }
+      return h('section', { class: `ob-view ob-view-${place}`, 'data-view': selection.id }, place === 'fold' ? null : h('h2', { class: 'ob-view-head' }, spec.heading), body);
+    }
+    /** A question the AI asked: the answer goes to the engine as given; the plan stays the engine's. */
+    function questionControl(question) {
+      const ob = onboarding();
+      const status = statusLine();
+      const send = answer => act(null, status, async () => {
+        ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { answers: [{ questionId: question.id, answer }] } });
+      });
+      if (question.kind === 'choice') {
+        const current = question.answer?.choiceId || '';
+        return h('div', { class: 'launch-question', 'data-question': question.id }, note(question.text, 'launch-strong'),
+          choiceRow(question.choices.map(choice => [choice.id, choice.label]), current, value => send({ choiceId: value })), status);
+      }
+      const answer = textInput(question.answer?.text || '', { maxlength: 300 });
+      answer.addEventListener('change', () => { const typed = answer.value.trim(); void send(typed ? { text: typed } : { skipped: true }); });
+      return h('div', { class: 'launch-question', 'data-question': question.id }, field(question.text, answer), status);
+    }
+    /** "What was sent": every call to the AI before the vault, read from the engine when the fold opens. */
+    function sentFold() {
+      const body = h('div', { class: 'ob-sent' });
+      const node = obFold('What was sent', body);
+      let loaded = false;
+      node.addEventListener('toggle', () => {
+        if (!node.open || loaded) return;
+        loaded = true;
+        void act(null, body, async () => {
+          const calls = await request('venture.ai.calls', { limit: 20 });
+          fill(body, calls.length ? rows(...calls.map(callRow)) : note('Nothing was sent yet.'));
+        }).then(() => { if (!body.children?.length) loaded = false; });
+      });
+      return node;
+    }
+    function callRow(call) {
+      const by = call.replay ? 'a synthetic recording' : presetName(call.presetId, call.model);
+      return row({
+        mark: call.status === 'completed' ? 'cha' : call.status === 'failed' ? 'unsure' : 'off', title: PURPOSE_WORDS[call.purpose] || call.purpose,
+        note: `${by}, ${CALL_WORDS[call.status] || call.status}`,
+        extra: h('div', {}, call.error?.message ? h('p', { class: 'launch-row-more' }, call.error.message) : null,
+          fold('Exact text sent', false, h('pre', { class: 'launch-pre' }, call.payloadText || ''))),
+      });
+    }
+
+    function showComposedPlan({ fresh = false } = {}) {
+      const ob = onboarding();
+      const plan = ob.plan;
+      for (const tool of plan.tools || []) if (tool.card?.name) toolNames[tool.block] = tool.card.name;
+      const [lead, ...support] = plan.views;
+      const picked = id => plan.views.some(view => view.id === id);
+      const leadSteps = lead.id === 'steps-first' ? lead.lead : [];
+      const otherSteps = plan.steps.filter(step => !leadSteps.includes(step.id));
+      const tax = plan.backOffice;
+      const taxLine = tax.taxRegistered.value ? `Tax: registered for ${tax.taxLabel}.` : `Tax: not registered for ${taxInSentence(tax.taxLabel)}.`;
+      const more = obFold('More of your plan',
+        h('p', { class: 'ob-reading' }, plan.reading.value),
+        note(`Chausar read this as: ${plan.kindLabel}. Closest kind of business: ${plan.familyLabel}.`),
+        note(plan.oneLiner.value), note(`For ${plan.customer.value}`),
+        ...support.slice(1).map(view => viewNode(view, plan, 'more')),
+        lead.id === 'offers-first'
+          ? section('About the offers', ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)))
+          : viewNode({ id: 'offers-first', lead: plan.offers.map(offer => offer.id) }, plan, 'more'),
+        otherSteps.length ? section(lead.id === 'steps-first' ? 'Other steps' : VIEWS['steps-first'].heading, stepRows(otherSteps), ...otherSteps.map(step => note(`${step.title.value}: ${step.note}`))) : null,
+        section('You approve', ...plan.approvals.map(item => note(item.value, 'launch-note launch-approval'))),
+        section('Back office', note(`Invoices and books in ${tax.currency}. ${railWords(tax.paymentRail)}`), note(taxLine)),
+        sentFold(),
+        h('p', { class: 'ob-row-actions' }, obLink('Change what I wrote', () => showOpenBox())));
+      obFrame('plan', [
+        obEyebrow(`Drafted ${planByWords(plan, ob.ai)}.`),
+        obTitle(plan.name.value),
+        viewNode(lead, plan, 'lead'),
+        support[0] ? (() => { const node = obFold(VIEWS[support[0].id]?.heading || support[0].id, viewNode(support[0], plan, 'fold')); node.setAttribute('data-view', support[0].id); return node; })() : null,
+        more,
+        obActions(obBtn('Set your prices', () => showPrices())),
+      ], { shapes: plan.family?.value || 'other', fresh, site: picked('pages') ? plan.pages.length : 0, chips: picked('tools') ? plan.tools.length : 0, noteBadge: picked('notes') });
+    }
+
+    /** Prices: the owner types them; the engine formats them. No tax and no total until the plan is kept. */
+    function showPrices() {
+      const ob = onboarding();
+      const plan = ob.plan;
+      const currency = plan.country.currency;
+      const rowsHost = h('div', { class: 'ob-price-rows' });
+      const editing = new Set();
+      const sendPrice = async (offerId, typed) => {
+        const value = typed.trim();
+        const offer = ob.plan.offers.find(item => item.id === offerId);
+        if (ob.sent[offerId] === value || (!value && !offer?.pricing?.unitPriceMinor)) return;
+        ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { offers: [{ id: offerId, unitPrice: value || null }] } });
+        ob.sent[offerId] = value;
+      };
+      const paintRow = offer => {
+        const status = statusLine();
+        const node = h('div', { class: 'ob-price-row', 'data-offer': offer.id });
+        let amountNode;
+        if (offer.priceDisplay && !editing.has(offer.id)) {
+          amountNode = h('button', { class: 'ob-fig', type: 'button', 'aria-label': `Change the price of ${offer.name.value}`, onclick: () => { editing.add(offer.id); swapRow(node, offer.id); } }, offer.priceDisplay);
+        } else {
+          const amount = textInput(ob.typed[offer.id] ?? '', { inputmode: 'decimal', 'aria-label': `Price of ${offer.name.value}, in ${currency}` });
+          amount.addEventListener('input', () => { ob.typed[offer.id] = amount.value; });
+          amount.addEventListener('change', () => act(null, status, async () => {
+            await sendPrice(offer.id, amount.value);
+            editing.delete(offer.id);
+            swapRow(node, offer.id);
+          }));
+          amountNode = field(currency, amount);
+          amountNode.classList.add('ob-amount');
+        }
+        const allowed = offer.allowedPricing || [offer.pricing.model];
+        let pricingNode;
+        if (allowed.length > 1) {
+          pricingNode = picker(allowed.map(model => [model, PRICING_WORDS[model]]), offer.pricing.model);
+          pricingNode.setAttribute('aria-label', `How ${offer.name.value} is charged`);
+          pricingNode.addEventListener('change', () => act(null, status, async () => {
+            ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { offers: [{ id: offer.id, pricingModel: pricingNode.value }] } });
+          }));
+        } else pricingNode = h('span', { class: 'ob-per' }, PRICING_WORDS[offer.pricing.model] || offer.pricing.model);
+        fill(node, h('span', { class: 'ob-offer-name' }, offer.name.value), amountNode, pricingNode, status);
+        return node;
+      };
+      const currentOffer = id => ob.plan.offers.find(item => item.id === id);
+      const repaintRows = () => fill(rowsHost, ...ob.plan.offers.map(paintRow));
+      /** Draws one row again in place, so focus in the other rows stays where the owner put it. */
+      const swapRow = (node, id) => { if (typeof node.replaceWith === 'function' && node.isConnected !== false) node.replaceWith(paintRow(currentOffer(id))); else repaintRows(); };
+      repaintRows();
+      const taxHost = h('div');
+      const paintTax = () => fill(taxHost, taxFold());
+      const taxFold = () => {
+        const backOffice = ob.plan.backOffice;
+        const status = statusLine();
+        const registered = backOffice.taxRegistered.value;
+        const rate = textInput(ob.rate ?? (registered ? '' : ob.plan.taxRateQuestion?.prefill || ''), { inputmode: 'decimal', 'aria-label': `${backOffice.taxLabel} rate, in percent` });
+        const rateField = h('div', { hidden: ob.tax !== true && !registered ? true : null }, field(ob.plan.taxRateQuestion?.text || `What ${backOffice.taxLabel} rate do you charge, in percent?`, rate));
+        const send = patch => act(null, status, async () => {
+          ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch });
+          const open = node.open;
+          paintTax();
+          const again = taxHost.children?.[0];
+          if (again && open) again.open = true;
+        });
+        rate.addEventListener('input', () => { ob.rate = rate.value; });
+        rate.addEventListener('change', () => { if (rate.value.trim()) void send({ taxRegistered: true, taxRate: rate.value.trim() }); });
+        const choose = choiceRow([['no', 'No'], ['yes', 'Yes']], ob.tax === true || registered ? 'yes' : ob.tax === false ? 'no' : '', value => {
+          ob.tax = value === 'yes';
+          rateField.hidden = !ob.tax;
+          if (!ob.tax) { void send({ taxRegistered: false }); return; }
+          if (rate.value.trim()) void send({ taxRegistered: true, taxRate: rate.value.trim() });
+        });
+        const node = obFold(registered ? 'Tax: registered' : 'Tax: not registered',
+          note(ob.plan.taxQuestion?.text || `Do you charge ${backOffice.taxLabel}?`), choose, rateField, note(ob.plan.country.tax.registrationNote), status);
+        node.classList.add('ob-tax');
+        return node;
+      };
+      paintTax();
+      const status = statusLine();
+      const keep = obBtn('Keep this plan', () => act(keep, status, async () => {
+        for (const offer of ob.plan.offers) {
+          const typed = ob.typed[offer.id];
+          if (typeof typed === 'string' && typed.trim() !== (ob.sent[offer.id] ?? '')) await sendPrice(offer.id, typed);
+        }
+        if (ob.tax === true && !ob.plan.backOffice.taxRegistered.value) {
+          const typedRate = plain(ob.rate).trim();
+          if (!typedRate) throw new Error(`Enter your ${ob.plan.backOffice.taxLabel} rate, in percent, or choose No.`);
+          ob.plan = await request('venture.compose.update', { composeId: ob.plan.composeId, patch: { taxRegistered: true, taxRate: typedRate } });
+        }
+        if (ob.vaultOpen) await runComposedSetup(); else showKeepSafe();
+      }));
+      obFrame('prices', [
+        obBack(() => showComposedPlan()), obTitle('Set your prices.'), obLead("Before tax. Chausar's calculator does the totals later."),
+        rowsHost, taxHost, obActions(keep), status,
+      ], { shapes: plan.family?.value || 'other' });
+    }
+
+    /** After the vault exists: venture.create adopts the plan the engine holds. The renderer sends its id and digest, never the plan. */
+    async function runComposedSetup() {
+      const ob = onboarding();
+      const plan = ob.plan;
+      const statusNode = h('p', { class: 'ob-working', role: 'status' }, 'Saving your plan and pricing it with receipts.');
+      const host = h('div', { class: 'ob-setup' });
+      obFrame('setup', [obTitle('Setting up your plan'), statusNode, host], { shapes: 'lockShut', locked: true, lockWords: !hosted });
+      try {
+        const payload = { idea: plan.text, countryCode: plan.country.code };
+        const name = plain(ob.workingName || plan.name.value).trim();
+        if (name.length >= 2 && name.length <= 80) payload.workingName = name;
+        payload.composeId = plan.composeId;
+        payload.composedDigest = plan.digest;
+        try { state.venture = await request('venture.create', payload); }
+        catch (error) { if (error?.code !== 'VENTURE_EXISTS') throw error; }
+        for (const offer of plan.offers) if (offer.pricing.unitPriceMinor) await request('venture.price.quote', { offerId: offer.id });
+      } catch (error) {
+        const retry = () => runComposedSetup();
+        statusNode.hidden = true;
+        fill(host, ...errorNodes(error, retry), obActions(obBtn('Try again', retry), obLink('Back to the plan', () => showComposedPlan())));
+        return;
+      }
+      state.onboarding = null;
+      await showOwnedPlan();
+    }
+
+    function showNotAService() {
+      const ob = onboarding();
+      obFrame('not-a-service', [
+        obTitle("Chausar can't plan this one."),
+        obLead(ob.decision?.refusal || NOT_A_SERVICE_WORDS),
+        obActions(obBtn('Change what I wrote', () => showOpenBox()), obLink('Use a built-in plan', () => useBuiltIn())),
+      ], { shapes: 'idle' });
+    }
+    function showRefused() {
+      const ob = onboarding();
+      const status = statusLine();
+      const again = obBtn('Try again', () => act(again, status, async () => { if (ob.decision) await fillPlan(); else await makePlan(ob.idea); }));
+      obFrame('refused', [
+        obTitle("There's no plan to show."), obLead(COMPOSE_REFUSED_WORDS),
+        obActions(again, obLink('Change what I wrote', () => showOpenBox()), obLink('Use a built-in plan', () => useBuiltIn())), status,
+        sentFold(),
+      ], { shapes: 'idle' });
+    }
+    function showModelError(error, retry) {
+      const status = statusLine();
+      const again = obBtn('Try again', () => act(again, status, retry));
+      obFrame('error', [
+        obTitle("The AI didn't answer."),
+        h('p', { class: 'ob-alert', role: 'alert' }, plain(error?.message || error)),
+        obActions(again, obLink('Change AI', () => showConnect())), status,
+      ], { shapes: 'idle' });
+    }
+    /** The built-in plan, from the sentence the owner wrote. It says plainly that it was not fitted to it. */
+    async function useBuiltIn() {
+      const ob = onboarding();
+      ob.mode = 'template';
+      try {
+        ob.preview = await request('venture.preview', previewPayload(ob.idea));
+        ob.tax = null; ob.rate = null; ob.extra = {};
+        showTemplatePlan();
+      } catch (error) { await showOpenBox(error?.message || String(error)); }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The built-in plan (no AI, or the owner chose it), in look B: the plan, then the price
+    // ---------------------------------------------------------------------------------------------
+    function showTemplatePlan() {
+      const ob = onboarding();
+      const preview = ob.preview;
+      const country = preview.country;
+      obFrame('plan', [
+        obEyebrow(BUILT_IN_LINE),
+        obTitle(preview.serviceLabel),
+        h('section', { class: 'ob-view ob-view-lead', 'data-view': 'offers-first' }, h('h2', { class: 'ob-view-head' }, VIEWS['offers-first'].heading),
+          h('ul', { class: 'ob-offers' }, preview.offers.map(offer => h('li', { class: 'ob-offer', 'data-offer': offer.id }, h('span', { class: 'ob-offer-name' }, offer.name.value))))),
+        fold('Steps', false, stepRows(preview.deliverySteps)),
+        fold('You approve', false, approvalLines(preview.approvals, 'launch-note launch-approval')),
+        obFold('More of your plan',
+          h('p', {}, preview.oneLiner.value, ' ', tag(preview.oneLiner)),
+          h('p', { class: 'launch-note' }, `For ${preview.customer.value}`, ' ', tag(preview.customer)),
+          ...preview.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)),
+          note(`Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`)),
+        obActions(obBtn('Set your price', () => showTemplatePrices()), obLink('Change what I wrote', () => showOpenBox())),
+      ], { shapes: preview.serviceType?.value || 'other' });
+    }
+    function showTemplatePrices() {
+      const ob = onboarding();
+      const preview = ob.preview;
+      const country = preview.country;
+      const tax = country.tax;
+      const taxQuestion = (preview.questions || []).find(question => question.id === 'q_tax');
+      const rateQuestion = (preview.questions || []).find(question => question.id === 'q_tax_rate');
+      if (ob.rate == null) ob.rate = rateQuestion?.prefill ?? '';
+      const status = statusLine();
+      const amount = textInput(ob.price, { inputmode: 'decimal', 'aria-label': `Your price, in ${country.currency}` });
+      amount.addEventListener('input', () => { ob.price = amount.value; });
+      const pricing = choiceRow(PRICING, ob.pricing, value => {
+        ob.pricing = value;
+        ob.price = amount.value;
+        // The offer's name and words follow how it is charged, so the plan is asked for again.
+        void act(null, status, async () => {
+          const again = await request('venture.preview', { ...previewPayload(preview.idea || ob.idea), pricingModel: value });
+          ob.preview = { ...again, idea: again.idea || preview.idea || ob.idea };
+          showTemplatePrices();
+        });
+      });
+      const charges = tax.mode === 'gst' || tax.mode === 'vat';
+      const notRegistered = charges ? `not registered for ${tax.label}` : tax.mode === 'sales-tax' ? "you don't charge sales tax" : "you don't charge tax";
+      const registered = charges ? `registered for ${tax.label}` : tax.mode === 'sales-tax' ? 'you charge sales tax' : 'you charge tax';
+      const taxChip = h('span', { class: 'launch-chip' });
+      const rate = textInput(ob.rate || '', { inputmode: 'decimal', 'aria-label': `${tax.label} rate, in percent` });
+      rate.addEventListener('input', () => { ob.rate = rate.value; });
+      const rateField = h('div', { hidden: ob.tax !== true }, field(rateQuestion?.text || `What ${tax.label} rate do you charge, in percent?`, rate));
+      const paintTax = () => {
+        taxChip.textContent = ob.tax === null ? `Assumption: ${notRegistered}` : `Told by you: ${ob.tax ? registered : notRegistered}`;
+        rateField.hidden = ob.tax !== true;
+      };
+      const taxBody = h('div', { class: 'launch-tax', hidden: true }, note(taxQuestion?.text || `Do you charge ${tax.label}?`),
+        choiceRow([['no', 'No'], ['yes', 'Yes']], ob.tax === true ? 'yes' : ob.tax === false ? 'no' : '', value => { ob.tax = value === 'yes'; paintTax(); }),
+        rateField, note(tax.registrationNote));
+      paintTax();
+      const extraBody = h('div', { class: 'launch-extra', hidden: true }, (preview.questions || []).filter(question => question.id === 'q_1' || question.id === 'q_2').map(question => {
+        if (question.kind === 'choice') {
+          return h('div', { class: 'launch-question' }, note(question.text, 'launch-strong'),
+            choiceRow(question.choices.map(choice => [choice.label, choice.label]), ob.extra[question.id] || '', value => { ob.extra[question.id] = value; }));
+        }
+        const answer = textInput(ob.extra[question.id] || '', { maxlength: 300 });
+        answer.addEventListener('input', () => { ob.extra[question.id] = answer.value; });
+        return field(question.text, answer);
+      }));
+      const keep = obBtn('Keep this plan', () => act(keep, status, async () => {
+        ob.price = amount.value.trim();
+        if (ob.tax === true && !plain(ob.rate).trim()) throw new Error(`Enter your ${tax.label} rate, in percent, or choose No.`);
+        if (ob.vaultOpen) await runSetup({ host: null, skipCreate: false }); else showKeepSafe();
+      }));
+      obFrame('prices', [
+        obBack(() => showTemplatePlan()), obTitle('Set your price.'), obLead("Before tax. Chausar's calculator does the totals later."),
+        h('div', { class: 'launch-price-set' }, pricing, h('div', { class: 'launch-amount' }, field('Your price', amount), h('span', { class: 'launch-currency' }, country.currency))),
+        h('p', { class: 'launch-tax-line' }, taxChip, ' ', toggle('Change', taxBody)), taxBody,
+        h('div', {}, toggle('Tell us more (optional)', extraBody), extraBody),
+        obActions(keep), status,
+      ], { shapes: preview.serviceType?.value || 'other' });
+    }
+
+    /** The in-vault plan from built-in templates, when a business has no plan yet: price and tax inline, as before. */
+    function draftPlanBody(preview, { inVault, onKeep, onRepaint }) {
       const ob = onboarding();
       const country = preview.country;
       const tax = country.tax;
@@ -500,7 +1329,6 @@ globalThis.ChausarLaunch = Object.freeze({
         head(inVault ? 'Your plan from built-in templates, not kept yet' : 'Your plan from built-in templates, not saved yet', preview.serviceLabel),
         h('p', { class: 'launch-lead' }, preview.oneLiner.value, ' ', tag(preview.oneLiner)),
         section("Who it's for", h('p', {}, preview.customer.value, ' ', tag(preview.customer))),
-        // At rest the plan shows names, steps, the price and the tax assumption; the longer words wait in folds, as on the kept plan.
         section('Offers', rows(...preview.offers.map(offer => row({
           mark: 'off', title: offer.name.value, label: LABEL_WORDS[offer.name.label] || 'assumption',
         }))), fold('About the offers', false, ...preview.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`))), priceBlock),
@@ -509,7 +1337,7 @@ globalThis.ChausarLaunch = Object.freeze({
         fold('Back office', false, note(`Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`)),
         h('p', { class: 'launch-tax-line' }, taxChip, ' ', toggle('Change', taxBody)), taxBody,
         section(null, toggle('Tell us more (optional)', extraBody), extraBody),
-        actions(keep, quiet('Start over', () => { ob.preview = null; ob.tax = null; ob.rate = null; ob.price = ''; ob.extra = {}; void showIdea(); })),
+        actions(keep),
         status);
     }
     /** A quiet link that shows or hides the part under it, and says which. */
@@ -526,73 +1354,108 @@ globalThis.ChausarLaunch = Object.freeze({
       })));
     }
 
-    /** Hosted step three: a working name only. The server makes and keeps the vault key; the recovery code shows once. */
+    // ---------------------------------------------------------------------------------------------
+    // Keep it safe, the recovery code, then setting up
+    // ---------------------------------------------------------------------------------------------
+    /** Hosted: a working name only. The server makes and keeps the vault key; the recovery code shows once. */
     function showHostedKeepSafe() {
       const ob = onboarding();
       const name = textInput(ob.workingName || '', { maxlength: 80, autocomplete: 'organization', placeholder: 'My service business' });
       const status = statusLine();
-      const submit = h('button', { class: 'launch-btn', type: 'submit' }, 'Keep it');
+      const submit = h('button', { class: 'ob-btn', type: 'submit' }, 'Keep it');
       const keepForm = h('form', {
-        class: 'launch-form',
+        class: 'ob-form',
         onsubmit: event => {
           event.preventDefault();
           return act(submit, status, async () => {
             const workingName = name.value.trim() || 'My service business';
-            const result = await request('workspace.create', { name: workingName, pack: 'services' });
+            card?.setShapes('lockShut');
+            let result;
+            try { result = await request('workspace.create', { name: workingName, pack: 'services' }); }
+            catch (error) { card?.setShapes('lockOpen'); throw error; }
             ob.workingName = workingName;
             ob.vaultOpen = true;
             try { state.status = await request('workspace.status'); } catch { /* the vault is open; the status can be read later */ }
             state.workspace = result?.workspace || state.status?.workspace || { name: workingName };
-            const recovery = result?.recoveryKit || result?.recoveryCode;
-            const next = () => { void runSetup({ host: null, skipCreate: false }); };
-            if (recovery) showRecoveryKit(recovery, result, next); else next();
+            showRecoveryCode(result, () => { void runSetup({ host: null, skipCreate: false }); });
           });
         },
-      }, field('Working name', name), note(CUSTODY_LINE), note(TEN_YEARS_LINE), warn(EXPERIMENTAL),
-      actions(submit, link('Back to the plan', () => showPlan())), status);
-      frame('keep', head(null, 'Keep your plan safe'), keepForm);
+      }, field('Working name', name), note(CUSTODY_LINE), warn(EXPERIMENTAL), obActions(submit), status, obFold('More options', note(TEN_YEARS_LINE)));
+      obFrame('keep', [obBack(() => showTemplatePlan()), obTitle('Keep it safe.'), keepForm], { shapes: 'lockOpen' });
     }
 
-    /** Step three: keep it safe. The passphrase is asked only now, in a password field inside its form. */
+    /** Keep it safe: the passphrase is asked only now, in password fields inside their form. */
     function showKeepSafe() {
       if (hosted) { showHostedKeepSafe(); return; }
       const ob = onboarding();
-      const name = textInput(ob.workingName || '', { maxlength: 80, autocomplete: 'organization', placeholder: 'My service business' });
+      const composed = ob.mode === 'ai' && ob.plan;
+      const name = textInput(ob.workingName || (composed ? ob.plan.name.value : ''), { maxlength: 80, autocomplete: 'organization', placeholder: composed ? null : 'My service business' });
       const passphrase = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
       const confirm = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
       const status = statusLine();
-      const submit = h('button', { class: 'launch-btn', type: 'submit' }, 'Keep it');
-      /** The engine has no list of workspaces, so the owner must know this folder name to open or recover the business later. */
+      const submit = h('button', { class: 'ob-btn', type: 'submit' }, 'Lock it in');
       const workingNameNow = () => name.value.trim() || 'My service business';
+      /** The engine has no list of workspaces, so the owner must know this folder name to open or recover the business later. */
+      let folderTouched = false;
+      const folder = textInput(folderFor(workingNameNow()), { maxlength: 64, spellcheck: 'false' });
       const folderLine = note('');
-      const paintFolder = () => folderLine.replaceChildren(folderWords(folderFor(workingNameNow())));
+      const folderNow = () => (/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(folder.value.trim()) ? folder.value.trim() : folderFor(workingNameNow()));
+      const paintFolder = () => { if (!folderTouched) folder.value = folderFor(workingNameNow()); folderLine.replaceChildren(folderWords(folderNow())); };
       name.addEventListener('input', paintFolder);
+      folder.addEventListener('input', () => { folderTouched = true; folderLine.replaceChildren(folderWords(folderNow())); });
       paintFolder();
+      const back = () => (composed ? showPrices() : showTemplatePrices());
       const keepForm = h('form', {
-        class: 'launch-form',
+        class: 'ob-form',
         onsubmit: event => {
           event.preventDefault();
           return act(submit, status, async () => {
             const workingName = workingNameNow();
-            const folder = folderFor(workingName);
-            if (passphrase.value.length < 12) throw new Error('Use a passphrase of at least 12 characters.');
-            if (passphrase.value !== confirm.value) throw new Error('The two passphrases do not match.');
+            const chosen = folderNow();
+            if (passphrase.value.length < 12) { nudge(passphrase.parentElement); throw new Error('Use a passphrase of at least 12 characters.'); }
+            if (passphrase.value !== confirm.value) { nudge(confirm.parentElement); throw new Error('The two passphrases do not match.'); }
+            card?.setShapes('lockShut'); card?.setLocked(true);
             let result;
-            try { result = await request('workspace.create', { name: workingName, passphrase: passphrase.value, pack: 'services', folder }); }
+            try { result = await request('workspace.create', { name: workingName, passphrase: passphrase.value, pack: 'services', folder: chosen }); }
+            catch (error) { card?.setShapes('lockOpen'); card?.setLocked(false); throw error; }
             finally { passphrase.value = ''; confirm.value = ''; }
             ob.workingName = workingName;
             ob.vaultOpen = true;
             try { state.status = await request('workspace.status'); } catch { /* the vault is open; the status can be read later */ }
             state.workspace = result?.workspace || state.status?.workspace || { name: workingName };
-            const recovery = result?.recoveryKit || result?.recoveryCode;
-            const next = () => { void runSetup({ host: null, skipCreate: false }); };
-            if (recovery) showRecoveryKit(recovery, { ...result, folder }, next); else next();
+            showRecoveryCode({ ...result, folder: chosen }, () => { void (composed ? runComposedSetup() : runSetup({ host: null, skipCreate: false })); });
           });
         },
-      }, field('Working name', name), folderLine, field('Passphrase', passphrase), field('Confirm passphrase', confirm),
-      note(PASSPHRASE_LINE), note(TEN_YEARS_LINE), experimental() ? warn(EXPERIMENTAL) : null,
-      actions(submit, link('Back to the plan', () => showPlan())), status);
-      frame('keep', head(null, 'Keep your plan safe'), keepForm);
+      }, field('Working name', name), passphraseField('Passphrase', passphrase), field('Type it again', confirm),
+      h('p', { class: 'ob-hint' }, 'At least 12 characters. Nobody can reset it.'),
+      experimental() ? warn(EXPERIMENTAL) : null,
+      obActions(submit), status,
+      obFold('More options', field('Vault folder', folder), folderLine, note(TEN_YEARS_LINE)));
+      obFrame('keep', [obBack(back), obTitle('Keep it safe.'), obLead('One passphrase opens your encrypted vault on this computer.'), keepForm], { shapes: 'lockOpen' });
+    }
+
+    /** The recovery code, shown once: the engine's exact string in chunks of four for reading; Copy and Save give it whole. */
+    function showRecoveryCode(result, next) {
+      const code = plain(typeof result?.recoveryCode === 'string' ? result.recoveryCode : typeof result?.recoveryKit === 'string' ? result.recoveryKit : '');
+      const folder = typeof result?.folder === 'string' && result.folder ? result.folder : '';
+      const chunks = code.match(/.{1,4}/g) || [];
+      const status = statusLine();
+      const saved = h('input', { type: 'checkbox' });
+      const go = obBtn('Continue', () => { void next(); }, { disabled: true });
+      saved.addEventListener('change', () => { go.disabled = !saved.checked; });
+      const fileText = `Chausar recovery code\n${state.workspace?.name ? `Workspace: ${state.workspace.name}\n` : ''}${folder ? `Workspace folder: ${folder}\n` : ''}\n${code}\n`;
+      obFrame('code', [
+        obTitle('Save your recovery code.'),
+        obLead("If you forget your passphrase, this code is the only way back in. You'll see it once."),
+        h('div', { class: 'ob-code', role: 'group', 'aria-label': 'Recovery code', 'data-code-length': String(code.length) },
+          chunks.map((part, index) => h('span', { class: `ob-chunk ob-k-${Math.min(index + 1, 12)}` }, part))),
+        h('div', { class: 'ob-row2' },
+          obGhost('Copy', () => act(null, status, async () => { await copyText(code); status.replaceChildren(note('Recovery code copied.')); })),
+          obGhost('Save as file', () => saveText('chausar-recovery-code.txt', fileText, 'text/plain'))),
+        h('label', { class: 'ob-check' }, saved, h('span', {}, 'I saved it somewhere safe')),
+        obActions(go), status,
+        obFold('Where it lives', note(folder ? folderWords(folder) : CUSTODY_LINE)),
+      ], { shapes: 'lockShut', locked: true, lockWords: !hosted });
     }
 
     function answerFor(question) {
@@ -617,12 +1480,12 @@ globalThis.ChausarLaunch = Object.freeze({
       }
     }
 
-    /** After the vault exists: create the business, answer the template interview, draft and price the plan. */
+    /** After the vault exists, for a built-in plan: create the business, answer the template interview, draft and price it. */
     async function runSetup({ host, skipCreate, after = showOwnedPlan }) {
       const ob = onboarding();
-      const progress = h('div', { class: 'launch-setup' }, note('Setting up your plan from built-in templates.'));
+      const progress = h('div', { class: 'launch-setup' }, h('p', { class: 'ob-working', role: 'status' }, 'Setting up your plan from built-in templates.'));
       if (host) host.replaceChildren(progress);
-      else frame('accept', head(null, 'Setting up your plan'), progress);
+      else obFrame('setup', [obTitle('Setting up your plan'), progress], { shapes: 'lockShut', locked: true, lockWords: !hosted });
       try {
         await busy(progress, 'Setting up your plan from built-in templates', async () => {
           if (!skipCreate) {
@@ -646,22 +1509,116 @@ globalThis.ChausarLaunch = Object.freeze({
         });
       } catch (error) {
         const retry = () => runSetup({ host, skipCreate, after });
-        progress.replaceChildren(...errorNodes(error, retry), actions(filled('Try again', retry), host ? null : link('Back to the plan', () => showPlan())));
+        progress.replaceChildren(...errorNodes(error, retry), actions(filled('Try again', retry), host ? null : link('Back to the plan', () => showTemplatePlan())));
         return;
       }
       state.onboarding = null;
       await after();
     }
 
-    /** Step four: the plan in the vault, with receipts, before acceptance. */
+    /** Accept: the plan in the vault, with receipts, before acceptance. */
     async function showOwnedPlan() {
-      const flow = frame('accept');
       const body = h('div', { class: 'launch-plan' });
-      flow.append(body, actions(link('Go to your business', goHome)));
+      obFrame('open', [body], { shapes: 'lockShut' });
       try { await paintPlan(body, 'onboarding'); }
       catch (error) { body.replaceChildren(...errorNodes(error, showOwnedPlan)); }
     }
     function goHome() { closeSheet(); state.page = 'today'; renderShell(); }
+
+    // ---------------------------------------------------------------------------------------------
+    // Pairing and Welcome back, in look B
+    // ---------------------------------------------------------------------------------------------
+    /** Pair this browser with the local engine. pair(code) is app.js's own pairing; the code stays in memory. */
+    function pairing(error = '', pair) {
+      const code = h('input', { type: 'password', value: '', maxlength: 2048, autocomplete: 'off', spellcheck: 'false' });
+      const status = statusLine();
+      const submit = h('button', { class: 'ob-btn', type: 'submit' }, 'Pair');
+      const pairForm = h('form', {
+        class: 'ob-form',
+        onsubmit: event => {
+          event.preventDefault();
+          return act(submit, status, async () => {
+            const value = code.value;
+            code.value = '';
+            if (!plain(value).trim()) { nudge(code.parentElement); throw new Error('Paste the pairing link first.'); }
+            await pair(value);
+          });
+        },
+      }, field('Pairing link or code', code), obActions(submit), status);
+      obFrame('pair', [
+        obTitle('Pair this browser.'), obLead('Paste the pairing link Chausar printed when it started on this computer.'),
+        obAlert(error), pairForm, note('It stays in memory. After a refresh, pair again.'),
+      ], { shapes: 'lockShut', focus: false });
+      focusOnDesk(code);
+    }
+    /** Welcome back: open the business with its passphrase, or recover with the code, or restore a backup. */
+    function openExisting(error = '', mode = 'open') {
+      const status = statusLine();
+      const folder = textInput('main', { maxlength: 64, spellcheck: 'false' });
+      const folderNow = () => folder.value.trim() || 'main';
+      const passphrase = h('input', { type: 'password', value: '', required: true, autocomplete: mode === 'open' ? 'current-password' : 'new-password' });
+      const opened = async result => {
+        state.status = await request('workspace.status');
+        state.workspace = result?.workspace || state.status?.workspace || null;
+        applyWorkspaceStatus(state.status);
+      };
+      let formNode;
+      if (mode === 'open') {
+        const submit = h('button', { class: 'ob-btn', type: 'submit' }, 'Open');
+        formNode = h('form', {
+          class: 'ob-form',
+          onsubmit: event => {
+            event.preventDefault();
+            return act(submit, status, async () => {
+              if (!passphrase.value) { nudge(passphrase.parentElement); throw new Error('Enter your passphrase.'); }
+              let result;
+              try { result = await request('workspace.open', { folder: folderNow(), passphrase: passphrase.value }); }
+              finally { passphrase.value = ''; }
+              await opened(result);
+            });
+          },
+        }, passphraseField('Passphrase', passphrase), obActions(submit), status,
+        h('p', { class: 'ob-u-links' }, obLink('Use my recovery code', () => openExisting('', 'recover')), ' ', obLink('Restore a backup', () => showVaultRestore())));
+      } else {
+        const code = h('input', { type: 'password', value: '', required: true, autocomplete: 'off', spellcheck: 'false' });
+        const confirm = h('input', { type: 'password', value: '', required: true, minlength: 12, autocomplete: 'new-password' });
+        const submit = h('button', { class: 'ob-btn', type: 'submit' }, 'Recover');
+        formNode = h('form', {
+          class: 'ob-form',
+          onsubmit: event => {
+            event.preventDefault();
+            return act(submit, status, async () => {
+              if (passphrase.value.length < 12) throw new Error('Use a new passphrase of at least 12 characters.');
+              if (passphrase.value !== confirm.value) throw new Error('The two passphrases do not match.');
+              let result;
+              try { result = await request('workspace.recover', { folder: folderNow(), recoveryCode: code.value.trim(), passphrase: passphrase.value }); }
+              finally { code.value = ''; passphrase.value = ''; confirm.value = ''; }
+              await opened(result);
+            });
+          },
+        }, field('Vault folder', folder), field('Recovery code', code), passphraseField('New passphrase', passphrase), field('Type it again', confirm), obActions(submit), status,
+        h('p', { class: 'ob-u-links' }, obLink('Use my passphrase', () => openExisting('', 'open'))));
+      }
+      const sample = experimental() ? obLink('Create a vault with the sample business', () => act(null, status, async () => {
+        if (passphrase.value.length < 12) { nudge(passphrase.parentElement); throw new Error('Type a passphrase of at least 12 characters above first.'); }
+        const chosen = folderNow();
+        let result;
+        try { result = await request('workspace.create', { name: 'Sample business', passphrase: passphrase.value, demo: true, folder: chosen }); }
+        finally { passphrase.value = ''; }
+        state.status = await request('workspace.status');
+        state.workspace = result?.workspace || state.status?.workspace || { name: 'Sample business' };
+        showRecoveryCode({ ...result, folder: chosen }, () => applyWorkspaceStatus(state.status));
+      })) : null;
+      const retry = obLink('Try the engine again', () => act(null, status, async () => { applyWorkspaceStatus(await request('workspace.status')); }));
+      obFrame('back', [
+        obBack(() => firstRun()), obTitle('Welcome back.'),
+        obLead('Your business is in an encrypted vault on this computer. Enter your passphrase to open it.'),
+        obAlert(error), formNode,
+        obFold('More options', mode === 'open' ? field('Vault folder', folder) : null, h('p', { class: 'ob-u-links' }, retry, sample ? ' ' : null, sample)),
+      ], { shapes: 'lockShut' });
+    }
+    const applyWorkspaceStatus = status => (typeof kit.applyWorkspaceStatus === 'function' ? kit.applyWorkspaceStatus(status) : afterOpen());
+    const showVaultRestore = () => (typeof kit.showVaultRestore === 'function' ? kit.showVaultRestore() : undefined);
 
     // ---------------------------------------------------------------------------------------------
     // The plan in the vault: onboarding step four and the "Your business" place
@@ -736,6 +1693,32 @@ globalThis.ChausarLaunch = Object.freeze({
         await refresh();
       }));
 
+      // A plan the AI composed from blocks keeps its website pages, tools and notes; each sits in its own fold.
+      const composedParts = [
+        plan.pages?.length ? fold('Your website', open, ...plan.pages.map(item => note(`${item.title.value}: ${item.purpose.value}`))) : null,
+        plan.tools?.length ? fold('Tools to connect', open, ...plan.tools.map(item => note(`${toolNames[item.block] || item.block}: ${item.reason.value}`))) : null,
+        plan.notes?.length ? fold('Check before you start', open, ...plan.notes.map(item => note(item.text))) : null,
+      ];
+      if (mode === 'onboarding') {
+        // Onboarding shows the name, the offers with their receipts and Accept at rest; the rest is one fold away.
+        const by = plan.source !== 'model' ? ', from built-in templates' : replaying(models) ? ', from a synthetic recording' : '';
+        return h('div', { class: 'launch-plan-body' },
+          head(`Version ${plan.version}${by}`, plan.name.value),
+          section('Offers', rows(...offerRows)),
+          actions(accept, quiet('Change plan', () => openChangeSheet(ctx))),
+          status,
+          fold('More of your plan', open,
+            h('p', {}, plan.oneLiner.value, ' ', tag(plan.oneLiner)),
+            h('p', { class: 'launch-note' }, h('span', { class: 'launch-label' }, 'for'), ' ', plan.customer.value, ' ', tag(plan.customer)),
+            ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)),
+            plan.source === 'model' ? recordingNote(models) : null,
+            missing,
+            fold('Steps', open, stepRows(plan.deliverySteps), ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`))),
+            fold('You approve', open, approvalLines(plan.approvals, 'launch-note launch-approval')),
+            fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} ${railWords(backOffice.paymentRail)}`), tag(backOffice.taxRegistered), ready),
+            ...composedParts,
+            actions(rewrite, link('Go to your business', goHome))));
+      }
       // At rest: the name, the one line, the offers with their prices, and the folds. The longer words open in place.
       const source = plan.source === 'model' ? '' : ', from built-in templates';
       return h('div', { class: 'launch-plan-body' },
@@ -752,6 +1735,7 @@ globalThis.ChausarLaunch = Object.freeze({
         fold('Steps', open, stepRows(plan.deliverySteps), ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`))),
         fold('You approve', open, approvalLines(plan.approvals, 'launch-note launch-approval')),
         fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} ${railWords(backOffice.paymentRail)}`), tag(backOffice.taxRegistered), ready),
+        ...composedParts,
         actions(accept, quiet('Change plan', () => openChangeSheet(ctx)), rewrite),
         status);
     }
@@ -897,9 +1881,8 @@ globalThis.ChausarLaunch = Object.freeze({
     // Build: the brief, the builders, and following the code on GitHub
     // ---------------------------------------------------------------------------------------------
     async function showBuildStep() {
-      const flow = frame('build');
       const content = h('div', { class: 'launch-build' }, note('Writing your build brief.'));
-      flow.append(content, actions(link('Go to your business', goHome)));
+      obFrame('build', [content, actions(link('Go to your business', goHome))], { shapes: 'lockShut' });
       try {
         const models = await modelStatus();
         const words = servedByModel(models) ? `Writing your build brief ${writtenBy(models, models.tiers.main.presetId, models.tiers.main.model)}` : 'Writing your build brief from built-in templates';
@@ -911,9 +1894,8 @@ globalThis.ChausarLaunch = Object.freeze({
       }
     }
     async function showBuildStepAgain() {
-      const flow = frame('build');
       const content = h('div', { class: 'launch-build' });
-      flow.append(content, actions(link('Go to your business', goHome)));
+      obFrame('build', [content, actions(link('Go to your business', goHome))], { shapes: 'lockShut' });
       try {
         const [status, models] = await Promise.all([request('venture.build.status'), modelStatus()]);
         content.replaceChildren(...buildBody({ status, models, mode: 'onboarding', refresh: showBuildStepAgain }));
@@ -972,7 +1954,9 @@ globalThis.ChausarLaunch = Object.freeze({
     function buildBody(ctx) {
       const { status, models, mode, refresh } = ctx;
       const brief = status.brief;
-      const out = [head(mode === 'onboarding' ? 'Build' : null, mode === 'onboarding' ? 'Hand your brief to a builder' : 'Build')];
+      const onboardingMode = mode === 'onboarding';
+      // In onboarding the header already says Build, so the page names the move instead.
+      const out = [head(null, onboardingMode ? 'Hand your brief to a builder' : 'Build')];
       const briefStatus = statusLine();
       const writeBrief = async () => {
         await busy(briefStatus, 'Writing your build brief', () => request('venture.build.brief', {}));
@@ -995,10 +1979,11 @@ globalThis.ChausarLaunch = Object.freeze({
         const again = ok ? null : link('Write it again', () => act(again, briefStatus, writeBrief));
         if (!ok) { lovable.disabled = true; replit.disabled = true; }
         const source = brief.wordsBy === 'model' ? (together ? null : recordingNote(models)) : note(TEMPLATE_LINE);
+        const briefParts = [h('p', { class: 'launch-brief' }, openingLines(brief.markdown)),
+          h('p', { class: 'launch-note' }, ok ? 'Checks passed.' : briefState(brief), ' ', link('Read it', () => openBriefSheet(brief, writeBrief)), again ? ' ' : null, again)];
         out.push(
-          section('Your brief', h('p', { class: 'launch-brief' }, openingLines(brief.markdown)),
-            h('p', { class: 'launch-note' }, ok ? 'Checks passed.' : briefState(brief), ' ', link('Read it', () => openBriefSheet(brief, writeBrief)), again ? ' ' : null, again),
-            source, briefStatus),
+          // Onboarding folds a brief that passed its checks; one that did not shows why at rest.
+          onboardingMode && ok ? section(null, fold('Your brief, checks passed', false, ...briefParts), source, briefStatus) : section('Your brief', ...briefParts, source, briefStatus),
           section(null,
             actions(lovable, replit), note(REPLIT_LINE), notesHost, handoffStatus,
             status.handoffs?.length ? fold('Opened before', false, h('div', { class: 'launch-rows launch-handoffs' }, ...status.handoffs.slice(0, 4).map(handoff => row({
@@ -1006,7 +1991,9 @@ globalThis.ChausarLaunch = Object.freeze({
               note: handoff.openedAt ? `opened ${timeText(handoff.openedAt)}` : 'prepared, not opened',
             })))) : null));
       }
-      out.push(status.follow ? section('GitHub', followStatus(status, refresh, together)) : section('Follow the build on GitHub', followForm(status, refresh)));
+      const follow = status.follow ? followStatus(status, refresh, together) : followForm(status, refresh);
+      if (onboardingMode) out.push(section(null, fold('GitHub', false, follow)));
+      else out.push(status.follow ? section('GitHub', follow) : section('Follow the build on GitHub', follow));
       return out;
     }
 
@@ -1148,12 +2135,14 @@ globalThis.ChausarLaunch = Object.freeze({
         status.replaceChildren(note(`Connected: ${preset.label}.`, 'launch-note launch-done'));
       }), { disabled: true });
       consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked || preset.availability === 'unavailable'; });
+      // Until Chausar accepts Anthropic's terms for running Claude Code, the row says why and offers no connect.
+      const termsPending = preset.id === 'claude-code-cli' && preset.availabilityReason === CLAUDE_TERMS_REASON;
       return h('details', { class: 'launch-preset', 'data-preset': preset.id }, summary, h('div', { class: 'launch-more-body' },
         preset.runsOn === 'this-computer' ? note('Uses your own sign-in on this computer.') : null,
         key ? field(`Your ${preset.label} key`, key, KEY_LINE) : null,
         key && preset.keyHint ? note(preset.keyHint) : null,
         model ? field('Model id, as your account shows it', model) : null,
-        consent.node, actions(connect), status));
+        consent.node, termsPending ? null : actions(connect), status));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1161,7 +2150,7 @@ globalThis.ChausarLaunch = Object.freeze({
     // ---------------------------------------------------------------------------------------------
     function noVenture() {
       return page(head(null, 'Start with your idea'), note('This workspace has no business yet.'),
-        actions(filled('Describe your idea', () => { onboarding().vaultOpen = true; void showIdea(); })));
+        actions(filled('Describe your idea', () => { onboarding().vaultOpen = true; void startFlow(); })));
     }
     async function ventureOrNull() {
       const view = await request('venture.get');
@@ -1943,7 +2932,7 @@ globalThis.ChausarLaunch = Object.freeze({
       let view;
       try { view = await request('venture.get'); }
       catch { state.page = 'today'; renderShell(); return; }
-      if (!view) { onboarding().vaultOpen = true; await showIdea(); return; }
+      if (!view) { onboarding().vaultOpen = true; await startFlow(); return; }
       state.venture = view;
       state.page = 'today';
       renderShell();
@@ -1953,6 +2942,8 @@ globalThis.ChausarLaunch = Object.freeze({
       today: renderToday, business: renderBusiness, build: renderBuild, clients: renderClients,
       agents: renderAgents, money: renderMoney, connections: renderConnections,
     });
-    return Object.freeze({ pages, views, firstRun, afterOpen });
+    /** The renderer's copies of the onboarding contract, for the test that compares them. */
+    const copies = Object.freeze({ CLAUDE_TERMS_REASON, VIEWS, KIND_LABELS, AI_OPTION_IDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, AI_HALF_CONNECTED_WORDS, NOT_A_SERVICE_WORDS, COMPOSE_REFUSED_WORDS, RIGHT_PANE_WORDS });
+    return Object.freeze({ pages, views, firstRun, afterOpen, pairing, openExisting, showRecoveryCode, copies });
   },
 });
