@@ -64,7 +64,18 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { VentureHostOptions } from './venture/contracts.ts';
+import type { SecretShelf, VentureHostOptions } from './venture/contracts.ts';
+import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
+
+/** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
+type DraftDeskHandle = {
+  request(ctx: Context, method: string, payload: unknown): Promise<unknown>;
+  /** workspace.create succeeded: reset and pause the idle timer while the owner keeps the plan safe. */
+  hold(): void;
+  /** Wipes keys, records and the compose session. */
+  clear(): void;
+  handover: DraftHandoverPort;
+};
 
 export type EngineBackupCustodyOptions = {
   budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
@@ -127,12 +138,38 @@ export class Engine {
   #ventureModule() {
     return import('./venture/host.ts').catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
   }
+  // The draft desk: one per engine process, memory only, loaded on the first draft request. Keys never touch disk.
+  #draft: DraftDeskHandle | null = null;
+  #draftPending: Promise<DraftDeskHandle> | null = null;
+  #draftDesk(): Promise<DraftDeskHandle> {
+    if (this.#draft) return Promise.resolve(this.#draft);
+    const pending = this.#draftPending ??= import('./venture/draft/index.ts').then(module => {
+      const desk = module.createDraftDesk({
+        ...(this.options.venture ?? {}), demo: !!this.options.demo,
+        ventureExists: () => !!this.vault && this.vault.read().conversations.some(record => record?.kind === 'venture-record'),
+        vaultOpen: () => !!this.vault,
+      }) as DraftDeskHandle;
+      this.#draft = desk;
+      return desk;
+    });
+    pending.catch(() => { if (this.#draftPending === pending) this.#draftPending = null; });
+    return pending.catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
+  }
+  /** What venture.create sees: the desk when it is loaded, else nothing to adopt. Trusted host composition only. */
+  #draftHandover: DraftHandoverPort = Object.freeze({
+    ai: () => this.#draft?.handover.ai() ?? null,
+    compose: (composeId: string) => this.#draft?.handover.compose(composeId) ?? null,
+    moveKeys: (target: SecretShelf) => { this.#draft?.handover.moveKeys(target); },
+    settle: () => { this.#draft?.handover.settle(); },
+  });
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
       check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
+      const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
-        { ...(this.options.venture ?? {}), demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file' });
+        { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }) });
       this.#venture = host;
       return host;
     });
@@ -683,6 +720,7 @@ export class Engine {
   }
   private async closeVault() {
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
+    this.#draft?.clear();
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     let failure: unknown;
@@ -750,6 +788,19 @@ export class Engine {
     if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    // The draft desk answers these before the vault check: connect an AI and compose a plan before any vault exists.
+    switch (method) {
+      case 'venture.ai.options':
+      case 'venture.ai.connect':
+      case 'venture.ai.disconnect':
+      case 'venture.ai.status':
+      case 'venture.ai.calls':
+      case 'venture.compose.decide':
+      case 'venture.compose.fill':
+      case 'venture.compose.get':
+      case 'venture.compose.update':
+        return (await this.#draftDesk()).request(this.context, method, payload);
+    }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
@@ -759,13 +810,15 @@ export class Engine {
       try {
         await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
         if (payload.demo) await seedDemo(this.store(), this.context);
+        this.#draft?.hold();
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear(); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear(); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
+      this.#draft?.clear();
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');

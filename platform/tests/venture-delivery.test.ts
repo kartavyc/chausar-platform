@@ -65,7 +65,7 @@ class StubPort implements ModelPort {
   recordCalls = false;
   outputs: Partial<Record<ModelPurpose, unknown[]>> = {};
   used: Partial<Record<ModelPurpose, number>> = {};
-  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500' };
+  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500', decide: '0', compose: '0' };
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
   previews = new Map<string, { digest: string; used: boolean }>();

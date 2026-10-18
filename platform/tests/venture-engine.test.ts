@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
-import { PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   BlueprintView, BriefRecord, GitHubTransport, ModelHttpRequest, ModelPreset, ModelStatusView, ModelTransport, PriceReceiptRecord,
 } from '../runtime/venture/contracts.ts';
@@ -75,11 +75,23 @@ test('before any vault, venture.countries and venture.preview reach the venture 
   assert.equal((await engine.request('workspace.status', {})).open, false);
 });
 
+test('before any vault, the nine draft methods reach the draft desk, not the vault check', async t => {
+  const transport = recordingTransport();
+  const engine = await engineOn(t, transport);
+  for (const method of DRAFT_METHODS) {
+    const outcome = await settle(engine.request(method, {}));
+    assertReached(outcome, method);
+    if ('error' in outcome) assert.notEqual(outcome.error.code, 'VAULT_LOCKED', `${method} must not need a vault`);
+  }
+  assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
+  assert.equal((await engine.request('workspace.status', {})).open, false);
+});
+
 test('after workspace.create, every other venture method called with {} reaches the host', async t => {
   const transport = recordingTransport();
   const engine = await engineOn(t, transport);
   await engine.request('workspace.create', { name: 'Venture reach test', passphrase: PASSPHRASE, pack: 'services' });
-  const methods = VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method));
+  const methods = VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method));
   assert.equal(methods.length, 54);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');

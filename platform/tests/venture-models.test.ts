@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
@@ -910,7 +910,8 @@ test('replay through the port: calls are marked replay and status says synthetic
 // ---------------------------------------------------------------------------
 
 test('handlers: exactly the five model methods; presets and status need no venture', async () => {
-  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models');
+  // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
+  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   assert.equal(owned.length, 5);
   const { deps } = await setup({ venture: false });

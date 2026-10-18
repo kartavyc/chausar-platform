@@ -67,7 +67,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');
         const data = await body(req);
         if (url.pathname === '/mcp') return send(200, await engine.requestAs(context, 'mcp.handle', data));
-        if (['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover'].includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
+        if (['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover', 'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update'].includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
