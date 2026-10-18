@@ -14,8 +14,12 @@ import {
 import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
 import { Vault } from '../runtime/vault.ts';
 import * as O from './fixtures/venture/renderer/onboarding.ts';
+import * as K from './fixtures/venture/renderer/custody.ts';
+import * as F from './fixtures/venture/renderer/results.ts';
+import { CUSTODY_WORDS } from '../runtime/workspace-custody-contracts.ts';
+import { SERVICE_TYPE_LABELS } from '../runtime/venture/contracts.ts';
 import {
-  Element, KEY, ancestors, button, buttons, click, control, cssSource, descendants, find, flush, harness, hasClass, launchSource, place, restText, restWords, root, text, tick, type, visibleText,
+  EXPERIMENTAL, Element, KEY, ancestors, button, buttons, click, control, cssSource, descendants, find, flush, harness, hasClass, launchSource, place, restText, restWords, root, text, tick, type, visibleText,
 } from './launch-renderer-harness.ts';
 import type { EngineOptions, HarnessOptions } from './launch-renderer-harness.ts';
 
@@ -35,6 +39,8 @@ function filledAtRest(host: Element) {
   return descendants(host).filter(node => node.tagName === 'button' && (hasClass(node, 'ob-btn') || node.className === 'launch-btn')
     && !node.hidden && !ancestors(node).some(parent => parent.hidden || (parent.tagName === 'details' && !parent.open)));
 }
+/** Presses a button without waiting for the work it starts, for a request the test holds open. */
+async function press(node: Element) { void node.dispatch('click'); await flush(); }
 async function open(details: Element) { details.open = true; await details.dispatch('toggle'); await flush(); }
 async function boot(engine: EngineOptions = {}, options: HarnessOptions = {}) {
   const h = await harness(engine, options);
@@ -65,7 +71,7 @@ test('first run asks for the AI: four rows in order, honest chips, no word says 
   const h = await boot();
   assert.equal(step(h), 'ai');
   assert.equal(title(h.app), 'Connect an AI first.');
-  assert.deepEqual(methods(h), ['workspace.status', 'venture.ai.status', 'venture.ai.options']);
+  assert.deepEqual(methods(h), ['workspace.status', 'venture.ai.status', 'workspace.list', 'venture.ai.options'], 'no business on this computer, so onboarding starts');
   const rows = descendants(h.app).filter(node => node.tagName === 'details' && node.attributes['data-option']);
   assert.deepEqual(rows.map(node => node.attributes['data-option']), [...AI_OPTION_IDS]);
   const view = O.options();
@@ -299,36 +305,33 @@ test('prices: every offer is listed, typed text goes as typed, the engine displa
   assert.deepEqual(callsOf(h, 'venture.compose.update').map(call => call.payload), [{ composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', unitPrice: '18' }] } }]);
   assert.equal(find(h.app, node => node.className === 'ob-fig').textContent, plan.offers[0].priceDisplay, "the engine's display string");
   await type(find(h.app, node => node.attributes['aria-label'] === 'Price of Walk pack, in GBP'), '60.50');
-  for (const banned of [/\btotal\b/i, /\bVAT at\b/, /incl/i]) assert.equal(banned.test(restText(h.app)), false, `${banned} before Keep it safe`);
-  await click(button(h.app, 'Keep this plan'));
-  assert.deepEqual(callsOf(h, 'venture.compose.update').at(-1)!.payload.patch, { offers: [{ id: 'offer_2', unitPrice: '60.50' }] }, 'an unsent price goes before Keep it safe');
-  assert.equal(step(h), 'keep');
+  for (const banned of [/\btotal\b/i, /\bVAT at\b/, /incl/i]) assert.equal(banned.test(restText(h.app)), false, `${banned} before the plan is kept`);
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.deepEqual(callsOf(h, 'venture.compose.update').at(-1)!.payload.patch, { offers: [{ id: 'offer_2', unitPrice: '60.50' }] }, 'an unsent price goes before the vault is made');
+  assert.ok(h.calls.findIndex(call => call.method === 'workspace.create') > h.calls.findLastIndex(call => call.method === 'venture.compose.update'), 'the vault is made after the last price');
+  assert.equal(step(h), 'open', 'no Keep it safe screen: the plan goes straight on');
   for (const call of callsOf(h, 'venture.compose.update')) assert.deepEqual(Object.keys(call.payload).sort(), ['composeId', 'patch'], 'never the plan itself');
 });
 
 // ---------------------------------------------------------------------------------------------
-// 10 to 13: keep it safe, the recovery code, Accept and Build; reload; pairing and Welcome back
+// 10 to 13: keeping the plan without a passphrase, the fallback, Accept and Build; reload; pairing and Welcome back
 // ---------------------------------------------------------------------------------------------
-test('Keep it safe, the recovery code, venture.create by id and digest, a receipt per priced offer, Accept, then Build in look B', async () => {
+test('Keep this plan makes the vault silently, named from the plan, then venture.create by id and digest, a receipt per priced offer, Accept and Build', async () => {
   const h = await boot(connected(), { language: 'en-GB' });
   await askFor(h, O.DOG_TEXT);
   await click(button(h.app, 'Set your prices'));
   const walks = find(h.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
   await type(walks, '18'); await walks.dispatch('change'); await flush();
   const kept = h.world.draft.plan!;
-  await click(button(h.app, 'Keep this plan'));
-  assert.equal(control(h.app, 'Working name').value, kept.name.value, 'prefilled with the plan name');
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  assert.equal(step(h), 'code');
-  assert.ok(visibleText(rightPane(h)).includes('Locked on this computer'));
-  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(h.app, 'Continue')); await flush();
+  await click(button(h.app, 'Keep this plan')); await flush();
   assert.equal(step(h), 'open');
+  for (const words of ['Keep it safe.', 'Save your recovery code.', 'Choose a passphrase.']) assert.equal(text(h.app).includes(words), false, `no "${words}" in this path`);
+  assert.equal(descendants(h.body).some(node => node.tagName === 'input' && node.attributes.type === 'password'), false, 'no passphrase field anywhere');
+  assert.ok(visibleText(rightPane(h)).includes('Encrypted on this computer'), 'the badge once the vault exists');
   const order = h.calls.slice(h.calls.findIndex(call => call.method === 'workspace.create'));
+  assert.deepEqual(Object.keys(order[0].payload).sort(), ['folder', 'name', 'pack'], 'no passphrase key at all');
   assert.deepEqual(order.slice(0, 7), [
-    { method: 'workspace.create', payload: { name: kept.name.value, passphrase: 'long-enough-passphrase', pack: 'services', folder: 'leeds-shift-walkers' } },
+    { method: 'workspace.create', payload: { name: kept.name.value, pack: 'services', folder: null } },
     { method: 'workspace.status', payload: {} },
     { method: 'venture.create', payload: { idea: O.DOG_TEXT, countryCode: 'GB', workingName: kept.name.value, composeId: kept.composeId, composedDigest: kept.digest } },
     { method: 'venture.price.quote', payload: { offerId: 'offer_1' } },
@@ -342,6 +345,83 @@ test('Keep it safe, the recovery code, venture.create by id and digest, a receip
     ['venture.blueprint.get', 'venture.blueprint.accept', 'venture.models.status', 'venture.build.brief', 'venture.build.status']);
   assert.deepEqual(callsOf(h, 'venture.blueprint.accept')[0].payload, { digest: O.composedBlueprintView.blueprint.digest });
   assert.equal(h.rejected.length, 0);
+});
+
+test('no protected storage: the engine says why, two passphrase fields, the recovery code once, then setting up', async () => {
+  const h = await boot(connected({}, { custody: { unavailable: 'blocked' } }), { language: 'en-GB' });
+  await askFor(h, O.DOG_TEXT);
+  await click(button(h.app, 'Set your prices'));
+  const kept = h.world.draft.plan!;
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.equal(step(h), 'keep');
+  assert.equal(title(h.app), 'Choose a passphrase.');
+  assert.ok(visibleText(h.app).includes(CUSTODY_WORDS.unavailable.blocked), "the engine's own reason");
+  assert.equal(descendants(h.app).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 2);
+  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
+  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.deepEqual(callsOf(h, 'workspace.create').map(call => call.payload), [
+    { name: kept.name.value, pack: 'services', folder: null },
+    { name: kept.name.value, pack: 'services', folder: null, passphrase: 'long-enough-passphrase' },
+  ], 'first without a passphrase, then with the one the owner chose');
+  assert.equal(step(h), 'code');
+  assert.equal(find(h.app, node => hasClass(node, 'ob-code')).textContent, 'DEMO-RECOVERY-CODE');
+  assert.ok(text(h.app).includes('in the folder leeds-shift-walkers'), 'the code screen names the folder the engine chose');
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(button(h.app, 'Continue')); await flush();
+  assert.equal(step(h), 'open', 'then setting up and Accept, as without the fallback');
+  assert.equal(callsOf(h, 'venture.create').length, 1);
+});
+
+test('progress has five segments here (AI, Idea, Plan, Accept, Build); setting up counts as Accept', async () => {
+  const h = await boot(heldDog({ overrides: { 'venture.create': () => new Promise(() => {}) } }), { language: 'en-GB' });
+  const segments = () => descendants(h.app).filter(node => node.tagName === 'li' && node.parent?.parent && hasClass(node.parent.parent, 'ob-progress'));
+  assert.equal(segments().length, 5);
+  assert.equal(find(h.app, node => hasClass(node, 'ob-progress')).attributes['data-count'], '3/5');
+  assert.deepEqual(segments().map(node => node.attributes['aria-label'] ?? node.textContent), ['AI, done', 'Idea, done', 'Plan', 'Accept, not yet', 'Build, not yet']);
+  await click(button(h.app, 'Set your prices'));
+  await press(button(h.app, 'Keep this plan'));
+  assert.equal(step(h), 'setup');
+  assert.equal(find(h.app, node => hasClass(node, 'ob-progress')).attributes['data-count'], '4/5');
+});
+
+test('the built-in plan keeps silently too: named from the kind of service, then the template setup', async () => {
+  const h = await boot();
+  await click(button(h.app, 'Continue without AI'));
+  await askFor(h, 'Monthly bookkeeping for cafes and small shops in Pune.');
+  await click(button(h.app, 'Set your price'));
+  await type(find(h.app, node => node.attributes['aria-label'] === 'Your price, in INR'), '2,499');
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.deepEqual(callsOf(h, 'workspace.create').map(call => call.payload), [{ name: 'Bookkeeping studio', pack: 'services', folder: null }]);
+  assert.deepEqual(callsOf(h, 'venture.create')[0].payload, { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN', workingName: 'Bookkeeping studio' });
+  assert.equal(step(h), 'open');
+});
+
+test('boot: one business that opens with this computer opens with no screen; closed by its owner or more than one shows Welcome back', async () => {
+  const one = await boot({ custody: { businesses: [K.leeds] } });
+  assert.deepEqual(callsOf(one, 'workspace.open').map(call => call.payload), [{ folder: 'leeds-shift-walkers' }], 'no passphrase, no folder typed');
+  assert.equal(one.world.open, true);
+  assert.equal(descendants(one.app).some(node => hasClass(node, 'ob-root') && node.attributes['data-step'] === 'back'), false);
+
+  const closed = await boot({ custody: { businesses: [K.leeds], closedByOwner: true } });
+  assert.equal(step(closed), 'back', 'the owner closed it, so it waits on Welcome back');
+  assert.equal(callsOf(closed, 'workspace.open').length, 0);
+
+  const two = await boot({ custody: { businesses: [K.leeds, K.ledger] } });
+  assert.equal(step(two), 'back');
+  const locked = await boot({ custody: { businesses: [K.ledger] } });
+  assert.equal(step(locked), 'back', 'a business locked with a passphrase never opens by itself');
+
+  const held = await boot({ draft: { ai: O.statusPair, held: { key: 'dog', decision: O.dogDecision, plan: O.dogPlan } }, custody: { businesses: [K.leeds] } });
+  assert.equal(step(held), 'plan', 'a held draft resumes onboarding first');
+  assert.equal(callsOf(held, 'workspace.list').length, 0);
+
+  const failing = await boot({ custody: { businesses: [K.missingKey] } });
+  assert.equal(step(failing), 'back', 'a key-missing business is not opened');
+  const broken = await boot({ custody: { businesses: [K.leeds] }, overrides: { 'workspace.open': () => { throw Object.assign(new Error(CUSTODY_WORDS.errors.DEVICE_KEY_FAILED), { code: 'DEVICE_KEY_FAILED' }); } } });
+  assert.equal(step(broken), 'back');
+  const row = find(broken.app, node => hasClass(node, 'ob-biz') && node.attributes['data-folder'] === 'leeds-shift-walkers');
+  assert.ok(text(row).includes(CUSTODY_WORDS.errors.DEVICE_KEY_FAILED), "the engine's words on that row");
 });
 
 test('the recovery code: a real code in chunks of up to four that rejoin to it exactly; Copy and Save as file take the exact string', async () => {
@@ -399,26 +479,109 @@ test('pairing and Welcome back are drawn in look B and send what the old screens
   assert.equal(code.value, '', 'the code is not kept in the field');
   assert.equal(step(pairing), 'ai', 'paired: the engine status opens Connect');
 
-  const world: { open: boolean } = { open: false };
-  const h = await boot({ overrides: { 'workspace.open': () => { world.open = true; return { workspace: { name: 'Ledger Cafe Books' } }; }, 'workspace.recover': () => ({ workspace: { name: 'Ledger Cafe Books' } }) } });
-  await click(button(h.app, 'Continue without AI'));
-  await click(button(h.app, 'Open it'));
+  // Welcome back lists this computer's businesses: no folder to type at rest.
+  const h = await boot({ custody: { businesses: [K.leeds, K.ledger, K.missingKey] } });
   assert.equal(step(h), 'back');
   assert.equal(title(h.app), 'Welcome back.');
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  assert.deepEqual(callsOf(h, 'workspace.open').map(call => call.payload), [{ folder: 'main', passphrase: 'long-enough-passphrase' }]);
-  assert.equal(world.open, true);
+  const shut = (node: Element) => ancestors(node).some(parent => parent.tagName === 'details' && !parent.open);
+  assert.equal(descendants(h.app).some(node => node.tagName === 'input' && !shut(node)), false, 'no field at rest');
+  assert.equal(buttons(h.app, 'Open by folder name').length, 0, 'the typed field waits until the list is incomplete or empty');
+  const rowsAtRest = descendants(h.app).filter(node => hasClass(node, 'ob-biz') && !shut(node));
+  assert.deepEqual(rowsAtRest.map(node => node.attributes['data-folder']), ['leeds-shift-walkers', 'ledger-cafe-books'], 'two rows at rest, newest opened first');
+  assert.deepEqual(rowsAtRest.map(node => find(node, item => hasClass(item, 'ob-chip')).textContent), ['Opens with this computer', 'Needs your passphrase']);
+  assert.ok(descendants(h.app).some(node => node.tagName === 'summary' && node.textContent === 'More businesses'), 'the rest in a fold');
+  assert.equal(hasClass(button(rowsAtRest[0], 'Open'), 'ob-btn'), true, 'the first row is filled');
+  assert.equal(hasClass(button(rowsAtRest[1], 'Open'), 'ob-ghost'), true, 'the others are ghost');
+  // A passphrase row opens its own field; Open sends the folder and the passphrase, then clears it.
+  await click(button(rowsAtRest[1], 'Open'));
+  const pass = find(h.app, node => node.attributes['aria-label'] === 'Passphrase for Ledger Cafe Books');
+  assert.equal(pass.attributes.type, 'password');
+  await type(pass, 'long-enough-passphrase');
+  await click(button(find(h.app, node => hasClass(node, 'ob-biz-pass')), 'Open'));
+  assert.deepEqual(callsOf(h, 'workspace.open').map(call => call.payload), [{ folder: 'ledger-cafe-books', passphrase: 'long-enough-passphrase' }]);
+  assert.equal(pass.value, '', 'the passphrase is cleared');
+  // A this-computer row sends the folder only.
+  const quick = await boot({ custody: { businesses: [K.leeds, K.ledger] } });
+  await click(button(find(quick.app, node => hasClass(node, 'ob-biz') && node.attributes['data-folder'] === 'leeds-shift-walkers'), 'Open'));
+  assert.deepEqual(callsOf(quick, 'workspace.open').map(call => call.payload), [{ folder: 'leeds-shift-walkers' }]);
+  assert.equal(quick.world.open, true);
 
-  const recover = await boot({ overrides: { 'workspace.recover': () => ({ workspace: { name: 'Ledger Cafe Books' } }) } });
-  recover.renderer.launch.openExisting('');
-  await click(button(recover.app, 'Use my recovery code'));
-  await type(control(recover.app, 'Vault folder'), 'ledger-cafe-books');
-  await type(control(recover.app, 'Recovery code'), 'DEMO-RECOVERY-CODE');
-  await type(control(recover.app, 'New passphrase'), 'another-long-passphrase');
-  await type(control(recover.app, 'Type it again'), 'another-long-passphrase');
+  // Recovery: the business from the list and the code; a new passphrase only once the engine says this computer can't keep the key.
+  const recover = await boot({ custody: { businesses: [K.leeds, K.missingKey] } });
+  const options = find(recover.app, node => node.tagName === 'details' && summaryOf(node)?.textContent === 'More options');
+  await open(options);
+  await click(button(options, 'Use a recovery code'));
+  assert.equal(title(recover.app), 'Use your recovery code.');
+  assert.equal(control(recover.app, 'Business').tagName, 'select', 'chosen from the list, not typed');
+  control(recover.app, 'Business').value = 'pune-books';
+  await type(control(recover.app, 'Recovery code'), K.RECOVERY_CODE);
+  assert.equal(find(recover.app, node => hasClass(node, 'ob-pass-pair')).hidden, true, 'no new passphrase while this computer can keep the key');
   await find(recover.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  assert.deepEqual(callsOf(recover, 'workspace.recover').map(call => call.payload), [{ folder: 'ledger-cafe-books', recoveryCode: 'DEMO-RECOVERY-CODE', passphrase: 'another-long-passphrase' }]);
+  assert.deepEqual(callsOf(recover, 'workspace.recover').map(call => call.payload), [{ folder: 'pune-books', recoveryCode: K.RECOVERY_CODE }]);
+
+  const fallback = await boot({ custody: { businesses: [K.missingKey] }, overrides: { 'workspace.recover': (_method, payload) => {
+    if (typeof payload.passphrase !== 'string') throw Object.assign(new Error(CUSTODY_WORDS.unavailable.failed), { code: 'DEVICE_KEYS_UNAVAILABLE' });
+    return { workspace: { name: 'Pune Books' } };
+  } } });
+  await click(button(fallback.app, 'Use my recovery code'));
+  await type(control(fallback.app, 'Recovery code'), K.RECOVERY_CODE);
+  await find(fallback.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.equal(control(fallback.app, 'Recovery code').value, '', 'the code is cleared after each send');
+  assert.equal(find(fallback.app, node => hasClass(node, 'ob-pass-pair')).hidden, false, 'now the new passphrase pair shows');
+  assert.ok(visibleText(fallback.app).includes(CUSTODY_WORDS.unavailable.failed));
+  await type(control(fallback.app, 'Recovery code'), K.RECOVERY_CODE);
+  await type(control(fallback.app, 'New passphrase'), 'another-long-passphrase');
+  await type(control(fallback.app, 'Type it again'), 'another-long-passphrase');
+  await find(fallback.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.deepEqual(callsOf(fallback, 'workspace.recover').at(-1)!.payload, { folder: 'pune-books', recoveryCode: K.RECOVERY_CODE, passphrase: 'another-long-passphrase' });
+});
+
+test('Welcome back: an incomplete or empty list offers the typed folder; a backup restores by its name; a move takes the file and its code', async () => {
+  const empty = await boot({ custody: { businesses: [], complete: false } });
+  empty.renderer.launch.openExisting(''); await flush();
+  assert.equal(step(empty), 'back');
+  const options = find(empty.app, node => node.tagName === 'details' && summaryOf(node)?.textContent === 'More options');
+  await open(options);
+  await click(button(options, 'Open by folder name'));
+  assert.equal(title(empty.app), 'Open by folder name.');
+  await type(control(empty.app, 'Vault folder'), 'old-books');
+  await find(empty.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.deepEqual(callsOf(empty, 'workspace.open').map(call => call.payload), [{ folder: 'old-books' }], 'no passphrase typed, so none is sent');
+
+  const restore = await boot({ custody: { businesses: [K.ledger] } });
+  const restoreOptions = find(restore.app, node => node.tagName === 'details' && summaryOf(node)?.textContent === 'More options');
+  await open(restoreOptions);
+  await click(button(restoreOptions, 'Restore a backup')); await flush();
+  assert.equal(title(restore.app), 'Restore a backup.');
+  const backupRows = descendants(restore.app).filter(node => hasClass(node, 'ob-backup'));
+  assert.deepEqual(backupRows.map(node => find(node, item => hasClass(item, 'ob-chip')).textContent), ['Automatic', 'Before a change', 'You made it']);
+  await click(button(backupRows[0], 'Restore'));
+  assert.deepEqual(callsOf(restore, 'workspace.restore').map(call => call.payload), [{ backupFile: K.backups[0].file, folder: null }], 'the name inside backups, never a path');
+  assert.equal(restore.world.open, true);
+
+  const move = await boot({ custody: { businesses: [K.ledger] } });
+  await click(button(move.app, 'Move from another computer'));
+  assert.equal(title(move.app), 'Move a business here.');
+  const file = find(move.app, node => node.tagName === 'input' && node.attributes.type === 'file');
+  assert.equal(file.attributes.accept, '.backup,application/json');
+  const code = find(move.app, node => node.attributes['aria-label'] === 'The move code');
+  assert.equal(code.attributes.type, 'password');
+  assert.equal(code.attributes.autocomplete, 'off');
+  assert.equal(ancestors(code).some(node => node.tagName === 'form'), false, 'the code field sits outside any form');
+  (file as unknown as { files: unknown[] }).files = [{ text: async () => K.MOVE_TEXT }];
+  await type(code, K.MOVE_CODE);
+  await click(button(move.app, 'Move it here')); await flush();
+  assert.deepEqual(callsOf(move, 'workspace.transfer.import').map(call => call.payload), [{ fileText: K.MOVE_TEXT, transferCode: K.MOVE_CODE }]);
+  assert.equal(code.value, '', 'the code is cleared');
+  assert.equal(move.world.open, true);
+
+  const big = await boot({ custody: { businesses: [K.ledger] } });
+  await click(button(big.app, 'Move from another computer'));
+  (find(big.app, node => node.tagName === 'input' && node.attributes.type === 'file') as unknown as { files: unknown[] }).files = [{ text: async () => 'x'.repeat(1_900_001) }];
+  await type(find(big.app, node => node.attributes['aria-label'] === 'The move code'), K.MOVE_CODE);
+  await click(button(big.app, 'Move it here')); await flush();
+  assert.ok(text(big.app).includes(CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE), 'refused before it is sent');
+  assert.equal(callsOf(big, 'workspace.transfer.import').length, 0);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -431,7 +594,7 @@ test('pairing and Welcome back are drawn in look B and send what the old screens
  */
 const BUDGETS: Record<string, number> = {
   pair: 35, ai: 45, idea: 45, working: 45, plan: 45, prices: 45, 'not-a-service': 35, refused: 40, error: 45,
-  'built-in': 45, 'built-in-prices': 45, keep: 45, code: 45, setup: 25, open: 45, build: 45, back: 40,
+  'built-in': 45, 'built-in-prices': 45, keep: 45, code: 45, setup: 25, open: 45, build: 45, back: 45,
 };
 function measure(t: { diagnostic(message: string): void }, label: string, h: H, budget = BUDGETS[label]) {
   const words = restWords(h.app);
@@ -498,11 +661,11 @@ test('words at rest: every screen within its budget with the longest answers, th
   measure(t, 'built-in', builtIn);
   await click(button(builtIn.app, 'Set your price'));
   measure(t, 'built-in-prices', builtIn);
-  // Keep it safe, the recovery code, setting up, Accept and Build, from the longest plan.
-  const keep = await boot({ draft: { ...maxDraft, held: { key: 'maxOffers', decision: O.maxDecisions.maxOffers, plan: O.maxPlans.maxOffers } } });
+  // The passphrase fallback, the recovery code, setting up, Accept and Build, from the longest plan.
+  const keep = await boot({ draft: { ...maxDraft, held: { key: 'maxOffers', decision: O.maxDecisions.maxOffers, plan: O.maxPlans.maxOffers } }, custody: { unavailable: 'no-keyring' } });
   await click(button(keep.app, 'Set your prices'));
-  await click(button(keep.app, 'Keep this plan'));
-  assert.equal(control(keep.app, 'Working name').value, O.MAX.name);
+  await click(button(keep.app, 'Keep this plan')); await flush();
+  assert.equal(step(keep), 'keep');
   measure(t, 'keep', keep);
   keep.renderer.launch.showRecoveryCode({ recoveryCode: 'A1b2-C3d4_E5f6G7h8I9j0K1l2M3n4O5p6Q7r8', folder: 'northumberlands-neighbourhoods-companionships-collaboratives' }, () => {});
   measure(t, 'code', keep);
@@ -511,34 +674,28 @@ test('words at rest: every screen within its budget with the longest answers, th
   await click(button(flow.app, 'Set your prices'));
   const walks = find(flow.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
   await type(walks, '18'); await walks.dispatch('change'); await flush();
-  await click(button(flow.app, 'Keep this plan'));
-  await type(control(flow.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(flow.app, 'Type it again'), 'long-enough-passphrase');
-  await find(flow.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  await tick(find(flow.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(flow.app, 'Continue')); await flush();
+  await click(button(flow.app, 'Keep this plan')); await flush();
   measure(t, 'open', flow);
   await click(button(flow.app, 'Accept plan')); await flush();
   measure(t, 'build', flow);
   // Setting up waits on venture.create.
   const slow = await boot({ draft: { ai: O.statusPair, held: { key: 'dog', decision: O.dogDecision, plan: O.dogPlan } }, overrides: { 'venture.create': () => new Promise(() => {}) } }, { language: 'en-GB' });
   await click(button(slow.app, 'Set your prices'));
-  await click(button(slow.app, 'Keep this plan'));
-  await type(control(slow.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(slow.app, 'Type it again'), 'long-enough-passphrase');
-  await find(slow.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  await tick(find(slow.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(slow.app, 'Continue'));
+  await press(button(slow.app, 'Keep this plan'));
   assert.equal(step(slow), 'setup');
+  assert.ok(text(slow.app).includes(EXPERIMENTAL), 'the experimental-storage line moved here from Keep it safe');
   measure(t, 'setup', slow);
-  // Pairing and Welcome back.
+  // Pairing and Welcome back, with the longest name, the fold for more, and the typed folder offered.
   const pairing = await harness({}, { browser: { open: () => null } });
   pairing.renderer.state.token = null;
   await pairing.renderer.boot(); await flush();
   measure(t, 'pair', pairing);
-  const back = await boot();
-  back.renderer.launch.openExisting('');
+  const back = await boot({ custody: { businesses: [K.longest, K.ledger, K.missingKey], complete: false } });
+  assert.equal(step(back), 'back');
   measure(t, 'back', back);
+  const none = await boot();
+  none.renderer.launch.openExisting(''); await flush();
+  measure(t, 'back', none);
 });
 
 test('words at rest on Accept and Build with the longest composed plan: three priced offers, each with a receipt', async t => {
@@ -555,13 +712,8 @@ test('words at rest on Accept and Build with the longest composed plan: three pr
     const input = find(h.app, node => node.attributes['aria-label'] === `Price of ${offer.name.value}, in AED`);
     await type(input, '1250'); await input.dispatch('change'); await flush();
   }
-  await click(button(h.app, 'Keep this plan'));
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
   fixture = O.composedBlueprintFor(h.world.draft.plan!, O.composedVentureView);
-  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(h.app, 'Continue')); await flush();
+  await click(button(h.app, 'Keep this plan')); await flush();
   assert.equal(step(h), 'open');
   assert.deepEqual(callsOf(h, 'venture.price.quote').map(call => call.payload.offerId), ['offer_1', 'offer_2', 'offer_3'], 'a receipt for every priced offer');
   for (const offer of O.maxPlans.maxOffers.offers) assert.ok(text(h.app).includes(offer.name.value));
@@ -594,36 +746,72 @@ test('model names come from the live status: a replay says synthetic recording, 
   assert.equal(text(claude.app).includes('Haiku'), false, 'Claude Code never names Haiku');
 });
 
-test('the right pane is decorative: aria-hidden, only its two fixed phrases or words from the left pane; the phone strip has none', async () => {
-  const words = (node: Element) => visibleText(node).join(' ').split(/\s+/).filter(token => /[\p{L}\p{N}]/u.test(token));
-  const allowed = ['Your business', 'Locked on this computer'];
-  const check = (h: H, label: string) => {
+test('the live preview shows the business in real words: each from the engine, the typed sentence or its fixed words; no web address, no style, still aria-hidden', async t => {
+  const fixed = new Set<string>(['Your business', 'Takes shape as you type.', 'Price not set', 'before tax', 'Encrypted on this computer', 'per month', 'per project', 'per hour', ...Object.values(SERVICE_TYPE_LABELS)]);
+  const phrases = (node: Element) => visibleText(node).map(item => item.trim()).filter(Boolean);
+  const check = (h: H, label: string, allowed: Set<string>) => {
     const pane = rightPane(h);
     assert.equal(pane.attributes['aria-hidden'], 'true', `${label}: aria-hidden`);
-    const typed = descendants(leftPane(h)).filter(node => node.tagName === 'textarea').map(node => node.value);
-    const left = new Set([...words(leftPane(h)), ...typed.join(' ').split(/\s+/)]);
-    const phrase = visibleText(pane).join(' ').replace(/\s+/g, ' ').trim();
-    const rest = allowed.reduce((value, item) => value.replace(item, ' '), phrase);
-    for (const word of rest.split(/\s+/).filter(Boolean)) assert.ok(left.has(word), `${label}: "${word}" in the right pane is not in the left pane`);
+    for (const phrase of phrases(pane)) assert.ok(fixed.has(phrase) || allowed.has(phrase), `${label}: "${phrase}" in the preview has no source`);
+    assert.equal(/www\.|https?:|\.(com|site|co)\b/.test(phrases(pane).join(' ')), false, `${label}: no made-up web address`);
+    assert.equal(descendants(pane).some(node => 'style' in node.attributes), false, `${label}: no inline style`);
     const strip = find(h.app, node => hasClass(node, 'ob-strip'));
     assert.equal(strip.attributes['aria-hidden'], 'true');
-    assert.deepEqual(words(strip), [], `${label}: the strip has no words`);
+    for (const phrase of phrases(strip)) assert.ok(allowed.has(phrase) || Object.values(SERVICE_TYPE_LABELS).includes(phrase), `${label}: the strip holds only the kind and the name, not "${phrase}"`);
+    return phrases(pane);
   };
+  const planWords = (plan: typeof O.dogPlan) => [plan.name.value, plan.oneLiner.value, plan.familyLabel, ...plan.offers.map(offer => offer.name.value), ...plan.offers.map(offer => offer.priceDisplay).filter((item): item is string => Boolean(item)), ...plan.pages.map(item => item.title.value)];
+
   const h = await boot(connected(), { language: 'en-GB' });
-  check(h, 'idea');
-  assert.ok(visibleText(rightPane(h)).includes('Your business'));
+  let shown = check(h, 'idea', new Set());
+  assert.ok(shown.includes('Your business') && shown.includes('Takes shape as you type.'), 'placeholders before anything is typed');
   await type(find(h.app, node => node.tagName === 'textarea'), O.DOG_TEXT);
-  check(h, 'idea, typed');
+  shown = check(h, 'idea, typed', new Set([O.DOG_TEXT]));
+  assert.ok(shown.includes(O.DOG_TEXT), 'the sentence, live, as typed');
   await click(goButton(h.app)); await flush();
-  check(h, 'plan');
+  const plan = h.world.draft.plan!;
+  shown = check(h, 'plan', new Set(planWords(plan)));
+  for (const words of [plan.familyLabel, plan.name.value, plan.oneLiner.value, ...plan.offers.map(offer => offer.name.value)]) assert.ok(shown.includes(words), `plan: ${words}`);
+  assert.deepEqual(shown.filter(phrase => phrase === 'Price not set').length, plan.offers.length, 'no price before the owner types one');
+  assert.ok(plan.pages.slice(0, 4).every(item => shown.includes(item.title.value)), 'the website card names the first four pages');
+  assert.equal(plan.pages.slice(4).some(item => shown.includes(item.title.value)), false);
   await click(button(h.app, 'Set your prices'));
-  check(h, 'prices');
-  await click(button(h.app, 'Keep this plan'));
-  check(h, 'keep');
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  check(h, 'code');
+  const walks = find(h.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
+  await type(walks, '18'); await walks.dispatch('change'); await flush();
+  const priced = h.world.draft.plan!;
+  shown = check(h, 'prices', new Set(planWords(priced)));
+  assert.ok(shown.includes(priced.offers[0].priceDisplay!) && shown.includes('before tax'), "the engine's display string, before tax");
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.equal(step(h), 'open');
+  const receipt = O.composedReceipt.figures.find(item => item.key === 'total')!;
+  const kept = O.composedBlueprintView.blueprint;
+  const keptWords = new Set([O.composedVentureView.venture.workingName, kept.name.value, kept.oneLiner.value, ...kept.offers.map(offer => offer.name.value), ...(kept.pages || []).map(item => item.title.value), receipt.label, receipt.display]);
+  shown = check(h, 'accept', keptWords);
+  assert.ok(shown.includes(receipt.label) && shown.includes(receipt.display), "the receipt's total, label and display as given");
+  assert.ok(shown.includes('Encrypted on this computer'));
+  assert.ok(shown.includes(SERVICE_TYPE_LABELS[kept.serviceType]), 'the kind from the contract labels');
+  await click(button(h.app, 'Accept plan')); await flush();
+  assert.equal(step(h), 'build');
+  check(h, 'build', keptWords);
+  assert.ok(hasClass(find(h.app, node => hasClass(node, 'ob-stage')), 'ob-site-front'), 'the website card comes forward on Build');
+  t.diagnostic(`accept preview: ${shown.join(' | ')}`);
+
+  // The built-in plan: template words, and the price exactly as typed beside the currency code.
+  const built = await boot();
+  await click(button(built.app, 'Continue without AI'));
+  await askFor(built, 'Monthly bookkeeping for cafes.');
+  const preview = { ...F.preview, idea: 'Monthly bookkeeping for cafes.' };
+  const templateWords = new Set([preview.serviceLabel, preview.oneLiner.value, ...preview.offers.map(offer => offer.name.value), 'INR 2,499']);
+  check(built, 'built-in plan', templateWords);
+  await click(button(built.app, 'Set your price'));
+  await type(find(built.app, node => node.attributes['aria-label'] === 'Your price, in INR'), '2,499');
+  shown = check(built, 'built-in prices', templateWords);
+  assert.ok(shown.includes('INR 2,499'), 'as typed, not formatted');
+
+  // Before a business exists on Welcome back and pairing: shapes only, no words.
+  const back = await boot({ custody: { businesses: [K.ledger] } });
+  assert.deepEqual(phrases(rightPane(back)), []);
+  assert.deepEqual(phrases(find(back.app, node => hasClass(node, 'ob-strip'))), []);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -664,7 +852,8 @@ test('the renderer copies of the view registry, kind labels, AI rows, chips and 
   assert.equal(copies.COMPOSE_REFUSED_WORDS, COMPOSE_REFUSED_WORDS);
   assert.equal(copies.CLAUDE_TERMS_REASON, AVAILABILITY_REASONS.claudeTerms);
   assert.deepEqual({ ...copies.OPEN_BOX_TEXT }, { ...OPEN_BOX_TEXT });
-  assert.deepEqual([...copies.RIGHT_PANE_WORDS], ['Your business', 'Locked on this computer']);
+  assert.deepEqual(Object.values(copies.PREVIEW_WORDS), ['Your business', 'Takes shape as you type.', 'Price not set', 'before tax', 'Encrypted on this computer']);
+  assert.deepEqual({ ...copies.SERVICE_TYPE_LABELS }, { ...SERVICE_TYPE_LABELS });
 });
 
 test('the onboarding screens never compute money and never style elements from script', async () => {
@@ -672,6 +861,11 @@ test('the onboarding screens never compute money and never style elements from s
   const prices = launchSource.slice(launchSource.indexOf('function showPrices()'), launchSource.indexOf('async function runComposedSetup()'));
   assert.ok(prices.length > 1000, 'the prices screen is found');
   for (const pattern of [/Number\(/, /parseInt/, /Math\./, /\*\s*\d/, /\d\s*\*/, /\/\s*100\b/]) assert.equal(pattern.test(prices), false, `the prices screen holds ${pattern}`);
+  // The live preview shows prices as given: no +, * or - arithmetic anywhere in its code, strings and comments aside.
+  const preview = launchSource.slice(launchSource.indexOf('(preview words start)'), launchSource.indexOf('(preview words end)'));
+  assert.ok(preview.length > 2000, 'the preview code is found');
+  const code = preview.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/`(?:\\.|[^`\\])*`/g, '""').replace(/'(?:\\.|[^'\\])*'/g, '""');
+  for (const pattern of [/[^=!<>]=?\+/, /\*/, /\s-\s/, /--/, /Number\(/, /parseFloat|toFixed|BigInt|Math\./]) assert.equal(pattern.test(code), false, `the preview code holds ${pattern}`);
   const index = await readFile(join(root, 'app/renderer/index.html'), 'utf8');
   assert.match(index, /<meta name="color-scheme" content="light dark">/);
 });
@@ -681,15 +875,6 @@ test('the onboarding screens never compute money and never style elements from s
 // ---------------------------------------------------------------------------------------------
 const refuse = (code: string, message: string) => () => { throw Object.assign(new Error(message), { code }); };
 const CLEARED = 'Your AI and plan were only kept in memory, and they were cleared. Connect again.';
-async function lockIt(h: H) {
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-}
-async function continuePastCode(h: H) {
-  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(h.app, 'Continue')); await flush();
-}
 const heldDog = (rest: EngineOptions = {}, ai = O.statusPair): EngineOptions => ({ ...rest, draft: { ai, held: { key: 'dog', decision: O.dogDecision, plan: O.dogPlan } } });
 
 test('a new sentence refused by decide, then Try again, reads the new sentence and never fills the old plan', async () => {
@@ -758,8 +943,7 @@ test('a plan the engine lost sends the owner back to Connect: on a price, on Kee
   } }), { language: 'en-GB' });
   await click(button(hh.app, 'Set your prices'));
   await click(button(hh.app, 'Keep this plan'));
-  await lockIt(hh);
-  await continuePastCode(hh);
+  await flush();
   assert.equal(step(hh), 'ai', 'back to Connect');
   assert.ok(text(hh.app).includes(CLEARED));
   assert.equal(callsOf(hh, 'venture.get').length, 1, 'the vault was asked whether the business was made after all');
@@ -792,8 +976,7 @@ test('setup after a create that committed: a timed out create counts once the va
   const walks = find(hh.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
   await type(walks, '18'); await walks.dispatch('change'); await flush();
   await click(button(hh.app, 'Keep this plan'));
-  await lockIt(hh);
-  await continuePastCode(hh);
+  await flush();
   assert.equal(step(hh), 'setup');
   assert.ok(text(hh.app).includes('The calculator could not price this offer.'));
   assert.equal(buttons(hh.app, 'Back to the plan').length, 0, 'no way back to a plan the engine no longer holds');
@@ -806,9 +989,8 @@ test('setup after a create that committed: a timed out create counts once the va
 test('Setting up says receipts only when an offer has a price to quote', async () => {
   const slow = await boot(heldDog({ overrides: { 'venture.create': () => new Promise(() => {}) } }), { language: 'en-GB' });
   await click(button(slow.app, 'Set your prices'));
-  await click(button(slow.app, 'Keep this plan'));
-  await lockIt(slow);
-  await continuePastCode(slow);
+  await press(button(slow.app, 'Keep this plan'));
+  await flush();
   assert.equal(step(slow), 'setup');
   assert.ok(visibleText(slow.app).includes('Saving your plan.'));
   assert.equal(text(slow.app).includes('receipts'), false);
@@ -849,24 +1031,59 @@ test('after a reload the kept plan names its tools from the connector catalogue,
   assert.deepEqual(p.calls.filter(call => call.method === 'venture.connectors.list').map(call => call.payload), [{}]);
 });
 
-test('motion happens once: the progress segment fills when it changes and the lock badge drops in once', async () => {
-  const h = await boot(heldDog(), { language: 'en-GB' });
+test('motion happens once: the progress segment fills when it changes, the lock badge drops in once, offer rows slot in once', async () => {
+  let release: () => void = () => {};
+  const h = await boot(heldDog({ overrides: { 'venture.price.quote': () => new Promise(resolve => { release = () => resolve(O.composedReceipt); }) } }), { language: 'en-GB' });
   const segment = () => find(h.app, node => node.tagName === 'li' && hasClass(node, 'now'));
   assert.equal(hasClass(segment(), 'ob-seg-new'), true, 'the first plan frame fills its segment');
+  const slotted = () => descendants(rightPane(h)).filter(node => hasClass(node, 'ob-coffer') && hasClass(node, 'ob-slot')).length;
   await click(button(h.app, 'Set your prices'));
   assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'prices is the same segment: no refill');
+  assert.equal(slotted(), 0, 'the same offers on the next screen do not slot in again');
   await click(button(h.app, 'Back'));
   assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'back to the plan: no refill');
   await click(button(h.app, 'Set your prices'));
-  await click(button(h.app, 'Keep this plan'));
-  assert.equal(hasClass(segment(), 'ob-seg-new'), true, 'Keep safe is a new segment');
-  await lockIt(h);
-  assert.equal(step(h), 'code');
-  assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'the code screen is still Keep safe');
+  const walks = find(h.app, node => node.attributes['aria-label'] === 'Price of Weekly walks, in GBP');
+  await type(walks, '18'); await walks.dispatch('change'); await flush();
+  assert.equal(descendants(rightPane(h)).filter(node => hasClass(node, 'ob-cprice-new')).length, 1, 'the changed price fades in once');
+  await press(button(h.app, 'Keep this plan'));
+  assert.equal(step(h), 'setup');
+  assert.equal(hasClass(segment(), 'ob-seg-new'), true, 'Accept is a new segment');
   const badge = find(h.app, node => hasClass(node, 'ob-badge'));
   assert.equal(badge.hidden, false);
-  assert.equal(hasClass(badge, 'ob-badge-new'), false, 'the badge dropped in on Keep it safe and does not again');
+  assert.equal(hasClass(badge, 'ob-badge-new'), true, 'the badge drops in when the vault exists');
+  release(); await flush();
+  assert.equal(step(h), 'open');
+  assert.equal(hasClass(segment(), 'ob-seg-new'), false, 'Accept is still the Accept segment');
+  assert.equal(hasClass(find(h.app, node => hasClass(node, 'ob-badge')), 'ob-badge-new'), false, 'the badge does not drop in again');
   assert.match(cssSource, /\.ob-progress li\.ob-seg-new \.ob-seg i\{animation:ob-fill/);
   assert.match(cssSource, /\.ob-badge\.ob-badge-new\{animation:ob-badge/);
+  assert.match(cssSource, /\.ob-coffer\.ob-slot\{animation:ob-slot var\(--ob-t2\)/);
+  assert.match(cssSource, /\.ob-cprice\.ob-cprice-new\{animation:ob-swap var\(--ob-t1\)/);
   assert.equal(/\.ob-progress li\.now \.ob-seg i\{animation/.test(cssSource), false);
+});
+
+test('hosted web gets the same live preview, keeps Keep it and its recovery code, and never calls a custody method', async () => {
+  const h = await harness({}, { browser: { open: () => null }, hosted: true });
+  await h.renderer.boot(); await flush();
+  assert.equal(step(h), 'idea', 'hosted starts at the open box');
+  const pane = () => visibleText(rightPane(h)).map(item => item.trim()).filter(Boolean);
+  assert.ok(pane().includes('Your business'));
+  await askFor(h, 'Monthly bookkeeping for cafes.');
+  assert.ok(pane().includes(F.preview.serviceLabel) && pane().includes(F.preview.offers[0].name.value), 'the built-in plan in the preview');
+  await click(button(h.app, 'Set your price'));
+  await type(find(h.app, node => node.attributes['aria-label'] === 'Your price, in INR'), '2,499');
+  assert.ok(pane().includes('INR 2,499'));
+  await click(button(h.app, 'Keep this plan'));
+  assert.equal(step(h), 'keep');
+  assert.equal(title(h.app), 'Keep it safe.', 'hosted keeps its Keep it step');
+  assert.deepEqual(descendants(find(h.app, node => hasClass(node, 'ob-progress'))).filter(node => node.tagName === 'li').map(node => node.attributes['aria-label'] ?? node.textContent),
+    ['Idea, done', 'Plan, done', 'Keep safe', 'Accept, not yet', 'Build, not yet']);
+  await type(control(h.app, 'Working name'), 'Ledger Cafe Books');
+  assert.ok(pane().includes('Ledger Cafe Books'), 'the working name shows as it is typed');
+  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.deepEqual(callsOf(h, 'workspace.create').map(call => call.payload), [{ name: 'Ledger Cafe Books', pack: 'services' }]);
+  assert.equal(step(h), 'code');
+  assert.equal(pane().includes('Encrypted on this computer'), false, 'hosted shows no lock words: the server keeps the key');
+  assert.equal(h.calls.some(call => call.method.startsWith('workspace.custody.') || ['workspace.list', 'workspace.backups.list', 'workspace.transfer.import'].includes(call.method)), false);
 });

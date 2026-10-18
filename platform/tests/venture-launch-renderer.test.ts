@@ -21,7 +21,6 @@ import type { EngineOptions, FakeTab, HarnessOptions } from './launch-renderer-h
 // ---------------------------------------------------------------------------------------------
 // 1 to 3: connect an AI first, or continue without one: the open box, the built-in plan, keep it safe
 // ---------------------------------------------------------------------------------------------
-const FOLDER_LINE = (folder: string) => `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`;
 const title = (host: Element) => find(host, node => hasClass(node, 'ob-title')).textContent;
 const goButton = (host: Element) => find(host, node => node.attributes['aria-label'] === 'Make my plan', 'Expected the round go button.');
 /** Filled buttons a person can see at rest: the look B button and the reused launch button. */
@@ -45,7 +44,7 @@ test('first screen connects an AI first; without one the open box asks one quest
   assert.equal(title(h.app), 'What do you want to do?');
   assert.equal(descendants(h.app).filter(node => node.tagName === 'textarea').length, 1);
   assert.equal(descendants(h.body).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 0);
-  assert.deepEqual(h.calls.map(call => call.method), ['workspace.status', 'venture.ai.status', 'venture.ai.options', 'venture.countries']);
+  assert.deepEqual(h.calls.map(call => call.method), ['workspace.status', 'venture.ai.status', 'workspace.list', 'venture.ai.options', 'venture.countries']);
   assert.match(text(h.app), /Based in India/);
   assert.ok(buttons(h.app, 'Connect an AI').length === 1, 'without an AI the box offers to connect one');
   assert.ok(filledAtRest(h.app).length <= 1, 'one filled button at most');
@@ -96,7 +95,7 @@ test('every plan step and every approval carries its own label, before and after
   assert.deepEqual(labelsIn(owned.content, 'You approve').approvals, [['Every monthly report before it reaches a client', 'assumption'], ['Any message that asks a client for money', 'told by you']]);
 });
 
-test('keeping the plan creates a services vault, then sets up the business in order with typed answers', async () => {
+test('keeping the plan makes a services vault named from the plan, with no passphrase, then sets up the business in order with typed answers', async () => {
   const h = await withoutAi();
   await builtInPlan(h, 'Monthly bookkeeping for cafes and small shops in Pune.');
   await click(button(h.app, 'Set your price'));
@@ -106,38 +105,16 @@ test('keeping the plan creates a services vault, then sets up the business in or
   assert.equal(find(h.app, node => node.attributes['aria-label'] === 'GST rate, in percent').value, '18', 'the rate is prefilled from the preview');
   await click(button(h.app, 'Tell us more (optional)'));
   await click(button(h.app, 'Small shops'));
-  await click(button(h.app, 'Keep this plan'));
+  await click(button(h.app, 'Keep this plan')); await flush();
 
-  assert.equal(title(h.app), 'Keep it safe.');
-  assert.ok(text(h.app).includes('Chausar keeps your records for ten years, as tax rules expect.'));
-  assert.ok(text(h.app).includes(EXPERIMENTAL), 'experimental notice on Keep it safe');
-  assert.ok(text(h.app).includes(FOLDER_LINE('my-service-business')), 'the folder is named before the owner keeps the plan');
-  assert.equal(control(h.app, 'Working name').value, '', 'the example name is a placeholder, so typing starts a fresh name');
-  assert.equal(control(h.app, 'Working name').attributes.placeholder, 'My service business');
-  await type(control(h.app, 'Working name'), 'Ledger Cafe Books');
-  assert.ok(text(h.app).includes(FOLDER_LINE('ledger-cafe-books')), 'the folder follows the working name as it is typed');
-  assert.equal(control(h.app, 'Vault folder').value, 'ledger-cafe-books');
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  assert.deepEqual(h.calls.find(call => call.method === 'workspace.create'), { method: 'workspace.create', payload: { name: 'Ledger Cafe Books', passphrase: 'long-enough-passphrase', pack: 'services', folder: 'ledger-cafe-books' } });
-
-  // The recovery code screen, in look B, shown once.
-  assert.equal(title(h.app), 'Save your recovery code.');
-  assert.ok(text(h.app).includes(FOLDER_LINE('ledger-cafe-books')), 'the recovery code screen names the folder');
-  assert.equal(find(h.app, node => hasClass(node, 'ob-code')).textContent, 'DEMO-RECOVERY-CODE', 'the chunks are the exact code');
-  await click(button(h.app, 'Save as file'));
-  const [savedCode] = h.saved();
-  assert.equal(savedCode.filename, 'chausar-recovery-code.txt');
-  assert.match(savedCode.text!, /^Chausar recovery code\nWorkspace: Ledger Cafe Books\nWorkspace folder: ledger-cafe-books\n/);
-  assert.ok(savedCode.text!.split('\n').includes('DEMO-RECOVERY-CODE'), 'the saved file holds the exact code on its own line');
-  const go = button(h.app, 'Continue');
-  assert.equal(go.disabled, true, 'Continue waits for the box');
-  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(go); await flush();
+  // No Keep it safe and no recovery code: the engine names the folder and this computer keeps the key.
+  assert.equal(text(h.app).includes('Keep it safe.'), false);
+  assert.equal(text(h.app).includes('Save your recovery code.'), false);
+  assert.deepEqual(h.calls.find(call => call.method === 'workspace.create'), { method: 'workspace.create', payload: { name: 'Bookkeeping studio', pack: 'services', folder: null } });
+  assert.equal(descendants(h.body).filter(node => node.tagName === 'input' && node.attributes.type === 'password').length, 0, 'no passphrase field anywhere');
   const sequence = h.after('venture.create').slice(0, 11);
   assert.deepEqual(sequence, [
-    { method: 'venture.create', payload: { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN', workingName: 'Ledger Cafe Books' } },
+    { method: 'venture.create', payload: { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN', workingName: 'Bookkeeping studio' } },
     { method: 'venture.interview.next', payload: { useTemplate: true } },
     { method: 'venture.interview.answer', payload: { questionId: 'q_1', answer: { choiceId: 'c_2' } } },
     { method: 'venture.interview.answer', payload: { questionId: 'q_2', answer: { skipped: true } } },
@@ -154,6 +131,37 @@ test('keeping the plan creates a services vault, then sets up the business in or
   assert.ok(text(h.app).includes('Accept plan'));
 });
 
+test('the experimental notice shows on Setting up, and the passphrase fallback keeps its recovery code once', async () => {
+  const slow = await withoutAi({ overrides: { 'venture.create': () => new Promise(() => {}) } });
+  await builtInPlan(slow, 'Monthly bookkeeping for cafes.');
+  await click(button(slow.app, 'Set your price'));
+  void button(slow.app, 'Keep this plan').dispatch('click'); await flush();
+  assert.equal(title(slow.app), 'Setting up your plan');
+  assert.ok(text(slow.app).includes(EXPERIMENTAL), 'experimental notice on Setting up');
+
+  const h = await withoutAi({ custody: { unavailable: 'platform' } });
+  await builtInPlan(h, 'Monthly bookkeeping for cafes.');
+  await click(button(h.app, 'Set your price'));
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.equal(title(h.app), 'Choose a passphrase.');
+  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
+  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
+  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
+  assert.deepEqual(h.calls.filter(call => call.method === 'workspace.create').at(-1)!.payload, { name: 'Bookkeeping studio', pack: 'services', folder: null, passphrase: 'long-enough-passphrase' });
+  assert.equal(title(h.app), 'Save your recovery code.');
+  assert.equal(find(h.app, node => hasClass(node, 'ob-code')).textContent, 'DEMO-RECOVERY-CODE', 'the chunks are the exact code');
+  await click(button(h.app, 'Save as file'));
+  const [savedCode] = h.saved();
+  assert.equal(savedCode.filename, 'chausar-recovery-code.txt');
+  assert.match(savedCode.text!, /^Chausar recovery code\nWorkspace: Bookkeeping studio\nWorkspace folder: bookkeeping-studio\n/);
+  assert.ok(savedCode.text!.split('\n').includes('DEMO-RECOVERY-CODE'), 'the saved file holds the exact code on its own line');
+  const go = button(h.app, 'Continue');
+  assert.equal(go.disabled, true, 'Continue waits for the box');
+  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  await click(go); await flush();
+  assert.equal(h.calls.filter(call => call.method === 'venture.create').length, 1);
+});
+
 test('without a price the price question is skipped and no quote is asked for', async () => {
   const h = await withoutAi();
   await builtInPlan(h, 'Podcast editing for small creators.');
@@ -161,13 +169,8 @@ test('without a price the price question is skipped and no quote is asked for', 
   await click(button(h.app, 'Per hour'));
   assert.deepEqual(h.calls.at(-1), { method: 'venture.preview', payload: { idea: 'Podcast editing for small creators.', countryCode: 'IN', pricingModel: 'hourly' } }, 'the plan is asked for again, worded for hourly work');
   assert.equal(find(h.app, node => node.className === 'launch-choice on').textContent, 'Per hour', 'the choice stays after the plan is drawn again');
-  await click(button(h.app, 'Keep this plan'));
-  await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
-  await type(control(h.app, 'Type it again'), 'long-enough-passphrase');
-  await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
-  assert.equal(h.calls.find(call => call.method === 'workspace.create')!.payload.folder, 'my-service-business');
-  await tick(find(h.app, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
-  await click(button(h.app, 'Continue')); await flush();
+  await click(button(h.app, 'Keep this plan')); await flush();
+  assert.equal(h.calls.find(call => call.method === 'workspace.create')!.payload.folder, null, 'the engine names the folder');
   const answers = h.calls.filter(call => call.method === 'venture.interview.answer').map(call => [call.payload.questionId, call.payload.answer]);
   assert.deepEqual(answers, [['q_1', { skipped: true }], ['q_2', { skipped: true }], ['q_pricing_model', { choiceId: 'hourly' }], ['q_price', { skipped: true }], ['q_tax', { yes: false }]]);
   assert.equal(h.calls.some(call => call.method === 'venture.price.quote'), false);

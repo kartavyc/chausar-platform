@@ -14,6 +14,9 @@ import type { AiStatusView, ComposeDecision, ComposedPlan } from '../runtime/ven
 import { applyComposePatch } from '../runtime/venture/core/compose.ts';
 import * as F from './fixtures/venture/renderer/results.ts';
 import * as O from './fixtures/venture/renderer/onboarding.ts';
+import * as K from './fixtures/venture/renderer/custody.ts';
+import type { BackupView, BusinessOnComputer, CustodyView, DeviceUnavailableReason } from '../runtime/workspace-custody-contracts.ts';
+import { CUSTODY_WORDS } from '../runtime/workspace-custody-contracts.ts';
 import { kindByRules } from './fixtures/venture/onboarding/kind-rules.ts';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -167,7 +170,9 @@ export async function openDraft(node: Element, words: RegExp) { await click(butt
 export type Dispatch = (method: string, payload: Record<string, any>) => unknown;
 /** The draft desk before the vault: the AI status, the presets, the terms gate, the held plan, and a failing second pair call. */
 export type DraftOptions = { ai?: AiStatusView; presets?: ModelPreset[]; gateOpen?: boolean; held?: { key: O.DecisionKey; decision: ComposeDecision; plan: ComposedPlan | null } | null; failMain?: boolean; replay?: boolean };
-export type EngineOptions = { open?: boolean; venture?: boolean; blueprint?: 'draft' | 'accepted' | null; models?: 'connected' | 'templates'; build?: 'followed' | 'unfollowed'; draft?: DraftOptions; overrides?: Record<string, Dispatch> };
+/** This computer's custody: the businesses Welcome back lists, the open business's custody, its backups, and whether the computer has protected storage. */
+export type CustodyOptions = { businesses?: BusinessOnComputer[]; complete?: boolean; view?: CustodyView; backups?: BackupView[]; unavailable?: DeviceUnavailableReason; closedByOwner?: boolean };
+export type EngineOptions = { open?: boolean; venture?: boolean; blueprint?: 'draft' | 'accepted' | null; models?: 'connected' | 'templates'; build?: 'followed' | 'unfollowed'; draft?: DraftOptions; custody?: CustodyOptions; overrides?: Record<string, Dispatch> };
 export function fakeEngine(options: EngineOptions = {}) {
   const world = {
     open: options.open ?? false,
@@ -178,6 +183,10 @@ export function fakeEngine(options: EngineOptions = {}) {
     questions: F.templateQuestions.filter(question => question.id !== 'q_tax_rate').map(question => ({ ...question, answer: null as any, answerMinor: null, answerBps: null, answeredAt: null })),
     /** True once venture.create adopted a composed plan: the vault then answers with the composed business. */
     composed: false,
+    custody: {
+      businesses: options.custody?.businesses ?? [], complete: options.custody?.complete ?? true, view: options.custody?.view ?? K.custodyView(),
+      backups: options.custody?.backups ?? K.backups, unavailable: options.custody?.unavailable ?? null, closedByOwner: options.custody?.closedByOwner ?? false,
+    } as { businesses: BusinessOnComputer[]; complete: boolean; view: CustodyView; backups: BackupView[]; unavailable: DeviceUnavailableReason | null; closedByOwner: boolean },
     draft: {
       ai: options.draft?.ai ?? O.statusNone, presets: options.draft?.presets ?? (options.draft?.gateOpen ? O.presetsGateOpen : O.presets), gateOpen: options.draft?.gateOpen ?? false,
       key: options.draft?.held?.key ?? null, decision: options.draft?.held?.decision ?? null, plan: options.draft?.held?.plan ?? null,
@@ -202,8 +211,52 @@ export function fakeEngine(options: EngineOptions = {}) {
       }
     }
     switch (method) {
-      case 'workspace.status': return { open: world.open, workspace: world.open ? { name: 'Ledger Cafe Books' } : undefined, storage: 'experimental-file', experimental: true, version: '0.1.0-preview.1' };
-      case 'workspace.create': world.open = true; return { workspace: { name: payload.name }, recoveryKit: 'DEMO-RECOVERY-CODE', recoveryCode: 'DEMO-RECOVERY-CODE', experimental: true };
+      case 'workspace.status': return {
+        open: world.open, workspace: world.open ? { name: 'Ledger Cafe Books' } : undefined, storage: 'experimental-file', experimental: true, version: '0.1.0-preview.1',
+        closedByOwner: world.custody.closedByOwner, ...(world.open ? { unlock: world.custody.view.business?.unlock ?? 'this-computer' } : {}),
+      };
+      case 'workspace.create': {
+        // As the engine: no passphrase makes a this-computer business, unless this computer has no protected storage.
+        const typed = typeof payload.passphrase === 'string';
+        if (!typed && world.custody.unavailable) throw Object.assign(new Error(CUSTODY_WORDS.unavailable[world.custody.unavailable]), { code: 'DEVICE_KEYS_UNAVAILABLE', reason: world.custody.unavailable });
+        world.open = true;
+        const folder = String(payload.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business';
+        return { workspace: { id: 'ws_demo', name: payload.name, currency: 'INR', demo: payload.demo === true, createdAt: '2026-10-18T09:30:00.000Z' }, folder, unlock: typed ? 'passphrase' : 'this-computer', recoveryKit: null, recoveryCode: typed ? 'DEMO-RECOVERY-CODE' : null, experimental: true };
+      }
+      case 'workspace.list': return { businesses: world.custody.businesses, complete: world.custody.complete };
+      case 'workspace.open': {
+        const business = world.custody.businesses.find(item => item.folder === payload.folder);
+        if (business?.opens === 'needs-passphrase' && typeof payload.passphrase !== 'string') throw Object.assign(new Error(CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED), { code: 'PASSPHRASE_REQUIRED' });
+        if (business?.opens === 'key-missing') throw Object.assign(new Error(CUSTODY_WORDS.errors.DEVICE_KEY_FAILED), { code: 'DEVICE_KEY_FAILED' });
+        world.open = true; world.custody.closedByOwner = false;
+        return { workspace: { name: business?.name ?? 'Ledger Cafe Books' } };
+      }
+      case 'workspace.recover': world.open = true; return { workspace: { name: 'Leeds Shift Walkers' } };
+      case 'workspace.restore': world.open = true; return { workspace: { name: 'Leeds Shift Walkers' }, folder: 'leeds-shift-walkers-restored' };
+      case 'workspace.custody.get': return world.open ? world.custody.view : { ...world.custody.view, business: null };
+      case 'workspace.backups.list': return { backups: world.custody.backups, more: false };
+      case 'workspace.backups.create': return { ...world.custody.backups[0], kind: 'manual' };
+      case 'workspace.backups.restore':
+        assert.equal(payload.confirmed, true, 'a restore inside the business is confirmed');
+        return { workspace: { name: 'Ledger Cafe Books' }, restoredFrom: world.custody.backups.find(item => item.file === payload.file), safety: { ...world.custody.backups[1] } };
+      case 'workspace.custody.passphraseOn': {
+        const before = world.custody.view.business!;
+        world.custody.view = K.custodyView({ unlock: 'passphrase', recovery: 'made', computer: world.custody.view.computer });
+        return { custody: world.custody.view, recoveryCode: before.recovery === 'made' ? null : K.RECOVERY_CODE };
+      }
+      case 'workspace.custody.passphraseOff':
+        world.custody.view = K.custodyView({ unlock: 'this-computer', recovery: world.custody.view.business!.recovery, computer: world.custody.view.computer });
+        return { custody: world.custody.view };
+      case 'workspace.custody.recoveryCode':
+        world.custody.view = K.custodyView({ unlock: world.custody.view.business!.unlock, recovery: 'made', computer: world.custody.view.computer });
+        return { custody: world.custody.view, recoveryCode: K.RECOVERY_CODE };
+      case 'workspace.transfer.export': return { fileName: 'chausar-move-2026-10-18.backup', text: K.MOVE_TEXT, transferCode: K.MOVE_CODE, bytes: K.MOVE_TEXT.length };
+      case 'workspace.transfer.import': {
+        const typed = typeof payload.passphrase === 'string';
+        if (!typed && world.custody.unavailable) throw Object.assign(new Error(CUSTODY_WORDS.unavailable[world.custody.unavailable]), { code: 'DEVICE_KEYS_UNAVAILABLE', reason: world.custody.unavailable });
+        world.open = true;
+        return { workspace: { name: 'Leeds Shift Walkers' }, folder: 'moved-a1b2c3', unlock: typed ? 'passphrase' : 'this-computer' };
+      }
       case 'venture.countries': return O.countries;
       case 'venture.preview': return { ...F.preview, idea: payload.idea };
       case 'venture.create':
@@ -296,7 +349,8 @@ export function makeTab(): FakeTab {
 }
 /** Blob and URL for saveText: each saved file is kept so a test can read its name, type and text. */
 export class FakeBlob { readonly text: string; readonly type: string; constructor(parts: unknown[], options: { type?: string } = {}) { this.text = parts.map(String).join(''); this.type = options.type ?? ''; } }
-export type HarnessOptions = { openExternal?: (url: string) => unknown; clipboard?: boolean | 'refuse'; timers?: boolean; browser?: { open: () => FakeTab | null }; language?: string };
+/** hosted marks the page as the hosted web server does (one meta tag) and needs the browser transport. */
+export type HarnessOptions = { openExternal?: (url: string) => unknown; clipboard?: boolean | 'refuse'; timers?: boolean; browser?: { open: () => FakeTab | null }; language?: string; hosted?: boolean };
 export async function harness(engine: EngineOptions = {}, options: HarnessOptions = {}) {
   const fake = fakeEngine(engine);
   const calls: { method: string; payload: any }[] = [], rejected: unknown[] = [], opened: string[] = [], externalInvokes: unknown[] = [], clipboard: string[] = [];
@@ -326,7 +380,10 @@ export async function harness(engine: EngineOptions = {}, options: HarnessOption
   vm.runInNewContext(preloadSource, { require(name: string) { assert.equal(name, 'electron'); return { ipcRenderer, contextBridge: { exposeInMainWorld(key: string, api: unknown) { assert.equal(key, 'chausar'); exposed = api; } } }; } }, { filename: join(root, 'app/desktop/preload.cjs') });
   const body = new Element('body'), app = new Element('div'), notifications = new Element('div');
   app.id = 'app'; notifications.id = 'notifications'; body.append(app, notifications);
+  const meta = new Element('META');
+  meta.setAttribute('name', 'chausar-mode'); meta.setAttribute('content', 'hosted');
   const document = {
+    ...(options.hosted ? { head: { children: [meta] } } : {}),
     body, createElement: (tag: string) => { const node = new Element(tag); if (tag === 'a') anchors.push(node); return node; },
     createTextNode: (value: unknown) => { const node = new Element('#text'); node.textContent = String(value); return node; },
     createElementNS: (namespace: string, tag: string) => { const node = new Element(tag); node.namespaceURI = namespace; return node; },
@@ -351,9 +408,9 @@ export async function harness(engine: EngineOptions = {}, options: HarnessOption
   });
   vm.runInContext(launchSource, context, { filename: join(root, 'app/renderer/launch.js') });
   assert.match(appSource, /\bboot\(\);\s*$/);
-  vm.runInContext(appSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__launchTest = { launch, boot, navigate, renderShell, applyWorkspaceStatus, renderModels, openExternal, request, state, EXTERNAL_ORIGINS, evidenceChanges: [...evidenceChanges] };', context, { filename: join(root, 'app/renderer/app.js') });
+  vm.runInContext(appSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__launchTest = { launch, boot, navigate, renderShell, applyWorkspaceStatus, renderModels, showWorkspace, openExternal, request, state, EXTERNAL_ORIGINS, evidenceChanges: [...evidenceChanges] };', context, { filename: join(root, 'app/renderer/app.js') });
   const renderer = context.__launchTest;
-  if (options.browser) renderer.state.token = 'paired-browser-token';
+  if (options.browser) renderer.state.token = options.hosted ? 'hosted-session-token' : 'paired-browser-token';
   const after = (method: string) => calls.slice(calls.findIndex(call => call.method === method));
   return { renderer, calls, rejected, opened, externalInvokes, clipboard, body, app, world: fake.world, after, anchors, opens, saved };
 }
@@ -424,7 +481,7 @@ function draftEngine(world: { venture: boolean; draft: DraftWorld }, options: Dr
 }
 
 // ---------------------------------------------------------------------------------------------
-// Words at rest: header, left pane and right pane together, with named parts counted on their own
+// Words at rest: the header and the left pane, with named parts (and the live preview) counted on their own
 // ---------------------------------------------------------------------------------------------
 /** Visible text with the parts named by class left out (the recovery code, the experimental-storage line). */
 export function visibleTextExcept(node: Element, except: readonly string[] = []): string[] {
@@ -438,7 +495,8 @@ export function visibleTextExcept(node: Element, except: readonly string[] = [])
   if (node.tagName === 'input' && node.attributes.type !== 'password' && node.attributes.type !== 'checkbox') own.push(node.value);
   return [...own, ...node.children.flatMap(child => visibleTextExcept(child, except))];
 }
-export const REST_EXCEPT = Object.freeze(['ob-code', 'launch-warn']);
+/** The recovery code, the experimental-storage line and the live preview (the right pane and the phone strip) are counted on their own. */
+export const REST_EXCEPT = Object.freeze(['ob-code', 'launch-warn', 'ob-field', 'ob-strip']);
 /** Words at rest on a whole screen, counted like wordCount: split on spaces, pieces holding a letter or a digit. */
 export function restWords(screen: Element, { except = REST_EXCEPT }: { except?: readonly string[] } = {}): number {
   return visibleTextExcept(screen, except).join(' ').split(/\s+/).filter(token => /[\p{L}\p{N}]/u.test(token)).length;
