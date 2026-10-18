@@ -27,6 +27,8 @@ import { CONNECTOR_CATALOGUE } from '../runtime/venture/build/catalogue.ts';
 import { createFixtureGitHubTransport } from '../runtime/venture/build/index.ts';
 import { RLS_LINE, SIGN_IN_LINE } from '../runtime/venture/build/brief-lint.ts';
 import { kindByRules } from './fixtures/venture/onboarding/kind-rules.ts';
+import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
+import type { BackupView, BusinessList, CustodyView } from '../runtime/workspace-custody-contracts.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
 const KEY = 'sk-ant-test-onboarding-e2e-not-a-real-key-5d21';
@@ -42,7 +44,9 @@ async function recording(name: string): Promise<Recording> {
   return fixture;
 }
 
-async function newEngine(t: any, fixture: ModelReplayFixture, options: { claudeCodeTerms?: 'accepted' | 'pending'; directory?: string } = {}) {
+/** options.keys composes the engine the way server.ts does (workspaceCustody), with an in-memory key store in place of
+ * the operating system's, so Keep this plan can make the vault with no passphrase. */
+async function newEngine(t: any, fixture: ModelReplayFixture, options: { claudeCodeTerms?: 'accepted' | 'pending'; directory?: string; keys?: DeviceKeyStore } = {}) {
   const directory = options.directory ?? await mkdtemp(join(tmpdir(), 'chausar-onboarding-e2e-'));
   const engine = new Engine({
     directory, demo: true, storage: 'experimental-file',
@@ -55,6 +59,7 @@ async function newEngine(t: any, fixture: ModelReplayFixture, options: { claudeC
       sandbox: { process: async () => { throw new Error('docker not found'); } },
       ...(options.claudeCodeTerms ? { claudeCodeTerms: options.claudeCodeTerms } : {}),
     },
+    ...(options.keys ? { workspaceCustody: { deviceKeys: options.keys, autoBackups: true } } : {}),
   });
   t.after(async () => { await engine.close().catch(() => {}); if (!options.directory) await rm(directory, { recursive: true, force: true }); });
   const ask = (method: string, payload: Record<string, unknown> = {}): Promise<any> => engine.request(method, payload);
@@ -131,9 +136,10 @@ test('the recordings: each sentence is classified as the deterministic rules say
   }
 });
 
-test('onboarding end to end: connect first, compose a fitted plan from blocks, keep it safe, then price, accept, build, rehearse and invoice', async t => {
+test('onboarding end to end: connect first, compose a fitted plan from blocks, keep it with no passphrase, then price, accept, build, rehearse, invoice and open it again', async t => {
   const dog = await recording('dog-walking-gb.json');
-  const { engine, ask, directory } = await newEngine(t, dog);
+  const keys = memoryDeviceKeyStore();
+  const { engine, ask, directory } = await newEngine(t, dog, { keys });
 
   // 1. Connect, before any vault: ChatGPT is not open, the API key row can connect but is unverified.
   assert.equal((await ask('workspace.status')).open, false);
@@ -196,9 +202,12 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   const draftCalls = await ask('venture.ai.calls') as ModelCallRecord[];
   assert.deepEqual(draftCalls.map(call => call.purpose), ['compose', 'decide']);
 
-  // 4. Keep it safe: the vault opens, then venture.create adopts the plan and the AI by id and digest only.
-  const created = await ask('workspace.create', { name: 'Night Shift Walkers', passphrase: PASSPHRASE, pack: 'services' });
-  assert.equal(typeof created.recoveryCode, 'string');
+  // 4. Keep this plan: no passphrase and no folder. The engine names the folder from the business and this computer's
+  // key store keeps the vault key; then venture.create adopts the plan and the AI by id and digest only.
+  const created = await ask('workspace.create', { name: 'Night Shift Walkers', pack: 'services', folder: null });
+  assert.deepEqual([created.folder, created.unlock, created.recoveryCode, created.recoveryKit], ['night-shift-walkers', 'this-computer', null, null]);
+  assert.equal(keys.items(), 1, 'the key store holds one computer secret');
+  assert.equal((await ask('workspace.status')).unlock, 'this-computer');
   const view = await ask('venture.create', { idea: dog.text, countryCode: 'GB', workingName: 'Night Shift Walkers', composeId: plan.composeId, composedDigest: plan.digest }) as VentureView;
   assert.equal(view.venture.serviceType, 'other');
   assert.deepEqual([view.checklist[0].id, view.checklist[0].label, view.checklist[0].done], ['ai', 'Connect your AI', true]);
@@ -293,6 +302,21 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
 
   // At the end of the journey: no file, call record or vault record holds the key.
   await assertKeyNowhere(engine, directory, await ask('venture.models.calls', { limit: 100 }) as ModelCallRecord[]);
+
+  // Accepting the plan and issuing the invoice were important changes, so an automatic backup is due; the engine
+  // writes one when it shuts down. A new engine on the same folder (a restart) lists the business by name and opens it from
+  // the list with no passphrase and no folder typed, with the invoice still there.
+  const custody = await ask('workspace.custody.get') as CustodyView;
+  assert.deepEqual([custody.business?.unlock, custody.business?.recovery, custody.business?.backups.auto], ['this-computer', 'not-made', true]);
+  await engine.shutdown();
+  const again = await newEngine(t, dog, { directory, keys });
+  const listed = await again.ask('workspace.list') as BusinessList;
+  assert.deepEqual(listed.businesses.map(business => [business.name, business.folder, business.opens]), [['Night Shift Walkers', 'night-shift-walkers', 'with-this-computer']]);
+  const backups = await again.ask('workspace.backups.list') as { backups: BackupView[] };
+  assert.ok(backups.backups.some(backup => backup.kind === 'auto'), 'an automatic backup was written');
+  await again.ask('workspace.open', { folder: listed.businesses[0].folder });
+  const invoices = await again.ask('venture.invoice.list') as InvoiceView['invoice'][];
+  assert.ok(invoices.some(invoice => invoice.id === issued.invoice.id), 'the issued invoice is still there');
 });
 
 test('the number guard and the repair: a digit or a price in words is refused once and repaired, markup too', async t => {
@@ -408,7 +432,7 @@ test('the Claude Code route answers with the terms accepted, and the same connec
   assert.deepEqual(plan.offers.map(offer => offer.block), ['subscription', 'package']);
 });
 
-test('a new Engine on the same folder before Keep it safe starts empty: the draft lived in memory only', async t => {
+test('a new Engine on the same folder before Keep this plan starts empty: the draft lived in memory only', async t => {
   const dog = await recording('dog-walking-gb.json');
   const directory = await mkdtemp(join(tmpdir(), 'chausar-onboarding-e2e-restart-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
