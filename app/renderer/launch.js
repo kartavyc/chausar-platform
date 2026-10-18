@@ -643,7 +643,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const badge = h('span', { class: badgeShown && !lastLocked ? 'ob-badge ob-badge-new' : 'ob-badge', hidden: badgeShown ? null : true }, lockMark(), PREVIEW_WORDS.locked);
       lastLocked = Boolean(spec.locked);
       const noteBadge = spec.noteBadge ? h('span', { class: 'ob-note-shape' }) : null;
-            const body = h('div', { class: 'ob-cbody' });
+      const body = h('div', { class: 'ob-cbody' });
       const cardNode = h('article', { class: 'ob-card' },
         h('div', { class: 'ob-tile' }, svg('svg', { class: 'ob-ill', viewBox: '0 0 280 176', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' }, cardRects), badge, noteBadge),
         body);
