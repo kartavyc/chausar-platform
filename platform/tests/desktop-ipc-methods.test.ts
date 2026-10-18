@@ -102,3 +102,14 @@ test('desktop forwards the nine onboarding draft methods, right after venture.pr
   assert.deepEqual(typed, [...METHODS], 'the declaration file lists the same methods in the same order');
   for (const method of DRAFT_METHODS) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
 });
+
+test('desktop forwards the ten custody methods, right after workspace.delete, in the contract order', async () => {
+  const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
+  assert.equal(CUSTODY_METHODS.length, 10);
+  const at = METHODS.indexOf('workspace.delete');
+  assert.deepEqual(METHODS.slice(at + 1, at + 1 + CUSTODY_METHODS.length), [...CUSTODY_METHODS]);
+  const declared = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
+  const typed = JSON.parse(/METHODS: readonly (\[[^\]]+\])/.exec(declared)?.[1] ?? '[]');
+  assert.deepEqual(typed, [...METHODS], 'the declaration file lists the same methods in the same order');
+  for (const method of CUSTODY_METHODS) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
+});
