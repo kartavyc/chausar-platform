@@ -103,6 +103,9 @@ test('the whole venture journey in India, with a model and GitHub answering from
   const created = await ask('venture.create', { idea: IDEA, countryCode: 'IN', workingName: 'Ledger Cafe Books' }) as VentureView;
   assert.equal(created.done, 1);
   assert.equal(created.total, 12);
+  // Onboarding v2: connecting an AI is the first item; the AI here is added after the vault, so it is not done yet.
+  assert.deepEqual([created.checklist[0].id, created.checklist[0].label, created.checklist[0].done], ['ai', 'Connect your AI', false]);
+  assert.equal(created.checklist.find(item => item.id === 'idea')?.label, 'Say what you want to do');
   assert.equal((await ask('trust.get')).retentionDays, 3650);
   const retention = (await events()).find(e => e.name === 'retention-changed');
   assert.ok(retention);

@@ -1,0 +1,64 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written answers for the onboarding v2 end-to-end test. Not captured from a live account. No paid call was made. A skill: views steps-first, questions and tools.",
+  "text": "I'm good at Excel and I want to teach it.",
+  "countryCode": "IN",
+  "responses": [
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "good at Excel"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"skill\",\"family\":\"consulting\",\"reading\":\"Teach Excel to office workers who want to feel at ease\",\"views\":[\"steps-first\",\"questions\",\"tools\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 990,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "good at Excel"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Easy Excel Lessons\",\"oneLiner\":\"Patient Excel lessons for people who use it at work.\",\"customer\":\"Office workers and small business owners who want to feel at ease with Excel.\",\"offers\":[{\"block\":\"session\",\"name\":\"Excel lesson\",\"description\":\"A lesson on what you need right now.\",\"pricingModel\":\"hourly\"},{\"block\":\"course\",\"name\":\"Excel from scratch\",\"description\":\"A set of lessons from the very start.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"collect-inputs\",\"title\":\"Gather their workbook\"},{\"block\":\"meet-client\",\"title\":\"Teach the lesson\"},{\"block\":\"draft-reply\",\"title\":\"Write lesson notes\"},{\"block\":\"follow-up\",\"title\":\"Check in afterwards\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"client-files\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say what the lessons cover, with one button to start.\"},{\"block\":\"offers-prices\",\"title\":\"Lessons and prices\",\"purpose\":\"Each lesson offer with its price.\"},{\"block\":\"about\",\"title\":\"About me\",\"purpose\":\"Who teaches the lessons and how.\"},{\"block\":\"start-request\",\"title\":\"Ask for a lesson\",\"purpose\":\"A short form to ask for a lesson.\"}],\"tools\":[{\"block\":\"google-calendar\",\"reason\":\"Learners pick lesson times.\"},{\"block\":\"google-drive\",\"reason\":\"Share workbooks before a lesson.\"}],\"questions\":[{\"block\":\"customer\",\"kind\":\"choice\",\"text\":\"Who do you want to teach?\",\"choices\":[\"Office workers\",\"Small business owners\",\"Students\"]},{\"block\":\"area\",\"kind\":\"text\",\"text\":\"Where will you teach, online or in person?\",\"choices\":[]}],\"notes\":[],\"views\":{\"steps-first\":{\"lead\":[\"step_2\",\"step_3\",\"step_4\"]},\"questions\":{\"lead\":[\"q_1\"]},\"tools\":{\"lead\":[\"google-calendar\",\"google-drive\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2900,
+          "output_tokens": 660
+        }
+      }
+    }
+  ]
+}
