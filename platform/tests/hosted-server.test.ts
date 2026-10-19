@@ -247,6 +247,9 @@ test('the venture journey runs through one hosted actor per business, with key-o
   for (const method of ['workspace.backup', 'workspace.export', 'sources.import', 'plugins.install', 'mcp.handle', 'conversation.ask', 'workspace.restore', 'trust.get']) {
     await assert.rejects(owner.rpc(method), code('HOSTED_NOT_AVAILABLE'), method);
   }
+  // Hosted keeps server custody: none of the ten keep-it-on-this-computer methods is on the hosted list.
+  const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
+  for (const method of CUSTODY_METHODS) await assert.rejects(owner.rpc(method), code('HOSTED_NOT_AVAILABLE'), method);
   const capabilities = await owner.rpc('venture.capabilities');
   assert.equal(capabilities.find((row: any) => row.id === 'hosted-actors').state, 'unverified');
   assert.equal(app.runtime.descriptor.adapter, 'local');

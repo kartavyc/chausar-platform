@@ -9,6 +9,8 @@ import type { VentureHostOptions } from './contracts.ts';
  */
 export function ventureHostEnv(env: NodeJS.ProcessEnv, mode: { demo: boolean; host: 'desktop' | 'local-web'; args?: readonly string[] }): VentureHostOptions {
   const options: VentureHostOptions = { host: mode.host };
+  // Claude Code opens only after the founder accepts Anthropic's Commercial Terms for Chausar (recorded in STATE.md).
+  options.claudeCodeTerms = env.CHAUSAR_CLAUDE_CODE_TERMS === 'accepted' ? 'accepted' : 'pending';
   const replay = mode.demo && (env.CHAUSAR_VENTURE_REPLAY === '1' || (mode.args ?? []).includes('--replay'));
   if (replay && env.CHAUSAR_VENTURE_MODEL_REPLAY) options.modelReplayPath = env.CHAUSAR_VENTURE_MODEL_REPLAY;
   if (replay && env.CHAUSAR_VENTURE_GITHUB_REPLAY) options.githubReplayPath = env.CHAUSAR_VENTURE_GITHUB_REPLAY;

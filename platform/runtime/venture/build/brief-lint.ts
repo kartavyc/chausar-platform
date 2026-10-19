@@ -64,8 +64,11 @@ function sectionRange(lines: readonly string[], heading: string): { start: numbe
 /**
  * Deterministic lint, one finding per problem with a 1-based line number (null when the problem has no line).
  * priceReceipts are the receipts whose figures the brief may quote; briefId is the id the brief must carry.
+ * clientArea false is a composed plan with no client-area page: it has no private area, so the row level security and
+ * sign-in lines are left out of its brief on purpose and are not required. Every other rule is unchanged.
  */
-export function lintBrief(markdown: string, priceReceipts: readonly PriceReceiptRecord[], briefId: string): BriefLint {
+export function lintBrief(markdown: string, priceReceipts: readonly PriceReceiptRecord[], briefId: string, options: { clientArea?: boolean } = {}): BriefLint {
+  const clientArea = options.clientArea !== false;
   const findings: Finding[] = [];
   const add = (rule: BriefLintRule, line: number | null, message: string) => { findings.push({ rule, line, message }); };
   const text = String(markdown).replace(/\r\n/g, '\n');
@@ -106,6 +109,7 @@ export function lintBrief(markdown: string, priceReceipts: readonly PriceReceipt
 
   // required-text
   REQUIRED_BRIEF_LINES.forEach((required, i) => {
+    if (!clientArea && (required === RLS_LINE || required === SIGN_IN_LINE)) return;
     const section = REQUIRED_LINE_SECTION[i];
     const range = sectionRange(lines, BRIEF_HEADINGS[section - 1]);
     const present = range ? lines.slice(range.start, range.end).includes(required) : false;

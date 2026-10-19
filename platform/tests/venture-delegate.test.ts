@@ -20,7 +20,7 @@ import { handlers } from '../runtime/venture/delivery/index.ts';
 import { capabilityList } from '../runtime/venture/delivery/capabilities.ts';
 import { claimBacked } from '../runtime/venture/delivery/harness/claims.ts';
 import {
-  delegateArgs, delegateAvailability, delegateBrief, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, REAL_ORDER_ONLY,
+  DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, REAL_ORDER_ONLY,
 } from '../runtime/venture/delivery/harness/delegate.ts';
 import { createDelegatePorts } from '../runtime/venture/delivery/harness/delegate-process.ts';
 import { tablesOfFile } from '../runtime/venture/delivery/harness/files.ts';
@@ -147,10 +147,11 @@ function receiptRecord(tx: VentureTx, subject: PriceReceiptRecord['subject'], bl
 
 type Env = { store: VentureTestStore; models: ScriptPort; deps: VentureDeps; venture: VentureRecord };
 
-async function setup(delegate: DelegatePorts | undefined, host: VentureDeps['host'] = 'desktop'): Promise<Env> {
+/** claudeCodeTerms: the Claude Code terms gate, open here unless a test closes it. */
+async function setup(delegate: DelegatePorts | undefined, host: VentureDeps['host'] = 'desktop', claudeCodeTerms: 'accepted' | 'pending' = 'accepted'): Promise<Env> {
   const store = new VentureTestStore();
   const models = new ScriptPort(store);
-  const deps = { store, clock, models, services: { ontology: { current: () => null } }, github: {}, secrets: {}, host, demo: true, storage: 'experimental-file', ...(delegate ? { delegate } : {}) } as unknown as VentureDeps;
+  const deps = { store, clock, models, services: { ontology: { current: () => null } }, github: {}, secrets: {}, host, demo: true, storage: 'experimental-file', claudeCodeTerms, ...(delegate ? { delegate } : {}) } as unknown as VentureDeps;
   const venture = await ventureAction(deps, owner, 'admin', 'create', tx => tx.put<VentureRecord>({
     ...tx.base('venture-record'), idea: 'Monthly bookkeeping for cafes in Pune, done by AI helpers with me checking every report.', ideaDigest: 'idea', workingName: 'Ledger Cafe Books',
     country: IN, serviceType: 'bookkeeping', status: 'live', launchStage: 'approve-each', blueprintId: null, acceptedBlueprintId: null, playbookId: null, invoiceSequence: 0, updatedAt: tx.now,
@@ -236,7 +237,7 @@ const decide = (env: Env, run: DeliveryRunView, decision: 'approve' | 'decline',
 test('availability: offered only when the tool is found and answers its version check; unverified until a real run', async () => {
   const fake = installFake({ kind: 'claude', version: '2.1.0' });
   try {
-    const found = await delegateAvailability(fake.ports, 'claude-code');
+    const found = await delegateAvailability(fake.ports, 'claude-code', 'accepted');
     assert.equal(found.state, 'unverified');
     assert.equal(found.version, '2.1.0');
     assert.ok(found.executable!.startsWith(fake.dir));
@@ -244,13 +245,13 @@ test('availability: offered only when the tool is found and answers its version 
     // The fake answers as Claude Code, so as Codex its version line is wrong.
     assert.equal((await delegateAvailability(fake.ports, 'codex')).state, 'needs-setup');
     fake.setMode({ kind: 'other' });
-    const odd = await delegateAvailability(fake.ports, 'claude-code');
+    const odd = await delegateAvailability(fake.ports, 'claude-code', 'accepted');
     assert.equal(odd.state, 'needs-setup');
     assert.match(odd.reason, /version check did not answer/);
   } finally { fake.cleanup(); }
   const empty = mkdtempSync(join(tmpdir(), 'chausar-no-cli-'));
   try {
-    const missing = await delegateAvailability(createDelegatePorts({ pathEnv: empty }), 'claude-code');
+    const missing = await delegateAvailability(createDelegatePorts({ pathEnv: empty }), 'claude-code', 'accepted');
     assert.equal(missing.state, 'needs-setup');
     assert.match(missing.reason, /Install Claude Code and sign in/);
   } finally { rmSync(empty, { recursive: true, force: true }); }
@@ -263,6 +264,41 @@ test('availability: offered only when the tool is found and answers its version 
   const hosted = capabilityList('linux', undefined, 'postgres', undefined, undefined, 'hosted-web', { 'claude-code': { ...unverified, realRun: true } });
   assert.deepEqual([row(hosted, 'tier-owner-claude').state, row(hosted, 'tier-owner-claude').reason], ['unavailable', HOSTED_NO_OWNER_CLI]);
   assert.equal(row(hosted, 'tier-owner-codex').state, 'unavailable');
+});
+
+test('the Claude Code terms gate: while it is pending heavy work never looks for, offers or starts Claude Code; Codex is not affected', async () => {
+  const fake = installFake({ kind: 'claude', behavior: 'work' });
+  const looked: string[] = [];
+  const ports: DelegatePorts = { locate: async cli => { looked.push(cli); return fake.ports.locate(cli); }, process: request => fake.ports.process(request) };
+  try {
+    for (const terms of [undefined, 'pending'] as const) {
+      const closed = await delegateAvailability(ports, 'claude-code', terms);
+      assert.deepEqual([closed.state, closed.reason, closed.executable], ['needs-setup', DELEGATE_CLAUDE_TERMS, null], String(terms));
+    }
+    assert.deepEqual(looked, [], 'Claude Code is not even looked for while the gate is pending');
+    const env = await setup(ports, 'desktop', 'pending');
+    assert.deepEqual(await delegateOffer(env.deps), [], 'not offered; the fake is no Codex, so nothing is');
+    const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
+    const claude = rows.find(item => item.id === 'tier-owner-claude')!;
+    assert.deepEqual([claude.state, claude.reason], ['needs-setup', DELEGATE_CLAUDE_TERMS]);
+    assert.equal(rows.find(item => item.id === 'tier-owner-codex')!.state, 'needs-setup');
+    assert.deepEqual([...new Set(looked)], ['codex'], 'only Codex was looked for');
+    const codex = installFake({ kind: 'codex' });
+    try {
+      const codexOnly = await setup(codex.ports, 'desktop', 'pending');
+      assert.deepEqual((await delegateOffer(codexOnly.deps)).map(item => item.cli), ['codex'], 'Codex is offered with the gate pending');
+    } finally { codex.cleanup(); }
+
+    // A gate that closes after the brief was written: the approval is refused and nothing starts.
+    const open = await setup(fake.ports, 'desktop', 'accepted');
+    const run = await toBrief(open);
+    assert.equal(run.status, 'brief-waiting');
+    assert.equal(brief(run).cli, 'claude-code');
+    (open.deps as { claudeCodeTerms?: string }).claudeCodeTerms = 'pending';
+    await assert.rejects(decide(open, run, 'approve'), (error: any) => error.code === 'TIER_UNAVAILABLE' && error.message.startsWith(DELEGATE_CLAUDE_TERMS));
+    assert.equal(fake.spy(), null, 'Claude Code was never started');
+    assert.equal(listRecords(open.store.read(), 'venture-delegate-run', open.venture.id).length, 0);
+  } finally { fake.cleanup(); }
 });
 
 test('arguments and environment: fixed flags safe for cmd.exe, no shell or web for Claude Code, Codex sandboxed with no network, no key passed', () => {

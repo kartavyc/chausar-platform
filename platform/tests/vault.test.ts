@@ -221,3 +221,101 @@ test('PostgreSQL rejects a storage-slot injection before issuing any schema quer
   await assert.rejects(PostgresSnapshotAdapter.fromPool(pool, "x'; DROP TABLE records;--"), code('INVALID_SLOT'));
   assert.equal(queries, 0);
 });
+
+// ---------------------------------------------------------------- custody changes (KEYCHAIN-SPEC 8.1)
+
+async function reopen(directory: string, passphrase: string) { const vault = await Vault.open({ directory, storage: 'experimental-file', passphrase }); await vault.close(); }
+test('rewrapPassphrase: the old secret stops opening, the new one opens, the recovery code still opens, revision + 1', async t => {
+  const directory = await fixture(t), { vault, recoveryCode } = await Vault.create({ ...options(directory), name: 'Rewrap' });
+  const before = vault.read().revision, digest = vault.wrappersDigest;
+  await assert.rejects(vault.rewrapPassphrase('short'), code('WEAK_PASSPHRASE'));
+  await vault.rewrapPassphrase(replacement);
+  assert.equal(vault.read().revision, before + 1);
+  assert.notEqual(vault.wrappersDigest, digest);
+  assert.equal(await vault.verifyPassphrase(replacement), true);
+  assert.equal(await vault.verifyPassphrase(password), false);
+  assert.equal(await vault.verifyPassphrase(''), false, 'never throws for a wrong secret');
+  await vault.close();
+  await assert.rejects(reopen(directory, password), code('UNLOCK_FAILED'));
+  await reopen(directory, replacement);
+  const recovered = await Vault.recover({ directory, storage: 'experimental-file', recoveryCode, newPassphrase: password });
+  await recovered.close();
+});
+
+test('rewrapRecovery: a new CHR- code opens, the old one does not; the wrapper digest is public metadata', async t => {
+  const directory = await fixture(t), { vault, recoveryCode } = await Vault.create({ ...options(directory), name: 'New code' });
+  const fresh = await vault.rewrapRecovery();
+  assert.match(fresh, /^CHR-[A-Za-z0-9_-]{43}$/); assert.notEqual(fresh, recoveryCode);
+  const envelope = JSON.parse(await readFile(join(directory, 'authority.encrypted.json'), 'utf8'));
+  assert.ok(!JSON.stringify(envelope).includes(fresh));
+  assert.match(vault.wrappersDigest, /^[a-f0-9]{64}$/);
+  await vault.close();
+  await assert.rejects(Vault.recover({ directory, storage: 'experimental-file', recoveryCode, newPassphrase: replacement }), code('UNLOCK_FAILED'));
+  await (await Vault.recover({ directory, storage: 'experimental-file', recoveryCode: fresh, newPassphrase: replacement })).close();
+});
+
+test('transferText opens through Vault.restore with the move code; the live secret does not; the recovery code does', async t => {
+  const base = await fixture(t), directory = join(base, 'live');
+  const { vault, recoveryCode } = await Vault.create({ ...options(directory), name: 'Move me' });
+  await vault.update(state => { state.activity.push({ message: 'moved fact' }); });
+  const moveCode = 'CHT-0123456789ABCDEFGHJKMNPQ';
+  const text = await vault.transferText(moveCode, { recovery: 'made', madeAt: '2026-10-18T00:00:00.000Z' });
+  const parsed = JSON.parse(text);
+  assert.equal(parsed.backupFormat, 'chausar.backup.v1');
+  assert.deepEqual(parsed.transfer, { format: 'chausar.transfer.v1', madeAt: '2026-10-18T00:00:00.000Z', recovery: 'made' });
+  assert.equal(parsed.envelope.id, vault.vaultId); assert.equal(parsed.envelope.revision, vault.read().revision);
+  assert.ok(!text.includes('moved fact') && !text.includes(moveCode) && !text.includes('Move me'));
+  const file = join(base, 'move.backup'); await writeFile(file, text);
+  await assert.rejects(Vault.restore({ directory: join(base, 'a'), storage: 'experimental-file', backupFile: file, passphrase: password }), code('UNLOCK_FAILED'));
+  const moved = await Vault.restore({ directory: join(base, 'b'), storage: 'experimental-file', backupFile: file, passphrase: moveCode });
+  assert.equal(moved.read().activity.at(-1)?.message, 'moved fact'); await moved.close();
+  await (await Vault.restore({ directory: join(base, 'c'), storage: 'experimental-file', backupFile: file, recoveryCode, newPassphrase: replacement })).close();
+  await vault.close();
+});
+
+test('resealBackups: an old backup opens with the new wrapper and keeps its revision; another vault and a damaged file are skipped', async t => {
+  const directory = await fixture(t), other = await fixture(t);
+  const { vault } = await Vault.create({ ...options(join(directory, 'live')), name: 'Reseal' });
+  const { vault: foreign } = await Vault.create({ ...options(join(other, 'live')), name: 'Other' });
+  const old = join(directory, 'old.backup'), alien = join(directory, 'alien.backup'), damaged = join(directory, 'damaged.backup');
+  await vault.backup(old); const oldRevision = vault.read().revision;
+  await foreign.backup(alien); await foreign.close();
+  await vault.backup(damaged);
+  const broken = JSON.parse(await readFile(damaged, 'utf8'));
+  const tag = Buffer.from(broken.envelope.snapshot.tag, 'base64url'); tag[0] ^= 1; broken.envelope.snapshot.tag = tag.toString('base64url');
+  await writeFile(damaged, JSON.stringify(broken));
+  await vault.update(state => { state.activity.push({ message: 'after the backup' }); });
+  await vault.rewrapPassphrase(replacement);
+  const result = await vault.resealBackups([old, alien, damaged, 'relative.backup']);
+  assert.deepEqual(result.resealed, [old]);
+  assert.deepEqual(result.skipped.map(item => item.reason), ['other-vault', 'not-authentic', 'not-absolute']);
+  const again = await vault.resealBackups([old]);
+  assert.deepEqual(again.skipped.map(item => item.reason), ['already-current']);
+  await vault.close();
+  await assert.rejects(Vault.restore({ directory: join(directory, 'r1'), storage: 'experimental-file', backupFile: old, passphrase: password }), code('UNLOCK_FAILED'));
+  const restored = await Vault.restore({ directory: join(directory, 'r2'), storage: 'experimental-file', backupFile: old, passphrase: replacement });
+  assert.equal(restored.read().revision, oldRevision, 'the backup keeps its own revision');
+  assert.equal(restored.read().activity.some(item => item.message === 'after the backup'), false);
+  await restored.close();
+});
+
+test('replaceFromBackup: the state equals the backup, the revision goes up, another vault is refused, nesting is refused', async t => {
+  const directory = await fixture(t), other = await fixture(t);
+  const { vault } = await Vault.create({ ...options(join(directory, 'live')), name: 'Replace' });
+  await vault.update(state => { state.activity.push({ message: 'kept in the backup' }); });
+  const file = join(directory, 'copy.backup'); await vault.backup(file);
+  const snapshot = vault.read();
+  await vault.update(state => { state.activity.push({ message: 'after the backup' }); state.workspace.name = 'Renamed'; });
+  const before = vault.read().revision;
+  assert.deepEqual(await vault.replaceFromBackup(file), { revision: before + 1 });
+  const state = vault.read();
+  assert.equal(state.revision, before + 1); assert.equal(state.workspace.name, 'Replace');
+  assert.deepEqual(state.activity, snapshot.activity);
+  const { vault: foreign } = await Vault.create({ ...options(join(other, 'live')), name: 'Other' });
+  const alien = join(directory, 'alien.backup'); await foreign.backup(alien); await foreign.close();
+  await assert.rejects(vault.replaceFromBackup(alien), code('BACKUP_OTHER_BUSINESS'));
+  await assert.rejects(vault.update(async () => { await vault.replaceFromBackup(file); }), code('REENTRANT_TRANSACTION'));
+  await vault.close();
+  const reopened = await Vault.open({ directory: join(directory, 'live'), storage: 'experimental-file', passphrase: password });
+  assert.equal(reopened.read().revision, before + 1); await reopened.close();
+});

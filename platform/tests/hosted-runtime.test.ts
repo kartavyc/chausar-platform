@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { newBusinessId, newTenantId } from '../runtime/hosted/custody.ts';
 import { ACTOR_ACTIONS, ACTOR_EVENTS } from '../runtime/hosted/runtime/contract.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS } from '../runtime/venture/contracts.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
 import { RIVET_DESCRIPTOR, rivetActionName, ventureActorConfig } from '../runtime/hosted/runtime/rivet.ts';
 import { code, harness, runtimeConformance, web } from './hosted-runtime-conformance.ts';
@@ -45,4 +46,9 @@ test('the Rivet adapter says planned for everything and names its actions withou
   const state = config.createState({ key: [newTenantId(), newBusinessId()] }, {});
   assert.deepEqual(Object.keys(state).sort(), ['businessId', 'hasVault', 'lastSeq', 'schemaVersion', 'tenantId'], 'actor state holds pointers only');
   assert.throws(() => config.createState({ key: ['tenant', '../b'] }, {}), code('INVALID_ACTOR_KEY'));
+});
+
+test('a hosted business actor declares no draft method and no pre-vault method', () => {
+  for (const method of [...DRAFT_METHODS, ...PRE_VAULT_METHODS]) assert.equal(ACTOR_ACTIONS.includes(method), false, method);
+  assert.ok(ACTOR_ACTIONS.includes('venture.create'));
 });

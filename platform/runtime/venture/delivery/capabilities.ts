@@ -131,6 +131,6 @@ async function delegateCapabilities(deps: VentureDeps, ctx: Context): Promise<Pa
   }
   const nowMs = deps.clock().getTime();
   const result: Partial<Record<DelegateCli, DelegateCapability>> = {};
-  for (const cli of ['claude-code', 'codex'] as const) result[cli] = { availability: await cachedDelegateAvailability(ports, cli, nowMs), realRun: finished.has(cli) };
+  for (const cli of ['claude-code', 'codex'] as const) result[cli] = { availability: await cachedDelegateAvailability(ports, cli, nowMs, deps.claudeCodeTerms), realRun: finished.has(cli) };
   return result;
 }

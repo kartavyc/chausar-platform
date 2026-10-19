@@ -2,12 +2,19 @@
 import { check, type State } from '../../contracts.ts';
 import { listRecords } from '../records.ts';
 import type { BlueprintRecord, BlueprintView, InterviewRecord, PriceReceiptRecord } from '../contracts.ts';
+import type { CompositionRecord } from '../onboarding-contracts.ts';
 
 /** The venture's interview record (one per venture, made at create). */
 export function interviewOf(state: State, ventureId: string): InterviewRecord {
   const all = listRecords(state, 'venture-interview', ventureId);
   check(all.length > 0, 'VENTURE_NOT_FOUND', 'Start a business first.');
   return all[all.length - 1];
+}
+
+/** The plan the AI composed before the vault, kept at create; null for a venture made from the built-in templates. */
+export function compositionOf(state: State, ventureId: string): CompositionRecord | null {
+  const all = listRecords(state, 'venture-composition', ventureId);
+  return all.length ? all[all.length - 1] : null;
 }
 
 export function blueprintsOf(state: State, ventureId: string): BlueprintRecord[] {

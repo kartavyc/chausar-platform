@@ -16,7 +16,7 @@ import type {
 import { firstFailedCheck, runChecks } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
 import {
-  DELEGATE_LABELS, delegateAvailability, delegateOffer, delegatePorts, delegationEnvelopeResult, runDelegation, type DelegateAvailability,
+  DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegationEnvelopeResult, runDelegation, type DelegateAvailability,
 } from './harness/delegate.ts';
 import { dictionaryEntries, manifest, ownerDefinitions } from './harness/dictionary.ts';
 import { buildToolEnv, fileList, madeSoFar, namer, orderUploads, uploadsById } from './harness/env.ts';
@@ -418,8 +418,10 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
 
   // The owner's send setting rules this send too: the tool passes what it reads to its own provider.
   check(deps.models.status(ctx).sendPolicy !== 'nothing', 'SEND_DISABLED', 'Sending is off for this workspace, so the tool was not started. Change it on Trust & access.');
+  // The Claude Code terms gate may have closed since the brief was written; then Claude Code is not started.
+  check(delegateGateOpen(open.cli, deps.claudeCodeTerms), 'TIER_UNAVAILABLE', `${DELEGATE_CLAUDE_TERMS} Decline the brief and the agent can carry on without it.`);
   const ports = delegatePorts(deps);
-  const now = await delegateAvailability(ports, open.cli);
+  const now = await delegateAvailability(ports, open.cli, deps.claudeCodeTerms);
   check(ports && now.state !== 'needs-setup' && now.executable === open.executable && now.version === open.version, 'TIER_UNAVAILABLE',
     `${label} is gone or changed since the brief was written, so it was not started. Decline the brief and the agent can ask again.`);
   const delegateFiles = uploadsById(state, venture.id, open.uploadIds);

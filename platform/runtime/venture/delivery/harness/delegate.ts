@@ -25,6 +25,12 @@ export const DELEGATE_DEFAULT_LIMITS: DelegateLimits = Object.freeze({ minutes: 
 export const DELEGATE_MINUTES: readonly string[] = ['2', '5', '10'];
 export const REAL_ORDER_ONLY = 'Heavy work runs only on a real order, after the owner approves its brief. Rehearsals never start it.';
 export const DELEGATE_NOT_CHECKED = 'Chausar has not looked for it on this computer.';
+/** The Claude Code terms gate (onboarding spec 2.8) holds for heavy work too: Chausar starts Claude Code only once it is open. */
+export const DELEGATE_CLAUDE_TERMS = "Chausar hasn't yet accepted Anthropic's terms for running Claude Code, so heavy work can't hand it a job yet.";
+/** Open only when the trusted host says 'accepted' (CHAUSAR_CLAUDE_CODE_TERMS); absent is 'pending'. */
+export function delegateGateOpen(cli: DelegateCli, claudeTerms: VentureDeps['claudeCodeTerms']): boolean {
+  return cli !== 'claude-code' || claudeTerms === 'accepted';
+}
 const MAX_OUTPUT_FILES = 20;
 const MAX_READ_BYTES = 1_000_000;
 const MAX_TEXT_BYTES = 256_000;
@@ -101,10 +107,14 @@ function versionOf(cli: DelegateCli, output: string): string | null {
   return match ? match[1] : null;
 }
 
-/** Found on the search path and answering its version check the way the real tool does. Starts nothing else. */
-export async function delegateAvailability(ports: DelegatePorts | null, cli: DelegateCli): Promise<DelegateAvailability> {
+/**
+ * Found on the search path and answering its version check the way the real tool does. Starts nothing else. Claude
+ * Code while the terms gate is pending is not looked for at all.
+ */
+export async function delegateAvailability(ports: DelegatePorts | null, cli: DelegateCli, claudeTerms?: VentureDeps['claudeCodeTerms']): Promise<DelegateAvailability> {
   const label = DELEGATE_LABELS[cli];
   const none = (reason: string): DelegateAvailability => ({ cli, state: 'needs-setup', reason, executable: null, version: null });
+  if (!delegateGateOpen(cli, claudeTerms)) return none(DELEGATE_CLAUDE_TERMS);
   if (!ports) return none(DELEGATE_NOT_CHECKED);
   let executable: string | null;
   try { executable = await ports.locate(cli); } catch { executable = null; }
@@ -126,24 +136,24 @@ export async function delegateAvailability(ports: DelegatePorts | null, cli: Del
 const AVAILABILITY_TTL_MS = 60_000;
 const cache = new WeakMap<DelegatePorts, Map<DelegateCli, { at: number; value: Promise<DelegateAvailability> }>>();
 
-/** The check, reused for a minute per port so a screen or a turn does not start the tool every time. */
-export function cachedDelegateAvailability(ports: DelegatePorts | null, cli: DelegateCli, nowMs: number): Promise<DelegateAvailability> {
-  if (!ports) return delegateAvailability(null, cli);
+/** The check, reused for a minute per port so a screen or a turn does not start the tool every time. The terms gate is never cached. */
+export function cachedDelegateAvailability(ports: DelegatePorts | null, cli: DelegateCli, nowMs: number, claudeTerms?: VentureDeps['claudeCodeTerms']): Promise<DelegateAvailability> {
+  if (!ports || !delegateGateOpen(cli, claudeTerms)) return delegateAvailability(ports, cli, claudeTerms);
   let entries = cache.get(ports);
   if (!entries) { entries = new Map(); cache.set(ports, entries); }
   const hit = entries.get(cli);
   if (hit && nowMs - hit.at < AVAILABILITY_TTL_MS) return hit.value;
-  const value = delegateAvailability(ports, cli);
+  const value = delegateAvailability(ports, cli, claudeTerms);
   entries.set(cli, { at: nowMs, value });
   return value;
 }
 
-/** The tools an agent may hand work to right now: found and checked. */
-export async function delegateOffer(deps: Pick<VentureDeps, 'host' | 'delegate' | 'clock'>): Promise<DelegateAvailability[]> {
+/** The tools an agent may hand work to right now: found and checked, and for Claude Code the terms gate open. */
+export async function delegateOffer(deps: Pick<VentureDeps, 'host' | 'delegate' | 'clock' | 'claudeCodeTerms'>): Promise<DelegateAvailability[]> {
   const ports = delegatePorts(deps);
   if (!ports) return [];
   const nowMs = deps.clock().getTime();
-  const all = await Promise.all((['claude-code', 'codex'] as const).map(cli => cachedDelegateAvailability(ports, cli, nowMs)));
+  const all = await Promise.all((['claude-code', 'codex'] as const).map(cli => cachedDelegateAvailability(ports, cli, nowMs, deps.claudeCodeTerms)));
   return all.filter(item => item.state !== 'needs-setup');
 }
 

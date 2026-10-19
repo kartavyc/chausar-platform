@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
@@ -270,6 +270,14 @@ async function atomicWrite(path: string, content: string, replace: boolean) {
     else { await link(temp, target); await unlink(temp); }
     await syncDirectory(parent);
   } catch (error) { await handle.close().catch(() => {}); await unlink(temp).catch(() => {}); throw error; }
+}
+/** Custody files beside the vault folders (workspace-custody.ts): the same atomic, no-symlink write as the vault. */
+export async function atomicWriteText(path: string, content: string, replace: boolean): Promise<void> { await atomicWrite(path, content, replace); }
+/** Bounded read of a regular file with no symbolic link on its path. */
+export async function readBoundedText(path: string): Promise<string> { return readBounded(path); }
+/** Public ciphertext metadata: which passphrase and recovery wrappers an envelope carries. */
+export function wrappersDigestOf(envelope: Pick<VaultEnvelope, 'passphrase' | 'recovery'>): string {
+  return createHash('sha256').update(JSON.stringify({ passphrase: envelope.passphrase, recovery: envelope.recovery })).digest('hex');
 }
 async function readBounded(path: string): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
@@ -757,6 +765,107 @@ export class Vault implements StateStore {
   export(target: string, options: { plaintext?: boolean } = {}): Promise<string> {
     if (!options.plaintext) return this.backup(target);
     return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify(this.#state, null, 2), false); return target; });
+  }
+  // ------------------------------------------------------------ custody changes (KEYCHAIN-SPEC 8.1)
+  // None of these returns or accepts the data key. The key never changes for the life of a vault.
+
+  /** sha256 of the live passphrase and recovery wrappers. Public ciphertext metadata, like vaultId. */
+  get wrappersDigest(): string { this.#ready(); return wrappersDigestOf(this.#envelope); }
+  /** True when the secret opens the live passphrase wrapper. Never throws for a wrong secret. */
+  async verifyPassphrase(secret: string): Promise<boolean> {
+    this.#ready();
+    if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
+    let key: Buffer | undefined;
+    try {
+      key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase');
+      return key.length === this.#key.length && timingSafeEqual(key, this.#key);
+    } catch { return false; }
+    finally { key?.fill(0); }
+  }
+  #commitWrappers(change: { passphrase?: KeyWrapper; recovery?: KeyWrapper }): Promise<void> {
+    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+      const draft = structuredClone(this.#state); draft.revision = this.#state.revision + 1;
+      const envelope = encodeSnapshot(draft, { ...this.#envelope, ...change, revision: draft.revision }, this.#key);
+      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+      this.#state = draft; this.#envelope = envelope;
+      return { result: undefined, committedState: structuredClone(this.#state) };
+    })));
+  }
+  /** A new passphrase wrapper from the held key, committed as a new revision. The old secret stops opening it. */
+  async rewrapPassphrase(secret: string): Promise<void> {
+    this.#ready(); if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
+    passphrase(secret);
+    const wrapper = await wrap(secret, this.#key, this.#envelope.id, 'passphrase');
+    await this.#commitWrappers({ passphrase: wrapper });
+  }
+  /** A new recovery code; the old one stops opening the live vault. The code exists only in this return value. */
+  async rewrapRecovery(): Promise<string> {
+    this.#ready(); if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
+    const code = `CHR-${randomBytes(32).toString('base64url')}`;
+    const wrapper = await wrap(code, this.#key, this.#envelope.id, 'recovery');
+    await this.#commitWrappers({ recovery: wrapper });
+    return code;
+  }
+  /** A chausar.backup.v1 text whose passphrase wrapper opens with the move code; the recovery wrapper is kept. */
+  transferText(code: string, meta: { recovery: 'made' | 'not-made'; madeAt: string }): Promise<string> {
+    if (typeof code !== 'string' || code.length < 12 || code.length > 64) return Promise.reject(new ChausarError('TRANSFER_CODE_WRONG', 'Use a move code.'));
+    return this.#enqueue(async () => {
+      await this.#assertSnapshotOnlyBackup();
+      const wrapper = await wrap(code, this.#key, this.#envelope.id, 'passphrase');
+      const { snapshot, ...header } = this.#envelope;
+      const envelope = encodeSnapshot(this.#state, { ...header, passphrase: wrapper }, this.#key);
+      return JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope,
+        transfer: { format: 'chausar.transfer.v1', madeAt: meta.madeAt, recovery: meta.recovery === 'made' ? 'made' : 'not-made' } });
+    });
+  }
+  /** Re-seal managed backups of this vault with the live wrappers, at each backup's own revision. */
+  resealBackups(paths: string[]): Promise<{ resealed: string[]; skipped: { path: string; reason: string }[] }> {
+    return this.#enqueue(async () => {
+      const resealed: string[] = [], skipped: { path: string; reason: string }[] = [];
+      for (const path of paths) {
+        if (typeof path !== 'string' || !isAbsolute(path)) { skipped.push({ path: String(path), reason: 'not-absolute' }); continue; }
+        let state: State, envelope: VaultEnvelope;
+        try {
+          const backup = JSON.parse(await readBounded(path));
+          if (backup?.backupFormat !== 'chausar.backup.v1') throw new Error('format');
+          envelope = backup.envelope; validateEnvelope(envelope);
+        } catch { skipped.push({ path, reason: 'not-a-backup' }); continue; }
+        if (envelope.id !== this.#envelope.id) { skipped.push({ path, reason: 'other-vault' }); continue; }
+        if (wrappersDigestOf(envelope) === wrappersDigestOf(this.#envelope)) { skipped.push({ path, reason: 'already-current' }); continue; }
+        try { state = decodeSnapshot(envelope, this.#key); }
+        catch { skipped.push({ path, reason: 'not-authentic' }); continue; }
+        try {
+          const { snapshot, ...header } = envelope;
+          const next = encodeSnapshot(state, { ...header, passphrase: this.#envelope.passphrase, recovery: this.#envelope.recovery }, this.#key);
+          await atomicWrite(path, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: next }), true);
+          resealed.push(path);
+        } catch { skipped.push({ path, reason: 'write-failed' }); }
+      }
+      return { resealed, skipped };
+    });
+  }
+  /** Commit a managed backup's state of this same vault and workspace as the next revision. */
+  replaceFromBackup(path: string): Promise<{ revision: number }> {
+    if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
+    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+      let restored: State;
+      try {
+        const backup = JSON.parse(await readBounded(path));
+        if (backup?.backupFormat !== 'chausar.backup.v1') throw new Error('format');
+        const envelope: VaultEnvelope = backup.envelope; validateEnvelope(envelope);
+        if (envelope.id !== this.#envelope.id) fail('BACKUP_OTHER_BUSINESS', 'This backup belongs to another business.');
+        restored = decodeSnapshot(envelope, this.#key);
+      } catch (error) {
+        if (error instanceof ChausarError) throw error;
+        return fail('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.');
+      }
+      if (restored.workspace.id !== this.#state.workspace.id) fail('BACKUP_OTHER_BUSINESS', 'This backup belongs to another business.');
+      const draft = restored; draft.revision = this.#state.revision + 1;
+      const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+      this.#state = structuredClone(draft); this.#envelope = envelope;
+      return { result: { revision: draft.revision }, committedState: structuredClone(this.#state) };
+    })));
   }
   async delete(): Promise<void> {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'A vault cannot be deleted from inside a transaction.');

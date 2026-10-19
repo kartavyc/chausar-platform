@@ -110,3 +110,109 @@ test('the architecture Connectors table claims exactly the modes the catalogue m
     }
   }
 });
+
+test('onboarding.md names every block id and view id, gives the ChatGPT row its exact words and its sources, and models.md describes the Claude Code gate', async () => {
+  const contracts = await import('../runtime/venture/onboarding-contracts.ts');
+  const onboarding = lf(await readFile(new URL('onboarding.md', docsFolder), 'utf8'));
+  const blockIds = [
+    ...contracts.OFFER_BLOCK_IDS, ...contracts.STEP_BLOCK_IDS, ...contracts.APPROVAL_BLOCK_IDS, ...contracts.PAGE_BLOCK_IDS,
+    ...contracts.TOOL_BLOCK_IDS, ...contracts.QUESTION_BLOCK_IDS, ...contracts.NOTE_BLOCK_IDS,
+  ];
+  for (const id of blockIds) assert.ok(onboarding.includes(`\`${id}\``), `onboarding.md names the block ${id}`);
+  for (const id of contracts.VIEW_IDS) assert.ok(onboarding.includes(`\`${id}\``), `onboarding.md names the view ${id}`);
+  for (const view of contracts.VIEW_REGISTRY) assert.ok(onboarding.includes(view.heading), `onboarding.md gives the heading of ${view.id}`);
+  assert.ok(onboarding.includes(contracts.AI_OPTION_WORDS['chatgpt-sign-in'].why), 'the ChatGPT row is described in its exact words');
+  assert.ok(onboarding.includes('checked 18 Oct 2026'));
+  for (const source of [
+    'https://developers.openai.com/siwc',
+    'https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites',
+    'https://help.openai.com/en/articles/20001410-sign-in-with-chatgpt',
+    'https://openai.com/form/sign-in-with-chatgpt-interest/',
+  ]) assert.ok(onboarding.includes(source), source);
+  for (const words of [contracts.NOT_A_SERVICE_WORDS, contracts.COMPOSE_REFUSED_WORDS]) assert.ok(onboarding.includes(words), words);
+  for (const method of contracts.ONBOARDING_METHODS) assert.ok(onboarding.includes(`\`${method}\``), `onboarding.md names ${method}`);
+  assert.ok(onboarding.includes('CHAUSAR_PORT=4391') && onboarding.includes('.b2c-work/demo-data'), 'the demo runs on its own port and folder');
+
+  const models = lf(await readFile(new URL('models.md', docsFolder), 'utf8'));
+  const { AVAILABILITY_REASONS } = await import('../runtime/venture/models/presets.ts');
+  assert.match(models, /^## The Claude Code terms gate$/m);
+  assert.ok(models.includes('CHAUSAR_CLAUDE_CODE_TERMS'));
+  assert.ok(models.includes(AVAILABILITY_REASONS.claudeTerms), 'models.md quotes the gate words the code shows');
+  assert.ok(models.includes(contracts.AI_OPTION_WORDS.codex.why), 'models.md quotes the Codex words');
+
+  const readme = lf(await readFile(new URL('README.md', docsFolder), 'utf8'));
+  assert.ok(readme.includes('[onboarding.md](onboarding.md)'), 'README links the onboarding page');
+  assert.equal(readme.includes('One question: "What service business do you want to start?"'), false, 'the journey no longer starts with the old question');
+});
+
+test('every relative link in the venture docs points at a file that exists', async () => {
+  const names = (await readdir(docsFolder)).filter(name => name.endsWith('.md'));
+  for (const name of names) {
+    // Code spans and fenced blocks are not links.
+    const text = lf(await readFile(new URL(name, docsFolder), 'utf8')).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const target = match[1].split('#')[0];
+      if (!target || /^[a-z]+:/i.test(target)) continue;
+      try { await readFile(new URL(target, new URL(name, docsFolder))); } catch (error: any) {
+        if (error?.code === 'EISDIR') continue;
+        assert.fail(`docs/venture/${name} links to ${match[1]}, which does not exist`);
+      }
+    }
+  }
+});
+
+/** The onboarding v2 captures the spec asks for: fifteen screens, each in four variants. */
+const ONBOARDING_SCREENS = [
+  '40-pair', '41-connect', '42-connect-key', '43-open-box', '44-working', '45-plan-idea', '46-plan-skill', '47-plan-problem',
+  '48-prices', '49-refused', '50-keep-safe', '51-recovery-code', '52-accept', '53-build', '54-welcome-back',
+];
+const VARIANTS = ['-light', '-dark', '-375-light', '-375-dark'];
+
+test('the onboarding v2 captures are all saved in screens/onboarding-v2, and the docs point there', async () => {
+  const saved = new Set(await readdir(new URL('screens/onboarding-v2/', docsFolder)));
+  const wanted = ONBOARDING_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`));
+  assert.equal(wanted.length, 60);
+  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every screen in light and dark, at 1366 px and 375 px');
+  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
+  // The older captures stay at the top of screens/; none of the onboarding v2 names land there.
+  for (const name of await readdir(new URL('screens/', docsFolder))) assert.equal(/^(4\d|5[0-4])-/.test(name), false, `screens/${name} belongs in screens/onboarding-v2`);
+  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
+    const text = lf(await readFile(new URL(page, docsFolder), 'utf8'));
+    assert.ok(text.includes('screens/onboarding-v2/'), `${page} points at the captures`);
+    assert.equal(text.includes('Still to do, because they need the renderer package'), false, `${page} no longer says the screens are pending`);
+  }
+});
+
+/** The live walk of 19 October (keychain custody): nineteen screens in four variants, twenty moments in light at 1366 px.
+ * Number 20 is left out on purpose: that capture showed a real recovery code, so the walk captured the code screen
+ * again later (33) with its characters hidden. */
+const LIVE_SCREENS = [
+  '01-pair', '02-connect', '04-open-box', '05-open-box-typed', '06-working', '07-plan', '09-prices', '10-setting-up', '11-accept',
+  '12-build', '16-welcome-back', '18-trust-off', '21-trust-on', '22-welcome-back-passphrase', '27-backups', '33-recovery-code',
+  '37-restore-before-opening', '38-move-here', '40-welcome-back-two',
+];
+const LIVE_MOMENTS = [
+  '03-connect-key', '08-prices-typing', '13-today', '14-reopened', '15-workspace-menu', '17-opened-again', '19-lock-sheet',
+  '23-welcome-back-typed', '24-unlocked', '25-stop-asking', '26-trust-off-again', '28-client-added', '29-restore-sheet', '30-restored',
+  '31-clients-after-restore', '32-new-code-sheet', '34-move-code', '35-today-with-code', '36-welcome-back-options', '39-second-accept',
+];
+
+test('the onboarding v3 live walk captures are all saved in screens/onboarding-v3, and the docs point there', async () => {
+  const saved = new Set(await readdir(new URL('screens/onboarding-v3/', docsFolder)));
+  const wanted = [...LIVE_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`)), ...LIVE_MOMENTS.map(moment => `${moment}-light.png`)];
+  assert.equal(wanted.length, 96);
+  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every capture the walk names');
+  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
+  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
+    assert.ok(lf(await readFile(new URL(page, docsFolder), 'utf8')).includes('screens/onboarding-v3/'), `${page} points at the live walk's captures`);
+  }
+});
+
+test('the venture docs cite no file from the local .b2c-work folder as a source, since a clone does not have it', async () => {
+  const names = (await readdir(docsFolder)).filter(name => name.endsWith('.md') && name !== 'architecture.md');
+  for (const name of names) {
+    const text = lf(await readFile(new URL(name, docsFolder), 'utf8'));
+    // The demo's own vault folder is the one .b2c-work path a reader is meant to type.
+    for (const match of text.matchAll(/\.b2c-work\/[^\s`'")]+/g)) assert.equal(match[0], '.b2c-work/demo-data', `docs/venture/${name} cites ${match[0]}`);
+  }
+});

@@ -3,6 +3,10 @@
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
 // Owned by package P0. Other packages import from here and never redefine these shapes.
 import type { Context, StateStore } from '../contracts.ts';
+import type {
+  ApprovalBlockId, ComposedNote, ComposedPage, ComposeModelOutput, CompositionRecord, DecideModelOutput, DraftHandoverPort,
+  OfferBlockId, OnboardingPayloads, OnboardingResults, PlanKind, StepBlockId, ToolBlockId, ViewSelection,
+} from './onboarding-contracts.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
 
@@ -94,6 +98,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-upload', 'venture-work-table', 'venture-work-receipt', 'venture-improvement-run',
   // Heavy work: what the owner's own Claude Code or Codex left after an approved brief.
   'venture-delegate-run',
+  // Onboarding v2: the plan the AI composed from checked blocks before the vault existed.
+  'venture-composition',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -182,6 +188,8 @@ export type InterviewView = {
 export type PricingModel = 'monthly' | 'project' | 'hourly';
 export type Offer = {
   id: string; // 'offer_1' .. 'offer_3', stable across versions
+  /** The library block a composed plan built this offer from; absent on template offers. Allowed pricing is OFFER_BLOCKS[block].allowed. */
+  block?: OfferBlockId;
   name: Labelled<string>;
   description: Labelled<string>;
   pricing: {
@@ -192,9 +200,12 @@ export type Offer = {
     defaultQuantity: string; // integer text, engine default '1'
   };
 };
-export type StepCapability = 'drafts-now' | 'planned';
+/** 'yours': work only the owner does, with no agent planned (composed plans only). */
+export type StepCapability = 'drafts-now' | 'planned' | 'yours';
 export type BlueprintStep = {
   id: string;
+  /** The library block a composed plan built this step from; absent on template steps. */
+  block?: StepBlockId;
   title: Labelled<string>;
   doneBy: 'agent' | 'you' | 'agent-then-you'; // who does it in this build
   capability: StepCapability; // code-computed from STEP_PLAN; 'planned' shows the chip 'planned: agent'
@@ -233,6 +244,12 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
   approvals: Labelled<string>[]; // what the owner approves, 1 to 4
   backOffice: BackOffice;
   starterConnectorIds: string[]; // about six
+  // Composed plans only (onboarding v2). Absent on template records, so their digests do not change.
+  composition?: { id: string; composeId: string; kind: PlanKind; views: ViewSelection[] } | null;
+  approvalBlocks?: ApprovalBlockId[];
+  pages?: ComposedPage[];
+  tools?: { block: ToolBlockId; reason: Labelled<string> }[];
+  notes?: ComposedNote[];
 };
 
 /** Owner edits. Every field optional; at least one required. Creates a new draft version. */
@@ -319,11 +336,12 @@ export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
 export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
 export type ModelTier = 'fast' | 'main';
 /** 'agent-turn' is one tool-using turn of a delivery agent (cheap tier); 'improve' proposes one playbook patch. */
-export const MODEL_PURPOSES = ['interview', 'blueprint', 'brief', 'delivery', 'client-sim', 'judge', 'agent-turn', 'improve'] as const;
+/** 'decide' reads the open box and picks views (cheap tier); 'compose' fills the plan from library blocks (main tier). */
+export const MODEL_PURPOSES = ['interview', 'blueprint', 'brief', 'delivery', 'client-sim', 'judge', 'agent-turn', 'improve', 'decide', 'compose'] as const;
 export type ModelPurpose = typeof MODEL_PURPOSES[number];
 export const PURPOSE_TIER: Readonly<Record<ModelPurpose, ModelTier>> = Object.freeze({
   interview: 'fast', 'client-sim': 'fast', judge: 'fast', blueprint: 'main', brief: 'main', delivery: 'main',
-  'agent-turn': 'fast', improve: 'main',
+  'agent-turn': 'fast', improve: 'main', decide: 'fast', compose: 'main',
 });
 
 export type ModelPriceTable = {
@@ -541,6 +559,8 @@ export type ModelOutputs = {
   judge: JudgeModelOutput;
   'agent-turn': AgentTurnModelOutput;
   improve: ImproveModelOutput;
+  decide: DecideModelOutput;
+  compose: ComposeModelOutput;
 };
 
 // ---------------------------------------------------------------------------
@@ -1240,6 +1260,7 @@ export const VENTURE_EVENTS = [
   'playbook-ready', 'simulation-finished', 'launch-stage-changed', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'signal-recorded',
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
   'delivery-brief-waiting', 'delegate-finished',
+  'plan-composed',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; name: VentureEventName; data: Json };
@@ -1249,7 +1270,7 @@ export type AnyVentureRecord =
   | PriceReceiptRecord | ClientRecord | OrderRecord | InvoiceRecord | PaymentRecord
   | BriefRecord | HandoffRecord | BuildFollowRecord | GitHubReadRecord
   | PlaybookRecord | SimulationRunRecord | DeliveryRunRecord | SignalRecord | VentureEventRecord
-  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | DelegateRunRecord;
+  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | DelegateRunRecord | CompositionRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 // ---------------------------------------------------------------------------
@@ -1282,10 +1303,21 @@ export const VENTURE_METHODS = [
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
   // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
   'venture.delivery.delegate', 'venture.delegate.get',
+  // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
+  'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /** Answered without a vault, a model or any write. The engine routes them before its vault check. */
 export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['venture.countries', 'venture.preview'] as const);
+/**
+ * Answered by the engine's draft desk before the vault check. They may call a model and write the in-memory draft
+ * store, never the vault. The same nine as ONBOARDING_METHODS in onboarding-contracts.ts (a test pins them equal).
+ */
+export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
+  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
+  'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+] as const);
 
 export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
@@ -1306,12 +1338,16 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
   'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
+  // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
+  'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
+  'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
   'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
+  'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
 ] as const);
 /** Methods whose success changes what saved answers may cite; the renderer adds them to evidenceChanges. */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -1323,7 +1359,8 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 export type VenturePayloads = {
   'venture.countries': Empty;
   'venture.preview': { idea: string; countryCode: CountryCode; pricingModel?: PricingModel };
-  'venture.create': { idea: string; countryCode: CountryCode; workingName?: string };
+  /** composeId and composedDigest are sent together or not at all; the engine holds the plan itself. */
+  'venture.create': { idea: string; countryCode: CountryCode; workingName?: string; composeId?: string; composedDigest?: string };
   'venture.get': Empty;
   'venture.events': { afterSeq?: number; limit?: number };
   'venture.interview.next': { useTemplate?: boolean };
@@ -1379,6 +1416,15 @@ export type VenturePayloads = {
   'venture.improve.run': { maxRounds?: number; useTemplate?: boolean };
   'venture.improve.get': { runId: string };
   'venture.improve.adopt': { runId: string; digest: string };
+  'venture.ai.options': OnboardingPayloads['venture.ai.options'];
+  'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
+  'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
+  'venture.ai.status': OnboardingPayloads['venture.ai.status'];
+  'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
+  'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
+  'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
+  'venture.compose.get': OnboardingPayloads['venture.compose.get'];
+  'venture.compose.update': OnboardingPayloads['venture.compose.update'];
 };
 export type VentureResults = {
   'venture.countries': CountryProfile[];
@@ -1439,6 +1485,15 @@ export type VentureResults = {
   'venture.improve.run': ImprovementRunRecord;
   'venture.improve.get': ImprovementRunRecord;
   'venture.improve.adopt': PlaybookRecord;
+  'venture.ai.options': OnboardingResults['venture.ai.options'];
+  'venture.ai.connect': OnboardingResults['venture.ai.connect'];
+  'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
+  'venture.ai.status': OnboardingResults['venture.ai.status'];
+  'venture.ai.calls': OnboardingResults['venture.ai.calls'];
+  'venture.compose.decide': OnboardingResults['venture.compose.decide'];
+  'venture.compose.fill': OnboardingResults['venture.compose.fill'];
+  'venture.compose.get': OnboardingResults['venture.compose.get'];
+  'venture.compose.update': OnboardingResults['venture.compose.update'];
 };
 
 /** Compile-time guards: payload and result maps cover exactly the method list. */
@@ -1469,6 +1524,8 @@ export const VENTURE_ERRORS = [
   'TOOL_DENIED', 'TOOL_INPUT_INVALID', 'TOOL_FAILED', 'TOOL_TIMEOUT', 'TOOL_SKIPPED', 'TIER_UNAVAILABLE', 'PROGRAM_INVALID', 'SANDBOX_FAILED', 'HARNESS_LIMIT',
   'IMPROVEMENT_NOT_FOUND', 'IMPROVEMENT_NOT_READY', 'CANDIDATE_STALE',
   'DELIVERY_NOT_BRIEFING', 'DELEGATE_DECLINED', 'DELEGATE_FAILED', 'DELEGATE_RUN_NOT_FOUND',
+  // Onboarding v2: the composer before the vault
+  'COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -1519,6 +1576,10 @@ export type VentureDeps = {
   sandbox?: SandboxPorts;
   /** Heavy work's port. Absent means the real one on the desktop and in local web mode, and none anywhere else. */
   delegate?: DelegatePorts;
+  /** The engine's draft desk, so venture.create can adopt the AI and plan made before the vault. Absent on hosted. */
+  draft?: DraftHandoverPort;
+  /** Whether Chausar has accepted Anthropic's terms for running Claude Code. Absent means 'pending'. */
+  claudeCodeTerms?: 'accepted' | 'pending';
 };
 
 export type VentureHandler<M extends VentureMethod> = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<VentureResults[M]>;
@@ -1533,6 +1594,8 @@ export type ModelPortOptions = {
   host: VentureHostKind;
   demo: boolean;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
+  /** The Claude Code terms gate; absent is 'pending'. */
+  claudeCodeTerms?: 'accepted' | 'pending';
 };
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
@@ -1549,4 +1612,8 @@ export type VentureHostOptions = {
   hostProcess?: (request: any) => Promise<any>; // the trusted host's verified process port (the gateway's process), when present
   sandbox?: SandboxPorts; // tests inject a Docker port; the real one is used otherwise
   delegate?: DelegatePorts; // tests inject a port to a fake command-line tool
+  /** Trusted host composition, never from a payload: the engine's draft desk handover. */
+  draft?: DraftHandoverPort;
+  /** From CHAUSAR_CLAUDE_CODE_TERMS ('accepted' opens it). Absent or anything else is 'pending': Claude Code needs setup. */
+  claudeCodeTerms?: 'accepted' | 'pending';
 };

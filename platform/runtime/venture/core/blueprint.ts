@@ -2,7 +2,7 @@
 // Code makes the structure (offers and their pricing, steps, approval count, back office, starter connectors)
 // from the interview; a model or the templates only write words into named slots. The structure is hashed before
 // the model writes and again inside the write, so nothing moves while it writes (APPROVAL_STALE otherwise).
-import { authorize, check, type Context } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
 import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
   tidyWords, ventureAction, type VentureTx,
@@ -12,16 +12,30 @@ import type {
   BackOffice, BlueprintModelOutput, BlueprintRecord, BlueprintStep, BlueprintView, CountryProfile, InterviewRecord, Json,
   Labelled, ModelTask, Offer, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,
 } from '../contracts.ts';
+import type {
+  ApprovalBlockId, ComposedPlan, CompositionRecord, NoteBlockId, OfferBlockId, PageBlockId, StepBlockId, ToolBlockId,
+} from '../onboarding-contracts.ts';
+import { WORD_CAPS } from '../onboarding-contracts.ts';
+import { APPROVAL_BLOCKS, OFFER_BLOCKS, STEP_BLOCKS, allowedPricingWords } from './blocks.ts';
 import { interviewDone, isPricingModel, priceQuestionText, storedQuestion, taxRateQuestion, UNIT_OF } from './interview.ts';
-import { blueprintView, interviewOf, latestBlueprint, nextBlueprintVersion } from './lookups.ts';
+import { blueprintView, compositionOf, interviewOf, latestBlueprint, nextBlueprintVersion } from './lookups.ts';
 import { offerWords, serviceTemplate } from './service-types.ts';
 import { cleanSacCode, cleanTaxId, cleanTaxState, withTaxInvoiceFields } from './tax-fields.ts';
-import { DEFAULT_WORKING_NAME, labelled, optionalFlag, ownerPrice, styledWords, toldByYou } from './words.ts';
+import { DEFAULT_WORKING_NAME, labelled, noMarkup, optionalFlag, ownerPrice, styledWords, toldByYou, wordCap } from './words.ts';
 
 // ---------------------------------------------------------------------------
 // Structure (pure, code-made)
 // ---------------------------------------------------------------------------
 
+/** The library blocks of a composed plan. Present only for composed ventures, so template structure hashes are unchanged. */
+export type StructureBlocks = {
+  offers: OfferBlockId[];
+  steps: StepBlockId[];
+  approvals: ApprovalBlockId[];
+  pages: PageBlockId[];
+  tools: ToolBlockId[];
+  notes: NoteBlockId[];
+};
 export type BlueprintStructure = {
   serviceType: ServiceType;
   offers: { id: string; pricing: Offer['pricing'] }[];
@@ -29,7 +43,16 @@ export type BlueprintStructure = {
   approvals: number;
   backOffice: BackOffice;
   starterConnectorIds: string[];
+  blocks?: StructureBlocks;
 };
+
+/** A record is composed when any offer or step carries a block. Template records carry none. */
+export function isComposedRecord(blueprint: Pick<BlueprintRecord, 'offers' | 'deliverySteps'>): boolean {
+  return blueprint.offers.some(offer => offer.block !== undefined) || blueprint.deliverySteps.some(step => step.block !== undefined);
+}
+
+export const COMPOSED_TEMPLATE_REFUSED = "This plan was made with your AI. Built-in words don't fit it.";
+export const COMPOSED_NEEDS_AI = 'This plan was made with your AI. Connect an AI to rewrite it.';
 
 const has = (record: Record<string, unknown>, key: string) => Object.hasOwn(record, key);
 
@@ -67,10 +90,19 @@ export function previewBackOffice(country: CountryProfile): BackOffice {
   }, country);
 }
 
-/** The code-made structure from the venture and its interview answers. Pure. */
-export function structureOf(venture: VentureRecord, interview: InterviewRecord): BlueprintStructure {
+/** Starter connectors for a composed plan: the builder, GitHub, the country's payment rail, the plan's tools, the books. */
+export function composedStarterIds(country: CountryProfile, tools: readonly string[]): string[] {
+  return [...new Set(['lovable', 'github', country.paymentRails[0], ...tools, 'chausar-books'])];
+}
+
+/**
+ * The code-made structure from the venture and its interview answers, and for a composed venture its composition:
+ * offer_1 is priced from the interview as today, offer_2 onwards from the owner's pricing before the vault, and the
+ * steps come from the composition's step blocks and the block library. Pure.
+ */
+export function structureOf(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null = null): BlueprintStructure {
   const country = venture.country;
-  const type = venture.serviceType ?? interview.serviceType.value;
+  const type = composition ? composition.family : venture.serviceType ?? interview.serviceType.value;
   const answerOf = (id: string) => interview.questions.find(q => q.id === id);
   const chosen = answerOf(INTERVIEW_IDS.pricingModel)?.answer?.choiceId;
   const model: PricingModel = isPricingModel(chosen) ? chosen : 'monthly';
@@ -85,6 +117,33 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord):
     backOffice.taxRateBy = rate !== null && standard !== '0' && rate === standard ? 'country-table' : 'told-by-you';
   }
   withTaxInvoiceFields(backOffice, country);
+  if (composition) {
+    const output = composition.output;
+    return {
+      serviceType: type,
+      offers: output.offers.map((_, index) => {
+        const id = `offer_${index + 1}`;
+        if (index === 0) return { id, pricing: offerPricing(model, price) };
+        const kept = composition.pricing.find(item => item.id === id);
+        return { id, pricing: offerPricing(kept?.model ?? output.offers[index].pricingModel, kept?.unitPriceMinor ?? null) };
+      }),
+      steps: output.steps.map((step, index) => {
+        const data = STEP_BLOCKS[step.block];
+        return { id: `step_${index + 1}`, doneBy: data.doneBy, capability: data.capability, note: data.note };
+      }),
+      approvals: output.approvals.length,
+      backOffice,
+      starterConnectorIds: composedStarterIds(country, output.tools.map(tool => tool.block)),
+      blocks: {
+        offers: output.offers.map(offer => offer.block),
+        steps: output.steps.map(step => step.block),
+        approvals: [...output.approvals],
+        pages: output.pages.map(page => page.block),
+        tools: output.tools.map(tool => tool.block),
+        notes: [...output.notes],
+      },
+    };
+  }
   return {
     serviceType: type,
     offers: [
@@ -99,7 +158,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord):
 }
 
 export function structureFromBlueprint(blueprint: BlueprintRecord): BlueprintStructure {
-  return {
+  const structure: BlueprintStructure = {
     serviceType: blueprint.serviceType,
     offers: blueprint.offers.map(o => ({ id: o.id, pricing: o.pricing })),
     steps: blueprint.deliverySteps.map(s => ({ id: s.id, doneBy: s.doneBy, capability: s.capability, note: s.note })),
@@ -107,6 +166,18 @@ export function structureFromBlueprint(blueprint: BlueprintRecord): BlueprintStr
     backOffice: blueprint.backOffice,
     starterConnectorIds: blueprint.starterConnectorIds,
   };
+  // A composed record hashes its blocks too, so a rewrite can change words but never the block structure.
+  if (isComposedRecord(blueprint)) {
+    structure.blocks = {
+      offers: blueprint.offers.map(o => o.block as OfferBlockId),
+      steps: blueprint.deliverySteps.map(s => s.block as StepBlockId),
+      approvals: [...(blueprint.approvalBlocks ?? [])],
+      pages: (blueprint.pages ?? []).map(p => p.block),
+      tools: (blueprint.tools ?? []).map(t => t.block),
+      notes: (blueprint.notes ?? []).map(n => n.block),
+    };
+  }
+  return structure;
 }
 
 /** Digest of the whole blueprint except id, at, digest and status, so accepting a version keeps its digest. */
@@ -134,7 +205,9 @@ export function carryOver(structure: BlueprintStructure, previous: BlueprintReco
   backOffice.taxState = before.taxState;
   backOffice.sacCode = before.sacCode;
   backOffice.lutConfirmed = before.lutConfirmed;
-  for (const id of interviewClosed ? OFFER_IDS : [OFFER_IDS[1]]) {
+  // The structure's own offer ids: offer_2 onwards always keep their pricing; offer_1 too once the interview is closed.
+  const ids = next.offers.map(o => o.id);
+  for (const id of interviewClosed ? ids : ids.slice(1)) {
     const was = previous.offers.find(o => o.id === id);
     const offer = next.offers.find(o => o.id === id);
     if (was && offer) offer.pricing = structuredClone(was.pricing);
@@ -192,29 +265,67 @@ export const BLUEPRINT_SCHEMA: Json = {
   },
 };
 
-/** Local authority over the blueprint words. Ids must come back exactly; every string is checked words. */
-export function validateBlueprintOutput(raw: unknown, allowed: readonly string[]): BlueprintModelOutput {
+/** The ids a plan's words are written for: the template's, or a composed plan's own (whose approvals are fixed words). */
+export type BlueprintIds = { offers: readonly string[]; steps: readonly string[]; approvals: number; composed: boolean };
+export const TEMPLATE_IDS: BlueprintIds = Object.freeze({ offers: OFFER_IDS, steps: STEP_IDS, approvals: APPROVAL_COUNT, composed: false });
+
+export function idsOf(structure: BlueprintStructure): BlueprintIds {
+  if (!structure.blocks) return TEMPLATE_IDS;
+  return { offers: structure.offers.map(o => o.id), steps: structure.steps.map(s => s.id), approvals: structure.approvals, composed: true };
+}
+
+/** Composed plans keep the onboarding word caps and refuse markup, as when they were composed. */
+function planWords(value: unknown, field: string, max: number, allowed: readonly string[], cap: number | null): string {
+  const words = styledWords(value, field, max, allowed);
+  if (cap === null) return words;
+  wordCap(words, field, cap);
+  return noMarkup(words, field);
+}
+
+/**
+ * Local authority over the blueprint words. Ids must come back exactly, in order (the structure's own ids); every
+ * string is checked words. A composed plan's approvals are fixed words, so the model writes none.
+ */
+export function validateBlueprintOutput(raw: unknown, allowed: readonly string[], ids: BlueprintIds = TEMPLATE_IDS): BlueprintModelOutput {
   const code = 'MODEL_OUTPUT_REJECTED';
-  const keys = ['name', 'oneLiner', 'customer', 'offers', 'steps', 'approvals'];
+  const composed = ids.composed;
+  const caps = (key: keyof typeof WORD_CAPS) => (composed ? WORD_CAPS[key] : null);
+  const keys = composed ? ['name', 'oneLiner', 'customer', 'offers', 'steps'] : ['name', 'oneLiner', 'customer', 'offers', 'steps', 'approvals'];
   const body = exactPayload(raw, keys, keys, code);
-  const name = styledWords(body.name, 'business name', 60, allowed);
-  const oneLiner = styledWords(body.oneLiner, 'one line summary', 160, allowed);
-  const customer = styledWords(body.customer, 'customer line', 200, allowed);
-  check(Array.isArray(body.offers) && body.offers.length === OFFER_IDS.length, code, 'The AI changed the offers in the plan.');
+  const name = planWords(body.name, 'business name', 60, allowed, caps('name'));
+  const oneLiner = planWords(body.oneLiner, 'one line summary', 160, allowed, caps('oneLiner'));
+  const customer = planWords(body.customer, 'customer line', 200, allowed, caps('customer'));
+  check(Array.isArray(body.offers) && body.offers.length === ids.offers.length, code, 'The AI changed the offers in the plan.');
   const offers = (body.offers as unknown[]).map((item, index) => {
     const offer = exactPayload(item, ['id', 'name', 'description'], ['id', 'name', 'description'], code);
-    check(offer.id === OFFER_IDS[index], code, 'The AI changed the offers in the plan.');
-    return { id: OFFER_IDS[index] as string, name: styledWords(offer.name, 'offer name', 60, allowed), description: styledWords(offer.description, 'offer description', 200, allowed) };
+    check(offer.id === ids.offers[index], code, 'The AI changed the offers in the plan.');
+    return { id: ids.offers[index], name: planWords(offer.name, 'offer name', 60, allowed, caps('offerName')), description: planWords(offer.description, 'offer description', 200, allowed, caps('offerDescription')) };
   });
-  check(Array.isArray(body.steps) && body.steps.length === STEP_IDS.length, code, 'The AI changed the steps in the plan.');
+  check(Array.isArray(body.steps) && body.steps.length === ids.steps.length, code, 'The AI changed the steps in the plan.');
   const steps = (body.steps as unknown[]).map((item, index) => {
     const step = exactPayload(item, ['id', 'title'], ['id', 'title'], code);
-    check(step.id === STEP_IDS[index], code, 'The AI changed the steps in the plan.');
-    return { id: STEP_IDS[index] as string, title: styledWords(step.title, 'step title', 80, allowed) };
+    check(step.id === ids.steps[index], code, 'The AI changed the steps in the plan.');
+    return { id: ids.steps[index], title: planWords(step.title, 'step title', 80, allowed, caps('stepTitle')) };
   });
-  check(Array.isArray(body.approvals) && body.approvals.length === APPROVAL_COUNT, code, 'The AI changed what you approve.');
+  if (composed) return { name, oneLiner, customer, offers, steps, approvals: [] };
+  check(Array.isArray(body.approvals) && body.approvals.length === ids.approvals, code, 'The AI changed what you approve.');
   const approvals = (body.approvals as unknown[]).map(item => styledWords(item, 'approval', 120, allowed));
   return { name, oneLiner, customer, offers, steps, approvals };
+}
+
+/** The blueprint schema for these ids: id enums from the structure's own ids; no approvals for a composed plan. */
+export function blueprintSchema(ids: BlueprintIds): Json {
+  const schema = structuredClone(BLUEPRINT_SCHEMA) as any;
+  schema.properties.offers.items.properties.id.enum = [...ids.offers];
+  schema.properties.steps.items.properties.id.enum = [...ids.steps];
+  if (ids.composed) {
+    delete schema.properties.approvals;
+    schema.required = schema.required.filter((key: string) => key !== 'approvals');
+    schema.properties.name.description = 'Business name, four words or fewer. No numbers.';
+    schema.properties.offers.items.properties.name.description = 'Offer name, four words or fewer. No numbers or prices.';
+    schema.properties.steps.items.properties.title.description = 'Step title, four words or fewer. No numbers.';
+  }
+  return schema;
 }
 
 /**
@@ -253,11 +364,15 @@ function typedAnswers(interview: InterviewRecord): string[] {
   return interview.questions.filter(q => OPENING_IDS.includes(q.id) && typeof q.answer?.text === 'string').map(q => q.answer?.text as string);
 }
 
+/** For a composed plan: which step is the drafting step and that approvals are fixed, in place of step three. */
+export const COMPOSED_BLUEPRINT_INSTRUCTIONS = "Write the words for a one-page service business plan. The structure is fixed: keep every id exactly as given and write only names, descriptions and titles. Name and describe each offer to fit how it is charged, as given by its pricingModel: per month, per project or per hour. The step whose doneBy is agent-then-you is the step an agent drafts from the client's message; the other steps are done by the owner. Keep a business name, offer names and step titles to four words or fewer. Never write numbers in digits or in words, prices, percentages, amounts, links or markup. Plain words, no dashes, no hype.";
+
 export function blueprintTask(venture: VentureRecord, interview: InterviewRecord, structure: BlueprintStructure, template: () => BlueprintModelOutput): ModelTask<BlueprintModelOutput> {
   const allowed = copiedTokens(venture.idea, ...typedAnswers(interview));
+  const ids = idsOf(structure);
   return {
     purpose: 'blueprint',
-    instructions: BLUEPRINT_INSTRUCTIONS,
+    instructions: ids.composed ? COMPOSED_BLUEPRINT_INSTRUCTIONS : BLUEPRINT_INSTRUCTIONS,
     input: {
       idea: venture.idea,
       serviceType: structure.serviceType,
@@ -266,12 +381,12 @@ export function blueprintTask(venture: VentureRecord, interview: InterviewRecord
       structure: {
         offers: structure.offers.map(o => ({ id: o.id, pricingModel: o.pricing.model })),
         steps: structure.steps.map(s => ({ id: s.id, doneBy: s.doneBy })),
-        approvals: APPROVAL_COUNT,
+        approvals: ids.composed ? 0 : APPROVAL_COUNT,
       },
     },
     schemaName: 'venture-blueprint',
-    schema: structuredClone(BLUEPRINT_SCHEMA),
-    validate: raw => validateBlueprintOutput(raw, allowed),
+    schema: blueprintSchema(ids),
+    validate: raw => validateBlueprintOutput(raw, allowed, ids),
     template,
     containsClientData: false,
     maxOutputTokens: 4096,
@@ -279,7 +394,7 @@ export function blueprintTask(venture: VentureRecord, interview: InterviewRecord
 }
 
 /** Who the business is for, in the owner's own words, when they typed it as text. */
-function ownerCustomer(interview: InterviewRecord): string | null {
+export function ownerCustomer(interview: InterviewRecord): string | null {
   const q = interview.questions.find(x => OPENING_IDS.includes(x.id) && x.field === 'customer' && typeof x.answer?.text === 'string');
   if (!q) return null;
   const words = tidyWords(q.answer?.text as string);
@@ -295,8 +410,12 @@ type PlanWords = {
   approvals: Labelled<string>[];
 };
 
-function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord): PlanWords {
+function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord, structure?: BlueprintStructure): PlanWords {
   const say = (value: string) => labelled(value, 'assumption', by);
+  // A composed plan's approvals are the approval blocks' fixed words, never model words.
+  const approvals = structure?.blocks
+    ? structure.blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine'))
+    : output.approvals.map(say);
   const name = by === 'model'
     ? say(output.name)
     : venture.workingName === DEFAULT_WORKING_NAME ? labelled(venture.workingName, 'assumption', 'template') : toldByYou(venture.workingName);
@@ -307,11 +426,16 @@ function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', vent
     customer: typed ? toldByYou(typed) : say(output.customer),
     offers: output.offers.map(o => ({ name: say(o.name), description: say(o.description) })),
     steps: output.steps.map(s => say(s.title)),
-    approvals: output.approvals.map(say),
+    approvals,
   };
 }
 
-function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords, source: 'model' | 'template', modelCallIds: string[], version: number): BlueprintRecord {
+/**
+ * One blueprint version from a structure and words. A composed plan carries its block ids onto offers and steps, and
+ * keeps the previous version's pages, tools, notes, composition and approval blocks unchanged.
+ */
+function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords, source: 'model' | 'template', modelCallIds: string[], version: number, previous: BlueprintRecord | null = null): BlueprintRecord {
+  const blocks = structure.blocks;
   const record: BlueprintRecord = {
     ...tx.base('venture-blueprint'),
     version,
@@ -324,11 +448,62 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
     name: words.name,
     oneLiner: words.oneLiner,
     customer: words.customer,
-    offers: structure.offers.map((o, index) => ({ id: o.id, name: words.offers[index].name, description: words.offers[index].description, pricing: structuredClone(o.pricing) })),
-    deliverySteps: structure.steps.map((s, index) => ({ id: s.id, title: words.steps[index], doneBy: s.doneBy, capability: s.capability, note: s.note })),
+    offers: structure.offers.map((o, index) => ({
+      id: o.id, ...(blocks ? { block: blocks.offers[index] } : {}), name: words.offers[index].name, description: words.offers[index].description, pricing: structuredClone(o.pricing),
+    })),
+    deliverySteps: structure.steps.map((s, index) => ({
+      id: s.id, ...(blocks ? { block: blocks.steps[index] } : {}), title: words.steps[index], doneBy: s.doneBy, capability: s.capability, note: s.note,
+    })),
     approvals: words.approvals,
     backOffice: structuredClone(structure.backOffice),
     starterConnectorIds: [...structure.starterConnectorIds],
+  };
+  if (blocks && previous) {
+    record.composition = structuredClone(previous.composition ?? null);
+    record.approvalBlocks = [...(previous.approvalBlocks ?? blocks.approvals)];
+    record.pages = structuredClone(previous.pages ?? []);
+    record.tools = structuredClone(previous.tools ?? []);
+    record.notes = structuredClone(previous.notes ?? []);
+  }
+  return seal(record);
+}
+
+/**
+ * Blueprint version 1 of a composed plan, written by venture.create: words from the plan the owner kept (labelled as
+ * the AI's assumptions, the customer line told by you when the owner typed it), the structure from structureOf, and
+ * the pages, tools, notes and approval blocks copied from the composition.
+ */
+export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStructure, interview: InterviewRecord, composition: CompositionRecord, plan: ComposedPlan): BlueprintRecord {
+  check(structure.blocks, 'INVALID_VENTURE_REQUEST', 'This plan was not composed.');
+  const blocks = structure.blocks;
+  const typed = ownerCustomer(interview);
+  const record: BlueprintRecord = {
+    ...tx.base('venture-blueprint'),
+    version: 1,
+    status: 'draft',
+    source: 'model',
+    structureHash: '',
+    digest: '',
+    modelCallIds: [...composition.decideCallIds, ...composition.composeCallIds],
+    serviceType: structure.serviceType,
+    name: structuredClone(plan.name),
+    oneLiner: structuredClone(plan.oneLiner),
+    customer: typed ? toldByYou(typed) : structuredClone(plan.customer),
+    offers: structure.offers.map((o, index) => ({
+      id: o.id, block: blocks.offers[index], name: structuredClone(plan.offers[index].name), description: structuredClone(plan.offers[index].description),
+      pricing: structuredClone(o.pricing),
+    })),
+    deliverySteps: structure.steps.map((s, index) => ({
+      id: s.id, block: blocks.steps[index], title: structuredClone(plan.steps[index].title), doneBy: s.doneBy, capability: s.capability, note: s.note,
+    })),
+    approvals: blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine')),
+    backOffice: structuredClone(structure.backOffice),
+    starterConnectorIds: [...structure.starterConnectorIds],
+    composition: { id: composition.id, composeId: composition.composeId, kind: composition.planKind, views: structuredClone(composition.views) },
+    approvalBlocks: [...blocks.approvals],
+    pages: structuredClone(plan.pages),
+    tools: plan.tools.map(tool => ({ block: tool.block, reason: structuredClone(tool.reason) })),
+    notes: structuredClone(plan.notes),
   };
   return seal(record);
 }
@@ -376,12 +551,13 @@ const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingMode
 type InterviewMirror = { pricingModel?: PricingModel; price?: { text: string; minor: string } | null; tax?: boolean };
 
 function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: CountryProfile, mirror: InterviewMirror): void {
-  check(Array.isArray(value) && value.length >= 1 && value.length <= OFFER_IDS.length, 'INVALID_VENTURE_REQUEST', 'Send one change for each offer you edit.');
+  const ids = blueprint.offers.map(o => o.id);
+  check(Array.isArray(value) && value.length >= 1 && value.length <= ids.length, 'INVALID_VENTURE_REQUEST', 'Send one change for each offer you edit.');
   const seen = new Set<string>();
   for (const item of value as unknown[]) {
     const change = exactPayload(item, OFFER_PATCH_KEYS, ['id']);
     const id = change.id;
-    check(typeof id === 'string' && (OFFER_IDS as readonly string[]).includes(id) && !seen.has(id), 'INVALID_VENTURE_REQUEST', 'Name each offer once, as offer_1 or offer_2.');
+    check(typeof id === 'string' && ids.includes(id) && !seen.has(id), 'INVALID_VENTURE_REQUEST', `Name each offer once, as ${ids.join(' or ')}.`);
     seen.add(id);
     check(Object.keys(change).length > 1, 'INVALID_VENTURE_REQUEST', 'Send at least one change for the offer.');
     const offer = blueprint.offers.find(o => o.id === id);
@@ -391,12 +567,20 @@ function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: 
     if (has(change, 'pricingModel')) {
       const model = change.pricingModel;
       check(isPricingModel(model), 'INVALID_VENTURE_REQUEST', 'Choose per month, per project or per hour.');
+      // A composed offer can only be priced the ways its block allows, before and after the vault.
+      if (offer.block) {
+        const allowed = OFFER_BLOCKS[offer.block].allowed;
+        check(allowed.includes(model), 'INVALID_VENTURE_REQUEST', `This offer can only be priced ${allowedPricingWords(allowed)}.`);
+      }
       offer.pricing.model = model;
       offer.pricing.quantityUnit = UNIT_OF[model];
       // Template words follow the new pricing; the owner's own words and the AI's words stay as they are.
-      const words = offerWords(blueprint.serviceType, OFFER_IDS.indexOf(id as typeof OFFER_IDS[number]), model);
-      if (!has(change, 'name') && offer.name.by === 'template') offer.name = labelled(words.name, 'assumption', 'template');
-      if (!has(change, 'description') && offer.description.by === 'template') offer.description = labelled(words.description, 'assumption', 'template');
+      const index = OFFER_IDS.indexOf(id as typeof OFFER_IDS[number]);
+      if (index >= 0) {
+        const words = offerWords(blueprint.serviceType, index, model);
+        if (!has(change, 'name') && offer.name.by === 'template') offer.name = labelled(words.name, 'assumption', 'template');
+        if (!has(change, 'description') && offer.description.by === 'template') offer.description = labelled(words.description, 'assumption', 'template');
+      }
       if (id === OFFER_IDS[0]) mirror.pricingModel = model;
     }
     if (has(change, 'unitPrice')) {
@@ -414,7 +598,7 @@ function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: 
   }
 }
 
-function applyTaxPatch(backOffice: BackOffice, patch: Record<string, unknown>, country: CountryProfile, mirror: InterviewMirror): void {
+export function applyTaxPatch(backOffice: BackOffice, patch: Record<string, unknown>, country: CountryProfile, mirror: InterviewMirror): void {
   const india = country.code === 'IN';
   for (const key of ['taxState', 'sacCode', 'lutConfirmed']) {
     if (has(patch, key)) check(india, 'INVALID_VENTURE_REQUEST', 'This setting is only for businesses in India.');
@@ -502,13 +686,20 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   authorize(deps.store, ctx, 'prepare');
   const state = deps.store.read();
   const venture = requireVenture(state);
+  const composition = compositionOf(state, venture.id);
+  // A composed plan has no built-in words that fit it: refuse before any work.
+  check(!(composition && useTemplate), 'INVALID_VENTURE_REQUEST', COMPOSED_TEMPLATE_REFUSED);
   const interview = interviewOf(state, venture.id);
   check(interviewDone(interview), 'INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
-  const fromInterview = digest(structureOf(venture, interview));
-  const planned = carryOver(structureOf(venture, interview), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
+  const fromInterview = digest(structureOf(venture, interview, composition));
+  const planned = carryOver(structureOf(venture, interview, composition), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
   const plannedHash = digest(planned);
 
-  const fromTemplate = () => templateWords(venture, planned.serviceType, planned.offers.map(o => o.pricing.model));
+  // With no AI serving the main tier the port takes the template route; for a composed plan that is a clear refusal,
+  // never a record built from two template offers and four template steps.
+  const fromTemplate = composition
+    ? (): BlueprintModelOutput => { throw new ChausarError('NO_MODEL_CONNECTED', COMPOSED_NEEDS_AI); }
+    : () => templateWords(venture, planned.serviceType, planned.offers.map(o => o.pricing.model));
   let output: BlueprintModelOutput;
   let by: 'model' | 'template';
   let callIds: string[] = [];
@@ -527,13 +718,14 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     const current = tx.venture as VentureRecord;
     const currentInterview = interviewOf(tx.state, current.id);
     check(interviewDone(currentInterview), 'INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
-    const structureNow = structureOf(current, currentInterview);
+    const structureNow = structureOf(current, currentInterview, compositionOf(tx.state, current.id));
     const stale = 'Your plan changed while its words were being written. Write it again.';
     check(digest(structureNow) === fromInterview, 'APPROVAL_STALE', stale);
-    const structure = carryOver(structureNow, latestBlueprint(tx.state, current.id), current.acceptedBlueprintId !== null, current.country);
+    const previous = latestBlueprint(tx.state, current.id);
+    const structure = carryOver(structureNow, previous, current.acceptedBlueprintId !== null, current.country);
     check(digest(structure) === plannedHash, 'APPROVAL_STALE', stale);
-    const words = labelWords(output, by, current, currentInterview);
-    const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id));
+    const words = labelWords(output, by, current, currentInterview, structure);
+    const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id), previous);
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });
     tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: by });

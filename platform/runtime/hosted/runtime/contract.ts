@@ -4,7 +4,7 @@
 // returns (ventureAction in venture/records.ts), and business data lives only in the encrypted vault, never in actor
 // state. Actor state holds pointers.
 import { check } from '../../contracts.ts';
-import { VENTURE_EVENTS, VENTURE_METHODS, PRE_VAULT_METHODS } from '../../venture/contracts.ts';
+import { DRAFT_METHODS, VENTURE_EVENTS, VENTURE_METHODS, PRE_VAULT_METHODS } from '../../venture/contracts.ts';
 import { isBusinessId, isTenantId } from '../custody.ts';
 
 export const RUNTIME_API_VERSION = 'chausar.dev/venture-runtime/v1alpha1';
@@ -21,12 +21,13 @@ export type RuntimeDescriptor = {
 
 /**
  * The actions one business actor declares: the engine methods a hosted owner may call on it. The two pre-vault
- * venture methods are answered by the server without an actor; creating, locking and deleting a business are runtime
- * calls (create, destroy), not actions.
+ * venture methods are answered by the server without an actor; the nine draft methods (connect an AI and compose a
+ * plan before any vault) are not offered on hosted at all, so the server answers HOSTED_NOT_AVAILABLE; creating,
+ * locking and deleting a business are runtime calls (create, destroy), not actions.
  */
 export const ACTOR_ACTIONS: readonly string[] = Object.freeze([
   'workspace.status',
-  ...VENTURE_METHODS.filter(method => !(PRE_VAULT_METHODS as readonly string[]).includes(method)),
+  ...VENTURE_METHODS.filter(method => !(PRE_VAULT_METHODS as readonly string[]).includes(method) && !(DRAFT_METHODS as readonly string[]).includes(method)),
   'receipts.get',
 ]);
 export const ACTOR_EVENTS: readonly string[] = VENTURE_EVENTS;

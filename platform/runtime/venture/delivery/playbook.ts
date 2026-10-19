@@ -33,16 +33,33 @@ export const DRAFT_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-re
 const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner'];
 const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate'];
 
+export const GENERIC_WORK_TITLE = 'Do the hands-on work with tools';
+
+/**
+ * The plan steps the playbook takes its two titles from. A composed plan (any step has a block) finds them by block:
+ * the drafting step is draft-reply, and only a hands-on-work step may name the agent's work step, so in-person work
+ * or a meeting is never credited to an agent. A template plan keeps step_3 and step_2.
+ */
+export function playbookSources(blueprint: BlueprintRecord): { drafting: BlueprintRecord['deliverySteps'][number] | undefined; handsOn: BlueprintRecord['deliverySteps'][number] | undefined } {
+  const composed = blueprint.deliverySteps.some(step => step.block !== undefined);
+  if (composed) {
+    return {
+      drafting: blueprint.deliverySteps.find(step => step.block === 'draft-reply'),
+      handsOn: blueprint.deliverySteps.find(step => step.block === 'hands-on-work'),
+    };
+  }
+  return { drafting: blueprint.deliverySteps.find(step => step.id === 'step_3'), handsOn: blueprint.deliverySteps.find(step => step.id === 'step_2') };
+}
+
 /** The eight fixed steps for an accepted plan. */
 export function playbookSteps(blueprint: BlueprintRecord): PlaybookStep[] {
-  const drafting = blueprint.deliverySteps.find(step => step.id === 'step_3');
-  const handsOn = blueprint.deliverySteps.find(step => step.id === 'step_2');
+  const { drafting, handsOn } = playbookSources(blueprint);
   check(drafting, 'INVALID_VENTURE_REQUEST', 'The plan has no drafting step.');
   const ceiling = toolCeiling(blueprint.serviceType);
   return [
     { id: 'gather', kind: 'gather', title: "Read the client's message and files and pull out what is needed", tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS], guidance: [] },
     { id: 'clarify', kind: 'question', title: 'Decide what is still unclear', tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: ['questions-raised'], tools: ['dictionary.resolve', 'handoff.client', 'handoff.owner'], guidance: [] },
-    { id: 'work', kind: 'work', title: handsOn?.title.value ?? 'Do the hands-on work with tools', tier: 'wasm-lite', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: WORK_TOOLS.filter(tool => ceiling.includes(tool)), guidance: [] },
+    { id: 'work', kind: 'work', title: handsOn?.title.value ?? GENERIC_WORK_TITLE, tier: 'wasm-lite', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: WORK_TOOLS.filter(tool => ceiling.includes(tool)), guidance: [] },
     { id: 'price', kind: 'compute', title: 'Take prices from the calculator', tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['figures-resolve'], tools: [], guidance: [] },
     { id: 'draft', kind: 'write', title: drafting.title.value, tier: 'actor', model: 'main', doneBy: 'agent', requiredSections: [...REQUIRED_SECTIONS[blueprint.serviceType]], checks: [...DRAFT_CHECKS], tools: [], guidance: [] },
     { id: 'verify', kind: 'verify', title: 'Check the draft', tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: [...VERIFY_CHECKS], tools: [], guidance: [] },

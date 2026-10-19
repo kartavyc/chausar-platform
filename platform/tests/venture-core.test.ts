@@ -219,7 +219,7 @@ test('4. venture.create sets retention and the dictionary currency, once per wor
   assert.equal(view.venture.invoiceSequence, 0);
   assert.equal(view.done, 1);
   assert.equal(view.total, 12);
-  assert.equal(view.next.item, 'questions');
+  assert.equal(view.next.item, 'ai', 'onboarding connects an AI first, so the AI item leads the checklist');
   assert.equal(india.trust.get(owner).retentionDays, 3650);
   assert.equal(india.ontology.current(owner)!.version, 1);
   assert.equal(india.ontology.current(owner)!.currency, 'INR');
@@ -775,42 +775,42 @@ test('10. offerReceipts shows the receipt made for this exact version, before an
   assert.equal((await h.call('venture.blueprint.get')).offerReceipts.offer_1.id, newer.id);
 });
 
-test('11. the checklist climbs to twelve in table order as each kind of record appears', async () => {
+test('11. the checklist climbs to twelve in table order as each kind of record appears, the AI first', async () => {
   const h = setup();
   const progress = async () => { const view = await h.call('venture.get'); return [view.done, view.next?.item ?? null]; };
   assert.equal(await h.call('venture.get'), null);
   await h.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN' });
-  assert.deepEqual(await progress(), [1, 'questions']);
+  assert.deepEqual(await progress(), [1, 'ai']);
+  // No route `kind` here: ModelConnectionRecord's route kind shares its name with the record kind (see docs/venture/core.md).
+  await h.seed('venture-model-connection', { presetId: 'built-in-templates', model: null, endpoint: 'chausar://templates', tiers: ['fast', 'main'], consentDigest: 'c', consentedAt: FIXED_NOW, monthlyCapMicros: '0', status: 'connected' });
+  assert.deepEqual(await progress(), [2, 'questions']);
   await h.call('venture.interview.next', { useTemplate: true });
   await answer(h, 'q_1', { skipped: true });
   await answer(h, 'q_2', { skipped: true });
   await answer(h, 'q_pricing_model', { choiceId: 'monthly' });
   await answer(h, 'q_price', { amount: '2,499' });
-  assert.deepEqual(await progress(), [1, 'questions']);
+  assert.deepEqual(await progress(), [2, 'questions']);
   await answer(h, 'q_tax', { yes: false });
-  assert.deepEqual(await progress(), [2, 'plan']);
+  assert.deepEqual(await progress(), [3, 'plan']);
   const draft = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
-  assert.deepEqual(await progress(), [2, 'plan']);
+  assert.deepEqual(await progress(), [3, 'plan']);
   await h.call('venture.blueprint.accept', { digest: draft.digest });
-  assert.deepEqual(await progress(), [3, 'prices']);
+  assert.deepEqual(await progress(), [4, 'prices']);
   await h.seed('venture-price-receipt', priceReceipt('offer_1', 'f'.repeat(64)));
-  assert.deepEqual(await progress(), [3, 'prices'], 'a receipt for another version does not count');
+  assert.deepEqual(await progress(), [4, 'prices'], 'a receipt for another version does not count');
   await h.seed('venture-price-receipt', priceReceipt('offer_1', draft.digest));
-  assert.deepEqual(await progress(), [4, 'brief']);
+  assert.deepEqual(await progress(), [5, 'brief']);
   await h.seed('venture-brief', { briefId: 'chb_abcd1234', version: 1, markdown: '# Brief', chars: 7, digest: 'd', blueprintDigest: draft.digest, priceReceiptIds: [], wordsBy: 'template', modelCallId: null, lint: { ok: false, findings: [] } });
-  assert.deepEqual(await progress(), [4, 'brief']);
+  assert.deepEqual(await progress(), [5, 'brief']);
   await h.seed('venture-brief', { briefId: 'chb_abcd1234', version: 2, markdown: '# Brief', chars: 7, digest: 'd', blueprintDigest: draft.digest, priceReceiptIds: [], wordsBy: 'template', modelCallId: null, lint: { ok: true, findings: [] } });
-  assert.deepEqual(await progress(), [5, 'builder']);
+  assert.deepEqual(await progress(), [6, 'builder']);
   await h.seed('venture-handoff', { builder: 'lovable', mode: 'link', briefId: 'chb_abcd1234', briefDigest: 'd', urlChars: 10, urlDigest: 'u', openedAt: null });
-  assert.deepEqual(await progress(), [5, 'builder'], 'a prepared handoff that never opened does not count');
+  assert.deepEqual(await progress(), [6, 'builder'], 'a prepared handoff that never opened does not count');
   await h.seed('venture-handoff', { builder: 'lovable', mode: 'link', briefId: 'chb_abcd1234', briefDigest: 'd', urlChars: 10, urlDigest: 'u', openedAt: FIXED_NOW });
-  assert.deepEqual(await progress(), [6, 'repo']);
+  assert.deepEqual(await progress(), [7, 'repo']);
   await h.seed('venture-build-follow', { repo: { owner: 'demo-owner', name: 'ledger' }, tokenState: 'none', linkedAt: FIXED_NOW, lastStatus: null });
-  assert.deepEqual(await progress(), [6, 'repo']);
+  assert.deepEqual(await progress(), [7, 'repo']);
   await h.seed('venture-build-follow', { repo: { owner: 'demo-owner', name: 'ledger' }, tokenState: 'in-memory', linkedAt: FIXED_NOW, lastStatus: { word: 'quiet', asOf: FIXED_NOW } });
-  assert.deepEqual(await progress(), [7, 'ai']);
-  // No route `kind` here: ModelConnectionRecord's route kind shares its name with the record kind (see docs/venture/core.md).
-  await h.seed('venture-model-connection', { presetId: 'built-in-templates', model: null, endpoint: 'chausar://templates', tiers: ['fast', 'main'], consentDigest: 'c', consentedAt: FIXED_NOW, monthlyCapMicros: '0', status: 'connected' });
   assert.deepEqual(await progress(), [8, 'rehearsal']);
   await h.seed('venture-simulation-run', { playbookId: 'p', playbookHash: 'h', scenarioIds: [], episodes: [], passed: false, summary: { scenarios: 1, passed: 0, failed: 1 }, costMicros: '0', costDisplay: 'USD 0.0000', startedAt: FIXED_NOW, finishedAt: FIXED_NOW, modelMode: 'template' });
   assert.deepEqual(await progress(), [8, 'rehearsal']);
@@ -826,9 +826,10 @@ test('11. the checklist climbs to twelve in table order as each kind of record a
   const view = await h.call('venture.get');
   assert.equal(view.done, 12);
   assert.equal(view.next, null);
-  assert.deepEqual(view.checklist.map((item: any) => item.id), ['idea', 'questions', 'plan', 'prices', 'brief', 'builder', 'repo', 'ai', 'rehearsal', 'first-client', 'first-invoice', 'first-payment']);
+  assert.deepEqual(view.checklist.map((item: any) => item.id), ['ai', 'idea', 'questions', 'plan', 'prices', 'brief', 'builder', 'repo', 'rehearsal', 'first-client', 'first-invoice', 'first-payment']);
   assert.ok(view.checklist.every((item: any) => item.done));
-  assert.equal(view.checklist.find((item: any) => item.id === 'ai').label, 'Add your AI (optional)');
+  assert.equal(view.checklist.find((item: any) => item.id === 'ai').label, 'Connect your AI');
+  assert.equal(view.checklist.find((item: any) => item.id === 'idea').label, 'Say what you want to do');
 });
 
 test('12. venture.events pages by sequence number', async () => {
