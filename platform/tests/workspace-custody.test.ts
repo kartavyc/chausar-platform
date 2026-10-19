@@ -1,14 +1,12 @@
 // Keeping the vault key on this computer, the business list, automatic backups and moving a business,
 // through the real Engine with experimental file storage and a temp folder (KEYCHAIN-SPEC 13.1).
-// The key store is an injected memory store (two instances are two computers), except the Windows cases
-// at the end, which use real DPAPI and skip on other platforms.
+// The key store is an injected memory store (two instances are two computers). The checks against this computer's
+// real key store (Windows DPAPI) are a qualification run, qualification/device-keys-real.test.ts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Engine } from '../runtime/engine.ts';
 import { Vault, wrappersDigestOf } from '../runtime/vault.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
@@ -607,64 +605,4 @@ test('a move whose attach fails stays listed with the right way in, and opens la
   assert.deepEqual([businesses[0].name, businesses[0].opens, businesses[0].unlock, businesses[0].listedFrom], ['Half Moved', 'with-this-computer', 'this-computer', 'card']);
   await assert.rejects(b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), code('TRANSFER_SAME_BUSINESS'));
   assert.equal((await b.ask('workspace.open', { folder: businesses[0].folder })).workspace.name, 'Half Moved');
-});
-
-test('Windows for real: a business made with no passphrase opens again in a new engine on the same folder', { skip: process.platform !== 'win32' }, async t => {
-  const directory = await folder(t, 'chausar-dpapi-engine-');
-  const first = engineAt(t, directory, { keys: 'os' });
-  const view = await first.ask('workspace.custody.get');
-  assert.deepEqual([view.computer.available, view.computer.scheme, view.computer.checked, view.computer.where], [true, 'windows-dpapi', true, CUSTODY_WORDS.where['windows-dpapi']]);
-  const created = await first.ask('workspace.create', { name: 'Real Windows Shop', pack: 'services', folder: null });
-  assert.equal(created.unlock, 'this-computer');
-  await first.ask('trust.update', { retentionDays: 45 });
-  await first.engine.shutdown(5000);
-  const record = JSON.parse(await readFile(join(directory, 'custody', 'keys', `${JSON.parse(await readFile(join(directory, 'custody', 'cards', 'real-windows-shop.json'), 'utf8')).vaultId}.json`), 'utf8'));
-  assert.equal(record.scheme, 'windows-dpapi'); assert.equal(typeof record.blob, 'string');
-  const second = engineAt(t, directory, { keys: 'os' });
-  assert.equal((await second.ask('workspace.list')).businesses[0].opens, 'with-this-computer');
-  await second.ask('workspace.open', { folder: 'real-windows-shop' });
-  assert.equal((await second.ask('trust.get')).retentionDays, 45);
-  assert.ok((await backupsOf(directory)).some(name => name.endsWith('-auto.backup')), 'shutting down after a change wrote an automatic backup');
-});
-
-/** Starts the real local server (node platform/runtime/server.ts --demo) on a free port and returns its RPC. */
-async function startServer(t: any, directory: string) {
-  const server = fileURLToPath(new URL('../runtime/server.ts', import.meta.url));
-  const child = spawn(process.execPath, [server, '--demo'], { windowsHide: true, shell: false, stdio: ['ignore', 'pipe', 'ignore'],
-    env: { ...process.env, CHAUSAR_PORT: '0', CHAUSAR_VAULT_DIRECTORY: directory } });
-  t.after(() => { if (child.exitCode === null) child.kill(); });
-  const link = await new Promise<string>((accept, reject) => {
-    let output = '';
-    const timer = setTimeout(() => reject(new Error('The server did not print its pairing link.')), 30_000);
-    child.stdout!.on('data', chunk => { output += chunk; const match = /(http:\/\/127\.0\.0\.1:\d+)\/#token=([a-f0-9]+)/.exec(output); if (match) { clearTimeout(timer); accept(`${match[1]} ${match[2]}`); } });
-    child.once('exit', () => { clearTimeout(timer); reject(new Error('The server exited before it was ready.')); });
-  });
-  const [origin, token] = link.split(' ');
-  const rpc = async (method: string, payload: Record<string, unknown> = {}) => {
-    const response = await fetch(`${origin}/api/rpc`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ method, payload }) });
-    const body = await response.json() as any;
-    if (body.error) throw Object.assign(new Error(body.error.message), body.error);
-    return body.result;
-  };
-  const stop = async () => { const exited = new Promise(accept => child.once('exit', accept)); child.kill(); await exited; };
-  return { rpc, stop };
-}
-
-test('Windows for real: the local server makes a business with no passphrase, is stopped, starts again and opens it with no typing', { skip: process.platform !== 'win32', timeout: 120_000 }, async t => {
-  const directory = await folder(t, 'chausar-dpapi-server-');
-  const first = await startServer(t, directory);
-  const custody = await first.rpc('workspace.custody.get');
-  assert.deepEqual([custody.computer.available, custody.computer.scheme, custody.computer.checked], [true, 'windows-dpapi', true]);
-  const created = await first.rpc('workspace.create', { name: 'Restart Test Shop', pack: 'services', folder: null });
-  assert.deepEqual([created.unlock, created.recoveryCode, created.folder], ['this-computer', null, 'restart-test-shop']);
-  await first.rpc('trust.update', { retentionDays: 33 });
-  await first.stop();
-  const second = await startServer(t, directory);
-  assert.equal((await second.rpc('workspace.status')).open, false);
-  const list = await second.rpc('workspace.list');
-  assert.deepEqual(list.businesses.map((row: any) => [row.folder, row.name, row.opens]), [['restart-test-shop', 'Restart Test Shop', 'with-this-computer']]);
-  await second.rpc('workspace.open', { folder: 'restart-test-shop' });
-  assert.equal((await second.rpc('trust.get')).retentionDays, 33);
-  await assert.rejects(second.rpc('workspace.open', { folder: 'restart-test-shop' }), code('VAULT_OPEN'));
-  await second.stop();
 });

@@ -1,10 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
 import {
-  DPAPI_ARGS, DPAPI_SCRIPT, KEY_SERVICE, LINUX_ENV_NAMES, SECRET_TOOL, SECURITY, execFileRun, linuxDeviceKeyStore, macDeviceKeyStore,
+  DPAPI_ARGS, DPAPI_SCRIPT, KEY_SERVICE, LINUX_ENV_NAMES, SECRET_TOOL, SECURITY, linuxDeviceKeyStore, macDeviceKeyStore,
   PROBE_RETRY_MS, memoProbe, memoryDeviceKeyStore, noDeviceKeyStore, osDeviceKeyStore, windowsDeviceKeyStore, type ProbeResult, type RunProcess,
 } from '../runtime/device-custody.ts';
 import { CUSTODY_WORDS } from '../runtime/workspace-custody-contracts.ts';
@@ -44,7 +43,7 @@ test('Windows: the exact PowerShell path, arguments and environment; the secret 
   const record = await store.protect('vault-a', value);
   assert.equal(calls.length, 1);
   const [call] = calls;
-  assert.equal(call.file, join('C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'));
+  assert.equal(call.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', 'Windows path rules on every host, not the host\'s own');
   assert.deepEqual(call.args, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', DPAPI_SCRIPT]);
   assert.deepEqual(call.args, [...DPAPI_ARGS]);
   assert.ok(!call.args.some(arg => /EncodedCommand|ExecutionPolicy/i.test(arg)), 'no -EncodedCommand and no -ExecutionPolicy');
@@ -96,30 +95,6 @@ test('Windows: the probe protects one sample, once per store; exit 3 means block
   assert.deepEqual(await windowsDeviceKeyStore(none.run, { SystemRoot: 'C:\\Windows' }, () => false).probe(), { available: false, reason: 'platform' }, 'a missing powershell.exe is refused');
   assert.equal(none.calls.length, 0, 'never a PATH lookup');
   await assert.rejects(windowsDeviceKeyStore(none.run, { SystemRoot: 'C:\\Windows' }, () => true).protect('../escape', secret()), code('DEVICE_KEY_FAILED'));
-});
-
-test('Windows DPAPI for real on this computer: a round trip, one vault cannot open another, a flipped byte fails', { skip: process.platform !== 'win32' }, async () => {
-  let runs = 0;
-  const counted: RunProcess = (...args) => { runs++; return execFileRun(...args); };
-  const store = osDeviceKeyStore('win32', counted);
-  assert.equal(store.scheme, 'windows-dpapi');
-  const started = Date.now();
-  assert.deepEqual(await store.probe(), { available: true });
-  const probeMs = Date.now() - started;
-  assert.deepEqual(await store.probe(), { available: true });
-  assert.equal(runs, 1, 'the probe ran once for this store');
-  const value = secret();
-  const protectStart = Date.now();
-  const record = await store.protect('dpapi-test-vault-a', value);
-  const protectMs = Date.now() - protectStart;
-  assert.ok(!leaks(JSON.stringify(record), value));
-  const unprotectStart = Date.now();
-  assert.ok((await store.unprotect(record))!.equals(value));
-  const unprotectMs = Date.now() - unprotectStart;
-  await assert.rejects(store.unprotect({ ...record, vaultId: 'dpapi-test-vault-b' }), code('DEVICE_KEY_FAILED'));
-  const blob = Buffer.from(record.blob!, 'base64'); blob[blob.length - 5] ^= 0x01;
-  await assert.rejects(store.unprotect({ ...record, blob: blob.toString('base64') }), code('DEVICE_KEY_FAILED'));
-  console.log(`real DPAPI on this computer: probe ${probeMs} ms, protect ${protectMs} ms, unprotect ${unprotectMs} ms, blob ${Buffer.from(record.blob!, 'base64').length} bytes`);
 });
 
 test('macOS: the keychain item is stored through security -i on stdin, read back, and absent items read as null', async () => {
@@ -258,4 +233,19 @@ test('the probe keeps a success for good, but asks again after a failure once PR
   assert.deepEqual(await store.probe(), { available: false, reason: 'failed' });
   assert.deepEqual(await store.probe(), { available: false, reason: 'failed' });
   assert.equal(slow.calls.length, 1, 'inside the window no new PowerShell starts');
+});
+
+test('no open test skips for the host platform; the real key store checks live in the qualification run', async () => {
+  // The benchmark fails any shard with a skipped test, so a check that needs this computer's real key store is a
+  // qualification run (qualification/device-keys-real.test.ts) that fails, never skips, where that store is missing.
+  const directory = new URL('./', import.meta.url);
+  const skipping: string[] = [];
+  for (const name of (await readdir(directory)).filter(name => name.endsWith('.test.ts'))) {
+    const source = await readFile(new URL(name, directory), 'utf8');
+    if (/\bskip:\s*[^,}\n]*process\.platform/.test(source)) skipping.push(name);
+  }
+  assert.deepEqual(skipping, []);
+  const qualification = await readFile(new URL('qualification/device-keys-real.test.ts', directory), 'utf8');
+  assert.doesNotMatch(qualification, /\bskip\b|\btodo\b/, 'the qualification run never skips');
+  assert.match(qualification, /node --test platform\/tests\/qualification\/device-keys-real\.test\.ts/, 'its header names the run command');
 });

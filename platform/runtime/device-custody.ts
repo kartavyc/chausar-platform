@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { isAbsolute, join } from 'node:path';
+import { win32 } from 'node:path';
 import { ChausarError } from './contracts.ts';
 import { CUSTODY_WORDS, type DeviceScheme, type DeviceUnavailableReason } from './workspace-custody-contracts.ts';
 
@@ -116,10 +116,11 @@ export const dpapiEntropy = (vaultId: string) => `chausar.device-key.v1:${vaultI
 const WINDOWS_TIMEOUT = 20_000;
 
 export function windowsDeviceKeyStore(run: RunProcess = execFileRun, environment: NodeJS.ProcessEnv = process.env, fileExists: (path: string) => boolean = existsSync): DeviceKeyStore {
+  // SystemRoot is a Windows path wherever this runs, so it is read with Windows path rules (path.win32), never the host's.
   const executable = (): { path: string; env: Record<string, string> } | null => {
     const root = environment.SystemRoot;
-    if (typeof root !== 'string' || !root || !isAbsolute(root)) return null;
-    const path = join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    if (typeof root !== 'string' || !root || !win32.isAbsolute(root)) return null;
+    const path = win32.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     return fileExists(path) ? { path, env: { SystemRoot: root } } : null;
   };
   async function call(op: 'protect' | 'unprotect', entropy: string, data: Buffer): Promise<{ ok: true; data: Buffer } | { ok: false; reason: DeviceUnavailableReason }> {
