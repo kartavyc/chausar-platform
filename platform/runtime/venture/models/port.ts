@@ -20,7 +20,7 @@ import {
 import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
-import { AVAILABILITY_REASONS, PRESETS, availabilityOf, presetSpec, type PresetSpec } from './presets.ts';
+import { AVAILABILITY_REASONS, PRESETS, availabilityOf, claudeTermsOpen, presetSpec, type PresetSpec } from './presets.ts';
 import { assertSchemaSafe } from './schema.ts';
 import {
   HTTP_TIMEOUT_MS, PREVIEW_TTL_MS, PROCESS_TIMEOUT_MS, STALE_DISPATCH_MESSAGE, STALE_DISPATCH_MS, VERSION_CHECK_TIMEOUT_MS, isPlainRecord,
@@ -159,6 +159,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const { store, clock, transport, secrets } = options;
   const actionDeps = { store, clock } as unknown as VentureDeps;
   const hosted = options.host === 'hosted-web';
+  const claudeTerms = options.claudeCodeTerms;
   // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
   const codex: CodexHost | null = hosted ? null : codexHost(options.codexCli);
   const cliFound = new Set<ModelPresetId>();
@@ -166,6 +167,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
   const problemOf = (spec: PresetSpec): { code: string; message: string } | null => {
     if (hosted && spec.runsOn === 'this-computer') return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.hostedCli };
+    // The Claude Code terms gate holds at run time too: a connection made while it was open never runs once it is closed.
+    if (spec.kind === 'claude-cli' && !claudeTermsOpen(claudeTerms)) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.claudeTerms };
     if (spec.needsKey && !secrets.has(SECRET(spec.id))) return { code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing };
     if (spec.kind === 'codex-cli' && !codex) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
     return null;
@@ -186,7 +189,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     if (spec.kind === 'template') return { usable: true, reason: AVAILABILITY_REASONS.templates };
     if (state.policy.send === 'nothing') return { usable: false, reason: MESSAGES.sendDisabled };
     if (spec.kind === 'claude-cli' && !cliFound.has(spec.id)) return { usable: true, reason: MESSAGES.claudeConnected };
-    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted }).availabilityReason };
+    return { usable: true, reason: availabilityOf(spec.id, { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted, claudeTerms }).availabilityReason };
   };
 
   const prepare = (connection: ConnectionRecord, spec: PresetSpec, task: ModelTask<unknown>): Prepared => {
@@ -348,7 +351,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     },
 
     presets(): ModelPreset[] {
-      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted };
+      const live = { claudeFound: cliFound.has('claude-code-cli'), codexProfile: !!codex, hosted, claudeTerms };
       return PRESETS.map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
     },
 

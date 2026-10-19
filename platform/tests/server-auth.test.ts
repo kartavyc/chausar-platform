@@ -119,3 +119,46 @@ test('owner token validation never discloses bootstrap credentials to anonymous 
   const scoped = await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${viewer.token}` } }); assert.equal(scoped.status, 401); assert.equal((await scoped.json() as any).token, undefined);
   const owner = await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${token}` } }); assert.equal(owner.status, 200); assert.equal((await owner.json() as any).token, token);
 });
+
+test('the nine draft methods need the trusted local owner bootstrap session, never a member session', async t => {
+  const { rpc, member } = await fixture(t);
+  const cofounder = await member('Partner', 'cofounder', ['*']);
+  const methods = ['venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
+    'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update'];
+  for (const method of methods) {
+    const refused = await rpc(method, {}, cofounder.token);
+    assert.equal(refused.status, 403, method);
+    assert.equal(refused.error?.code ?? refused.code, 'FORBIDDEN', method);
+  }
+  const options = await rpc('venture.ai.options', {});
+  assert.equal(options.status, 200);
+  assert.deepEqual(options.result.options.map((option: any) => option.id), ['api-key', 'claude-code', 'codex', 'chatgpt-sign-in']);
+  assert.equal((await rpc('venture.compose.get', {})).result, null);
+});
+
+test('the ten custody methods need the trusted local owner bootstrap session, never a member session', async t => {
+  const { rpc, member } = await fixture(t);
+  const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
+  const { BOOTSTRAP_ONLY_METHODS } = await import('../runtime/server.ts');
+  for (const method of CUSTODY_METHODS) assert.ok(BOOTSTRAP_ONLY_METHODS.includes(method), method);
+  const cofounder = await member('Partner', 'cofounder', ['*']);
+  for (const method of CUSTODY_METHODS) {
+    const refused = await rpc(method, {}, cofounder.token);
+    assert.equal(refused.status, 403, method);
+    assert.equal(refused.error?.code, 'FORBIDDEN', method);
+  }
+  const custody = await rpc('workspace.custody.get', {});
+  assert.equal(custody.status, 200);
+  assert.equal(custody.result.computer.reason, 'not-configured', 'this test engine is composed without workspaceCustody');
+  const list = await rpc('workspace.list', {});
+  assert.equal(list.status, 200); assert.deepEqual(list.result.businesses.map((row: any) => row.folder), ['main']);
+});
+
+test('a DEVICE_KEYS_UNAVAILABLE answer carries its reason beside the words', async t => {
+  const { rpc } = await fixture(t);
+  await rpc('workspace.lock', {});
+  const refused = await rpc('workspace.create', { name: 'No keys here', pack: 'services', folder: null });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.error.code, 'DEVICE_KEYS_UNAVAILABLE');
+  assert.equal(refused.error.reason, 'not-configured');
+});

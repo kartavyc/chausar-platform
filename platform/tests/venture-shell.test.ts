@@ -202,17 +202,18 @@ test('server.ts and worker.ts never load host.ts, and replay files need demo mod
   t.after(() => rm(directory, { recursive: true, force: true }));
   const replayFiles = { CHAUSAR_VENTURE_MODEL_REPLAY: 'platform/tests/fixtures/venture/demo/model-replay.json', CHAUSAR_VENTURE_GITHUB_REPLAY: 'platform/tests/fixtures/venture/e2e/github-sync.json' };
   const base = { CHAUSAR_VAULT_DIRECTORY: directory };
-  const replayed = { host: 'local-web', modelReplayPath: replayFiles.CHAUSAR_VENTURE_MODEL_REPLAY, githubReplayPath: replayFiles.CHAUSAR_VENTURE_GITHUB_REPLAY };
+  const pending = { claudeCodeTerms: 'pending' };
+  const replayed = { host: 'local-web', ...pending, modelReplayPath: replayFiles.CHAUSAR_VENTURE_MODEL_REPLAY, githubReplayPath: replayFiles.CHAUSAR_VENTURE_GITHUB_REPLAY };
 
-  assert.deepEqual((await createServerEngine(base, ['--demo'])).options.venture, { host: 'local-web' });
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles }, ['--demo'])).options.venture, { host: 'local-web' });
+  assert.deepEqual((await createServerEngine(base, ['--demo'])).options.venture, { host: 'local-web', ...pending });
+  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles }, ['--demo'])).options.venture, { host: 'local-web', ...pending });
   assert.deepEqual((await createServerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, ['--demo'])).options.venture, replayed);
   assert.deepEqual((await createServerEngine({ ...base, ...replayFiles }, ['--demo', '--replay'])).options.venture, replayed);
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, [])).options.venture, { host: 'local-web' }, 'never outside demo mode');
+  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, [])).options.venture, { host: 'local-web', ...pending }, 'never outside demo mode');
 
   const worker = { ...base, CHAUSAR_DEMO: '1' };
-  assert.deepEqual((await createWorkerEngine({ ...worker, ...replayFiles })).options.venture, { host: 'desktop' });
+  assert.deepEqual((await createWorkerEngine({ ...worker, ...replayFiles })).options.venture, { host: 'desktop', ...pending });
   assert.deepEqual((await createWorkerEngine({ ...worker, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' })).options.venture,
     { ...replayed, host: 'desktop' });
-  assert.deepEqual((await createWorkerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1', CHAUSAR_DEMO: '0' })).options.venture, { host: 'desktop' });
+  assert.deepEqual((await createWorkerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1', CHAUSAR_DEMO: '0' })).options.venture, { host: 'desktop', ...pending });
 });

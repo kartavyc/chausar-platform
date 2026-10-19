@@ -1,5 +1,6 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Vault, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard } from './vault.ts';
@@ -64,7 +65,22 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { VentureHostOptions } from './venture/contracts.ts';
+import type { SecretShelf, VentureHostOptions } from './venture/contracts.ts';
+import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
+import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
+import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
+  normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+
+/** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
+type DraftDeskHandle = {
+  request(ctx: Context, method: string, payload: unknown): Promise<unknown>;
+  /** workspace.create succeeded: reset and pause the idle timer while the owner keeps the plan safe. */
+  hold(): void;
+  /** Wipes keys, records and the compose session. */
+  clear(): void;
+  handover: DraftHandoverPort;
+};
 
 export type EngineBackupCustodyOptions = {
   budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
@@ -80,6 +96,9 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted host composition, never from an RPC: with storage 'postgres', the PostgreSQL vault adapter for a workspace
    * folder, over a pool the host owns. The hosted server uses it for one slot per business (hosted/runtime/business.ts). */
   vaultStorage?: (folder: string) => Promise<EncryptedSnapshotAdapter>;
+  /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
+   * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
+  workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -102,6 +121,10 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 }
 
 /** The sole product authority. The renderer receives named, bounded results only. */
+/** The recovery state a move file says it carries (plaintext metadata, written by transfer.export). */
+function transferHint(parsed: any): RecoveryState {
+  return parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
+}
 export class Engine {
   options: EngineOptions;
   readonly version: string;
@@ -127,12 +150,38 @@ export class Engine {
   #ventureModule() {
     return import('./venture/host.ts').catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
   }
+  // The draft desk: one per engine process, memory only, loaded on the first draft request. Keys never touch disk.
+  #draft: DraftDeskHandle | null = null;
+  #draftPending: Promise<DraftDeskHandle> | null = null;
+  #draftDesk(): Promise<DraftDeskHandle> {
+    if (this.#draft) return Promise.resolve(this.#draft);
+    const pending = this.#draftPending ??= import('./venture/draft/index.ts').then(module => {
+      const desk = module.createDraftDesk({
+        ...(this.options.venture ?? {}), demo: !!this.options.demo,
+        ventureExists: () => !!this.vault && this.vault.read().conversations.some(record => record?.kind === 'venture-record'),
+        vaultOpen: () => !!this.vault,
+      }) as DraftDeskHandle;
+      this.#draft = desk;
+      return desk;
+    });
+    pending.catch(() => { if (this.#draftPending === pending) this.#draftPending = null; });
+    return pending.catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
+  }
+  /** What venture.create sees: the desk when it is loaded, else nothing to adopt. Trusted host composition only. */
+  #draftHandover: DraftHandoverPort = Object.freeze({
+    ai: () => this.#draft?.handover.ai() ?? null,
+    compose: (composeId: string) => this.#draft?.handover.compose(composeId) ?? null,
+    moveKeys: (target: SecretShelf) => { this.#draft?.handover.moveKeys(target); },
+    settle: () => { this.#draft?.handover.settle(); },
+  });
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
       check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
+      const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
-        { ...(this.options.venture ?? {}), demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file' });
+        { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }) });
       this.#venture = host;
       return host;
     });
@@ -683,6 +732,7 @@ export class Engine {
   }
   private async closeVault() {
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
+    this.#draft?.clear();
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     let failure: unknown;
@@ -695,7 +745,7 @@ export class Engine {
       try { await staged.close(); this.#stagedVaults.delete(staged); } catch (error) { failure ??= error; }
     }
     if (this.vault) {
-      try { await this.vault.close(); this.vault = null; this.services = {}; } catch (error) { failure ??= error; }
+      try { await this.vault.close(); this.vault = null; this.services = {}; this.resetCustodySession(); } catch (error) { failure ??= error; }
     }
     if (failure) throw failure;
   }
@@ -722,6 +772,7 @@ export class Engine {
       const timer = setTimeout(() => { this.#idleWaiters.delete(finished); reject(new Error('Engine shutdown exceeded its deadline; unfinished actions require reconciliation.')); }, timeoutMs);
       this.#idleWaiters.add(finished);
     });
+    await this.closingBackup();
     await this.closeVault();
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
@@ -735,46 +786,214 @@ export class Engine {
     // survive an otherwise read-only lock/reopen.
     if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
     if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
-  } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
+  } catch (error) { await vault.close(); this.vault = null; this.services = {}; this.resetCustodySession(); throw error; } }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
-    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete']);
+    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
     const transition = transitions.has(method);
     check(!this.#transition && (!transition || this.#activeRequests === 0), 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     if (transition) this.#transition = true; else this.#activeRequests++;
-    try { return await this.handleRequest(method, payload); }
+    try {
+      const result = await this.handleRequest(method, payload);
+      // An important change: the next tick writes an automatic backup (KEYCHAIN-SPEC 4.1).
+      if (BACKUP_AFTER_METHODS.includes(method)) this.#schedule.due = true;
+      return result;
+    }
     finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); }
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
-    if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version };
+    if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version,
+      ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    // The draft desk answers these before the vault check: connect an AI and compose a plan before any vault exists.
+    switch (method) {
+      case 'venture.ai.options':
+      case 'venture.ai.connect':
+      case 'venture.ai.disconnect':
+      case 'venture.ai.status':
+      case 'venture.ai.calls':
+      case 'venture.compose.decide':
+      case 'venture.compose.fill':
+      case 'venture.compose.get':
+      case 'venture.compose.update':
+        return (await this.#draftDesk()).request(this.context, method, payload);
+    }
+    // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
+    switch (method) {
+      case 'workspace.custody.get': return this.custodyView();
+      case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
+      case 'workspace.backups.list': return this.backupList();
+      case 'workspace.transfer.import': return this.transferImport(payload);
+    }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
-      const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder) });
+      const custody = this.custodyHost(), files = this.custodyFiles(), name = payload.name.trim();
+      // No passphrase: this computer keeps a random secret in the passphrase slot (KEYCHAIN-SPEC 2.1, 2.9).
+      const computer = payload.passphrase === undefined || payload.passphrase === null;
+      if (computer) {
+        if (!custody) throw deviceKeysUnavailable('not-configured');
+        const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+      }
+      const taken = payload.folder === null ? await files.takenFolders() : null;
+      let folder: string = taken ? slugFolder(name, taken) : payload.folder ?? 'main';
+      this.workspacePath(folder);
+      let wroteCard = false, record: DeviceKeyRecord | null = null;
+      const secret = computer ? randomBytes(32) : null;
       try {
-        await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
-        if (payload.demo) await seedDemo(this.store(), this.context);
-        return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
-      } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }
+        let result!: Awaited<ReturnType<typeof Vault.create>>;
+        for (;;) {
+          if (custody && !(await files.readCard(folder))) {
+            await files.writeCard(newCard({ folder, name, demo: !!payload.demo, unlock: computer ? 'this-computer' : 'passphrase', recovery: computer ? 'not-made' : 'made', state: 'creating' }));
+            wroteCard = true;
+          }
+          try { result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder) }); break; }
+          catch (error) {
+            // The engine picked the folder, and an old vault with no card holds that slot (PostgreSQL storage
+            // keeps no folder to find): take the next name instead. slugFolder stops after -99.
+            if (!taken || (error as ChausarError).code !== 'VAULT_EXISTS') throw error;
+            if (wroteCard) { await files.removeCard(folder).catch(() => {}); wroteCard = false; }
+            taken.push(folder); folder = slugFolder(name, taken); this.workspacePath(folder);
+          }
+        }
+        if (custody && secret) {
+          try { record = await custody.keys.protect(result.vault.vaultId, secret); await files.writeKey(record); }
+          catch (error) {
+            await result.vault.delete().catch(() => {});
+            if (record) { await custody.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
+            throw error instanceof ChausarError && error.code === 'DEVICE_KEY_FAILED' ? error : deviceKeyFailed();
+          }
+        }
+        try {
+          await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
+          if (payload.demo) await seedDemo(this.store(), this.context);
+          this.#draft?.hold();
+          await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: computer ? 'not-made' : 'made', created: true });
+          wroteCard = false;
+          const recoveryCode = computer ? null : result.recoveryCode;
+          return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase', recoveryKit: recoveryCode, recoveryCode, experimental: !!this.options.demo };
+        } catch (error) {
+          await result.vault.delete(); this.vault = null; this.services = {}; this.resetCustodySession();
+          if (record && custody) { await custody.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
+          throw error;
+        }
+      } catch (error) {
+        if (wroteCard) await files.removeCard(folder).catch(() => {});
+        throw error;
+      } finally { secret?.fill(0); }
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') {
+      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear();
+      const folder = payload.folder ?? payload.path ?? 'main'; this.workspacePath(folder);
+      const custody = this.custodyHost(), typed = payload.passphrase !== undefined && payload.passphrase !== null;
+      const files = this.custodyFiles(), card = custody ? await files.readCard(folder) : null;
+      const unlockWith = async (passphrase: string) => Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+      const unlockFailed = (error: unknown) => (error as ChausarError)?.code === 'UNLOCK_FAILED';
+      const passphraseRequired = () => new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
+      // A lock change cut short (KEYCHAIN-SPEC 3.1, 3.2) leaves its marker on the card: the vault may already open the new way.
+      const changing = card?.pending === 'to-passphrase' || card?.pending === 'to-this-computer';
+      let vault: Vault, how: 'this-computer' | 'typed';
+      if (!custody || typed) {
+        try { vault = await unlockWith(payload.passphrase); how = 'typed'; }
+        catch (error) {
+          const secret = custody && changing && unlockFailed(error) && card?.vaultId ? await this.existingComputerSecret(card.vaultId) : null;
+          if (!secret) throw error;
+          try { vault = await unlockWith(secret); how = 'this-computer'; } catch { throw error; }
+        }
+      } else if (card?.unlock === 'passphrase') {
+        // Try this computer's key only when the change to it was cut short, or a key record for the vault is on disk.
+        const record = card.vaultId ? await files.readKey(card.vaultId) : null;
+        const secret = card.vaultId && (card.pending === 'to-this-computer' || record) ? await this.existingComputerSecret(card.vaultId) : null;
+        if (!secret) throw passphraseRequired();
+        try { vault = await unlockWith(secret); how = 'this-computer'; }
+        catch (error) { if (unlockFailed(error)) throw passphraseRequired(); throw error; }
+      } else {
+        // No card and no envelope to read (PostgreSQL storage, or no such folder): it needs a passphrase.
+        const secret = await this.computerSecret(card?.vaultId ?? await files.folderVaultId(folder));
+        try { vault = await unlockWith(secret); how = 'this-computer'; }
+        catch (error) {
+          // Turning the passphrase on was cut short after the rewrap: only the passphrase opens it now.
+          if (unlockFailed(error)) throw card?.pending === 'to-passphrase' ? passphraseRequired() : deviceKeyFailed();
+          throw error;
+        }
+      }
+      await this.attachSafely(vault);
+      await this.afterOpen(folder, how);
+      return { workspace: this.store().read().workspace };
+    }
+    if (method === 'workspace.recover') {
+      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear();
+      const folder = payload.folder ?? 'main'; this.workspacePath(folder);
+      const custody = this.custodyHost(), computer = !!custody && (payload.passphrase === undefined || payload.passphrase === null);
+      let newPassphrase = payload.passphrase, fresh: Buffer | null = null;
+      if (computer) {
+        const probe = await custody!.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+        const files = this.custodyFiles(), card = await files.readCard(folder);
+        const vaultId = card?.vaultId ?? await files.folderVaultId(folder);
+        // Another folder may already open this vault with this computer's key: keep its secret.
+        newPassphrase = vaultId ? await this.existingComputerSecret(vaultId) : null;
+        if (!newPassphrase) { fresh = randomBytes(32); newPassphrase = fresh.toString('base64url'); }
+      }
+      try {
+        const vault = await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+        if (fresh) await this.storeComputerSecret(vault, fresh);
+        await this.attachSafely(vault);
+      } finally { fresh?.fill(0); }
+      await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: 'made', reseal: true });
+      return { workspace: this.store().read().workspace };
+    }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
+      this.#draft?.clear();
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace };
+      const custody = this.custodyHost(), files = this.custodyFiles();
+      const header = custody && !rel.includes('/') && !rel.includes('\\') ? await files.backupHeader(rel) : null;
+      const original = header ? (await files.listCards()).find(card => card.vaultId === header.vaultId && card.state === 'ready') ?? null : null;
+      const folder = payload.folder === null ? nextFolder(`${original?.folder ?? 'restored'}${original ? '-restored' : ''}`.slice(0, 64), await files.takenFolders()) : payload.folder ?? 'restored';
+      this.workspacePath(folder);
+      const recoveryCode = typeof payload.recoveryCode === 'string' ? payload.recoveryCode : undefined;
+      const typed = payload.passphrase !== undefined && payload.passphrase !== null;
+      let how: 'this-computer' | 'typed' = typed ? 'typed' : 'this-computer', fresh: Buffer | null = null, credentials: { passphrase: string } | { recoveryCode: string; newPassphrase: string };
+      if (recoveryCode !== undefined && typed) credentials = { recoveryCode, newPassphrase: payload.passphrase };
+      else if (recoveryCode !== undefined && custody) {
+        const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+        let secret = header ? await this.existingComputerSecret(header.vaultId) : null;
+        if (!secret) { fresh = randomBytes(32); secret = fresh.toString('base64url'); }
+        credentials = { recoveryCode, newPassphrase: secret };
+      } else if (!typed && custody) {
+        check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+        credentials = { passphrase: (await this.computerSecret(header.vaultId))! };
+      } else { credentials = { passphrase: payload.passphrase }; how = 'typed'; }
+      try {
+        let vault: Vault;
+        try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
+        catch (error) { if (custody && how === 'this-computer' && !('recoveryCode' in credentials) && (error as ChausarError).code === 'UNLOCK_FAILED') throw deviceKeyFailed(); throw error; }
+        if (fresh) await this.storeComputerSecret(vault, fresh);
+        await this.attachSafely(vault);
+      } finally { fresh?.fill(0); }
+      const rewrapped = 'recoveryCode' in credentials;
+      await this.afterOpen(folder, how, { recovery: rewrapped ? 'made' : original?.recovery ?? (how === 'typed' ? 'made' : 'unknown'), reseal: rewrapped });
+      return { workspace: this.store().read().workspace, folder };
     }
-    if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
+    if (method === 'workspace.lock') {
+      if (this.vault) { authorize(this.vault, this.context, 'admin'); await this.closingBackup(); }
+      await this.closeVault(); this.#closedByOwner = true; return { locked: true };
+    }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
     switch (method) {
+      case 'workspace.custody.passphraseOn': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOn(payload));
+      case 'workspace.custody.passphraseOff': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOff(payload));
+      case 'workspace.custody.recoveryCode': this.requireAppOwner(ctx); return this.custodySerial(() => this.makeRecoveryCode(payload));
+      case 'workspace.backups.create': this.requireAppOwner(ctx); return this.custodySerial(() => this.writeBackup('manual'));
+      case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.custodySerial(() => this.restoreManagedBackup(payload));
+      case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
       case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
       case 'workspace.backup.v2.read': return this.backupHost().read(ctx, this.journalPayload(payload,
@@ -879,7 +1098,10 @@ export class Engine {
         return admission.review(ctx, store.read(), store.vaultId, input as SyncWriterReview);
       }
       case 'sync.identity': return s.sync.identity(ctx);
-      case 'sync.enable': return this.writerConfiguration(() => {
+      case 'sync.enable':
+        // Another device can't open a vault whose secret only this computer holds.
+        check(!payload.enabled || this.#openUnlock !== 'this-computer', 'SYNC_NEEDS_PASSPHRASE', CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
+        return this.writerConfiguration(() => {
         if (payload.enabled) check(this.options.sync?.signingKey && this.options.sync?.deviceId && this.options.sync?.signerId, 'SYNC_DEVICE_CONFIGURATION_REQUIRED', 'Configure a persistent broker-supplied signing key and reviewed device identity before publication.');
         return s.sync.enable(ctx, payload.enabled);
       });
@@ -1243,7 +1465,7 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       case 'venture.create':
       case 'venture.get':
       case 'venture.events':
@@ -1681,9 +1903,355 @@ export class Engine {
     for (const name of ['backups', 'exports']) {
       const folder = resolve(this.options.directory, name); let files;
       try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
-      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
+      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
     }
     return removed;
+  }
+  // ------------------------------------------------------------ keeping the vault key on this computer
+  // KEYCHAIN-SPEC sections 2 to 4 and 8. The computer secret sits in the vault's passphrase slot; the
+  // operating system keeps it for the owner's login. Secrets never reach a result, a record, a log or an error.
+  #custody: { files: CustodyFiles; keys: DeviceKeyStore; autoBackups: boolean; clock: () => number } | null = null;
+  #custodyFiles: CustodyFiles | null = null;
+  #custodyChain: Promise<unknown> = Promise.resolve();
+  #openFolder: string | null = null;
+  #openUnlock: UnlockMode | null = null;
+  #closedByOwner = false;
+  #schedule: BackupSchedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
+  private custodyHost() {
+    const option = this.options.workspaceCustody; if (!option) return null;
+    if (!this.#custody) {
+      const keys = option.deviceKeys === 'os' ? osDeviceKeyStore() : option.deviceKeys === 'none' ? noDeviceKeyStore('not-configured') : option.deviceKeys;
+      this.#custody = { files: this.custodyFiles(), keys, autoBackups: option.autoBackups === true, clock: option.clock ?? Date.now };
+    }
+    return this.#custody;
+  }
+  private custodyFiles(): CustodyFiles { return this.#custodyFiles ??= new CustodyFiles(this.options.directory); }
+  private custodyNow(): number { return this.custodyHost()?.clock() ?? Date.now(); }
+  private storageKind(): 'experimental-file' | 'postgres' {
+    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && this.options.demo ? 'experimental-file' : 'postgres');
+  }
+  /** One custody change, backup write, rotation or reseal at a time. */
+  private custodySerial<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.#custodyChain.then(work); this.#custodyChain = next.catch(() => {}); return next;
+  }
+  private resetCustodySession() {
+    this.#openFolder = null; this.#openUnlock = null;
+    this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
+  }
+  private requireAppOwner(ctx: Context) {
+    this.requireWorkspaceOwner(ctx);
+    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Change how your business is kept from inside the app.');
+  }
+  /** The secret this computer keeps for a vault. PASSPHRASE_REQUIRED with no key record; DEVICE_KEY_FAILED when the OS refuses. */
+  private async computerSecret(vaultId: string | null): Promise<string> {
+    const custody = this.custodyHost(); if (!custody) throw deviceKeysUnavailable('not-configured');
+    const record = vaultId ? await custody.files.readKey(vaultId) : null;
+    if (!record) throw new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
+    // A business already kept by this computer: no passphrase opens it, so never say "Chausar asks for a passphrase".
+    const probe = await custody.keys.probe();
+    if (!probe.available) throw probe.reason === 'not-configured' || probe.reason === 'platform' ? deviceKeyFailed(probe.reason)
+      : Object.assign(new ChausarError('DEVICE_KEY_FAILED', CUSTODY_WORDS.lock.keyNotAnswering), { reason: probe.reason });
+    let secret: Buffer | null;
+    try { secret = await custody.keys.unprotect(record); } catch { throw deviceKeyFailed(); }
+    if (!secret) throw deviceKeyFailed();
+    try { return secret.toString('base64url'); } finally { secret.fill(0); }
+  }
+  /** The secret another folder of the same vault already uses, so both keep opening; null when there is none. */
+  private async existingComputerSecret(vaultId: string): Promise<string | null> {
+    try { return await this.computerSecret(vaultId); } catch { return null; }
+  }
+  private async storeComputerSecret(vault: Vault, secret: Buffer) {
+    const custody = this.custodyHost()!; let record: DeviceKeyRecord | null = null;
+    try { record = await custody.keys.protect(vault.vaultId, secret); await custody.files.writeKey(record); }
+    catch {
+      if (record) await custody.keys.forget(record).catch(() => {});
+      await vault.close().catch(() => {}); throw deviceKeyFailed();
+    }
+  }
+  /** Forget this computer's key for a vault unless another business folder still opens with it. */
+  private async forgetKeyIfUnused(vaultId: string, folder: string | null) {
+    const custody = this.custodyHost(); if (!custody) return;
+    const others = (await custody.files.listCards()).filter(card => card.vaultId === vaultId && card.folder !== folder && card.unlock === 'this-computer');
+    if (others.length) return;
+    const record = await custody.files.readKey(vaultId); if (!record) return;
+    await custody.keys.forget(record).catch(() => {});
+    await custody.files.removeKey(vaultId);
+  }
+  private async currentCard(): Promise<VaultCard> {
+    const custody = this.custodyHost(); if (!custody) throw deviceKeysUnavailable('not-configured');
+    const card = this.#openFolder ? await custody.files.readCard(this.#openFolder) : null;
+    check(card, 'VAULT_LOCKED', 'Open your business first.');
+    return card;
+  }
+  /** After a vault opens: remember how, write or refresh its card, finish an interrupted custody change. */
+  private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}) {
+    this.#openFolder = folder; this.#openUnlock = how === 'this-computer' ? 'this-computer' : 'passphrase'; this.#closedByOwner = false;
+    const custody = this.custodyHost(); if (!custody) return;
+    await this.loadSchedule();
+    const vault = this.store(), state = vault.read(), unlock = this.#openUnlock, prior = await custody.files.readCard(folder);
+    const recovery: RecoveryState = options.recovery ?? (prior?.state === 'ready' ? prior.recovery : how === 'typed' ? 'made' : 'unknown');
+    const reseal = !!options.reseal || (!!prior && prior.state === 'ready' && (prior.pending !== null || prior.unlock !== unlock));
+    const card: VaultCard = { ...(prior ?? newCard({ folder, unlock, recovery })), vaultId: vault.vaultId, workspaceId: state.workspace.id,
+      name: state.workspace.name, demo: state.workspace.demo, unlock, recovery, state: 'ready', pending: reseal ? 'reseal' : null,
+      wrappersDigest: vault.wrappersDigest, openedAt: new Date(this.custodyNow()).toISOString() };
+    await custody.files.writeCard(card);
+    if (reseal) await this.resealManaged();
+    if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
+    if (reseal) await custody.files.writeCard({ ...card, pending: null });
+  }
+  private async loadSchedule() {
+    this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
+    const vault = this.vault; if (!vault || !this.custodyHost()) return;
+    const files = this.custodyFiles(), newest = (await files.backupFiles(vault.read().workspace.id))[0];
+    if (!newest) return;
+    const header = await files.backupHeader(newest.name);
+    this.#schedule = { ...this.#schedule, lastAt: newest.at, lastRevision: header?.vaultId === vault.vaultId ? header.revision : null };
+  }
+  /** Re-seal this vault's managed backups and encrypted exports with the live wrappers (KEYCHAIN-SPEC 4.4). Skipped when
+   * this folder opens with this computer and another folder of the same vault is locked with a passphrase: the backups
+   * are shared by workspace id, and resealing them would quietly undo that passphrase. */
+  private async resealManaged() {
+    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
+    if (this.#openUnlock !== 'passphrase' && (await files.listCards()).some(card => card.state === 'ready' && card.vaultId === vault.vaultId
+      && card.folder !== this.#openFolder && card.unlock === 'passphrase')) return { resealed: [], skipped: [] };
+    const paths = [...(await files.backupFiles(workspaceId)).map(file => join(files.backups, file.name)), ...await files.exportFiles(workspaceId)];
+    return vault.resealBackups(paths);
+  }
+  private async backupView(name: string): Promise<BackupView> {
+    const files = this.custodyFiles(), cards = this.custodyHost() ? await files.listCards() : [];
+    const found = (await files.backupViews(this.store().read().workspace.id, cards)).backups.find(view => view.file === name);
+    check(found, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    return found;
+  }
+  /** Writes one managed backup (ciphertext only) and, for automatic and safety copies, applies the rotation. */
+  private async writeBackup(kind: BackupKind): Promise<BackupView> {
+    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id, revision = vault.read().revision;
+    const folder = await safeDirectory(files.backups, true);
+    let at = this.custodyNow(), name = backupName(workspaceId, at, kind);
+    for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, kind));
+    await vault.backup(join(folder, name));
+    this.#schedule = { lastAt: at, lastRevision: revision, due: false, lastError: null };
+    if (kind !== 'manual') {
+      const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
+      for (const old of remove) await files.removeBackup(old).catch(() => {});
+    }
+    return this.backupView(name);
+  }
+  /** A safety copy before a lock change. Best effort, except with no recovery code yet: then it is the only way back
+   * if the change is cut short, so the change is refused (SAFETY_BACKUP_FAILED) and nothing changes. */
+  private async safetyBackup(required = false): Promise<BackupView | null> {
+    try { return await this.writeBackup('safety'); }
+    catch (error) {
+      this.#schedule.lastError = (error as Error).message.slice(0, 300);
+      if (required) throw new ChausarError('SAFETY_BACKUP_FAILED', CUSTODY_WORDS.lock.safetyBackupFailed);
+      return null;
+    }
+  }
+  /** Puts a lock change that failed partway back the way it was, with the secret the vault opened with before.
+   * When even that fails, the card keeps its marker and the next open tries both ways in. Never throws. */
+  private async undoLockChange(card: VaultCard, secret: string | null, made: DeviceKeyRecord | null) {
+    const custody = this.custodyHost(), vault = this.vault; if (!custody || !vault || !secret) return;
+    try {
+      await vault.rewrapPassphrase(secret);
+      await custody.files.writeCard({ ...card, pending: null, wrappersDigest: vault.wrappersDigest });
+    } catch { return; }
+    this.#openUnlock = card.unlock;
+    if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); }
+    // The undo made a new wrapper (a new salt), so bring the backups to it again.
+    await this.resealManaged().catch(() => {});
+  }
+  /** At a tick: an automatic backup when one is due (KEYCHAIN-SPEC 4.1). Never throws. */
+  private async backupTick() {
+    const custody = this.custodyHost();
+    if (!custody?.autoBackups || this.#closing || this.#transition || !this.vault) return;
+    this.#activeRequests++;
+    try {
+      await this.custodySerial(async () => {
+        if (!this.vault || !backupDue(this.#schedule, this.vault.read().revision, custody.clock())) return;
+        try { await this.writeBackup('auto'); }
+        catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); }
+      });
+    } finally { this.#activeRequests--; this.notifyIdle(); }
+  }
+  /** Closing: back up first when the business changed since its last backup. Best effort, never blocks closing. */
+  private async closingBackup() {
+    const custody = this.custodyHost();
+    if (!custody?.autoBackups || !this.vault || this.#schedule.lastRevision === this.vault.read().revision) return;
+    await this.custodySerial(async () => {
+      try { if (this.vault) await this.writeBackup('auto'); }
+      catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); }
+    }).catch(() => {});
+  }
+  private async custodyView(): Promise<CustodyView> {
+    const custody = this.custodyHost();
+    const probe: ProbeResult = custody ? await custody.keys.probe() : { available: false, reason: 'not-configured' };
+    const computer = computerView(custody?.keys.scheme ?? null, probe, probe.available);
+    if (!this.vault) return { computer, business: null };
+    const vault = this.vault, files = this.custodyFiles(), card = custody && this.#openFolder ? await files.readCard(this.#openFolder) : null;
+    const backups = await files.backupFiles(vault.read().workspace.id), next = custody?.autoBackups ? nextBackupAt(this.#schedule, vault.read().revision, this.custodyNow()) : null;
+    return { computer, business: { folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', recovery: card?.recovery ?? 'unknown', storage: vault.storageKind,
+      backups: { auto: !!custody?.autoBackups, count: backups.length, newestAt: backups[0] ? new Date(backups[0].at).toISOString() : null,
+        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError } } };
+  }
+  private async backupList() {
+    const files = this.custodyFiles(), cards = await files.listCards();
+    return files.backupViews(this.vault ? this.vault.read().workspace.id : null, cards);
+  }
+  private async passphraseOn(payload: any) {
+    const vault = this.store(), card = await this.currentCard();
+    check(card.unlock === 'this-computer', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
+    check(typeof payload.passphrase === 'string' && payload.passphrase.length >= 12 && payload.passphrase.length <= 1024, 'WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
+    const files = this.custodyFiles();
+    await this.safetyBackup(card.recovery !== 'made');
+    // The secret it opens with now, to put things back if a step below fails.
+    const before = await this.existingComputerSecret(vault.vaultId);
+    // The marker goes on the card before the rewrap, so a crash after it still finds the way in (workspace.open).
+    await files.writeCard({ ...card, pending: 'to-passphrase' });
+    let recoveryCode: string | null = null, next: VaultCard;
+    try {
+      await vault.rewrapPassphrase(payload.passphrase);
+      // A passphrase can be forgotten and nobody can reset it, so the owner always leaves holding a recovery code.
+      recoveryCode = card.recovery === 'made' ? null : await vault.rewrapRecovery();
+      next = { ...card, unlock: 'passphrase', recovery: 'made', pending: 'forget', wrappersDigest: vault.wrappersDigest };
+      await files.writeCard(next);
+    } catch (error) {
+      // Even a failed rewrap may have reached the disk, so commit the old secret again either way.
+      await this.undoLockChange(card, before, null);
+      throw error;
+    }
+    this.#openUnlock = 'passphrase';
+    await this.resealManaged();
+    await this.forgetKeyIfUnused(vault.vaultId, card.folder);
+    await files.writeCard({ ...next, pending: null });
+    await vault.update(state => audit(state, 'custody.passphrase-on', { recoveryMade: recoveryCode !== null }));
+    return { custody: await this.custodyView(), recoveryCode };
+  }
+  private async passphraseOff(payload: any) {
+    const custody = this.custodyHost()!, vault = this.store(), card = await this.currentCard();
+    check(card.unlock === 'passphrase', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
+    // Other devices pull with the passphrase; a secret only this computer holds would shut them out of new revisions.
+    check(!(this.services.sync?.status(this.context).enabled), 'SYNC_NEEDS_PASSPHRASE', CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
+    check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
+    const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+    let secret = await this.existingComputerSecret(vault.vaultId), made: DeviceKeyRecord | null = null;
+    if (!secret) {
+      const bytes = randomBytes(32);
+      try { made = await custody.keys.protect(vault.vaultId, bytes); await custody.files.writeKey(made); secret = bytes.toString('base64url'); }
+      catch (error) { if (made) await custody.keys.forget(made).catch(() => {}); throw error instanceof ChausarError && error.code === 'DEVICE_KEY_FAILED' ? error : deviceKeyFailed(); }
+      finally { bytes.fill(0); }
+    }
+    try { await this.safetyBackup(card.recovery !== 'made'); }
+    catch (error) { if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); } throw error; }
+    // The marker goes on the card before the rewrap; the key record stays until the change is settled either way.
+    await custody.files.writeCard({ ...card, pending: 'to-this-computer' });
+    let next: VaultCard;
+    try {
+      await vault.rewrapPassphrase(secret);
+      next = { ...card, unlock: 'this-computer', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
+      await custody.files.writeCard(next);
+    } catch (error) {
+      // The typed passphrase was just checked, so it puts the vault back; then the new key record goes.
+      await this.undoLockChange(card, payload.passphrase, made);
+      throw error;
+    }
+    this.#openUnlock = 'this-computer';
+    await this.resealManaged();
+    await custody.files.writeCard({ ...next, pending: null });
+    await vault.update(state => audit(state, 'custody.passphrase-off', {}));
+    return { custody: await this.custodyView() };
+  }
+  private async makeRecoveryCode(payload: any) {
+    const vault = this.store(), card = await this.currentCard();
+    if (card.unlock === 'passphrase') check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
+    const recoveryCode = await vault.rewrapRecovery();
+    const next: VaultCard = { ...card, recovery: 'made', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
+    await this.custodyFiles().writeCard(next);
+    await this.resealManaged();
+    await this.custodyFiles().writeCard({ ...next, pending: null });
+    await vault.update(state => audit(state, 'custody.recovery-made', {}));
+    return { custody: await this.custodyView(), recoveryCode };
+  }
+  private async restoreManagedBackup(payload: any) {
+    check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the restore in the app.');
+    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
+    const parsed = typeof payload.file === 'string' ? parseBackupName(payload.file) : null;
+    check(parsed, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    check(parsed.workspaceId === workspaceId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+    const header = await files.backupHeader(parsed.name);
+    check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    check(header.vaultId === vault.vaultId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+    const restoredFrom = await this.backupView(parsed.name);
+    // The safety copy is required here: the business's current state is about to be replaced.
+    const safety = await this.writeBackup('safety');
+    await vault.replaceFromBackup(files.backupPath(parsed.name));
+    await this.attachSafely(vault);
+    await vault.update(state => audit(state, 'backup.restored', { file: parsed.name, revision: header.revision }));
+    return { workspace: this.store().read().workspace, restoredFrom, safety };
+  }
+  private async transferExport(payload: any) {
+    const vault = this.store(), card = this.custodyHost() && this.#openFolder ? await this.custodyFiles().readCard(this.#openFolder) : null;
+    if ((card?.unlock ?? this.#openUnlock ?? 'passphrase') === 'passphrase')
+      check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
+    const transferCode = makeTransferCode(), madeAt = new Date(this.custodyNow()).toISOString();
+    const text = await vault.transferText(transferCode, { recovery: (card ? card.recovery === 'made' : true) ? 'made' : 'not-made', madeAt });
+    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
+    await vault.update(state => audit(state, 'custody.transfer-exported', {}));
+    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode, bytes: Buffer.byteLength(text) };
+  }
+  private async transferImport(payload: any) {
+    check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');
+    this.#draft?.clear();
+    const text = payload.fileText;
+    check(typeof text === 'string', 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
+    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { parsed = null; }
+    const envelope = parsed?.envelope;
+    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
+      && Number.isSafeInteger(envelope.revision) && envelope.revision >= 0 && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'),
+      'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
+    const files = this.custodyFiles();
+    check(!(await files.vaultIds()).has(envelope.id), 'TRANSFER_SAME_BUSINESS', CUSTODY_WORDS.errors.TRANSFER_SAME_BUSINESS);
+    const code = normalizeTransferCode(payload.transferCode);
+    check(code, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
+    const custody = this.custodyHost(), computer = payload.passphrase === undefined || payload.passphrase === null;
+    if (computer) {
+      if (!custody) throw deviceKeysUnavailable('not-configured');
+      const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
+    } else check(typeof payload.passphrase === 'string' && payload.passphrase.length >= 12 && payload.passphrase.length <= 1024, 'WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
+    const folder = nextFolder(`moved-${randomBytes(3).toString('hex')}`, await files.takenFolders());
+    const path = await files.transferFile(text);
+    try {
+      let vault: Vault;
+      try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
+      catch (error) { if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG); throw error; }
+      let record: DeviceKeyRecord | null = null;
+      const secret = computer ? randomBytes(32) : null;
+      try {
+        if (secret) { record = await custody!.keys.protect(vault.vaultId, secret); await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url')); }
+        else await vault.rewrapPassphrase(payload.passphrase);
+        // The card goes down before attaching, so if attaching fails the list still shows the right way in.
+        const state = vault.read();
+        await files.writeCard(newCard({ folder, vaultId: vault.vaultId, workspaceId: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo,
+          unlock: computer ? 'this-computer' : 'passphrase', recovery: transferHint(parsed), wrappersDigest: vault.wrappersDigest }));
+      } catch (error) {
+        await files.removeCard(folder).catch(() => {});
+        await vault.delete().catch(() => {});
+        if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
+        throw error instanceof ChausarError ? error : deviceKeyFailed();
+      } finally { secret?.fill(0); }
+      await this.attachSafely(vault);
+    } finally { await files.removeTransfer(path).catch(() => {}); }
+    await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
+    return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
+  }
+  private async forgetBusiness(folder: string | null, vaultId: string) {
+    const custody = this.custodyHost(); if (!custody || !folder) return;
+    await custody.files.removeCard(folder);
+    if (!(await custody.files.listCards()).some(card => card.vaultId === vaultId)) {
+      const record = await custody.files.readKey(vaultId);
+      if (record) { await custody.keys.forget(record).catch(() => {}); await custody.files.removeKey(vaultId); }
+    }
   }
   private requireWorkspaceOwner(ctx: Context) { const member = authorize(this.store(), ctx, 'admin'); check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Only an unrestricted workspace owner can copy or delete the entire vault.'); }
   private jobRunner() { check(this.services.jobRunner, 'JOB_POLICY_REQUIRED', 'Configure explicit worker, active-job and lease policy before creating typed goals.'); return this.services.jobRunner; }
@@ -1715,6 +2283,8 @@ export class Engine {
     this.#jobLifecycle = { ...host };
   }
   async tick() {
+    // Automatic backups run before the autonomy check: they don't depend on scheduled jobs.
+    await this.backupTick();
     const host = { ...this.#jobLifecycle };
     if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;

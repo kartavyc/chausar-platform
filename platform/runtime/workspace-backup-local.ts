@@ -28,7 +28,8 @@ const slotPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
 const purposes = ['private-trial', 'workspace-interchange'] as const;
 const widerWorkspace = ['reports', 'plugin-assets', 'research-evidence', 'conversation-files', 'sync-evidence'];
-const widerApplication = ['backups', 'exports', 'updates', '.workspace-interchange-control', CONTROL];
+// custody/ holds business cards and this computer's key records; transfers/ holds a move file during one import only (KEYCHAIN-SPEC 2.8).
+const widerApplication = ['backups', 'exports', 'updates', 'custody', 'transfers', '.workspace-interchange-control', CONTROL];
 const sha = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 function canonical(value: any): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -466,7 +467,7 @@ export class WorkspaceBackupV2LocalCustody {
       if (path && ['backups', 'exports'].includes(name)) {
         const prefix = `chausar-${vault.read().workspace.id}-`;
         for (const entry of await readdir(path)) {
-          check(entry.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(entry.slice(prefix.length)),
+          check(entry.startsWith(prefix) && /^\d+(?:-(?:auto|manual|safety))?\.(backup|json|vault)$/.test(entry.slice(prefix.length)),
             'BACKUP_EXTERNAL_ENUMERATION_REQUIRED', 'Unrelated backup/export identities require their own authorized physical enumeration.');
         }
       }

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import {
-  APP_ONLY_METHODS, CHECK_IDS, CONNECTOR_CATEGORIES, EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES, JUDGE_QUESTIONS, LAUNCH_STAGES,
+  APP_ONLY_METHODS, CHECK_IDS, CONNECTOR_CATEGORIES, DRAFT_METHODS, EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES, JUDGE_QUESTIONS, LAUNCH_STAGES,
   METHOD_OWNERS, MODEL_PRESET_IDS, PRE_VAULT_METHODS, REQUIRED_SECTIONS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, SERVICE_TYPES,
   STEP_IDS, STEP_PLAN, VENTURE_ERRORS, VENTURE_EVENTS, VENTURE_METHODS, VENTURE_RECORD_KINDS,
 } from '../runtime/venture/contracts.ts';
@@ -19,6 +19,7 @@ import {
   ventureAction, type VentureTx,
 } from '../runtime/venture/records.ts';
 import { ventureHostEnv } from '../runtime/venture/host-env.ts';
+import { ONBOARDING_METHODS } from '../runtime/venture/onboarding-contracts.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const METHOD_NAME = /^[a-z]+(\.[a-zA-Z][a-zA-Z0-9]*)+$/;
@@ -45,13 +46,24 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 56 unique valid names with owners and well-formed subsets', () => {
-  assert.equal(VENTURE_METHODS.length, 56);
+test('VENTURE_METHODS: 65 unique valid names with owners and well-formed subsets', () => {
+  assert.equal(VENTURE_METHODS.length, 65);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
-  for (const subset of [APP_ONLY_METHODS, EVIDENCE_METHODS, PRE_VAULT_METHODS]) for (const method of subset) assert.ok(VENTURE_METHODS.includes(method), method);
+  for (const subset of [APP_ONLY_METHODS, EVIDENCE_METHODS, PRE_VAULT_METHODS, DRAFT_METHODS]) for (const method of subset) assert.ok(VENTURE_METHODS.includes(method), method);
   assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview']);
+});
+
+test('DRAFT_METHODS: the nine onboarding methods, apart from the pre-vault two, with app-only connect, decide and fill', () => {
+  assert.equal(DRAFT_METHODS.length, 9);
+  assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
+  for (const method of DRAFT_METHODS) assert.equal(PRE_VAULT_METHODS.includes(method), false, method);
+  for (const method of DRAFT_METHODS) assert.equal(METHOD_OWNERS[method], method.startsWith('venture.ai.') ? 'models' : 'core', method);
+  assert.deepEqual(DRAFT_METHODS.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill']);
+  for (const code of ['COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(code), code);
+  assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes('venture-composition'));
+  assert.ok((VENTURE_EVENTS as readonly string[]).includes('plan-composed'));
 });
 
 test('VENTURE_ERRORS: unique codes the desktop keeps, including the ones packages rely on', () => {
@@ -248,12 +260,20 @@ test('activateTerm turns a proposed term active with evidence and does nothing w
 
 test('ventureHostEnv honours replay files only in demo mode with the replay switch', () => {
   const env = { CHAUSAR_VENTURE_MODEL_REPLAY: '/tmp/model.json', CHAUSAR_VENTURE_GITHUB_REPLAY: '/tmp/github.json' };
-  assert.deepEqual(ventureHostEnv(env, { demo: false, host: 'local-web' }), { host: 'local-web' });
-  assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: false, host: 'desktop', args: ['--replay'] }), { host: 'desktop' });
-  assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'desktop' }), { host: 'desktop' });
-  const replayed = { host: 'desktop', modelReplayPath: '/tmp/model.json', githubReplayPath: '/tmp/github.json' };
+  const pending = { claudeCodeTerms: 'pending' };
+  assert.deepEqual(ventureHostEnv(env, { demo: false, host: 'local-web' }), { host: 'local-web', ...pending });
+  assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: false, host: 'desktop', args: ['--replay'] }), { host: 'desktop', ...pending });
+  assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'desktop' }), { host: 'desktop', ...pending });
+  const replayed = { host: 'desktop', ...pending, modelReplayPath: '/tmp/model.json', githubReplayPath: '/tmp/github.json' };
   assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: true, host: 'desktop' }), replayed);
   assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'local-web', args: ['--demo', '--replay'] }), { ...replayed, host: 'local-web' });
+});
+
+test('ventureHostEnv opens the Claude Code terms gate only for the exact word accepted', () => {
+  assert.equal(ventureHostEnv({ CHAUSAR_CLAUDE_CODE_TERMS: 'accepted' }, { demo: false, host: 'desktop' }).claudeCodeTerms, 'accepted');
+  for (const value of [undefined, '', 'yes', 'ACCEPTED', 'accepted ', '1']) {
+    assert.equal(ventureHostEnv({ CHAUSAR_CLAUDE_CODE_TERMS: value }, { demo: false, host: 'desktop' }).claudeCodeTerms, 'pending', String(value));
+  }
 });
 
 test('VentureTestStore rejects nested updates and reads copies', async () => {

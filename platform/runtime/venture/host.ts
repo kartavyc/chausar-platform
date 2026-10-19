@@ -9,7 +9,7 @@
 // - Secrets live on a memory-only shelf that close() empties; the engine closes the host on lock and attach.
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type StateStore } from '../contracts.ts';
-import { METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from './contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
@@ -48,9 +48,14 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
   return !!table && typeof table === 'object' && Object.hasOwn(table, method) && typeof (table as Record<string, unknown>)[method] === 'function';
 }
 
-/** Methods with no handler in their owner's table. The two pre-vault methods are answered outside the tables. */
+/** Answered outside the package tables: the two pre-vault methods, and the nine draft methods the engine's draft desk answers. */
+export function outsideTables(method: string): boolean {
+  return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
+}
+
+/** Methods with no handler in their owner's table. The pre-vault and draft methods are answered outside the tables. */
 export function missingHandlers(tables: Partial<Record<VenturePackageId, VentureHandlerTable>>): VentureMethod[] {
-  return VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !ownsHandler(tables[METHOD_OWNERS[method]], method));
+  return VENTURE_METHODS.filter(method => !outsideTables(method) && !ownsHandler(tables[METHOD_OWNERS[method]], method));
 }
 
 /** Calls a loader once. A synchronous throw and a module without a handler table both count as a failed load. */
@@ -130,13 +135,15 @@ export class VentureHost {
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
+      claudeCodeTerms: options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending',
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
+      ...(options.draft ? { draft: options.draft } : {}),
     });
   }
 
-  /** Routes one venture method to the package that owns it. The two pre-vault methods never come here. */
+  /** Routes one venture method to the package that owns it. The pre-vault and draft methods never come here. */
   async request(ctx: Context, method: string, payload: unknown): Promise<unknown> {
-    if (!(VENTURE_METHODS as readonly string[]).includes(method) || (PRE_VAULT_METHODS as readonly string[]).includes(method)) {
+    if (!(VENTURE_METHODS as readonly string[]).includes(method) || outsideTables(method)) {
       throw new ChausarError('INVALID_VENTURE_REQUEST', 'This venture request is not supported.');
     }
     const name = method as VentureMethod;
@@ -205,6 +212,7 @@ export class VentureHost {
     const portOptions: ModelPortOptions = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
+      claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'pending',
     };
     const port = (create as (options: ModelPortOptions) => ModelPort)(portOptions);
     if (!port || typeof port !== 'object') throw notBuilt();

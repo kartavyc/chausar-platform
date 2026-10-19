@@ -9,15 +9,20 @@ Two rules hold everywhere:
 
 ## The journey
 
-1. **Idea.** One question: "What service business do you want to start?" Country comes from the browser.
-2. **Plan.** A one-page plan appears at once from built-in templates. Nothing is saved yet. The owner sets a price and says whether they charge tax.
-3. **Keep it.** A working name and a passphrase open an encrypted vault. The recovery code is shown once. Prices become receipts and the owner accepts the plan.
-4. **Build.** Chausar writes a build brief, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
-5. **Connect.** Starter cards for the owner's country, with honest chips on all 64 connectors.
-6. **Add your AI.** Optional. The owner's own Anthropic or OpenAI key, or a command-line tool on this computer. Templates work without any of them.
-7. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
-8. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
-9. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/). Since the keychain change of 19 October there is nothing to type to keep the plan, and the right side of each screen shows the business coming together in real words; that flow was walked against the real engine and this computer's Windows key store, and its captures are in [`screens/onboarding-v3/`](screens/onboarding-v3/).
+
+1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates, and "Open my business" takes a returning owner to Welcome back, since every restart starts on this screen.
+2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
+3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no digits, no numbers in words, no prices, no markup. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
+4. **Set your prices.** The owner types each price. Nothing is added up yet.
+5. **Keep it.** Keep this plan makes the encrypted vault, named after the business, and this computer keeps its key for the owner's login: no passphrase and no folder to type (since the keychain change; a passphrase is asked only where the computer has no protected storage, and hosted keeps its own Keep it). The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan. Next time the app opens, the business opens by itself; Trust & access holds the optional passphrase, the recovery code, the automatic backups and moving to another computer.
+6. **Build.** Chausar writes a build brief from the plan's own pages, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
+7. **Connect.** Starter cards for the owner's country and the plan's tools, with honest chips on all 64 connectors.
+8. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
+9. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
+10. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.
+
+The hosted web tier keeps the earlier order and its server custody for now: idea, template plan, keep it, then Add your AI inside the vault. Its screens show the same live preview.
 
 ## Run it
 
@@ -72,23 +77,32 @@ This build keeps each business in the engine's encrypted file vault, which the c
 
 ## What is not built
 
-A deployed public web app (the hosted tier is written and tested on one computer, see [hosted.md](hosted.md)); durable storage for real books on the desktop; real outside writes such as payment links, email or posts; agents that read inboxes or the web (agents read the files the owner adds to an order, see [harness.md](harness.md)); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; keys in the computer's keychain (keys live in memory and are typed again after a restart); agentOS and hosted sandboxes, and containers tried against a real Docker; agent-written code and PDF reading on the hosted server, which stay off there until the founder decides; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
+A deployed public web app (the hosted tier is written and tested on one computer, see [hosted.md](hosted.md)); durable storage for real books on the desktop; real outside writes such as payment links, email or posts; agents that read inboxes or the web (agents read the files the owner adds to an order, see [harness.md](harness.md)); work products for service types other than bookkeeping; approving a sample of drafts or automatic sending with spot checks; Lovable and Replit MCP, a GitHub App, webhooks and Zoho sign-in; India e-invoicing; automatic polling; AI keys in the computer's keychain (AI keys live in memory and are typed again after a restart; the vault key has been kept by the computer since 19 October); the vault key on a Mac or a Linux desktop run for real (written and tested with fake processes only); Electron's safeStorage; agentOS and hosted sandboxes, and containers tried against a real Docker; agent-written code and PDF reading on the hosted server, which stay off there until the founder decides; several businesses in one vault. Section 8 of [architecture.md](architecture.md) says why for most of them; [harness.md](harness.md) covers the delivery harness.
 
 ## Demo script
 
-Start the replay demo above and open the pairing link. Then:
+Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and folder, so it never meets a server on 4317 or the repo's `data/` folder. In PowerShell:
 
-1. Idea: "Monthly bookkeeping for cafes and small shops in Pune." Country: India. Show my plan.
-2. Plan: Per month, 2499. Tax: Yes, 18. Keep this plan.
-3. Keep it safe: name "Ledger Cafe Books", a passphrase of 12 or more characters. Keep the recovery code.
-4. Your plan: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Add your AI: the recommended Anthropic row with any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Rewrite with AI, then Accept plan.
-5. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
-6. Agents: Rehearse, then Move to shadow.
-7. Clients: add "Cafe Aroma Demo" (India, Maharashtra). New order for the first offer with the request "Please close my September books. The bank statement and bills are in the shared folder." Draft a reply, Approve and send, and see the practice draft. Move to approve each; draft again, approve, Accept.
-8. Mark delivered; Prepare invoice; Issue; Record payment of 2948.82.
-9. Money: open a receipt, then open the back office and find the same receipt there.
+```powershell
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
+```
 
-Every model and Build screen should say the answers come from a synthetic recording. Then run once more with no variables set, using built-in templates only: the plan, the brief, rehearsal (template, not judged), a template outline for an order, an invoice and a payment all work, and shadow stays blocked.
+In sh, put `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` in front of the replay command above. `.b2c-work/` is a local working folder outside the repository; the demo makes its vault there.
+
+Then:
+
+1. Connect an AI: Paste an API key, Anthropic, any key of 20 or more characters that starts `sk-ant-demo-` (the recording answers; nothing is sent). Tick I agree for each consent text, then Connect.
+2. What do you want to do: "Monthly bookkeeping for cafes and small shops in Pune." Country: India (Based in, Change). The demo also answers the three Examples (dog walking for nurses, the Excel skill, cafe bills), "My landlord won't fix the heating." (not a service) and "Bike repairs at home for families in Bristol.", whose two plan answers both use a block Chausar doesn't have, so the screen says "There's no plan to show." Any other sentence has no recording and says so.
+3. Your plan: Ledger Cafe Books, drafted from a synthetic recording. Set your prices: Monthly books 2499 per month. Open "Tax: not registered", answer Yes and type 18. Keep this plan.
+4. Nothing to type: the vault is made with the plan's name, and this computer keeps the key. (Where the engine has no protected storage, it asks for a passphrase of 12 or more characters and shows the recovery code once.)
+5. Your plan in the vault: GSTIN `27ZZZZZ9999Z1Z8`, SAC `998222`. Rewrite with AI (the words change, the blocks stay), then Accept plan.
+6. Build: read the brief. On Connections, press Open on the Bolt card (it copies the brief, so no outside site opens). Back on Build, follow `demo-owner/ledger-cafe-books` with a key that starts `github_pat_demo` and has 20 or more characters, then Check GitHub now.
+7. Agents: Rehearse, then Move to shadow.
+8. Clients: add "Cafe Aroma Demo" (India, Maharashtra). New order for the first offer with the request "Please close my September books. The bank statement and bills are in the shared folder." Draft a reply, Approve and send, and see the practice draft. Move to approve each; draft again, approve, Accept.
+9. Mark delivered; Prepare invoice; Issue; Record payment of 2948.82.
+10. Money: open a receipt, then open the back office and find the same receipt there.
+
+Every model and Build screen should say the answers come from a synthetic recording. Then run once more with no variables set and choose Continue without AI: the built-in plan, the brief, rehearsal (template, not judged), a template outline for an order, an invoice and a payment all work, and shadow stays blocked. To see the Claude Code row connect, add `CHAUSAR_CLAUDE_CODE_TERMS=accepted`; the demo has Claude Code answers for decide and compose only.
 
 ## How the desktop is checked
 
@@ -151,6 +165,95 @@ Known limits:
 - "Practise this" looks for the review among the newest 500 events. An older review needs the engine to name its signal on the draft.
 - There is no separate fixed price model; "Per project" covers fixed price work.
 
+## Onboarding v2, 18 October
+
+The engine package (commits `bec1bd8`, `9622d60`, `d926ccb`, and the review fixes in `901be97`) added the draft desk, the composer, the block library and the view registry. The renderer package (`f0e3da4`, `2788ebc`) drew every onboarding screen in look B. The end-to-end package (`31459d2`, `9c14254`, `e72664c`) added the recordings, the end-to-end test, the demo answers and these docs. The integration pass below joined them.
+
+How it was checked, on Windows with Node 24.13.1:
+
+- `node --test platform/tests/venture-onboarding-e2e.test.ts`: 10 of 10. The new journey on recordings, from Connect to an issued invoice, with GitHub followed from the existing recording and the number guard run on the invoice's money lines; the reason each refused answer was refused; and a judged rehearsal of a composed plan (see [onboarding.md](onboarding.md#how-it-is-tested)).
+- `venture-e2e.test.ts` (2 of 2, now also checking that "Connect your AI" is the first checklist item) and `venture-docs.test.ts`, plus the engine package's `venture-compose.test.ts` and `venture-draft.test.ts`.
+- `node scripts/check.mjs` and a scoped typecheck with `typescript@5.9.3` over the three test files this package owns.
+- The replay demo in local web mode on port 4391 with its own vault folder, driven through `/api/rpc` in the order the new screens call it: the four Connect rows (API key unverified, Claude Code and Codex needing setup, ChatGPT not open), the recommended pair before any vault, the three Examples (an idea with `offers-first`, a skill with `steps-first`, a problem with `audience-first`), the landlord sentence refused as not a service, an unrecorded sentence refused with `FIXTURE_MISSING`, the demo idea's plan, INR 2,499.00 typed and GST at 18, no key in any draft call, Keep it safe, the plan and AI adopted ("Connect your AI" done), the receipt INR 2,948.82, GSTIN and SAC, a rewrite that kept the blocks and pages, Accept, a brief that passed its checks with the client-area lines kept (the demo plan has a client uploads page), the playbook's work step "Match every entry", three judged rehearsals passed, shadow, a practice draft with every check passed, `INV-0001` as a TAX INVOICE for 294882 paise, and the payment of 2948.82 (balance 0).
+
+What this pass changed in the demo replay: the composer answers above; the template plan rewrite now matches only a template plan's request, and the composed one only a composed plan's, so neither answers the other; and the bookkeeping agent turns from the end-to-end recording, without which rehearsal of the reconciling agent stopped with `FIXTURE_MISSING` in the demo (that gap predates onboarding v2).
+
+## Onboarding v2 integration, 18 October
+
+The three packages were joined in one worktree on branch `b2c/onboarding-v2`, their hand-off notes applied, the new screens walked in the browser against the real engine, and what the walk found fixed.
+
+What changed in this pass:
+
+- **The quick tier.** The engine reads the sentence on the quick tier, so Connect now moves on only when both the quick and the plan tier can serve. Before, a connection for plans alone would have shown the open box and then refused every sentence.
+- **A way back in from the first screen.** Every restart starts on Connect, because the engine opens locked and can't list vaults. Connect now has "Open my business" beside "Continue without AI", which goes to Welcome back. It rests at 45 words, inside its budget.
+- **VAT read "vat".** A stray control character in `launch.js` had turned a pattern's word boundary into a backspace, so every tax name was lower cased inside a sentence. Fixed, and a test now checks the renderer files for control characters. The same fault is on `main`.
+- **The ChatGPT row's words** follow OpenAI's own wording, checked again on 18 October: "OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Chausar is a commercial app and hasn't been picked yet. Use an OpenAI key for now." Before, it said "personal hobby projects", which isn't OpenAI's phrase.
+- **The brief lint** takes a `clientArea` option, so a composed plan with no client area doesn't need the row security and sign-in lines; before, the build package filtered those two findings after the fact.
+- **The demo** has one sentence whose plan is refused twice, so the refused screen can be seen offline. The end-to-end test checks it.
+- **Look B fixes from the walk:** each Connect row shows a chevron, so it reads as something that opens; the currency code sits beside its price field and every row lines up; Accept and Build use the same title, eyebrow and fold style as the other onboarding screens; the storage line on Keep it safe has room before the button; Accept has top room at phone width.
+
+How it was checked, on Windows with Node 24.13.1:
+
+- `node scripts/check.mjs` (524 files) and a full typecheck with `typescript@5.9.3` against the repo `tsconfig.json` (654 files), unfiltered: both clean.
+- Every `venture-*`, `hosted-*`, `desktop-*` and `server` test, and the renderer tests (`venture-launch-renderer`, `venture-onboarding-renderer`, `desktop-renderer`, `decision-journal-renderer`, `conversation-*-renderer`, `definition-disclosure-renderer`, `workspace-backup-renderer`, `phone-web-preview`, `conversation-acceptance`): 567 of 567 across 44 files. The end-to-end test `venture-onboarding-e2e` passes 10 of 10.
+- The local web demo on port 4391 with the replay switch and its own vault folder, walked in headless Edge over the DevTools protocol by clicking and typing in the real page: pair, Connect, the API key row, the recommended pair, the open box, Working (held while the plan was written, to capture it), the three Examples as an idea, a skill and a problem, the landlord sentence, the refused sentence, the demo idea, Set your prices with GST at 18, Keep it safe, the recovery code, Setting up, Accept, Build and Today; then a restart, "Open my business" and Welcome back; then a fresh engine with Continue without AI and the built-in plan. Each of the fifteen screens was captured in light and dark at 1366 px and at 375 px. Nothing scrolls sideways at either width.
+- One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else running: 2,933 tests, 2,932 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 26 minutes. A small spacing change on Keep it safe came after it; the renderer, docs and desktop renderer tests, the check and the typecheck were run again after that change and pass.
+
+Words at rest, counted the way the renderer test counts them (header, both halves and closed folds' summaries; the recovery code and the storage line not counted):
+
+| Screen | Budget | Longest answers (renderer test) | Demo walk |
+| --- | --- | --- | --- |
+| Pair | 35 | 30 | 30 |
+| Connect | 45 | 45 | 45 |
+| Open box | 45 | 37 | 36 |
+| Working | 45 | 37 | 30 |
+| Plan | 45 | 43 | 26 (idea), 37 (skill), 35 (problem) |
+| Set your prices | 45 | 44 | 33 |
+| Not a service | 35 | 31 | 31 |
+| Refused | 40 | 39 | 39 |
+| Keep it safe | 45 | 40 | 39 |
+| Recovery code | 45 | 41 | 41 |
+| Setting up | 25 | 14 | 19 |
+| Accept | 45 | 45 | 32 |
+| Build | 45 | 44 | 39 |
+| Welcome back | 40 | 32 | 32 |
+| Built-in plan | 45 | 33 | 33 |
+
+No screen needed the F10 exception: Accept fits 45 by showing the version and the Offers heading only on the Your business place.
+
+Known limits:
+
+- The walk was done in headless Edge, not in the Electron window or the app's own browser pane; the desktop window still needs `npm install`.
+- At the time of this walk the engine couldn't say whether a vault existed before one was opened, so a returning owner saw Connect first and typed a folder name on Welcome back. The keychain change replaced both: `workspace.list` lists this computer's businesses (see below).
+
+## Keychain custody: the renderer (19 October)
+
+The founder's decisions of 18 October, built on the screens: no Keep it safe step (the vault is made, named from the business, when the owner keeps the plan); Welcome back lists this computer's businesses, and one that opens with this computer opens by itself; Trust & access has "Lock with a passphrase", the recovery code, automatic encrypted backups with restore, and moving to another computer with a file and a one-time code; and the live preview on the right shows the business coming together in real words, like prototype B. The screens are in [onboarding.md](onboarding.md#keeping-the-plan-welcome-back-and-the-live-preview-keychain-custody-18-october); the engine is in [docs/custody.md](../custody.md).
+
+What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px: [`screens/60-idea-typed`](screens/60-idea-typed-light.png) to [`screens/78-hosted-prices`](screens/78-hosted-prices-light.png). Not run in that package: a walk against the real engine with this computer's DPAPI (the integration pass below did it), and any Mac or Linux keychain.
+
+## Keychain custody: integration, 19 October
+
+The engine package (`ec365e1` to `b1c4ef8`) and the renderer package (`91fa07d` to `a3df067`) were joined on `b2c/onboarding-v2`, walked against the real engine, and what the walk found was fixed. The engine side is in [docs/custody.md](../custody.md) and the screens in [onboarding.md](onboarding.md#the-live-walk-19-october).
+
+What this pass changed:
+
+- **The onboarding end-to-end test keeps the plan the way the screens do now:** `workspace.create` with no passphrase and `folder: null`, the engine composed with custody as `server.ts` composes it (an in-memory key store stands in for the operating system's), then a restart that lists the business by name, finds an automatic backup and opens it with no passphrase. The rehearsal case still keeps its plan with a passphrase, as on a computer with no protected storage.
+- **The Show button in Trust's passphrase sheets** sat at the bottom corner of the sheet, outside its field; it now sits in the field, as on the onboarding screens. The browser's own reveal eye is hidden beside it, so there is one way to show a passphrase.
+- **The lock badge** on the recovery code screen opened from Trust was cut off by the card's edge; on a card with no words under its tile it now sits inside the tile.
+- **The workspace menu** no longer says "Keep your recovery kit separately." for a business this computer opens, which may have no recovery code; it says the backups and the export stay encrypted.
+- A docs test checks that the live walk's captures are all saved and that this page, [launch.md](launch.md) and [onboarding.md](onboarding.md) point at them.
+
+How it was checked, on Windows 11 with Node 24.13.1:
+
+- `node scripts/check.mjs` (531 files) and the full typecheck with `typescript@5.9.3` against the repo `tsconfig.json`: both clean.
+- Every `venture-*`, `hosted-*`, `desktop-*`, `server*`, `vault*`, `workspace-backup*`, renderer, `device-custody`, `workspace-custody` and `worker` test (55 files, run together): 747 of 749 at first; the two failures were one test in `workspace-backup-activation` ("owner deactivation", `BACKUP_SOURCE_CHANGED`) that passes on its own (43 of 43) and in the serial run below. The onboarding end-to-end test: 10 of 10. The renderer tests after the fixes: 140 of 140.
+- The live walk in [onboarding.md](onboarding.md#the-live-walk-19-october): first visit to an accepted plan with no passphrase, a restart that opened the business by itself, Welcome back opening it from the list, the passphrase switch on, a restart and the passphrase, the switch off, a backup made and restored, a recovery code and a move code made in this-computer mode, and a second business listed beside the first. The DPAPI key store was the real one.
+- One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else heavy running: 2,997 tests, 2,996 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 25 minutes. Two sentences of docs changed after it, and the docs test was run again: 8 of 8.
+- After CI run 39173011215 (Ubuntu failed four fake-process custody tests and skipped the three real Windows cases; GitHub's Windows runner timed out the real DPAPI probe at 20 s): the Windows key store now reads `SystemRoot` with Windows path rules on every host, and the three real cases moved to a qualification run, `platform/tests/qualification/device-keys-real.test.ts`, which fails (never skips) off Windows ([custody.md](../custody.md#what-ran-on-this-computer)). A new test fails if any open test skips on `process.platform`. Run on this computer: `node scripts/check.mjs` (532 files) and the full typecheck, both clean; the custody, vault, workspace-custody, server-auth, hosted-server, workspace-backup-local, venture-onboarding and renderer files (20 files), 322 of 322; the qualification run, 3 of 3; `node scripts/bench.mjs --shard=2/5`, 773 of 773, passed; `--shard=1/5`, 745 of 746 with 1 skipped, the DuckDB proof, because this checkout has no `node_modules` (CI installs it), so that shard reports not passed here and nothing else skipped.
+
+Known limits: the move was not imported on a second computer in the walk (the tests import one between two engines); the passphrase fallback and the hosted preview were checked by tests, not walked; no Mac or Linux key store has been run; the Electron window was not opened.
+
 ## Package pages
 
 | Page | What it covers |
@@ -163,6 +266,7 @@ Known limits:
 | [delivery.md](delivery.md) | Playbook, draft replies, rehearsal, launch ladder, capabilities (P5) |
 | [harness.md](harness.md) | The delivery harness: tools, client files, work receipts, the sandbox tiers and the improvement loop |
 | [shell.md](shell.md) | The venture host, desktop types, shell and end-to-end tests (P6) |
-| [launch.md](launch.md) | The launch screens in the renderer (P7) |
+| [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the open box, the block library, the view registry, the composer and its number guard, the draft desk |
+| [launch.md](launch.md) | The launch screens in the renderer (P7), and the onboarding v2 screens |
 | [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
 | [architecture.md](architecture.md) | The target architecture this build follows |

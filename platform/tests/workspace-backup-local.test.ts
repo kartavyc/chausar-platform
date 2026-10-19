@@ -370,3 +370,22 @@ test('hard-linked authority refuses physical custody without altering prior encr
   } finally { await unlink(alias); }
   await f.host.create(context, { destinationId: 'regular_source', confirmed: true });
 });
+
+test('an archive still builds beside custody cards, key records, a transfers folder and automatic backup names', async t => {
+  const f = await fixture(t), workspaceId = f.vault.read().workspace.id, now = Date.now();
+  await mkdir(join(f.applicationDirectory, 'custody', 'cards'), { recursive: true });
+  await mkdir(join(f.applicationDirectory, 'custody', 'keys'), { recursive: true });
+  await mkdir(join(f.applicationDirectory, 'transfers'));
+  await writeFile(join(f.applicationDirectory, 'custody', 'cards', 'source.json'), JSON.stringify({ format: 'chausar.vault-card.v1', folder: 'source' }));
+  await writeFile(join(f.applicationDirectory, 'custody', 'keys', `${f.vault.vaultId}.json`), JSON.stringify({ format: 'chausar.device-key.v1', vaultId: f.vault.vaultId, scheme: 'memory' }));
+  await mkdir(join(f.applicationDirectory, 'backups'));
+  for (const kind of ['auto', 'manual', 'safety']) await writeFile(join(f.applicationDirectory, 'backups', `chausar-${workspaceId}-${now}-${kind}.backup`), '{}');
+  await writeFile(join(f.applicationDirectory, 'backups', `chausar-${workspaceId}-${now}.backup`), '{}');
+  const summary = await f.host.create(context, { destinationId: 'custody_beside', confirmed: true });
+  const custody = summary.namespaces.find(item => item.namespace === 'application/custody');
+  assert.equal(custody?.disposition, 'outside-archive'); assert.equal(custody?.entries, 2, 'the card and the key record are measured, outside the archive');
+  assert.equal(summary.namespaces.find(item => item.namespace === 'application/transfers')?.disposition, 'empty');
+  assert.equal(summary.namespaces.find(item => item.namespace === 'application/backups')?.entries, 4);
+  await writeFile(join(f.applicationDirectory, 'backups', `chausar-${workspaceId}-${now}-weekly.backup`), '{}');
+  await assert.rejects(f.host.create(context, { destinationId: 'unknown_kind', confirmed: true }), code('BACKUP_EXTERNAL_ENUMERATION_REQUIRED'));
+});

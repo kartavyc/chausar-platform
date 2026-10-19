@@ -1,0 +1,64 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written answers for the onboarding v2 end-to-end test. Not captured from a live account. No paid call was made. A problem other people have: views audience-first, tools and pages.",
+  "text": "Small cafes lose track of their bills.",
+  "countryCode": "IN",
+  "responses": [
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "lose track of"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"problem\",\"family\":\"bookkeeping\",\"reading\":\"Help small cafes keep track of every bill\",\"views\":[\"audience-first\",\"tools\",\"pages\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 980,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "lose track of"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Cafe Bill Keepers\",\"oneLiner\":\"Bookkeeping for small cafes, with every bill matched to the bank.\",\"customer\":\"Owners of small cafes who lose track of bills and receipts.\",\"offers\":[{\"block\":\"retainer\",\"name\":\"Monthly books\",\"description\":\"Your bills and bank matched each month.\",\"pricingModel\":\"monthly\"},{\"block\":\"setup\",\"name\":\"Books setup\",\"description\":\"Your books set up once, ready for each month.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"collect-inputs\",\"title\":\"Collect bills and statements\"},{\"block\":\"hands-on-work\",\"title\":\"Match bills to bank\"},{\"block\":\"draft-reply\",\"title\":\"Write the month summary\"},{\"block\":\"send\",\"title\":\"Send the summary\"}],\"approvals\":[\"each-draft\",\"client-files\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say what the service does, with one button to start.\"},{\"block\":\"offers-prices\",\"title\":\"Plans and prices\",\"purpose\":\"Each plan with its price.\"},{\"block\":\"how-it-works\",\"title\":\"How it works\",\"purpose\":\"How bills move from the cafe to the books.\"},{\"block\":\"start-request\",\"title\":\"Get started\",\"purpose\":\"A short form to ask for help.\"}],\"tools\":[{\"block\":\"google-drive\",\"reason\":\"Cafes drop bills and statements in one shared folder.\"},{\"block\":\"zoho-books\",\"reason\":\"Where many cafes already keep their books.\"}],\"questions\":[],\"notes\":[],\"views\":{\"audience-first\":{\"who\":\"Owners of small busy cafes\",\"pain\":\"Bills go missing before the month closes\"},\"tools\":{\"lead\":[\"google-drive\"]},\"pages\":{\"lead\":[\"page_1\",\"page_2\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2900,
+          "output_tokens": 600
+        }
+      }
+    }
+  ]
+}

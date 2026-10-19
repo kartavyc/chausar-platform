@@ -1,0 +1,155 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written answers for the onboarding v2 end-to-end test. Not captured from a live account. No paid call was made. The same plan on the Claude Code route (claude -p with JSON output), Sonnet 5.5 for both tiers.",
+  "text": "Dog walking for busy nurses in Leeds.",
+  "countryCode": "GB",
+  "responses": [
+    {
+      "purpose": "decide",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "kind": "idea",
+          "family": "other",
+          "reading": "Walk dogs for nurses who work long shifts in Leeds",
+          "views": [
+            "offers-first",
+            "pages",
+            "notes"
+          ]
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "name": "Night Shift Walkers",
+          "oneLiner": "Dog walks for nurses in Leeds while they are on shift.",
+          "customer": "Nurses in Leeds who work long or late shifts and have a dog at home.",
+          "offers": [
+            {
+              "block": "subscription",
+              "name": "Weekly walks",
+              "description": "Regular walks on the days your shifts run long.",
+              "pricingModel": "monthly"
+            },
+            {
+              "block": "package",
+              "name": "Holiday cover",
+              "description": "Daily visits and walks while you are away.",
+              "pricingModel": "project"
+            }
+          ],
+          "steps": [
+            {
+              "block": "book-time",
+              "title": "Agree walk times"
+            },
+            {
+              "block": "in-person-work",
+              "title": "Walk the dogs"
+            },
+            {
+              "block": "draft-reply",
+              "title": "Reply to owners"
+            },
+            {
+              "block": "get-paid",
+              "title": "Get paid"
+            }
+          ],
+          "approvals": [
+            "each-draft",
+            "prices-invoices"
+          ],
+          "pages": [
+            {
+              "block": "home",
+              "title": "Home",
+              "purpose": "Say who the walks are for, with one button to book."
+            },
+            {
+              "block": "offers-prices",
+              "title": "Walks and prices",
+              "purpose": "Each walk offer with its price."
+            },
+            {
+              "block": "booking",
+              "title": "Book a walk",
+              "purpose": "Pick a time for a first meet with your dog."
+            },
+            {
+              "block": "faq",
+              "title": "Questions",
+              "purpose": "Short answers about keys, leads and rainy days."
+            }
+          ],
+          "tools": [
+            {
+              "block": "cal-com",
+              "reason": "Owners pick walk times that fit their shifts."
+            },
+            {
+              "block": "whatsapp",
+              "reason": "Owners get updates and photos after each walk."
+            }
+          ],
+          "questions": [],
+          "notes": [
+            "insurance",
+            "safety"
+          ],
+          "views": {
+            "offers-first": {
+              "lead": [
+                "offer_1",
+                "offer_2"
+              ]
+            },
+            "pages": {
+              "lead": [
+                "page_1",
+                "page_3"
+              ]
+            },
+            "notes": {
+              "lead": [
+                "insurance"
+              ]
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    }
+  ]
+}

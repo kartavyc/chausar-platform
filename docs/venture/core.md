@@ -1,6 +1,6 @@
 # Venture launcher: core (P1)
 
-Core turns one sentence into a plan. It owns the instant plan preview, the venture record, the country table, the interview, the blueprint and its business terms, the launch checklist and the event feed.
+Core turns one sentence into a plan. Since onboarding v2 (18 October) that plan is usually composed by the owner's AI from a checked library of blocks (below); the built-in templates stay for an owner with no AI. Core owns the composer, the block library and the view registry, the instant plan preview, the venture record, the country table, the interview, the blueprint and its business terms, the launch checklist and the event feed.
 
 ## What it does
 
@@ -19,6 +19,29 @@ Core turns one sentence into a plan. It owns the instant plan preview, the ventu
 | `venture.blueprint.accept` | approve, in the app | Accepts the newest draft whose digest matches, makes the business terms and marks "offer" active |
 
 Files live in `platform/runtime/venture/core/`: `countries.ts`, `service-types.ts`, `preview.ts`, `venture.ts`, `interview.ts`, `blueprint.ts`, `tax-fields.ts`, `checklist.ts`, `events.ts`, `lookups.ts`, `words.ts` and `index.ts`.
+
+## Composed plans (onboarding v2)
+
+`core/compose.ts` runs the two composer calls (decide, then compose), checks every answer, repairs once and assembles the plan. `core/blocks.ts` holds the block library as plain frozen data, and `core/views.ts` the view registry. The plan is held in the engine's draft desk until the owner keeps it; [onboarding.md](onboarding.md) covers the flow, the block and view tables, the composer contract and the number guard.
+
+When `venture.create` adopts a composed plan, it writes the records that already existed, so prices, the brief, the playbook, rehearsal and invoices read them as before:
+
+| Record | What a composed plan writes |
+| --- | --- |
+| `venture-composition` (new) | The sentence, its kind (`planKind`: idea, skill or problem), the family, the reading, the views, the checked model output, the owner's pricing and answers before the vault, the decide and compose call ids, who wrote it and the kept plan digest. Event `plan-composed`. |
+| `venture-interview` | Written already answered (`source: 'model'`): the composed questions with the owner's answers or skipped, the first offer's pricing (its choices limited to what the offer's block allows, so a later answer can't pick another), its price, and the tax answers. `interview.next` makes no model call. |
+| `venture-blueprint` version 1 | `source: 'model'`, offers and steps with their `block`, the approval blocks' fixed words, and the plan's `pages`, `tools`, `notes` and `composition`. The starter connectors are Lovable, GitHub, the country's payment rail, the plan's tools and Chausar books. |
+
+A record is **composed** when any offer or step carries a `block`. Template records carry none, and every rule falls back to what it did before, so their structure hashes and digests are unchanged.
+
+Later versions keep the blocks:
+
+- The structure is built from the composition (`structureOf(venture, interview, composition)`): the offers and steps by block, with their own ids (up to `offer_3` and `step_6`), and `blocks` in the structure so the hash covers them.
+- "Rewrite with AI" (`venture.blueprint.draft`) may change words, never the block structure. The model's answer must use the structure's own ids, in order, within the word caps; approvals stay the blocks' fixed words.
+- `venture.blueprint.update` keeps every field, the pages, tools, notes, composition and block ids included. An offer's pricing must stay within its block ("This offer can only be priced per month.").
+- A composed plan never falls back to template words. `blueprint.draft {}` with no AI connected refuses `NO_MODEL_CONNECTED` ("This plan was made with your AI. Connect an AI to rewrite it."), and `{ useTemplate: true }` refuses `INVALID_VENTURE_REQUEST` ("This plan was made with your AI. Built-in words don't fit it.").
+- There is no new composition after keeping (founder flag F16): a new structure means a new plan.
+- The checklist starts with "Connect your AI" (done once any model connection exists), then "Say what you want to do".
 
 ## How the rules hold
 

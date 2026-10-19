@@ -1,12 +1,12 @@
 # Chausar B2C: target architecture
 
-Written 15 October 2026 for the founder and revised after review. Updated 16 October for the hosted web tier and the delivery harness. It replaces the SMB books-companion architecture (`D:\claude\chausar-2\CHAUSAR-ARCHITECTURE.md`) for this iteration; the books engine described there stays, as the back office. Nothing here claims a part exists today. `BUILD-SPEC.md` says exactly what this run builds.
+Written 15 October 2026 for the founder and revised after review. Updated 16 October for the hosted web tier and the delivery harness, 18 October for onboarding v2: connect an AI first, one open box, a plan composed from checked blocks, and 19 October for keychain custody: no passphrase at onboarding, the computer keeps the vault key, automatic encrypted backups, and the live business preview. It replaces the SMB books-companion architecture (`D:\claude\chausar-2\CHAUSAR-ARCHITECTURE.md`) for this iteration; the books engine described there stays, as the back office. Nothing here claims a part exists today. `BUILD-SPEC.md` says exactly what this run builds.
 
 ## 1. The idea in one minute
 
 Chausar helps a person start a service business that AI agents help run: a bookkeeping studio, a content shop, a research desk, a support team for hire. The person stays the owner and approves what matters.
 
-They type one sentence and see a plan at once, then set a price and say whether they charge tax, right on the plan. Keeping it locks it in an encrypted vault and turns every price into a receipt. Chausar writes the build brief for the website and client portal, opens it in Lovable or Replit with one click, and follows the code through GitHub, read only. Delivery agents practise on made-up clients first. When the first order comes in, the books engine issues the invoice and records the payment, and every number has a receipt.
+They connect an AI first (their own key, or Claude Code or Codex on their computer), then type one sentence about what they want to do: an idea, a skill or a problem. The AI picks blocks from Chausar's checked library and Chausar's own code draws the plan; then they type their prices and say whether they charge tax. Keeping it locks it in an encrypted vault, whose key the computer keeps for the owner's login, so there is no passphrase to type, and turns every price into a receipt. Chausar writes the build brief for the website and client portal, opens it in Lovable or Replit with one click, and follows the code through GitHub, read only. Delivery agents practise on made-up clients first. When the first order comes in, the books engine issues the invoice and records the payment, and every number has a receipt.
 
 Two rules bind everything:
 
@@ -16,22 +16,24 @@ Two rules bind everything:
 ## 2. The user's journey
 
 ```
- 1 Idea         "What service business do you want to start?"  one box; country filled in from the browser
- 2 Plan         a plan at once, from built-in templates; nothing is saved yet
-                set your price and tax on the plan; "Tell us more" is optional
- 3 Keep it      working name and passphrase -> encrypted vault, recovery code shown once
-                prices become receipts; you accept the plan
- 4 Build        read the brief -> "Open in Lovable" / "Open in Replit" (you press send there)
+ 1 Your AI      your own Anthropic or OpenAI key, or Claude Code or Codex on this computer;
+                kept in the engine's memory only; "Sign in with ChatGPT" shown as not open yet
+ 2 Your idea    "What do you want to do?"  one box: an idea, a skill or a problem
+ 3 Plan         the quick model says which it is and picks views; the plan model picks blocks
+                code checks every block and word, then draws the plan; nothing is saved yet
+                set your prices; nothing is added up yet
+ 4 Keep it      nothing to type: an encrypted vault named from the business; the computer keeps its key
+                the AI and the plan move in; prices become receipts; you accept the plan
+ 5 Build        read the brief -> "Open in Lovable" / "Open in Replit" (you press send there)
                 -> paste your repo -> Chausar reads GitHub and says only what it can see
- 5 Connect      starter cards for your country; honest chips on all 64
- 6 Add your AI  optional: your own key or CLI; templates work without one
+ 6 Connect      starter cards for your country and your plan's tools; honest chips on all 64
  7 Rehearse     agents practise on three made-up clients; checks first, then a judge
  8 Launch       rehearsal -> shadow (practice drafts) -> approve each draft
  9 Run          order + files -> agent works with tools -> draft with work receipts -> you approve
                 -> invoice -> payment -> books with receipts
 ```
 
-The first useful output comes after one sentence. The passphrase comes only when the owner keeps the plan; it moves to the computer's keychain later.
+The first useful output comes after one connection and one sentence. Without an AI, "Continue without AI" gives a built-in plan at once and says it wasn't fitted to what the owner wrote. Keeping the plan asks for nothing: the engine makes the vault, names its folder from the business and gives its key to the computer's own protected storage for the owner's login. A passphrase is asked for only where no protected storage answers. Next time the app opens, the business opens by itself, and Welcome back lists the businesses on this computer when there are more. A passphrase lock, a recovery code, automatic backups and moving to another computer sit in Trust & access (piece 13). The hosted web tier keeps the earlier order and its server custody for now: idea, template plan, keep it, then add an AI inside the vault; its screens get the same live preview.
 
 ## 3. The pieces
 
@@ -45,9 +47,9 @@ The first useful output comes after one sentence. The passphrase comes only when
 
 ### Piece 2. The plan (blueprint)
 
-**What.** A one-page plan: two offers, four delivery steps, two approvals, back office settings.
+**What.** A one-page plan: one to three offers, delivery steps with who does each, approvals, website pages, tools, questions to ask and things to check, and back office settings.
 
-**How.** Code builds the structure from a template for the service type, before anything is saved. The model, once connected, only writes words into named slots, and a structure hash proves nothing moved while it wrote. The owner types the price; the calculator turns it into a receipt. Each step says who does it today. You add the client's files to the order and the agent reads them; for bookkeeping an agent reconciles the month from those files for you to check. Reading inboxes, other hands-on work and sending stay yours, marked planned.
+**How.** The owner's AI composes the structure from a checked library of blocks, before anything is saved, in two calls. A quick call decides what the sentence is and which views fit, from a fixed list of seven; then the plan model fills a strict schema with block ids and short words, never markup. Code checks every id, count and word (no digits, no numbers or prices in words), asks once more with the reason when an answer fails, and otherwise says plainly that there's no plan to show. Who does each step comes from the block, not the model. Without an AI, code builds the structure from a template for the service type and says so. After that the model only writes words into named slots, and a structure hash proves nothing moved while it wrote. The owner types the price; the calculator turns it into a receipt. Each step says who does it today. You add the client's files to the order and the agent reads them; for bookkeeping an agent reconciles the month from those files for you to check. Reading inboxes, other hands-on work and sending stay yours, marked planned.
 
 **Reference.** helix-foundry: code computes structure, the model writes descriptions, a proposal is validated and accepted by digest. snapshift: decide first, then fill a fixed schema. SubQ Snap: decisions as typed questions instead of free text.
 
@@ -59,7 +61,7 @@ The first useful output comes after one sentence. The passphrase comes only when
 
 ### Piece 4. Model connections
 
-**What.** Bring your own key or your own command-line tool, with cheap models by default. Without either, built-in templates do the work and say so.
+**What.** Bring your own key or your own command-line tool, with cheap models by default (Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans on one Anthropic key, or GPT-6 Luna). Without either, built-in templates do the work and say so. Connecting is the first step of onboarding: before any vault exists, the AI waits in the engine's memory (the draft desk) and moves into the vault, with every call already made, when the plan is kept. "Sign in with ChatGPT" is shown but not open: OpenAI lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan. Claude Code waits behind a gate in code until Chausar accepts Anthropic's Commercial Terms.
 
 **How.** One standing consent per connection covers non-client words: the idea, answers, plan words and made-up rehearsal clients. Code also checks each payload for client names, emails and order text. Client data shows its exact payload first, needs a click, and sends once. The workspace privacy setting rules every send: connecting moves it from "send nothing" to "send question shapes", and setting it back stops venture calls too. Every call is recorded with the exact text sent and a cost worked out by code. Keys stay in memory. Tests use synthetic recordings only.
 
@@ -134,9 +136,17 @@ This build runs on the engine's file storage, which the code calls an experiment
 
 **What.** A short launch flow and seven places: Today, Business, Build, Clients, Agents, Money, Connections. The old twelve views stay under "Back office".
 
-**How.** Today leads with what needs the owner and the launch checklist ("7 of 12"). A screen holds about 40 reading words at rest. While a model writes, a still outline of the coming view and one line of words replace any spinner. The renderer never computes money.
+**How.** Today leads with what needs the owner and the launch checklist ("7 of 12"). A screen holds about 40 reading words at rest. The onboarding screens use look B, "bold and graphic": the asking on the left, the business taking shape on the right in real words (its kind, its name, its one line, each offer with its price and then its receipt, and a small website card), like the founder's prototype B, light and dark, one column on a phone, motion that happens once and stops for reduced motion, and 45 words or fewer at rest on each, the preview not counted. Every word in the preview is an engine answer, the owner's own typing or one of five fixed phrases; the renderer adds, rounds and formats no amount. While a model writes, a still outline of the coming view and one line of words replace any spinner. The renderer never computes money.
 
 **Reference.** The founder's 1 October frontend spec. Riley Brown's internal app post: make the required action obvious. Jakub Antalik's skeleton post: an outline in the exact shape of the view, without the animation. lintapple: words at rest, no looping motion and honest labels, checked in tests.
+
+### Piece 13. Keeping the business safe
+
+**What.** No passphrase at onboarding. The computer keeps each business's vault key for the owner's login; a "Lock with a passphrase" switch in Trust & access adds a passphrase for owners who want one; automatic encrypted backups run while the app is open; and a business moves to another computer with one file and a one-time code.
+
+**How.** The vault format doesn't change. A random data key encrypts the business and is wrapped twice, in a passphrase slot and a recovery slot. In this-computer mode the passphrase slot holds a random 32-byte computer secret that the owner never sees, and the operating system keeps that secret: Windows DPAPI for the current user, called through Windows PowerShell 5.1 with the secret on stdin only (run on a real Windows 11 computer); the macOS login keychain through `/usr/bin/security` and the Linux Secret Service through `/usr/bin/secret-tool` (written and tested with fake processes, not yet run on a Mac or a Linux desktop). Where no protected storage answers, the screen says why and asks for a passphrase. Turning the lock on swaps the computer secret for the owner's passphrase, makes a recovery code if there is none, and forgets the computer's key; turning it off checks the passphrase and swaps back. Backups are written by a 30-second tick: when the newest is six hours old and the business changed since, or soon after an important change (a plan accepted, an invoice issued, a payment recorded) once the newest is two minutes old; also when the business is closed or the engine stops, and as a safety copy before a lock change or a restore; a rotation keeps the ten newest, one a day for fourteen days, one a week for eight weeks and five safety copies, and never removes a copy the owner made. After a lock change every managed backup is sealed again, so it opens the way the business opens now. A restore inside the business saves a safety copy first. Since the computer's key can't travel, a move makes a backup whose passphrase slot opens with a one-time code shown once. No new npm package does any of this. `docs/custody.md` has the detail, what was run and the threat notes.
+
+**Reference.** The founder's decisions of 18 October 2026, the existing vault and backup machinery, and Windows DPAPI's per-user scope.
 
 ## 4. Web and desktop from one engine
 
@@ -153,10 +163,11 @@ There are two web modes. **Local web mode**: the engine runs on the person's com
 
 | Job | Default | State |
 |---|---|---|
-| Interview, simulated clients, judging | Claude Haiku 5.5 (`claude-haiku-5-5`) | Ready with your key |
-| Plan words, build brief, draft replies | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Ready with your key |
+| Reading the first sentence, interview, simulated clients, judging | Claude Haiku 5.5 (`claude-haiku-5-5`) | Ready with your key |
+| Composing the plan, plan words, build brief, draft replies | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Ready with your key |
 | Either job | GPT-6 Luna | Unverified: a past probe failed; you type the model id; costs are estimates |
-| Everything, on your own plan | Claude Code CLI or Codex CLI | Checked on this computer before use; Codex needs its reviewed host profile |
+| Everything, on your own plan | Claude Code CLI or Codex CLI | Checked on this computer before use; Codex needs its reviewed host profile; Claude Code waits until Chausar accepts Anthropic's Commercial Terms |
+| Everything, on a ChatGPT plan | Sign in with ChatGPT | Not open to Chausar yet: OpenAI approves which paid apps may use it |
 | No AI yet | Built-in templates | Works offline; every line says it came from a template |
 
 The Anthropic route asks for structured JSON at low effort and records refusals and cut-offs as errors. It never retries silently or switches models.
@@ -184,7 +195,7 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 
 **Reused:** the encrypted vault and permission checks; the calculator, currency helpers, receipts and number guard; the GSTIN checksum; the `services` dictionary pack; facts and memory; the trust policy; backup and export; the desktop shell, IPC allow-list, loopback web server and the twelve back office views; the Claude Code and Codex CLI builders and the Codex host profile.
 
-**New:** the venture desk (`platform/runtime/venture/`); the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the delivery harness (tools, the agent loop, the light sandbox for agent code, work receipts, the improvement loop); the hosted web tier; the launch screens; an allow-listed way to open partner links.
+**New:** the venture desk (`platform/runtime/venture/`); the draft desk that keeps the AI and the plan before the vault; the composer with its block library and view registry; the instant plan, interview, blueprint, terms and a 15-row country table; model connections with standing consent and synthetic recordings; price receipts with GST splits, clients, orders, invoices and payments in the books; the brief, its lint, the builder links and the GitHub reader; the connector catalogue; playbook, rehearsal, launch ladder and capability list; the delivery harness (tools, the agent loop, the light sandbox for agent code, work receipts, the improvement loop); the hosted web tier; the launch screens; the vault key kept by the computer, the business list, automatic encrypted backups with their rotation, and the move file and code; an allow-listed way to open partner links.
 
 ## 8. What is not in this build, and why
 
@@ -200,7 +211,9 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 | Lovable and Replit MCP, a GitHub App, webhooks, Zoho sign-in | OAuth and app reviews, and they'd spend the person's credits |
 | India e-invoicing (IRN), cross-border VAT reverse charge | Needs portal access and per-country rules |
 | Automatic polling and schedules | Sync is a click for now |
-| Keys in the OS keychain | Keys live in memory and are entered again after a restart |
+| AI keys in the OS keychain | AI keys live in memory and are entered again after a restart; since 19 October the vault key is kept by the computer, the AI keys not yet |
+| The vault key on macOS and Linux, run for real | Written and tested with fake processes; nobody has run them on a Mac or a Linux desktop yet, so the screens say only what each computer's own check finds |
+| Electron safeStorage for the vault key | Designed only; the engine's worker is plain Node and calls the operating system itself |
 | agentOS and hosted sandboxes; containers tried on a real Docker | No Windows sidecar; Docker and vendor accounts aren't assumed |
 | Several businesses in one vault | One currency and dictionary per vault |
 
@@ -219,6 +232,11 @@ AI models are an engine setting, not a thirteenth category. A doc test keeps thi
 | Rehearsal | Practice runs with made-up clients and record-only effects |
 | Practice draft | A shadow-stage draft that can't go to a client |
 | Template outline | Text from built-in templates when no AI is connected |
+| Block | One checked piece a composed plan is built from: an offer, a step, a page, a tool, a question or a thing to check |
+| View | One of seven fixed ways the plan screen can show a plan; the AI picks which, code draws them |
+| Draft desk | Where the AI and the plan wait in the engine's memory before the business is kept |
+| Computer secret | The random key in a vault's passphrase slot that the computer keeps for the owner's login |
+| Move file | A backup that opens with a one-time code, for moving a business to another computer |
 | Signal | A rejection, an edit or a failed check that can become a rehearsal case |
 | Standing consent | A one-time yes for sending non-client words to your chosen model |
 | Tax invoice | An invoice with every registration field the country needs |

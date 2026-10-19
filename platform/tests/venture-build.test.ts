@@ -14,8 +14,10 @@ import {
   CONNECTOR_CATALOGUE, REQUIRED_BRIEF_LINES, TOKEN_LINK, UI_POLICY, compressToEncodedURIComponent, createFixtureGitHubTransport,
   decompressFromEncodedURIComponent, defaultGitHubTransport, handlers, lintBrief, planHandoff,
 } from '../runtime/venture/build/index.ts';
-import { BRIEF_HEADINGS } from '../runtime/venture/build/brief-lint.ts';
-import { briefTemplateWords, templateFixedText } from '../runtime/venture/build/brief.ts';
+import { BRIEF_HEADINGS, RLS_LINE, SIGN_IN_LINE } from '../runtime/venture/build/brief-lint.ts';
+import { briefTask, briefTemplateWords, hasClientArea, lintFor, templateFixedText } from '../runtime/venture/build/brief.ts';
+import { CAFE_COMPOSE, CAFE_COMPOSE_CLIENT_AREA, CAFE_DECIDE, CAFE_TEXT, planEntries } from './fixtures/venture/compose-unit/plans.ts';
+import { PASSPHRASE, compose as composePlan, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
 import { CANNOT_SAY, CANNOT_SAY_FIXTURE, CANNOT_SAY_WORKFLOW } from '../runtime/venture/build/github.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -945,4 +947,56 @@ test('handlers are exactly the seven owned methods, and every code the package t
   for (const thrownCode of thrown) assert.ok((VENTURE_ERRORS as readonly string[]).includes(thrownCode) || engineCodes.includes(thrownCode), thrownCode);
   assert.ok(thrown.has('GITHUB_READ_FAILED') && thrown.has('BRIEF_LINT_FAILED') && thrown.has('PRICE_REQUIRED'));
   assert.equal(CONNECTOR_CATALOGUE.length, 64);
+});
+
+// ---------------------------------------------------------------------------
+// Onboarding v2: the brief from a composed plan (the India cafe-bills fixture, paid through Razorpay)
+// ---------------------------------------------------------------------------
+
+async function composedBrief(t: any, output: typeof CAFE_COMPOSE): Promise<BriefRecord> {
+  const { engine } = await engineFor(t, { responses: planEntries(CAFE_TEXT, CAFE_DECIDE, output) });
+  await connectPair(engine);
+  let { plan } = await composePlan(engine, CAFE_TEXT, 'IN');
+  plan = await engine.request('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', unitPrice: '2499' }, { id: 'offer_2', unitPrice: '4999' }] } }) as any;
+  await engine.request('workspace.create', { name: 'Cafe Bills Desk', passphrase: PASSPHRASE, pack: 'services' });
+  await engine.request('venture.create', { idea: CAFE_TEXT, countryCode: 'IN', composeId: plan.composeId, composedDigest: plan.digest });
+  const draft = (await engine.request('venture.blueprint.get', {}) as any).blueprint;
+  for (const offer of draft.offers) await engine.request('venture.price.quote', { offerId: offer.id });
+  await engine.request('venture.blueprint.accept', { digest: draft.digest });
+  return await engine.request('venture.build.brief', { useTemplate: true }) as BriefRecord;
+}
+const pageTitles = (markdown: string) => sectionLines(markdown, BRIEF_HEADINGS[3]).map(line => line.replace(/^\d+\. /, '').split(':')[0]);
+
+test('composed brief without a client area: the plan pages in order, the Razorpay line, no sign-in or private-upload lines, and a clean lint', async t => {
+  const brief = await composedBrief(t, CAFE_COMPOSE);
+  assert.deepEqual(pageTitles(brief.markdown), ['Home', 'Plans and prices', 'How it works', 'Get started']);
+  assert.match(brief.markdown, /International cards need Terms, Privacy, Refund and Shipping pages, so add them\./);
+  for (const line of [RLS_LINE, SIGN_IN_LINE, 'Keep client uploads private', 'A signed-in client sees only their own requests and files', 'Each signed-in client sees only their own requests and files.']) {
+    assert.equal(brief.markdown.includes(line), false, line);
+  }
+  assert.equal(brief.lint.ok, true, JSON.stringify(brief.lint.findings));
+  const plan = { pages: CAFE_COMPOSE.pages.map((page, i) => ({ id: `page_${i + 1}`, block: page.block, title: { value: page.title }, purpose: { value: page.purpose } })) } as any;
+  assert.equal(hasClientArea(plan), false);
+  assert.match(briefTask({ idea: CAFE_TEXT, country: { name: 'India' } } as any, { ...plan, serviceType: 'bookkeeping', name: { value: 'Cafe Bills Desk' }, oneLiner: { value: 'x' }, customer: { value: 'y' }, offers: [], deliverySteps: [] } as any, () => ({}) as any).instructions,
+    /Use these pages, in this order\. Add the legal pages the country line asks for on top of them\./);
+});
+
+test('composed brief with a client-area page keeps the sign-in, row security and private-upload lines', async t => {
+  const brief = await composedBrief(t, CAFE_COMPOSE_CLIENT_AREA);
+  for (const line of [RLS_LINE, SIGN_IN_LINE, 'Keep client uploads private to that client.', 'A signed-in client sees only their own requests and files']) assert.ok(brief.markdown.includes(line), line);
+  assert.deepEqual(pageTitles(brief.markdown), ['Home', 'Plans and prices', 'How it works', 'Your bills']);
+  assert.equal(brief.lint.ok, true, JSON.stringify(brief.lint.findings));
+});
+
+test('a template brief keeps every line as before: the template pages, the client area and the sign-in lines', () => {
+  const words = briefTemplateWords('bookkeeping', { name: 'Ledger Cafe Books', customer: 'Owners of small cafes' });
+  assert.deepEqual(words.pages.map(page => page.title), ['Home', 'Offers and prices', 'How it works', 'Start a request', 'Client area', 'Privacy and terms']);
+  assert.ok(words.doneMeans.includes('A signed-in client sees only their own requests and files'));
+  assert.match(words.whatToBuild, /^A public website and a private client area for Ledger Cafe Books\./);
+  const lint = lintFor('x', [], 'chb_abcd1234', true);
+  assert.ok(lint.findings.some(finding => finding.rule === 'required-text' && /row level security/.test(finding.message)), 'the template lint still asks for the row security line');
+  // Without a client area only the row security and sign-in lines stop being required; every other line still is.
+  const open = lintFor('x', [], 'chb_abcd1234', false).findings.filter(finding => finding.rule === 'required-text').map(finding => finding.message);
+  assert.equal(open.some(message => /row level security|sign-in line/.test(message)), false);
+  assert.ok(open.some(message => /anon key line/.test(message)) && open.some(message => /lintapple install line/.test(message)));
 });

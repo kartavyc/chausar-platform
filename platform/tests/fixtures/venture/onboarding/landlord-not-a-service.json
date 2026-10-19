@@ -1,0 +1,36 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written answers for the onboarding v2 end-to-end test. Not captured from a live account. No paid call was made. A personal problem with nothing to sell: decide only, no views.",
+  "text": "My landlord won't fix the heating.",
+  "countryCode": "GB",
+  "responses": [
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "landlord"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"not-a-service\",\"family\":\"other\",\"reading\":\"Get the heating fixed\",\"views\":[]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 960,
+          "output_tokens": 40
+        }
+      }
+    }
+  ]
+}

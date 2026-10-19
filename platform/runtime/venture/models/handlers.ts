@@ -6,7 +6,7 @@ import type { ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDe
 import { currentVenture, exactPayload, identifier, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
-import { AVAILABILITY_REASONS, endpointFor, presetSpec } from './presets.ts';
+import { AVAILABILITY_REASONS, claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
 import type { ConnectionRecord } from './types.ts';
 
 const SECRET = (id: ModelPresetId) => `model:${id}` as const;
@@ -18,15 +18,24 @@ async function presets(deps: VentureDeps, ctx: Context, payload: unknown): Promi
   return deps.models.presets();
 }
 
-async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.connect']> {
+export type ConnectOptions = { draft?: boolean };
+
+/**
+ * venture.models.connect, and the same checks for venture.ai.connect before the vault (options.draft: the draft
+ * desk's own in-memory store and shelf). Before the vault no AI is the absence of a connection, so built-in
+ * templates are refused there. Claude Code is refused while the terms gate is pending, in both places.
+ */
+export async function connectModel(deps: VentureDeps, ctx: Context, payload: unknown, options: ConnectOptions = {}): Promise<ModelStatusView> {
   const input = exactPayload(payload, ['presetId', 'consentDigest', 'apiKey', 'model', 'tiers', 'monthlyCapUsd'], ['presetId', 'consentDigest']);
   authorize(deps.store, ctx, 'admin');
   requireAppChannel(ctx, 'venture.models.connect');
   requireVenture(deps.store.read());
   check((MODEL_PRESET_IDS as readonly unknown[]).includes(input.presetId), 'INVALID_VENTURE_REQUEST', 'Choose one of the listed AI options.');
   const presetId = input.presetId as ModelPresetId;
+  check(!(options.draft && presetId === 'built-in-templates'), 'INVALID_VENTURE_REQUEST', 'Built-in templates need no connection. Continue without AI instead.');
   const spec = presetSpec(presetId);
   check(!(deps.host === 'hosted-web' && spec.runsOn === 'this-computer'), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
+  check(presetId !== 'claude-code-cli' || claudeTermsOpen(deps.claudeCodeTerms), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.claudeTerms);
   const live = deps.models.presets().find(preset => preset.id === presetId);
   check(live && live.availability !== 'unavailable', 'PRESET_UNAVAILABLE', live?.availabilityReason ?? 'This AI option is not available here.');
   check(presetId !== 'codex-cli' || live.availability !== 'needs-setup', 'PRESET_UNAVAILABLE', live.availabilityReason);
@@ -77,15 +86,19 @@ async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promi
     throw error;
   }
 
-  // After the commit, never inside it: the trust service writes in its own transaction.
-  if (spec.kind !== 'template' && deps.store.read().policy.send === 'nothing') {
+  // After the commit, never inside it: the trust service writes in its own transaction. (The draft store sends shapes already.)
+  if (!options.draft && spec.kind !== 'template' && deps.store.read().policy.send === 'nothing') {
     await deps.services.trust.updatePolicy(ctx, { send: 'shape' });
     await ventureAction(deps, ctx, 'admin', 'models.send-policy', tx => { tx.emit('send-policy-changed', { from: 'nothing', to: 'shape' }); });
   }
   return deps.models.status(ctx);
 }
 
-async function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.disconnect']> {
+async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.connect']> {
+  return connectModel(deps, ctx, payload);
+}
+
+export async function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.disconnect']> {
   const input = exactPayload(payload, ['connectionId'], ['connectionId']);
   const connectionId = identifier(input.connectionId, 'connectionId');
   const result = await ventureAction(deps, ctx, 'admin', 'models.disconnect', tx => {
@@ -103,13 +116,13 @@ async function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Pr
   return deps.models.status(ctx);
 }
 
-async function status(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ModelStatusView> {
+export async function status(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ModelStatusView> {
   exactPayload(payload, []);
   return deps.models.status(ctx);
 }
 
 /** The "What was sent" list: newest first, with the full stored payload text. Never writes. */
-async function calls(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.calls']> {
+export async function calls(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.calls']> {
   const input = exactPayload(payload, ['limit', 'purpose']);
   const limit = input.limit === undefined ? 20 : smallInteger(input.limit, 'limit', 1, 100);
   let purpose: ModelPurpose | null = null;

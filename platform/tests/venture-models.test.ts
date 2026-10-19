@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
@@ -21,6 +21,7 @@ import {
   PRESETS, assertSchemaSafe, callCostMicros, clientDataFindings, createModelPort, createReplayTransport, defaultModelTransport, handlers,
 } from '../runtime/venture/models/index.ts';
 import { TEMP_PREFIX } from '../runtime/venture/models/cli.ts';
+import { AVAILABILITY_REASONS, availabilityOf } from '../runtime/venture/models/presets.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 // ---------------------------------------------------------------------------
@@ -103,7 +104,10 @@ function gate() {
 
 const unused = new Proxy({}, { get() { throw new Error('This service is not used by the models package.'); } });
 
-async function setup(options: { codexCli?: unknown; venture?: boolean; transport?: ModelTransport } = {}) {
+// The Claude Code route opens only once Chausar accepts Anthropic's terms (onboarding spec 2.8). These tests exercise
+// that route, so they say 'accepted' explicitly; the gate's own test below runs with it pending.
+async function setup(options: { codexCli?: unknown; venture?: boolean; transport?: ModelTransport; claudeCodeTerms?: 'accepted' | 'pending' } = {}) {
+  const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
   let now = START;
   const clock = () => new Date(now);
   const advance = (ms: number) => { now += ms; };
@@ -111,12 +115,12 @@ async function setup(options: { codexCli?: unknown; venture?: boolean; transport
   const secrets = new MemoryShelf();
   const rec = recorder();
   const transport = options.transport ?? rec.transport;
-  const makePort = (shelf: SecretShelf = secrets) => createModelPort({ store, clock, transport, secrets: shelf, host: 'test', demo: false, codexCli: options.codexCli });
+  const makePort = (shelf: SecretShelf = secrets) => createModelPort({ store, clock, transport, secrets: shelf, host: 'test', demo: false, codexCli: options.codexCli, claudeCodeTerms });
   const port = makePort();
   const trust = new TrustService(store);
   const deps = {
     store, clock, models: port, services: { trust, calculator: unused, ontology: unused }, github: unused, secrets,
-    host: 'test', demo: false, storage: 'experimental-file',
+    host: 'test', demo: false, storage: 'experimental-file', claudeCodeTerms,
   } as unknown as VentureDeps;
   if (options.venture !== false) {
     await ventureAction(deps, owner, 'admin', 'create', tx => tx.put({
@@ -207,6 +211,27 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
 
   const withCodex = await setup({ codexCli: codexProfile(join(tmpdir(), 'codex')) });
   assert.equal(withCodex.port.presets().find(item => item.id === 'codex-cli')?.availability, 'unverified');
+});
+
+test('the Claude Code terms gate: pending means needs setup with the terms words, and connect refuses before any check', async () => {
+  const { port, deps, rec, store } = await setup({ claudeCodeTerms: 'pending' });
+  const claude = port.presets().find(item => item.id === 'claude-code-cli')!;
+  assert.equal(claude.availability, 'needs-setup');
+  assert.equal(claude.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
+  assert.equal(AVAILABILITY_REASONS.claudeTerms, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.");
+  // Even a found CLI stays behind the gate.
+  await port.checkCli('claude-code-cli');
+  assert.equal(port.presets().find(item => item.id === 'claude-code-cli')?.availability, 'needs-setup');
+  const checksBefore = rec.process.length;
+  await assert.rejects(connect(deps, 'claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
+  assert.equal(rec.process.length, checksBefore, 'the refusal comes before the version check');
+  assert.equal(connections(store).length, 0);
+  // The gate changes nothing else: keys connect as before.
+  await connect(deps, 'anthropic-haiku-5-5');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false }).availability, 'needs-setup', 'absent terms mean pending');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false, claudeTerms: 'accepted' }).availability, 'unverified');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availability, 'needs-setup');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availabilityReason, AVAILABILITY_REASONS.claudeMissing);
 });
 
 // ---------------------------------------------------------------------------
@@ -910,7 +935,8 @@ test('replay through the port: calls are marked replay and status says synthetic
 // ---------------------------------------------------------------------------
 
 test('handlers: exactly the five model methods; presets and status need no venture', async () => {
-  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models');
+  // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
+  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   assert.equal(owned.length, 5);
   const { deps } = await setup({ venture: false });

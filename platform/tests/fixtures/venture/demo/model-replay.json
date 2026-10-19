@@ -1,7 +1,666 @@
 {
   "label": "synthetic recording",
-  "note": "Hand-written responses shaped like the Anthropic Messages API for the offline demo. The answers are the same whatever you type, except that each delivery fixture matches only its own figure refs. Not captured from a live account. No paid call was made.",
+  "note": "Hand-written responses shaped like the Anthropic Messages API (and Claude Code JSON output for the composer) for the offline demo. The composer answers the demo idea and the three open-box examples (dog walking, the Excel skill, cafe bills) and the landlord sentence, and one sentence (\"Bike repairs at home for families in Bristol.\") whose two plan answers both use a block Chausar does not have, so the demo can show the refused screen; any other sentence has no recording. The other answers are the same whatever you type, except that each delivery fixture matches only its own figure refs or practice files, the agent turns match their practice files and each plan rewrite matches its own kind of plan. Not captured from a live account. No paid call was made.",
   "responses": [
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"idea\",\"family\":\"bookkeeping\",\"reading\":\"Keep monthly books for cafes and small shops in Pune\",\"views\":[\"offers-first\",\"tools\",\"pages\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 990,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Ledger Cafe Books\",\"oneLiner\":\"Monthly books for cafes and small shops in Pune, drafted with AI help and checked by you.\",\"customer\":\"Cafe and small shop owners in Pune who want tidy books without chasing receipts.\",\"offers\":[{\"block\":\"retainer\",\"name\":\"Monthly books\",\"description\":\"Bank matching, bill sorting and a short report each month.\",\"pricingModel\":\"monthly\"},{\"block\":\"one-off-project\",\"name\":\"Catch up clean up\",\"description\":\"A tidy up of past months before the monthly service starts.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"collect-inputs\",\"title\":\"Collect bills and statements\"},{\"block\":\"hands-on-work\",\"title\":\"Match every entry\"},{\"block\":\"draft-reply\",\"title\":\"Draft the month report\"},{\"block\":\"send\",\"title\":\"Send the report\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say what the service does, with one button to book a call.\"},{\"block\":\"offers-prices\",\"title\":\"Plans and prices\",\"purpose\":\"Each plan with its price.\"},{\"block\":\"how-it-works\",\"title\":\"How it works\",\"purpose\":\"The steps from upload to report.\"},{\"block\":\"start-request\",\"title\":\"Book a call\",\"purpose\":\"A short form that saves the request.\"},{\"block\":\"client-area\",\"title\":\"Client uploads\",\"purpose\":\"A private page where a client uploads bills and statements.\"}],\"tools\":[{\"block\":\"google-drive\",\"reason\":\"Clients drop bills and statements in one folder.\"},{\"block\":\"zoho-books\",\"reason\":\"Where many shops already keep their books.\"}],\"questions\":[],\"notes\":[],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\"]},\"tools\":{\"lead\":[\"google-drive\"]},\"pages\":{\"lead\":[\"page_1\",\"page_2\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2950,
+          "output_tokens": 640
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "kind": "idea",
+          "family": "bookkeeping",
+          "reading": "Keep monthly books for cafes and small shops in Pune",
+          "views": [
+            "offers-first",
+            "tools",
+            "pages"
+          ]
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "name": "Ledger Cafe Books",
+          "oneLiner": "Monthly books for cafes and small shops in Pune, drafted with AI help and checked by you.",
+          "customer": "Cafe and small shop owners in Pune who want tidy books without chasing receipts.",
+          "offers": [
+            {
+              "block": "retainer",
+              "name": "Monthly books",
+              "description": "Bank matching, bill sorting and a short report each month.",
+              "pricingModel": "monthly"
+            },
+            {
+              "block": "one-off-project",
+              "name": "Catch up clean up",
+              "description": "A tidy up of past months before the monthly service starts.",
+              "pricingModel": "project"
+            }
+          ],
+          "steps": [
+            {
+              "block": "collect-inputs",
+              "title": "Collect bills and statements"
+            },
+            {
+              "block": "hands-on-work",
+              "title": "Match every entry"
+            },
+            {
+              "block": "draft-reply",
+              "title": "Draft the month report"
+            },
+            {
+              "block": "send",
+              "title": "Send the report"
+            }
+          ],
+          "approvals": [
+            "each-draft",
+            "prices-invoices"
+          ],
+          "pages": [
+            {
+              "block": "home",
+              "title": "Home",
+              "purpose": "Say what the service does, with one button to book a call."
+            },
+            {
+              "block": "offers-prices",
+              "title": "Plans and prices",
+              "purpose": "Each plan with its price."
+            },
+            {
+              "block": "how-it-works",
+              "title": "How it works",
+              "purpose": "The steps from upload to report."
+            },
+            {
+              "block": "start-request",
+              "title": "Book a call",
+              "purpose": "A short form that saves the request."
+            },
+            {
+              "block": "client-area",
+              "title": "Client uploads",
+              "purpose": "A private page where a client uploads bills and statements."
+            }
+          ],
+          "tools": [
+            {
+              "block": "google-drive",
+              "reason": "Clients drop bills and statements in one folder."
+            },
+            {
+              "block": "zoho-books",
+              "reason": "Where many shops already keep their books."
+            }
+          ],
+          "questions": [],
+          "notes": [],
+          "views": {
+            "offers-first": {
+              "lead": [
+                "offer_1"
+              ]
+            },
+            "tools": {
+              "lead": [
+                "google-drive"
+              ]
+            },
+            "pages": {
+              "lead": [
+                "page_1",
+                "page_2"
+              ]
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"idea\",\"family\":\"other\",\"reading\":\"Walk dogs for nurses who work long shifts in Leeds\",\"views\":[\"offers-first\",\"pages\",\"notes\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 980,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Night Shift Walkers\",\"oneLiner\":\"Dog walks for nurses in Leeds while they are on shift.\",\"customer\":\"Nurses in Leeds who work long or late shifts and have a dog at home.\",\"offers\":[{\"block\":\"subscription\",\"name\":\"Weekly walks\",\"description\":\"Regular walks on the days your shifts run long.\",\"pricingModel\":\"monthly\"},{\"block\":\"package\",\"name\":\"Holiday cover\",\"description\":\"Daily visits and walks while you are away.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"book-time\",\"title\":\"Agree walk times\"},{\"block\":\"in-person-work\",\"title\":\"Walk the dogs\"},{\"block\":\"draft-reply\",\"title\":\"Reply to owners\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say who the walks are for, with one button to book.\"},{\"block\":\"offers-prices\",\"title\":\"Walks and prices\",\"purpose\":\"Each walk offer with its price.\"},{\"block\":\"booking\",\"title\":\"Book a walk\",\"purpose\":\"Pick a time for a first meet with your dog.\"},{\"block\":\"faq\",\"title\":\"Questions\",\"purpose\":\"Short answers about keys, leads and rainy days.\"}],\"tools\":[{\"block\":\"cal-com\",\"reason\":\"Owners pick walk times that fit their shifts.\"},{\"block\":\"whatsapp\",\"reason\":\"Owners get updates and photos after each walk.\"}],\"questions\":[],\"notes\":[\"insurance\",\"safety\"],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\",\"offer_2\"]},\"pages\":{\"lead\":[\"page_1\",\"page_3\"]},\"notes\":{\"lead\":[\"insurance\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2900,
+          "output_tokens": 620
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "kind": "idea",
+          "family": "other",
+          "reading": "Walk dogs for nurses who work long shifts in Leeds",
+          "views": [
+            "offers-first",
+            "pages",
+            "notes"
+          ]
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "claude-cli",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Dog walking for"
+      ],
+      "body": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "result": "",
+        "structured_output": {
+          "name": "Night Shift Walkers",
+          "oneLiner": "Dog walks for nurses in Leeds while they are on shift.",
+          "customer": "Nurses in Leeds who work long or late shifts and have a dog at home.",
+          "offers": [
+            {
+              "block": "subscription",
+              "name": "Weekly walks",
+              "description": "Regular walks on the days your shifts run long.",
+              "pricingModel": "monthly"
+            },
+            {
+              "block": "package",
+              "name": "Holiday cover",
+              "description": "Daily visits and walks while you are away.",
+              "pricingModel": "project"
+            }
+          ],
+          "steps": [
+            {
+              "block": "book-time",
+              "title": "Agree walk times"
+            },
+            {
+              "block": "in-person-work",
+              "title": "Walk the dogs"
+            },
+            {
+              "block": "draft-reply",
+              "title": "Reply to owners"
+            },
+            {
+              "block": "get-paid",
+              "title": "Get paid"
+            }
+          ],
+          "approvals": [
+            "each-draft",
+            "prices-invoices"
+          ],
+          "pages": [
+            {
+              "block": "home",
+              "title": "Home",
+              "purpose": "Say who the walks are for, with one button to book."
+            },
+            {
+              "block": "offers-prices",
+              "title": "Walks and prices",
+              "purpose": "Each walk offer with its price."
+            },
+            {
+              "block": "booking",
+              "title": "Book a walk",
+              "purpose": "Pick a time for a first meet with your dog."
+            },
+            {
+              "block": "faq",
+              "title": "Questions",
+              "purpose": "Short answers about keys, leads and rainy days."
+            }
+          ],
+          "tools": [
+            {
+              "block": "cal-com",
+              "reason": "Owners pick walk times that fit their shifts."
+            },
+            {
+              "block": "whatsapp",
+              "reason": "Owners get updates and photos after each walk."
+            }
+          ],
+          "questions": [],
+          "notes": [
+            "insurance",
+            "safety"
+          ],
+          "views": {
+            "offers-first": {
+              "lead": [
+                "offer_1",
+                "offer_2"
+              ]
+            },
+            "pages": {
+              "lead": [
+                "page_1",
+                "page_3"
+              ]
+            },
+            "notes": {
+              "lead": [
+                "insurance"
+              ]
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "good at Excel"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"skill\",\"family\":\"consulting\",\"reading\":\"Teach Excel to office workers who want to feel at ease\",\"views\":[\"steps-first\",\"questions\",\"tools\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 990,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "good at Excel"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Easy Excel Lessons\",\"oneLiner\":\"Patient Excel lessons for people who use it at work.\",\"customer\":\"Office workers and small business owners who want to feel at ease with Excel.\",\"offers\":[{\"block\":\"session\",\"name\":\"Excel lesson\",\"description\":\"A lesson on what you need right now.\",\"pricingModel\":\"hourly\"},{\"block\":\"course\",\"name\":\"Excel from scratch\",\"description\":\"A set of lessons from the very start.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"collect-inputs\",\"title\":\"Gather their workbook\"},{\"block\":\"meet-client\",\"title\":\"Teach the lesson\"},{\"block\":\"draft-reply\",\"title\":\"Write lesson notes\"},{\"block\":\"follow-up\",\"title\":\"Check in afterwards\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"client-files\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say what the lessons cover, with one button to start.\"},{\"block\":\"offers-prices\",\"title\":\"Lessons and prices\",\"purpose\":\"Each lesson offer with its price.\"},{\"block\":\"about\",\"title\":\"About me\",\"purpose\":\"Who teaches the lessons and how.\"},{\"block\":\"start-request\",\"title\":\"Ask for a lesson\",\"purpose\":\"A short form to ask for a lesson.\"}],\"tools\":[{\"block\":\"google-calendar\",\"reason\":\"Learners pick lesson times.\"},{\"block\":\"google-drive\",\"reason\":\"Share workbooks before a lesson.\"}],\"questions\":[{\"block\":\"customer\",\"kind\":\"choice\",\"text\":\"Who do you want to teach?\",\"choices\":[\"Office workers\",\"Small business owners\",\"Students\"]},{\"block\":\"area\",\"kind\":\"text\",\"text\":\"Where will you teach, online or in person?\",\"choices\":[]}],\"notes\":[],\"views\":{\"steps-first\":{\"lead\":[\"step_2\",\"step_3\",\"step_4\"]},\"questions\":{\"lead\":[\"q_1\"]},\"tools\":{\"lead\":[\"google-calendar\",\"google-drive\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2900,
+          "output_tokens": 660
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "lose track of"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"problem\",\"family\":\"bookkeeping\",\"reading\":\"Help small cafes keep track of every bill\",\"views\":[\"audience-first\",\"tools\",\"pages\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 980,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "lose track of"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Cafe Bill Keepers\",\"oneLiner\":\"Bookkeeping for small cafes, with every bill matched to the bank.\",\"customer\":\"Owners of small cafes who lose track of bills and receipts.\",\"offers\":[{\"block\":\"retainer\",\"name\":\"Monthly books\",\"description\":\"Your bills and bank matched each month.\",\"pricingModel\":\"monthly\"},{\"block\":\"setup\",\"name\":\"Books setup\",\"description\":\"Your books set up once, ready for each month.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"collect-inputs\",\"title\":\"Collect bills and statements\"},{\"block\":\"hands-on-work\",\"title\":\"Match bills to bank\"},{\"block\":\"draft-reply\",\"title\":\"Write the month summary\"},{\"block\":\"send\",\"title\":\"Send the summary\"}],\"approvals\":[\"each-draft\",\"client-files\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say what the service does, with one button to start.\"},{\"block\":\"offers-prices\",\"title\":\"Plans and prices\",\"purpose\":\"Each plan with its price.\"},{\"block\":\"how-it-works\",\"title\":\"How it works\",\"purpose\":\"How bills move from the cafe to the books.\"},{\"block\":\"start-request\",\"title\":\"Get started\",\"purpose\":\"A short form to ask for help.\"}],\"tools\":[{\"block\":\"google-drive\",\"reason\":\"Cafes drop bills and statements in one shared folder.\"},{\"block\":\"zoho-books\",\"reason\":\"Where many cafes already keep their books.\"}],\"questions\":[],\"notes\":[],\"views\":{\"audience-first\":{\"who\":\"Owners of small busy cafes\",\"pain\":\"Bills go missing before the month closes\"},\"tools\":{\"lead\":[\"google-drive\"]},\"pages\":{\"lead\":[\"page_1\",\"page_2\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2900,
+          "output_tokens": 600
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "landlord"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"not-a-service\",\"family\":\"other\",\"reading\":\"Get the heating fixed\",\"views\":[]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 960,
+          "output_tokens": 40
+        }
+      }
+    },
+    {
+      "purpose": "decide",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-decide-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_decide",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"kind\":\"idea\",\"family\":\"other\",\"reading\":\"Fix bikes at the homes of families in Bristol\",\"views\":[\"offers-first\",\"pages\",\"notes\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 980,
+          "output_tokens": 60
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-compose-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Doorstep Bike Fixes\",\"oneLiner\":\"Bike repairs at the door for busy families in Bristol.\",\"customer\":\"Families in Bristol with bikes that need fixing and no time to visit a shop.\",\"offers\":[{\"block\":\"bike-repair\",\"name\":\"Doorstep repair\",\"description\":\"A visit to fix the bike where it stands.\",\"pricingModel\":\"project\"},{\"block\":\"package\",\"name\":\"Family bike check\",\"description\":\"Every bike in the house checked and tuned.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"book-time\",\"title\":\"Agree a visit\"},{\"block\":\"in-person-work\",\"title\":\"Fix the bikes\"},{\"block\":\"draft-reply\",\"title\":\"Reply to families\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say who the repairs are for, with one button to book.\"},{\"block\":\"offers-prices\",\"title\":\"Repairs and prices\",\"purpose\":\"Each repair offer with its price.\"},{\"block\":\"booking\",\"title\":\"Book a visit\",\"purpose\":\"Pick a time for a visit to your home.\"}],\"tools\":[{\"block\":\"cal-com\",\"reason\":\"Families pick a visit time that suits them.\"}],\"questions\":[],\"notes\":[\"insurance\",\"safety\"],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\",\"offer_2\"]},\"pages\":{\"lead\":[\"page_1\",\"page_3\"]},\"notes\":{\"lead\":[\"insurance\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "compose",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "chausar-recompose-v1",
+        "Bike repairs at home"
+      ],
+      "body": {
+        "id": "msg_synthetic_compose",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Doorstep Bike Fixes\",\"oneLiner\":\"Bike repairs at the door for busy families in Bristol.\",\"customer\":\"Families in Bristol with bikes that need fixing and no time to visit a shop.\",\"offers\":[{\"block\":\"bike-repair\",\"name\":\"Doorstep repair\",\"description\":\"A visit to fix the bike where it stands.\",\"pricingModel\":\"project\"},{\"block\":\"package\",\"name\":\"Family bike check\",\"description\":\"Every bike in the house checked and tuned.\",\"pricingModel\":\"project\"}],\"steps\":[{\"block\":\"book-time\",\"title\":\"Agree a visit\"},{\"block\":\"in-person-work\",\"title\":\"Fix the bikes\"},{\"block\":\"draft-reply\",\"title\":\"Reply to families\"},{\"block\":\"get-paid\",\"title\":\"Get paid\"}],\"approvals\":[\"each-draft\",\"prices-invoices\"],\"pages\":[{\"block\":\"home\",\"title\":\"Home\",\"purpose\":\"Say who the repairs are for, with one button to book.\"},{\"block\":\"offers-prices\",\"title\":\"Repairs and prices\",\"purpose\":\"Each repair offer with its price.\"},{\"block\":\"booking\",\"title\":\"Book a visit\",\"purpose\":\"Pick a time for a visit to your home.\"}],\"tools\":[{\"block\":\"cal-com\",\"reason\":\"Families pick a visit time that suits them.\"}],\"questions\":[],\"notes\":[\"insurance\",\"safety\"],\"views\":{\"offers-first\":{\"lead\":[\"offer_1\",\"offer_2\"]},\"pages\":{\"lead\":[\"page_1\",\"page_3\"]},\"notes\":{\"lead\":[\"insurance\"]}}}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300
+        }
+      }
+    },
+    {
+      "purpose": "blueprint",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "step whose doneBy is agent-then-you",
+        "Monthly bookkeeping for cafes"
+      ],
+      "body": {
+        "id": "msg_synthetic_blueprint",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"name\":\"Ledger Cafe Books\",\"oneLiner\":\"Monthly books for cafes and small shops in Pune, checked by you before a client sees them.\",\"customer\":\"Cafe and small shop owners in Pune who want tidy books without chasing receipts.\",\"offers\":[{\"id\":\"offer_1\",\"name\":\"Monthly books\",\"description\":\"Bank matching, bill sorting and a short report each month.\"},{\"id\":\"offer_2\",\"name\":\"Catch up clean up\",\"description\":\"A tidy up of past months before the monthly service starts.\"}],\"steps\":[{\"id\":\"step_1\",\"title\":\"Collect bills and statements\"},{\"id\":\"step_2\",\"title\":\"Match every entry\"},{\"id\":\"step_3\",\"title\":\"Draft the month report\"},{\"id\":\"step_4\",\"title\":\"Send the report\"}]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1400,
+          "output_tokens": 380
+        }
+      }
+    },
     {
       "purpose": "interview",
       "kind": "anthropic-messages",
@@ -32,7 +691,9 @@
       "kind": "anthropic-messages",
       "model": "claude-sonnet-5-5",
       "status": 200,
-      "mustInclude": [],
+      "mustInclude": [
+        "Step three is the step an agent drafts"
+      ],
       "body": {
         "id": "msg_synthetic_blueprint",
         "type": "message",
@@ -99,6 +760,251 @@
         "usage": {
           "input_tokens": 520,
           "output_tokens": 61
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "What we did",
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_report_clean",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Your September books\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"We reconciled your bank statement against your bills, and the statement balances.\",\"ref\":\"\"}]},{\"heading\":\"What we did\",\"parts\":[{\"kind\":\"text\",\"text\":\"We matched each payment to a bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.matched-count\"},{\"kind\":\"text\",\"text\":\"The closing balance we worked out agrees with the statement.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.statement-closing\"}]},{\"heading\":\"What needs your answer\",\"parts\":[{\"kind\":\"text\",\"text\":\"Nothing is open from this month. Please confirm the card sales settlements are all takings from your cafe.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once you confirm, this report is final. The fee for the month is below.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"offer_1.total\"}]}],\"questionsForClient\":[\"Are the card sales settlements all from your cafe?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2600,
+          "output_tokens": 420
+        }
+      }
+    },
+    {
+      "purpose": "delivery",
+      "kind": "anthropic-messages",
+      "model": "claude-sonnet-5-5",
+      "status": 200,
+      "mustInclude": [
+        "What we did",
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_delivery_report_messy",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"title\":\"Your books for the month\",\"sections\":[{\"heading\":\"Summary\",\"parts\":[{\"kind\":\"text\",\"text\":\"We reconciled your statement against your bills. The statement balances, but some payments have no bill and one bill was not paid.\",\"ref\":\"\"}]},{\"heading\":\"What we did\",\"parts\":[{\"kind\":\"text\",\"text\":\"We matched the payments that have a bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.matched-count\"},{\"kind\":\"text\",\"text\":\"These payments still have no bill.\",\"ref\":\"\"},{\"kind\":\"figure\",\"text\":\"\",\"ref\":\"w1.unmatched-bank\"}]},{\"heading\":\"What needs your answer\",\"parts\":[{\"kind\":\"text\",\"text\":\"Please tell us what the print shop payment was for, and whether the electricals bill is still unpaid.\",\"ref\":\"\"}]},{\"heading\":\"Next steps\",\"parts\":[{\"kind\":\"text\",\"text\":\"Once you answer, we will finish the categories and send the report for your review.\",\"ref\":\"\"}]}],\"questionsForClient\":[\"What was the print shop payment for?\",\"Is the Kiran Electricals bill still unpaid?\"]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2600,
+          "output_tokens": 420
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_read",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Look at the statement and the bills\",\"calls\":[{\"tool\":\"files.list\",\"input\":\"{}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f1\\\",\\\"part\\\":\\\"sample\\\"}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f2\\\",\\\"part\\\":\\\"sample\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_reconcile",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Reconcile the statement against the bills\",\"calls\":[{\"tool\":\"books.reconcile\",\"input\":\"{\\\"bank\\\":\\\"f1\\\",\\\"date\\\":\\\"Date\\\",\\\"description\\\":\\\"Narration\\\",\\\"moneyOut\\\":\\\"Withdrawal\\\",\\\"moneyIn\\\":\\\"Deposit\\\",\\\"balance\\\":\\\"Balance\\\",\\\"bills\\\":[{\\\"table\\\":\\\"f2\\\",\\\"vendor\\\":\\\"Supplier\\\",\\\"amount\\\":\\\"Amount\\\",\\\"date\\\":\\\"Bill date\\\",\\\"number\\\":\\\"Bill number\\\"}]}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-september.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_clean_done",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"The reconciliation is done\",\"calls\":[],\"finished\":true}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_read",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Look at the statement and the bills\",\"calls\":[{\"tool\":\"files.list\",\"input\":\"{}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f1\\\",\\\"part\\\":\\\"sample\\\"}\"},{\"tool\":\"files.read\",\"input\":\"{\\\"target\\\":\\\"f2\\\",\\\"part\\\":\\\"sample\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_reconcile",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Reconcile the statement against the bills\",\"calls\":[{\"tool\":\"books.reconcile\",\"input\":\"{\\\"bank\\\":\\\"f1\\\",\\\"date\\\":\\\"Txn Date\\\",\\\"description\\\":\\\"Description\\\",\\\"moneyOut\\\":\\\"Debit\\\",\\\"moneyIn\\\":\\\"Credit\\\",\\\"balance\\\":\\\"Balance\\\",\\\"bills\\\":[{\\\"table\\\":\\\"f2\\\",\\\"vendor\\\":\\\"Vendor\\\",\\\"amount\\\":\\\"Total\\\",\\\"date\\\":\\\"Date\\\",\\\"number\\\":\\\"Ref\\\"}]}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_ask",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Ask about the payment with no bill\",\"calls\":[{\"tool\":\"handoff.client\",\"input\":\"{\\\"question\\\":\\\"What was the cash withdrawal near the end of the month for?\\\"}\"}],\"finished\":false}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
+        }
+      }
+    },
+    {
+      "purpose": "agent-turn",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "bank-statement-messy.csv"
+      ],
+      "body": {
+        "id": "msg_synthetic_agent_messy_done",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"note\":\"Ready to write the report\",\"calls\":[],\"finished\":true}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2100,
+          "output_tokens": 160
         }
       }
     },

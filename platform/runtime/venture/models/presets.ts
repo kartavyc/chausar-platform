@@ -93,14 +93,23 @@ export const AVAILABILITY_REASONS = Object.freeze({
   codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
   templates: 'Nothing is sent anywhere.',
   hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
+  claudeTerms: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.",
 });
 
+/** The Claude Code terms gate (onboarding spec 2.8): open only when the trusted host says 'accepted'. */
+export function claudeTermsOpen(terms: 'accepted' | 'pending' | undefined): boolean {
+  return terms === 'accepted';
+}
+
 /**
- * Availability as of now: the Claude Code check result and the Codex host profile both change it. On the hosted web
- * server no command-line tool ever runs, so both are unavailable there whatever the server has installed.
+ * Availability as of now: the Claude Code check result, the Claude Code terms gate and the Codex host profile all
+ * change it. On the hosted web server no command-line tool ever runs, so both are unavailable there whatever the
+ * server has installed. Until Chausar accepts Anthropic's terms for running Claude Code (claudeTerms 'accepted'),
+ * Claude Code needs setup, before the vault and in it alike.
  */
-export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; codexProfile: boolean; hosted?: boolean }): { availability: ModelAvailability; availabilityReason: string } {
+export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; codexProfile: boolean; hosted?: boolean; claudeTerms?: 'accepted' | 'pending' }): { availability: ModelAvailability; availabilityReason: string } {
   if (live.hosted && (id === 'claude-code-cli' || id === 'codex-cli')) return { availability: 'unavailable', availabilityReason: AVAILABILITY_REASONS.hostedCli };
+  if (id === 'claude-code-cli' && !claudeTermsOpen(live.claudeTerms)) return { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.claudeTerms };
   switch (id) {
     case 'anthropic-haiku-5-5':
     case 'anthropic-sonnet-5-5':
