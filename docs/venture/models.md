@@ -86,6 +86,8 @@ Two guards keep client details out of calls that run under standing consent:
 
 The stored `payloadText` is the HTTP body (never a key), or for the command-line tools `{ command, args, stdin }` with the schema file path written as `<schema-file>`.
 
+These routes answer one model call each, with no tools. Handing a whole job to Claude Code or Codex, with its own tools in a locked folder after the owner approves the brief, is the delivery harness's heavy-work tier: see [harness.md](harness.md#heavy-work-your-own-claude-code-or-codex).
+
 ### Setting up Codex
 
 Codex is offered only when the engine starts with a reviewed host profile:
@@ -134,6 +136,7 @@ Anthropic's legal page says a product that runs Claude Code needs Anthropic's Co
 - While pending, `availabilityOf('claude-code-cli', ...)` answers needs setup with "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.", before the vault and in the vault alike. `venture.ai.connect` and `venture.models.connect` refuse the preset with `PRESET_UNAVAILABLE` and those words, and the screens show no "Check and connect".
 - Once open, the route behaves as before: `claude --version` first, then needs setup until Claude Code is found, then unverified.
 - The gate is checked again on every call, not only on connect. A connection made while the setting was `accepted` stops working if it goes back to `pending`: the model port refuses the call with `PRESET_UNAVAILABLE` and the terms words, and `venture.models.status` shows that tier as not usable with the same reason.
+- Heavy work ([harness.md](harness.md#heavy-work-your-own-claude-code-or-codex)) obeys the same gate: while pending it never looks for, offers or starts the owner's Claude Code, and an approval of a Claude Code brief is refused if the gate closed after the brief was written. Codex heavy work is not affected.
 - To open it: the founder accepts the terms for Chausar, the lead records the date and the words in `STATE.md`, and the desktop build sets `CHAUSAR_CLAUDE_CODE_TERMS=accepted`.
 
 The gate doesn't replace the other conditions from Anthropic's pages, which hold either way: Chausar never reads `.credentials.json` or sets `CLAUDE_CODE_OAUTH_TOKEN`, never shows a sign-in of its own, passes no flag that removes sign-in methods, and says that plans have limits made for one person.

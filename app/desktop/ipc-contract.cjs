@@ -45,7 +45,8 @@ const METHODS = Object.freeze([
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
   'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
-  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
+  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt', 'venture.delivery.delegate',
+  'venture.delegate.get',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';

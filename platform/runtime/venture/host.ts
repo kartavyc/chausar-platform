@@ -137,6 +137,7 @@ export class VentureHost {
       storage: options.storage,
       claudeCodeTerms: options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending',
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
+      ...(options.delegate ? { delegate: options.delegate } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
     });
   }

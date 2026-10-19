@@ -29,6 +29,7 @@ export const DOCKER_MISSING = 'Needs Docker Desktop.';
 export const DOCKER_STOPPED = 'Docker Desktop is installed but not running.';
 export const DOCKER_IMAGE_MISSING = `Docker is running, but ${PYTHON_IMAGE} is not on this computer. Chausar never downloads it for you; run docker pull ${PYTHON_IMAGE} once.`;
 export const DOCKER_READY = 'Runs agent-written Python in a Docker container with no network, a read-only file system, a memory cap and a process limit. Not yet tried on a real task.';
+export const HOSTED_NO_OWNER_CLI = 'Heavy work starts your own Claude Code or Codex on your computer. The shared hosted server never starts it; use the desktop app.';
 export const HOSTED_NO_CONTAINERS = 'Containers never run on the shared hosted server.';
 /** Refused until the founder decides whether agent-written code may run on a shared server. Plugins never run there. */
 export const HOSTED_NO_AGENT_CODE = 'The shared hosted server runs no agent-written code and no plugins for now. The desktop app has the light sandbox.';
@@ -41,6 +42,7 @@ export function tierRefusal(host: VentureHostKind | undefined, tier: ExecutionTi
   if (host !== 'hosted-web') return null;
   if (tier === 'wasm-lite' || tier === 'wasm') return HOSTED_NO_AGENT_CODE;
   if (tier === 'container') return HOSTED_NO_CONTAINERS;
+  if (tier === 'owner-cli') return HOSTED_NO_OWNER_CLI;
   return null;
 }
 

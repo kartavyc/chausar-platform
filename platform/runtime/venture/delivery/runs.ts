@@ -2,23 +2,30 @@
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
 // exact text first and is sent once, only after the owner approves it. Nothing here sends anything to a client.
 // With files on the order, the agent loop runs: each model turn holds client data, so each one waits for the owner's
-// approval of its exact text. Tools run on this computer between turns and send nothing anywhere.
-import { check, type Context, type State } from '../../contracts.ts';
+// approval of its exact text. Tools run on this computer between turns and send nothing anywhere. An agent may ask for
+// heavy work by the owner's own Claude Code or Codex: the run then waits for the owner to approve the exact brief, and
+// the tool starts only after that, on this computer.
+import { check, newId, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
-  BlueprintRecord, CheckId, CheckResult, ClaimProof, Deliverable, DeliveryReason, DeliveryRunRecord, DeliveryRunView, HarnessState, ModelPreview,
-  ModelTask, OrderRecord, PlaybookRecord, PriceReceiptRecord, SignalRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkTableRecord,
+  BlueprintRecord, CheckId, CheckResult, ClaimProof, DelegateFigure, DelegateRunRecord, DelegationRequest, Deliverable, DeliveryReason, DeliveryRunRecord,
+  DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
+  VentureDeps, VentureRecord, VentureRecordKind, WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
 import { firstFailedCheck, runChecks } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
+import {
+  DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegationEnvelopeResult, runDelegation, type DelegateAvailability,
+} from './harness/delegate.ts';
 import { dictionaryEntries, manifest, ownerDefinitions } from './harness/dictionary.ts';
 import { buildToolEnv, fileList, madeSoFar, namer, orderUploads, uploadsById } from './harness/env.ts';
 import type { FileLike } from './harness/files.ts';
 import {
-  actTask, answerHandoff, applyTurn, finishWrite, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, skipActs, validateTurn, writeGuidance,
-  writeTask, type AgentTurn, type LoopContext,
+  actTask, answerHandoff, applyTurn, finishWrite, newHarnessState, openDelegation, playbookGrant, provenSentences, REPORT_SECTIONS, settleDelegation, skipActs,
+  startDelegation, validateTurn, writeGuidance, writeTask, type AgentTurn, type LoopContext,
 } from './harness/loop.ts';
+import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
 import { ensurePlaybook, playbookLimits, verifyChecks } from './playbook.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
@@ -91,7 +98,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if (!template && uploads.length && playbookGrant(playbook).length) {
     let harness = newHarnessState(playbookGrant(playbook), playbookLimits(playbook), uploads.map(upload => upload.id));
     if (status!.tiers.fast.presetId === 'built-in-templates') harness = skipActs(harness, NO_QUICK_AI);
-    const loop = loopContext(deps, ctx, fresh.state, context, playbook, offer, uploads, []);
+    const loop = loopContext(deps, ctx, fresh.state, context, playbook, offer, uploads, [], harness.phase === 'act' ? await delegateOffer(deps) : []);
     const preview = await deps.models.preview(ctx, nextTask(loop, context, refs, harness, [], uploads, []));
     check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
@@ -141,12 +148,16 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   });
 }
 
-/** answers: the owner's answers to earlier hand-offs; tokens copied from them may be repeated, like the request's. */
-function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[]): LoopContext {
+/**
+ * answers: the owner's answers to earlier hand-offs; tokens copied from them may be repeated, like the request's.
+ * delegate: the owner's command-line tools found and checked now; agent.delegate is offered only with one.
+ */
+function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[], delegate: readonly DelegateAvailability[] = []): LoopContext {
   const entries = dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
     files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
+    delegate: delegate.map(item => item.cli),
   };
 }
 
@@ -238,7 +249,8 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   const { run, harness, context, playbook, refs, callId } = a;
   const files = uploadsById(a.state, context.venture.id, harness.uploadIds);
   const made = madeSoFar(a.state, harness);
-  const loop = loopContext(deps, ctx, a.state, context, playbook, a.offer, files, answersOf(harness));
+  const available = harness.phase === 'act' ? await delegateOffer(deps) : [];
+  const loop = loopContext(deps, ctx, a.state, context, playbook, a.offer, files, answersOf(harness), available);
   const task = nextTask(loop, context, refs, harness, made.receipts, files, made.tables);
   let value: unknown, by: 'model' | 'template', costMicros: string;
   try {
@@ -251,11 +263,13 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
 
   try {
     if (harness.phase === 'act') {
-      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed });
+      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available });
       const next = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros });
       const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
-      const preview = next.phase === 'needs-answer' ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
-      check(next.phase === 'needs-answer' || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+      // A hand-off waits for an answer and a heavy-work brief for the owner's decision: neither previews a turn yet.
+      const pauses = next.phase === 'needs-answer' || next.phase === 'brief';
+      const preview = pauses ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
+      check(pauses || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', run.id);
         check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
@@ -265,9 +279,10 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
         for (const receipt of newReceipts) tx.put(receipt);
         const stored: DeliveryRunRecord = preview
           ? { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
-          : { ...current, status: 'needs-answer', callId: null, preview: null, harness: next, practice: current.practice || stage === 'shadow' };
+          : { ...current, status: next.phase === 'brief' ? 'brief-waiting' : 'needs-answer', callId: null, preview: null, harness: next, practice: current.practice || stage === 'shadow' };
         tx.replace(stored);
         if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
+        else if (next.phase === 'brief') tx.emit('delivery-brief-waiting', { runId: stored.id, orderId: stored.orderId });
         else tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
         return runView(stored, tx.venture!, Date.parse(tx.now));
       });
@@ -320,7 +335,8 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
   const files = uploadsById(state, venture.id, run.harness.uploadIds);
   const made = madeSoFar(state, run.harness);
   const next = answerHandoff(run.harness, answer, 'owner');
-  const preview = await deps.models.preview(ctx, nextTask(loopContext(deps, ctx, state, context, playbook, offer, files, answersOf(next)), context, refs, next, made.receipts, files, made.tables));
+  const available = next.phase === 'act' ? await delegateOffer(deps) : [];
+  const preview = await deps.models.preview(ctx, nextTask(loopContext(deps, ctx, state, context, playbook, offer, files, answersOf(next), available), context, refs, next, made.receipts, files, made.tables));
   check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
   return ventureAction(deps, ctx, 'approve', 'delivery.answer', tx => {
     const current = tx.find('venture-delivery-run', runId);
@@ -334,6 +350,141 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
     tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
     return runView(stored, tx.venture!, Date.parse(tx.now));
   });
+}
+
+const NOT_BRIEFING = 'This draft reply is not waiting for a brief to be approved.';
+/** A run that started and never came back (the app closed while the tool worked) can be declined once its time is up. */
+const STALE_GRACE_MS = 120_000;
+function staleDelegation(open: DelegationRequest, nowMs: number): boolean {
+  return open.status === 'running' && open.startedAt !== null && Date.parse(open.startedAt) + open.limits.minutes * 60_000 + STALE_GRACE_MS < nowMs;
+}
+
+/**
+ * venture.delivery.delegate { runId, digest, decision } (app only): the owner approves or declines the exact
+ * heavy-work brief. Approve starts the owner's own tool here and now, in a fresh folder with copies of the order's
+ * files; its files and log come back as untrusted data, figures it lists are worked out again by the calculator with
+ * receipts, and the next turn is previewed like any other. Decline tells the agent and previews the next turn. Nothing
+ * starts on the hosted server, below shadow, with sending off, or when the tool changed since the brief was written.
+ */
+export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
+  requireAppChannel(ctx, 'venture.delivery.delegate');
+  const body = exactPayload(payload, ['runId', 'digest', 'decision'], ['runId', 'digest', 'decision']);
+  const runId = identifier(body.runId, 'Draft reply');
+  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the brief you read.');
+  check(body.decision === 'approve' || body.decision === 'decline', 'INVALID_VENTURE_REQUEST', 'Choose approve or decline.');
+  check(deps.host !== 'hosted-web', 'TIER_UNAVAILABLE', HOSTED_NO_OWNER_CLI);
+  const decision = body.decision;
+  const { state, venture } = readAs(deps, ctx, 'approve');
+  const run = findRun(state, venture, runId);
+  const open = run.harness ? openDelegation(run.harness) : null;
+  const nowMs = deps.clock().getTime();
+  check(run.status === 'brief-waiting' && open && (open.status === 'waiting' || (decision === 'decline' && staleDelegation(open, nowMs))), 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
+  check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  check(body.digest === open.digest, 'APPROVAL_STALE', 'The brief changed since you read it. Read it again.');
+  const harness = run.harness!;
+  const context = orderContext(state, venture, run.orderId);
+  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
+  const files = uploadsById(state, venture.id, harness.uploadIds);
+  const made = madeSoFar(state, harness);
+  const label = DELEGATE_LABELS[open.cli];
+
+  const previewNext = async (next: HarnessState, receipts: readonly WorkReceiptRecord[]): Promise<ModelPreview> => {
+    const available = next.phase === 'act' ? await delegateOffer(deps) : [];
+    const preview = await deps.models.preview(ctx, nextTask(loopContext(deps, ctx, state, context, playbook, offer, files, answersOf(next), available), context, refs, next, receipts, files, made.tables));
+    check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+    return preview;
+  };
+
+  if (decision === 'decline') {
+    const message = open.status === 'running'
+      ? `${label} started but never reported back; Chausar may have closed while it worked. Nothing it made was kept.`
+      : 'The owner declined this brief. Nothing was started.';
+    const next = settleDelegation(harness, { status: 'declined', envelope: { ok: false, error: { code: 'DELEGATE_DECLINED', name: 'DelegateDeclined', message } }, outcome: 'cancelled', delegateRunId: null, receiptIds: [], proofs: [] });
+    const preview = await previewNext(next, made.receipts);
+    return ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
+      const current = tx.find('venture-delivery-run', runId);
+      const live = current?.harness ? openDelegation(current.harness) : null;
+      check(current && current.status === 'brief-waiting' && live && live.digest === open.digest && live.status === open.status, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
+      const stage = tx.venture!.launchStage;
+      check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
+      tx.replace(stored);
+      tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+      return runView(stored, tx.venture!, Date.parse(tx.now));
+    });
+  }
+
+  // The owner's send setting rules this send too: the tool passes what it reads to its own provider.
+  check(deps.models.status(ctx).sendPolicy !== 'nothing', 'SEND_DISABLED', 'Sending is off for this workspace, so the tool was not started. Change it on Trust & access.');
+  // The Claude Code terms gate may have closed since the brief was written; then Claude Code is not started.
+  check(delegateGateOpen(open.cli, deps.claudeCodeTerms), 'TIER_UNAVAILABLE', `${DELEGATE_CLAUDE_TERMS} Decline the brief and the agent can carry on without it.`);
+  const ports = delegatePorts(deps);
+  const now = await delegateAvailability(ports, open.cli, deps.claudeCodeTerms);
+  check(ports && now.state !== 'needs-setup' && now.executable === open.executable && now.version === open.version, 'TIER_UNAVAILABLE',
+    `${label} is gone or changed since the brief was written, so it was not started. Decline the brief and the agent can ask again.`);
+  const delegateFiles = uploadsById(state, venture.id, open.uploadIds);
+  // Claimed first, in its own write: a second approval finds the brief running and starts nothing.
+  const claimed = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
+    const current = tx.find('venture-delivery-run', runId);
+    const live = current?.harness ? openDelegation(current.harness) : null;
+    check(current && current.status === 'brief-waiting' && live && live.status === 'waiting' && live.digest === open.digest, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
+    check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+    const started = startDelegation(current.harness!, tx.now);
+    tx.replace({ ...current, harness: started });
+    return started;
+  });
+  const request = openDelegation(claimed)!;
+  const result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } });
+
+  const at = deps.clock().toISOString();
+  const base = <K extends VentureRecordKind>(kind: K, prefix: string): RecordBase<K> => ({ id: newId(prefix), kind, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, at });
+  const receipts: WorkReceiptRecord[] = [];
+  const figureRefs: (string | null)[] = [];
+  const figures: DelegateFigure[] = result.figures.map(item => {
+    if (!item.draft) { figureRefs.push(null); return item.figure; }
+    const receipt: WorkReceiptRecord = { ...base('venture-work-receipt', 'work'), ...item.draft };
+    receipts.push(receipt);
+    figureRefs.push(`w${made.receipts.length + receipts.length}.total`);
+    return { ...item.figure, receiptId: receipt.id };
+  });
+  const record: DelegateRunRecord = {
+    ...base('venture-delegate-run', 'delegaterun'), runId, toolCallId: request.toolCallId, cli: request.cli, executable: request.executable, version: request.version,
+    approvedDigest: request.digest, limits: request.limits, outcome: result.outcome, exitCode: result.exitCode, reason: result.reason, outputs: result.outputs,
+    log: result.log, reportedCost: result.reportedCost, figures, uncheckedNumbers: result.uncheckedNumbers, untrusted: true,
+  };
+  const details = delegationEnvelopeResult(result, figureRefs, request.cli);
+  const envelope: ToolEnvelope = result.outcome === 'succeeded' ? { ok: true, result: details }
+    : { ok: false, error: { code: result.outcome === 'timedOut' ? 'TOOL_TIMEOUT' : 'DELEGATE_FAILED', name: result.outcome === 'timedOut' ? 'ToolTimeout' : 'DelegateFailed', message: result.reason, details } };
+  // Only a finished run proves the tool worked, and that proves no claim on its own; receipts prove their totals.
+  const proofs: ClaimProof[] = result.outcome === 'succeeded'
+    ? [{ kind: 'delegated', toolCallId: request.toolCallId, receiptId: null, tableId: null }, ...receipts.map(receipt => ({ kind: 'totals' as const, toolCallId: request.toolCallId, receiptId: receipt.id, tableId: null }))]
+    : [];
+  const next = settleDelegation(claimed, { status: 'finished', envelope, outcome: result.outcome, delegateRunId: record.id, receiptIds: receipts.map(receipt => receipt.id), proofs });
+
+  let preview: ModelPreview | null = null;
+  let previewError: unknown = null;
+  try { preview = await previewNext(next, [...made.receipts, ...receipts]); } catch (error) { previewError = error; }
+  // What the tool made is stored even when the next turn can't be previewed: the owner's plan paid for it.
+  const { view, blocked } = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
+    const current = tx.find('venture-delivery-run', runId);
+    check(current && current.status === 'brief-waiting', 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
+    for (const receipt of receipts) tx.put(receipt);
+    tx.put(record);
+    tx.emit('delegate-finished', { runId, delegateRunId: record.id, cli: record.cli, outcome: record.outcome });
+    const stage = tx.venture!.launchStage;
+    const going = preview !== null && agentStage(stage);
+    const stored: DeliveryRunRecord = going
+      ? { ...current, status: 'waiting-for-you', callId: preview!.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
+      : { ...current, status: 'failed', callId: null, preview: null, harness: next };
+    tx.replace(stored);
+    if (going) tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+    return { view: runView(stored, tx.venture!, Date.parse(tx.now)), blocked: !agentStage(stage) };
+  });
+  if (previewError) throw previewError;
+  check(!blocked, 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  return view;
 }
 
 /** The stages at which an agent may draft for a real order. Moving down is always allowed, so each step checks again. */
@@ -439,13 +590,17 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   const ready = run.status === 'ready-for-review';
   const waiting = run.status === 'waiting-for-you';
   const asking = run.status === 'needs-answer';
+  // A brief waits for the owner while no tool runs it, or once a run that never came back is past its time.
+  const brief = run.status === 'brief-waiting';
+  const open = brief && run.harness ? openDelegation(run.harness) : null;
+  const briefWaits = !!open && (open.status === 'waiting' || staleDelegation(open, nowMs));
   const practiceNow = ready ? run.practice || (run.servedBy === 'model' && stage !== 'approve-each')
-    : waiting || asking ? run.practice || stage !== 'approve-each'
+    : waiting || asking || brief ? run.practice || stage !== 'approve-each'
       : run.practice;
   const canApprove = waiting && run.callId !== null && agentStage(stage) && run.preview !== null && Date.parse(run.preview.expiresAt) > nowMs;
   const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks)) : null;
   const canAccept = ready && blocked === null;
-  const awaitingYou = waiting ? canApprove : asking ? agentStage(stage) : ready ? !practiceNow || stage === 'shadow' : false;
+  const awaitingYou = waiting ? canApprove : asking ? agentStage(stage) : brief ? briefWaits && agentStage(stage) : ready ? !practiceNow || stage === 'shadow' : false;
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };
 }
 

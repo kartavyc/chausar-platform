@@ -723,7 +723,9 @@ test('static: harness files use listed error codes, never float money arithmetic
   const files = (await readdir(folder)).filter(name => name.endsWith('.ts'));
   assert.ok(files.length >= 14, files.join(','));
   // Codes other components report (the WebAssembly worker, the Python helper, the container runner), passed through or read.
-  const passThrough = new Set(['MEMORY_LIMIT', 'CELL_LIMIT', 'OUTPUT_LIMIT', 'TABLE_LIMIT', 'UNAPPROVED_IMPORT', 'ROW_PROGRAM_FAILED', 'OUTPUT_BOUNDS', 'NOT_A_DICT', 'NO_TRANSFORM', 'PYTHON_UNAVAILABLE', 'PDF_DEPENDENCY_UNAVAILABLE', 'PDF_PAGE_LIMIT']);
+  const passThrough = new Set(['MEMORY_LIMIT', 'CELL_LIMIT', 'OUTPUT_LIMIT', 'TABLE_LIMIT', 'UNAPPROVED_IMPORT', 'ROW_PROGRAM_FAILED', 'OUTPUT_BOUNDS', 'NOT_A_DICT', 'NO_TRANSFORM', 'PYTHON_UNAVAILABLE', 'PDF_DEPENDENCY_UNAVAILABLE', 'PDF_PAGE_LIMIT',
+    // An environment name heavy work passes on to Codex so it finds its own sign-in; not an error code.
+    'CODEX_HOME']);
   for (const name of files) {
     const source = await readFile(new URL(name, folder), 'utf8');
     for (const match of source.matchAll(/'([A-Z]+(?:_[A-Z]+)+)'/g)) assert.ok((VENTURE_ERRORS as readonly string[]).includes(match[1]) || passThrough.has(match[1]), `${name}: ${match[1]}`);

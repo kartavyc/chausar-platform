@@ -3,6 +3,7 @@
 import { check, type Context, type State } from '../../../contracts.ts';
 import { findRecord, listRecords } from '../../records.ts';
 import type { HarnessState, PlaybookRecord, UploadRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkRunRef, WorkTableRecord } from '../../contracts.ts';
+import type { DelegateAvailability } from './delegate.ts';
 import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
 import type { ToolEnv } from './tools.ts';
@@ -40,6 +41,8 @@ export type EnvInput = {
   tables?: WorkTableRecord[];
   receipts?: WorkReceiptRecord[];
   allowed: readonly string[];
+  /** The owner's command-line tools found and checked for this turn; real orders only. */
+  delegateOffer?: readonly DelegateAvailability[];
 };
 
 export function buildToolEnv(input: EnvInput): ToolEnv {
@@ -48,7 +51,7 @@ export function buildToolEnv(input: EnvInput): ToolEnv {
     deps, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, currency: venture.country.currency, dateOrder: venture.country.dateOrder,
     runRef: input.runRef, files: input.files, tables: [...(input.tables ?? [])], receipts: [...(input.receipts ?? [])],
     dictionary: dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
-    sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed],
+    sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed], delegateOffer: [...(input.delegateOffer ?? [])],
   };
 }
 

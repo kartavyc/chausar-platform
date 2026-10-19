@@ -70,10 +70,10 @@ globalThis.ChausarLaunch = Object.freeze({
     function awaitingOwner(run, stage) {
       if (typeof run?.awaitingYou === 'boolean') return run.awaitingYou;
       if (run?.status === 'waiting-for-you') return true;
-      if (run?.status === 'needs-answer') return stage === 'shadow' || stage === 'approve-each';
+      if (run?.status === 'needs-answer' || run?.status === 'brief-waiting') return stage === 'shadow' || stage === 'approve-each';
       return run?.status === 'ready-for-review' && (!practiceDraft(run, stage) || stage === 'shadow');
     }
-    const RUN_WORDS = { 'waiting-for-you': 'to approve', 'needs-answer': 'to answer', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
+    const RUN_WORDS = { 'waiting-for-you': 'to approve', 'needs-answer': 'to answer', 'brief-waiting': 'brief to approve', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
     const ORDER_WORDS = { open: 'open', invoiced: 'invoiced', delivered: 'delivered', cancelled: 'cancelled' };
     const BUILD_WORDS = {
       'waiting-for-repo': 'Waiting for the repo', 'repo-connected': 'Repo connected', 'builder-making-changes': 'The builder is making changes',
@@ -117,6 +117,11 @@ globalThis.ChausarLaunch = Object.freeze({
     /** The input field that names the file or table a tool works on. */
     const TOOL_TARGET = { 'files.read': 'target', 'calc.sum': 'table', 'calc.totals': 'table', 'books.reconcile': 'bank', 'sandbox.transform': 'table', 'sandbox.python': 'table' };
     const OUTCOME_WORDS = { failed: 'failed', cancelled: 'skipped', timedOut: 'took too long' };
+    // Heavy work: the owner's own Claude Code or Codex, started only after the owner approves the exact brief.
+    const DELEGATE_NAMES = { 'claude-code': 'Claude Code', codex: 'Codex' };
+    /** Where each tool sends what it reads, under the owner's own plan. A copy of PROVIDERS in harness/delegate.ts. */
+    const DELEGATE_PROVIDERS = { 'claude-code': 'Anthropic', codex: 'OpenAI' };
+    const UNCHECKED_LINE = name => `Written by ${name}, another AI, on this computer. Chausar has not checked it.`;
     const IMPROVE_WORDS = { 'kept-candidate': 'Kept a new version', 'kept-parent': 'Kept the version in use', incomplete: 'Stopped before a change was tried' };
     const IMPROVE_LINE = 'It rehearses the version in use against one change, with practice clients and your AI, and keeps the change only if it wins.';
     const ADOPT_LINE = 'New drafts follow it. The version in use now stays stored.';
@@ -129,6 +134,7 @@ globalThis.ChausarLaunch = Object.freeze({
       'brief-ready': 'Brief written', 'handoff-prepared': 'Handoff prepared', 'handoff-opened': 'Builder opened', 'repo-linked': 'Repo followed',
       'repo-synced': 'GitHub checked', 'playbook-ready': 'Playbook ready', 'simulation-finished': 'Rehearsal finished', 'launch-stage-changed': 'Stage changed',
       'delivery-waiting': 'Draft waiting', 'delivery-ready': 'Draft ready', 'delivery-reviewed': 'Draft reviewed', 'signal-recorded': 'Signal recorded',
+      'delivery-brief-waiting': 'Brief waiting', 'delegate-finished': 'Heavy work finished',
     };
     /** A copy of INDIA_STATES in platform/runtime/venture/contracts.ts, for the state picker. A test compares them. */
     const INDIA_STATES = Object.freeze({
@@ -2708,16 +2714,18 @@ globalThis.ChausarLaunch = Object.freeze({
       const kinds = [
         ['waiting', 'A draft to approve', 'drafts to approve', 'agents'],
         ['asking', 'A question to answer', 'questions to answer', 'agents'],
+        ['brief', 'A brief to approve', 'briefs to approve', 'agents'],
         ['practice', 'A practice draft to review', 'practice drafts to review', 'agents'],
         ['ready', 'A draft to review', 'drafts to review', 'agents'],
         ['adopt', 'A playbook change to review', 'playbook changes to review', 'agents'],
         ['invoice', 'A draft invoice to issue', 'draft invoices to issue', 'clients'],
       ];
-      const counts = { waiting: 0, asking: 0, practice: 0, ready: 0, adopt: improve.value?.candidate ? 1 : 0, invoice: 0 };
+      const counts = { waiting: 0, asking: 0, brief: 0, practice: 0, ready: 0, adopt: improve.value?.candidate ? 1 : 0, invoice: 0 };
       for (const run of runs.value || []) {
         if (!awaitingOwner(run, stage)) continue;
         if (run.status === 'waiting-for-you') counts.waiting++;
         else if (run.status === 'needs-answer') counts.asking++;
+        else if (run.status === 'brief-waiting') counts.brief++;
         else if (run.status === 'ready-for-review') counts[practiceDraft(run, stage) ? 'practice' : 'ready']++;
       }
       for (const invoice of invoices.value || []) if (invoice.status === 'draft') counts.invoice++;
@@ -2987,7 +2995,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const draftRow = run => {
         const client = clientOf[run.orderId] || 'A client';
         return row({
-          mark: run.status === 'waiting-for-you' || run.status === 'needs-answer' || run.status === 'ready-for-review' ? 'wait' : 'you',
+          mark: ['waiting-for-you', 'needs-answer', 'brief-waiting', 'ready-for-review'].includes(run.status) ? 'wait' : 'you',
           title: link(client, () => openRunSheet(run, client, models)),
           note: `${RUN_WORDS[run.status] || run.status}${practiceDraft(run, stage) ? ', practice' : ''}${run.servedBy === 'template' ? ', outline' : ''}`,
         });
@@ -3136,7 +3144,7 @@ globalThis.ChausarLaunch = Object.freeze({
         if (harness?.stopReason && harness.phase === 'write') parts.push(note(harness.stopReason));
         // What the agent did sits open above the text to approve, and folded after the report once it is written.
         const done = harness ? turnsDone(current, ctx) : [];
-        const working = current.status === 'waiting-for-you' || current.status === 'needs-answer';
+        const working = current.status === 'waiting-for-you' || current.status === 'needs-answer' || current.status === 'brief-waiting';
         const doneFold = done.length ? fold('What the agent did', working, ...done) : null;
         if (working) parts.push(doneFold);
         if (current.status === 'waiting-for-you' && current.preview && current.canApprove === false) {
@@ -3169,6 +3177,8 @@ globalThis.ChausarLaunch = Object.freeze({
             h('label', { class: 'launch-check' }, agree, h('span', {}, replay ? 'Approve this exact text once.' : 'Send this exact text once.')), actions(approve), status);
         } else if (current.status === 'needs-answer' && harness) {
           parts.push(...questionNodes(current, harness, status, next => paint(next), body));
+        } else if (current.status === 'brief-waiting' && harness) {
+          parts.push(...briefNodes(current, harness, status, next => paint(next), body, ctx));
         } else {
           const text = current.editedText || current.renderedText || '';
           if (current.servedBy === 'template' && !text.startsWith(OUTLINE_LINE)) parts.push(note(OUTLINE_LINE, 'launch-strong'));
@@ -3203,7 +3213,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const current = harness.phase === 'act' ? used + 1 : null;
       const calls = harness.used?.toolCalls || 0;
       const words = harness.phase === 'act' ? `Turn ${used + 1} of ${max}`
-        : harness.phase === 'needs-answer' ? `Turn ${used} of ${max}`
+        : harness.phase === 'needs-answer' || harness.phase === 'brief' ? `Turn ${used} of ${max}`
           : harness.phase === 'write' ? 'Last step: the report'
             : `Done in ${used} ${used === 1 ? 'turn' : 'turns'} with ${calls} tool ${calls === 1 ? 'call' : 'calls'}.`;
       return h('p', { class: 'launch-progress' }, h('span', {}, words),
@@ -3223,6 +3233,7 @@ globalThis.ChausarLaunch = Object.freeze({
     }
     /** One tool call in plain words: what it did and to which file, why it failed when it did, and its receipt. */
     function toolRow(call, run, ctx) {
+      if (call.tool === 'agent.delegate') return delegateRow(call, run, ctx);
       const words = TOOL_WORDS[call.tool];
       const field = TOOL_TARGET[call.tool];
       const target = field && call.input && typeof call.input === 'object' ? call.input[field] : null;
@@ -3230,11 +3241,74 @@ globalThis.ChausarLaunch = Object.freeze({
       const mark = call.outcome === 'succeeded' ? 'cha' : call.outcome === 'cancelled' ? 'off' : 'unsure';
       const why = call.outcome === 'succeeded' ? null : (call.envelope?.ok === false && call.envelope.error?.message) || OUTCOME_WORDS[call.outcome] || call.outcome;
       const receiptHost = h('div');
-      const side = (call.receiptIds || []).map(id => {
-        const open = link('Receipt', () => act(open, receiptHost, async () => { fill(receiptHost, workReceiptBody(await ctx.workReceipt(id))); open.remove(); }));
+      const side = receiptLinks(call.receiptIds, receiptHost, ctx);
+      return row({ mark, title, note: why, side: side.length ? side : null, extra: receiptHost });
+    }
+    /** One Receipt link per work receipt; each opens its receipt below the row, once. */
+    function receiptLinks(ids, host, ctx) {
+      return (ids || []).map(id => {
+        const open = link('Receipt', () => act(open, host, async () => { fill(host, workReceiptBody(await ctx.workReceipt(id))); open.remove(); }));
         return open;
       });
-      return row({ mark, title, note: why, side: side.length ? side : null, extra: receiptHost });
+    }
+    /** "a, b and c" */
+    function andList(items) { return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`; }
+    /** The agent's heavy-work call in plain words: what became of the brief, the files the tool made and the figure refs the
+        calculator made. The tool's own summary and numbers never show here; they stay in its record, opened on request. */
+    function delegateRow(call, run, ctx) {
+      const asked = (run.harness?.delegations || []).find(item => item.toolCallId === call.id) || null;
+      const cli = asked?.cli || (call.input && typeof call.input === 'object' ? call.input.cli : null);
+      const name = DELEGATE_NAMES[cli] || 'Claude Code or Codex';
+      const details = call.envelope?.ok ? call.envelope.result : call.envelope?.error?.details;
+      const refused = call.envelope?.ok === false ? call.envelope.error?.message || OUTCOME_WORDS[call.outcome] || call.outcome : null;
+      const [mark, title, why] = !asked ? ['unsure', 'Asked for heavy work', refused]
+        : asked.status === 'waiting' ? ['wait', `Wrote a brief for ${name}`, 'waiting for you']
+          : asked.status === 'running' ? ['now', `Handed the job to ${name}`, 'working']
+            : asked.status === 'declined' ? ['off', asked.startedAt ? `${name} never reported back` : 'You declined the brief', null]
+              : call.outcome === 'succeeded' ? ['cha', `Handed the job to ${name}`, null]
+                : call.outcome === 'timedOut' ? ['unsure', `${name} ran past its time limit`, null]
+                  : ['unsure', `${name} stopped with an error`, refused];
+      const files = Array.isArray(details?.files) ? details.files.map(file => plain(file?.name)).filter(Boolean) : [];
+      const refs = Array.isArray(details?.figures) ? details.figures.map(item => item?.ref).filter(ref => typeof ref === 'string' && ref) : [];
+      const receiptHost = h('div');
+      const recordHost = h('div');
+      const id = asked?.delegateRunId;
+      const open = id ? link(`What ${name} made`, () => act(open, recordHost, async () => {
+        fill(recordHost, delegatedNodes(await request('venture.delegate.get', { id }), ctx));
+        open.remove();
+      })) : null;
+      const side = receiptLinks(call.receiptIds, receiptHost, ctx);
+      return row({
+        mark, title, note: why, side: side.length ? side : null,
+        extra: h('div', {},
+          files.length ? h('p', { class: 'launch-row-more' }, `Made ${andList(files)}.`) : null,
+          refs.length ? h('p', { class: 'launch-row-more' }, `Figures the calculator worked out again: ${refs.join(', ')}.`) : null,
+          open ? h('p', { class: 'launch-row-more' }, open) : null, recordHost, receiptHost),
+      });
+    }
+    /** What the owner's tool left, as stored: untrusted words and files, and each figure it listed against the calculator.
+        Only the calculator's figure is drawn, from its receipt; the tool's value is never shown beside it. */
+    function delegatedNodes(record, ctx) {
+      const name = DELEGATE_NAMES[record.cli] || 'The tool';
+      const figureRow = item => {
+        const host = h('div');
+        const words = item.matches === true ? 'same as the calculator' : item.matches === false ? "differs; only the calculator's total may be cited" : plain(item.note);
+        const side = item.receiptId ? receiptLinks([item.receiptId], host, ctx) : null;
+        return row({ mark: item.matches === true ? 'cha' : item.matches === false ? 'unsure' : 'off', title: item.label, note: words, side, extra: host });
+      };
+      const unchecked = Number(record.uncheckedNumbers) || 0;
+      const output = file => (typeof file.text === 'string'
+        ? fold(file.name, false, h('pre', { class: 'launch-pre' }, file.text))
+        : row({ mark: 'off', title: file.name, note: file.note || 'Kept by name only.' }));
+      return h('div', { class: 'launch-delegated' },
+        warn(UNCHECKED_LINE(name)),
+        note(record.reason),
+        (record.figures || []).length ? rows(...record.figures.map(figureRow)) : null,
+        unchecked ? note(`${unchecked} ${unchecked === 1 ? 'number' : 'numbers'} in its summary ${unchecked === 1 ? 'was' : 'were'} not worked out again.`) : null,
+        record.reportedCost ? note(`It printed a cost of ${record.reportedCost} on your plan. Chausar did not check it or count it.`) : null,
+        (record.outputs || []).map(output),
+        record.log ? fold('The end of its log', false, h('pre', { class: 'launch-pre' }, record.log)) : null,
+        h('p', { class: 'launch-mono launch-small' }, `Record ${record.id}`));
     }
     /** The agent's turns so far: its own note for each turn, what each tool did, and each question with its answer. */
     function turnsDone(run, ctx) {
@@ -3259,6 +3333,41 @@ globalThis.ChausarLaunch = Object.freeze({
         h('p', { class: 'launch-quote' }, open?.question || ''),
         toClient ? note('Ask the client, then write what they said.') : null,
         field(toClient ? "The client's answer" : 'Your answer', answer), actions(send), note(ANSWER_LINE), status];
+    }
+    /** The agent's heavy-work brief, exactly as the owner's own tool would get it, then Approve and start or Decline.
+        Approve runs the tool here and now, so the sheet holds a still outline until it comes back, up to its time limit. */
+    function briefNodes(run, harness, status, paint, host, ctx) {
+      const open = [...(harness.delegations || [])].reverse().find(item => item.status === 'waiting' || item.status === 'running');
+      if (!open) return [note("Chausar can't find this brief any more. Draft it again from the order."), status];
+      const name = DELEGATE_NAMES[open.cli] || plain(open.cli);
+      const minutes = plain(open.limits?.minutes);
+      const decide = (decision, button, words) => act(button, status, async () => {
+        let next;
+        try {
+          next = await busy(host, words, () => request('venture.delivery.delegate', { runId: run.id, digest: open.digest, decision }));
+        } catch (error) {
+          if (error?.code !== 'REQUEST_TIMEOUT') throw error;
+          // The tool may have finished after the window stopped waiting: a run past its brief has moved on.
+          next = ((await request('venture.delivery.list')) || []).find(item => item.id === run.id);
+          if (!next || next.status === 'brief-waiting') throw error;
+        }
+        paint(next);
+      });
+      if (open.status === 'running') {
+        if (run.awaitingYou !== true) return [note(`${name} is working on it. Check again in a few minutes.`), status];
+        const decline = quiet('Decline', () => decide('decline', decline, 'Preparing the next turn'));
+        return [note(`${name} was started and has not reported back. Chausar may have closed while it worked.`),
+          note('Decline it and the agent carries on without it.'), actions(decline), status];
+      }
+      const files = (open.uploadIds || []).map(id => ctx.files.find(file => file.id === id)?.name || 'a file');
+      const approve = filled('Approve and start', () => decide('approve', approve, `${name} is working on copies of the files. This can take up to ${minutes} minutes.`));
+      const decline = quiet('Decline', () => decide('decline', decline, 'Preparing the next turn'));
+      return [note(`The agent asks to hand this job to ${name}`, 'launch-strong'),
+        note(`${name} ${plain(open.version)} on this computer gets this exact brief and copies of the files.`),
+        h('pre', { class: 'launch-pre' }, open.briefText),
+        note(`Files: ${files.join(', ') || 'none'}. It stops after ${minutes} minutes.`),
+        note(`${name} sends what it reads to ${DELEGATE_PROVIDERS[open.cli] || 'its own provider'} under your own plan.`),
+        actions(approve, decline), status];
     }
     /** The reconciliation a report carries, from its work receipt: balances or not, a picture of the matches, the gaps, and the receipt. */
     function reconciliationPart(receiptId, ctx) {

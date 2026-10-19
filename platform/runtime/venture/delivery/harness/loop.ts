@@ -7,8 +7,8 @@ import { check } from '../../../contracts.ts';
 import { assertNoNumbers, tidyWords } from '../../records.ts';
 import { REQUIRED_SECTIONS } from '../../contracts.ts';
 import type {
-  ClaimProof, Deliverable, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, ServiceType, ToolName, UploadFormat,
-  VentureHostKind, WorkReceiptRecord,
+  ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, ServiceType, ToolEnvelope, ToolName,
+  UploadFormat, VentureHostKind, WorkReceiptRecord,
 } from '../../contracts.ts';
 import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type FigureRefEntry } from '../deliverable.ts';
 import { callTool, MAX_INPUT_CHARS, offeredTools, receiptAlias, ROW_LANGUAGE, toolManifest, type ToolEnv } from './tools.ts';
@@ -68,6 +68,8 @@ export type LoopContext = {
   allowed: readonly string[];
   /** Where the run happens. On the hosted web server the agent is offered only the tools that run there. */
   host?: VentureHostKind;
+  /** The owner's command-line tools found and checked now. agent.delegate is offered only when there is one. */
+  delegate?: readonly DelegateCli[];
 };
 
 function turnSchema(grant: readonly ToolName[]): Json {
@@ -144,7 +146,7 @@ function agentSteps(playbook: Pick<PlaybookRecord, 'steps'>): Json {
  * list, the turn schema and the row language follow the tools this host can run; a call to another is still refused.
  */
 export function actTask(ctx: LoopContext, state: HarnessState): ModelTask<AgentTurn> {
-  const offered = offeredTools(state.grant, ctx.host);
+  const offered = offeredTools(state.grant, ctx.host).filter(name => name !== 'agent.delegate' || (ctx.delegate?.length ?? 0) > 0);
   const input: Record<string, Json> = {
     steps: agentSteps(ctx.playbook),
     serviceType: ctx.serviceType,
@@ -178,12 +180,14 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
   next.used.turns = number;
   next.used.costMicros = String(BigInt(next.used.costMicros) + BigInt(meta.costMicros));
   let handoff: { to: 'client' | 'owner'; question: string } | null = null;
+  let delegated: NonNullable<HarnessState['delegations']>[number] | null = null;
   for (const [index, call] of turn.calls.entries()) {
     const cancelled = (code: string, message: string) => next.toolCalls.push({
       id: `t${number}.${index + 1}`, turn: number, tool: call.tool.slice(0, 60), input: null, inputDigest: '', envelope: { ok: false, error: { code, name: code === 'HARNESS_LIMIT' ? 'HarnessLimit' : 'ToolSkipped', message } },
       outcome: 'cancelled', effect: null, tier: null, receiptIds: [], tableIds: [],
     });
     if (handoff) { cancelled('TOOL_SKIPPED', 'A hand-off ended this turn, so this call did not run.'); continue; }
+    if (delegated) { cancelled('TOOL_SKIPPED', 'A heavy-work brief ended this turn, so this call did not run.'); continue; }
     if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The run used all its tool calls.'); continue; }
     const outcome = await callTool(env, next.grant, number, index, call);
     next.used.toolCalls += 1;
@@ -193,8 +197,14 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     next.workReceiptIds.push(...outcome.receipts.map(receipt => receipt.id));
     if (outcome.mock) next.mocks.push(outcome.mock);
     if (outcome.handoff) handoff = outcome.handoff;
+    if (outcome.delegate) delegated = outcome.delegate;
   }
   if (next.proofs.some(proof => PROOF_WORK.has(proof.kind))) next.sections = 'report';
+  if (delegated) {
+    next.delegations = [...(next.delegations ?? []), delegated];
+    next.phase = 'brief';
+    return next;
+  }
   if (handoff) {
     next.handoffs.push({ to: handoff.to, question: tidyWords(handoff.question).slice(0, 300), turn: number, answer: null, answeredBy: null });
     next.phase = 'needs-answer';
@@ -224,6 +234,40 @@ export function answerHandoff(state: HarnessState, answer: string, by: 'owner' |
   return settle(next, false);
 }
 
+/** The heavy-work brief waiting for the owner, or the one running. */
+export function openDelegation(state: HarnessState): NonNullable<HarnessState['delegations']>[number] | null {
+  if (state.phase !== 'brief') return null;
+  return (state.delegations ?? []).findLast(item => item.status === 'waiting' || item.status === 'running') ?? null;
+}
+
+/** Marks the open brief as running: claimed once, so a second approval finds it taken. */
+export function startDelegation(state: HarnessState, startedAt: string): HarnessState {
+  const next: HarnessState = structuredClone(state);
+  const open = openDelegation(next);
+  check(open && open.status === 'waiting', 'DELIVERY_NOT_BRIEFING', 'This draft reply is not waiting for a brief to be approved.');
+  open.status = 'running';
+  open.startedAt = startedAt;
+  return next;
+}
+
+/**
+ * Closes the open brief, declined or finished. The agent's call gets its real result in place of 'waiting', so the
+ * next turn reads it in its history. Receipts the calculator made from the tool's figures join the run.
+ */
+export function settleDelegation(state: HarnessState, change: { status: 'declined' | 'finished'; envelope: ToolEnvelope; outcome: ExecutionOutcome; delegateRunId: string | null; receiptIds: string[]; proofs: ClaimProof[] }): HarnessState {
+  const next: HarnessState = structuredClone(state);
+  const open = openDelegation(next);
+  check(open, 'DELIVERY_NOT_BRIEFING', 'This draft reply is not waiting for a brief to be approved.');
+  open.status = change.status;
+  open.delegateRunId = change.delegateRunId;
+  const call = next.toolCalls.find(item => item.id === open.toolCallId);
+  if (call) { call.envelope = change.envelope; call.outcome = change.outcome; call.receiptIds = [...change.receiptIds]; }
+  next.proofs.push(...change.proofs);
+  next.workReceiptIds.push(...change.receiptIds);
+  if (next.proofs.some(proof => PROOF_WORK.has(proof.kind))) next.sections = 'report';
+  return settle(next, false);
+}
+
 /** Stops the act phase when the cheap tier has no AI: the reply is written without tool work, and says so. */
 export function skipActs(state: HarnessState, reason: string): HarnessState {
   return { ...structuredClone(state), phase: 'write', stopReason: reason };
@@ -250,6 +294,7 @@ export function provenSentences(state: HarnessState, receipts: readonly WorkRece
     if (proof.kind === 'reconciled') say('The calculator reconciled the bank statement against the bills and checked the closing balance.');
     if (proof.kind === 'matched') say('The calculator matched payments in the statement to bills.');
     if (proof.kind === 'balanced') say('The statement balances: the closing balance worked out equals the one on the statement.');
+    if (proof.kind === 'delegated') say("The owner's own command-line tool worked on copies of the order's files on this computer. Its words were not checked; only figures the calculator worked out again may be cited.");
   }
   const reconcile = [...receipts].reverse().find(receipt => receipt.operation === 'work.reconcile');
   if (reconcile?.reconciliation) {

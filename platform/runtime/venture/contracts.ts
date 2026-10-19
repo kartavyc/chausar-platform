@@ -96,6 +96,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-event',
   // Delivery harness (section 8b): client files, tables the agent's tools made, work receipts, improvement runs.
   'venture-upload', 'venture-work-table', 'venture-work-receipt', 'venture-improvement-run',
+  // Heavy work: what the owner's own Claude Code or Codex left after an approved brief.
+  'venture-delegate-run',
   // Onboarding v2: the plan the AI composed from checked blocks before the vault existed.
   'venture-composition',
 ] as const;
@@ -820,7 +822,8 @@ export const EXTERNAL_ORIGINS = Object.freeze([
 
 /** 'work' is hands-on work with tools (files, the sandbox, the calculator); it never writes to the client. */
 export type StepKind = 'gather' | 'question' | 'work' | 'compute' | 'write' | 'verify' | 'approve' | 'operator';
-export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container' | 'hosted';
+/** 'owner-cli': the owner's own Claude Code or Codex on this computer, started only after the owner approves a brief. */
+export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container' | 'owner-cli' | 'hosted';
 export const CHECK_IDS = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims'] as const;
 export type CheckId = typeof CHECK_IDS[number];
 export type PlaybookStep = {
@@ -924,8 +927,11 @@ export type SimulationRunRecord = RecordBase<'venture-simulation-run'> & {
 
 export const DELIVERY_REASONS = ['wrong-fact', 'missing-fact', 'missing-section', 'off-brief', 'tone', 'format', 'too-long', 'too-short', 'wrong-number', 'late', 'claims-work-not-done', 'other'] as const;
 export type DeliveryReason = typeof DELIVERY_REASONS[number];
-/** 'needs-answer': the agent handed off with a question, and the run waits for the owner's answer. */
-export type DeliveryRunStatus = 'waiting-for-you' | 'needs-answer' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed';
+/**
+ * 'needs-answer': the agent handed off with a question, and the run waits for the owner's answer. 'brief-waiting': the
+ * agent asked for heavy work, and the run waits for the owner to approve or decline the exact brief.
+ */
+export type DeliveryRunStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed';
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   orderId: string;
   playbookId: string;
@@ -992,13 +998,15 @@ export const TOOL_NAMES = [
   'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick',
   'sandbox.transform', 'sandbox.python',
   'handoff.client', 'handoff.owner', 'outbox.propose',
+  'agent.delegate',
 ] as const;
 export type ToolName = typeof TOOL_NAMES[number];
 /**
  * read: looks and changes nothing. compute: the calculator, which answers with receipts. sandbox: agent-written code
  * in a sandbox. handoff: asks a person and ends the turn. outside-write: only ever recorded for the owner's approval.
+ * delegate: writes a brief for the owner's own command-line tool; nothing starts until the owner approves it.
  */
-export type ToolEffect = 'read' | 'compute' | 'sandbox' | 'handoff' | 'outside-write';
+export type ToolEffect = 'read' | 'compute' | 'sandbox' | 'handoff' | 'outside-write' | 'delegate';
 /** One execution outcome type, as agentOS has it. */
 export type ExecutionOutcome = 'succeeded' | 'failed' | 'cancelled' | 'timedOut';
 export type ToolError = { code: string; name: string; message: string; details?: Json };
@@ -1030,7 +1038,8 @@ export type AgentTurnRecord = {
 };
 export type HandoffRequest = { to: 'client' | 'owner'; question: string; turn: number; answer: string | null; answeredBy: 'owner' | 'practice-client' | null };
 /** What a tool run proves. A draft may say work was done only when a proof of that kind exists. */
-export type ClaimProofKind = 'file-read' | 'transformed' | 'totals' | 'matched' | 'reconciled' | 'balanced';
+/** 'delegated': the owner's own tool ran on the order's files. It backs no claim of finished work on its own. */
+export type ClaimProofKind = 'file-read' | 'transformed' | 'totals' | 'matched' | 'reconciled' | 'balanced' | 'delegated';
 export type ClaimProof = { kind: ClaimProofKind; toolCallId: string; receiptId: string | null; tableId: string | null };
 export type HarnessLimits = {
   maxTurns: number; // act turns before the forced last step
@@ -1042,7 +1051,7 @@ export type HarnessLimits = {
 };
 export type HarnessState = {
   version: 1;
-  phase: 'act' | 'write' | 'needs-answer' | 'done' | 'stopped';
+  phase: 'act' | 'write' | 'needs-answer' | 'brief' | 'done' | 'stopped'; // 'brief': a heavy-work brief waits for the owner
   limits: HarnessLimits;
   used: { turns: number; toolCalls: number; costMicros: MicroString };
   grant: ToolName[]; // fixed from the playbook when the run starts; every other tool is refused
@@ -1056,6 +1065,7 @@ export type HarnessState = {
   sections: 'reply' | 'report'; // 'report' once a tool run proved a work product
   stopReason: string | null; // plain words when the loop stopped early
   mocks: MockEffect[]; // outside writes the agent proposed: recorded, never carried out
+  delegations?: DelegationRequest[]; // heavy-work briefs, in order; absent on runs made before heavy work
 };
 
 /** A file a client sent, kept in the vault. Its content is client data, except Chausar's made-up practice files. */
@@ -1183,6 +1193,61 @@ export type SandboxProcessRequest = { command: 'docker'; args: string[]; stdin: 
 export type SandboxProcessResponse = { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean; truncated: boolean };
 export type SandboxPorts = { process?: (request: SandboxProcessRequest) => Promise<SandboxProcessResponse> };
 
+/**
+ * Heavy work: the owner's own Claude Code or Codex, already installed and signed in on this computer. Chausar only
+ * launches it; it never reads the tool's login. Each run works in a fresh folder that holds only the order's files
+ * and the brief the owner approved.
+ */
+export const DELEGATE_CLIS = ['claude-code', 'codex'] as const;
+export type DelegateCli = typeof DELEGATE_CLIS[number];
+export type DelegateProcessRequest = { command: string; args: string[]; cwd: string; env: Record<string, string>; stdin: string; timeoutMs: number; maxOutputBytes: number };
+export type DelegateProcessResponse = { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean; truncated: boolean };
+/** Finds the installed tool and runs it. Tests inject a port that points at a fake command-line tool. */
+export type DelegatePorts = {
+  locate(cli: DelegateCli): Promise<string | null>;
+  process(request: DelegateProcessRequest): Promise<DelegateProcessResponse>;
+};
+export type DelegateLimits = { minutes: number; maxTurns: number; budgetMicros: MicroString | null };
+/**
+ * One heavy-work request on a run. 'waiting' until the owner approves or declines the exact brief; 'running' while
+ * the tool works; then 'declined' or 'finished'. The digest covers everything the owner approves.
+ */
+export type DelegationRequest = {
+  toolCallId: string;
+  turn: number;
+  cli: DelegateCli;
+  executable: string;
+  version: string;
+  briefText: string; // the exact text the tool gets, on standard input and as BRIEF.md
+  uploadIds: string[]; // the files copied into the folder, nothing else
+  limits: DelegateLimits;
+  digest: string;
+  status: 'waiting' | 'running' | 'declined' | 'finished';
+  startedAt: IsoTime | null;
+  delegateRunId: string | null;
+};
+/** What a heavy-work run left: files and a log, all untrusted. Money figures count only once the calculator recomputed them. */
+export type DelegateOutput = { name: string; bytes: number; digest: string; text: string | null; note: string | null };
+export type DelegateFigure = { label: string; claimed: string; receiptId: string | null; matches: boolean | null; note: string };
+export type DelegateRunRecord = RecordBase<'venture-delegate-run'> & {
+  runId: string;
+  toolCallId: string;
+  cli: DelegateCli;
+  executable: string;
+  version: string;
+  approvedDigest: string;
+  limits: DelegateLimits;
+  outcome: ExecutionOutcome;
+  exitCode: number | null;
+  reason: string; // plain words, built by code
+  outputs: DelegateOutput[];
+  log: string; // the end of what the tool printed, untrusted
+  reportedCost: string | null; // the cost the tool printed, as it printed it; untrusted, never added to Chausar's spend
+  figures: DelegateFigure[];
+  uncheckedNumbers: number; // numbers in the summary the calculator did not recompute
+  untrusted: true;
+};
+
 // ---------------------------------------------------------------------------
 // 9. Events (the venture actor's broadcast log)
 // ---------------------------------------------------------------------------
@@ -1194,6 +1259,7 @@ export const VENTURE_EVENTS = [
   'brief-ready', 'handoff-prepared', 'handoff-opened', 'repo-linked', 'repo-synced',
   'playbook-ready', 'simulation-finished', 'launch-stage-changed', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'signal-recorded',
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
+  'delivery-brief-waiting', 'delegate-finished',
   'plan-composed',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
@@ -1204,7 +1270,7 @@ export type AnyVentureRecord =
   | PriceReceiptRecord | ClientRecord | OrderRecord | InvoiceRecord | PaymentRecord
   | BriefRecord | HandoffRecord | BuildFollowRecord | GitHubReadRecord
   | PlaybookRecord | SimulationRunRecord | DeliveryRunRecord | SignalRecord | VentureEventRecord
-  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | CompositionRecord;
+  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | DelegateRunRecord | CompositionRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 // ---------------------------------------------------------------------------
@@ -1235,6 +1301,8 @@ export const VENTURE_METHODS = [
   // P5 delivery harness: client files, hand-off answers, work receipts, the gated improvement loop
   'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get',
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
+  // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
+  'venture.delivery.delegate', 'venture.delegate.get',
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
@@ -1269,6 +1337,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.capabilities': 'delivery',
   'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
+  'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -1277,7 +1346,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
-  'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt',
+  'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
 ] as const);
 /** Methods whose success changes what saved answers may cite; the renderer adds them to evidenceChanges. */
@@ -1340,6 +1409,8 @@ export type VenturePayloads = {
   'venture.files.add': { orderId: string; name: string; contentBase64: string };
   'venture.files.list': { orderId?: string };
   'venture.delivery.answer': { runId: string; answer: string };
+  'venture.delivery.delegate': { runId: string; digest: string; decision: 'approve' | 'decline' };
+  'venture.delegate.get': { id: string };
   'venture.work.get': { id: string };
   'venture.improve.status': Empty;
   'venture.improve.run': { maxRounds?: number; useTemplate?: boolean };
@@ -1407,6 +1478,8 @@ export type VentureResults = {
   'venture.files.add': UploadView;
   'venture.files.list': UploadView[];
   'venture.delivery.answer': DeliveryRunView;
+  'venture.delivery.delegate': DeliveryRunView;
+  'venture.delegate.get': DelegateRunRecord;
   'venture.work.get': WorkReceiptRecord;
   'venture.improve.status': ImprovementStatus;
   'venture.improve.run': ImprovementRunRecord;
@@ -1450,6 +1523,7 @@ export const VENTURE_ERRORS = [
   'UPLOAD_NOT_FOUND', 'UPLOAD_LIMIT', 'UNSUPPORTED_UPLOAD', 'WORK_RECEIPT_NOT_FOUND', 'DELIVERY_NOT_ASKING',
   'TOOL_DENIED', 'TOOL_INPUT_INVALID', 'TOOL_FAILED', 'TOOL_TIMEOUT', 'TOOL_SKIPPED', 'TIER_UNAVAILABLE', 'PROGRAM_INVALID', 'SANDBOX_FAILED', 'HARNESS_LIMIT',
   'IMPROVEMENT_NOT_FOUND', 'IMPROVEMENT_NOT_READY', 'CANDIDATE_STALE',
+  'DELIVERY_NOT_BRIEFING', 'DELEGATE_DECLINED', 'DELEGATE_FAILED', 'DELEGATE_RUN_NOT_FOUND',
   // Onboarding v2: the composer before the vault
   'COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE',
 ] as const;
@@ -1500,6 +1574,8 @@ export type VentureDeps = {
   storage: VentureStorage; // 'experimental-file' means every money screen shows the experimental notice
   /** The container tier's Docker port. Absent means the real one, which spawns docker only when Docker is present, and never on the hosted web server. */
   sandbox?: SandboxPorts;
+  /** Heavy work's port. Absent means the real one on the desktop and in local web mode, and none anywhere else. */
+  delegate?: DelegatePorts;
   /** The engine's draft desk, so venture.create can adopt the AI and plan made before the vault. Absent on hosted. */
   draft?: DraftHandoverPort;
   /** Whether Chausar has accepted Anthropic's terms for running Claude Code. Absent means 'pending'. */
@@ -1535,6 +1611,7 @@ export type VentureHostOptions = {
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
   hostProcess?: (request: any) => Promise<any>; // the trusted host's verified process port (the gateway's process), when present
   sandbox?: SandboxPorts; // tests inject a Docker port; the real one is used otherwise
+  delegate?: DelegatePorts; // tests inject a port to a fake command-line tool
   /** Trusted host composition, never from a payload: the engine's draft desk handover. */
   draft?: DraftHandoverPort;
   /** From CHAUSAR_CLAUDE_CODE_TERMS ('accepted' opens it). Absent or anything else is 'pending': Claude Code needs setup. */

@@ -1,6 +1,8 @@
 // Chausar delivery harness: when a draft may say work was done. A done claim ("we matched each payment", "your
 // books are reconciled") is allowed only when a tool run in the same run proves that kind of work. Sending, filing
-// and posting are never proven: this build does no outside writes, so those claims always fail.
+// and posting are never proven: this build does no outside writes, so those claims always fail. Heavy work done by the
+// owner's own command-line tool ('delegated') backs no claim either: its words are untrusted. Only the calculator's
+// receipts on figures it worked out again count, as totals.
 import type { ClaimProof, ClaimProofKind } from '../../contracts.ts';
 
 const WORK: readonly ClaimProofKind[] = ['transformed', 'totals', 'reconciled'];
