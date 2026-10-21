@@ -2,7 +2,8 @@
 //   node platform/runtime/hosted/server.ts --hosted --dev      (npm run start:hosted: http://localhost:4320, development outbox)
 // Every response carries a strict content policy. Every POST must come from the configured origin. Sessions live in
 // HttpOnly SameSite=Strict cookies; /api/rpc also needs the page's bearer, an HMAC of the session id. The renderer is the
-// same app.js and launch.js as the desktop, told by one meta tag that it runs hosted.
+// same app.js and launch.js as the desktop, told by one meta tag that it runs hosted. With --ink or CHAUSAR_UI=ink (the
+// local server's switch), /app/ serves the built Ink app instead, from an allowlist of app/ui/dist made at startup.
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { randomBytes } from 'node:crypto';
@@ -18,10 +19,11 @@ import { HostedCustody } from './custody.ts';
 import { FileDirectory, PostgresDirectory, type HostedDirectory } from './directory.ts';
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
 import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
+import { INK_ROOT, INK_TYPES, listInkFiles } from '../ui-ink.ts';
 
 const rendererDir = fileURLToPath(new URL('../../../app/renderer/', import.meta.url));
 const hostedDir = fileURLToPath(new URL('../../../app/hosted/', import.meta.url));
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES: Readonly<Record<string, string>> = INK_TYPES; // html, js, css, svg, and the Ink build's fonts and data
 const STATIC: Record<string, [string, string]> = {
   '/': [hostedDir, 'index.html'], '/index.html': [hostedDir, 'index.html'], '/hosted.js': [hostedDir, 'hosted.js'], '/hosted.css': [hostedDir, 'hosted.css'],
   '/assets/icon.svg': [rendererDir, 'assets/icon.svg'],
@@ -39,6 +41,8 @@ export type HostedServerOptions = {
   maxBodyBytes: number;
   /** Loaded certificate files when tls.kind is 'files'. */
   certificate?: { cert: Buffer; key: Buffer };
+  /** The built Ink app and its allowlist (listInkFiles), served at /app/ in place of the old renderer. */
+  ink?: { folder: string; files: Record<string, string> };
 };
 
 const statusOf = (code: string | undefined) => {
@@ -91,6 +95,12 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
   const names = secure ? { session: '__Host-chausar-session', browser: '__Host-chausar-browser' } : { session: 'chausar-session', browser: 'chausar-browser' };
   const streams = new Map<string, number>();
   let closing = false;
+  /** The files served as they are. With Ink, everything under /app/ comes from the Ink build's own allowlist. */
+  const ink = options.ink ?? null;
+  const staticFile = (path: string): readonly [string, string] | null => {
+    if (ink && path.startsWith('/app/')) { const key = path.slice('/app'.length); return Object.hasOwn(ink.files, key) ? [ink.folder, ink.files[key]] : null; }
+    return Object.hasOwn(STATIC, path) ? STATIC[path] : null;
+  };
 
   const cookie = (name: string, value: string, maxAgeSeconds: number) =>
     `${name}=${value}; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}; Max-Age=${maxAgeSeconds}`;
@@ -136,8 +146,9 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
 
       if (req.method === 'GET' || req.method === 'HEAD') {
         if (url.pathname === '/app') { res.writeHead(308, { Location: '/app/' }); res.end(); return; }
-        if (Object.hasOwn(STATIC, url.pathname)) {
-          const [base, file] = STATIC[url.pathname];
+        const found = staticFile(url.pathname);
+        if (found) {
+          const [base, file] = found;
           let data: Buffer | string = await readFile(join(base, file));
           if (url.pathname === '/app/' || url.pathname === '/app/index.html') {
             data = data.toString('utf8').replace('<head>', `<head>\n  ${HOSTED_META}`).replace('Opening your local workspace', 'Opening your workspace');
@@ -289,6 +300,8 @@ async function openDirectory(config: HostedConfig, custody: HostedCustody, conne
  */
 export async function startHosted(config: HostedConfig, print: (line: string) => void = line => console.log(line),
   connect: (options: NonNullable<HostedConfig['postgres']>) => Promise<PostgresPool> = options => openLoopbackPool(options, 'chausar-hosted')) {
+  // Listed before anything opens, so an unbuilt Ink app stops the start with its own plain reason (UI_NOT_BUILT).
+  const ink = config.ui === 'ink' ? { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) } : undefined;
   await mkdir(config.dataDirectory, { recursive: true, mode: 0o700 });
   const custody = config.custody.kind === 'env' ? HostedCustody.fromKey(config.custody.key) : await devCustody(config.dataDirectory);
   const { directory, pool } = await openDirectory(config, custody, connect);
@@ -306,7 +319,7 @@ export async function startHosted(config: HostedConfig, print: (line: string) =>
     }
     const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool });
     const certificate = config.tls.kind === 'files' ? { cert: await readFile(config.tls.cert), key: await readFile(config.tls.key) } : undefined;
-    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate });
+    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate, ...(ink ? { ink } : {}) });
     app.startHousekeeping();
     return { app, http, custody };
   } catch (error) { await directory.close().catch(() => {}); throw error; }
@@ -324,6 +337,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     : 'Businesses are kept in experimental encrypted file storage. Practise here; nothing is deployed.');
   if (config.custody.kind === 'dev-file') console.log(`Development custody key in ${join(config.dataDirectory, 'dev-custody.key')}. Never use it for real accounts.`);
   if (config.mailer === 'dev-outbox') console.log('Sign-in links are printed here, not emailed.');
+  if (config.ui === 'ink') console.log('The app at /app/ is the Ink app, from app/ui/dist.');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void http.close().finally(() => process.exit(0)); });
 }
 

@@ -43,6 +43,16 @@ export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | '
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string }
 // phase 2 views
 export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string }
+/** venture.spend.policy.get/set. Micro figures are whole micro-USD strings, sent back as they came; the UI shows the Display fields. */
+export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
+export interface SpendRateLine {
+  item: string; unit: SpendRateUnit; inputMicrosPerMillion: string | null; outputMicrosPerMillion: string | null; microsPerCall: string | null;
+  source: string; checkedOn: string; confirmed: boolean; by: 'list' | 'owner'; price: Display;
+}
+export interface SpendRateInput {
+  item: string; unit: SpendRateUnit; inputMicrosPerMillion?: string | null; outputMicrosPerMillion?: string | null; microsPerCall?: string | null; source: string; checkedOn: string;
+}
+export interface SpendPolicyView { capMicros: string | null; askFirstMicros: string | null; cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null }
 export interface JournalEntry { id: string; action: string; target: string; state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; at: string; line: Display; receiptId?: string }
 export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean }
 
@@ -314,6 +324,8 @@ export interface EngineMethods {
   'venture.team.list': { params: Record<string, never>; result: { agents: AgentView[] } };
   'venture.team.gate': { params: { agentId: string; stepId: string; gate: 'auto' | 'hold' }; result: { agent: AgentView } };
   'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display } };
+  'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
+  'venture.spend.policy.set': { params: { cap?: string | null; askFirst?: string | null; rates?: SpendRateInput[] }; result: SpendPolicyView };
   'venture.journal.list': { params: { limit?: number }; result: { entries: JournalEntry[] } };
   'venture.evidence.list': { params: { subject?: string }; result: { items: EvidenceItem[] } };
   'venture.evidence.apply': { params: { id: string }; result: { item: EvidenceItem } };

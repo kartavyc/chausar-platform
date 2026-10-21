@@ -150,6 +150,27 @@ test('main.cjs lets only the app window write to the clipboard and refuses every
   assert.equal(await asked(window.webContents, 'clipboard-sanitized-write'), false);
 });
 
+test('main.cjs keeps clipboard writes for the Ink page on a hash route, by the same rule as the IPC sender check', async () => {
+  const d = await desktop();
+  const window = d.windows[0];
+  const asked = (contents: unknown, permission: string) => new Promise<boolean>(accept => d.permissions.request(contents, permission, accept));
+  for (const url of ['chausar://app/index.html#/today', 'chausar://app/index.html#/money/invoices?sheet=receipt%3AR-0418']) {
+    window.loadURL(url);
+    assert.equal(d.permissions.check(window.webContents, 'clipboard-sanitized-write'), true, url);
+    assert.equal(await asked(window.webContents, 'clipboard-sanitized-write'), true, url);
+    assert.equal(d.permissions.check(window.webContents, 'clipboard-read'), false, url);
+  }
+  for (const url of ['chausar://app/index.html?x#/today', 'chausar://app/index.html#<script>', 'chausar://app/index.html#today', 'chausar://app/other.html#/today', 'https://example.com/#/today']) {
+    window.loadURL(url);
+    assert.equal(d.permissions.check(window.webContents, 'clipboard-sanitized-write'), false, url);
+    assert.equal(await asked(window.webContents, 'clipboard-sanitized-write'), false, url);
+  }
+  // The one rule lives in the IPC contract, so the two checks can never drift apart.
+  assert.equal(ipc.isTrustedDocument('chausar://app/index.html#/team'), true);
+  assert.equal(ipc.isTrustedDocument('chausar://app/index.html?x#/team'), false);
+  assert.equal(ipc.isTrustedDocument(undefined), false);
+});
+
 test('preload.cjs exposes openExternal, which invokes the open-external channel and rethrows coded failures', async () => {
   const exposed: Record<string, any> = {};
   const invocations: [string, unknown][] = [];

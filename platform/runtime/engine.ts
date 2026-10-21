@@ -1518,6 +1518,8 @@ export class Engine {
       case 'venture.payment.record':
       case 'venture.books.summary':
       case 'venture.spend.list':
+      case 'venture.spend.policy.get':
+      case 'venture.spend.policy.set':
       case 'venture.build.brief':
       case 'venture.build.handoff':
       case 'venture.build.handoffOpened':
@@ -1555,6 +1557,16 @@ export class Engine {
       case 'venture.team.gate':
       case 'venture.evidence.list':
       case 'venture.evidence.apply':
+      case 'venture.journal.list':
+      case 'venture.bank.import':
+      case 'venture.bank.consent':
+      case 'venture.site.stage':
+      case 'venture.site.apply':
+      case 'venture.site.revert':
+      case 'venture.leads.add':
+      case 'venture.leads.list':
+      case 'venture.leads.draft':
+      case 'venture.leads.recordSend':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

@@ -4,16 +4,19 @@
 // - 'owner-browser-session' drives the owner's own signed-in browser on this computer, only when Playwright with
 //   Chromium is already here, after the owner approves each post. It always carries "The platform may restrict this account."
 // - 'handoff': the engine prepares the link or the text, but no screen opens it yet, so it is planned.
-// Every post is one journal entry: described, then approved (a claim committed before the browser starts), then applied,
-// rejected or outcome_unknown. An unknown outcome is never retried: the owner checks the platform and records it.
+// Every post is one journalled record, moved by the general action journal (venture/journal/): described, then approved
+// inside the app with a token bound to the post's digest, the owner, the session and the business, then claimed in its
+// own commit before the browser starts, then applied, rejected or outcome_unknown. An agent's proposal waits fifteen
+// minutes. An unknown outcome is never retried: the owner checks the platform and records it.
 // Not built, on purpose: proxy or VPN rotation, hiding the automation, posting to accounts that are not the owner's.
 // The described / approved / applied journal follows cloudflare/cloudflare-os (Apache-2.0); this is a rewrite, not a copy.
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type {
-  BrowserPort, BrowserPostResult, BrowserProbe, ConnectorPorts, ConnectorPostRecord, ConnectorPostState, PostingModeName, PostingOption,
+  BrowserPort, BrowserPostResult, BrowserProbe, ConnectorPorts, ConnectorPostRecord, JournalEntry, PostingModeName, PostingOption,
   VentureDeps,
 } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, identifier, isAppChannel, listRecords, plainText, singleLine, ventureAction } from '../records.ts';
+import { AGENT_WINDOW_MS, JOURNAL_ACTIONS, applyAction, approveAction, rejectAction, resolveUnknown, sweepJournal } from '../journal/journal.ts';
 import { playwrightBrowserPort } from './browser.ts';
 
 export const OWNER_SESSION_RISK = 'The platform may restrict this account.';
@@ -169,14 +172,11 @@ export async function proposePost(deps: VentureDeps, ctx: Context, payload: unkn
       ...tx.base('venture-connector-post'), connectorId: profile.id, mode, account, text, agent, digest: '', state: 'described', describe,
       risk: chosen.risk, claimedAt: null, decidedBy: null, outcome: null,
       journal: [{ state: 'described', at: tx.now, by: agent ?? ctx.memberId, line: describe }],
+      approval: null, expiresAt: new Date(Date.parse(tx.now) + AGENT_WINDOW_MS).toISOString(),
     };
     record.digest = postDigest(record);
     return tx.put(record);
   });
-}
-
-function step(post: ConnectorPostRecord, state: ConnectorPostState, at: string, by: string, line: string): ConnectorPostRecord {
-  return { ...post, state, journal: [...post.journal, { state, at, by, line }] };
 }
 
 function requireWaiting(post: ConnectorPostRecord | undefined, postDigestSeen: string): ConnectorPostRecord {
@@ -193,6 +193,8 @@ function findPost(state: State, id: string): ConnectorPostRecord | undefined {
 function nameOf(connectorId: string): string {
   return PROFILES[connectorId]?.name ?? connectorId;
 }
+/** The platform's name as people see it: 'X', 'LinkedIn'. The journal list shows it as the post's target. */
+export const postingName = nameOf;
 
 function timeouts(deps: VentureDeps): { step: number; whole: number } {
   const stepMs = portsOf(deps).postTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
@@ -230,8 +232,9 @@ function unknownLine(connectorId: string): string {
 export type PostDecision = { outcome: 'done' | 'refused'; line: string; post: ConnectorPostRecord };
 
 /**
- * The owner approves or denies one post, inside the app. Approve commits the claim first, then runs the browser or API
- * once, then commits what happened. Decide-once: a second decision is refused.
+ * The owner approves or denies one post, inside the app, through the general journal. Approve mints a token bound to
+ * this post, commits the claim on its own, then runs the browser or API once, then commits what happened. The token
+ * goes from the approval to the apply in memory and is never stored. Decide-once: a second decision is refused.
  */
 export async function decidePost(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PostDecision> {
   const body = exactPayload(payload, ['postId', 'digest', 'action'], ['postId', 'digest', 'action']);
@@ -243,40 +246,27 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
   const seen = body.digest;
 
   if (body.action === 'deny') {
-    return ventureAction(deps, ctx, 'approve', 'connector.post.deny', tx => {
-      const post = requireWaiting(tx.find('venture-connector-post', postId), seen);
-      const line = 'You chose not to post this.';
-      const next = { ...step(post, 'rejected', tx.now, ctx.memberId, line), decidedBy: ctx.memberId, outcome: { line, url: null, by: 'owner' as const } };
-      return { outcome: 'done' as const, line, post: tx.replace(next) };
-    });
+    requireWaiting(findPost(deps.store.read(), postId), seen);
+    const line = 'You chose not to post this.';
+    const post = await rejectAction(deps, ctx, { entryId: postId, digest: seen, line }) as ConnectorPostRecord;
+    return { outcome: 'done', line, post };
   }
 
   const waiting = requireWaiting(findPost(deps.store.read(), postId), seen);
   const option = postingOptions(waiting.connectorId, await postingEnvironment(deps)).find(item => item.mode === waiting.mode);
   check(option?.status === 'available', 'NOT_BUILT_YET', option?.reason ?? 'This way of posting is not in this build.');
 
-  const claimed = await ventureAction(deps, ctx, 'approve', 'connector.post.approve', tx => {
-    const post = requireWaiting(tx.find('venture-connector-post', postId), seen);
-    const next = { ...step(post, 'approved', tx.now, ctx.memberId, 'You approved this post. Chausar claimed it before starting.'), claimedAt: tx.now, decidedBy: ctx.memberId };
-    return tx.replace(next);
-  });
-
-  const result = await runPost(deps, claimed);
-
-  return ventureAction(deps, ctx, 'approve', 'connector.post.settle', tx => {
-    const post = tx.find('venture-connector-post', postId);
-    check(post, 'POST_NOT_FOUND', 'This post is no longer here.');
-    if (post.state !== 'approved') return { outcome: 'done' as const, line: post.outcome?.line ?? post.journal[post.journal.length - 1].line, post };
-    if (result.outcome === 'posted') {
-      const line = `Posted to ${nameOf(post.connectorId)}. ${result.line}`;
-      return { outcome: 'done' as const, line, post: tx.replace({ ...step(post, 'applied', tx.now, 'platform', result.line), outcome: { line: result.line, url: result.url, by: 'platform' as const } }) };
-    }
-    if (result.outcome === 'not-sent') {
-      return { outcome: 'done' as const, line: result.line, post: tx.replace({ ...step(post, 'rejected', tx.now, 'platform', result.line), outcome: { line: result.line, url: null, by: 'platform' as const } }) };
-    }
+  const { token } = await approveAction(deps, ctx, { entryId: postId, digest: seen, line: 'You approved this post.' });
+  const done = await applyAction(deps, ctx, { entryId: postId, token, idempotencyKey: `${postId}.post` }, async handle => {
+    const post = handle.entry as ConnectorPostRecord;
+    const result = await runPost(deps, post);
+    if (result.outcome === 'posted') return { outcome: 'applied', line: result.line, url: result.url, by: 'platform', value: `Posted to ${nameOf(post.connectorId)}. ${result.line}` };
+    if (result.outcome === 'not-sent') return { outcome: 'not-sent', line: result.line, by: 'platform', value: result.line };
     const line = `${result.line} ${unknownLine(post.connectorId)}`;
-    return { outcome: 'done' as const, line, post: tx.replace({ ...step(post, 'outcome_unknown', tx.now, 'engine', line), outcome: { line, url: null, by: 'engine' as const } }) };
+    return { outcome: 'unknown', line, value: line };
   });
+  const post = done.entry as ConnectorPostRecord;
+  return { outcome: 'done', line: done.value ?? post.outcome?.line ?? post.journal[post.journal.length - 1].line, post };
 }
 
 /** After an unknown outcome the owner looks at the platform and records what they found. Nothing is sent. */
@@ -285,30 +275,26 @@ export async function resolveUnknownPost(deps: VentureDeps, ctx: Context, payloa
   const postId = identifier(body.postId, 'postId');
   check(body.found === 'posted' || body.found === 'not-posted', 'INVALID_VENTURE_REQUEST', 'Say whether you found the post.');
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Record this inside the Chausar app.');
-  return ventureAction(deps, ctx, 'approve', 'connector.post.resolve', tx => {
-    const post = tx.find('venture-connector-post', postId);
-    check(post, 'POST_NOT_FOUND', 'This post is not here.');
-    check(post.state === 'outcome_unknown', 'POST_ALREADY_DECIDED', 'This post already has an outcome.');
-    const name = nameOf(post.connectorId);
-    const posted = body.found === 'posted';
-    const line = posted ? `You checked ${name}: the post went out.` : `You checked ${name}: the post did not go out. Propose it again to post it.`;
-    return tx.replace({ ...step(post, posted ? 'applied' : 'rejected', tx.now, ctx.memberId, line), outcome: { line, url: null, by: 'owner' } });
-  });
+  const post = findPost(deps.store.read(), postId);
+  check(post, 'POST_NOT_FOUND', 'This post is not here.');
+  check(post.state === 'outcome_unknown', 'POST_ALREADY_DECIDED', 'This post already has an outcome.');
+  const name = nameOf(post.connectorId);
+  const posted = body.found === 'posted';
+  const line = posted ? `You checked ${name}: the post went out.` : `You checked ${name}: the post did not go out. Propose it again to post it.`;
+  return await resolveUnknown(deps, ctx, { entryId: postId, found: posted ? 'applied' : 'not-applied', line }) as ConnectorPostRecord;
 }
 
-/** After a crash: a post claimed longer ago than any run could take may or may not have gone out. Never resent. */
+/**
+ * After a crash: a post claimed longer ago than any run could take may or may not have gone out, so it is
+ * outcome_unknown and never resent. A proposal nobody decided in fifteen minutes is closed. The general journal sweep.
+ */
 export async function sweepStaleClaims(deps: VentureDeps, ctx: Context): Promise<ConnectorPostRecord[]> {
-  const limit = timeouts(deps).whole + SWEEP_MARGIN_MS;
-  return ventureAction(deps, ctx, 'prepare', 'connector.post.sweep', tx => {
-    const now = Date.parse(tx.now);
-    const swept: ConnectorPostRecord[] = [];
-    for (const post of tx.list('venture-connector-post')) {
-      if (post.state !== 'approved' || !post.claimedAt || now - Date.parse(post.claimedAt) < limit) continue;
-      const line = `Chausar stopped while posting. ${unknownLine(post.connectorId)}`;
-      swept.push(tx.replace({ ...step(post, 'outcome_unknown', tx.now, 'engine', line), outcome: { line, url: null, by: 'engine' } }));
-    }
-    return swept;
+  const claimLimitMs = timeouts(deps).whole + SWEEP_MARGIN_MS;
+  const swept = await sweepJournal(deps, ctx, {
+    claimLimitMs, action: 'connector.post',
+    unknownLine: record => `Chausar stopped while posting. ${unknownLine(record.kind === 'venture-connector-post' ? record.connectorId : record.target)}`,
   });
+  return swept.filter((record): record is ConnectorPostRecord => record.kind === 'venture-connector-post');
 }
 
 // ---------------------------------------------------------------------------
@@ -356,20 +342,22 @@ export async function decideConnectorRow(deps: VentureDeps, ctx: Context, payloa
       const latest = connectorQueueRows(deps.store.read()).find(row => row.id === payload.id);
       return { outcome: 'stale', line: 'This changed since you opened it.', reason: error.message, ...(current ? { post: current } : {}), ...(latest ? { latest } : {}) };
     }
-    if (['POST_ALREADY_DECIDED', 'POST_NOT_FOUND', 'NOT_BUILT_YET'].includes(error.code)) {
+    // The journal's own refusals too: an expired proposal, an approval under way, an unknown outcome.
+    if (['POST_ALREADY_DECIDED', 'POST_NOT_FOUND', 'NOT_BUILT_YET'].includes(error.code) || error.code.startsWith('JOURNAL_')) {
       return { outcome: 'refused', line: error.message, reason: error.code, ...(current ? { post: current } : {}) };
     }
     throw error;
   }
 }
 
-export type PostJournalEntry = { id: string; action: 'post'; target: string; state: ConnectorPostState; at: string; line: string };
-
-/** Every post as a journal entry, newest first. */
-export function postJournal(state: State): PostJournalEntry[] {
-  return listRecords(state, 'venture-connector-post').map(post => {
+/**
+ * Every post as a JournalEntry, newest first: one business when ventureId is given. venture.journal.list
+ * (journal/list.ts) shows these beside the other journalled effects.
+ */
+export function postJournal(state: State, ventureId?: string): JournalEntry[] {
+  return listRecords(state, 'venture-connector-post', ventureId).map(post => {
     const last = post.journal[post.journal.length - 1];
-    return { id: post.id, action: 'post' as const, target: nameOf(post.connectorId), state: post.state, at: last.at, line: last.line };
+    return { id: post.id, action: JOURNAL_ACTIONS['connector.post'].label, target: nameOf(post.connectorId), state: post.state, at: last?.at ?? post.at, line: last?.line ?? post.describe };
   }).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 }
 

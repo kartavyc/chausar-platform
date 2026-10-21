@@ -72,7 +72,7 @@ test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_OR
 
 test('3. available modes are exactly what this build does; everything else is planned and unqualified', () => {
   assert.deepEqual(availableIds('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
-  assert.deepEqual(availableIds('read'), ['chausar-books', 'chausar-crm', 'github', 'tally']);
+  assert.deepEqual(availableIds('read'), ['bank-account', 'chausar-books', 'chausar-crm', 'github', 'tally']);
   assert.deepEqual(availableIds('write'), ['chausar-books', 'chausar-crm']);
 
   const byId = new Map(cards().map(card => [card.id, card]));
@@ -103,7 +103,12 @@ test('3. available modes are exactly what this build does; everything else is pl
   assert.deepEqual(byId.get('lovable')!.chips, ['handoff', 'planned: read', 'planned: write']);
   assert.deepEqual(byId.get('github')!.chips, ['read', 'planned: handoff', 'planned: write']);
   assert.match(mode('github', 'write')!.what, /grant write access\. Chausar only reads today\./);
-  assert.deepEqual(byId.get('bank-account')!.chips, ['planned: read']);
+  assert.match(mode('github', 'write')!.what, /stage an edit from it/);
+  assert.deepEqual(byId.get('bank-account')!.chips, ['read']);
+  assert.deepEqual(mode('bank-account', 'read'), {
+    mode: 'read', status: 'available', qualification: 'built-in',
+    what: 'Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.',
+  });
   assert.deepEqual(byId.get('youtube')!.chips, ['planned: handoff', 'planned: write']);
   assert.deepEqual(byId.get('chausar-books')!.chips, ['read', 'write']);
   assert.deepEqual(byId.get('mail-app')!.chips, ['handoff']);
@@ -173,9 +178,12 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the seven owned methods', () => {
+test('7. handlers keys equal the sixteen owned methods', () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
+    'venture.bank.consent', 'venture.bank.import',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.leads.add', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage',
   ]);
 });
 

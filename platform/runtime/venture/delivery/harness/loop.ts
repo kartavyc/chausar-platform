@@ -6,15 +6,20 @@
 // Each act turn is one round: the manager plans it (the turn's note and calls), the executor runs one step per call,
 // and the read-only auditor (judge/auditor.ts) checks each step's real output. Only audited steps add proofs, and
 // every round goes into the round ledger on the run.
+// The policy (venture/policy) checks each call before it runs. A call it holds ends the turn like a hand-off: the owner
+// gets a question, and an approval lets exactly that call run once in the next turn. Starting heavy work is an outside
+// effect on the owner's own signed-in tool, so it needs the owner's approval bound to the brief.
 import { check } from '../../../contracts.ts';
 import { assertNoNumbers, tidyWords } from '../../records.ts';
 import { REQUIRED_SECTIONS } from '../../contracts.ts';
 import type {
-  AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, ServiceType, ToolEnvelope, ToolName,
+  AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
   UploadFormat, VentureHostKind, WorkReceiptRecord,
 } from '../../contracts.ts';
 import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type FigureRefEntry } from '../deliverable.ts';
 import { auditStep, notRunStep } from '../judge/auditor.ts';
+import { decideHold, gateEffect, holdQuestion } from '../../policy/holds.ts';
+import type { Approval } from '../../policy/ladder.ts';
 import { callTool, MAX_INPUT_CHARS, offeredTools, receiptAlias, ROW_LANGUAGE, toolManifest, type ToolEnv } from './tools.ts';
 
 export const DEFAULT_LIMITS: HarnessLimits = Object.freeze({
@@ -184,6 +189,7 @@ const PROOF_WORK = new Set(['transformed', 'totals', 'reconciled', 'matched', 'b
 
 /**
  * Runs the turn's tool calls in order and moves the loop on. A hand-off ends the turn: later calls are cancelled.
+ * A call the policy holds ends it the same way, as a question for the owner; it did not run and does not count.
  * The run's tool call limit cancels the rest too. Tables and receipts the tools made are returned for storing.
  * The auditor checks each step that ran; only an audited step's proofs join the run. The round goes into the ledger.
  */
@@ -197,6 +203,7 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
   next.rounds = [...(next.rounds ?? []), round];
   let handoff: { to: 'client' | 'owner'; question: string } | null = null;
   let delegated: NonNullable<HarnessState['delegations']>[number] | null = null;
+  let held: PolicyHold | null = null;
   for (const [index, call] of turn.calls.entries()) {
     const cancelled = (code: string, message: string) => {
       const id = `t${number}.${index + 1}`;
@@ -208,8 +215,20 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     };
     if (handoff) { cancelled('TOOL_SKIPPED', 'A hand-off ended this turn, so this call did not run.'); continue; }
     if (delegated) { cancelled('TOOL_SKIPPED', 'A heavy-work brief ended this turn, so this call did not run.'); continue; }
+    if (held) { cancelled('TOOL_SKIPPED', 'A call on hold ended this turn, so this call did not run.'); continue; }
     if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The run used all its tool calls.'); continue; }
-    const outcome = await callTool(env, next.grant, number, index, call);
+    const outcome = await callTool(env, next.grant, number, index, call, next.holds ?? []);
+    if (outcome.hold) {
+      next.toolCalls.push(outcome.record);
+      round.steps.push(notRunStep(outcome.record.id, outcome.record.tool, outcome.hold.reason));
+      held = {
+        id: `h${number}.${index + 1}`, toolCallId: outcome.record.id, tool: outcome.hold.tool, stepId: outcome.hold.stepId, inputDigest: outcome.hold.inputDigest,
+        code: outcome.hold.code, reason: outcome.hold.reason, turn: number, handoff: next.handoffs.length, status: 'waiting', validTurn: null,
+      };
+      continue;
+    }
+    const used = outcome.verdict?.holdId ? next.holds?.find(hold => hold.id === outcome.verdict!.holdId) : undefined;
+    if (used) used.status = 'used';
     const audit = auditStep(env, outcome);
     round.steps.push({ toolCallId: outcome.record.id, tool: outcome.record.tool, ...audit });
     if (audit.audited) round.progress += 1;
@@ -233,6 +252,12 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     next.phase = 'needs-answer';
     return next;
   }
+  if (held) {
+    next.holds = [...(next.holds ?? []), held];
+    next.handoffs.push({ to: 'owner', question: holdQuestion(held).slice(0, 300), turn: number, answer: null, answeredBy: null });
+    next.phase = 'needs-answer';
+    return next;
+  }
   return settle(next, turn.finished);
 }
 
@@ -247,13 +272,14 @@ function settle(state: HarnessState, finished: boolean): HarnessState {
   return state;
 }
 
-/** Records the answer to the open hand-off and moves the loop on. */
+/** Records the answer to the open hand-off and moves the loop on. When the question was a held call, the answer decides it. */
 export function answerHandoff(state: HarnessState, answer: string, by: 'owner' | 'practice-client'): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = next.handoffs.findLast(handoff => handoff.answer === null);
   check(open && next.phase === 'needs-answer', 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
   open.answer = answer;
   open.answeredBy = by;
+  decideHold(next, next.handoffs.indexOf(open), answer, by);
   return settle(next, false);
 }
 
@@ -263,11 +289,15 @@ export function openDelegation(state: HarnessState): NonNullable<HarnessState['d
   return (state.delegations ?? []).findLast(item => item.status === 'waiting' || item.status === 'running') ?? null;
 }
 
-/** Marks the open brief as running: claimed once, so a second approval finds it taken. */
-export function startDelegation(state: HarnessState, startedAt: string): HarnessState {
+/**
+ * Marks the open brief as running: claimed once, so a second approval finds it taken. Starting it is an outside effect
+ * on the owner's own signed-in tool, on the always-ask floor: only the owner's approval of this brief's digest opens it.
+ */
+export function startDelegation(state: HarnessState, startedAt: string, approval: Approval = { kind: 'none' }): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = openDelegation(next);
   check(open && open.status === 'waiting', 'DELIVERY_NOT_BRIEFING', 'This draft reply is not waiting for a brief to be approved.');
+  gateEffect({ name: 'delegate.start', digest: open.digest }, approval);
   open.status = 'running';
   open.startedAt = startedAt;
   return next;

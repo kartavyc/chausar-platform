@@ -5,6 +5,9 @@ import { writeBrief } from './brief.ts';
 import { listConnectors } from './connectors.ts';
 import { buildStatus, linkRepo, syncRepo } from './github.ts';
 import { markHandoffOpened, prepareHandoff } from './handoff.ts';
+import { bankConsent, bankImport } from './bank-methods.ts';
+import { siteApply, siteRevert, siteStage } from './site-methods.ts';
+import { leadsAdd, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -22,6 +25,16 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.build.sync': sync,
   'venture.build.status': status,
   'venture.connectors.list': connectors,
+  // Connectors made real (P2-connectors' shapes as methods): statement import and consent, staged website edits, leads.
+  'venture.bank.import': bankImport satisfies VentureHandler<'venture.bank.import'>,
+  'venture.bank.consent': bankConsent satisfies VentureHandler<'venture.bank.consent'>,
+  'venture.site.stage': siteStage satisfies VentureHandler<'venture.site.stage'>,
+  'venture.site.apply': siteApply satisfies VentureHandler<'venture.site.apply'>,
+  'venture.site.revert': siteRevert satisfies VentureHandler<'venture.site.revert'>,
+  'venture.leads.add': leadsAdd satisfies VentureHandler<'venture.leads.add'>,
+  'venture.leads.list': leadsList satisfies VentureHandler<'venture.leads.list'>,
+  'venture.leads.draft': leadsDraft satisfies VentureHandler<'venture.leads.draft'>,
+  'venture.leads.recordSend': leadsRecordSend satisfies VentureHandler<'venture.leads.recordSend'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

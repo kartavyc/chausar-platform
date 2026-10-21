@@ -1,0 +1,12 @@
+{
+  "label": "synthetic recording",
+  "note": "Hand-written rules judge ballot that votes yes on every rule but cites an event id the run never had, for the venture delivery tests. Code must not count these votes. Not captured from a live account.",
+  "output": {
+    "votes": [
+      { "rule": "goal-met", "answer": "yes", "cites": ["t9.9"], "quote": "", "reason": "Looks fine." },
+      { "rule": "tone-fits", "answer": "yes", "cites": ["t9.9"], "quote": "", "reason": "Looks fine." },
+      { "rule": "policy-followed", "answer": "yes", "cites": ["t9.9"], "quote": "", "reason": "Looks fine." },
+      { "rule": "no-unbacked-claims", "answer": "yes", "cites": ["t9.9"], "quote": "", "reason": "Looks fine." }
+    ]
+  }
+}

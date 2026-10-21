@@ -3,36 +3,25 @@
 // Each step has a gate: 'hold' asks the owner, 'auto' lets the step run. Gates start on hold. Steps in the always-ask
 // floor (money out, sending to a client or the public, deleting, changing prices, anything on a government portal)
 // stay on hold at every posture, so a request to set one to auto is refused with GATE_FLOOR. This view stores the
-// gate; the policy package (P2-posture) enforces it in the harness. Until then every agent turn still waits for the
-// owner's approval of its exact text, which is stricter than any gate shown here.
+// gate; venture/policy checks it before each harness tool call. The posture shown is the one the agent works at: the
+// launch stage tightened by the agent's own posture (policy/context.ts).
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, formatMicros, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
-import type { AgentView, LaunchStage, PlaybookStep, Posture, TeamGateRecord, VentureDeps, VentureRecord } from '../contracts.ts';
+import type { AgentView, PlaybookStep, TeamGateRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentPlaybook, playbookSteps } from '../delivery/playbook.ts';
-import { toolSpec } from '../delivery/harness/tools.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
+import { stepGate } from '../policy/posture.ts';
 import { ESTIMATE_WORDS } from '../models/cost.ts';
 import { deliveryRunDetails } from './runs.ts';
-import { AGENT_ID, agentName, clientNameFor, plain } from './shared.ts';
+import { AGENT_ID, AGENT_PURPOSES, agentName, clientNameFor, plain } from './shared.ts';
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
-/** The model purposes this agent spends on. Rehearsal clients, judges and plan writing are not its spend. */
-const AGENT_PURPOSES: readonly string[] = ['delivery', 'agent-turn'];
-const POSTURE: Readonly<Record<LaunchStage, Posture>> = {
-  rehearsal: 'rehearsal', shadow: 'shadow', 'approve-each': 'approve-each',
-  // Approving a sample is planned; until it exists the closest honest posture is approving each one.
-  'approve-sample': 'approve-each', 'auto-spot-check': 'auto-spot-check',
-};
-export const FLOOR_WORDS = Object.freeze({
-  send: 'Sending to a client or the public always asks you first.',
-  outside: 'Acting outside Chausar always asks you first.',
-});
+export const FLOOR_WORDS = STEP_FLOOR_WORDS;
 
 /** Why a step is in the always-ask floor, or null. Code decides from the step's kind and its tools' effects. */
 export function floorReason(step: PlaybookStep): string | null {
-  if (step.kind === 'operator') return FLOOR_WORDS.send;
-  if ((step.tools ?? []).some(tool => toolSpec(tool)?.effect === 'outside-write')) return FLOOR_WORDS.outside;
-  return null;
+  return stepFloorReason(step);
 }
 
 /** The agent's steps: the playbook in use, else the accepted plan's fixed steps (worked out, never stored, here). */
@@ -54,7 +43,7 @@ function spendOf(state: State, venture: VentureRecord): string {
 function agentView(deps: VentureDeps, state: State, venture: VentureRecord): AgentView | null {
   const steps = agentSteps(state, venture);
   if (!steps) return null;
-  const posture = POSTURE[venture.launchStage] ?? 'rehearsal';
+  const posture = effectivePosture(state, venture);
   const gates = new Map<string, 'auto' | 'hold'>();
   for (const record of listRecords(state, 'venture-team-gate', venture.id)) if (record.agentId === AGENT_ID) gates.set(record.stepId, record.gate);
   const runs = deliveryRunDetails(deps, state, venture);
@@ -69,10 +58,9 @@ function agentView(deps: VentureDeps, state: State, venture: VentureRecord): Age
     id: AGENT_ID, name: agentName(state, venture), role: ROLE, now, posture, spend: spendOf(state, venture),
     ...(reviewed ? { last: { line: `Draft for ${clientNameFor(state, venture.id, reviewed.orderId)} ${verdictWords[reviewed.verdict!.choice]}.`, ...(receiptId ? { receiptId } : {}) } } : {}),
     steps: steps.map(item => {
+      // Gates start on hold at every posture: auto with spot checks lets a step run alone only once the owner set it to auto.
       const floor = floorReason(item) !== null;
-      const stored = gates.get(item.id);
-      const gate: 'auto' | 'hold' = floor ? 'hold' : stored ?? (posture === 'auto-spot-check' ? 'auto' : 'hold');
-      return { id: item.id, purpose: item.title, gate, floor };
+      return { id: item.id, purpose: item.title, gate: stepGate(gates.get(item.id), floor), floor };
     }),
   });
 }

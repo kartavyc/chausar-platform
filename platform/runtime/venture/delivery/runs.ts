@@ -5,7 +5,7 @@
 // approval of its exact text. Tools run on this computer between turns and send nothing anywhere. An agent may ask for
 // heavy work by the owner's own Claude Code or Codex: the run then waits for the owner to approve the exact brief, and
 // the tool starts only after that, on this computer.
-import { check, newId, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, newId, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
@@ -13,7 +13,7 @@ import type {
   DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
   VentureDeps, VentureRecord, VentureRecordKind, WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
-import { firstFailedCheck, runChecks } from './checks.ts';
+import { firstFailedCheck, knownNames, runChecks } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
 import {
   DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegateSpend, delegateSpendOutcome,
@@ -31,6 +31,7 @@ import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
 import { ensurePlaybook, playbookLimits, verifyChecks } from './playbook.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
+import { journalled } from '../journal/journal.ts';
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
@@ -39,7 +40,8 @@ export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use 
 const MAX_EDITED_CHARS = 20000;
 const MAX_ANSWER_CHARS = 2000;
 
-type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[] };
+/** known: the names a draft may use without a source (the client, the business, its plan and offers, the country). */
+type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[]; known: string[] };
 
 function orderContext(state: State, venture: VentureRecord, orderId: string): OrderContext {
   const order = findRecord(state, 'venture-order', orderId);
@@ -47,7 +49,9 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
   const blueprint = acceptedBlueprint(state, venture);
   const receipt = findRecord(state, 'venture-price-receipt', order.priceReceiptId);
   check(receipt && receipt.ventureId === venture.id, 'RECEIPT_NOT_FOUND', 'The price receipt for this order was not found.');
-  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id) };
+  const client = findRecord(state, 'venture-client', order.clientId);
+  const known = knownNames(client?.ventureId === venture.id ? client.name : null, venture.workingName, blueprint.name.value, venture.country.name, ...blueprint.offers.map(offer => offer.name.value));
+  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id), known };
 }
 
 function draftContext(context: OrderContext, today: string): { refs: DraftRefs; offer: { name: string; description: string } } {
@@ -56,14 +60,26 @@ function draftContext(context: OrderContext, today: string): { refs: DraftRefs; 
   return { refs, offer: { name: offer?.name.value ?? 'Your service', description: offer?.description.value ?? 'The service in your plan.' } };
 }
 
-type DraftCheckExtras = { work?: readonly WorkReceiptRecord[]; proofs?: readonly ClaimProof[]; sections?: readonly string[]; answers?: readonly string[] };
+type DraftCheckExtras = {
+  work?: readonly WorkReceiptRecord[]; proofs?: readonly ClaimProof[]; sections?: readonly string[]; answers?: readonly string[];
+  harness?: HarnessState | null; files?: readonly FileLike[];
+};
 
+/**
+ * The verify step's checks on a real order's draft. The claim check reads the order's request, the owner's answers,
+ * the client's files, the tool results and the receipts. The rules judge is never asked here: its call would carry the
+ * client's words, which needs the owner's approval of each call, so rules-judge is left out (it runs in rehearsal).
+ */
 function checkDraft(context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, renderedText: string, extras: DraftCheckExtras = {}): CheckResult[] {
   return runChecks({
     checks: verifyChecks(playbook), deliverable, renderedText, serviceType: context.blueprint.serviceType,
     allowed: copiedTokens(context.order.request, context.venture.idea, ...(extras.answers ?? [])), receipts: [...context.receipts, ...(extras.work ?? [])], ventureId: context.venture.id,
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: deliverable.questionsForClient.length > 0,
     ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}),
+    grounding: {
+      clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [],
+      known: context.known, dateOrder: context.venture.country.dateOrder,
+    },
   });
 }
 
@@ -208,41 +224,63 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
-  if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved });
-  const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
+  // The model port's own refusals, made first, so a stale or run-out approval never reaches the journal.
+  if (run.preview) {
+    check(run.preview.digest === approved, 'APPROVAL_STALE', 'This changed since you read it. Read it again.');
+    if (Date.parse(run.preview.expiresAt) <= deps.clock().getTime()) {
+      const stale = new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
+      await markFailedWhenSpent(deps, ctx, run, callId, stale);
+      throw stale;
+    }
+  }
 
-  let deliverable: Deliverable;
-  try {
-    const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed }));
-    deliverable = outcome.value;
-  } catch (error) {
-    await markFailedWhenSpent(deps, ctx, run, callId, error);
-    throw error;
-  }
-  const renderedText = renderDeliverable(deliverable, context.receipts, context.venture.country);
-  const checks = checkDraft(context, playbook, deliverable, renderedText);
-  try {
-    return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
-      const current = tx.find('venture-delivery-run', runId);
-      check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
-      // Checked again: the stage can move down while the call is out. At shadow the answer is a practice draft.
-      const stage = tx.venture!.launchStage;
-      check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-      const next: DeliveryRunRecord = {
-        ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
-      };
-      tx.replace(next);
-      recordCheckSignal(tx, runId, checks);
-      tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
-      tx.emit('run.step', { runId });
-      tx.emit('run.waiting', { runId });
-      return runView(next, tx.venture!, Date.parse(tx.now));
-    });
-  } catch (error) {
-    // The call is spent, so a draft that could not be stored can never be approved again.
-    await markFailedWhenSpent(deps, ctx, run, callId, error);
-    throw error;
-  }
+  const send = async (): Promise<DeliveryRunView> => {
+    if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved });
+    const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
+    let deliverable: Deliverable;
+    try {
+      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed }));
+      deliverable = outcome.value;
+    } catch (error) {
+      await markFailedWhenSpent(deps, ctx, run, callId, error);
+      throw error;
+    }
+    const renderedText = renderDeliverable(deliverable, context.receipts, context.venture.country);
+    const checks = checkDraft(context, playbook, deliverable, renderedText);
+    try {
+      return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+        const current = tx.find('venture-delivery-run', runId);
+        check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+        // Checked again: the stage can move down while the call is out. At shadow the answer is a practice draft.
+        const stage = tx.venture!.launchStage;
+        check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+        const next: DeliveryRunRecord = {
+          ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
+        };
+        tx.replace(next);
+        recordCheckSignal(tx, runId, checks);
+        tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
+        tx.emit('run.step', { runId });
+        tx.emit('run.waiting', { runId });
+        return runView(next, tx.venture!, Date.parse(tx.now));
+      });
+    } catch (error) {
+      // The call is spent, so a draft that could not be stored can never be approved again.
+      await markFailedWhenSpent(deps, ctx, run, callId, error);
+      throw error;
+    }
+  };
+
+  // The send is an outside effect, so it goes through the action journal (venture/journal/): described, approved with a
+  // token bound to this exact text, the owner, the session and the business, claimed before the call, then applied,
+  // rejected or outcome_unknown. An unknown outcome (a timeout) is never sent again. The token stays in memory here.
+  const client = findRecord(state, 'venture-client', context.order.clientId)?.name ?? 'your client';
+  const sent = await journalled(deps, ctx, {
+    action: 'delivery.send', subject: `${run.id}:${callId}`, target: client, actionDigest: approved, line: `Send the next step for ${client} to your AI.`,
+    notAfter: run.preview?.expiresAt ?? null,
+    quote: run.preview ? { figure: run.preview.estimatedMaxCostMicros, payer: run.preview.presetId } : null,
+  }, async () => ({ outcome: 'applied', line: 'Sent to your AI. It answered.', value: await send() }));
+  return sent.value!;
 }
 
 type HarnessApproval = {
@@ -273,7 +311,8 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
 
   try {
     if (harness.phase === 'act') {
-      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available });
+      // The owner approved this turn's exact text before it ran: that is the approval a step on hold waits for.
+      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available, approval: { kind: 'owner-turn', callId } });
       const next = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros });
       const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
       // A hand-off waits for an answer and a heavy-work brief for the owner's decision: neither previews a turn yet.
@@ -307,6 +346,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     const answers = harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
     const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
       work: made.receipts, proofs: harness.proofs, sections: harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType], answers,
+      harness: done, files,
     });
     return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
       const current = tx.find('venture-delivery-run', run.id);
@@ -451,7 +491,8 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
     const live = current?.harness ? openDelegation(current.harness) : null;
     check(current && current.status === 'brief-waiting' && live && live.status === 'waiting' && live.digest === open.digest, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
     check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-    const started = startDelegation(current.harness!, tx.now);
+    // The owner's approval of this exact brief (its digest was checked above) opens the floor gate on starting it.
+    const started = startDelegation(current.harness!, tx.now, { kind: 'owner-action', digest: body.digest as string, memberId: ctx.memberId });
     const rate = resolveRate({ item: spend.item, list: spend.list, owner: ownerRates(tx.list('venture-spend-policy')), subject: spend });
     reserveSpend(tx, { ...spend, rate, estimateMicros: fixedEstimate(rate, spend) });
     tx.replace({ ...current, harness: started });

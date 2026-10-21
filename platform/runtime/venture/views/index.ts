@@ -5,6 +5,7 @@ import type { VentureHandlerTable } from '../contracts.ts';
 import { queueDecideHandler, queueListHandler } from './queue.ts';
 import { runsGetHandler, runsListHandler } from './runs.ts';
 import { teamGateHandler, teamListHandler } from './team.ts';
+import { journalListHandler } from '../journal/list.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.queue.list': queueListHandler,
@@ -13,6 +14,8 @@ export const handlers: VentureHandlerTable = {
   'venture.runs.get': runsGetHandler,
   'venture.team.list': teamListHandler,
   'venture.team.gate': teamGateHandler,
+  // The action journal (P2-journal) is a view over the journalled records: entries, posts and website edits.
+  'venture.journal.list': journalListHandler,
 };
 
 export { questionRowId } from './queue.ts';

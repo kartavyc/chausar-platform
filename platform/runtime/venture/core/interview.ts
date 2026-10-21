@@ -177,14 +177,23 @@ export function interviewTask(venture: VentureRecord, template: () => InterviewM
 // ---------------------------------------------------------------------------
 
 type ParsedAnswer = { answer: InterviewAnswer; answerMinor: string | null; answerBps: string | null };
-const ANSWER_KEYS = ['choiceId', 'text', 'amount', 'yes', 'rate', 'skipped'] as const;
+const ANSWER_KEYS = ['choiceId', 'text', 'amount', 'yes', 'rate', 'skipped', 'assumed'] as const;
 
-/** Checks one answer against its question's kind. Exactly one answer field; skipping only optional questions. */
+/**
+ * Checks one answer against its question's kind. Exactly one answer field; skipping only optional questions. The one
+ * exception is { yes: false, assumed: true } on the tax question: the owner gave no answer and a screen filled the
+ * default, so the plan keeps it as an assumption until the owner confirms it.
+ */
 export function parseAnswer(question: StoredQuestion, value: unknown, country: CountryProfile): ParsedAnswer {
   const given = exactPayload(value, ANSWER_KEYS);
-  const keys = Object.keys(given);
+  const keys = Object.keys(given).filter(name => name !== 'assumed');
   check(keys.length === 1, 'INVALID_VENTURE_REQUEST', 'Send exactly one answer.');
   const key = keys[0];
+  if (Object.hasOwn(given, 'assumed')) {
+    check(given.assumed === true && question.id === INTERVIEW_IDS.tax && key === 'yes' && given.yes === false, 'INVALID_VENTURE_REQUEST',
+      'Only the tax answer can be assumed, and only as not charging tax.');
+    return { answer: { yes: false, assumed: true }, answerMinor: null, answerBps: null };
+  }
   if (key === 'skipped') {
     check(given.skipped === true, 'INVALID_VENTURE_REQUEST', 'Send skipped as true to skip a question.');
     check(!question.required, 'INVALID_VENTURE_REQUEST', 'This question needs an answer.');

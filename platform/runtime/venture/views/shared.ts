@@ -7,6 +7,8 @@ import type { ServiceType, VentureDeps, VentureRecord } from '../contracts.ts';
 
 /** This build has one agent per business: the delivery agent its playbook describes. Its id is stable. */
 export const AGENT_ID = 'delivery';
+/** The model purposes the delivery agent spends on. Rehearsal clients, judges and plan writing are not its spend. */
+export const AGENT_PURPOSES: readonly string[] = Object.freeze(['delivery', 'agent-turn']);
 const AGENT_NAMES: Readonly<Record<ServiceType, string>> = Object.freeze({
   agency: 'Marketing agent', studio: 'Studio agent', consulting: 'Consulting agent', bookkeeping: 'Bookkeeping agent',
   research: 'Research agent', content: 'Content agent', support: 'Support agent', other: 'Delivery agent',

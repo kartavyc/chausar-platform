@@ -107,11 +107,15 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
   const chosen = answerOf(INTERVIEW_IDS.pricingModel)?.answer?.choiceId;
   const model: PricingModel = isPricingModel(chosen) ? chosen : 'monthly';
   const price = answerOf(INTERVIEW_IDS.price)?.answerMinor ?? null;
-  const registered = answerOf(INTERVIEW_IDS.tax)?.answer?.yes === true;
+  const taxAnswer = answerOf(INTERVIEW_IDS.tax)?.answer ?? null;
+  const registered = taxAnswer?.yes === true;
   const rate = answerOf(INTERVIEW_IDS.taxRate)?.answerBps ?? null;
   const standard = country.tax.standardRateBps;
   const backOffice = previewBackOffice(country);
-  backOffice.taxRegistered = toldByYou(registered);
+  // Only the owner's own yes or no is told by you. A default a screen filled in is an assumption until the owner
+  // confirms it on the plan; with no answer at all the preview's own assumption stays.
+  if (taxAnswer?.assumed === true) backOffice.taxRegistered = labelled(false, 'assumption', 'template');
+  else if (typeof taxAnswer?.yes === 'boolean') backOffice.taxRegistered = toldByYou(registered);
   if (registered) {
     backOffice.taxRateBps = rate ?? '0';
     backOffice.taxRateBy = rate !== null && standard !== '0' && rate === standard ? 'country-table' : 'told-by-you';

@@ -7,6 +7,8 @@ import type { DelegateAvailability } from './delegate.ts';
 import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
 import type { ToolEnv } from './tools.ts';
+import { harnessPolicyContext } from '../../policy/context.ts';
+import type { Approval } from '../../policy/ladder.ts';
 
 /** The order's files, oldest first. */
 export function orderUploads(state: State, ventureId: string, orderId: string): UploadRecord[] {
@@ -43,6 +45,8 @@ export type EnvInput = {
   allowed: readonly string[];
   /** The owner's command-line tools found and checked for this turn; real orders only. */
   delegateOffer?: readonly DelegateAvailability[];
+  /** Who approved this turn. A real order's caller says so; without it the policy has no approval and holds every call. */
+  approval?: Approval;
 };
 
 export function buildToolEnv(input: EnvInput): ToolEnv {
@@ -52,6 +56,7 @@ export function buildToolEnv(input: EnvInput): ToolEnv {
     runRef: input.runRef, files: input.files, tables: [...(input.tables ?? [])], receipts: [...(input.receipts ?? [])],
     dictionary: dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
     sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed], delegateOffer: [...(input.delegateOffer ?? [])],
+    policy: { context: harnessPolicyContext({ state, venture, playbook: input.playbook, runRef: input.runRef, ...(input.approval ? { approval: input.approval } : {}) }) },
   };
 }
 

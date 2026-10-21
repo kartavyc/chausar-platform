@@ -269,3 +269,23 @@ test('queue: a failed draft for an open order offers Run again', async () => {
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 2);
 });
 
+
+test('queue.list: the prices row asks to confirm tax while the tax answer is an assumption, not the owner\'s', async () => {
+  const setupRow = async (options: { price2?: string; taxAssumed?: boolean }) => {
+    const env = await setup();
+    await seedBlueprint(env, { status: 'accepted', ...options });
+    return (await list(env)).rows.find(row => row.id.startsWith('setup:prices:'));
+  };
+  const shape = (row: QueueRow | undefined) => row && [row.title, row.line, row.actions.map(item => [item.id, item.label, item.primary])];
+
+  // Prices missing, tax the owner's own: prices only, as before.
+  assert.deepEqual(shape(await setupRow({})), ['Set your prices', 'Catch up clean up has no price yet.', [['set-prices', 'Set prices', true]]]);
+  // Prices missing and tax assumed: both.
+  assert.deepEqual(shape(await setupRow({ taxAssumed: true })),
+    ['Confirm your prices and tax', 'Catch up clean up has no price yet, and Chausar assumed you do not charge GST.', [['set-prices', 'Confirm', true]]]);
+  // Every price set, tax assumed: tax only.
+  assert.deepEqual(shape(await setupRow({ price2: '1500000', taxAssumed: true })),
+    ['Confirm your tax', 'Chausar assumed you do not charge GST. Say whether you do.', [['set-prices', 'Confirm tax', true]]]);
+  // Every price set and tax the owner's own: no row.
+  assert.equal(await setupRow({ price2: '1500000' }), undefined);
+});

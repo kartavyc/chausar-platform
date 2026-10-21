@@ -142,6 +142,8 @@ export class VentureHost {
       ...(options.delegate ? { delegate: options.delegate } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
       ...(options.workspace ? { workspace: options.workspace } : {}),
+      // A folder on this computer: never on the hosted web server.
+      ...(options.siteFolder && options.host !== 'hosted-web' ? { siteFolder: options.siteFolder } : {}),
       ...(options.notify ? { publish: (records: VentureEventRecord[]) => this.#publish(records) } : {}),
     });
   }

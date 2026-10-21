@@ -22,6 +22,11 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   tally: { qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' },
   'chausar-crm': { qualification: 'built-in', what: 'Shows your clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Shows invoices, payments and the books inside Chausar, each number with a receipt.' },
+  // venture.bank.import reads a statement file the owner downloaded; venture.bank.consent keeps consent for a provider not yet wired.
+  'bank-account': {
+    qualification: 'built-in',
+    what: 'Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.',
+  },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
@@ -30,9 +35,9 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
   'zoho-books': { read: 'Needs a Zoho sign-in. Not in this build.' },
-  // Staged edits (site-edits.ts) reach GitHub only with a write grant and a writer, and this build has neither.
-  github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today.' },
-  'bank-account': { read: 'Planned: balances and transactions, read only, with your consent and its end date shown. No provider is linked yet.' },
+  // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
+  // build has neither, so the write mode stays planned.
+  github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.' },
 });
 
 function planned(mode: ConnectorModeName, what: string): ConnectorMode {

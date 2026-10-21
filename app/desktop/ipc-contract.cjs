@@ -52,6 +52,10 @@ const METHODS = Object.freeze([
   'venture.delegate.get',
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   'venture.evidence.list', 'venture.evidence.apply',
+  'venture.journal.list',
+  'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
+  'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend',
+  'venture.spend.policy.get', 'venture.spend.policy.set',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -111,8 +115,10 @@ function validateRequest(input) {
 }
 // The Ink app routes with the hash (#/today), which changes the frame's URL but not the document; a query still fails.
 const documentOf = url => typeof url === 'string' && /^[^#]*#\/[A-Za-z0-9/?=&%:._-]*$/.test(url) ? url.slice(0, url.indexOf('#')) : url;
+/** True for the app's own page, with or without an Ink '#/' route. main.cjs uses it for the clipboard permission too. */
+function isTrustedDocument(url) { return documentOf(url) === TRUSTED_DOCUMENT; }
 function assertTrustedSender(event, contents) {
-  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || documentOf(event.senderFrame?.url) !== TRUSTED_DOCUMENT) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
+  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || !isTrustedDocument(event.senderFrame?.url)) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
 }
 // The only links the app opens in the system browser: one https partner link from a user click.
 function validateExternalUrl(input) {
@@ -134,4 +140,4 @@ function validateVentureEvent(input) {
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
   return Object.freeze({ type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

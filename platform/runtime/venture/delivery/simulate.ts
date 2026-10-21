@@ -6,11 +6,11 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, digest, exactPayload, findRecord, formatMicros, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
 import type {
-  BlueprintRecord, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
+  BlueprintRecord, CheckResult, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
   ModelTask, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
   WorkTableRecord,
 } from '../contracts.ts';
-import { firstFailedCheck, runChecks } from './checks.ts';
+import { firstFailedCheck, judgeDraftRules, knownNames, runChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, rehearsalRefs, renderDeliverable, renderForJudge, type DraftRefs } from './deliverable.ts';
 import { buildToolEnv, fileList, namer } from './harness/env.ts';
 import { manifest } from './harness/dictionary.ts';
@@ -85,6 +85,8 @@ type RehearsalEnv = {
   refs: DraftRefs;
   receipts: PriceReceiptRecord[];
   offer: { name: string; description: string };
+  /** Names a draft may use without a source: the business, its plan and offers, the country. */
+  known: string[];
 };
 
 type EpisodeResult = { episode: Episode; spend: Spend[]; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] };
@@ -99,6 +101,20 @@ async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[]): Pr
   }
   spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
   return outcome;
+}
+
+/**
+ * The checks on a practice draft. The rules judge sits behind the code checks: it is asked only when the case names
+ * rules-judge, an AI judge is on and every code check passed. With no judge it is left out, as the practice judge
+ * answers 'not-judged': never a pass it did not get. Practice clients only, so no client data goes to the judge.
+ */
+async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: CheckInput, judged: Omit<DraftRulesInput, 'context' | 'containsClientData'>, spend: Spend[]): Promise<CheckResult[]> {
+  const checks = runChecks(input);
+  if (!input.checks.includes('rules-judge') || !env.judgeOn || !checks.every(result => result.passed)) return checks;
+  const rules = await judgeDraftRules(task => ask(env, task, spend), {
+    ...judged, containsClientData: false, context: `The client: ${scenario.persona} The reply should be: ${scenario.expectedOutcome}`,
+  });
+  return runChecks({ ...input, rules });
 }
 
 function draftTask(env: RehearsalEnv, clientRequest: string): ModelTask<Deliverable> {
@@ -155,11 +171,13 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }
 
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
-    const checks = runChecks({
+    step = 'judge';
+    const checks = await practiceChecks(env, scenario, {
       checks: scenario.checks, deliverable, renderedText, serviceType: env.serviceType,
       allowed: draftAllowedTokens(request, env.venture.idea), receipts: env.receipts, ventureId: env.venture.id,
       mocks, mockModes: scenario.mocks, agentTurns, turnLimit: scenario.turnLimit, askedQuestions,
-    });
+      grounding: { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder },
+    }, { draft: renderForJudge(deliverable, env.receipts), clientRequest: request }, spend);
 
     let judge: JudgeAnswer[];
     if (env.judgeOn) {
@@ -246,12 +264,14 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
 
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     const handoffs = state.handoffs.length;
-    const checks = runChecks({
+    step = 'judge';
+    const checks = await practiceChecks(env, scenario, {
       checks: scenario.checks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
       allowed, receipts, ventureId: env.venture.id, mocks: [...mocks, ...state.mocks], mockModes: scenario.mocks,
       agentTurns: 1 + handoffs, turnLimit: scenario.turnLimit, askedQuestions: deliverable.questionsForClient.length > 0 || handoffs > 0,
       sections: state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[env.serviceType], proofs: state.proofs,
-    });
+      grounding: { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder },
+    }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend);
 
     let judge: JudgeAnswer[];
     if (env.judgeOn) {
@@ -302,6 +322,7 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
     state, venture, blueprint, playbook, serviceType: blueprint.serviceType, country: venture.country,
     refs: rehearsalRefs(state, venture.id, blueprint, todayIso(deps, venture)), receipts: ventureReceipts(state, venture.id),
     offer: { name: offer.name.value, description: offer.description.value },
+    known: knownNames(venture.workingName, blueprint.name.value, venture.country.name, ...blueprint.offers.map(item => item.name.value)),
   };
   const outcome: RehearsalOutcome = { episodes: [], spend: [], tables: [], receipts: [] };
   for (const scenario of scenarios) {

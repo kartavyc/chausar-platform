@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, join } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -11,6 +11,7 @@ import { ventureHostEnv } from './venture/host-env.ts';
 import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/views/events.ts';
 import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
+import { INK_ROOT, inkRequested, listInkFiles } from './ui-ink.ts';
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
@@ -20,23 +21,9 @@ export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.ac
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
 /** The Ink app (app/ui, built to app/ui/dist) is served at / instead of the old renderer only with --ink or CHAUSAR_UI=ink. */
-const inkRoot = fileURLToPath(new URL('../../app/ui/dist/', import.meta.url));
-export const inkRequested = (args: readonly string[] = process.argv, environment: NodeJS.ProcessEnv = process.env) => args.includes('--ink') || environment.CHAUSAR_UI === 'ink';
-/** The Ink allowlist: every regular file under app/ui/dist with a known type, listed once when the server starts. */
-export async function listInkFiles(folder = inkRoot): Promise<Record<string, string>> {
-  const found: Record<string, string> = {};
-  async function walk(at: string, prefix: string) {
-    for (const entry of await readdir(at, { withFileTypes: true })) {
-      const name = prefix + entry.name;
-      if (entry.isDirectory()) await walk(join(at, entry.name), `${name}/`);
-      else if (entry.isFile() && /^[A-Za-z0-9._/-]+\.(html|js|css|svg|woff2|txt|json)$/.test(name)) found[`/${name}`] = name;
-    }
-  }
-  await walk(folder, '');
-  check(found['/index.html'], 'UI_NOT_BUILT', 'The Ink app is not built. Run npm run build:ui, then start the server again.');
-  found['/'] = 'index.html';
-  return found;
-}
+const inkRoot = INK_ROOT;
+// The switch and the allowlist live in ui-ink.ts, shared with the hosted web server.
+export { inkRequested, listInkFiles };
 const validToken = (actual: string, expected: string) => Buffer.byteLength(actual) === Buffer.byteLength(expected) && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 

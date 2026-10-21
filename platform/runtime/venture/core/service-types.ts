@@ -4,6 +4,7 @@
 // doneClaimFindings.
 import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contracts.ts';
 import type { InterviewModelOutput, PricingModel, ServiceType } from '../contracts.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
 
 /** Substring keywords per type, matched against the lower-cased idea. */
 export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = Object.freeze({
@@ -18,7 +19,8 @@ export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, re
 
 /**
  * Picks a service type from the idea: each keyword found counts one hit for its type, the highest count wins,
- * a tie goes to the type listed first in SERVICE_TYPES, and no hit at all gives 'other'.
+ * a tie goes to the type listed first in SERVICE_TYPES. With no hit at all, a flagship playbook the idea picks
+ * (playbooks/registry.ts) gives the type it extends, so "a faceless YouTube channel" plans as a studio; else 'other'.
  */
 export function classifyIdea(idea: string): ServiceType {
   const text = idea.toLowerCase();
@@ -29,7 +31,7 @@ export function classifyIdea(idea: string): ServiceType {
     const hits = SERVICE_KEYWORDS[type].filter(keyword => text.includes(keyword)).length;
     if (hits > bestHits) { best = type; bestHits = hits; }
   }
-  return best;
+  return bestHits === 0 ? pickPlaybook(idea)?.serviceType ?? 'other' : best;
 }
 
 export type OfferWords = { name: string; description: string };

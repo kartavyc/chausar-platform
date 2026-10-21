@@ -63,8 +63,9 @@ class StubPort implements ModelPort {
   main: Tier = 'template';
   confirmed = true;
   recordCalls = false;
-  outputs: Partial<Record<ModelPurpose, unknown[]>> = {};
-  used: Partial<Record<ModelPurpose, number>> = {};
+  /** 'judge-rules': the rules judge's ballots. It shares the judge's purpose and tier, so it gets its own queue. */
+  outputs: Partial<Record<ModelPurpose | 'judge-rules', unknown[]>> = {};
+  used: Partial<Record<ModelPurpose | 'judge-rules', number>> = {};
   costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500', decide: '0', compose: '0' };
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
@@ -89,7 +90,7 @@ class StubPort implements ModelPort {
   }
   presets(): ModelPreset[] { throw new ChausarError('NOT_BUILT_YET', 'Not used in these tests.'); }
   async checkCli(): Promise<void> { throw new ChausarError('NOT_BUILT_YET', 'Not used in these tests.'); }
-  next(purpose: ModelPurpose): unknown {
+  next(purpose: ModelPurpose | 'judge-rules'): unknown {
     const list = this.outputs[purpose];
     assert.ok(list && list.length, `no fixture queued for ${purpose}`);
     const index = this.used[purpose] ?? 0;
@@ -105,7 +106,7 @@ class StubPort implements ModelPort {
       if (!task.template) throw new ChausarError('NO_MODEL_CONNECTED', 'No AI connected.');
       return { value: task.template(), by: 'template', callId: null, presetId: 'built-in-templates', model: null, costMicros: '0', priceConfirmed: true };
     }
-    const value = task.validate(this.next(task.purpose));
+    const value = task.validate(this.next(task.schemaName === 'venture-judge-rules' ? 'judge-rules' : task.purpose));
     this.#calls += 1;
     return { value, by: 'model', callId: `call_${this.#calls}`, presetId: tier === 'fast' ? 'anthropic-haiku-5-5' : 'anthropic-sonnet-5-5', model: 'stub', costMicros: this.costs[task.purpose], priceConfirmed: this.confirmed };
   }
@@ -276,13 +277,14 @@ function events(env: Env): string[] {
 /** An agent turn that uses no tool and says the work is done, so the loop goes straight to the write step. */
 const FINISHED_TURN = { note: 'Nothing to work on with tools here', calls: [], finished: true };
 
-async function queueModel(env: Env, outputs: { client?: string[]; delivery?: string[]; judge?: string[] }) {
+async function queueModel(env: Env, outputs: { client?: string[]; delivery?: string[]; judge?: string[]; rules?: string[] }) {
   env.models.fast = 'model';
   env.models.main = 'model';
   env.models.outputs = {
     'client-sim': await Promise.all((outputs.client ?? ['client-message']).map(fixture)),
     delivery: await Promise.all((outputs.delivery ?? ['draft-rehearsal']).map(fixture)),
     judge: await Promise.all((outputs.judge ?? ['judge-yes']).map(fixture)),
+    'judge-rules': await Promise.all((outputs.rules ?? ['judge-rules-yes']).map(fixture)),
     // Bookkeeping's clean and messy practice clients send files, so their episodes run the agent loop first.
     'agent-turn': [FINISHED_TURN],
   };
@@ -312,7 +314,7 @@ test('playbook: eight fixed steps from the accepted plan, stable hash, a new ver
   assert.equal(draft.title, 'Draft the monthly report for review');
   assert.deepEqual(draft.requiredSections, [...REQUIRED_SECTIONS.bookkeeping]);
   assert.deepEqual(draft.checks, ['no-numeric-prose', 'figures-resolve', 'required-sections', 'house-style', 'length-bounds', 'no-done-claims']);
-  assert.deepEqual(playbook.steps.find(step => step.id === 'verify')!.checks, CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit'));
+  assert.deepEqual(playbook.steps.find(step => step.id === 'verify')!.checks, CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit' && id !== 'rules-judge'));
   assert.deepEqual(playbook.steps.find(step => step.id === 'send')!.checks, ['no-outside-writes']);
   assert.equal(playbook.validated, true);
   assert.equal(playbook.tierCeiling, 'owner-cli');
@@ -460,7 +462,8 @@ test('checks: each passes on a good draft and fails on a crafted case', async ()
     mockModes: { 'mail-app.send-deliverable': 'record-only' as const }, agentTurns: 2, turnLimit: 2, askedQuestions: true,
   };
   const good = runChecks(base);
-  assert.deepEqual(good.map(result => result.check), [...CHECK_IDS]);
+  // rules-judge is left out until a judge has ruled: with no verdict it claims neither a pass nor a failure.
+  assert.deepEqual(good.map(result => result.check), CHECK_IDS.filter(id => id !== 'rules-judge'));
   for (const result of good) assert.equal(result.passed, true, `${result.check}: ${result.detail}`);
   assert.match(good.find(result => result.check === 'no-outside-writes')!.detail, /only recorded/);
 
@@ -588,7 +591,8 @@ test('template words: every outline sentence and practice client is free of numb
       assert.deepEqual(scenario.mocks, { 'mail-app.send-deliverable': 'record-only' });
       assert.deepEqual(scenario.stoppingCriteria, ['deliverable-ready', 'client-asks-for-person', 'turn-limit']);
       assert.equal(scenario.checks.includes('questions-raised'), scenario.id.endsWith('-messy'));
-      assert.equal(scenario.checks.length, scenario.id.endsWith('-messy') ? 9 : 8);
+      assert.equal(scenario.checks.length, scenario.id.endsWith('-messy') ? 10 : 9);
+      assert.ok(scenario.checks.includes('claims-grounded') && !scenario.checks.includes('rules-judge'));
       for (const text of [scenario.title, scenario.persona, scenario.brief, scenario.expectedOutcome]) {
         assert.doesNotThrow(() => assertNoNumbers(text, 'scenario'), text);
         assert.deepEqual(houseStyleFindings(text), [], text);
@@ -865,7 +869,7 @@ test('real runs: shadow drafts are practice drafts; approve-each drafts can be a
   assert.equal(ready.preview, null);
   assert.ok(ready.renderedText!.includes('Total: INR 2,948.82'));
   assert.ok(ready.renderedText!.includes('Your order came in on 15 Oct 2026'));
-  assert.deepEqual(ready.checks.map(result => result.check), CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit'));
+  assert.deepEqual(ready.checks.map(result => result.check), CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit' && id !== 'rules-judge'));
   assert.ok(ready.checks.every(result => result.passed), JSON.stringify(ready.checks));
   assert.equal(env.models.sent, 1);
   await assert.rejects(call(env, 'venture.delivery.approve', { runId: waiting.id, digest: waiting.preview!.digest }), code('DELIVERY_NOT_WAITING'));
@@ -1338,4 +1342,78 @@ test('composed playbook: in-person work is never an agent step; only a hands-on-
   assert.equal(books.find(step => step.id === 'draft')!.title, 'Write the summary');
   assert.equal(books.some(step => step.title === 'Meet the owner'), false, 'a meeting belongs to the owner alone');
   assert.throws(() => playbookSteps(composedPlan([{ block: 'book-time', title: 'Agree a time' }, { block: 'in-person-work', title: 'Do the work' }, { block: 'get-paid', title: 'Get paid' }])), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+});
+
+// ---------------------------------------------------------------------------
+// 11. Judge checks in the flow: the claim check on every draft, the rules judge in rehearsal
+// ---------------------------------------------------------------------------
+
+test("real runs: the claim check runs on every draft; a name the client never gave blocks Accept, the client's own name does not", async () => {
+  const env = await setup();
+  const { order } = await seedOrder(env);
+  await setStage(env, 'approve-each');
+  const named = structuredClone(await fixture('draft-order'));
+  named.sections[0].parts[0].text = `Thanks, ${CLIENT_NAME}, for asking us to close your September books. Your order came in on`;
+  const unbacked = structuredClone(named);
+  unbacked.sections[1].parts[0].text = 'We will sort the bills you shared, match them to the HDFC Bank statement and flag anything unclear for you. The price for this month comes from your plan.';
+  await queueModel(env, {});
+  env.models.outputs.delivery = [unbacked];
+  const run = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+  const ready = await call<DeliveryRunRecord>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+  const grounded = ready.checks.find(result => result.check === 'claims-grounded')!;
+  assert.equal(grounded.passed, false);
+  assert.match(grounded.detail, /HDFC Bank/);
+  assert.doesNotMatch(grounded.detail, new RegExp(CLIENT_NAME), "the client's own name is never a claim");
+  assert.ok(!ready.checks.some(result => result.check === 'rules-judge'), "a real order's draft is never sent to the judge");
+  assert.equal(env.models.generated.length, 0);
+  assert.equal(listRecords(env.store.read(), 'venture-signal').find(item => item.runId === run.id)!.reason, 'claims-grounded');
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: ready.id, verdict: 'accepted' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST' && /HDFC Bank/.test(error.message));
+
+  env.models.outputs.delivery = [named];
+  env.models.used = {};
+  const second = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+  const secondReady = await call<DeliveryRunRecord>(env, 'venture.delivery.approve', { runId: second.id, digest: second.preview!.digest });
+  assert.ok(secondReady.checks.every(result => result.passed), JSON.stringify(secondReady.checks));
+  assert.equal((await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: secondReady.id, verdict: 'accepted' })).status, 'accepted');
+});
+
+async function toneCase(env: Env): Promise<Scenario> {
+  const signal = await ventureAction(env.deps, owner, 'prepare', 'seed.signal', tx => tx.put<SignalRecord>({ ...tx.base('venture-signal'), source: 'owner-edited', runId: 'delivery_x', reason: 'tone', scenarioId: null }));
+  return call<Scenario>(env, 'venture.simulation.fromSignal', { signalId: signal.id });
+}
+
+test('rehearsal: a case made from a tone edit asks the rules judge behind the code checks, and code counts its cited votes', async () => {
+  const env = await setup();
+  const scenario = await toneCase(env);
+  assert.ok(scenario.checks.includes('rules-judge') && scenario.checks.includes('claims-grounded'));
+  await queueModel(env, {});
+  const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: [scenario.id] });
+  const [episode] = run.episodes;
+  const rules = episode.checks.find(result => result.check === 'rules-judge');
+  assert.ok(rules, JSON.stringify(episode.checks));
+  assert.equal(rules.passed, true, rules.detail);
+  assert.equal(episode.passed, true, episode.firstFailure ?? '');
+  const asked = env.models.generated.filter(task => task.schemaName === 'venture-judge-rules');
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].purpose, 'judge');
+  assert.equal(asked[0].containsClientData, false);
+  const ids = (asked[0].input as { trace: { id: string }[] }).trace.map(event => event.id);
+  assert.ok(ids.includes('client-message') && ids.includes('draft'), ids.join(','));
+  assert.ok(!JSON.stringify(asked[0].input).includes('2,948.82'), 'the judge sees prices only as placeholders');
+
+  // Votes that cite nothing in the run are not counted: the rules stay unsettled and the case does not pass.
+  await queueModel(env, { rules: ['judge-rules-uncited'] });
+  const uncited = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: [scenario.id] });
+  const unsettled = uncited.episodes[0].checks.find(result => result.check === 'rules-judge')!;
+  assert.equal(unsettled.passed, false);
+  assert.match(unsettled.detail, /Not settled/);
+  assert.equal(uncited.episodes[0].firstFailure, 'rules-judge');
+
+  // With templates no judge rules: the check is left out, never passed, and the practice judge says it did not judge.
+  const before = env.models.generated.filter(task => task.schemaName === 'venture-judge-rules').length;
+  const templated = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: [scenario.id], useTemplate: true });
+  assert.ok(!templated.episodes[0].checks.some(result => result.check === 'rules-judge'));
+  assert.ok(templated.episodes[0].checks.some(result => result.check === 'claims-grounded' && result.passed));
+  assert.ok(templated.episodes[0].judge.every(answer => answer.answer === 'not-judged'));
+  assert.equal(env.models.generated.filter(task => task.schemaName === 'venture-judge-rules').length, before);
 });

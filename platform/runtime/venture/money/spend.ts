@@ -16,10 +16,11 @@ import { ESTIMATE_WORDS } from '../models/cost.ts';
 import {
   currentVenture, exactPayload, formatMicros, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
 } from '../records.ts';
-import { checkQuoteBinding } from './quote.ts';
+import { QUOTE_TTL_MS, checkQuoteBinding } from './quote.ts';
 import { newestFirst } from './shared.ts';
+import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
 import type {
-  Display, MicroString, ModelPriceTable, SpendPolicyRecord, SpendQuoteRecord, SpendRate, SpendRateUnit, SpendRecord, SpendRow, VentureDeps,
+  Display, MicroString, ModelPriceTable, SpendPolicyRecord, SpendPolicyView, SpendQuoteRecord, SpendRate, SpendRateUnit, SpendRecord, SpendRow, VentureDeps,
 } from '../contracts.ts';
 
 const MICROS = /^(0|[1-9][0-9]{0,14})$/;
@@ -226,8 +227,14 @@ export function settleSpendAction(deps: VentureDeps, ctx: Context, key: string, 
   return ventureAction(deps, ctx, 'prepare', 'spend.settle', tx => settleSpend(tx, key, outcome));
 }
 
+/** An open quote can still be approved only within the hour after it was made. */
+export function quoteLive(quote: Pick<SpendQuoteRecord, 'status' | 'at'>, nowIso: string): boolean {
+  return quote.status === 'open' && Date.parse(nowIso) - Date.parse(quote.at) <= QUOTE_TTL_MS;
+}
+
 function openQuote(tx: VentureTx, subject: SpendSubject, figureMicros: MicroString) {
-  const waiting = tx.list('venture-spend-quote').some(quote => quote.status === 'open' && quote.item === subject.item && quote.draftDigest === subject.draftDigest
+  // A quote over an hour old can no longer be approved, so a fresh refusal makes a fresh quote.
+  const waiting = tx.list('venture-spend-quote').some(quote => quoteLive(quote, tx.now) && quote.item === subject.item && quote.draftDigest === subject.draftDigest
     && quote.payer === subject.payer && quote.figureMicros === figureMicros);
   if (waiting) return;
   tx.put({
@@ -337,6 +344,80 @@ export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: u
   });
 }
 
+// ---------------------------------------------------------------------------
+// venture.spend.policy.get and venture.spend.policy.set
+// ---------------------------------------------------------------------------
+
+const POLICY_WORDS = Object.freeze({
+  noCap: 'No monthly limit', perMonth: ' a month', neverAsks: 'Never asks first', asksAbove: 'Asks you first above ',
+  ownRates: 'Rates you set are your own, so they count as confirmed.',
+});
+
+/** One rate card line's price in words, worked out here so the screen never formats a figure. */
+export function ratePrice(rate: SpendRate): Display {
+  if (rate.unit === 'per-million-tokens') {
+    return `${formatMicros(rate.inputMicrosPerMillion ?? '0')} in and ${formatMicros(rate.outputMicrosPerMillion ?? '0')} out, per million tokens`;
+  }
+  const figure = formatMicros(rate.microsPerCall ?? '0');
+  return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a run`;
+}
+
+function policyView(policy: SpendPolicyRecord | null): SpendPolicyView {
+  const cap = policy?.capMicros ?? null, askFirst = policy?.askAboveMicros ?? null;
+  return {
+    capMicros: cap, askFirstMicros: askFirst,
+    cap: cap === null ? POLICY_WORDS.noCap : formatMicros(cap) + POLICY_WORDS.perMonth,
+    askFirst: askFirst === null ? POLICY_WORDS.neverAsks : POLICY_WORDS.asksAbove + formatMicros(askFirst),
+    rates: (policy?.rates ?? []).map(rate => ({ ...structuredClone(rate), price: ratePrice(rate) })),
+    setAt: policy?.at ?? null,
+  };
+}
+
+/** venture.spend.policy.get {} (level read): the monthly limit, the ask-first figure and the owner's rate card. */
+export async function spendPolicyGet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
+  exactPayload(payload, []);
+  const { state, venture } = readVenture(deps, ctx);
+  return policyView(latestPolicy(listRecords(state, 'venture-spend-policy', venture.id)));
+}
+
+/**
+ * venture.spend.policy.set { cap?, askFirst?, rates? } (admin, inside the app): through setSpendPolicy. A field left out
+ * keeps its value and null clears a figure. Every rate line the owner sets is theirs and confirmed by them.
+ */
+export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
+  check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
+  const body = exactPayload(payload, ['cap', 'askFirst', 'rates']);
+  let rates: unknown[] | undefined;
+  if (body.rates !== undefined) {
+    check(Array.isArray(body.rates), 'INVALID_VENTURE_REQUEST', 'rates is a list of rate card lines.');
+    rates = body.rates.map(line => {
+      const value = line && typeof line === 'object' && !Array.isArray(line) ? line as Record<string, unknown> : {};
+      check(value.confirmed === undefined || value.confirmed === true, 'INVALID_VENTURE_REQUEST', POLICY_WORDS.ownRates);
+      return { ...value, confirmed: true, by: 'owner' };
+    });
+  }
+  const record = await setSpendPolicy(deps, ctx, {
+    ...(body.cap !== undefined ? { capMicros: body.cap } : {}),
+    ...(body.askFirst !== undefined ? { askAboveMicros: body.askFirst } : {}),
+    ...(rates !== undefined ? { rates } : {}),
+  });
+  return policyView(record);
+}
+
+/**
+ * The team agent a paid call worked for (views/team.ts ids), or null when it was no agent's: the plan writer, a judge,
+ * a rehearsal client. Heavy work is only ever asked for by the delivery agent; a model call is the agent's when its
+ * purpose is one of the agent's. Records that name their agent keep it.
+ */
+export function spendAgentOf(state: State, spend: { agent?: string | null; item: string; key: string }): string | null {
+  if (spend.agent) return spend.agent;
+  if (spend.item.startsWith('delegate:')) return AGENT_ID;
+  if (!spend.item.startsWith('model:') || !spend.key.startsWith('model:')) return null;
+  const callId = spend.key.slice('model:'.length);
+  const call = state.conversations.find((record: any) => record?.kind === 'venture-model-call' && record.id === callId) as { purpose?: unknown } | undefined;
+  return typeof call?.purpose === 'string' && AGENT_PURPOSES.includes(call.purpose) ? AGENT_ID : null;
+}
+
 /** Quotes waiting for the owner, newest first, for the current business. The queue shows them as 'quote' rows. */
 export function openSpendQuotes(state: State): SpendQuoteRecord[] {
   const venture = currentVenture(state);
@@ -387,13 +468,13 @@ function settledDisplay(record: SpendRecord, unconfirmed: string): Display | und
 }
 
 /** One row as the Money place shows it. Every figure is formatted here; the UI never computes one. */
-export function spendRow(record: SpendRecord): SpendRow {
+export function spendRow(record: SpendRecord, agent: string | null = record.agent): SpendRow {
   const unconfirmed = record.rate !== null && !record.rate.confirmed ? ESTIMATE_WORDS : '';
   const unpriced = record.phase === 'refused' && record.refusal?.code === 'SPEND_UNPRICED';
   const settled = settledDisplay(record, unconfirmed);
   return {
     id: record.id,
-    ...(record.agent ? { agent: record.agent } : {}),
+    ...(agent ? { agent } : {}),
     ...(record.connector ? { connector: record.connector } : {}),
     label: record.phase === 'unknown' ? record.label + SPEND_WORDS.unknown : record.label,
     reserved: unpriced ? SPEND_WORDS.noPrice : formatMicros(record.reservedMicros) + unconfirmed,
@@ -420,7 +501,7 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
     if (amount > 0n && rowKind(record) === 'estimate') estimated = true;
   }
   return {
-    rows: records.slice(0, MAX_ROWS).map(spendRow),
+    rows: records.slice(0, MAX_ROWS).map(record => spendRow(record, spendAgentOf(state, record))),
     total: formatMicros(String(total)) + SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : ''),
   };
 }

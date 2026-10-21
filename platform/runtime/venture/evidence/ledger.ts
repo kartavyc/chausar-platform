@@ -149,11 +149,16 @@ export function recordPlanEvidence(tx: VentureTx, plan: PlanLines) {
  */
 export function evidenceQuestions(state: State, ventureId: string): EvidenceRecord[] {
   const records = listRecords(state, 'venture-evidence', ventureId);
-  const stored = new Map(records.filter(record => record.applied).map(record => [`${record.subject}|${record.field}`, record.value]));
+  const stored = new Map(records.filter(record => record.applied).map(record => [`${record.subject}|${record.field}`, record]));
   const seen = new Set<string>();
   const waiting: EvidenceRecord[] = [];
   for (const record of [...records].reverse()) {
-    if (record.applied || (record.claim !== 'needs-your-data' && stored.get(`${record.subject}|${record.field}`) === record.value)) continue;
+    if (record.applied) continue;
+    const current = stored.get(`${record.subject}|${record.field}`);
+    // A value that was stored once and replaced since is history, not a suggestion; so is one older than the value
+    // stored now, which the owner or a checked source already settled.
+    if (record.appliedAt !== null || (current && record.at < (current.appliedAt ?? current.at))) continue;
+    if (record.claim !== 'needs-your-data' && current?.value === record.value) continue;
     const key = `${record.subject}|${record.field}|${record.value}`;
     if (seen.has(key)) continue;
     seen.add(key);

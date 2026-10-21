@@ -21,11 +21,13 @@ const INR = { currency: 'INR', minorDigits: 2, dateOrder: 'day-month-year' as co
 const USD = { currency: 'USD', minorDigits: 2, dateOrder: 'month-day-year' as const };
 const sum = (values: string[]) => values.reduce((total, value) => total + BigInt(value), 0n).toString();
 
-test('the bank card is planned: read only, no provider linked, and it never claims to sync', () => {
+test('the bank card reads statement files you import; a live bank link is planned, with no provider, and it never claims to sync', () => {
   const card = connectorCard(CONNECTOR_CATALOGUE.find(item => item.id === 'bank-account')!, false);
-  assert.deepEqual(card.modes.map(m => [m.mode, m.status]), [['read', 'planned']]);
+  assert.deepEqual(card.modes.map(m => [m.mode, m.status]), [['read', 'available']]);
+  assert.match(card.modes[0].what, /statement file you download/);
   assert.match(card.modes[0].what, /read only/);
   assert.match(card.modes[0].what, /end date/);
+  assert.match(card.modes[0].what, /is planned: no provider is linked yet/);
   assert.match(card.note, /never moves money/);
   assert.deepEqual(card.postingOptions, []);
   assert.equal(card.posting, undefined);

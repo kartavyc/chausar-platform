@@ -7,6 +7,7 @@ import { check } from '../../contracts.ts';
 import { offerPricing, previewBackOffice } from './blueprint.ts';
 import { countryProfile } from './countries.ts';
 import { isPricingModel, previewQuestions } from './interview.ts';
+import { playbookField } from './lookups.ts';
 import { classifyIdea, offerWords, serviceTemplate } from './service-types.ts';
 import { labelled } from './words.ts';
 
@@ -43,5 +44,6 @@ export function previewPlan(payload: unknown): PlanPreview {
     questions: previewQuestions(template, country),
     by: 'template',
     saved: false,
+    ...playbookField(idea),
   };
 }

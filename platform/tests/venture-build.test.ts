@@ -942,11 +942,14 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 66);
 });
 
-test('handlers are exactly the seven owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the sixteen owned methods, and every code the package throws is a declared venture or engine code', async () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
+    'venture.bank.consent', 'venture.bank.import',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.leads.add', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage',
   ]);
-  const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts']
+  const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts', 'bank-methods.ts', 'site-methods.ts']
     .map(file => readFile(new URL(`../runtime/venture/build/${file}`, import.meta.url), 'utf8')));
   const thrown = new Set<string>();
   for (const source of sources) {

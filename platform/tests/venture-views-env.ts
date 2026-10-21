@@ -102,7 +102,7 @@ const words = (value: string) => ({ value, label: 'assumption' as const, by: 'te
 const TITLES = ['Collect bills and bank statements', 'Sort and match every entry', 'Draft the monthly report for review', 'Send the report to the client'];
 
 /** A blueprint version. offer_2 has no price unless a test sets one. */
-export function blueprintBody(options: { version?: number; price1?: string | null; price2?: string | null } = {}) {
+export function blueprintBody(options: { version?: number; price1?: string | null; price2?: string | null; taxAssumed?: boolean } = {}) {
   return {
     version: options.version ?? 1, source: 'template' as const, structureHash: 'structure-hash', modelCallIds: [], serviceType: 'bookkeeping' as const,
     name: { value: 'Ledger Cafe Books', label: 'told-by-you' as const, by: 'owner' as const },
@@ -120,13 +120,17 @@ export function blueprintBody(options: { version?: number; price1?: string | nul
       currency: 'INR', taxMode: 'gst' as const, taxLabel: 'GST', taxRegistered: { value: true, label: 'told-by-you' as const, by: 'owner' as const },
       taxRateBps: '1800', taxRateBy: 'country-table' as const, taxId: '27ZZZZZ9999Z1Z8', taxState: '27', sacCode: '998222', lutConfirmed: false,
       invoiceKind: 'tax-invoice' as const, taxInvoiceReady: true, taxInvoiceMissing: [], paymentRail: 'razorpay', invoicePrefix: 'INV',
+      // taxAssumed: the owner skipped the tax question, so Chausar assumed they do not charge GST.
+      ...(options.taxAssumed ? {
+        taxRegistered: { value: false, label: 'assumption' as const, by: 'template' as const }, taxRateBps: '0', taxRateBy: 'not-registered' as const, taxInvoiceReady: false,
+      } : {}),
     },
     starterConnectorIds: ['lovable', 'github', 'razorpay', 'mail-app', 'cal-com', 'chausar-books'],
   };
 }
 
 /** Stores a blueprint version, draft or accepted, the way blueprint.ts digests it (everything but id, at, digest, status). */
-export async function seedBlueprint(env: Env, options: { status?: 'draft' | 'accepted'; version?: number; price1?: string | null; price2?: string | null } = {}): Promise<BlueprintRecord> {
+export async function seedBlueprint(env: Env, options: { status?: 'draft' | 'accepted'; version?: number; price1?: string | null; price2?: string | null; taxAssumed?: boolean } = {}): Promise<BlueprintRecord> {
   return ventureAction(env.deps, owner, 'admin', 'seed.blueprint', tx => {
     const body = blueprintBody(options);
     const base = tx.base('venture-blueprint');

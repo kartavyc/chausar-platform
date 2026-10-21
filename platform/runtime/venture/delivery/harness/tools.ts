@@ -3,14 +3,18 @@
 // only when the playbook grants it to the run. Nothing here writes outside Chausar; an outside write is only ever
 // recorded for the owner's approval. Money comes back as calculator receipts the draft cites by reference. On the
 // shared hosted server the tools that need agent-written code, a container, the Python helper or the owner's own
-// command-line tool are refused before they start, and the agent is not offered them.
+// command-line tool are refused before they start, and the agent is not offered them. Every call that passes those
+// checks is put to the policy (venture/policy) before it runs: a deny or a failing check blocks it, an ask holds it
+// for the owner, and only an allow lets it start.
 import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import { TOOL_NAMES } from '../../contracts.ts';
 import type {
-  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, RecordBase, SandboxPorts, ToolCallRecord,
+  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
+import { defaultPolicyContext, ladderPolicy, type HarnessPolicy } from '../../policy/ladder.ts';
+import { evaluate, type Verdict } from '../../policy/verdict.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
 import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
 import { browse, DICTIONARY_KINDS, resolve, type DictionaryEntry, type DictionaryKind } from './dictionary.ts';
@@ -44,6 +48,8 @@ export type ToolEnv = {
   allowed: readonly string[];
   /** The owner's command-line tools found and checked for this run. Empty in rehearsals and on the hosted server. */
   delegateOffer?: readonly DelegateAvailability[];
+  /** What each call is checked against before it runs. Without it a real order fails closed (policy/ladder.ts). */
+  policy?: HarnessPolicy;
 };
 
 type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft };
@@ -426,22 +432,37 @@ function failure(code: string, message: string): ToolEnvelope {
   return { ok: false, error: { code, name: errorName(code), message: message.slice(0, 600) } };
 }
 
-export type ToolOutcome = { record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null };
+/** A call the policy held for the owner: it did not run. */
+export type HeldCall = { tool: ToolName; stepId: string | null; inputDigest: string; code: string; reason: string };
+export type ToolOutcome = {
+  record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null;
+  verdict?: Verdict | null; hold?: HeldCall | null;
+};
+
+/** The digest an approval of a held call binds to: the checked input, so spacing in the JSON text does not matter. */
+function inputDigestOf(input: Record<string, any>, inputText: string): string {
+  try { return digest(input); } catch { return digest(inputText); }
+}
 
 /**
- * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields; otherwise run
- * with a time limit. Every result, refusal included, is an envelope the agent reads on its next turn.
+ * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields, and the policy
+ * allows it; otherwise run with a time limit. Every result, refusal included, is an envelope the agent reads on its next
+ * turn. holds: the run's held calls, so an approved one can run once.
  */
-export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }): Promise<ToolOutcome> {
+export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }, holds: readonly PolicyHold[] = []): Promise<ToolOutcome> {
   const id = `t${turn}.${index + 1}`;
   const spec = toolSpec(call.tool);
   const inputText = typeof call.input === 'string' ? call.input : '';
+  // The step's times, for the runs view: when the call started and when its answer, or its refusal, was ready.
+  const startedAt = env.now();
   const outcome = (envelope: ToolEnvelope, state: ExecutionOutcome, input: Json | null, extra: Partial<ToolOutcome> = {}): ToolOutcome => ({
     record: {
       id, turn, tool: call.tool.slice(0, 60), input, inputDigest: digest(inputText), envelope, outcome: state,
       effect: spec?.effect ?? null, tier: spec?.tier ?? null, receiptIds: (extra.receipts ?? []).map(item => item.id), tableIds: (extra.tables ?? []).map(item => item.id),
+      startedAt, finishedAt: env.now(),
     },
     proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [], delegate: extra.delegate ?? null,
+    verdict: extra.verdict ?? null, hold: extra.hold ?? null,
   });
   if (!spec) return outcome(failure('TOOL_DENIED', `There is no tool called ${call.tool.slice(0, 60)}.`), 'failed', null);
   if (!grant.includes(spec.name)) return outcome(failure('TOOL_DENIED', `${spec.name} is not granted to this agent. Use only the tools you were given.`), 'failed', null);
@@ -455,6 +476,16 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
   try { input = validate(spec.input, parsed, 'input'); } catch (error) {
     return outcome(failure('TOOL_INPUT_INVALID', error instanceof Error ? error.message : 'The tool input does not fit.'), 'failed', parsed as Json);
   }
+  // The policy, before anything starts. It fails closed: a check that throws or does not answer in time blocks the call.
+  const policy = env.policy ?? { context: defaultPolicyContext(env.runRef) };
+  const inputDigest = inputDigestOf(input, inputText);
+  const verdict = await evaluate([...(policy.policies ?? []), ladderPolicy], { phase: 'tool-call', name: spec.name, effect: spec.effect, inputDigest },
+    { ...policy.context, grant, turn, holds }, policy.timeoutMs === undefined ? {} : { timeoutMs: policy.timeoutMs });
+  if (verdict.verdict === 'deny') return outcome(failure('POLICY_DENIED', verdict.reason), 'failed', input as Json, { verdict });
+  if (verdict.verdict === 'ask') {
+    const hold: HeldCall = { tool: spec.name, stepId: verdict.step ?? null, inputDigest, code: verdict.code, reason: verdict.reason };
+    return outcome(failure('POLICY_ASK', `${verdict.reason} The owner was asked; nothing ran.`), 'cancelled', input as Json, { verdict, hold });
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
@@ -467,11 +498,11 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     env.tables.push(...(result.tables ?? []));
     env.receipts.push(...(result.receipts ?? []));
     const delegate: DelegationRequest | null = result.delegate ? { ...result.delegate, toolCallId: id, turn } : null;
-    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate });
+    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate, verdict });
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : 'TOOL_FAILED';
     const message = error instanceof ChausarError ? error.message : 'The tool failed.';
-    return outcome(failure(code, message), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json);
+    return outcome(failure(code, message), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict });
   } finally {
     clearTimeout(timer);
   }

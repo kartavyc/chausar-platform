@@ -14,6 +14,7 @@ import { insertBooksFact, invoiceFact } from './facts.ts';
 import { buildPriceReceipt, receiptFigure, receiptTaxable } from './quote.ts';
 import { halfRateBps, stateName, taxDecision } from './tax.ts';
 import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
+import { journalled, type ApplyHandle } from '../journal/journal.ts';
 import {
   experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceRecord,
   type InvoiceView, type MinorString, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
@@ -208,7 +209,9 @@ export async function prepareInvoice(deps: VentureDeps, ctx: Context, payload: u
 
 /**
  * venture.invoice.issue (level approve, app only, evidence). Numbers the approved draft, writes the invoice fact,
- * then, after the commit, asks the calculator for the billed receipt of that day and order.
+ * then, after the commit, asks the calculator for the billed receipt of that day and order. Issuing goes through the
+ * action journal (venture/journal/): described, approved with a token bound to this invoice's digest, then applied in
+ * the same commit that numbers it, so the journal and the books never disagree.
  */
 export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unknown): Promise<InvoiceView> {
   requireAppChannel(ctx, 'venture.invoice.issue');
@@ -217,7 +220,17 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
   check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
   const approved = body.digest;
 
-  const issued = await ventureAction(deps, ctx, 'approve', 'invoice.issue', tx => {
+  // Checked before anything is journalled, with the same refusals the issue commit gives.
+  const { state, venture: current } = readVenture(deps, ctx);
+  requireAcceptedBlueprint(current, listRecords(state, 'venture-blueprint', current.id));
+  const draft = listRecords(state, 'venture-invoice', current.id).find(i => i.id === invoiceId);
+  check(draft, 'INVOICE_NOT_FOUND', 'This invoice was not found.');
+  check(draft.status === 'draft', 'INVOICE_NOT_DRAFT', 'This invoice was already issued.');
+  check(draft.digest === approved, 'APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again, then issue it.');
+  const clientName = listRecords(state, 'venture-client', current.id).find(c => c.id === draft.clientId)?.name ?? 'your client';
+
+  // One commit numbers the invoice, writes its fact and marks the journal entry applied.
+  const issueCommit = (handle: ApplyHandle) => ventureAction(deps, ctx, 'approve', 'invoice.issue', tx => {
     const venture = tx.venture;
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
     requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
@@ -241,8 +254,17 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
     if (order && order.status === 'open') tx.replace({ ...order, status: 'invoiced' });
     activateTerm(tx, 'invoice', { recordId: next.id, kind: 'venture-invoice' });
     tx.emit('invoice-issued', { invoiceId: next.id, number });
-    return { issueDate: next.issueDate as string, orderId: next.orderId, taxable };
+    handle.settleIn(tx, `Issued ${number}.`, invoice.priceReceiptId);
+    return { issueDate: next.issueDate as string, orderId: next.orderId, taxable, number, priceReceiptId: invoice.priceReceiptId };
   });
+
+  const journal = await journalled(deps, ctx, {
+    action: 'invoice.issue', subject: invoiceId, target: clientName, actionDigest: approved, line: `Issue the invoice for ${clientName}.`,
+  }, async handle => {
+    const value = await issueCommit(handle);
+    return { outcome: 'applied', line: `Issued ${value.number}.`, receiptId: value.priceReceiptId, value };
+  });
+  const issued = journal.value!;
 
   const books = await booksReceiptFor(deps, ctx, 'billed', issued.issueDate, issued.orderId, issued.taxable, BILLED_COVERS_MORE);
   return ventureAction(deps, ctx, 'approve', 'invoice.books', tx => {

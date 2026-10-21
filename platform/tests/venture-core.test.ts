@@ -971,3 +971,34 @@ test('template offer words follow how the owner charges, and stay an assumption'
     assert.deepEqual(template.offers, [offerWords(type, 0, 'monthly'), offerWords(type, 1, SECOND_OFFER_MODEL[type])]);
   }
 });
+
+test('a tax answer the owner did not give is kept as an assumption until the owner confirms it on the plan', async () => {
+  const h = setup();
+  await h.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN', workingName: 'Ledger Cafe Books' });
+  await h.call('venture.interview.next', { useTemplate: true });
+  await answer(h, 'q_1', { skipped: true });
+  await answer(h, 'q_2', { skipped: true });
+  await answer(h, 'q_pricing_model', { choiceId: 'monthly' });
+  await answer(h, 'q_price', { skipped: true });
+  // Only "not registered" can be assumed, and only on the tax question.
+  await assert.rejects(answer(h, 'q_tax', { yes: true, assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(answer(h, 'q_price', { skipped: true, assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(answer(h, 'q_tax', { assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  const view = await answer(h, 'q_tax', { yes: false, assumed: true });
+  assert.deepEqual(view.interview.questions.find((q: any) => q.id === 'q_tax').answer, { yes: false, assumed: true });
+  assert.equal(view.done, true);
+  const draft = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(draft.backOffice.taxRegistered, { value: false, label: 'assumption', by: 'template' });
+  assert.equal(structureFromBlueprint(draft).backOffice.taxRegistered.label, 'assumption');
+  // A price edit on the plan keeps the assumption; saying no to tax on the plan makes it the owner's answer.
+  const priced = (await h.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', unitPrice: '2,499' }] } })).blueprint;
+  assert.deepEqual(priced.backOffice.taxRegistered, { value: false, label: 'assumption', by: 'template' });
+  const confirmed = (await h.call('venture.blueprint.update', { patch: { taxRegistered: false } })).blueprint;
+  assert.deepEqual(confirmed.backOffice.taxRegistered, { value: false, label: 'told-by-you', by: 'owner' });
+
+  // The owner's own no stays the owner's.
+  const told = setup();
+  await interviewed(told, { tax: false });
+  const plan = (await told.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(plan.backOffice.taxRegistered, { value: false, label: 'told-by-you', by: 'owner' });
+});

@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "playbook": "social-agency",
+  "recordedAt": "2026-10-21",
+  "recordedFrom": "Reference drafts written by hand for the held-back cases. Re-record from a real playbook run; the baseline only rises.",
+  "baseline": { "passed": 7, "of": 7 },
+  "cases": [
+    {
+      "id": "cafe-weekly-post",
+      "title": "A weekly Instagram post from the menu file",
+      "clientRequest": "Hi, this is Asha from Lumen Studio. Please draft this week's Instagram post about our Sunday thali. Our menu file is attached.",
+      "sources": [{ "id": "menu.csv", "text": "Item,Price\nSunday thali,450\nFilter coffee,90" }],
+      "known": ["Lumen Studio", "Asha"],
+      "mustMention": ["Sunday thali"],
+      "mustNotMention": ["best in town"],
+      "reference": "Sunday thali is back at Lumen Studio: rice, dal and three curries on one plate for ₹450. Come hungry, stay for filter coffee. #SundayThali #PuneEats",
+      "social": {
+        "channel": "instagram",
+        "media": [{ "kind": "image", "width": 1080, "height": 1350, "altText": "A steel thali with rice, dal and three curries." }]
+      }
+    },
+    {
+      "id": "gifted-collab-reel",
+      "title": "A reel made with a gifted product says it is an ad",
+      "clientRequest": "We are partnering with Green Leaf Farms, who sent us free vegetables for a recipe reel. Please write the caption.",
+      "sources": [{ "id": "partnership-note.txt", "text": "Green Leaf Farms sent a free box of vegetables to Lumen Studio in October 2026 for one recipe reel." }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["#ad"],
+      "mustNotMention": ["not sponsored"],
+      "reference": "Ad: Green Leaf Farms sent us a box of vegetables, and our chef turned it into a quick stir fry. The recipe is in the reel. #ad #RecipeReel",
+      "social": {
+        "channel": "instagram",
+        "paid": true,
+        "platformLabels": { "paidPartnership": true },
+        "media": [{ "kind": "video", "width": 1080, "height": 1920, "seconds": 45 }]
+      }
+    },
+    {
+      "id": "ai-presenter-ad",
+      "title": "A creator-style ad with an AI presenter is labelled and never a testimonial",
+      "clientRequest": "Make a creator-style ad for our meal box using an AI presenter. Prices are in the attached sheet.",
+      "sources": [{ "id": "meal-box.csv", "text": "Plan,Meals,Price\nWeekday box,5,1200" }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["Made with AI"],
+      "mustNotMention": ["I've been using", "my family"],
+      "reference": "Made with AI: our presenter is not a real customer. Here is what comes in the Lumen Studio weekday box: 5 meals for ₹1,200, cooked fresh each morning. #MealBox",
+      "social": {
+        "channel": "tiktok",
+        "style": "ugc-ad",
+        "ai": { "person": true, "voice": true },
+        "platformLabels": { "aiGenerated": true },
+        "media": [{ "kind": "video", "width": 1080, "height": 1920, "seconds": 30 }]
+      }
+    },
+    {
+      "id": "linkedin-launch-results",
+      "title": "A LinkedIn post whose figures come from the client's results file",
+      "clientRequest": "Write a LinkedIn post about the cafe launch we ran for Brew Lane. Their results sheet is attached.",
+      "sources": [{ "id": "brew-lane-results.txt", "text": "Brew Lane opened on 6 October 2026. Opening week: 412 orders, 38 new reviews on Google Maps." }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["Brew Lane"],
+      "mustNotMention": ["guaranteed", "viral"],
+      "reference": "Brew Lane opened on 6 October 2026. In the first week they took 412 orders and gathered 38 new reviews on Google Maps. What made the difference: a menu that fit on one card, and posts that showed the people behind the counter.",
+      "social": { "channel": "linkedin" }
+    },
+    {
+      "id": "cold-coffee-reply",
+      "title": "A reply to a complaint promises nothing it cannot keep",
+      "clientRequest": "Someone commented that their coffee was cold last Sunday. Please draft a reply.",
+      "sources": [{ "id": "comment.txt", "text": "Comment by priya.eats on 18 October 2026: My filter coffee was cold on Sunday." }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["sorry"],
+      "mustNotMention": ["refund", "free"],
+      "reference": "We are sorry your filter coffee reached you cold, that is not how it should be. Could you send us a message with your visit time so we can look into it?",
+      "social": { "channel": "instagram", "style": "reply" }
+    },
+    {
+      "id": "weekday-lunch-banned-word",
+      "title": "A Facebook post keeps off the client's banned word",
+      "clientRequest": "Write a Facebook post for our weekday lunch offer. Do not call it cheap. The offer sheet is attached.",
+      "sources": [{ "id": "offer.txt", "text": "Weekday lunch offer: thali and buttermilk for 299 rupees, Monday to Friday, 12 noon to 3 pm." }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["weekday lunch"],
+      "mustNotMention": ["cheap"],
+      "reference": "Our weekday lunch: a thali with buttermilk for ₹299, Monday to Friday from 12 noon to 3 pm. Good food for a working day, without the wait.",
+      "social": { "channel": "facebook", "client": { "businessName": "Lumen Studio", "bannedWords": ["cheap"], "competitors": ["Glow Kitchen"] } }
+    },
+    {
+      "id": "autumn-menu-on-x",
+      "title": "A post on X with a link fits the weighted count",
+      "clientRequest": "Post on X that our autumn menu is live, with a link to the menu page.",
+      "sources": [{ "id": "menu-page.txt", "text": "Autumn menu live from 1 November 2026 at https://lumen.example/menu" }],
+      "known": ["Lumen Studio"],
+      "mustMention": ["https://lumen.example/menu"],
+      "reference": "Our autumn menu is live from 1 November 2026. Pumpkin soup, millet salad and a new filter coffee blend. Menu: https://lumen.example/menu",
+      "social": { "channel": "x" }
+    }
+  ]
+}

@@ -2,13 +2,17 @@
 // A run is a delivery run (one draft reply for an order, with the agent loop's turns when the order has files) or a
 // rehearsal with practice clients. Steps are the playbook's, named by their purpose; tool calls fold under the step
 // they serve, named by what they did, never by the raw tool name. Times are the engine's: a run waiting on the owner
-// stops its clock at the moment it began to wait.
+// stops its clock at the moment it began to wait, and a step's time is its tool calls' own (the harness stamps each).
+// The auditor (delivery/judge/auditor.ts) decides what counts: a loop step is audited only when the auditor passed its
+// work, and only audited steps count as progress. Runs made before the round ledger show no audit either way.
+// An improvement run (delivery/improve.ts) is a run too, one step per round.
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, findRecord, identifier, listRecords } from '../records.ts';
 import type {
-  DeliveryReason, DeliveryRunRecord, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind, ToolCallRecord,
-  VentureDeps, VentureRecord,
+  DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
+  ToolCallRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
+import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
 import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
@@ -41,10 +45,26 @@ const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
 };
 
 const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
-function toolLine(call: ToolCallRecord): string {
-  if (call.envelope.ok) return 'Done.';
+/** What a call did. With a round ledger, a call that ran but failed its audit says why it does not count. */
+function toolLine(call: ToolCallRecord, audit: StepAudit | undefined): string {
+  if (call.envelope.ok) return audit && !audit.audited ? short(`Done. Not counted: ${audit.reason}`, 240) : 'Done.';
   if (call.outcome === 'timedOut') return 'Timed out.';
   return short(call.envelope.error.message || 'It did not work.', 200);
+}
+
+/** A step's time: from its first call's start to its last call's finish. Unknown (undefined) when no call has times. */
+function stepElapsed(calls: readonly ToolCallRecord[], nowIso: string, running: boolean): string | undefined {
+  const starts = calls.map(call => call.startedAt).filter((at): at is string => typeof at === 'string').sort();
+  if (!starts.length) return undefined;
+  const ends = calls.map(call => call.finishedAt).filter((at): at is string => typeof at === 'string').sort();
+  return elapsedText(starts[0], running ? nowIso : ends.at(-1) ?? starts.at(-1)!);
+}
+
+/** True when the auditor passed every call that ran under a step; false when one ran and failed it; undefined without a ledger or calls. */
+function stepAudited(calls: readonly ToolCallRecord[], audits: Map<string, StepAudit>, ledger: boolean): boolean | undefined {
+  if (!ledger || !calls.length) return undefined;
+  const ran = calls.filter(call => call.outcome === 'succeeded');
+  return ran.length > 0 && ran.every(call => audits.get(call.id)?.audited === true);
 }
 
 /** The steps a delivery run follows: its own playbook's, else the business's current one, else the accepted plan's. */
@@ -114,6 +134,8 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
   const found = steps.findIndex(step => step.kind === position.kind);
   const at = found < 0 ? steps.length : found;
   const calls = harness?.toolCalls ?? [];
+  const audits = new Map(auditedSteps(harness).map(audit => [audit.stepId, audit]));
+  const ledger = !!harness?.rounds;
   const error = run.status === 'failed' ? runError(state, record) : undefined;
   const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === run.orderId);
 
@@ -125,7 +147,10 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
     } else {
       stepState = index < at ? 'done' : index === at ? position.state : 'pending';
     }
-    const tools = calls.filter(call => toolKind(call.tool) === step.kind).map(call => ({ name: TOOL_PURPOSE[call.tool] ?? 'Used a tool', line: toolLine(call) }));
+    const stepCalls = calls.filter(call => toolKind(call.tool) === step.kind);
+    const tools = stepCalls.map(call => ({ name: TOOL_PURPOSE[call.tool] ?? 'Used a tool', line: toolLine(call, ledger ? audits.get(call.id) : undefined) }));
+    const audited = stepAudited(stepCalls, audits, ledger);
+    const elapsed = stepElapsed(stepCalls, now.toISOString(), stepState === 'current');
     const evidence: { kind: string; id: string; label: string }[] = [];
     if (step.kind === 'gather' && harness) {
       for (const id of harness.uploadIds) {
@@ -150,13 +175,15 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
     if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(run.deliverable.title, 120) });
     if (step.kind === 'verify') for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: short(`${result.passed ? 'Passed' : 'Failed'}: ${result.detail}`, 160) });
     return plain({
-      id: step.id, purpose: step.title, state: stepState,
+      id: step.id, purpose: step.title, state: stepState, ...(elapsed !== undefined ? { elapsed } : {}),
       ...(tools.length ? { tools } : {}), ...(evidence.length ? { evidence } : {}), ...(stepState === 'failed' && error ? { error } : {}),
+      ...(audited !== undefined ? { audited } : {}),
     });
   });
 
   const end = runState === 'active' ? now.toISOString() : times.get(run.id) ?? run.at;
-  const done = built.filter(step => step.state === 'done').length;
+  // Only audited steps count as progress: a done step whose work failed its audit is not.
+  const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
   const result = resultOf(run);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
@@ -192,6 +219,32 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
   return { summary, detail: { ...summary, steps } };
 }
 
+const IMPROVEMENT_RESULT: Readonly<Record<Exclude<ImprovementRunRecord['status'], 'incomplete'>, string>> = {
+  'kept-candidate': 'A better playbook is ready for you to adopt.',
+  'kept-parent': 'Kept your current playbook: the change did not do better.',
+};
+/** What a round tried to fix: an owner's reason in words, else the check that failed. */
+function fixWords(reason: string): string {
+  return (REASON_WORDS as Readonly<Record<string, string>>)[reason] ?? `the ${reason.replace(/-/g, ' ')} check`;
+}
+
+/** An improvement run: one step per round, each with what was compared or why nothing was tried. It runs to its end in one go. */
+function improvementRun(state: State, venture: VentureRecord, record: ImprovementRunRecord, business: { id: string }): Built {
+  const startedAt = record.startedAt ?? record.at;
+  const summary: RunSummary = {
+    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve the playbook from your feedback', state: 'done',
+    startedAt, elapsed: elapsedText(startedAt, record.at),
+    result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300) : IMPROVEMENT_RESULT[record.status],
+  };
+  const steps: RunStep[] = record.rounds.map(round => plain({
+    id: `round-${round.round}`, state: 'done' as const,
+    purpose: round.diagnosis.chosen ? `Try a change for ${fixWords(round.diagnosis.chosen.reason)}` : 'Look for another change to try',
+    ...(round.gate ? { tools: [{ name: 'Compared with your current playbook', line: short(round.gate.reason, 240) }] }
+      : round.refused ? { tools: [{ name: round.diagnosis.chosen ? 'Proposed a change' : 'Looked for a change', line: short(round.refused, 240) }] } : {}),
+  }));
+  return { summary, detail: { ...summary, steps } };
+}
+
 /** The delivery runs as the screens read them, newest first, with their steps. The team view reads what each agent is doing from these. */
 export function deliveryRunDetails(deps: VentureDeps, state: State, venture: VentureRecord): RunDetail[] {
   const business = businessOf(deps, state);
@@ -211,6 +264,7 @@ function allRuns(deps: VentureDeps, ctx: Context): { state: State; venture: Vent
   const times = lastEventAt(state, venture.id);
   for (const record of listRecords(state, 'venture-delivery-run', venture.id)) runs.set(record.id, () => deliveryRun(deps, state, venture, record, times, business));
   for (const record of listRecords(state, 'venture-simulation-run', venture.id)) runs.set(record.id, () => rehearsalRun(state, venture, record, business));
+  for (const record of listRecords(state, 'venture-improvement-run', venture.id)) runs.set(record.id, () => improvementRun(state, venture, record, business));
   return { state, venture, runs };
 }
 

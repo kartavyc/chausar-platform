@@ -9,17 +9,22 @@
 // computer, whatever its lock, and opening one is a business switch (workspace.open) from the business menu.
 //
 // Rows come only from real pending things: a plan or price change to accept, setup the owner has not done, a builder
-// opened with no repo followed, delivery runs waiting on the owner, and invoice drafts. No source in this build asks
-// for a licensed sign-off, so no 'signoff' row is made. Each row's digest is sha256 over its canonical JSON. A
-// decision runs the engine method that does the real thing, once per row id, and records who decided.
-import { authorize, check, type Context, type State } from '../../contracts.ts';
+// opened with no repo followed, delivery runs waiting on the owner, and invoice drafts. The AI-native CA firm playbook
+// (venture/playbooks/ca-firm/signoff.ts) makes 'signoff' rows: regulated papers and rate-table versions are sent to the
+// CA of record, then signed or confirmed with the CA's ICAI membership number. Each row's digest is sha256 over its
+// canonical JSON. A decision runs the engine method that does the real thing, once per row id, and records who decided.
+// A tool call the policy held (venture/policy) is a question with Let it run once and Keep on hold; a run a spot check
+// picked at auto with spot checks waits as a draft row until the owner says it looks right or needs work. A paid call
+// above the ask-first figure is a 'quote' row (money/spend.ts), a proposed post a 'connector' row decided through
+// build/posting.ts, and the evidence ledger's suggestions and asks are 'question' rows (evidence/ledger.ts).
+import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
   currentVenture, digest, exactPayload, formatVentureDate, listRecords, plainText, requireAppChannel, ventureAction,
 } from '../records.ts';
 import { DELIVERY_REASONS, QUEUE_ACTION_IDS } from '../contracts.ts';
 import type {
-  DeliveryReason, DeliveryRunRecord, Display, HarnessState, InvoiceRecord, Offer, QueueAction, QueueActionId,
+  DeliveryReason, DeliveryRunRecord, Display, EvidenceRecord, HarnessState, InvoiceRecord, Offer, QueueAction, QueueActionId,
   QueueDecision, QueueDecisionRecord, QueueKind, QueueList, QueueRow, VentureBusinessRef, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { blueprintAccept } from '../core/blueprint.ts';
@@ -31,7 +36,13 @@ import {
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
-import { agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
+import { HOLD_APPROVE_ANSWER, HOLD_DECLINE_ANSWER, holdOfHandoff } from '../policy/holds.ts';
+import { pendingSpotChecks, reviewSpotCheck } from '../policy/spot-check.ts';
+import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
+import { approveSpendQuote, openSpendQuotes, quoteLive, spendAgentOf } from '../money/spend.ts';
+import { connectorQueueRows, decideConnectorRow } from '../build/posting.ts';
+import { evidenceApply, evidenceQuestions, recordEvidence } from '../evidence/ledger.ts';
+import { AGENT_ID, agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
 
 export const STALE_LINE = 'This changed since you opened it.';
 export const GONE_LINE = 'This was resolved elsewhere.';
@@ -40,8 +51,9 @@ const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
   'set-prices': 'Set your prices in the business menu.', keep: 'Keep this business safe in the business menu.', open: 'Open it from the business menu.',
 };
 const BUILDERS: Readonly<Record<string, string>> = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
-/** Rows made at the same moment keep this order: the plan first, then setup, as onboarding asks. */
-const RANK: Readonly<Record<QueueKind, number>> = { plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, invoice: 4, locked: 9 };
+/** The plan and setup rows lead Today, in this order; other rows made at the same moment keep it too. */
+const LEAD: readonly QueueKind[] = ['plan', 'price', 'setup'];
+const RANK: Readonly<Record<QueueKind, number>> ={ plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, invoice: 4, locked: 9 };
 
 type Input = { answer: string | null };
 type Outcome = { line: Display; receiptId?: string };
@@ -145,11 +157,20 @@ async function setupRows(deps: VentureDeps, ctx: Context, state: State, venture:
   }
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
   const unpriced = latest ? latest.offers.filter(offer => offer.pricing.unitPriceMinor === null).map(offer => offer.name.value) : [];
-  if (latest && unpriced.length) {
+  // Tax counts as set only when the owner said yes or no; a default a screen filled in is Chausar's assumption.
+  const tax = latest && latest.backOffice.taxRegistered.label !== 'told-by-you' ? latest.backOffice : null;
+  if (latest && (unpriced.length || tax)) {
     const names = unpriced.length === 1 ? unpriced[0] : `${unpriced.slice(0, -1).join(', ')} and ${unpriced[unpriced.length - 1]}`;
+    const noPrice = `${names} ${unpriced.length === 1 ? 'has' : 'have'} no price yet`;
+    const assumed = tax ? `Chausar assumed you ${tax.taxRegistered.value ? 'charge' : 'do not charge'} ${tax.taxLabel}` : '';
+    const words = !tax
+      ? { title: 'Set your prices', line: `${noPrice}.`, label: 'Set prices', navigate: 'Set your prices in the business menu.' }
+      : !unpriced.length
+        ? { title: 'Confirm your tax', line: `${assumed}. Say whether you do.`, label: 'Confirm tax', navigate: 'Confirm your tax in the business menu.' }
+        : { title: 'Confirm your prices and tax', line: `${noPrice}, and ${assumed}.`, label: 'Confirm', navigate: 'Set your prices and tax in the business menu.' };
     rows.push({
-      subject: 'setup:prices', perform: {}, navigate: 'Set your prices in the business menu.',
-      row: { ...base(business, 'setup', 'setup:prices', latest.id, venture.at), title: 'Set your prices', line: `${names} ${unpriced.length === 1 ? 'has' : 'have'} no price yet.`, actions: [action('set-prices', 'Set prices', true)] },
+      subject: 'setup:prices', perform: {}, navigate: words.navigate,
+      row: { ...base(business, 'setup', 'setup:prices', latest.id, venture.at), title: words.title, line: words.line, actions: [action('set-prices', words.label, true)] },
     });
   }
   let recovery: Awaited<ReturnType<NonNullable<VentureDeps['workspace']>['recovery']>> = null;
@@ -239,6 +260,17 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
       });
     } else if (run.status === 'needs-answer' && run.awaitingYou && run.harness) {
       const open = [...run.harness.handoffs].reverse().find(handoff => handoff.answer === null);
+      const hold = open ? holdOfHandoff(run.harness, run.harness.handoffs.indexOf(open)) : null;
+      if (hold) {
+        const reply = (answer: string, line: string): Perform => async (d, ctx) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer }); return { line }; };
+        rows.push({
+          subject, perform: { approve: reply(HOLD_APPROVE_ANSWER, 'It runs once, in the next step.'), deny: reply(HOLD_DECLINE_ANSWER, 'Kept on hold. The agent goes on without it.') },
+          row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
+            title: `${agent} wants to run a step on hold for ${client}`, line: short(open!.question, 300),
+            viewRef: viewRun, actions: [action('deny', 'Keep on hold', false), action('approve', 'Let it run once', true)] },
+        });
+        continue;
+      }
       rows.push({
         subject, perform: { answer: async (d, ctx, input) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer: input.answer }); return { line: 'Answered.' }; } },
         row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
@@ -283,6 +315,22 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
   return rows;
 }
 
+/** Runs a spot check picked at auto with spot checks: each waits until the owner says it looks right or needs work. */
+function spotRows(state: State, venture: VentureRecord, business: Business): Pending[] {
+  const runs = new Map(listRecords(state, 'venture-delivery-run', venture.id).map(run => [run.id, run]));
+  return pendingSpotChecks(state, venture).map((spot): Pending => {
+    const run = runs.get(spot.runId);
+    const subject = `spot:${part(spot.id)}`;
+    const review = (verdict: 'looks-right' | 'needs-work', line: string): Perform => async (d, ctx) => { await reviewSpotCheck(d, ctx, spot.id, verdict); return { line }; };
+    return {
+      subject, perform: { approve: review('looks-right', 'Spot check recorded: it looks right.'), deny: review('needs-work', 'Spot check recorded: it needs work.') },
+      row: { ...base(business, 'draft', subject, 'review', spot.at), agent: agentName(state, venture),
+        title: `Spot check: the draft for ${run ? clientNameFor(state, venture.id, run.orderId) : 'a client'}`, line: short(spot.line, 300),
+        viewRef: { kind: 'run', id: spot.runId }, actions: [action('deny', 'Needs work', false), action('approve', 'Looks right', true, { requiresView: true })] },
+    };
+  });
+}
+
 function invoiceRows(state: State, venture: VentureRecord, business: Business): Pending[] {
   const orders = new Map(listRecords(state, 'venture-order', venture.id).map(order => [order.id, order]));
   return listRecords(state, 'venture-invoice', venture.id)
@@ -306,6 +354,138 @@ function invoiceRows(state: State, venture: VentureRecord, business: Business): 
         },
       };
     });
+}
+
+/** Regulated papers and rate tables waiting for the CA of record (P3-ca-firm): Send to CA, then the CA signs or confirms. */
+function signoffRows(state: State, venture: VentureRecord, business: Business): Pending[] {
+  return caFirmQueueItems(state, venture).map((item): Pending => ({
+    subject: item.subject, perform: item.perform,
+    row: {
+      ...base(business, 'signoff', item.subject, item.version, item.createdAt), title: item.title, line: item.line, actions: item.actions,
+      ...(item.viewRef ? { viewRef: item.viewRef } : {}),
+    },
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Spend quotes, posts and evidence questions
+// ---------------------------------------------------------------------------
+
+/**
+ * A paid call above the owner's ask-first figure waits as a quote (money/spend.ts). Approve sends back exactly the
+ * draft digest, figure and payer the row showed, so a changed quote is refused. A quote lives for one hour; after
+ * that it leaves Today, and the next try of the call makes a fresh one.
+ */
+function quoteRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business): Pending[] {
+  const now = deps.clock().toISOString();
+  const agent = agentName(state, venture);
+  return openSpendQuotes(state).filter(quote => quoteLive(quote, now)).map((quote): Pending => {
+    const subject = `spend-quote:${part(quote.id)}`;
+    const approve: Perform = async (d, ctx) => {
+      await approveSpendQuote(d, ctx, { quoteId: quote.id, draftDigest: quote.draftDigest, figureMicros: quote.figureMicros, payer: quote.payer });
+      return { line: 'Approved. It can run once in the next hour.' };
+    };
+    return {
+      subject, perform: { approve },
+      row: {
+        ...base(business, 'quote', subject, 'open', quote.at), ...(spendAgentOf(state, quote) === AGENT_ID ? { agent } : {}),
+        title: `Approve the cost of ${quote.label}`, line: 'It may cost more than the amount you asked to see first. One approval pays for this one call.',
+        change: { label: 'It may cost', after: quote.figure },
+        actions: [action('later', 'Not now', false), action('approve', 'Approve', true, { secondAsk: true })],
+      },
+    };
+  });
+}
+
+/** Posts an agent or the owner proposed (build/posting.ts). A decision goes to decideConnectorRow, which posts at most once. */
+function postRows(state: State, business: Business): Pending[] {
+  return connectorQueueRows(state).map((post): Pending => {
+    const subject = `post:${part(post.id)}`;
+    const decide = (choice: 'approve' | 'deny'): Perform => async (d, ctx) => {
+      const decision = await decideConnectorRow(d, ctx, { id: post.id, digest: post.digest, action: choice });
+      if (decision.outcome === 'stale') throw new ChausarError('APPROVAL_STALE', decision.line);
+      if (decision.outcome === 'refused') throw new ChausarError(decision.reason ?? 'POST_ALREADY_DECIDED', decision.line);
+      return { line: decision.line };
+    };
+    const approve = post.actions.find(item => item.id === 'approve');
+    const deny = post.actions.find(item => item.id === 'deny');
+    return {
+      subject, perform: { approve: decide('approve'), deny: decide('deny') },
+      row: {
+        ...base(business, 'connector', subject, post.digest.slice(0, 16), post.createdAt), ...(post.agent ? { agent: post.agent } : {}),
+        title: post.title, ...(post.line ? { line: post.line } : {}), ...(post.viewRef ? { viewRef: post.viewRef } : {}),
+        actions: [
+          action('deny', deny?.label ?? 'Do not post', false),
+          action('approve', approve?.label ?? 'Approve and post', true, { secondAsk: approve?.secondAsk ?? true, requiresView: approve?.requiresView ?? true }),
+        ],
+      },
+    };
+  });
+}
+
+const FIELD_WORDS: Readonly<Record<string, string>> = {
+  name: 'name', email: 'email', note: 'note', oneLiner: 'one-line description', customer: 'customer', description: 'description',
+  postalAddress: 'postal address', taxId: 'tax number',
+};
+/** A ledger field in plain words: 'email', 'postal address', 'offer name'. */
+function fieldWords(field: string): string {
+  const [head, ...rest] = field.split('.');
+  const last = rest.length ? rest[rest.length - 1] : head;
+  const words = FIELD_WORDS[last] ?? last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase();
+  return rest.length && /^offer/i.test(head) ? `offer ${words}` : words;
+}
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * What the evidence ledger asks the owner (evidence/ledger.ts): a weaker value than the one stored, to use or correct,
+ * and a field Chausar cannot see, to fill in. Use it runs venture.evidence.apply; an answer is kept as the owner's
+ * own entry, which is verified and becomes the stored value.
+ */
+function evidenceRows(state: State, venture: VentureRecord, business: Business): Pending[] {
+  const records = listRecords(state, 'venture-evidence', venture.id);
+  const clients = new Map(listRecords(state, 'venture-client', venture.id).map(item => [item.id, item]));
+  const agent = agentName(state, venture);
+  return evidenceQuestions(state, venture.id).map((record: EvidenceRecord): Pending => {
+    const subject = `evidence:${part(record.id)}`;
+    const words = fieldWords(record.field);
+    const client = record.subject.startsWith('client:') ? clients.get(record.subject.slice('client:'.length)) : undefined;
+    const who = record.subject === 'business' ? 'your business' : client?.name ?? 'a client';
+    const answer: Perform = async (d, ctx, input) => {
+      await ventureAction(d, ctx, 'prepare', 'evidence.answer', tx => {
+        recordEvidence(tx, { subject: record.subject, field: record.field, value: input.answer ?? '', type: 'owner-entered', by: 'owner', source: 'you answered on Today' });
+      });
+      return { line: `Kept your ${words}.` };
+    };
+    const head = { ...base(business, 'question', subject, record.id, record.at), ...(record.by === 'agent' ? { agent } : {}) };
+    if (record.claim === 'needs-your-data') {
+      return {
+        subject, perform: { answer },
+        row: { ...head, title: record.subject === 'business' ? `Your business needs its ${words}` : `Add the ${words} for ${who}`,
+          line: 'Chausar cannot see this. Type it and it is kept as your own entry.', actions: [action('answer', 'Answer', true)] },
+      };
+    }
+    const current = records.find(item => item.applied && item.subject === record.subject && item.field === record.field);
+    const stored = current?.value
+      ?? (client && (record.field === 'name' || record.field === 'email' || record.field === 'note') ? client[record.field] ?? undefined : undefined);
+    // Weaker evidence cannot replace a checked value on its own. Over a checked value, the owner choosing the
+    // suggestion they read is their own entry; otherwise it is applied as the ledger's suggestion.
+    const use: Perform = current?.strength === 'verified'
+      ? async (d, ctx) => {
+        await ventureAction(d, ctx, 'prepare', 'evidence.answer', tx => {
+          recordEvidence(tx, { subject: record.subject, field: record.field, value: record.value, type: 'owner-entered', by: 'owner', source: 'you chose the suggestion on Today' });
+        });
+        return { line: `Using the new ${words}.` };
+      }
+      : async (d, ctx) => { await evidenceApply(d, ctx, { id: record.id }); return { line: `Using the new ${words}.` }; };
+    return {
+      subject, perform: { approve: use, answer },
+      row: {
+        ...head, title: `A new ${words} for ${who}`, line: short(record.source),
+        change: { label: capital(words), ...(stored ? { before: stored } : {}), after: record.value, ...(record.type === 'model-inferred' ? { estimate: true } : {}) },
+        actions: [action('answer', 'Correct it', false), action('approve', 'Use it', true)],
+      },
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +533,9 @@ async function buildRows(deps: VentureDeps, ctx: Context, scope: 'current' | 'al
   const pending: Pending[] = [];
   if (venture) {
     pending.push(...planRows(state, venture, business), ...await setupRows(deps, ctx, state, venture, business), ...connectorRows(state, venture, business));
-    pending.push(...runRows(deps, state, venture, business), ...invoiceRows(state, venture, business));
+    pending.push(...runRows(deps, state, venture, business), ...spotRows(state, venture, business), ...invoiceRows(state, venture, business));
+    pending.push(...signoffRows(state, venture, business));
+    pending.push(...quoteRows(deps, state, venture, business), ...postRows(state, business), ...evidenceRows(state, venture, business));
   }
   if (scope === 'all' && deps.workspace) {
     let others: VentureBusinessRef[] = [];
@@ -362,7 +544,11 @@ async function buildRows(deps: VentureDeps, ctx: Context, scope: 'current' | 'al
   }
   const decided = decidedIds(state, venture?.id ?? null);
   const rows = pending.map(sealed).filter(built => !decided.has(built.row.id));
-  rows.sort((a, b) => (a.row.kind === 'locked' ? 1 : 0) - (b.row.kind === 'locked' ? 1 : 0)
+  // The plan and the setup rows lead, plan first, whatever their times: the plan is written after the business is
+  // made, and onboarding asks for it first. Then every other row oldest first; locked businesses last.
+  const group = (row: QueueRow) => (row.kind === 'locked' ? 2 : LEAD.includes(row.kind) ? 0 : 1);
+  rows.sort((a, b) => group(a.row) - group(b.row)
+    || (group(a.row) === 0 ? RANK[a.row.kind] - RANK[b.row.kind] : 0)
     || (a.row.kind === 'locked' ? 0 : a.row.createdAt.localeCompare(b.row.createdAt))
     || RANK[a.row.kind] - RANK[b.row.kind]);
   return { rows, state, venture };

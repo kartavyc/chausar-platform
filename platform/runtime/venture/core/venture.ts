@@ -13,6 +13,7 @@ import type { ComposedPlan, CompositionRecord, DraftAi, DraftCompose } from '../
 import { assembleComposedBlueprint, structureOf } from './blueprint.ts';
 import { checklistFor } from './checklist.ts';
 import { revalidateComposed } from './compose.ts';
+import { playbookField } from './lookups.ts';
 import { countryProfile } from './countries.ts';
 import { engineQuestions, storedQuestion, taxRateQuestion } from './interview.ts';
 import { classifyIdea } from './service-types.ts';
@@ -25,7 +26,7 @@ export const VENTURE_RETENTION_DAYS = 3650;
 export function buildView(state: State): VentureView | null {
   const venture = currentVenture(state);
   if (!venture) return null;
-  return { venture, ...checklistFor(state, venture), terms: listRecords(state, 'venture-term', venture.id) };
+  return { venture, ...checklistFor(state, venture), terms: listRecords(state, 'venture-term', venture.id), ...playbookField(venture.idea) };
 }
 
 /** The services starter pack in the venture's currency. The GST mode is only a label; nothing here computes tax. */
@@ -74,6 +75,8 @@ function composedInterview(tx: VentureTx, plan: ComposedPlan, callIds: string[],
   // The stored pricing question offers only offer_1's allowed pricing, so a later answer can't pick another.
   const pricingQuestion = { ...pricing, choices: pricing.choices.filter(choice => first.allowedPricing.includes(choice.id as typeof model)) };
   const registered = plan.backOffice.taxRegistered.value;
+  // A plan whose tax line is still the engine's assumption arrives with an assumed answer, never as the owner's.
+  const ownerTax = registered || plan.backOffice.taxRegistered.label === 'told-by-you';
   const questions: InterviewRecord['questions'] = [
     ...plan.questions.map(q => {
       const { block: _block, answer, ...question } = q;
@@ -83,7 +86,7 @@ function composedInterview(tx: VentureTx, plan: ComposedPlan, callIds: string[],
     first.pricing.unitPriceMinor === null
       ? answered(storedQuestion(price), { skipped: true })
       : answered(storedQuestion(price), { amount: minorText(first.pricing.unitPriceMinor, country.minorDigits) }, first.pricing.unitPriceMinor),
-    answered(storedQuestion(tax), { yes: registered }),
+    answered(storedQuestion(tax), ownerTax ? { yes: registered } : { yes: false, assumed: true }),
   ];
   if (registered) {
     const bps = plan.backOffice.taxRateBps;
