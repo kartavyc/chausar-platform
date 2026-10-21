@@ -9,7 +9,8 @@
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, formatMicros, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
 import type { AgentPostureRecord, AgentView, PlaybookStep, Posture, TeamGateRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { currentPlaybook, playbookSteps } from '../delivery/playbook.ts';
+import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
+import { flagshipDelivery, type FlagshipDelivery } from '../playbooks/steps.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
 import { POSTURES, postureOfStage, postureRank, stepGate } from '../policy/posture.ts';
@@ -25,13 +26,31 @@ export function floorReason(step: PlaybookStep): string | null {
   return stepFloorReason(step);
 }
 
-/** The agent's steps: the playbook in use, else the accepted plan's fixed steps (worked out, never stored, here). */
+/** The agent's steps: the playbook in use, else the accepted plan's steps (worked out, never stored, here). */
 function agentSteps(state: State, venture: VentureRecord): PlaybookStep[] | null {
   const playbook = currentPlaybook(state, venture);
   if (playbook) return playbook.steps;
   const plan = acceptedBlueprintOrNull(state, venture);
   if (!plan) return null;
-  try { return playbookSteps(plan); } catch { return null; }
+  try { return playbookSteps(plan, deliveryFlagship(venture, plan)); } catch { return null; }
+}
+
+/** The flagship playbook the team follows (playbooks/steps.ts): the playbook in use's, else the accepted plan's. */
+function teamFlagship(state: State, venture: VentureRecord): FlagshipDelivery | null {
+  const playbook = currentPlaybook(state, venture);
+  if (playbook) return flagshipDelivery(playbook.flagship);
+  const plan = acceptedBlueprintOrNull(state, venture);
+  return plan ? flagshipDelivery(deliveryFlagship(venture, plan)) : null;
+}
+
+/** Why a step asks at every posture: code's floor from its kind and tools, else the flagship playbook's own floor. */
+function stepFloor(step: PlaybookStep, flagship: FlagshipDelivery | null): string | null {
+  return floorReason(step) ?? flagship?.floor[step.id] ?? null;
+}
+
+/** Whether an agent id is one of this team's: the one delivery agent, or a flagship playbook's role that does steps. */
+function knownAgent(flagship: FlagshipDelivery | null, steps: readonly PlaybookStep[], agentId: string): boolean {
+  return flagship ? steps.some(step => flagship.roleOf[step.id] === agentId) : agentId === AGENT_ID;
 }
 
 function spendOf(state: State, venture: VentureRecord): string {
@@ -41,28 +60,47 @@ function spendOf(state: State, venture: VentureRecord): string {
   return calls.some(call => call.priceConfirmed === false) ? `${total}${ESTIMATE_WORDS}` : total;
 }
 
-function agentView(deps: VentureDeps, state: State, venture: VentureRecord): AgentView | null {
+/**
+ * The team. One delivery agent for the eight fixed steps; for a flagship playbook, one agent per role that does an
+ * agent or code step (playbooks/steps.ts), each with its own steps. One harness agent runs every role's steps, so
+ * the gates, the posture and the spend are the team's: stored and read under AGENT_ID, as the policy reads them.
+ */
+function agentViews(deps: VentureDeps, state: State, venture: VentureRecord): AgentView[] {
   const steps = agentSteps(state, venture);
-  if (!steps) return null;
+  if (!steps) return [];
+  const flagship = teamFlagship(state, venture);
   const posture = effectivePosture(state, venture);
   const gates = new Map<string, 'auto' | 'hold'>();
   for (const record of listRecords(state, 'venture-team-gate', venture.id)) if (record.agentId === AGENT_ID) gates.set(record.stepId, record.gate);
   const runs = deliveryRunDetails(deps, state, venture);
   const busy = runs.find(run => run.state === 'waiting' || run.state === 'active');
   const step = busy?.steps.find(item => item.state === 'waiting' || item.state === 'current');
-  const now = !busy ? 'Idle' : busy.state === 'active' ? `Working: ${step?.purpose ?? busy.purpose}` : `Waiting on you: ${step?.purpose ?? busy.purpose}`;
+  const nowFor = (owns: (stepId: string) => boolean): string => {
+    if (!busy || (step && !owns(step.id))) return 'Idle';
+    return busy.state === 'active' ? `Working: ${step?.purpose ?? busy.purpose}` : `Waiting on you: ${step?.purpose ?? busy.purpose}`;
+  };
   const reviewed = listRecords(state, 'venture-delivery-run', venture.id).filter(run => run.verdict !== null)
     .sort((a, b) => (b.verdict!.at).localeCompare(a.verdict!.at))[0];
   const verdictWords = { accepted: 'accepted', edited: 'edited by you', rejected: 'rejected' } as const;
   const receiptId = reviewed?.harness?.workReceiptIds.at(-1);
-  return plain({
-    id: AGENT_ID, name: agentName(state, venture), role: ROLE, now, posture, spend: spendOf(state, venture),
-    ...(reviewed ? { last: { line: `Draft for ${clientNameFor(state, venture.id, reviewed.orderId)} ${verdictWords[reviewed.verdict!.choice]}.`, ...(receiptId ? { receiptId } : {}) } } : {}),
-    steps: steps.map(item => {
-      // Gates start on hold at every posture: auto with spot checks lets a step run alone only once the owner set it to auto.
-      const floor = floorReason(item) !== null;
-      return { id: item.id, purpose: item.title, gate: stepGate(gates.get(item.id), floor), floor };
-    }),
+  const last = reviewed ? { last: { line: `Draft for ${clientNameFor(state, venture.id, reviewed.orderId)} ${verdictWords[reviewed.verdict!.choice]}.`, ...(receiptId ? { receiptId } : {}) } } : {};
+  const stepView = (item: PlaybookStep) => {
+    // Gates start on hold at every posture: auto with spot checks lets a step run alone only once the owner set it to auto.
+    const floor = stepFloor(item, flagship) !== null;
+    return { id: item.id, purpose: item.title, gate: stepGate(gates.get(item.id), floor), floor };
+  };
+  if (!flagship) {
+    return [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView) })];
+  }
+  const spend = `${spendOf(state, venture)} for the whole team`;
+  const drafter = flagship.roleOf[flagship.draftStep(null)];
+  return flagship.roles.flatMap(role => {
+    const own = steps.filter(item => flagship.roleOf[item.id] === role.id);
+    if (!own.length) return [];
+    return [plain({
+      id: role.id, name: role.name, role: role.job, now: nowFor(stepId => flagship.roleOf[stepId] === role.id), posture, spend,
+      ...(role.id === drafter ? last : {}), steps: own.map(stepView),
+    })];
   });
 }
 
@@ -72,8 +110,16 @@ export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: 
   authorize(deps.store, ctx);
   const state = deps.store.read();
   const venture = currentVenture(state);
-  const agent = venture ? agentView(deps, state, venture) : null;
-  return { agents: agent ? [agent] : [] };
+  return { agents: venture ? agentViews(deps, state, venture) : [] };
+}
+
+/** One agent of the team as it stands now, or AGENT_NOT_FOUND. */
+function agentNow(deps: VentureDeps, agentId: string): AgentView {
+  const state = deps.store.read();
+  const venture = currentVenture(state);
+  const agent = venture ? agentViews(deps, state, venture).find(item => item.id === agentId) : undefined;
+  check(agent, 'AGENT_NOT_FOUND', 'That agent was not found.');
+  return agent;
 }
 
 /** venture.team.gate { agentId, stepId, gate } (approve, app only): stores one step's gate. A floor step never goes to auto. */
@@ -86,17 +132,17 @@ export async function teamGateHandler(deps: VentureDeps, ctx: Context, payload: 
   const gate = body.gate;
   await ventureAction(deps, ctx, 'approve', 'team.gate', tx => {
     const steps = agentSteps(tx.state, tx.venture!);
-    check(steps && agentId === AGENT_ID, 'AGENT_NOT_FOUND', 'That agent was not found.');
-    const step = steps.find(item => item.id === stepId);
+    const flagship = teamFlagship(tx.state, tx.venture!);
+    check(steps && knownAgent(flagship, steps, agentId), 'AGENT_NOT_FOUND', 'That agent was not found.');
+    // A role sets only its own steps.
+    const step = steps.find(item => item.id === stepId && (!flagship || flagship.roleOf[item.id] === agentId));
     check(step, 'STEP_NOT_FOUND', 'That step was not found.');
-    const floor = floorReason(step);
+    const floor = stepFloor(step, flagship);
     check(!(floor && gate === 'auto'), 'GATE_FLOOR', floor ?? '');
-    tx.put<TeamGateRecord>({ ...tx.base('venture-team-gate'), agentId, stepId, gate });
+    // One harness agent runs every role's steps: the gate is stored where the policy reads it.
+    tx.put<TeamGateRecord>({ ...tx.base('venture-team-gate'), agentId: AGENT_ID, stepId, gate });
   });
-  const state = deps.store.read();
-  const agent = agentView(deps, state, currentVenture(state)!);
-  check(agent, 'AGENT_NOT_FOUND', 'That agent was not found.');
-  return { agent };
+  return { agent: agentNow(deps, agentId) };
 }
 
 const POSTURE_NAMES: Readonly<Record<Posture, string>> = Object.freeze({
@@ -116,14 +162,13 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
     'Choose rehearsal, shadow, approve each or auto with spot checks.');
   const posture = body.posture as Posture;
   await ventureAction(deps, ctx, 'approve', 'team.posture', tx => {
-    check(agentSteps(tx.state, tx.venture!) && agentId === AGENT_ID, 'AGENT_NOT_FOUND', 'That agent was not found.');
+    const steps = agentSteps(tx.state, tx.venture!);
+    check(steps && knownAgent(teamFlagship(tx.state, tx.venture!), steps, agentId), 'AGENT_NOT_FOUND', 'That agent was not found.');
     const stage = postureOfStage(tx.venture!.launchStage);
     check(postureRank(posture) <= postureRank(stage), 'POSTURE_ABOVE_STAGE',
       `The business is at ${POSTURE_NAMES[stage]}, so this agent can work at ${POSTURE_NAMES[stage]} or tighter. Move the business up first.`);
-    tx.put<AgentPostureRecord>({ ...tx.base('venture-agent-posture'), agentId, posture });
+    // A flagship playbook's roles are one harness agent, so a role's posture is the team's, stored where the policy reads it.
+    tx.put<AgentPostureRecord>({ ...tx.base('venture-agent-posture'), agentId: AGENT_ID, posture });
   });
-  const state = deps.store.read();
-  const agent = agentView(deps, state, currentVenture(state)!);
-  check(agent, 'AGENT_NOT_FOUND', 'That agent was not found.');
-  return { agent };
+  return { agent: agentNow(deps, agentId) };
 }

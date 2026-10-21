@@ -10,7 +10,7 @@ import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainT
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
   BlueprintRecord, CheckId, CheckResult, ClaimProof, DelegateFigure, DelegateRunRecord, DelegationRequest, Deliverable, DeliveryReason, DeliveryRunRecord,
-  DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
+  DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
   VentureDeps, VentureRecord, VentureRecordKind, WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
 import { firstFailedCheck, knownNames, runChecks } from './checks.ts';
@@ -28,7 +28,8 @@ import {
   startDelegation, validateTurn, writeGuidance, writeTask, type AgentTurn, type LoopContext,
 } from './harness/loop.ts';
 import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
-import { ensurePlaybook, playbookLimits, verifyChecks } from './playbook.ts';
+import { ensurePlaybook, flagshipDraft, playbookLimits, verifyChecks } from './playbook.ts';
+import { failedPlaybookCheck, runFlagshipChecks } from '../playbooks/draft-checks.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
 import { journalled } from '../journal/journal.ts';
@@ -41,8 +42,11 @@ export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use 
 const MAX_EDITED_CHARS = 20000;
 const MAX_ANSWER_CHARS = 2000;
 
-/** known: the names a draft may use without a source (the client, the business, its plan and offers, the country). */
-type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[]; known: string[] };
+/**
+ * known: the names a draft may use without a source (the client, the business, its plan and offers, the country).
+ * offerKey: the flagship playbook offer the order is (Offer.playbookOffer), or null.
+ */
+type OrderContext = { venture: VentureRecord; blueprint: BlueprintRecord; order: OrderRecord; receipt: PriceReceiptRecord; receipts: PriceReceiptRecord[]; known: string[]; offerKey: string | null };
 
 function orderContext(state: State, venture: VentureRecord, orderId: string): OrderContext {
   const order = findRecord(state, 'venture-order', orderId);
@@ -52,7 +56,21 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
   check(receipt && receipt.ventureId === venture.id, 'RECEIPT_NOT_FOUND', 'The price receipt for this order was not found.');
   const client = findRecord(state, 'venture-client', order.clientId);
   const known = knownNames(client?.ventureId === venture.id ? client.name : null, venture.workingName, blueprint.name.value, venture.country.name, ...blueprint.offers.map(offer => offer.name.value));
-  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id), known };
+  const offerKey = blueprint.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null;
+  return { venture, blueprint, order, receipt, receipts: ventureReceipts(state, venture.id), known, offerKey };
+}
+
+/**
+ * A flagship playbook's own checks on a draft (playbooks/draft-checks.ts), after the harness checks; undefined for
+ * the eight fixed steps. The finishing check reads a cut on this computer, so the hosted server never runs it.
+ */
+async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { work?: readonly WorkReceiptRecord[]; files?: readonly FileLike[] } = {}): Promise<PlaybookCheckResult[] | undefined> {
+  if (!playbook.flagship) return undefined;
+  return runFlagshipChecks({
+    flagship: playbook.flagship, offerKey: context.offerKey, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
+    files: extras.files ?? [], receipts: [...context.receipts, ...(extras.work ?? [])], known: context.known, mode: 'client',
+    today: todayIso(deps, context.venture), dateOrder: context.venture.country.dateOrder, ...(deps.host === 'hosted-web' ? { finishing: null } : {}),
+  });
 }
 
 function draftContext(context: OrderContext, today: string): { refs: DraftRefs; offer: { name: string; description: string } } {
@@ -135,19 +153,22 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     });
   }
 
+  // A flagship playbook drafts with its own step for this offer: that step's headings and guidance.
+  const draft = flagshipDraft(playbook, context.offerKey);
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
-    containsClientData: true, templateTotalRef: 'order.total', guidance: writeGuidance(playbook),
+    containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
   }));
 
   if (!preview) {
     const deliverable = templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
     const renderedText = `${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
     const checks = checkDraft(context, playbook, deliverable, renderedText);
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       const run: DeliveryRunRecord = {
         ...baseRun(tx, context.order, playbook), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
-        deliverable, renderedText, checks,
+        deliverable, renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}),
       };
       tx.put(run);
       tx.emit('run.started', { runId: run.id });
@@ -182,7 +203,7 @@ function loopContext(deps: VentureDeps, ctx: Context, state: State, context: Ord
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
     files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
-    delegate: delegate.map(item => item.cli),
+    delegate: delegate.map(item => item.cli), draft: flagshipDraft(playbook, context.offerKey),
   };
 }
 
@@ -238,16 +259,18 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   const send = async (): Promise<DeliveryRunView> => {
     if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
+    const draft = flagshipDraft(playbook, context.offerKey);
     let deliverable: Deliverable;
     try {
-      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed }));
+      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }));
       deliverable = outcome.value;
     } catch (error) {
       await markFailedWhenSpent(deps, ctx, run, callId, error);
       throw error;
     }
     const renderedText = renderDeliverable(deliverable, context.receipts, context.venture.country);
-    const checks = checkDraft(context, playbook, deliverable, renderedText);
+    const checks = checkDraft(context, playbook, deliverable, renderedText, draft ? { sections: draft.sections } : {});
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model');
     try {
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', runId);
@@ -257,6 +280,7 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
         check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
         const next: DeliveryRunRecord = {
           ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
+          ...(playbookChecks ? { playbookChecks } : {}),
         };
         tx.replace(next);
         recordCheckSignal(tx, runId, checks);
@@ -351,10 +375,12 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     const receipts: AnyReceipt[] = [...context.receipts, ...made.receipts];
     const renderedText = renderDeliverable(deliverable, receipts, context.venture.country);
     const answers = harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
+    const draft = flagshipDraft(playbook, context.offerKey);
     const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
-      work: made.receipts, proofs: harness.proofs, sections: harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType], answers,
-      harness: done, files,
+      work: made.receipts, proofs: harness.proofs, answers, harness: done, files,
+      sections: draft?.sections ?? (harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]),
     });
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { work: made.receipts, files });
     return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
       const current = tx.find('venture-delivery-run', run.id);
       check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
@@ -362,6 +388,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       const next: DeliveryRunRecord = {
         ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: done,
+        ...(playbookChecks ? { playbookChecks } : {}),
       };
       tx.replace(next);
       // The spot-check completion hook (policy/spot-check.ts): at auto with spot checks the finished run gets its
@@ -634,7 +661,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     // safety lever, so a draft approved earlier can't be accepted, and an edit made now can't be copied.
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
     check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
-    if (verdict === 'accepted') acceptableAsIs(run.checks);
+    if (verdict === 'accepted') acceptableAsIs(run.checks, run.playbookChecks);
     const next: DeliveryRunRecord = { ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText };
     tx.replace(next);
     if (verdict !== 'accepted') {
@@ -649,18 +676,20 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
 }
 
 /**
- * Why a draft can't be accepted as it stands, or null when every check passed. The owner edits or rejects it. A draft
- * that claims work no tool run proves gets its own words.
+ * Why a draft can't be accepted as it stands, or null when every check passed: the harness checks first, then a
+ * flagship playbook's own (a check that did not run blocks nothing). The owner edits or rejects it. A draft that
+ * claims work no tool run proves gets its own words.
  */
-function failedCheckReason(checks: readonly CheckResult[]): string | null {
+function failedCheckReason(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]): string | null {
   const failed = checks.filter(result => !result.passed);
-  if (!failed.length) return null;
   if (failed.some(result => result.check === 'no-done-claims')) return DONE_CLAIM_REASON;
-  return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
+  if (failed.length) return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
+  const playbook = failedPlaybookCheck(playbookChecks);
+  return playbook ? `This draft failed a check: ${playbook.detail} Edit it or reject it.` : null;
 }
 
-function acceptableAsIs(checks: readonly CheckResult[]) {
-  const reason = failedCheckReason(checks);
+function acceptableAsIs(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]) {
+  const reason = failedCheckReason(checks, playbookChecks);
   check(reason === null, 'INVALID_VENTURE_REQUEST', reason ?? '');
 }
 
@@ -685,7 +714,7 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
     : waiting || asking || brief ? run.practice || stage !== 'approve-each'
       : run.practice;
   const canApprove = waiting && run.callId !== null && agentStage(stage) && run.preview !== null && Date.parse(run.preview.expiresAt) > nowMs;
-  const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks)) : null;
+  const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks, run.playbookChecks)) : null;
   const canAccept = ready && blocked === null;
   const awaitingYou = waiting ? canApprove : asking ? agentStage(stage) : brief ? briefWaits && agentStage(stage) : ready ? !practiceNow || stage === 'shadow' : false;
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };

@@ -1,11 +1,13 @@
 /**
- * Client files for a new order. The engine takes CSV, Excel (.xlsx) and PDF, each under its upload limit
- * (MAX_UPLOAD_BYTES in platform/runtime/venture/delivery/harness/files.ts), sent as base64. Checking the same two
- * things here first means an order is never created with half its files refused.
+ * Client files for a new order. The engine takes CSV, Excel (.xlsx), PDF and transcripts as SRT or VTT text, each
+ * under its upload limit (MAX_UPLOAD_BYTES in platform/runtime/venture/delivery/harness/files.ts), sent as base64.
+ * Checking the same two things here first means an order is never created with half its files refused.
  */
 
 export const MAX_FILE_BYTES = 1_450_000;
-const FORMATS = ['csv', 'xlsx', 'pdf'];
+const FORMATS = ['csv', 'xlsx', 'pdf', 'srt', 'vtt'];
+/** What the file picker offers. */
+export const FILE_ACCEPT = FORMATS.map((format) => `.${format}`).join(',');
 
 export type FileProblem = 'type' | 'size';
 

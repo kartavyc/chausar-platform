@@ -6,10 +6,16 @@ import { insertBooksFact, saleFact } from './facts.ts';
 import { buildPriceReceipt, receiptTaxable } from './quote.ts';
 import { newestFirst, oneLine, quantityText, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
 import type { OrderRecord, VentureDeps } from '../contracts.ts';
+import { localDayAt } from '../local-day.ts';
+import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
+import { orderIntake } from '../playbooks/intake.ts';
 
-/** venture.order.create (level prepare). */
+/**
+ * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
+ * that cuts footage refuses the order with RIGHTS_REQUIRED until its rights are recorded here.
+ */
 export async function createOrder(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OrderRecord> {
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request'], ['clientId', 'offerId', 'request']);
+  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake'], ['clientId', 'offerId', 'request']);
   const clientId = recordId(body.clientId, 'Client');
   const offerId = recordId(body.offerId, 'Offer');
   const quantity = body.quantity === undefined ? null : quantityText(body.quantity);
@@ -23,12 +29,16 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
     const offer = requireOffer(blueprint, offerId);
     requirePrice(offer);
+    // Rights and the other intake fields are checked before anything is written.
+    const intake = orderIntake(body.intake, flagshipOffer(flagshipPlan(venture.idea), offer), {
+      by: ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host,
+    });
     const base = tx.base('venture-order');
     const orderQuantity = quantity ?? offer.pricing.defaultQuantity;
     const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity }, blueprint, offer, client);
     const order: OrderRecord = {
       ...base, clientId: client.id, offerId: offer.id, quantity: orderQuantity, request,
-      status: 'open', priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null,
+      status: 'open', priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
     };
     const stored = tx.put(order);
     activateTerm(tx, 'order', { recordId: stored.id, kind: 'venture-order' });

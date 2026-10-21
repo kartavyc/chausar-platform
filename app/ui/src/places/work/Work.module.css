@@ -237,6 +237,48 @@
   color: var(--mute);
 }
 
+/* Intake: choices as plain lines, no frame. */
+.group {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group legend {
+  margin-bottom: var(--sp-1);
+  padding: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+
+.choice {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--control);
+  font-size: var(--text-read);
+  color: var(--fg);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.choice input {
+  margin: 0;
+  accent-color: var(--fg);
+}
+
+.choice input:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
 .files {
   display: grid;
   gap: 2px;

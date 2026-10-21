@@ -13,7 +13,7 @@ import { claimBacked } from './harness/claims.ts';
 import type { FileLike } from './harness/files.ts';
 import { checkClaims, deliverableWords, sourcesFromFiles, sourcesFromRun } from './judge/claim-check.ts';
 import { comparePair, type PairAsk } from './judge/pairwise.ts';
-import { DRAFT_RULES, judgeByRules, notRuled, type RulesAsk, type RulesVerdict } from './judge/rules.ts';
+import { DRAFT_RULES, judgeByRules, notRuled, type JudgeRule, type RulesAsk, type RulesVerdict } from './judge/rules.ts';
 import { traceFromHarness } from './judge/trace.ts';
 import { errorCode, quote } from './shared.ts';
 
@@ -230,6 +230,8 @@ export type DraftRulesInput = {
   /** Who the client is and what the reply should achieve, in plain words. */
   context: string;
   containsClientData: boolean;
+  /** The rules to ask: a flagship playbook's own (playbooks/draft-checks.ts flagshipJudgeRules), else the draft rules. */
+  rules?: readonly JudgeRule[] | null;
 };
 
 /**
@@ -242,12 +244,13 @@ export async function judgeDraftRules(ask: RulesAsk, input: DraftRulesInput): Pr
     receipts: input.receipts,
     extra: [{ id: 'client-message', kind: 'client', summary: input.clientRequest }, { id: 'draft', kind: 'draft', summary: input.draft }],
   });
+  const rules = input.rules ?? DRAFT_RULES;
   try {
-    return await judgeByRules(ask, { rules: DRAFT_RULES, trace, draft: input.draft, containsClientData: input.containsClientData, ...(input.context ? { context: input.context } : {}) });
+    return await judgeByRules(ask, { rules, trace, draft: input.draft, containsClientData: input.containsClientData, ...(input.context ? { context: input.context } : {}) });
   } catch (error) {
     if (!JUDGE_BEHAVIOUR.has(errorCode(error))) throw error;
     const reason = `The judge's answer was refused, so no rule is settled: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
-    return { ...notRuled(DRAFT_RULES, reason), detail: reason, callIds: [] };
+    return { ...notRuled(rules, reason), detail: reason, callIds: [] };
   }
 }
 

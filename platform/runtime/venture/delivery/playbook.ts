@@ -14,6 +14,9 @@ import { DEFAULT_LIMITS } from './harness/loop.ts';
 import { applyPatch, toolCeiling, type PlaybookBody } from './harness/patches.ts';
 import { toolSpec } from './harness/tools.ts';
 import { acceptedBlueprint, latestPlaybook, readAs } from './shared.ts';
+import { DRAFT_CHECKS, VERIFY_CHECKS } from './check-lists.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
+import { flagshipDelivery } from '../playbooks/steps.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
 const TIER_ORDER: readonly ExecutionTier[] = ['code', 'actor', 'wasm-lite', 'wasm', 'container', 'owner-cli', 'hosted'];
@@ -27,12 +30,8 @@ const PLANNED_TIERS: readonly ExecutionTier[] = ['wasm', 'hosted'];
 const CODE_ONLY_KINDS: readonly StepKind[] = ['compute', 'verify', 'approve', 'operator'];
 const AGENT_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 
-/**
- * Checks the verify step runs on every draft reply: all of them except the ones that only make sense in a rehearsal.
- * rules-judge is one: on a real order the judge's call would carry the client's words, which needs the owner's approval.
- */
-export const VERIFY_CHECKS: readonly CheckId[] = CHECK_IDS.filter(id => id !== 'questions-raised' && id !== 'turn-limit' && id !== 'rules-judge');
-export const DRAFT_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'house-style', 'length-bounds', 'no-done-claims'];
+/** The verify and draft check lists live in check-lists.ts, so the flagship playbooks can name them without this file. */
+export { DRAFT_CHECKS, VERIFY_CHECKS };
 const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner'];
 const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate'];
 
@@ -54,8 +53,23 @@ export function playbookSources(blueprint: BlueprintRecord): { drafting: Bluepri
   return { drafting: blueprint.deliverySteps.find(step => step.id === 'step_3'), handsOn: blueprint.deliverySteps.find(step => step.id === 'step_2') };
 }
 
-/** The eight fixed steps for an accepted plan. */
-export function playbookSteps(blueprint: BlueprintRecord): PlaybookStep[] {
+/**
+ * The flagship playbook a business delivers with: the one its idea picks, when its plan came from that playbook (the
+ * plan's offers keep the playbook's offer ids, playbooks/plan.ts). A plan made before, or from the templates, keeps
+ * the eight fixed steps.
+ */
+export function deliveryFlagship(venture: Pick<VentureRecord, 'idea'>, blueprint: Pick<BlueprintRecord, 'offers'>): string | null {
+  const id = pickPlaybook(venture.idea)?.id ?? null;
+  return id && flagshipDelivery(id) && blueprint.offers.some(offer => offer.playbookOffer) ? id : null;
+}
+
+/**
+ * The steps for an accepted plan: a flagship playbook's own typed steps (playbooks/steps.ts), else the eight fixed
+ * steps, whose work and drafting titles come from the plan.
+ */
+export function playbookSteps(blueprint: BlueprintRecord, flagship: string | null = null): PlaybookStep[] {
+  const own = flagshipDelivery(flagship);
+  if (own) return structuredClone([...own.steps]);
   const { drafting, handsOn } = playbookSources(blueprint);
   check(drafting, 'INVALID_VENTURE_REQUEST', 'The plan has no drafting step.');
   const ceiling = toolCeiling(blueprint.serviceType);
@@ -130,17 +144,20 @@ export function currentPlaybook(state: State, venture: VentureRecord): PlaybookR
   return pointed && pointed.ventureId === venture.id ? pointed : latestPlaybook(state, venture.id);
 }
 
-/** A playbook is current for a plan when it was built from that exact plan in the harness format. */
-function fits(playbook: PlaybookRecord | null, blueprint: BlueprintRecord): boolean {
-  return !!playbook && playbook.blueprintDigest === blueprint.digest && playbook.format === 2;
+/**
+ * A playbook is current for a plan when it was built from that exact plan in the harness format, with the same
+ * flagship playbook's steps (or none).
+ */
+function fits(playbook: PlaybookRecord | null, blueprint: BlueprintRecord, venture: VentureRecord): boolean {
+  return !!playbook && playbook.blueprintDigest === blueprint.digest && playbook.format === 2 && (playbook.flagship ?? null) === deliveryFlagship(venture, blueprint);
 }
 
 /**
- * The body for a plan: the fixed steps, then every carried patch that still applies, in order. A patch that no
- * longer applies to the new plan is dropped and reported.
+ * The body for a plan: the fixed steps (or the flagship playbook's), then every carried patch that still applies, in
+ * order. A patch that no longer applies to the new plan is dropped and reported.
  */
 export function buildBody(state: State, venture: VentureRecord, blueprint: BlueprintRecord, patches: readonly PlaybookPatch[]): { body: PlaybookBody; applied: PlaybookPatch[]; dropped: PlaybookPatch[] } {
-  let body: PlaybookBody = { steps: playbookSteps(blueprint), limits: { ...DEFAULT_LIMITS }, aliases: {} };
+  let body: PlaybookBody = { steps: playbookSteps(blueprint, deliveryFlagship(venture, blueprint)), limits: { ...DEFAULT_LIMITS }, aliases: {} };
   const entryIds = dictionaryEntries(state, venture).map(entry => entry.id);
   const applied: PlaybookPatch[] = [], dropped: PlaybookPatch[] = [];
   for (const patch of patches) {
@@ -152,7 +169,7 @@ export function buildBody(state: State, venture: VentureRecord, blueprint: Bluep
 /** The hash a playbook built now for this business would have: the current one when it fits the plan. */
 export function expectedPlaybookHash(state: State, venture: VentureRecord, blueprint: BlueprintRecord): string {
   const current = currentPlaybook(state, venture);
-  if (current && fits(current, blueprint)) return current.hash;
+  if (current && fits(current, blueprint, venture)) return current.hash;
   const { body } = buildBody(state, venture, blueprint, current?.patches ?? []);
   return playbookHash(body.steps, { limits: body.limits, aliases: body.aliases });
 }
@@ -165,19 +182,20 @@ export async function ensurePlaybook(deps: VentureDeps, ctx: Context): Promise<P
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const current = currentPlaybook(state, venture);
-  if (current && fits(current, blueprint)) return current;
+  if (current && fits(current, blueprint, venture)) return current;
   return ventureAction(deps, ctx, 'prepare', 'delivery.playbook', tx => {
     const live = tx.venture!;
     const accepted = acceptedBlueprint(tx.state, live);
     const existing = currentPlaybook(tx.state, live);
-    if (existing && fits(existing, accepted)) return existing;
+    if (existing && fits(existing, accepted, live)) return existing;
     const { body, applied } = buildBody(tx.state, live, accepted, existing?.patches ?? []);
     const { hash, tierCeiling } = validatePlaybook(body.steps, { limits: body.limits, aliases: body.aliases });
     const versions = listRecords(tx.state, 'venture-playbook', live.id).map(record => record.version);
+    const flagship = deliveryFlagship(live, accepted);
     const record: PlaybookRecord = {
       ...tx.base('venture-playbook'), version: Math.max(0, ...versions) + 1, hash, blueprintDigest: accepted.digest,
       serviceType: accepted.serviceType, steps: body.steps, validated: true, tierCeiling, format: 2, limits: body.limits, aliases: body.aliases,
-      patches: applied, parentId: existing?.id ?? null, origin: 'plan',
+      patches: applied, parentId: existing?.id ?? null, origin: 'plan', ...(flagship ? { flagship } : {}),
     };
     tx.put(record);
     tx.touch({ playbookId: record.id });
@@ -200,4 +218,17 @@ export function verifyChecks(playbook: PlaybookRecord): CheckId[] {
 /** The limits a run uses: the playbook's, or the defaults for an older record. */
 export function playbookLimits(playbook: PlaybookRecord): HarnessLimits {
   return playbook.limits ?? { ...DEFAULT_LIMITS };
+}
+
+/**
+ * How a model draft for an order is laid out, when a flagship playbook says: its drafting step for the order's offer
+ * (playbooks/steps.ts), with that step's headings and guidance. Null for the eight fixed steps, whose draft keeps the
+ * service type's headings (or the report headings once tools proved work) and the writing step's guidance.
+ */
+export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps'>, offerKey: string | null | undefined): { stepId: string; sections: string[]; guidance: string[] } | null {
+  const own = flagshipDelivery(playbook.flagship);
+  if (!own) return null;
+  const id = own.draftStep(offerKey);
+  const step = playbook.steps.find(item => item.id === id && item.kind === 'write') ?? playbook.steps.find(item => item.kind === 'write');
+  return step && step.requiredSections.length ? { stepId: step.id, sections: [...step.requiredSections], guidance: [...(step.guidance ?? [])] } : null;
 }

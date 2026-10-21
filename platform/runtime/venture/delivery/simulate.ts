@@ -7,7 +7,7 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, digest, exactPayload, findRecord, formatMicros, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
 import type {
   BlueprintRecord, CheckResult, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
-  ModelTask, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
+  ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
   WorkTableRecord,
 } from '../contracts.ts';
 import { firstFailedCheck, judgeDraftRules, knownNames, runChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
@@ -19,7 +19,9 @@ import {
 } from './harness/loop.ts';
 import { practiceFiles } from './harness/practice.ts';
 import { judgedAnswers, judgeTask, notJudged } from './judge.ts';
-import { ensurePlaybook, playbookLimits } from './playbook.ts';
+import { ensurePlaybook, flagshipDraft, playbookLimits } from './playbook.ts';
+import { failedPlaybookCheck, flagshipJudgeRules, runFlagshipChecks } from '../playbooks/draft-checks.ts';
+import type { FileLike } from './harness/files.ts';
 import { listScenarios, signalScenario } from './scenarios.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
@@ -87,6 +89,9 @@ type RehearsalEnv = {
   offer: { name: string; description: string };
   /** Names a draft may use without a source: the business, its plan and offers, the country. */
   known: string[];
+  /** The flagship playbook offer the practice clients order (offer_1's), and that playbook's drafting step for it. */
+  offerKey: string | null;
+  draft: { sections: string[]; guidance: string[] } | null;
 };
 
 type EpisodeResult = { episode: Episode; spend: Spend[]; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] };
@@ -105,22 +110,34 @@ async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[]): Pr
 
 /**
  * The checks on a practice draft. The rules judge sits behind the code checks: it is asked only when the case names
- * rules-judge, an AI judge is on and every code check passed. With no judge it is left out, as the practice judge
- * answers 'not-judged': never a pass it did not get. Practice clients only, so no client data goes to the judge.
+ * rules-judge, an AI judge is on and every code check passed, a flagship playbook's own checks included, and then it
+ * asks that playbook's own rules. With no judge it is left out, as the practice judge answers 'not-judged': never a
+ * pass it did not get. Practice clients only, so no client data goes to the judge.
  */
-async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: CheckInput, judged: Omit<DraftRulesInput, 'context' | 'containsClientData'>, spend: Spend[]): Promise<CheckResult[]> {
+async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: CheckInput, judged: Omit<DraftRulesInput, 'context' | 'containsClientData'>, spend: Spend[], playbookChecks?: readonly PlaybookCheckResult[]): Promise<CheckResult[]> {
   const checks = runChecks(input);
-  if (!input.checks.includes('rules-judge') || !env.judgeOn || !checks.every(result => result.passed)) return checks;
+  if (!input.checks.includes('rules-judge') || !env.judgeOn || !checks.every(result => result.passed) || failedPlaybookCheck(playbookChecks)) return checks;
   const rules = await judgeDraftRules(task => ask(env, task, spend), {
     ...judged, containsClientData: false, context: `The client: ${scenario.persona} The reply should be: ${scenario.expectedOutcome}`,
+    rules: flagshipJudgeRules(env.playbook.flagship),
   });
   return runChecks({ ...input, rules });
+}
+
+/** A flagship playbook's own checks on a practice draft; undefined for the eight fixed steps. */
+async function practicePlaybookChecks(env: RehearsalEnv, deliverable: Deliverable, servedBy: 'model' | 'template', request: string, extras: { files?: readonly FileLike[]; receipts?: readonly WorkReceiptRecord[] } = {}): Promise<PlaybookCheckResult[] | undefined> {
+  if (!env.playbook.flagship) return undefined;
+  return runFlagshipChecks({
+    flagship: env.playbook.flagship, offerKey: env.offerKey, servedBy, deliverable, request, intake: null, files: extras.files ?? [],
+    receipts: [...env.receipts, ...(extras.receipts ?? [])], known: env.known, mode: 'rehearsal', today: todayIso(env.deps, env.venture), dateOrder: env.country.dateOrder,
+    ...(env.deps.host === 'hosted-web' ? { finishing: null } : {}),
+  });
 }
 
 function draftTask(env: RehearsalEnv, clientRequest: string): ModelTask<Deliverable> {
   return deliveryTask({
     serviceType: env.serviceType, offer: env.offer, clientRequest, idea: env.venture.idea, refs: env.refs,
-    containsClientData: false, templateTotalRef: 'offer_1.total', guidance: writeGuidance(env.playbook),
+    containsClientData: false, templateTotalRef: 'offer_1.total', guidance: env.draft?.guidance ?? writeGuidance(env.playbook), ...(env.draft ? { sections: env.draft.sections } : {}),
   });
 }
 
@@ -132,7 +149,7 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
   let deliverable: Deliverable | null = null;
   let renderedText: string | null = null;
   let step = 'practice client';
-  const finish = (fields: Pick<Episode, 'checks' | 'judge' | 'passed' | 'firstFailure'>): EpisodeResult => ({
+  const finish = (fields: Pick<Episode, 'checks' | 'judge' | 'passed' | 'firstFailure'> & Pick<Partial<Episode>, 'playbookChecks'>): EpisodeResult => ({
     episode: { scenarioId: scenario.id, index, turns, deliverable, renderedText, mocks, ...fields, costMicros: sumMicros(spend.map(item => item.costMicros)) },
     spend, tables: [], receipts: [],
   });
@@ -172,12 +189,15 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
 
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     step = 'judge';
+    // A model draft follows the flagship drafting step's headings; a template outline keeps the service type's.
+    const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request);
     const checks = await practiceChecks(env, scenario, {
       checks: scenario.checks, deliverable, renderedText, serviceType: env.serviceType,
       allowed: draftAllowedTokens(request, env.venture.idea), receipts: env.receipts, ventureId: env.venture.id,
       mocks, mockModes: scenario.mocks, agentTurns, turnLimit: scenario.turnLimit, askedQuestions,
+      ...(env.draft && draft.by === 'model' ? { sections: env.draft.sections } : {}),
       grounding: { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder },
-    }, { draft: renderForJudge(deliverable, env.receipts), clientRequest: request }, spend);
+    }, { draft: renderForJudge(deliverable, env.receipts), clientRequest: request }, spend, playbookChecks);
 
     let judge: JudgeAnswer[];
     if (env.judgeOn) {
@@ -192,13 +212,19 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }
     const failedCheck = firstFailedCheck(checks);
     const judgedNo = judge.find(answer => answer.answer === 'no')?.question ?? null;
-    const firstFailure = failedCheck ?? judgedNo;
-    return finish({ checks, judge, passed: firstFailure === null, firstFailure });
+    const firstFailure = failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
+    return finish({ checks, judge, passed: firstFailure === null, firstFailure, ...(playbookChecks ? { playbookChecks } : {}) });
   } catch (error) {
     if (!BEHAVIOUR_CODES.has(errorCode(error))) throw error;
     const message = error instanceof Error ? error.message : 'The model answer was refused.';
     return finish({ checks: [], judge: notJudged('The episode stopped before a draft was judged.'), passed: false, firstFailure: `The ${step} was refused: ${quote(message, 200)}` });
   }
+}
+
+/** A failed flagship check as an episode's first failure: its playbook and check id, as check ids are. */
+function playbookFailure(results: readonly PlaybookCheckResult[] | undefined): string | null {
+  const failed = failedPlaybookCheck(results);
+  return failed ? `${failed.playbook}:${failed.check}` : null;
 }
 
 /**
@@ -217,11 +243,12 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
   const loop = {
     serviceType: env.serviceType, offer: env.offer, clientRequest: request, playbook: env.playbook,
     dictionaryManifest: manifest(toolEnv.dictionary), files: fileList(files), containsClientData: false, allowed: toolEnv.allowed, host: env.deps.host,
+    draft: env.draft,
   };
   let deliverable: Deliverable | null = null;
   let renderedText: string | null = null;
   let step = 'agent turn';
-  const result = (fields: Pick<Episode, 'checks' | 'judge' | 'passed' | 'firstFailure'>): EpisodeResult => ({
+  const result = (fields: Pick<Episode, 'checks' | 'judge' | 'passed' | 'firstFailure'> & Pick<Partial<Episode>, 'playbookChecks'>): EpisodeResult => ({
     episode: { scenarioId: scenario.id, index, turns, deliverable, renderedText, mocks: [...mocks, ...state.mocks], ...fields, costMicros: sumMicros(spend.map(item => item.costMicros)), harness: state },
     spend, tables: toolEnv.tables, receipts: toolEnv.receipts,
   });
@@ -265,13 +292,14 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     const handoffs = state.handoffs.length;
     step = 'judge';
+    const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request, { files, receipts: toolEnv.receipts });
     const checks = await practiceChecks(env, scenario, {
       checks: scenario.checks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
       allowed, receipts, ventureId: env.venture.id, mocks: [...mocks, ...state.mocks], mockModes: scenario.mocks,
       agentTurns: 1 + handoffs, turnLimit: scenario.turnLimit, askedQuestions: deliverable.questionsForClient.length > 0 || handoffs > 0,
-      sections: state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[env.serviceType], proofs: state.proofs,
+      sections: (env.draft && draft.by === 'model' ? env.draft.sections : null) ?? (state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[env.serviceType]), proofs: state.proofs,
       grounding: { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder },
-    }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend);
+    }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend, playbookChecks);
 
     let judge: JudgeAnswer[];
     if (env.judgeOn) {
@@ -287,8 +315,8 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     }
     const failedCheck = firstFailedCheck(checks);
     const judgedNo = judge.find(answer => answer.answer === 'no')?.question ?? null;
-    const firstFailure = failedCheck ?? judgedNo;
-    return result({ checks, judge, passed: firstFailure === null, firstFailure });
+    const firstFailure = failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
+    return result({ checks, judge, passed: firstFailure === null, firstFailure, ...(playbookChecks ? { playbookChecks } : {}) });
   } catch (error) {
     if (!BEHAVIOUR_CODES.has(errorCode(error))) throw error;
     const message = error instanceof Error ? error.message : 'The model answer was refused.';
@@ -315,7 +343,10 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
   const blueprint = acceptedBlueprint(state, venture);
   const offer = blueprint.offers.find(item => item.id === 'offer_1') ?? blueprint.offers[0];
   const status = options.useTemplate ? null : deps.models.status(ctx);
+  const offerKey = offer.playbookOffer ?? null;
+  const draft = flagshipDraft(playbook, offerKey);
   const env: RehearsalEnv = {
+    offerKey, draft: draft ? { sections: draft.sections, guidance: draft.guidance } : null,
     deps, ctx, useTemplate: options.useTemplate,
     judgeOn: !options.useTemplate && status!.tiers.fast.presetId !== 'built-in-templates',
     agentOn: !options.useTemplate && status!.tiers.fast.presetId !== 'built-in-templates',

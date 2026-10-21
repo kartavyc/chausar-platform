@@ -5,7 +5,10 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { fileProblem, readBase64 } from './files';
+import { EngineError } from '../../engine/types';
+import { FILE_ACCEPT, fileProblem, readBase64 } from './files';
+import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './intake';
+import { IntakeFields } from './IntakeFields';
 import { messageOf } from './PreviousRuns';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
@@ -16,9 +19,10 @@ const never = () => false;
 
 /**
  * New order, in the sheet beside Work: client (or a new one), service from the plan, what they asked for, and the
- * client's files. Opened as `new-order:new`, or `new-order:<clientId>` with that client chosen. The order is
- * created first, then each file is added to it; the files are checked against the engine's rules before anything
- * is sent, so a refused file never leaves half an order behind.
+ * client's files. Opened as `new-order:new`, or `new-order:<clientId>` with that client chosen. A service from a
+ * flagship playbook asks what the plan says it needs at intake: whose footage it is for one that cuts footage, and
+ * what its checks read. The order is created first, then each file is added to it; the files are checked against
+ * the engine's rules before anything is sent, so a refused file never leaves half an order behind.
  */
 export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -30,6 +34,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const [name, setName] = useState('');
   const [offerId, setOfferId] = useState('');
   const [request, setRequest] = useState('');
+  const [intake, setIntake] = useState<IntakeDraft>(EMPTY_INTAKE);
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
@@ -39,8 +44,10 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const priced = offers.filter((o) => o.pricing.unitPriceMinor !== null);
   const who = clientId === NEW_CLIENT || (clients.data ?? []).some((c) => c.id === clientId) ? clientId : '';
   const what = offerId || (priced.length === 1 ? priced[0]!.id : '');
+  // What the engine says this service asks at intake; null for a service that asks nothing.
+  const ask = (what && plan.data?.intake?.[what]) || null;
   const filesOk = files.every((f) => fileProblem(f) === null);
-  const ready = !sending && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && filesOk;
+  const ready = !sending && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && filesOk;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -56,7 +63,8 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
         setClientId(added.id);
         clients.reload();
       }
-      const order = await engine.request('venture.order.create', { clientId: forClient, offerId: what, request: request.trim() });
+      const told = intakeParams(ask, intake);
+      const order = await engine.request('venture.order.create', { clientId: forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}) });
       const refused: { name: string; message: string }[] = [];
       for (const file of files) {
         try {
@@ -69,7 +77,9 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
       if (refused.length > 0) setFailures(refused);
       else onClose();
     } catch (failure) {
-      setError(t('work.form.failed', { message: messageOf(failure) }));
+      // A refusal over the rights says so plainly; the engine's own sentence says what is missing.
+      const rights = failure instanceof EngineError && failure.code === 'RIGHTS_REQUIRED';
+      setError(t(rights ? 'work.form.rightsRefused' : 'work.form.failed', { message: messageOf(failure) }));
     } finally {
       setSending(false);
     }
@@ -113,11 +123,12 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
             })}
           </select>
         </div>
+        <IntakeFields ask={ask} draft={intake} onChange={setIntake} />
         <Field multiline label={t('work.form.request')} value={request} onChange={(event) => setRequest(event.currentTarget.value)} />
         <div className={s.field}>
           <label htmlFor={`${ids}-files`} className={s.label}>{t('work.form.files')}</label>
           <input
-            id={`${ids}-files`} type="file" multiple accept=".csv,.xlsx,.pdf" className={s.file} aria-describedby={`${ids}-files-hint`}
+            id={`${ids}-files`} type="file" multiple accept={FILE_ACCEPT} className={s.file} aria-describedby={`${ids}-files-hint`}
             onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))}
           />
           <p id={`${ids}-files-hint`} className={s.hint}>{t('work.form.filesHint')}</p>

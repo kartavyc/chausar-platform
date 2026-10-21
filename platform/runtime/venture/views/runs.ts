@@ -9,14 +9,14 @@
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, findRecord, identifier, listRecords } from '../records.ts';
 import type {
-  CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
+  CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookCheckResult, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
 import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
-import { currentPlaybook, playbookSteps } from '../delivery/playbook.ts';
+import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { scenariosFor } from '../delivery/scenarios.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import { questionRowId, runError } from './queue.ts';
@@ -53,6 +53,10 @@ const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
 export function checkLabel(result: CheckResult): string {
   return short(`${result.passed ? 'Passed' : result.notChecked ? 'Not checked' : 'Failed'}: ${result.detail}`, 160);
 }
+/** A flagship playbook's check in the owner's words: one that could not run reads "Not checked", never "Passed". */
+export function playbookCheckLabel(result: PlaybookCheckResult): string {
+  return short(`${result.outcome === 'pass' ? 'Passed' : result.outcome === 'fail' ? 'Failed' : 'Not checked'}: ${result.detail}`, 160);
+}
 /** Why a practice case that named the rules judge has no judge result: the judge is asked only after every code check passed. */
 function judgeMissing(results: readonly CheckResult[]): { kind: string; id: string; label: string } {
   return { kind: 'check', id: 'rules-judge', label: results.every(result => result.passed) ? 'Not checked: no judge connected.' : 'Not checked: a code check failed first, so the judge was not asked.' };
@@ -86,7 +90,7 @@ function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord):
   const current = currentPlaybook(state, venture);
   if (current) return current.steps;
   const plan = acceptedBlueprintOrNull(state, venture);
-  try { return plan ? playbookSteps(plan) : []; } catch { return []; }
+  try { return plan ? playbookSteps(plan, deliveryFlagship(venture, plan)) : []; } catch { return []; }
 }
 
 type Position = { kind: StepKind; state: RunStep['state'] };
@@ -185,7 +189,11 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
     }
     if (step.kind === 'compute' && order) evidence.push({ kind: 'price-receipt', id: order.priceReceiptId, label: 'Price receipt' });
     if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(run.deliverable.title, 120) });
-    if (step.kind === 'verify') for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: checkLabel(result) });
+    if (step.kind === 'verify') {
+      for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: checkLabel(result) });
+      // A flagship playbook's own checks follow the harness checks, by playbook and check id.
+      for (const result of run.playbookChecks ?? []) evidence.push({ kind: 'check', id: `${result.playbook}:${result.check}`, label: playbookCheckLabel(result) });
+    }
     return plain({
       id: step.id, purpose: step.title, state: stepState, ...(elapsed !== undefined ? { elapsed } : {}),
       ...(tools.length ? { tools } : {}), ...(evidence.length ? { evidence } : {}), ...(stepState === 'failed' && error ? { error } : {}),
@@ -224,7 +232,10 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
   };
   const steps: RunStep[] = record.episodes.map((episode, index) => {
     const scenario = scenarios.find(item => item.id === episode.scenarioId);
-    const evidence: { kind: string; id: string; label: string }[] = episode.checks.filter(result => !result.passed).map(result => ({ kind: 'check', id: result.check, label: checkLabel(result) }));
+    const evidence: { kind: string; id: string; label: string }[] = [
+      ...episode.checks.filter(result => !result.passed).map(result => ({ kind: 'check', id: result.check, label: checkLabel(result) })),
+      ...(episode.playbookChecks ?? []).filter(result => result.outcome === 'fail').map(result => ({ kind: 'check', id: `${result.playbook}:${result.check}`, label: playbookCheckLabel(result) })),
+    ];
     if (scenario?.checks.includes('rules-judge') && !episode.checks.some(result => result.check === 'rules-judge')) evidence.push(judgeMissing(episode.checks));
     return plain({
       id: `episode-${index + 1}`, purpose: scenario?.title ?? 'Practice client',

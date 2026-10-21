@@ -318,7 +318,7 @@ describe('Work: new order', () => {
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     fireEvent.change(within(sheet).getByLabelText('What they asked for'), { target: { value: 'One mention' } });
     fireEvent.change(within(sheet).getByLabelText('Files from the client'), { target: { files: [new File(['hello'], 'notes.txt', { type: 'text/plain' })] } });
-    expect(within(sheet).getByText("notes.txt isn't a CSV, Excel or PDF file.")).toBeTruthy();
+    expect(within(sheet).getByText("notes.txt isn't a CSV, Excel, PDF, SRT or VTT file.")).toBeTruthy();
     expect((within(sheet).getByRole('button', { name: 'Add order' }) as HTMLButtonElement).disabled).toBe(true);
     expect(calls.some((c) => c.method === 'venture.order.create')).toBe(false);
   });

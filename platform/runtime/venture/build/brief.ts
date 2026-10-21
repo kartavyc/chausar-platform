@@ -290,7 +290,8 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
       oneLiner: blueprint.oneLiner.value,
       customer: blueprint.customer.value,
       offers: blueprint.offers.map(offer => ({ name: offer.name.value, description: offer.description.value })),
-      steps: blueprint.deliverySteps.map(step => step.title.value),
+      // A flagship plan lists the steps that run (playbooks/steps.ts); the builder brief describes those.
+      steps: blueprint.flagshipSteps?.map(step => step.title.value) ?? blueprint.deliverySteps.map(step => step.title.value),
       country: venture.country.name,
       ...(pages ? { pages } : {}),
     },

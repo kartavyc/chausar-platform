@@ -5,8 +5,9 @@
 //
 // When it asks:
 // - the business's idea picks the AI-native CA firm playbook, and a CA of record is named;
-// - the order's offer is one of the playbook's regulated offers, matched by its own words (GST, TDS, income tax return,
-//   notice); a tax audit is the CA's own work end to end, so its papers are not sent on their own;
+// - the order's offer is one of the playbook's regulated offers: by the playbook offer id a plan the playbook made keeps
+//   (playbooks/plan.ts), else matched by its own words (GST, TDS, income tax return, notice); a tax audit is the CA's
+//   own work end to end, so its papers are not sent on their own;
 // - the draft can be accepted as it stands: an agent draft at approve each whose checks passed. A practice draft, a
 //   draft with a failed check, and a template outline (which never read the client's request) are not papers yet.
 // A run asks once: requestCaSignoff returns the earlier request for the same run.
@@ -60,7 +61,8 @@ export async function requestSignoffForRun(deps: VentureDeps, ctx: Context, run:
     const plan = blueprints.find(item => item.id === venture.acceptedBlueprintId) ?? blueprints.at(-1);
     const offer = plan?.offers.find(item => item.id === order.offerId);
     if (!offer) return null;
-    const caOffer = caOfferOf({ name: offer.name.value, description: offer.description.value });
+    // A plan the playbook made keeps the playbook's offer id, which survives the owner renaming the offer.
+    const caOffer = CA_OFFERS.find(item => item.id === offer.playbookOffer) ?? caOfferOf({ name: offer.name.value, description: offer.description.value });
     const subjectKind = caOffer?.regulated ? SUBJECT_OF[caOffer.id] : undefined;
     if (!caOffer || !subjectKind) return null;
     const client = findRecord(state, 'venture-client', order.clientId);

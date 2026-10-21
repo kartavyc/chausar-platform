@@ -7,7 +7,7 @@ import { ChausarError, check, type Context, type State } from '../../contracts.t
 import { formatMinor } from '../../currency.ts';
 import { exactPayload, formatVentureDate, listRecords, readVenture } from '../records.ts';
 import type {
-  BlueprintRecord, DeliveryRunRecord, Display, InvoiceRecord, Labelled, QueueItemView, QueueRow, VentureDeps, VentureRecord,
+  BlueprintRecord, DeliveryRunRecord, Display, InvoiceRecord, Labelled, PlanFlagshipStep, QueueItemView, QueueRow, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { invoiceView } from '../money/invoices.ts';
 import { openSpendQuotes } from '../money/spend.ts';
@@ -27,6 +27,12 @@ type Head = { businessName: string; agent?: string };
 const MAX_LINES = 400;
 const MODEL_ESTIMATE = ' (model estimate)';
 const DONE_BY: Readonly<Record<string, string>> = { agent: 'an agent', you: 'you', 'agent-then-you': 'an agent, then you check it' };
+/** Who does a flagship playbook's step, in a few words: "the Packager, an agent", "Chausar, in code with no AI", "you". */
+function stepDoer(step: PlanFlagshipStep): string {
+  if (step.doneBy === 'agent') return `the ${step.who}, an agent`;
+  if (step.doneBy === 'code') return `${step.who}, in code with no AI`;
+  return step.doneBy === 'you' ? 'you' : step.who;
+}
 const SUBJECT_WORDS: Readonly<Record<string, string>> = {
   'gst-working': 'A GST working', 'tds-working': 'A TDS working', 'itr-data-pack': 'An income tax data pack', letter: 'A letter on the firm\'s letterhead',
 };
@@ -91,7 +97,13 @@ function planView(head: Head, blueprint: BlueprintRecord): QueueItemView {
     sections: [
       { heading: 'Who it is for', lines: [labelled(blueprint.customer)] },
       { heading: 'What you sell', lines: blueprint.offers.map(offerLine) },
-      { heading: 'How the work is done', lines: blueprint.deliverySteps.map(step => `${labelled(step.title)}: ${DONE_BY[step.doneBy] ?? step.doneBy}. ${step.note}`) },
+      // A flagship playbook's plan lists the steps that run, in place of the four template steps.
+      {
+        heading: 'How the work is done',
+        lines: blueprint.flagshipSteps
+          ? blueprint.flagshipSteps.map(step => `${labelled(step.title)}: ${stepDoer(step)}.`)
+          : blueprint.deliverySteps.map(step => `${labelled(step.title)}: ${DONE_BY[step.doneBy] ?? step.doneBy}. ${step.note}`),
+      },
       { heading: 'What you approve', lines: blueprint.approvals.map(labelled) },
       { heading: 'Back office', lines: [taxLine, tax.invoiceKind === 'tax-invoice' ? 'Invoices are tax invoices.' : 'Invoices are plain invoices.', ...tax.taxInvoiceMissing.map(item => `Missing for a tax invoice: ${item}.`)] },
     ],

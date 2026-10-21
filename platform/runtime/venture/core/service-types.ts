@@ -18,11 +18,14 @@ export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, re
 });
 
 /**
- * Picks a service type from the idea: each keyword found counts one hit for its type, the highest count wins,
- * a tie goes to the type listed first in SERVICE_TYPES. With no hit at all, a flagship playbook the idea picks
- * (playbooks/registry.ts) gives the type it extends, so "a faceless YouTube channel" plans as a studio; else 'other'.
+ * Picks a service type from the idea. A flagship playbook the idea picks (playbooks/registry.ts) gives the type it
+ * extends, so "a faceless YouTube channel" plans as a studio and "a content calendar service" as an agency, whatever
+ * other keywords the idea holds: the playbook's plan sits on that type. Otherwise each keyword found counts one hit
+ * for its type, the highest count wins, a tie goes to the type listed first in SERVICE_TYPES, and no hit is 'other'.
  */
 export function classifyIdea(idea: string): ServiceType {
+  const picked = pickPlaybook(idea);
+  if (picked) return picked.serviceType;
   const text = idea.toLowerCase();
   let best: ServiceType = 'other';
   let bestHits = 0;
@@ -31,7 +34,7 @@ export function classifyIdea(idea: string): ServiceType {
     const hits = SERVICE_KEYWORDS[type].filter(keyword => text.includes(keyword)).length;
     if (hits > bestHits) { best = type; bestHits = hits; }
   }
-  return bestHits === 0 ? pickPlaybook(idea)?.serviceType ?? 'other' : best;
+  return best;
 }
 
 export type OfferWords = { name: string; description: string };

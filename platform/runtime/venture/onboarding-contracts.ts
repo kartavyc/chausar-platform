@@ -5,7 +5,7 @@
 import type {
   BackOffice, BlueprintStep, ConnectorCard, CountryCode, CountryProfile, InterviewAnswer, InterviewQuestion, IsoTime,
   Labelled, MinorString, ModelCallRecord, ModelConnectionRecord, ModelPreset, ModelPresetId, ModelStatusView, ModelTier,
-  Offer, PricingModel, RecordBase, SecretShelf, ServiceType,
+  Offer, PlanFlagshipStep, PricingModel, RecordBase, SecretShelf, ServiceType,
 } from './contracts.ts';
 
 export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
@@ -213,6 +213,8 @@ export type ComposedPlan = {
   writtenBy: WrittenBy; // the main tier
   by: 'model';
   saved: false;
+  /** A flagship playbook's delivery steps, listed in place of steps (venture/playbooks/steps.ts); absent otherwise. */
+  flagshipSteps?: PlanFlagshipStep[];
 };
 export type ComposeState = { decision: ComposeDecision; plan: ComposedPlan | null };
 export type ComposePatch = {

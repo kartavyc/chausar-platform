@@ -80,6 +80,11 @@ export type LoopContext = {
   host?: VentureHostKind;
   /** The owner's command-line tools found and checked now. agent.delegate is offered only when there is one. */
   delegate?: readonly DelegateCli[];
+  /**
+   * A flagship playbook's drafting step for this order (delivery/playbook.ts flagshipDraft): its headings, whether or
+   * not tools proved work, and its guidance. Absent for the eight fixed steps.
+   */
+  draft?: { sections: readonly string[]; guidance: readonly string[] } | null;
 };
 
 function turnSchema(grant: readonly ToolName[]): Json {
@@ -381,7 +386,7 @@ export function lastReconciliation(receipts: readonly WorkReceiptRecord[]): Work
 
 /** The write step: tools off, the reply from the proven work, money and counts only through figure refs. */
 export function writeTask(ctx: WriteContext, state: HarnessState, receipts: readonly WorkReceiptRecord[]): ModelTask<Deliverable> {
-  const sections = state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[ctx.serviceType];
+  const sections = ctx.draft?.sections ?? (state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[ctx.serviceType]);
   const refs = harnessRefs(ctx.priceRefs, receipts);
   const attached = lastReconciliation(receipts);
   const forced = state.stopReason !== null;
@@ -400,7 +405,7 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
     dates: refs.dates.map(date => ({ ref: date.ref, label: date.label })),
     attached: attached ? 'A reconciliation table worked out by the calculator.' : 'Nothing.',
   };
-  const guidance = writeGuidance(ctx.playbook);
+  const guidance = ctx.draft ? [...ctx.draft.guidance] : writeGuidance(ctx.playbook);
   if (guidance.length) input.guidance = guidance;
   if (forced) input.stopped = state.stopReason;
   // Counts and amounts from the client's files have work receipts, so here a model number is still refused.

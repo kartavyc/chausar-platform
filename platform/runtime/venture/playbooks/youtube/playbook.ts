@@ -9,7 +9,7 @@
 // only; veedstudio/open-edit (Apache-2.0) for the quote, approve and spend shape of paid generation.
 import { check } from '../../../contracts.ts';
 import type { CheckId, ExecutionTier, ModelTier, PlaybookStep, PostingOption, PricingModel, StepKind, ToolName } from '../../contracts.ts';
-import { DRAFT_CHECKS, VERIFY_CHECKS } from '../../delivery/playbook.ts';
+import { DRAFT_CHECKS, VERIFY_CHECKS } from '../../delivery/check-lists.ts';
 import { RIGHTS_INTAKE_FIELD, type RightsBasis } from '../../delivery/rights.ts';
 import { NOT_PROBED, postingOptions, type PostingEnvironment } from '../../build/posting.ts';
 import { YOUTUBE_ID, YOUTUBE_LABEL } from './registration.ts';

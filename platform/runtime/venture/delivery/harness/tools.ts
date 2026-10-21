@@ -21,7 +21,7 @@ import { evaluate, type Verdict } from '../../policy/verdict.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
 import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
 import { browse, DICTIONARY_KINDS, resolve, type DictionaryEntry, type DictionaryKind } from './dictionary.ts';
-import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, type FileLike, type SourceTable } from './files.ts';
+import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, transcriptCues, type FileLike, type SourceTable } from './files.ts';
 import { labelFinding, runPythonTransform, runRowProgram, tierRefusal } from './sandbox.ts';
 import { parseRowProgram, ROW_LANGUAGE_GUIDE } from './sandbox-lang.ts';
 import { reconcileMonth, sumRows, totalsBy, type WorkEnv, type WorkReceiptDraft } from './work.ts';
@@ -31,6 +31,14 @@ export const MAX_INPUT_CHARS = 12000;
 const TOOL_TIMEOUT_MS = 60000;
 const SAMPLE_ROWS = 5;
 const PAGE_ROWS = 60;
+/** Transcript lines one read returns; the next read starts from the segment id it names. */
+const PAGE_SEGMENTS = 200;
+/** A time in a transcript as a viewer reads it: 0:45, 12:03 or 1:02:03. */
+function segmentClock(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
 
 /** Everything a tool may touch during one run. Records a tool makes wait in pending until the run stores them. */
 export type ToolEnv = {
@@ -123,6 +131,7 @@ function tableOf(env: ToolEnv, alias: unknown): SourceTable {
     if (file) {
       const upload = fileOf(env, file[1]);
       if (upload.format === 'pdf') fail(`${file[1]} is a PDF. Read its text with files.read, and use bills.pick for bill amounts.`);
+      if (upload.format === 'transcript') fail(`${file[1]} is a transcript. Read its timed lines with part pages.`);
       const tables = tablesOfFile(upload);
       const found = file[2] ? tables.find(table => table.id === `${upload.id}${file[2]}`) : tables[0];
       if (found) return found;
@@ -154,6 +163,7 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
       const files = env.files.map((file, index) => {
         const alias = `f${index + 1}`;
         if (file.format === 'pdf') return { file: alias, name: file.name, format: file.format, tables: [] };
+        if (file.format === 'transcript') return { file: alias, name: file.name, format: file.format, tables: [], segments: transcriptCues(file).length };
         let tables: Json = [];
         let note: string | null = null;
         try { tables = tablesOfFile(file).map(table => ({ table: tableAlias(env, table), name: table.name, columns: table.columns, rows: table.rows.length })); }
@@ -166,15 +176,23 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
   },
   'files.read': {
     name: 'files.read', effect: 'read', tier: 'code', endsTurn: false,
-    summary: 'Reads a table (part columns, sample or rows, from a row id) or the text of a PDF (part pages), with amounts and dates you can pick by id.',
+    summary: 'Reads a table (part columns, sample or rows, from a row id), the text of a PDF (part pages), with amounts and dates you can pick by id, or the timed lines of a transcript (part pages), each with the segment id you name a moment by.',
     input: {
-      target: text('A table such as f1, f1.s2 or t1, or a PDF file such as f2.', 12),
-      part: { type: 'enum', required: true, values: ['columns', 'sample', 'rows', 'pages'], about: 'columns, sample (first rows), rows (a page of rows) or pages (PDF text).' },
-      from: text('For part rows: the row id to start from, such as r61.', 12, false),
+      target: text('A table such as f1, f1.s2 or t1, or a PDF or transcript file such as f2.', 12),
+      part: { type: 'enum', required: true, values: ['columns', 'sample', 'rows', 'pages'], about: 'columns, sample (first rows), rows (a page of rows) or pages (PDF text, or a transcript\'s timed lines).' },
+      from: text('For part rows: the row id to start from, such as r61. For a transcript: the segment id to start from, such as seg-201.', 12, false),
     },
     async run(env, input) {
       if (input.part === 'pages') {
         const file = fileOf(env, input.target);
+        if (file.format === 'transcript') {
+          // Moments are named only by these ids, never by times or words the agent writes itself.
+          const cues = transcriptCues(file);
+          const start = input.from ? cues.findIndex(cue => cue.id === input.from) : 0;
+          if (start < 0) fail(`${input.target} has no segment ${input.from}.`);
+          const segments = cues.slice(start, start + PAGE_SEGMENTS).map(cue => ({ id: cue.id, at: segmentClock(cue.startMs), text: cue.text }));
+          return { result: { file: input.target, segments, next: cues[start + PAGE_SEGMENTS]?.id ?? null }, proofs: [{ kind: 'file-read', tableId: file.id }] };
+        }
         if (file.format !== 'pdf') fail(`${input.target} is a table. Read it with part columns, sample or rows.`);
         const pdf = await pdfPages(env.deps, file);
         const all = pdf.pages.map(page => page.text).join('\n');

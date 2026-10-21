@@ -7,10 +7,10 @@ import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
   tidyWords, ventureAction, type VentureTx,
 } from '../records.ts';
-import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contracts.ts';
+import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contracts.ts';
 import type {
   BackOffice, BlueprintModelOutput, BlueprintRecord, BlueprintStep, BlueprintView, CountryProfile, InterviewRecord, Json,
-  Labelled, ModelTask, Offer, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,
+  Labelled, ModelTask, Offer, PlanFlagshipStep, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,
 } from '../contracts.ts';
 import type {
   ApprovalBlockId, ComposedPlan, CompositionRecord, NoteBlockId, OfferBlockId, PageBlockId, StepBlockId, ToolBlockId,
@@ -22,6 +22,50 @@ import { blueprintView, compositionOf, interviewOf, latestBlueprint, nextBluepri
 import { offerWords, serviceTemplate } from './service-types.ts';
 import { cleanSacCode, cleanTaxId, cleanTaxState, withTaxInvoiceFields } from './tax-fields.ts';
 import { DEFAULT_WORKING_NAME, labelled, modelLine, noMarkup, optionalFlag, ownerPrice, styledWords, toldByYou, wordCap } from './words.ts';
+import { flagshipPlan, flagshipStarterIds, type FlagshipPlan } from '../playbooks/plan.ts';
+import { flagshipDelivery } from '../playbooks/steps.ts';
+
+// ---------------------------------------------------------------------------
+// Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
+// ---------------------------------------------------------------------------
+
+/** A flagship playbook's offer names and descriptions, in plan order. The AI never rewrites them. */
+export function flagshipOfferWords(plan: FlagshipPlan): { name: Labelled<string>; description: Labelled<string> }[] {
+  return plan.offers.map(offer => ({ name: labelled(offer.name, 'assumption', 'engine'), description: labelled(offer.description, 'assumption', 'engine') }));
+}
+
+/** A flagship playbook's approvals on the plan, in its own words. */
+export function flagshipApprovalLines(plan: FlagshipPlan): Labelled<string>[] {
+  return plan.approvals.map(item => labelled(item.words, 'assumption', 'engine'));
+}
+
+/**
+ * The steps a flagship playbook delivers with, as the plan lists them: each step's own title, fixed engine words, and
+ * who does it (playbooks/steps.ts). They are the steps that run, so the plan the owner accepts names them.
+ */
+export function flagshipStepLines(plan: FlagshipPlan): PlanFlagshipStep[] {
+  return (flagshipDelivery(plan.id)?.plan ?? []).map(step => ({ id: step.id, title: labelled(step.title, 'assumption', 'engine'), doneBy: step.doneBy, who: step.who }));
+}
+
+/** The flagship plan a structure was made from: its offers keep the playbook's offer ids. Null for every other plan. */
+function structureFlagship(structure: Pick<BlueprintStructure, 'offers'> | undefined, venture: Pick<VentureRecord, 'idea'>): FlagshipPlan | null {
+  return structure?.offers.some(offer => offer.playbookOffer) ? flagshipPlan(venture.idea) : null;
+}
+
+/** Words for each structure offer from its playbook offer, so the words follow the offer, never its position. */
+function flagshipWordsFor(structure: Pick<BlueprintStructure, 'offers'>, plan: FlagshipPlan): { name: Labelled<string>; description: Labelled<string> }[] {
+  const words = flagshipOfferWords(plan);
+  return structure.offers.map((offer, index) => words[plan.offers.findIndex(item => item.key === offer.playbookOffer)] ?? words[index]);
+}
+
+/**
+ * True when a working name is no name the owner gave: the default, or the plan's own label (a screen that names the
+ * workspace after the plan's label, such as "YouTube channel" or "Creative studio"). The plan marks it an assumption.
+ */
+export function isPlanLabelName(name: string, labels: readonly (string | null | undefined)[]): boolean {
+  const key = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
+  return name === DEFAULT_WORKING_NAME || labels.some(label => !!label && key(label) === key(name));
+}
 
 // ---------------------------------------------------------------------------
 // Structure (pure, code-made)
@@ -38,7 +82,8 @@ export type StructureBlocks = {
 };
 export type BlueprintStructure = {
   serviceType: ServiceType;
-  offers: { id: string; pricing: Offer['pricing'] }[];
+  /** playbookOffer: present only on a flagship playbook's plan, so every other structure hash is unchanged. */
+  offers: { id: string; pricing: Offer['pricing']; playbookOffer?: string }[];
   steps: { id: string; doneBy: BlueprintStep['doneBy']; capability: BlueprintStep['capability']; note: string }[];
   approvals: number;
   backOffice: BackOffice;
@@ -98,14 +143,17 @@ export function composedStarterIds(country: CountryProfile, tools: readonly stri
 /**
  * The code-made structure from the venture and its interview answers, and for a composed venture its composition:
  * offer_1 is priced from the interview as today, offer_2 onwards from the owner's pricing before the vault, and the
- * steps come from the composition's step blocks and the block library. Pure.
+ * steps come from the composition's step blocks and the block library. An idea that picks a flagship playbook takes
+ * that playbook's offers (each keeps its playbook offer id), approval count, connectors and base service type
+ * (playbooks/plan.ts), composed or not. Pure.
  */
 export function structureOf(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null = null): BlueprintStructure {
   const country = venture.country;
-  const type = composition ? composition.family : venture.serviceType ?? interview.serviceType.value;
+  const flagship = flagshipPlan(venture.idea);
+  const type = flagship?.serviceType ?? (composition ? composition.family : venture.serviceType ?? interview.serviceType.value);
   const answerOf = (id: string) => interview.questions.find(q => q.id === id);
   const chosen = answerOf(INTERVIEW_IDS.pricingModel)?.answer?.choiceId;
-  const model: PricingModel = isPricingModel(chosen) ? chosen : 'monthly';
+  const model: PricingModel = isPricingModel(chosen) ? chosen : flagship?.offers[0].model ?? 'monthly';
   const price = answerOf(INTERVIEW_IDS.price)?.answerMinor ?? null;
   const taxAnswer = answerOf(INTERVIEW_IDS.tax)?.answer ?? null;
   const registered = taxAnswer?.yes === true;
@@ -123,29 +171,48 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
   withTaxInvoiceFields(backOffice, country);
   if (composition) {
     const output = composition.output;
+    // A flagship playbook's offers and approvals replace the ones the AI picked; its pages, tools and steps stay.
+    const offers: { block: OfferBlockId; pricingModel: PricingModel; playbookOffer?: string }[] = flagship
+      ? flagship.offers.map(offer => ({ block: offer.block, pricingModel: offer.model, playbookOffer: offer.key }))
+      : output.offers.map(offer => ({ block: offer.block, pricingModel: offer.pricingModel }));
+    const approvals: ApprovalBlockId[] = flagship ? flagship.approvals.map(item => item.block) : [...output.approvals];
+    const tools = output.tools.map(tool => tool.block);
     return {
       serviceType: type,
-      offers: output.offers.map((_, index) => {
+      offers: offers.map((offer, index) => {
         const id = `offer_${index + 1}`;
-        if (index === 0) return { id, pricing: offerPricing(model, price) };
+        const own = offer.playbookOffer ? { playbookOffer: offer.playbookOffer } : {};
+        if (index === 0) return { id, pricing: offerPricing(model, price), ...own };
         const kept = composition.pricing.find(item => item.id === id);
-        return { id, pricing: offerPricing(kept?.model ?? output.offers[index].pricingModel, kept?.unitPriceMinor ?? null) };
+        return { id, pricing: offerPricing(kept?.model ?? offer.pricingModel, kept?.unitPriceMinor ?? null), ...own };
       }),
       steps: output.steps.map((step, index) => {
         const data = STEP_BLOCKS[step.block];
         return { id: `step_${index + 1}`, doneBy: data.doneBy, capability: data.capability, note: data.note };
       }),
-      approvals: output.approvals.length,
+      approvals: approvals.length,
       backOffice,
-      starterConnectorIds: composedStarterIds(country, output.tools.map(tool => tool.block)),
+      starterConnectorIds: composedStarterIds(country, flagship ? [...flagship.connectors, ...tools] : tools),
       blocks: {
-        offers: output.offers.map(offer => offer.block),
+        offers: offers.map(offer => offer.block),
         steps: output.steps.map(step => step.block),
-        approvals: [...output.approvals],
+        approvals,
         pages: output.pages.map(page => page.block),
-        tools: output.tools.map(tool => tool.block),
+        tools,
         notes: [...output.notes],
       },
+    };
+  }
+  if (flagship) {
+    return {
+      serviceType: type,
+      offers: flagship.offers.map((offer, index) => ({
+        id: `offer_${index + 1}`, pricing: index === 0 ? offerPricing(model, price) : offerPricing(offer.model, null), playbookOffer: offer.key,
+      })),
+      steps: stepPlan(),
+      approvals: flagship.approvals.length,
+      backOffice,
+      starterConnectorIds: flagshipStarterIds(flagship, country),
     };
   }
   return {
@@ -164,7 +231,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
 export function structureFromBlueprint(blueprint: BlueprintRecord): BlueprintStructure {
   const structure: BlueprintStructure = {
     serviceType: blueprint.serviceType,
-    offers: blueprint.offers.map(o => ({ id: o.id, pricing: o.pricing })),
+    offers: blueprint.offers.map(o => ({ id: o.id, pricing: o.pricing, ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}) })),
     steps: blueprint.deliverySteps.map(s => ({ id: s.id, doneBy: s.doneBy, capability: s.capability, note: s.note })),
     approvals: blueprint.approvals.length,
     backOffice: blueprint.backOffice,
@@ -269,13 +336,21 @@ export const BLUEPRINT_SCHEMA: Json = {
   },
 };
 
-/** The ids a plan's words are written for: the template's, or a composed plan's own (whose approvals are fixed words). */
-export type BlueprintIds = { offers: readonly string[]; steps: readonly string[]; approvals: number; composed: boolean };
+/**
+ * The ids a plan's words are written for: the template's, or a composed plan's own (whose approvals are fixed words).
+ * flagship: a flagship playbook's plan, whose offers and approvals are the playbook's fixed words, so the model writes
+ * neither (playbooks/plan.ts).
+ */
+export type BlueprintIds = { offers: readonly string[]; steps: readonly string[]; approvals: number; composed: boolean; flagship?: true };
 export const TEMPLATE_IDS: BlueprintIds = Object.freeze({ offers: OFFER_IDS, steps: STEP_IDS, approvals: APPROVAL_COUNT, composed: false });
 
 export function idsOf(structure: BlueprintStructure): BlueprintIds {
-  if (!structure.blocks) return TEMPLATE_IDS;
-  return { offers: structure.offers.map(o => o.id), steps: structure.steps.map(s => s.id), approvals: structure.approvals, composed: true };
+  const flagship = structure.offers.some(offer => offer.playbookOffer);
+  if (!structure.blocks && !flagship) return TEMPLATE_IDS;
+  return {
+    offers: structure.offers.map(o => o.id), steps: structure.steps.map(s => s.id), approvals: structure.approvals, composed: !!structure.blocks,
+    ...(flagship ? { flagship: true as const } : {}),
+  };
 }
 
 /** Composed plans keep the onboarding word caps and refuse markup, as when they were composed. */
@@ -288,19 +363,21 @@ function planWords(value: unknown, field: string, max: number, allowed: readonly
 
 /**
  * Local authority over the blueprint words. Ids must come back exactly, in order (the structure's own ids); every
- * string is checked words. A composed plan's approvals are fixed words, so the model writes none.
+ * string is checked words. A composed plan's approvals are fixed words, so the model writes none; a flagship playbook's
+ * offers and approvals are the playbook's own words, so the model writes neither.
  */
 export function validateBlueprintOutput(raw: unknown, allowed: readonly string[], ids: BlueprintIds = TEMPLATE_IDS): BlueprintModelOutput {
   const code = 'MODEL_OUTPUT_REJECTED';
   const composed = ids.composed;
   const caps = (key: keyof typeof WORD_CAPS) => (composed ? WORD_CAPS[key] : null);
-  const keys = composed ? ['name', 'oneLiner', 'customer', 'offers', 'steps'] : ['name', 'oneLiner', 'customer', 'offers', 'steps', 'approvals'];
+  const keys = ids.flagship ? ['name', 'oneLiner', 'customer', 'steps']
+    : composed ? ['name', 'oneLiner', 'customer', 'offers', 'steps'] : ['name', 'oneLiner', 'customer', 'offers', 'steps', 'approvals'];
   const body = exactPayload(raw, keys, keys, code);
   const name = planWords(body.name, 'business name', 60, allowed, caps('name'));
   const oneLiner = planWords(body.oneLiner, 'one line summary', 160, allowed, caps('oneLiner'));
   const customer = planWords(body.customer, 'customer line', 200, allowed, caps('customer'));
-  check(Array.isArray(body.offers) && body.offers.length === ids.offers.length, code, 'The AI changed the offers in the plan.');
-  const offers = (body.offers as unknown[]).map((item, index) => {
+  check(ids.flagship || (Array.isArray(body.offers) && body.offers.length === ids.offers.length), code, 'The AI changed the offers in the plan.');
+  const offers = ids.flagship ? [] : (body.offers as unknown[]).map((item, index) => {
     const offer = exactPayload(item, ['id', 'name', 'description'], ['id', 'name', 'description'], code);
     check(offer.id === ids.offers[index], code, 'The AI changed the offers in the plan.');
     return { id: ids.offers[index], name: planWords(offer.name, 'offer name', 60, allowed, caps('offerName')), description: planWords(offer.description, 'offer description', 200, allowed, caps('offerDescription')) };
@@ -311,7 +388,7 @@ export function validateBlueprintOutput(raw: unknown, allowed: readonly string[]
     check(step.id === ids.steps[index], code, 'The AI changed the steps in the plan.');
     return { id: ids.steps[index], title: planWords(step.title, 'step title', 80, allowed, caps('stepTitle')) };
   });
-  if (composed) return { name, oneLiner, customer, offers, steps, approvals: [] };
+  if (composed || ids.flagship) return { name, oneLiner, customer, offers, steps, approvals: [] };
   check(Array.isArray(body.approvals) && body.approvals.length === ids.approvals, code, 'The AI changed what you approve.');
   const approvals = (body.approvals as unknown[]).map(item => styledWords(item, 'approval', 120, allowed));
   return { name, oneLiner, customer, offers, steps, approvals };
@@ -329,18 +406,26 @@ export function blueprintSchema(ids: BlueprintIds): Json {
     schema.properties.offers.items.properties.name.description = 'Offer name, four words or fewer. No numbers or prices.';
     schema.properties.steps.items.properties.title.description = 'Step title, four words or fewer. No numbers.';
   }
+  if (ids.flagship) {
+    // A flagship playbook's offers and approvals are its own words: the model is asked for neither.
+    delete schema.properties.offers;
+    delete schema.properties.approvals;
+    schema.required = schema.required.filter((key: string) => key !== 'offers' && key !== 'approvals');
+  }
   return schema;
 }
 
 /**
  * Template words for the plan; the name is the owner's working name. Each offer is worded for how it is charged in
- * the structure (the owner's choice for offer_1), so an hourly offer never reads 'Monthly ...'.
+ * the structure (the owner's choice for offer_1), so an hourly offer never reads 'Monthly ...'. An idea that picks a
+ * flagship playbook takes its summary as the one line, and its offers and approvals stay the playbook's (labelWords).
  */
 export function templateWords(venture: VentureRecord, type: ServiceType, models?: readonly PricingModel[]): BlueprintModelOutput {
   const template = serviceTemplate(type);
+  const flagship = flagshipPlan(venture.idea);
   return {
     name: venture.workingName,
-    oneLiner: template.oneLiner,
+    oneLiner: flagship?.oneLiner ?? template.oneLiner,
     customer: template.customer,
     offers: OFFER_IDS.map((id, index) => {
       const words = models?.[index] ? offerWords(type, index, models[index]) : template.offers[index];
@@ -371,21 +456,26 @@ function typedAnswers(interview: InterviewRecord): string[] {
 /** For a composed plan: which step is the drafting step and that approvals are fixed, in place of step three. */
 export const COMPOSED_BLUEPRINT_INSTRUCTIONS = "Write the words for a one-page service business plan. The structure is fixed: keep every id exactly as given and write only names, descriptions and titles. Name and describe each offer to fit how it is charged, as given by its pricingModel: per month, per project or per hour. The step whose doneBy is agent-then-you is the step an agent drafts from the client's message; the other steps are done by the owner. Keep a business name, offer names and step titles to four words or fewer. Never write numbers in digits or in words, prices, percentages, amounts, links or markup. Plain words, no dashes, no hype.";
 
+/** For a flagship playbook's plan: its offers and approvals are fixed, so only the name, summary, customer and steps are written. */
+export const FLAGSHIP_BLUEPRINT_INSTRUCTIONS = "Write the words for a one-page service business plan that follows the named playbook. The offers and what the owner approves are fixed by the playbook, so write only the business name, the one line summary, the customer line and the step titles, keeping every step id exactly as given. The step whose doneBy is agent-then-you is the step an agent drafts from the client's message; the other steps are done by the owner. Never write digits, prices, percentages or amounts. Plain words, no dashes, no hype.";
+
 export function blueprintTask(venture: VentureRecord, interview: InterviewRecord, structure: BlueprintStructure, template: () => BlueprintModelOutput): ModelTask<BlueprintModelOutput> {
   const allowed = copiedTokens(venture.idea, ...typedAnswers(interview));
   const ids = idsOf(structure);
+  const flagship = ids.flagship ? structureFlagship(structure, venture) : null;
   return {
     purpose: 'blueprint',
-    instructions: ids.composed ? COMPOSED_BLUEPRINT_INSTRUCTIONS : BLUEPRINT_INSTRUCTIONS,
+    instructions: flagship ? FLAGSHIP_BLUEPRINT_INSTRUCTIONS : ids.composed ? COMPOSED_BLUEPRINT_INSTRUCTIONS : BLUEPRINT_INSTRUCTIONS,
     input: {
       idea: venture.idea,
       serviceType: structure.serviceType,
+      ...(flagship ? { playbook: flagship.label } : {}),
       country: venture.country.name,
       answers: openingAnswers(interview),
       structure: {
         offers: structure.offers.map(o => ({ id: o.id, pricingModel: o.pricing.model })),
         steps: structure.steps.map(s => ({ id: s.id, doneBy: s.doneBy })),
-        approvals: ids.composed ? 0 : APPROVAL_COUNT,
+        approvals: ids.composed || flagship ? 0 : APPROVAL_COUNT,
       },
     },
     schemaName: 'venture-blueprint',
@@ -412,27 +502,35 @@ type PlanWords = {
   offers: { name: Labelled<string>; description: Labelled<string> }[];
   steps: Labelled<string>[];
   approvals: Labelled<string>[];
+  /** A flagship playbook's own delivery steps, fixed engine words; absent on every other plan. */
+  flagshipSteps?: PlanFlagshipStep[];
 };
 
 function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord, structure?: BlueprintStructure): PlanWords {
   // A number in the model's words makes the line a model estimate; template words hold no numbers.
   const allowed = copiedTokens(venture.idea, ...typedAnswers(interview));
   const say = (value: string) => (by === 'model' ? modelLine(value, allowed) : labelled(value, 'assumption', by));
-  // A composed plan's approvals are the approval blocks' fixed words, never model words.
-  const approvals = structure?.blocks
-    ? structure.blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine'))
-    : output.approvals.map(say);
+  // A flagship playbook's offers and approvals are its own fixed words; a composed plan's approvals are the approval
+  // blocks' fixed words. Neither is ever model words.
+  const flagship = structureFlagship(structure, venture);
+  const approvals = flagship ? flagshipApprovalLines(flagship)
+    : structure?.blocks ? structure.blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine'))
+      : output.approvals.map(say);
+  // A working name that is only the plan's own label (a screen named the workspace after it) is no name the owner gave.
+  const type = structure?.serviceType ?? interview.serviceType.value;
   const name = by === 'model'
     ? say(output.name)
-    : venture.workingName === DEFAULT_WORKING_NAME ? labelled(venture.workingName, 'assumption', 'template') : toldByYou(venture.workingName);
+    : isPlanLabelName(venture.workingName, [flagship?.label ?? flagshipPlan(venture.idea)?.label, SERVICE_TYPE_LABELS[type]])
+      ? labelled(venture.workingName, 'assumption', 'template') : toldByYou(venture.workingName);
   const typed = ownerCustomer(interview);
   return {
     name,
     oneLiner: say(output.oneLiner),
     customer: typed ? toldByYou(typed) : say(output.customer),
-    offers: output.offers.map(o => ({ name: say(o.name), description: say(o.description) })),
+    offers: flagship && structure ? flagshipWordsFor(structure, flagship) : output.offers.map(o => ({ name: say(o.name), description: say(o.description) })),
     steps: output.steps.map(s => say(s.title)),
     approvals,
+    ...(flagship ? { flagshipSteps: flagshipStepLines(flagship) } : {}),
   };
 }
 
@@ -455,7 +553,8 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
     oneLiner: words.oneLiner,
     customer: words.customer,
     offers: structure.offers.map((o, index) => ({
-      id: o.id, ...(blocks ? { block: blocks.offers[index] } : {}), name: words.offers[index].name, description: words.offers[index].description, pricing: structuredClone(o.pricing),
+      id: o.id, ...(blocks ? { block: blocks.offers[index] } : {}), ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}),
+      name: words.offers[index].name, description: words.offers[index].description, pricing: structuredClone(o.pricing),
     })),
     deliverySteps: structure.steps.map((s, index) => ({
       id: s.id, ...(blocks ? { block: blocks.steps[index] } : {}), title: words.steps[index], doneBy: s.doneBy, capability: s.capability, note: s.note,
@@ -463,6 +562,7 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
     approvals: words.approvals,
     backOffice: structuredClone(structure.backOffice),
     starterConnectorIds: [...structure.starterConnectorIds],
+    ...(words.flagshipSteps ? { flagshipSteps: words.flagshipSteps } : {}),
   };
   if (blocks && previous) {
     record.composition = structuredClone(previous.composition ?? null);
@@ -483,6 +583,8 @@ export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStr
   check(structure.blocks, 'INVALID_VENTURE_REQUEST', 'This plan was not composed.');
   const blocks = structure.blocks;
   const typed = ownerCustomer(interview);
+  // A flagship playbook's plan keeps the playbook's approvals in its own words (playbooks/plan.ts).
+  const flagship = structureFlagship(structure, { idea: composition.text });
   const record: BlueprintRecord = {
     ...tx.base('venture-blueprint'),
     version: 1,
@@ -496,13 +598,13 @@ export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStr
     oneLiner: structuredClone(plan.oneLiner),
     customer: typed ? toldByYou(typed) : structuredClone(plan.customer),
     offers: structure.offers.map((o, index) => ({
-      id: o.id, block: blocks.offers[index], name: structuredClone(plan.offers[index].name), description: structuredClone(plan.offers[index].description),
-      pricing: structuredClone(o.pricing),
+      id: o.id, block: blocks.offers[index], ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}),
+      name: structuredClone(plan.offers[index].name), description: structuredClone(plan.offers[index].description), pricing: structuredClone(o.pricing),
     })),
     deliverySteps: structure.steps.map((s, index) => ({
       id: s.id, block: blocks.steps[index], title: structuredClone(plan.steps[index].title), doneBy: s.doneBy, capability: s.capability, note: s.note,
     })),
-    approvals: blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine')),
+    approvals: flagship ? flagshipApprovalLines(flagship) : blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine')),
     backOffice: structuredClone(structure.backOffice),
     starterConnectorIds: [...structure.starterConnectorIds],
     composition: { id: composition.id, composeId: composition.composeId, kind: composition.planKind, views: structuredClone(composition.views) },
@@ -510,6 +612,7 @@ export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStr
     pages: structuredClone(plan.pages),
     tools: plan.tools.map(tool => ({ block: tool.block, reason: structuredClone(tool.reason) })),
     notes: structuredClone(plan.notes),
+    ...(flagship ? { flagshipSteps: flagshipStepLines(flagship) } : {}),
   };
   return seal(record);
 }
@@ -735,7 +838,7 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });
     tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: by });
-    return blueprintView(tx.state, record);
+    return blueprintView(tx.state, record, deps.host);
   });
 }
 
@@ -746,7 +849,7 @@ export async function blueprintGet(deps: VentureDeps, ctx: Context, payload: unk
   const state = deps.store.read();
   const venture = requireVenture(state);
   const latest = latestBlueprint(state, venture.id);
-  return latest ? blueprintView(state, latest) : null;
+  return latest ? blueprintView(state, latest, deps.host) : null;
 }
 
 /** venture.blueprint.update { patch } (prepare): owner edits make a new draft version. */
@@ -772,7 +875,7 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
     if (venture.acceptedBlueprintId === null) mirrorIntoInterview(tx, venture, next, mirror);
     tx.touch({ blueprintId: next.id, status: statusAtLeast(venture.status, 'blueprint') });
     tx.emit('blueprint-drafted', { blueprintId: next.id, version: next.version, source: 'owner' });
-    return blueprintView(tx.state, next);
+    return blueprintView(tx.state, next, deps.host);
   });
 }
 
@@ -791,6 +894,6 @@ export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: 
     ensureTerms(tx, accepted);
     activateTerm(tx, 'offer', { recordId: accepted.id, kind: 'venture-blueprint' });
     tx.emit('blueprint-accepted', { blueprintId: accepted.id, version: accepted.version, digest: accepted.digest });
-    return blueprintView(tx.state, accepted);
+    return blueprintView(tx.state, accepted, deps.host);
   });
 }

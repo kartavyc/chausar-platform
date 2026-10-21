@@ -12,7 +12,8 @@ import s from './Business.module.css';
 
 /**
  * Plan and playbook (venture.blueprint.get): the plan's name and one line, who it is for, the offers with prices only
- * as the calculator's receipts, the playbook's steps with who does each, what the owner approves, and the back office.
+ * as the calculator's receipts, the playbook's steps with who does each (a flagship playbook's own steps, the ones that
+ * run, when its plan has them), what the owner approves, and the back office.
  * The playbook shows by its human label ("YouTube channel") when the engine's pick carries one, else the service type.
  * Change plan writes a new draft version (venture.blueprint.update); accepting it is a row on Today, shown here too.
  */
@@ -49,18 +50,32 @@ export function PlanView() {
       <Offers view={view} />
       <section className={s.section} aria-label={t('business.steps')}>
         <h2 className={s.heading}>{t('business.steps')}</h2>
-        <ol className={s.steps}>
-          {bp.deliverySteps.map((step) => (
-            <li key={step.id} className={s.step}>
-              {step.title.value}<LabelTag line={step.title} />
-              <span className={s.stepWho}>{t(`business.doneBy.${step.doneBy}`)} · {t(`business.capability.${step.capability}`)}</span>
-            </li>
-          ))}
-        </ol>
-        <details className={s.fold}>
-          <summary>{t('business.stepsMore')}</summary>
-          {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
-        </details>
+        {bp.flagshipSteps ? (
+          // A flagship playbook's plan lists the steps that run on every order, in its own words, and who does each.
+          <ol className={s.steps}>
+            {bp.flagshipSteps.map((step) => (
+              <li key={step.id} className={s.step}>
+                {step.title.value}
+                <span className={s.stepWho}>{t(`business.who.${step.doneBy}`, { who: step.who })}</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <>
+            <ol className={s.steps}>
+              {bp.deliverySteps.map((step) => (
+                <li key={step.id} className={s.step}>
+                  {step.title.value}<LabelTag line={step.title} />
+                  <span className={s.stepWho}>{t(`business.doneBy.${step.doneBy}`)} · {t(`business.capability.${step.capability}`)}</span>
+                </li>
+              ))}
+            </ol>
+            <details className={s.fold}>
+              <summary>{t('business.stepsMore')}</summary>
+              {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
+            </details>
+          </>
+        )}
       </section>
       <section className={s.section} aria-label={t('business.approvals')}>
         <h2 className={s.heading}>{t('business.approvals')}</h2>

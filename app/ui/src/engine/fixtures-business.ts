@@ -225,7 +225,7 @@ export const BLUEPRINTS: Record<string, BlueprintViewLite> = {
       customer: assumed('People buying audio gear on a budget, and the brands that sponsor them.'),
       offers: [
         { id: 'offer_sponsor', name: told('Sponsor slot'), description: assumed('One mention of a sponsor in an episode, written with them and read on camera.'), pricing: { model: 'project', quantityUnit: 'project', unitPriceMinor: '1500000', unitPriceLabel: 'told-by-you', defaultQuantity: '1' } },
-        { id: 'offer_shorts', name: assumed('Shorts from your long video'), description: assumed("Six shorts cut from a client's own long video, each with a timestamp."), pricing: { model: 'project', quantityUnit: 'project', unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' } },
+        { id: 'offer_shorts', playbookOffer: 'shorts-from-own-video', name: assumed('Shorts from your long video'), description: assumed("Six shorts cut from a client's own long video, each with a timestamp."), pricing: { model: 'project', quantityUnit: 'project', unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' } },
       ],
       deliverySteps: [
         { id: 'step_1', title: assumed('Collect the long video and the notes'), doneBy: 'you', capability: 'planned', note: STEP_NOTES.collect },
@@ -239,6 +239,8 @@ export const BLUEPRINTS: Record<string, BlueprintViewLite> = {
     },
     offerReceipts: { offer_sponsor: OFFER_RECEIPTS[0]!, offer_shorts: null },
     playbook: PLAYBOOKS.lumen!,
+    // The shorts are the YouTube playbook's own-footage offer: an order says whose footage it is (engine: playbooks/intake.ts).
+    intake: { offer_shorts: { rights: ['own-footage'], fields: ['format', 'aiVoice', 'aiPresenter', 'paidPromotion', 'cutFile'] } },
   },
   ledgerline: {
     blueprint: {

@@ -49,7 +49,8 @@ function readTarget(env: AuditEnv, tableId: string | null): string | null {
   if (work) return tableHolds(work) ? work.id : null;
   const file = env.files.find(item => tableId === item.id || tableId.startsWith(`${item.id}.s`));
   if (!file) return null;
-  if (file.format === 'pdf') return tableId === file.id ? file.id : null;
+  // A PDF's pages and a transcript's timed lines are read whole, by the file's own id.
+  if (file.format === 'pdf' || file.format === 'transcript') return tableId === file.id ? file.id : null;
   try { return tablesOfFile(file).some(table => table.id === tableId) ? file.id : null; } catch { return null; }
 }
 

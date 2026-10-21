@@ -211,10 +211,17 @@ export interface LabelledLite<T> { value: T; label: LineLabel; by: 'owner' | 'mo
 export type PricingModel = 'monthly' | 'project' | 'hourly';
 export interface OfferLite {
   id: string; name: LabelledLite<string>; description: LabelledLite<string>;
+  /** The flagship playbook offer this is, for example 'licensed-clips'; absent on other plans. It decides the rights asked at intake. */
+  playbookOffer?: string;
   /** unitPriceMinor is engine data the UI only tests for null ("Set your price"); it never formats it. */
   pricing: { model: PricingModel; quantityUnit: 'month' | 'project' | 'hour'; unitPriceMinor: string | null; unitPriceLabel: 'told-by-you' | 'not-set'; defaultQuantity: string };
 }
 export interface BlueprintStepLite { id: string; title: LabelledLite<string>; doneBy: 'agent' | 'you' | 'agent-then-you'; capability: 'drafts-now' | 'planned' | 'yours'; note: string }
+/**
+ * `PlanFlagshipStep`: one step a flagship playbook delivers with, and who does it. who is the agent's role ('Packager'),
+ * the code's name ('Calculator'), or another person ('CA of record'). The plan lists these in place of deliverySteps.
+ */
+export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
 export interface BlueprintLite {
   id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template'; digest: string; serviceType: ServiceType;
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
@@ -224,8 +231,15 @@ export interface BlueprintLite {
     taxInvoiceReady: boolean; taxInvoiceMissing: string[]; paymentRail: string;
   };
   starterConnectorIds: string[];
+  /** A flagship playbook's plan only: the steps that run, shown in place of deliverySteps. */
+  flagshipSteps?: FlagshipStepLite[];
 }
-export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick }
+/** `RightsBasis` in platform/runtime/venture/delivery/rights.ts. */
+export type RightsBasisLite = 'own-footage' | 'licence' | 'creator-clip-programme';
+/** `OfferIntakeAsk`: what an order for a flagship offer asks. rights: the bases it accepts (empty: no footage is cut). */
+export interface OfferIntakeLite { rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile')[] }
+/** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
+export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite> }
 export interface BlueprintPatchLite {
   name?: string; oneLiner?: string; customer?: string;
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel }[];
@@ -288,7 +302,8 @@ export interface OrderLite {
 }
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
-  id: string; at: string; name: string; format: 'csv' | 'xlsx' | 'pdf'; bytes: number;
+  /** transcript: an SRT or VTT file of what was said, with timings. */
+  id: string; at: string; name: string; format: 'csv' | 'xlsx' | 'pdf' | 'transcript'; bytes: number;
   scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string }; clientData: boolean;
 }
 /** `venture.delivery.list` (DeliveryRunView), trimmed to what a client's sheet shows. */
@@ -448,7 +463,17 @@ export interface EngineMethods {
   'venture.order.list': { params: Record<string, never>; result: OrderLite[] };
   'venture.files.list': { params: { orderId?: string }; result: UploadLite[] };
   'venture.delivery.list': { params: Record<string, never>; result: DeliveryLite[] };
-  'venture.order.create': { params: { clientId: string; offerId: string; quantity?: string; request: string }; result: OrderLite };
+  /**
+   * intake: only for a flagship playbook's offer (OfferLite.playbookOffer). An offer that cuts footage is refused with
+   * RIGHTS_REQUIRED until intake.rights says whose footage it is: { basis: 'own-footage' | 'licence' | 'creator-clip-programme', holder, reference? }.
+   */
+  'venture.order.create': {
+    params: {
+      clientId: string; offerId: string; quantity?: string; request: string;
+      intake?: { rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string };
+    };
+    result: OrderLite;
+  };
   'venture.order.deliver': { params: { orderId: string; deliveredOn: string }; result: OrderLite };
   'venture.delivery.run': { params: { orderId: string; useTemplate?: boolean }; result: DeliveryLite };
   'venture.invoice.list': { params: Record<string, never>; result: InvoiceLite[] };

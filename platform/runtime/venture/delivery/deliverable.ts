@@ -244,6 +244,8 @@ export type DeliveryTaskInput = {
   templateTotalRef: 'offer_1.total' | 'order.total';
   /** The playbook's guidance for the writing step; sent only when there is some. */
   guidance?: readonly string[];
+  /** The drafting step's own headings, when a flagship playbook gives them; else the service type's. */
+  sections?: readonly string[];
 };
 
 /** The words a draft may copy that hold digits: tokens with a letter and a digit from the client's message or the idea. */
@@ -254,21 +256,22 @@ export function draftAllowedTokens(clientRequest: string, idea: string): string[
 /** One delivery model call: gather, clarify and draft in one, over the client's message only. */
 export function deliveryTask(input: DeliveryTaskInput): ModelTask<Deliverable> {
   const allowed = draftAllowedTokens(input.clientRequest, input.idea);
-  const context: DraftContext = { serviceType: input.serviceType, refs: input.refs, allowed };
+  const sections = input.sections ?? REQUIRED_SECTIONS[input.serviceType];
+  const context: DraftContext = { serviceType: input.serviceType, refs: input.refs, allowed, ...(input.sections ? { sections: input.sections } : {}) };
   return {
     purpose: 'delivery',
     instructions: DELIVERY_INSTRUCTIONS,
     input: {
       serviceType: input.serviceType,
       offer: { name: input.offer.name, description: input.offer.description },
-      requiredSections: [...REQUIRED_SECTIONS[input.serviceType]],
+      requiredSections: [...sections],
       clientRequest: input.clientRequest,
       figures: input.refs.figures.map(figure => ({ ref: figure.ref, label: figure.label })),
       dates: input.refs.dates.map(date => ({ ref: date.ref, label: date.label })),
       ...(input.guidance?.length ? { guidance: [...input.guidance] } : {}),
     },
     schemaName: 'venture-delivery',
-    schema: deliverySchema(input.serviceType),
+    schema: deliverySchema(input.serviceType, sections),
     validate: raw => validateDraft(raw, context),
     template: () => templateOutline(input.serviceType, templateTotal(input.refs, input.templateTotalRef)),
     containsClientData: input.containsClientData,

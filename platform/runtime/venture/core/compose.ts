@@ -25,11 +25,12 @@ import {
   APPROVAL_BLOCKS, NOTE_BLOCKS, OFFER_BLOCKS, PAGE_BLOCKS, QUESTION_BLOCKS, STEP_BLOCKS, TOOL_BLOCKS, allowedPricingWords, isApprovalBlock,
   isNoteBlock, isOfferBlock, isPageBlock, isQuestionBlock, isStepBlock, isToolBlock,
 } from './blocks.ts';
-import { applyTaxPatch, offerPricing, previewBackOffice } from './blueprint.ts';
+import { applyTaxPatch, flagshipStepLines, offerPricing, previewBackOffice } from './blueprint.ts';
 import { countryProfile } from './countries.ts';
 import { engineQuestions, isPricingModel, parseAnswer, storedQuestion, taxRateQuestion } from './interview.ts';
 import { isViewId, viewSpec } from './views.ts';
 import { labelled, modelLine, noMarkup, ownerPrice, styledWords, wordCap } from './words.ts';
+import { flagshipPlan } from '../playbooks/plan.ts';
 import { withTaxInvoiceFields } from './tax-fields.ts';
 
 const REJECTED = 'MODEL_OUTPUT_REJECTED';
@@ -268,6 +269,10 @@ export function composeInput(decision: ComposeDecision, problem: string | null =
     },
     rules: [...COMPOSE_RULES],
   };
+  // A flagship playbook fixes the offers and approvals (assembleComposed takes them from the playbook); the AI sees them
+  // so its other words fit the business.
+  const flagship = flagshipPlan(decision.text);
+  if (flagship) input.playbook = { label: flagship.label, offers: flagship.offers.map(offer => offer.name), approvals: flagship.approvals.map(item => item.words) };
   if (problem !== null) input.problem = problem;
   return input;
 }
@@ -487,10 +492,19 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
     }
     return { id, lead: [...(slot as { lead: string[] }).lead] };
   });
-  const offers: ComposedOffer[] = output.offers.map((offer, index) => ({
-    id: OFFER_REFS[index], block: offer.block, name: say(offer.name), description: say(offer.description),
-    pricing: offerPricing(offer.pricingModel, null), allowedPricing: [...OFFER_BLOCKS[offer.block].allowed], priceDisplay: null,
-  }));
+  // An idea that picks a flagship playbook keeps the playbook's offers, approvals, label and base type; the AI's words
+  // stay for the name, the summary, the customer, the steps, the pages and the tools (playbooks/plan.ts).
+  const flagship = flagshipPlan(decision.text);
+  const offers: ComposedOffer[] = flagship
+    ? flagship.offers.map((offer, index) => ({
+      id: OFFER_REFS[index], block: offer.block, playbookOffer: offer.key, name: labelled(offer.name, 'assumption', 'engine'), description: labelled(offer.description, 'assumption', 'engine'),
+      pricing: offerPricing(offer.model, null), allowedPricing: [...OFFER_BLOCKS[offer.block].allowed], priceDisplay: null,
+    }))
+    : output.offers.map((offer, index) => ({
+      id: OFFER_REFS[index], block: offer.block, name: say(offer.name), description: say(offer.description),
+      pricing: offerPricing(offer.pricingModel, null), allowedPricing: [...OFFER_BLOCKS[offer.block].allowed], priceDisplay: null,
+    }));
+  // Every flagship plan has three offers, so a lead view's offer refs (offer_1 to offer_3) all stay in the plan.
   const questions: ComposedQuestion[] = output.questions.map((q, index) => ({
     id: QUESTION_REFS[index], kind: q.kind, field: QUESTION_BLOCKS[q.block].field, text: q.text,
     choices: q.kind === 'choice' ? q.choices.map((label, i) => ({ id: `c_${i + 1}`, label })) : [],
@@ -502,8 +516,8 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
     country: structuredClone(country),
     kind,
     kindLabel: KIND_LABELS[kind],
-    family: structuredClone(decision.family),
-    familyLabel: SERVICE_TYPE_LABELS[decision.family.value],
+    family: flagship ? labelled(flagship.serviceType, 'assumption', 'engine') : structuredClone(decision.family),
+    familyLabel: flagship?.label ?? SERVICE_TYPE_LABELS[decision.family.value],
     reading: structuredClone(decision.reading),
     views,
     name: say(output.name),
@@ -514,7 +528,9 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
       const data = STEP_BLOCKS[step.block];
       return { id: STEP_REFS[index], block: step.block, title: say(step.title), doneBy: data.doneBy, capability: data.capability, note: data.note };
     }),
-    approvals: output.approvals.map(block => ({ value: APPROVAL_BLOCKS[block].words, label: 'assumption' as const, by: 'engine' as const, block })),
+    approvals: flagship
+      ? flagship.approvals.map(item => ({ value: item.words, label: 'assumption' as const, by: 'engine' as const, block: item.block }))
+      : output.approvals.map(block => ({ value: APPROVAL_BLOCKS[block].words, label: 'assumption' as const, by: 'engine' as const, block })),
     pages: output.pages.map((page, index) => ({ id: PAGE_REFS[index], block: page.block, title: say(page.title), purpose: say(page.purpose) })),
     tools: output.tools.map(tool => ({ block: tool.block, reason: say(tool.reason), card: connectorCard(catalogueEntry(tool.block)!, true) })),
     questions,
@@ -526,6 +542,8 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
     writtenBy: { ...meta.writtenBy },
     by: 'model',
     saved: false,
+    // The playbook's own delivery steps, the ones that run, listed in place of the composed steps.
+    ...(flagship ? { flagshipSteps: flagshipStepLines(flagship) } : {}),
   };
   return { ...plan, digest: planDigest(plan) } as ComposedPlan;
 }

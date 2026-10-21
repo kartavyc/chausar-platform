@@ -7,7 +7,7 @@
 // Built from the research cards of 21 October 2026 (finance.md: the CA firm outline and what the CA must do).
 import { check } from '../../../contracts.ts';
 import type { CheckId, ExecutionTier, ModelTier, PlaybookStep, PricingModel, StepKind, ToolName } from '../../contracts.ts';
-import { DRAFT_CHECKS, VERIFY_CHECKS } from '../../delivery/playbook.ts';
+import { DRAFT_CHECKS, VERIFY_CHECKS } from '../../delivery/check-lists.ts';
 import { CA_FIRM_ID, CA_FIRM_LABEL, CA_FIRM_REGISTRATION } from './registration.ts';
 import { OPEN_QUESTIONS } from './rates.ts';
 import type { CaEngine } from './receipt.ts';

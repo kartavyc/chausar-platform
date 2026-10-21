@@ -272,7 +272,10 @@ export class FakeBusinessDesk {
     next.digest = this.host.digest({ ...next, digest: '' });
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;
     // Receipts belong to a version: a new version has none until it is priced again.
-    this.blueprints[biz] = { blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])), ...(view.playbook ? { playbook: view.playbook } : {}) };
+    this.blueprints[biz] = {
+      blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
+      ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: clone(view.intake) } : {}),
+    };
     this.planRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     return clone(this.blueprints[biz]!);

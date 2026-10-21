@@ -48,6 +48,35 @@ describe('Business: plan and playbook', () => {
     expect(within(nav).getByRole('link', { name: 'Plan and playbook' }).getAttribute('aria-current')).toBe('page');
   });
 
+  it("lists a flagship playbook's own steps with who does each, in place of the template steps", async () => {
+    const engine = new FakeEngine();
+    const view = await plan(engine);
+    const step = (id: string, title: string, doneBy: 'you' | 'agent' | 'code' | 'person', who: string) => ({ id, title: { value: title, label: 'assumption' as const, by: 'engine' as const }, doneBy, who });
+    const flagshipSteps = [
+      step('intake', "Read the order and the client's files, and record the rights to the footage", 'agent', 'Intake clerk'),
+      step('probe', 'Read the transcript timings, the silences and the likely drop points', 'code', 'Chausar'),
+      step('review', 'You watch the cut and read the package', 'you', 'You'),
+      step('ca-signoff', 'The CA of record signs off the regulated papers', 'person', 'CA of record'),
+    ];
+    const client = createFakeClient(engine);
+    const request = client.request.bind(client);
+    client.request = ((method: string, params?: unknown) => (method === 'venture.blueprint.get'
+      ? Promise.resolve({ ...view, blueprint: { ...view.blueprint, flagshipSteps } })
+      : request(method as never, params as never))) as typeof client.request;
+    window.location.hash = '#/business/plan';
+    render(<App client={client} language="en" />);
+    const steps = await screen.findByRole('region', { name: 'Steps' });
+    await waitFor(() => expect(within(steps).getAllByRole('listitem')).toHaveLength(4));
+    expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      "Read the order and the client's files, and record the rights to the footageIntake clerk, an agent",
+      'Read the transcript timings, the silences and the likely drop pointsChausar, code with no AI',
+      'You watch the cut and read the packageYou',
+      'The CA of record signs off the regulated papersCA of record',
+    ]);
+    expect(within(steps).queryByText('Draft the sponsor script')).toBeNull();
+    expect(within(steps).queryByText('How each step works')).toBeNull();
+  });
+
   it('the bare business address shows the plan', async () => {
     start('#/business');
     expect(await screen.findByRole('heading', { level: 1, name: 'Plan and playbook' })).toBeTruthy();

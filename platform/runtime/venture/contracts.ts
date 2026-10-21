@@ -7,6 +7,7 @@ import type {
   ApprovalBlockId, ComposedNote, ComposedPage, ComposeModelOutput, CompositionRecord, DecideModelOutput, DraftHandoverPort,
   OfferBlockId, OnboardingPayloads, OnboardingResults, PlanKind, StepBlockId, ToolBlockId, ViewSelection,
 } from './onboarding-contracts.ts';
+import type { FootageRights, RightsBasis } from './delivery/rights.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
 
@@ -218,6 +219,12 @@ export type Offer = {
   id: string; // 'offer_1' .. 'offer_3', stable across versions
   /** The library block a composed plan built this offer from; absent on template offers. Allowed pricing is OFFER_BLOCKS[block].allowed. */
   block?: OfferBlockId;
+  /**
+   * The flagship playbook offer this offer is (venture/playbooks/plan.ts), for example 'licensed-clips'. Set on plans
+   * an idea's flagship playbook made; absent on every other plan. It decides the rights asked at intake and the step
+   * that drafts an order's reply.
+   */
+  playbookOffer?: string;
   name: Labelled<string>;
   description: Labelled<string>;
   pricing: {
@@ -228,6 +235,19 @@ export type Offer = {
     defaultQuantity: string; // integer text, engine default '1'
   };
 };
+/**
+ * One step a flagship playbook delivers with (venture/playbooks/steps.ts), as the plan lists it: its own title, fixed
+ * engine words, and who does it. doneBy: you, an agent (who is its role, such as 'Packager'), code with no model (who
+ * is its name, such as 'Calculator'), or another person (who is, for example, 'CA of record' or 'Your client'). A
+ * flagship plan lists these in place of the four template steps, so the plan the owner accepts names the steps that run.
+ */
+export type PlanFlagshipStep = { id: string; title: Labelled<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string };
+/**
+ * What an order for one flagship offer asks at intake (venture/playbooks/intake.ts), worked out by code, never stored.
+ * rights: the rights to the footage this offer accepts, in order; empty when it cuts no footage. fields: the other
+ * intake fields its checks read; 'cutFile' never on the hosted server, which reads no file on the owner's computer.
+ */
+export type OfferIntakeAsk = { rights: RightsBasis[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile')[] };
 /** 'yours': work only the owner does, with no agent planned (composed plans only). */
 export type StepCapability = 'drafts-now' | 'planned' | 'yours';
 export type BlueprintStep = {
@@ -278,6 +298,11 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
   pages?: ComposedPage[];
   tools?: { block: ToolBlockId; reason: Labelled<string> }[];
   notes?: ComposedNote[];
+  /**
+   * Flagship playbook plans only (venture/playbooks/steps.ts): the steps that run, which the plan lists in place of
+   * deliverySteps. Part of the digest the owner accepts. Absent on every other plan, so their digests do not change.
+   */
+  flagshipSteps?: PlanFlagshipStep[];
 };
 
 /** Owner edits. Every field optional; at least one required. Creates a new draft version. */
@@ -300,6 +325,8 @@ export type BlueprintView = {
   offerReceipts: Record<string, PriceReceiptRecord | null>;
   /** The flagship playbook the venture's idea picks; absent when none fits. Not part of the record or its digest. */
   playbook?: PlaybookPick;
+  /** What an order for each offer asks at intake, by offer id; absent when no offer asks anything. Not part of the record. */
+  intake?: Record<string, OfferIntakeAsk>;
 };
 
 /** venture.preview: the instant plan shown before any vault exists. Template words only; nothing is stored. */
@@ -319,6 +346,8 @@ export type PlanPreview = {
   saved: false;
   /** The flagship playbook the idea picks; absent when none fits. */
   playbook?: PlaybookPick;
+  /** The flagship playbook's delivery steps, listed in place of deliverySteps; absent when no playbook fits. */
+  flagshipSteps?: PlanFlagshipStep[];
 };
 
 /**
@@ -656,6 +685,20 @@ export type OrderRecord = RecordBase<'venture-order'> & {
   priceReceiptId: string;
   deliveredOn: IsoDate | null;
   saleFactId: string | null;
+  /** What a flagship playbook's offer asks at intake (venture/playbooks/intake.ts). Absent for every other offer. */
+  intake?: OrderIntake;
+};
+/**
+ * A flagship offer's intake, checked by code when the order is made. rights: the rights to the footage, required for
+ * an offer that cuts footage (delivery/rights.ts). cutFile: the finished cut on this computer, for the finishing check.
+ */
+export type OrderIntake = {
+  rights: FootageRights | null;
+  format: 'long' | 'short';
+  aiVoice: boolean;
+  aiPresenter: boolean;
+  paidPromotion: boolean;
+  cutFile: string | null;
 };
 export type InvoiceLine = { description: string; quantity: string; unitMinor: MinorString; amountMinor: MinorString };
 export type InvoiceRecord = RecordBase<'venture-invoice'> & {
@@ -1044,6 +1087,11 @@ export type PlaybookRecord = RecordBase<'venture-playbook'> & {
   patches?: PlaybookPatch[];
   parentId?: string | null; // the version this one was patched from
   origin?: 'plan' | 'improvement';
+  /**
+   * The flagship playbook whose typed steps these are (venture/playbooks/steps.ts), for a plan that playbook made.
+   * Its checks run on every draft (playbookChecks) and its roles are the team. Absent on the eight fixed steps.
+   */
+  flagship?: string;
 };
 
 export type TextPart =
@@ -1063,6 +1111,12 @@ export type Deliverable = {
 };
 /** notChecked: rules-judge only, when no rule was settled by a vote with checked evidence. It is not a pass, and not a failure either. */
 export type CheckResult = { check: CheckId; passed: boolean; detail: string; notChecked?: true };
+/**
+ * One deterministic check of a flagship playbook on a draft (venture/playbooks/draft-checks.ts), run by code with no
+ * model. 'not-run' says why it could not run (no cut, no transcript, ffmpeg not here); it is never a pass. A 'fail'
+ * blocks Accept like a failed CheckResult.
+ */
+export type PlaybookCheckResult = { playbook: string; check: string; outcome: 'pass' | 'fail' | 'not-run'; detail: string };
 
 export type Scenario = {
   id: string;
@@ -1101,6 +1155,8 @@ export type Episode = {
   costMicros: MicroString;
   /** The agent's turns, tool calls and work when the practice client sent files. Absent or null otherwise. */
   harness?: HarnessState | null;
+  /** A flagship playbook's own checks on this practice draft; a 'fail' fails the episode. Absent for other playbooks. */
+  playbookChecks?: PlaybookCheckResult[];
 };
 export type SimulationRunRecord = RecordBase<'venture-simulation-run'> & {
   playbookId: string;
@@ -1140,6 +1196,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   /** The agent loop, for an order with files. Each model turn waits for the owner's approval of its exact text. */
   harness?: HarnessState | null;
   uploadIds?: string[]; // the client files this run may read, fixed when the run starts
+  /** A flagship playbook's own checks on the draft; a 'fail' blocks Accept. Absent for other playbooks. */
+  playbookChecks?: PlaybookCheckResult[];
 };
 /**
  * A delivery run as the screens read it: the stored record plus what the engine would allow right now, at today's
@@ -1290,7 +1348,8 @@ export type AuditStep = { toolCallId: string; tool: string; audited: boolean; re
 export type AuditRound = { round: number; plan: string; steps: AuditStep[]; progress: number };
 
 /** A file a client sent, kept in the vault. Its content is client data, except Chausar's made-up practice files. */
-export type UploadFormat = 'csv' | 'xlsx' | 'pdf';
+/** transcript: an SRT or VTT file of what was said, with timings (venture/playbooks/youtube/transcript.ts). */
+export type UploadFormat = 'csv' | 'xlsx' | 'pdf' | 'transcript';
 export type UploadRecord = RecordBase<'venture-upload'> & {
   name: string;
   format: UploadFormat;
@@ -1925,7 +1984,11 @@ export type VenturePayloads = {
   'venture.receipt.get': { id: string };
   'venture.client.add': { name: string; email?: string; countryCode?: CountryCode; taxId?: string; stateCode?: string; note?: string };
   'venture.client.list': Empty;
-  'venture.order.create': { clientId: string; offerId: string; quantity?: string; request: string };
+  /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
+  'venture.order.create': {
+    clientId: string; offerId: string; quantity?: string; request: string;
+    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string };
+  };
   'venture.order.list': Empty;
   'venture.order.deliver': { orderId: string; deliveredOn: IsoDate };
   'venture.invoice.prepare': { orderId: string; dueInDays?: number; issueDate?: IsoDate };
