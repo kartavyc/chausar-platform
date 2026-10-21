@@ -12,6 +12,9 @@ import s from './BusinessMenu.module.css';
  * desktop preload offers yet, so this menu never asks for a passphrase: it says the business opens with one and that
  * asking for it here isn't built. A business whose key is missing says its recovery code opens it.
  */
+/** The kind under the business name, unless it only repeats the name (a business named after its playbook). */
+export const kindPrefix = (kind: string | null | undefined, name: string | null | undefined) => (kind && kind !== name ? `${kind} · ` : '');
+
 export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
   const t = useT();
   const client = useEngine();
@@ -72,7 +75,7 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
     >
       <button ref={button} type="button" className={s.business} aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
         <span className={s.name}>{name}</span>
-        <span className={s.kind}>{kind ? `${kind} · ` : ''}{t('business.switch')}</span>
+        <span className={s.kind}>{kindPrefix(kind, name)}{t('business.switch')}</span>
       </button>
       {open && (
         <div id={menuId} className={s.menu} role="group" aria-label={t('business.menu', { name })}>

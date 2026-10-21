@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { Receipt } from '../../src/parts/Receipt';
 import { ApprovalRow } from '../../src/parts/ApprovalRow';
 import type { QueueRow } from '../../src/engine/types';
+import { kindPrefix } from '../../src/shell/BusinessMenu';
 
 describe('Receipt reads quietly', () => {
   it('shows a short reference as itself', () => {
@@ -37,5 +38,13 @@ describe('ApprovalRow names the business only when it helps', () => {
     render(<ul><ApprovalRow row={row} onDecide={decide} showBusiness={false} /></ul>);
     expect(screen.getByText('Editor')).toBeTruthy();
     expect(screen.queryByText(/Lumen Studio/)).toBeNull();
+  });
+});
+
+describe('The business button says the kind once', () => {
+  it('shows the kind before switch, but not when the business is named after it', () => {
+    expect(kindPrefix('YouTube channel', 'Lumen Studio')).toBe('YouTube channel · ');
+    expect(kindPrefix('YouTube channel', 'YouTube channel')).toBe('');
+    expect(kindPrefix(null, 'Lumen Studio')).toBe('');
   });
 });
