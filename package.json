@@ -30,6 +30,7 @@
     "dev:ui": "vite --config app/ui/vite.config.ts --mode fake",
     "build:ui": "vite build --config app/ui/vite.config.ts",
     "test:ui": "vitest run --config app/ui/vitest.config.ts",
+    "bench:ui": "node scripts/ui-bench.mjs",
     "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json"
   },
   "dependencies": {

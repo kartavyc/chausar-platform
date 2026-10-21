@@ -46,6 +46,40 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          package-manager-cache: false
+      - name: Install pinned dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck the Ink frontend
+        run: npm run typecheck:ui
+      - name: Run the Ink frontend tests and capture their receipt
+        run: node scripts/ui-bench.mjs --output results/ui-tests.json
+      - name: Build the Ink frontend
+        run: npm run build:ui
+      - name: Upload UI test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-report-${{ matrix.os }}
+          path: results/ui-tests.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The ui job runs the Ink frontend (app/ui) on both OSes: its strict typecheck, every vitest test (a failed, skipped
+  # or todo test fails it, as in the open suite) and the production build that Electron and the servers serve.
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
   # Each OS requires all five shards to pass. The four ordinary groups remain
