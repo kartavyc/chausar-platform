@@ -1,0 +1,196 @@
+/* The one-sentence start. Thin lines, no cards, one filled button. */
+
+/* First run: the whole window, the status line on top and the column in the middle. */
+.first {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.firstMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: center;
+  padding: var(--sp-10) var(--sp-4);
+}
+
+.firstMain:focus {
+  outline: none;
+}
+
+.alone {
+  width: min(560px, 100%);
+  margin-bottom: 12vh;
+}
+
+/* Inside the app (New business): the same column at the top of the place. */
+.inPlace {
+  width: min(560px, 100%);
+}
+
+.name {
+  margin-bottom: var(--sp-10);
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.question {
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-title);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.box,
+.input,
+.select {
+  width: 100%;
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.box {
+  min-height: 96px;
+  padding: var(--sp-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.box::placeholder {
+  color: var(--dim);
+}
+
+.box[readonly] {
+  color: var(--fg2);
+}
+
+.input,
+.select {
+  min-height: var(--control);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.select {
+  width: auto;
+  max-width: 100%;
+}
+
+.box:focus-visible,
+.input:focus-visible,
+.select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+.box[aria-invalid='true'],
+.input[aria-invalid='true'] {
+  border-color: var(--fail);
+}
+
+.country {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.country label {
+  color: var(--mute);
+}
+
+.step {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.sentence {
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+
+.field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.fieldLabel {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-row);
+  letter-spacing: 0.06em;
+  user-select: all;
+}
+
+.chunk {
+  white-space: nowrap;
+}
+
+.codeTools {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.note {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.check {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-read);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.actions {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  margin-top: var(--sp-1);
+}
+
+.progress {
+  min-height: 1.5em;
+  font-size: var(--text-read);
+  color: var(--mute);
+}

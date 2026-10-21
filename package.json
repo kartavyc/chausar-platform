@@ -26,7 +26,11 @@
     "package:preview": "node scripts/desktop-package.mjs --mode preview",
     "package:check": "node scripts/desktop-package.mjs --mode preview --check",
     "phone:preview": "node scripts/phone-web-preview.mjs",
-    "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json"
+    "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json",
+    "dev:ui": "vite --config app/ui/vite.config.ts --mode fake",
+    "build:ui": "vite build --config app/ui/vite.config.ts",
+    "test:ui": "vitest run --config app/ui/vitest.config.ts",
+    "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.3",

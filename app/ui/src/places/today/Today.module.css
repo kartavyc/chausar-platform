@@ -1,0 +1,140 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failed {
+  padding: 18px 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+/* A decided row: one quiet line that stays for the session. It settles once, only when decided on this screen. */
+.decided {
+  padding: 10px 0;
+  border-top: var(--hair) solid var(--line);
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.decided:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.settle {
+  animation: ink-settle var(--t-settle) var(--ease) 1;
+}
+
+.decidedTitle {
+  color: var(--fg2);
+}
+
+/* Working now (mockup A): agent, purpose, time; hairline-free lines under a small grey heading. */
+.working {
+  margin-top: var(--sp-9);
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.work {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: 10px 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.work:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.agent {
+  flex: none;
+  width: 110px;
+  overflow-wrap: anywhere;
+}
+
+.purpose {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.purpose:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.elapsed {
+  flex: none;
+  color: var(--mute);
+}
+
+.wait {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--wait);
+}
+
+button.wait {
+  cursor: pointer;
+}
+
+button.wait:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* The view sheet: a draft, a file or a plan, as text. */
+.part {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.partHeading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+@media (max-width: 759px) {
+  .agent {
+    width: 88px;
+  }
+}

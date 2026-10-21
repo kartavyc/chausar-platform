@@ -1,0 +1,30 @@
+.value {
+  position: relative;
+  display: inline-block;
+}
+
+.text {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--mute);
+  text-underline-offset: 3px;
+}
+
+.tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 2;
+  width: max-content;
+  max-width: 280px;
+  padding: var(--sp-1) var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-label);
+  white-space: normal;
+}
+
+.tip[hidden] {
+  display: none;
+}

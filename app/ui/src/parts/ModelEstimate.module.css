@@ -1,0 +1,9 @@
+.estimate {
+  white-space: nowrap;
+}
+
+.word {
+  font-size: var(--text-label);
+  color: var(--mute);
+  font-style: italic;
+}

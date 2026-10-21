@@ -1,0 +1,107 @@
+.lists {
+  display: grid;
+  gap: var(--sp-9);
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: 10px 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.job:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+}
+
+.agent {
+  flex: none;
+  width: 110px;
+}
+
+.purpose {
+  flex: 1;
+  min-width: 12em;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: var(--text-read);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.purpose:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--mute);
+}
+
+.bar {
+  width: 72px;
+  height: 4px;
+  appearance: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar::-webkit-progress-bar {
+  background: var(--line);
+}
+
+.bar::-webkit-progress-value {
+  background: var(--fg);
+}
+
+.bar::-moz-progress-bar {
+  background: var(--fg);
+}
+
+.wait {
+  color: var(--wait);
+}
+
+.elapsed {
+  flex: none;
+  color: var(--mute);
+}
+
+.result {
+  color: var(--fg2);
+}
+
+.failed {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.failure {
+  color: var(--fail);
+}

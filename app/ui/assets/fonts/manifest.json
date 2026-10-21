@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "fonts": [
+    {
+      "file": "InstrumentSans-400.woff2",
+      "bytes": 34628,
+      "sha256": "f28af62faa9eec1e5482cf6e2a3e06bc865fa2fa6937bd56c14d2be23c9b4c46",
+      "sourceFile": "InstrumentSans-Regular.woff2",
+      "sourceBodySha256": "f28af62faa9eec1e5482cf6e2a3e06bc865fa2fa6937bd56c14d2be23c9b4c46",
+      "family": "Instrument Sans",
+      "weight": 400,
+      "width": 100,
+      "operation": "Unchanged publisher WOFF2; app filename only",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": true
+    },
+    {
+      "file": "InstrumentSans-500.woff2",
+      "bytes": 35580,
+      "sha256": "65d25fc111c40fd6b481d9db860af365730752228dfd8a246e79648d8a01f02a",
+      "sourceFile": "InstrumentSans-Medium.woff2",
+      "sourceBodySha256": "65d25fc111c40fd6b481d9db860af365730752228dfd8a246e79648d8a01f02a",
+      "family": "Instrument Sans",
+      "weight": 500,
+      "width": 100,
+      "operation": "Unchanged publisher WOFF2; app filename only",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": true
+    },
+    {
+      "file": "InstrumentSans-600.woff2",
+      "bytes": 35812,
+      "sha256": "04235f235483213906d69cafb7a87ee197adaffacb081c8a7f809d00f9b353cd",
+      "sourceFile": "InstrumentSans-SemiBold.woff2",
+      "sourceBodySha256": "04235f235483213906d69cafb7a87ee197adaffacb081c8a7f809d00f9b353cd",
+      "family": "Instrument Sans",
+      "weight": 600,
+      "width": 100,
+      "operation": "Unchanged publisher WOFF2; app filename only",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": true
+    },
+    {
+      "file": "DMMono-400.woff2",
+      "bytes": 20656,
+      "sha256": "8bf6fa1c275a47b29bcff0f49d430e64e556becf80c7b26b9bfcdcafc6e5cc60",
+      "sourceFile": "DMMono-Regular.ttf",
+      "sourceBodySha256": "55b4c98f123daebb3ed27947ba47b2af00554fc6284d639a540bcef5e6258ad2",
+      "family": "DM Mono",
+      "weight": 400,
+      "width": 100,
+      "operation": "Full source TTF converted to WOFF2; glyph set and layout retained",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": false
+    },
+    {
+      "file": "DMMono-500.woff2",
+      "bytes": 20812,
+      "sha256": "fc14c1295b7a791159854809e0ae0a5a9a2d165729b96e3f7e3ac51a6fe4e7e3",
+      "sourceFile": "DMMono-Medium.ttf",
+      "sourceBodySha256": "fd327daf461db87b44a87def475d251bf03b997f7c07d9680592d75dbbfaad0b",
+      "family": "DM Mono",
+      "weight": 500,
+      "width": 100,
+      "operation": "Full source TTF converted to WOFF2; glyph set and layout retained",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": false
+    },
+    {
+      "file": "NotoSansDevanagari-400.woff2",
+      "bytes": 65984,
+      "sha256": "ff28878c706bfe0b17b9cafeaeb80ff56eca24285409583626440fc17722f36d",
+      "sourceFile": "NotoSansDevanagari-v2.007.zip",
+      "sourceBodySha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
+      "family": "Noto Sans Devanagari",
+      "weight": 400,
+      "width": 100,
+      "operation": "Full source instantiated at normal width100 and target weight, then WOFF2; glyph set and layout retained",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": false
+    },
+    {
+      "file": "NotoSansDevanagari-500.woff2",
+      "bytes": 69332,
+      "sha256": "e88ac298bc698f91b0c35a8e06f5b1afc08e2aeb6b784cf26be9c3918bac172b",
+      "sourceFile": "NotoSansDevanagari-v2.007.zip",
+      "sourceBodySha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
+      "family": "Noto Sans Devanagari",
+      "weight": 500,
+      "width": 100,
+      "operation": "Full source instantiated at normal width100 and target weight, then WOFF2; glyph set and layout retained",
+      "subsetApplied": false,
+      "publisherBytesUnchanged": false
+    }
+  ],
+  "notices": [
+    {
+      "file": "InstrumentSans-OFL.txt",
+      "bytes": 4403,
+      "sha256": "9e27a72ed30eb49a08678f6a5d6ed98ec7ba5368f541637ee0683ec9134ef966",
+      "publisherBytesUnchanged": true
+    },
+    {
+      "file": "DMMono-OFL.txt",
+      "bytes": 4484,
+      "sha256": "2bada5ea45c3c63b7f1ea1f88ce9672c9e4f0c42b2c3b7378949084fe55a3066",
+      "publisherBytesUnchanged": true
+    },
+    {
+      "file": "NotoSansDevanagari-OFL.txt",
+      "bytes": 4386,
+      "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
+      "publisherBytesUnchanged": true
+    }
+  ],
+  "sources": [
+    {
+      "file": "InstrumentSans-Regular.woff2",
+      "kind": "font-source",
+      "repository": "Instrument/instrument-sans",
+      "commit": "7fa22308a3d0c94ee2b3cd537a1196b65db34a3e",
+      "path": "fonts/webfonts/InstrumentSans-Regular.woff2",
+      "url": "https://raw.githubusercontent.com/Instrument/instrument-sans/7fa22308a3d0c94ee2b3cd537a1196b65db34a3e/fonts/webfonts/InstrumentSans-Regular.woff2",
+      "bytes": 34628,
+      "sha256": "f28af62faa9eec1e5482cf6e2a3e06bc865fa2fa6937bd56c14d2be23c9b4c46",
+      "gitBlobSha": "1e0a9719d54a0b5bb46ad8dabae3cad1a6eee203"
+    },
+    {
+      "file": "InstrumentSans-Medium.woff2",
+      "kind": "font-source",
+      "repository": "Instrument/instrument-sans",
+      "commit": "7fa22308a3d0c94ee2b3cd537a1196b65db34a3e",
+      "path": "fonts/webfonts/InstrumentSans-Medium.woff2",
+      "url": "https://raw.githubusercontent.com/Instrument/instrument-sans/7fa22308a3d0c94ee2b3cd537a1196b65db34a3e/fonts/webfonts/InstrumentSans-Medium.woff2",
+      "bytes": 35580,
+      "sha256": "65d25fc111c40fd6b481d9db860af365730752228dfd8a246e79648d8a01f02a",
+      "gitBlobSha": "1360f22eac6514275f824c522e5329e3336928ea"
+    },
+    {
+      "file": "InstrumentSans-SemiBold.woff2",
+      "kind": "font-source",
+      "repository": "Instrument/instrument-sans",
+      "commit": "7fa22308a3d0c94ee2b3cd537a1196b65db34a3e",
+      "path": "fonts/webfonts/InstrumentSans-SemiBold.woff2",
+      "url": "https://raw.githubusercontent.com/Instrument/instrument-sans/7fa22308a3d0c94ee2b3cd537a1196b65db34a3e/fonts/webfonts/InstrumentSans-SemiBold.woff2",
+      "bytes": 35812,
+      "sha256": "04235f235483213906d69cafb7a87ee197adaffacb081c8a7f809d00f9b353cd",
+      "gitBlobSha": "2285afc8e68c954a07bb438231acb1ca67afb3d2"
+    },
+    {
+      "file": "DMMono-Regular.ttf",
+      "kind": "font-source",
+      "repository": "google/fonts",
+      "commit": "a30fe14e71950565634ecb49aca21346f09e8545",
+      "path": "ofl/dmmono/DMMono-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/a30fe14e71950565634ecb49aca21346f09e8545/ofl/dmmono/DMMono-Regular.ttf",
+      "bytes": 49744,
+      "sha256": "55b4c98f123daebb3ed27947ba47b2af00554fc6284d639a540bcef5e6258ad2",
+      "gitBlobSha": "1cdda9146d31e5dfb28cf299548b73f502142ccc"
+    },
+    {
+      "file": "DMMono-Medium.ttf",
+      "kind": "font-source",
+      "repository": "google/fonts",
+      "commit": "a30fe14e71950565634ecb49aca21346f09e8545",
+      "path": "ofl/dmmono/DMMono-Medium.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/a30fe14e71950565634ecb49aca21346f09e8545/ofl/dmmono/DMMono-Medium.ttf",
+      "bytes": 50360,
+      "sha256": "fd327daf461db87b44a87def475d251bf03b997f7c07d9680592d75dbbfaad0b",
+      "gitBlobSha": "3e7a7634be5f0c2414f71f459c63c521ce59c5f2"
+    },
+    {
+      "file": "InstrumentSans-OFL.txt",
+      "kind": "license",
+      "repository": "Instrument/instrument-sans",
+      "commit": "7fa22308a3d0c94ee2b3cd537a1196b65db34a3e",
+      "path": "OFL.txt",
+      "url": "https://raw.githubusercontent.com/Instrument/instrument-sans/7fa22308a3d0c94ee2b3cd537a1196b65db34a3e/OFL.txt",
+      "bytes": 4403,
+      "sha256": "9e27a72ed30eb49a08678f6a5d6ed98ec7ba5368f541637ee0683ec9134ef966",
+      "gitBlobSha": "26bd2f954bfa282d235370728095db97d8a36f6f"
+    },
+    {
+      "file": "DMMono-OFL.txt",
+      "kind": "license",
+      "repository": "google/fonts",
+      "commit": "a30fe14e71950565634ecb49aca21346f09e8545",
+      "path": "ofl/dmmono/OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/a30fe14e71950565634ecb49aca21346f09e8545/ofl/dmmono/OFL.txt",
+      "bytes": 4484,
+      "sha256": "2bada5ea45c3c63b7f1ea1f88ce9672c9e4f0c42b2c3b7378949084fe55a3066",
+      "gitBlobSha": "01450afc0769581ef9548569b1214d88ee28cd1a"
+    },
+    {
+      "file": "NotoSansDevanagari-OFL.txt",
+      "kind": "license",
+      "repository": "notofonts/devanagari",
+      "commit": "e123d230c160ebe949d731cc19017cdb354180d1",
+      "path": "OFL.txt",
+      "url": "https://raw.githubusercontent.com/notofonts/devanagari/e123d230c160ebe949d731cc19017cdb354180d1/OFL.txt",
+      "bytes": 4386,
+      "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
+      "gitBlobSha": "cd2cc5c94b4151933eba6ee508e3975274d6fa07"
+    },
+    {
+      "file": "NotoSansDevanagari-v2.007.zip",
+      "kind": "font-archive",
+      "repository": "notofonts/devanagari",
+      "commit": "e123d230c160ebe949d731cc19017cdb354180d1",
+      "url": "https://github.com/notofonts/devanagari/releases/download/NotoSansDevanagari-v2.007/NotoSansDevanagari-v2.007.zip",
+      "bytes": 18449254,
+      "sha256": "820c7da45b1e63562cb41c0a8cac5d9a4202312043a3a040ed1325857ef469b1",
+      "gitBlobSha": null,
+      "archiveMember": "NotoSansDevanagari/googlefonts/variable-ttf/NotoSansDevanagari[wdth,wght].ttf",
+      "archiveMemberSha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e"
+    }
+  ],
+  "totalFontBytes": 282804,
+  "exclusiveFontBudgetBytes": 600000,
+  "fullSourceGlyphSetsRetained": true,
+  "tools": {
+    "fonttools": "4.66.1",
+    "brotli": "1.2.0",
+    "uharfbuzz": "0.56.2",
+    "harfbuzz": "14.5.0"
+  },
+  "qualification": {
+    "staticNormalWeightsAndWidths": true,
+    "cmapMappingsAndGlyphOrderRetained": true,
+    "dmDigitAdvanceFontUnits": 600,
+    "localStackMissingRequiredCodepoints": 0,
+    "fullCorpusSha256": "6648d2dc0eeac60a7a9e8d7c0a0f07c482cb2ead56b54b6a224354b79056fc6b",
+    "hindiDistinctStrings": 448,
+    "hindiVariableToStaticComparisons": 896,
+    "fullCorpusShapingComparisons": 3267,
+    "shapingMismatchCount": 0,
+    "positionToleranceFontUnits": 0,
+    "independentShapingComparisons": 3485,
+    "independentNotoPositioningPairs": 292654,
+    "independentMismatchCount": 0,
+    "shapingEvidenceSha256": "3232efde23fb00dd0f23b84a370dda5db71f05d7f667e65738b80a29a2873b78",
+    "independentReviewSha256": "4db7e86994eba92228004403fe88cd70589fd7214098bcdd375640df3f96cf2a"
+  },
+  "copiedFrom": {
+    "branch": "origin/claude/clever-goldberg-49qobq",
+    "path": "app/ui/assets/fonts",
+    "on": "2026-10-21",
+    "note": "IBM Plex Mono left out: Ink uses Instrument Sans, DM Mono and Noto Sans Devanagari only."
+  }
+}
