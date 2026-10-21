@@ -62,6 +62,7 @@
   "change.was": "was",
   "change.now": "now",
   "receipt.open": "Receipt {id}",
+  "receipt.word": "receipt",
   "receipt.stale": "The price or tax setting changed after this receipt.",
   "receipt.none": "No figures on this receipt.",
   "estimate.label": "model estimate",

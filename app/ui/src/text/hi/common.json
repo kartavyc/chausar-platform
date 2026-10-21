@@ -62,6 +62,7 @@
   "change.was": "पहले",
   "change.now": "अब",
   "receipt.open": "रसीद {id}",
+  "receipt.word": "रसीद",
   "receipt.stale": "इस रसीद के बाद दाम या टैक्स बदला है।",
   "receipt.none": "इस रसीद पर कोई आँकड़ा नहीं है।",
   "estimate.label": "मॉडल का अनुमान",

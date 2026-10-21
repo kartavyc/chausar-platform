@@ -110,7 +110,7 @@ export function YourAi({ focus }: { focus: boolean }) {
           )}
           <p className={s.line}>{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</p>
           <p className={s.note}>{t('connections.ai.spendNote')}</p>
-          {data.sendPolicy === 'nothing' && <p className={s.problem}>{t('connections.ai.sendNothing')}</p>}
+          {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
           {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
           {connected.length > 0 && (
             <ul className={s.list} aria-label={t('connections.ai.connected')}>

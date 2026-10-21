@@ -71,6 +71,16 @@ function classify(idea: string): ServiceType {
   return best;
 }
 
+/**
+ * The queue in the engine's order (views/queue.ts): the plan, price and setup rows lead, plan first, whatever their
+ * times; then every other row oldest first; locked businesses last.
+ */
+const LEAD_RANK: Partial<Record<QueueRow['kind'], number>> = { plan: 0, price: 0, setup: 1 };
+const queueGroup = (row: QueueRow) => (row.kind === 'locked' ? 2 : row.kind in LEAD_RANK ? 0 : 1);
+export const queueOrder = (a: QueueRow, b: QueueRow) => queueGroup(a) - queueGroup(b)
+  || (queueGroup(a) === 0 ? (LEAD_RANK[a.kind] ?? 0) - (LEAD_RANK[b.kind] ?? 0) : 0)
+  || (a.kind === 'locked' ? 0 : a.createdAt.localeCompare(b.createdAt));
+
 export class FakeEngine {
   private rows: QueueRow[];
   private decided = new Set<string>();
@@ -242,7 +252,7 @@ export class FakeEngine {
   }
 
   private queueList(scope: 'current' | 'all') {
-    const rows = this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const rows = this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
     const summary = rows.length === 0 ? 'Nothing needs you.' : `${count} ${rows.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;

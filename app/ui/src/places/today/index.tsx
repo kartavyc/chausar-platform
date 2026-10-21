@@ -23,8 +23,12 @@ import s from './Today.module.css';
 /** A run waiting on the owner adds a row; a failed run adds "Run again". */
 const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 
-/** Oldest first; locked businesses last, as the engine lists them. */
-const order = (a: QueueRow, b: QueueRow) => (a.kind === 'locked' ? 1 : 0) - (b.kind === 'locked' ? 1 : 0) || a.createdAt.localeCompare(b.createdAt);
+/**
+ * The engine's order: plan, prices and setup rows lead, then oldest first, locked businesses last. A row keeps the
+ * place it had when it first appeared, so a decided row shrinks where it was instead of jumping.
+ */
+const order = (place: (id: string) => number) => (a: QueueRow, b: QueueRow) =>
+  (a.kind === 'locked' ? 1 : 0) - (b.kind === 'locked' ? 1 : 0) || place(a.id) - place(b.id);
 
 /** Actions that take the owner where the thing is done. The engine refuses them as decisions (NOT_A_DECISION). */
 const PLACES_FOR: Partial<Record<QueueAction['id'], () => void>> = {
@@ -128,11 +132,12 @@ export function Place() {
     return true;
   }
 
+  session.placeRows(live);
   const liveIds = new Set(live.map((row) => row.id));
   const items: { row: QueueRow; done?: DecidedLine | undefined }[] = [
     ...live.map((row) => ({ row, done: session.line(row.id) })),
     ...session.lines().filter((line) => !liveIds.has(line.row.id)).map((line) => ({ row: line.row, done: line })),
-  ].sort((a, b) => order(a.row, b.row));
+  ].sort((a, b) => order((id) => session.place(id))(a.row, b.row));
   const waiting = items.filter((item) => !item.done).length;
 
   return (
@@ -151,6 +156,7 @@ export function Place() {
                 viewed={session.isViewed(seenKey(row))}
                 onDecide={decide}
                 onAction={navigate}
+                showBusiness={new Set(live.map((r) => r.businessId)).size > 1}
                 onView={(r) => look(r)}
                 onOpen={opener(row)}
               />

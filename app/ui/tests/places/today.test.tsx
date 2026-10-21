@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
-import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import type { EngineClient, QueueDecision, QueueKind, QueueRow } from '../../src/engine/types';
 
@@ -52,13 +52,24 @@ describe('Today: the header and the list', () => {
     expect(await screen.findByText('12 need you, across 3 businesses')).toBeTruthy();
   });
 
-  it('lists every row oldest first, across businesses, each tagged with its business and agent', async () => {
+  it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
     start();
     await rowOf('Connect your AI');
-    expect(rowIds()).toEqual([...QUEUE].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((r) => r.id));
+    expect(rowIds()).toEqual([...QUEUE].map((r) => ({ ...r, digest: '' })).sort(queueOrder).map((r) => r.id));
     expect((await rowOf('Episode 14 is cut')).textContent).toContain('Lumen Studio · Editor');
     expect((await rowOf('GST working for September')).textContent).toContain('Ledgerline · Bookkeeper');
     expect((await rowOf('Your plan is ready. Read it.')).textContent).toContain('Ledgerline');
+  });
+
+  it('keeps the engine order: a plan row listed first stays first even when it is newer than the setup rows', async () => {
+    const setup: Seed = { id: 'q-setup-ai', businessId: 'lumen', businessName: 'Lumen Studio', kind: 'setup', createdAt: '2026-10-21T09:00:00.000Z',
+      title: 'Connect your AI', line: 'Templates work without one.', actions: [{ id: 'connect', label: 'Connect', primary: true }] };
+    const plan: Seed = { id: 'q-plan-new', businessId: 'lumen', businessName: 'Lumen Studio', kind: 'plan', createdAt: '2026-10-21T09:05:00.000Z',
+      title: 'Your plan is ready. Read it.', viewRef: { kind: 'plan', id: 'plan-lumen' },
+      actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }] };
+    start({ engine: new FakeEngine({ queue: [plan, setup] }) });
+    await rowOf('Connect your AI');
+    expect(rowIds()).toEqual(['q-plan-new', 'q-setup-ai']);
   });
 
   it('shows a row for every kind, setup rows included, each with its primary last and never two filled', async () => {
@@ -343,12 +354,13 @@ describe('Today: keys', () => {
   it('J and K move through the rows, Enter opens, A runs the primary, D the secondary', async () => {
     start();
     await rowOf('GST working for September');
+    const [first, second] = rowIds();
     press('j', document.body);
-    expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-setup-ai');
+    expect(document.activeElement?.getAttribute('data-row-id')).toBe(first);
     press('j');
-    expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-plan');
+    expect(document.activeElement?.getAttribute('data-row-id')).toBe(second);
     press('k');
-    expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-setup-ai');
+    expect(document.activeElement?.getAttribute('data-row-id')).toBe(first);
 
     (await rowOf('Episode 14 is cut')).focus();
     press('Enter');

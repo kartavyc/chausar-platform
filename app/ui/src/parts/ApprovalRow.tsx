@@ -27,6 +27,8 @@ export interface ApprovalRowProps {
   /** Take an action that is not a decision (connect, set prices, keep: the engine refuses those as decisions, with
    *  NOT_A_DECISION). Return true when handled; anything else goes to onDecide. */
   onAction?: ((row: QueueRow, action: QueueAction) => boolean) | undefined;
+  /** Name the business above the title. Today turns it off when only one business is listed. */
+  showBusiness?: boolean | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
@@ -38,7 +40,7 @@ type Notice = { kind: 'stale' | 'refused' | 'failed'; text: string } | null;
  * keyboard A never runs them. An approval that needs a look first stays locked until the owner opens it. A stale
  * digest shows the new version; a decided row shrinks to one receipt line.
  */
-export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, onAction }: ApprovalRowProps) {
+export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true }: ApprovalRowProps) {
   const t = useT();
   const [current, setCurrent] = useState(row);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -64,7 +66,7 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
   const primary = current.actions.find((a) => a.primary) ?? current.actions[0]!;
   const secondary = current.actions.find((a) => a !== primary);
   const locked = Boolean(primary.requiresView && !isViewed);
-  const eyebrow = current.agent ? `${current.businessName} · ${current.agent}` : current.businessName;
+  const eyebrow = showBusiness ? (current.agent ? `${current.businessName} · ${current.agent}` : current.businessName) : (current.agent ?? '');
 
   async function decide(action: QueueAction, text?: string) {
     setPhase('sending');

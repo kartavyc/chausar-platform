@@ -22,6 +22,8 @@ export class TodaySession {
   private shown = new Set<string>();
   private hidden = new Set<string>();
   private busy = new Set<string>();
+  /** Each row's place in the engine's order when it first appeared, so decided lines stay where they were. */
+  private places = new Map<string, number>();
   private version = 0;
   private listeners = new Set<() => void>();
 
@@ -36,6 +38,9 @@ export class TodaySession {
     this.changed();
   }
   line(id: string): DecidedLine | undefined { return this.decided.get(id); }
+  /** Note the engine's order for rows not seen before; known rows keep their place. */
+  placeRows(rows: readonly QueueRow[]) { for (const row of rows) if (!this.places.has(row.id)) this.places.set(row.id, this.places.size); }
+  place(id: string): number { return this.places.get(id) ?? Number.MAX_SAFE_INTEGER; }
   lines(): DecidedLine[] { return [...this.decided.values()]; }
 
   /** A decision is on its way for this row: a refresh that drops it meanwhile is not "resolved elsewhere". */

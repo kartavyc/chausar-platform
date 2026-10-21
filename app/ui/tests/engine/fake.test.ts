@@ -1,18 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { EngineError, type ConnectorCardLite, type QueueKind, type QueueList } from '../../src/engine/types';
 import { connectorLabelOf } from '../../src/parts/ConnectorLabel';
 
 const list = (engine: FakeEngine, scope: 'all' | 'current' = 'all') => engine.request('venture.queue.list', { scope }) as Promise<QueueList>;
 
 describe('fake engine: the queue', () => {
-  it('has a row of every kind across the businesses, oldest first, each with one primary action', async () => {
+  it('has a row of every kind across the businesses, in the engine order, each with one primary action', async () => {
     const engine = new FakeEngine();
     const queue = await list(engine);
     const kinds = new Set(queue.rows.map((r) => r.kind));
     for (const kind of ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector'] as QueueKind[]) expect(kinds.has(kind), kind).toBe(true);
-    const created = queue.rows.map((r) => r.createdAt);
-    expect(created).toEqual([...created].sort());
+    expect(queue.rows.map((r) => r.id)).toEqual([...queue.rows].sort(queueOrder).map((r) => r.id));
+    expect(queue.rows[0]!.kind === 'plan' || queue.rows[0]!.kind === 'price', queue.rows[0]!.id).toBe(true);
+    expect(queue.rows.at(-1)!.kind).toBe('locked');
     for (const row of queue.rows) {
       expect(row.actions.length === 1 || row.actions.length === 2, row.id).toBe(true);
       expect(row.actions.filter((a) => a.primary), row.id).toHaveLength(1);
