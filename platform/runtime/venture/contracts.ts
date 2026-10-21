@@ -29,7 +29,8 @@ export type MicroString = string;
 /** Who said a line, and how sure it is. Shown next to every blueprint line. */
 export type LineLabel = 'told-by-you' | 'assumption' | 'computed';
 export type LineAuthor = 'owner' | 'model' | 'template' | 'engine';
-export type Labelled<T> = { value: T; label: LineLabel; by: LineAuthor };
+/** estimate: true when the model wrote a number in the line; shown as a model estimate, never with a receipt. */
+export type Labelled<T> = { value: T; label: LineLabel; by: LineAuthor; estimate?: true };
 
 // ---------------------------------------------------------------------------
 // 2. Countries (data owned by P1, copied into the venture record at create)
@@ -100,6 +101,14 @@ export const VENTURE_RECORD_KINDS = [
   'venture-delegate-run',
   // Onboarding v2: the plan the AI composed from checked blocks before the vault existed.
   'venture-composition',
+  // Connectors (P2-connectors): one post the owner approves on its own; one staged website edit.
+  'venture-connector-post', 'venture-site-edit',
+  // Spend (P2-spend): a charge record per paid call, a quote waiting for the owner, and the owner's rate card and cap.
+  'venture-spend', 'venture-spend-quote', 'venture-spend-policy',
+  // Ink frontend (P1-A): the owner's decisions on Today's rows, and the auto or hold gate on each agent step.
+  'venture-queue-decision', 'venture-team-gate',
+  // Evidence ledger (P2-evidence): one claim about a client or business field, its strength and whether it is applied.
+  'venture-evidence',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -715,6 +724,8 @@ export type BriefRecord = RecordBase<'venture-brief'> & {
   wordsBy: 'model' | 'template';
   modelCallId: string | null;
   lint: BriefLint;
+  /** True when the model's words hold a number: a model estimate. Prices in the brief come only from receipts. */
+  estimate?: true;
 };
 export type HandoffPlan = {
   handoffId: string; // the venture-handoff record; send it back with venture.build.handoffOpened
@@ -797,6 +808,76 @@ export type ConnectorCard = {
   vendorUrl: string | null; // a plain 'Visit site' link, not a mode; origin must be in EXTERNAL_ORIGINS
   note: string; // shown on the card
   starter: boolean; // one of about six shown first for this venture
+  /** How this connector posts today: the first available posting mode, else the owner-browser-session one. Absent when it does not post. */
+  posting?: PostingOption;
+  /** Every posting mode in the order api, owner-browser-session, handoff, each with its status, risk and requirements. Empty when it does not post. */
+  postingOptions: PostingOption[];
+};
+
+/**
+ * 'api': the platform's own API, which needs its app review first. 'owner-browser-session': the owner's own signed-in
+ * account in a browser on this computer, driven after the owner approves each post. 'handoff': the owner posts it there.
+ * Never built: proxy or VPN rotation, fingerprint spoofing, or posting to accounts that are not the owner's.
+ */
+export type PostingModeName = 'api' | 'owner-browser-session' | 'handoff';
+export type PostingOption = {
+  mode: PostingModeName;
+  status: 'available' | 'planned';
+  /** 'unqualified' while available means the code runs but has not been checked against the live site. */
+  qualification: 'built-in' | 'fixture-tested' | 'unqualified';
+  what: string; // one plain line: what this mode does
+  risk: string | null; // shown beside the mode, for example 'The platform may restrict this account.'
+  requires: string[]; // what has to be true first, for example 'Meta app review'
+  reason: string | null; // why a planned option is planned; null when available
+};
+/** Each post is its own journal entry: described, then approved, then applied, rejected or outcome_unknown. Never resent. */
+export type ConnectorPostState = 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown';
+export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
+  connectorId: string;
+  mode: Exclude<PostingModeName, 'handoff'>;
+  account: string | null; // the owner's own account, as the owner named it
+  text: string; // the post, untrusted agent or owner words
+  agent: string | null; // the agent that proposed it; null when the owner wrote it
+  digest: string; // what the owner approves: id, connector, mode, account and text
+  state: ConnectorPostState;
+  describe: string; // one plain line for the approver
+  risk: string | null;
+  claimedAt: IsoTime | null; // set in the same commit as 'approved', before the browser or API is touched
+  decidedBy: string | null;
+  outcome: { line: string; url: string | null; by: 'platform' | 'owner' | 'engine' } | null;
+  journal: { state: ConnectorPostState; at: IsoTime; by: string; line: string }[];
+};
+export type BrowserProbe = { present: boolean; reason: string };
+export type BrowserPostJob = { postId: string; connectorId: string; text: string; timeoutMs: number };
+/** 'not-sent': the platform was never reached, so nothing went out. 'unknown': it may have gone out; check before posting again. */
+export type BrowserPostResult =
+  | { outcome: 'posted'; line: string; url: string | null }
+  | { outcome: 'not-sent'; line: string }
+  | { outcome: 'unknown'; line: string };
+/** Drives the owner's own browser on this computer. The real one needs Playwright with Chromium already installed. */
+export type BrowserPort = { probe(): Promise<BrowserProbe>; post(job: BrowserPostJob): Promise<BrowserPostResult> };
+export type ApiPostPort = { post(job: BrowserPostJob): Promise<BrowserPostResult> };
+export type ConnectorPorts = {
+  browser?: BrowserPort;
+  /** Connector ids whose API app review is recorded (the real host reads CHAUSAR_APP_REVIEWED). */
+  appReviewed?: readonly string[];
+  /** API posting clients by connector id. None ship in this build. */
+  api?: Readonly<Record<string, ApiPostPort>>;
+  postTimeoutMs?: number;
+};
+/** A staged edit to one website file: applied only with the exact plan digest the owner reviewed, verified, reversible. */
+export type SiteEditState = 'staged' | 'applying' | 'applied' | 'rolled-back' | 'rejected' | 'needs-inspection';
+export type SiteEditRecord = RecordBase<'venture-site-edit'> & {
+  target: { kind: 'local-folder' | 'github'; identity: string };
+  path: string;
+  summary: string;
+  before: string;
+  after: string;
+  beforeDigest: string;
+  afterDigest: string;
+  planDigest: string;
+  state: SiteEditState;
+  log: { at: IsoTime; by: string; step: 'staged' | 'applied' | 'verified' | 'rolled-back' | 'rejected' | 'needs-inspection'; line: string }[];
 };
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs and app/renderer/app.js. */
@@ -810,6 +891,7 @@ export const EXTERNAL_ORIGINS = Object.freeze([
   'https://business.whatsapp.com', 'https://telegram.org', 'https://slack.com', 'https://discord.com',
   'https://www.notion.com', 'https://drive.google.com', 'https://linear.app', 'https://www.airtable.com',
   'https://www.linkedin.com', 'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com',
+  'https://www.youtube.com', 'https://studio.youtube.com',
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com',
   'https://www.mca.gov.in', 'https://www.gst.gov.in', 'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io',
   'https://posthog.com', 'https://plausible.io', 'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com',
@@ -871,6 +953,8 @@ export type Deliverable = {
   sections: { heading: string; parts: TextPart[] }[];
   questionsForClient: string[];
   attachments?: DeliverableAttachment[];
+  /** True when the model's words hold a number: shown as a model estimate. Only figure parts carry receipts. */
+  estimate?: true;
 };
 export type CheckResult = { check: CheckId; passed: boolean; detail: string };
 
@@ -893,7 +977,8 @@ export type Scenario = {
 };
 export const JUDGE_QUESTIONS = ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'] as const;
 export type JudgeQuestionId = typeof JUDGE_QUESTIONS[number];
-export type JudgeAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure' | 'not-judged'; reason: string; callId: string | null };
+/** estimate: true when the judge's reason holds a number it wrote; never a receipt. */
+export type JudgeAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure' | 'not-judged'; reason: string; callId: string | null; estimate?: true };
 export type EpisodeTurn = { turn: number; by: 'client' | 'agent'; text: string; author: 'model' | 'template'; callId: string | null };
 export type MockEffect = { connector: string; operation: string; payloadDigest: string; recordedAt: IsoTime };
 export type Episode = {
@@ -1066,7 +1151,16 @@ export type HarnessState = {
   stopReason: string | null; // plain words when the loop stopped early
   mocks: MockEffect[]; // outside writes the agent proposed: recorded, never carried out
   delegations?: DelegationRequest[]; // heavy-work briefs, in order; absent on runs made before heavy work
+  rounds?: AuditRound[]; // the round ledger, one entry per act turn; absent on runs made before the auditor
 };
+/**
+ * The auditor's check of one step (one tool call): read-only, against the step's real output (the run's receipts and
+ * tables, the client's files). Only audited steps count as progress or back a claim of finished work. evidence: the
+ * ids of what it read. A step that was refused, failed or cancelled is kept here as evidence, not progress.
+ */
+export type AuditStep = { toolCallId: string; tool: string; audited: boolean; reason: string; evidence: string[] };
+/** One round of the agent loop: the manager's plan (the act turn's note), each executor step with its audit, and how many were audited. */
+export type AuditRound = { round: number; plan: string; steps: AuditStep[]; progress: number };
 
 /** A file a client sent, kept in the vault. Its content is client data, except Chausar's made-up practice files. */
 export type UploadFormat = 'csv' | 'xlsx' | 'pdf';
@@ -1242,11 +1336,75 @@ export type DelegateRunRecord = RecordBase<'venture-delegate-run'> & {
   reason: string; // plain words, built by code
   outputs: DelegateOutput[];
   log: string; // the end of what the tool printed, untrusted
-  reportedCost: string | null; // the cost the tool printed, as it printed it; untrusted, never added to Chausar's spend
+  reportedCost: string | null; // the cost the tool printed, as it printed it; untrusted; the spend ledger settles the run's reservation at it, labelled as the tool's own report
   figures: DelegateFigure[];
   uncheckedNumbers: number; // numbers in the summary the calculator did not recompute
   untrusted: true;
 };
+
+// ---------------------------------------------------------------------------
+// 8c. Spend (P2-spend): reserve before a paid call, settle after; an unknown price is refused, never counted as free
+// ---------------------------------------------------------------------------
+
+/** Engine-formatted text; the UI never computes it. Shared with the Ink contract (plan, "Shared contract"). */
+export type Display = string;
+/**
+ * One price on the rate card, in micro-USD. 'per-million-tokens' prices a model call by its usage; 'per-call' is a
+ * fixed price per call; 'per-run-cap' holds a run's own spending limit and settles at what the tool reports.
+ * 'list' rates come from Chausar's own tables; 'owner' rates were typed by the owner and override them.
+ */
+export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
+export type SpendRate = {
+  item: string; // 'model:<preset id>', 'delegate:<tool>' or 'connector:<id>'
+  unit: SpendRateUnit;
+  inputMicrosPerMillion: MicroString | null;
+  outputMicrosPerMillion: MicroString | null;
+  microsPerCall: MicroString | null; // the price per call, or the run's cap
+  source: string;
+  checkedOn: IsoDate;
+  confirmed: boolean; // false: figures at this rate show as 'estimate, price unconfirmed'
+  by: 'list' | 'owner';
+};
+/** reserved: the charge record, written before the call. unknown: the answer never came, so it stays held. */
+export type SpendPhase = 'reserved' | 'settled' | 'unknown' | 'released' | 'refused';
+export type SpendRecord = RecordBase<'venture-spend'> & {
+  key: string; // the idempotency key: one per thing asked for, so a retry never pays twice
+  item: string;
+  label: string;
+  agent: string | null;
+  connector: string | null;
+  payer: string; // who is billed: 'connection:<id>', 'plan:<tool>' or 'connector:<id>'
+  draftDigest: string; // exactly what is paid for
+  rate: SpendRate | null; // the rate used; null when there was none
+  reservedMicros: MicroString;
+  settledMicros: MicroString | null;
+  settledBy: 'usage' | 'tool-report' | 'bill' | 'reservation' | null; // 'reservation': no figure came back, so it settled at the estimate
+  phase: SpendPhase;
+  quoteId: string | null; // the approved quote this call spent
+  ref: string | null; // the record the call belongs to, such as a model call id or a delivery run id
+  refusal: { code: string; message: string } | null;
+  settledAt: IsoTime | null;
+};
+/** A paid call above the owner's ask-first figure waits here. One approval buys one call, within the hour. */
+export type SpendQuoteRecord = RecordBase<'venture-spend-quote'> & {
+  key: string;
+  item: string;
+  label: string;
+  payer: string;
+  draftDigest: string;
+  figureMicros: MicroString;
+  figure: Display;
+  status: 'open' | 'approved' | 'spent';
+  decidedAt: IsoTime | null;
+  decidedBy: string | null;
+  spentBy: string | null; // the spend record that used the approval
+};
+export type SpendPolicyRecord = RecordBase<'venture-spend-policy'> & {
+  capMicros: MicroString | null; // hard cap per calendar month (UTC) across every paid call; null: only each AI's own limit
+  askAboveMicros: MicroString | null; // a call that may cost more than this waits for the owner to approve its quote
+  rates: SpendRate[]; // the owner's rate card
+};
+export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string }
 
 // ---------------------------------------------------------------------------
 // 9. Events (the venture actor's broadcast log)
@@ -1261,16 +1419,115 @@ export const VENTURE_EVENTS = [
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
   'delivery-brief-waiting', 'delegate-finished',
   'plan-composed',
+  // Ink frontend (P1-A): what the desktop pushes over IPC and the web sends over /api/events (VentureRunEvent).
+  'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; name: VentureEventName; data: Json };
+
+// ---------------------------------------------------------------------------
+// 9b. Views for the Ink frontend (P1-A). app/ui mirrors these in app/ui/src/engine/types.ts.
+// Display and SpendRow, also in the shared contract, are declared in section 8c.
+// ---------------------------------------------------------------------------
+
+export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again';
+export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
+export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
+export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector';
+export interface QueueRow {
+  id: string; businessId: string; businessName: string; agent?: string; kind: QueueKind;
+  title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
+  actions: QueueAction[]; // one or two; exactly one primary
+  viewRef?: { kind: 'draft' | 'file' | 'run' | 'plan'; id: string };
+}
+export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
+export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string }
+export type RunState = 'active' | 'waiting' | 'done' | 'failed';
+export interface RunStep {
+  id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
+  tools?: { name: string; line: string }[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
+}
+export interface RunSummary {
+  runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
+}
+export interface RunDetail extends RunSummary { steps: RunStep[]; question?: { id: string; text: string; choices?: string[] }; error?: string }
+export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
+export interface AgentView {
+  id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
+  last?: { line: Display; receiptId?: string; estimate?: boolean };
+  steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
+}
+export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed';
+export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string }
+// phase 2 views (SpendRow is in section 8c)
+export interface JournalEntry { id: string; action: string; target: string; state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; at: string; line: Display; receiptId?: string }
+export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean }
+/**
+ * One piece of evidence for one field (P2-evidence, venture/evidence/). subject is 'business' or 'client:<id>'. type is
+ * what code accepted; claimedType what was claimed (a claim with no matching tool result in its run is downgraded to
+ * model-inferred and flagged). Only verified evidence overwrites a stored value on its own; the rest waits as a suggestion.
+ */
+export type EvidenceRecord = RecordBase<'venture-evidence'> & {
+  subject: string;
+  field: string;
+  value: string; // '' for needs-your-data: Chausar cannot see the value
+  type: string;
+  claimedType: string;
+  strength: EvidenceItem['strength'];
+  scoreBp: number; // combined fixed weights, in basis points
+  claim: EvidenceItem['claim'];
+  source: string; // plain words: where it came from, or why it was not checked
+  by: 'owner' | 'agent' | 'engine';
+  runId: string | null;
+  toolCallId: string | null;
+  flag: string | null; // why the claimed type was not accepted
+  applied: boolean; // this value is the stored one for its field
+  appliedAt: IsoTime | null;
+};
+
+/** The run event names inside VENTURE_EVENTS, in order. */
+export const VENTURE_RUN_EVENT_TYPES: readonly VentureRunEventType[] = Object.freeze(['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed'] as const);
+export const QUEUE_ACTION_IDS: readonly QueueActionId[] = Object.freeze(['approve', 'deny', 'later', 'watch', 'read', 'answer', 'send-to-ca', 'open', 'connect', 'set-prices', 'keep', 'issue', 'run-again'] as const);
+
+/** One owner decision on a Today row. Decide-once: a second decision on the same row id is refused. */
+export type QueueDecisionRecord = RecordBase<'venture-queue-decision'> & {
+  rowId: string;
+  subject: string; // the thing the row stands for, the same across its versions
+  digest: string; // the row digest the owner decided on
+  action: QueueActionId;
+  line: string;
+  receiptId: string | null;
+  decidedBy: string; // memberId of the person who decided
+};
+/** The gate on one agent step. The newest record per agent and step wins; no record means the default. */
+export type TeamGateRecord = RecordBase<'venture-team-gate'> & { agentId: string; stepId: string; gate: 'auto' | 'hold' };
+
+/** A business on this computer as the views see it. id is its workspace folder, the id workspace.list uses. */
+export type VentureBusinessRef = { id: string; name: string | null; opens: 'with-this-computer' | 'needs-passphrase' | 'key-missing'; openedAt: string | null };
+/**
+ * Trusted host composition, never from a payload: what the views may know about the businesses on this computer.
+ * The engine passes it; tests inject a stub. Without it the queue covers the open business only.
+ */
+export type VentureWorkspacePort = {
+  /** The open business. */
+  current(): { id: string; name: string };
+  /** Every business on this computer, the open one included. Empty on the hosted web server. */
+  businesses(): Promise<VentureBusinessRef[]>;
+  /** Whether the open business has a recovery code; null when this host keeps no such record. */
+  recovery(): Promise<'made' | 'not-made' | 'unknown' | null>;
+};
 
 export type AnyVentureRecord =
   | VentureRecord | InterviewRecord | BlueprintRecord | TermRecord | ModelConnectionRecord | ModelCallRecord
   | PriceReceiptRecord | ClientRecord | OrderRecord | InvoiceRecord | PaymentRecord
   | BriefRecord | HandoffRecord | BuildFollowRecord | GitHubReadRecord
   | PlaybookRecord | SimulationRunRecord | DeliveryRunRecord | SignalRecord | VentureEventRecord
-  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | DelegateRunRecord | CompositionRecord;
+  | UploadRecord | WorkTableRecord | WorkReceiptRecord | ImprovementRunRecord | DelegateRunRecord | CompositionRecord
+  | ConnectorPostRecord | SiteEditRecord
+  | SpendRecord | SpendQuoteRecord | SpendPolicyRecord
+  | QueueDecisionRecord | TeamGateRecord
+  | EvidenceRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 // ---------------------------------------------------------------------------
@@ -1290,6 +1547,8 @@ export const VENTURE_METHODS = [
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
+  // P2-spend: what each paid call reserved and settled
+  'venture.spend.list',
   // P4 build and connectors
   'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'venture.connectors.list',
@@ -1303,6 +1562,10 @@ export const VENTURE_METHODS = [
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
   // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
   'venture.delivery.delegate', 'venture.delegate.get',
+  // Ink frontend views (P1-A): Today's queue, runs, the team and its gates
+  'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
+  // Evidence ledger (P2-evidence): what backs each client and business field, and the owner applying a suggestion
+  'venture.evidence.list', 'venture.evidence.apply',
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
@@ -1319,7 +1582,7 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
 ] as const);
 
-export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery';
+export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
   'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
@@ -1329,6 +1592,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
+  'venture.spend.list': 'money',
   'venture.build.brief': 'build', 'venture.build.handoff': 'build', 'venture.build.handoffOpened': 'build', 'venture.build.link': 'build', 'venture.build.sync': 'build', 'venture.build.status': 'build',
   'venture.connectors.list': 'build',
   'venture.delivery.playbook': 'delivery', 'venture.simulation.scenarios': 'delivery', 'venture.simulation.run': 'delivery', 'venture.simulation.get': 'delivery', 'venture.simulation.fromSignal': 'delivery',
@@ -1338,6 +1602,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
   'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
+  'venture.queue.list': 'views', 'venture.queue.decide': 'views', 'venture.runs.list': 'views', 'venture.runs.get': 'views', 'venture.team.list': 'views', 'venture.team.gate': 'views',
+  'venture.evidence.list': 'core', 'venture.evidence.apply': 'core',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -1348,6 +1614,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
   'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
+  'venture.queue.decide', 'venture.team.gate',
+  'venture.evidence.apply',
 ] as const);
 /** Methods whose success changes what saved answers may cite; the renderer adds them to evidenceChanges. */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -1387,6 +1655,7 @@ export type VenturePayloads = {
   'venture.invoice.list': Empty;
   'venture.payment.record': { invoiceId: string; amount: string; receivedOn: IsoDate; method: PaymentMethod };
   'venture.books.summary': { period?: BooksPeriodKey; from?: IsoDate; to?: IsoDate };
+  'venture.spend.list': Empty;
   'venture.build.brief': { useTemplate?: boolean };
   'venture.build.handoff': { builder: BuilderId };
   'venture.build.handoffOpened': { handoffId: string };
@@ -1416,6 +1685,14 @@ export type VenturePayloads = {
   'venture.improve.run': { maxRounds?: number; useTemplate?: boolean };
   'venture.improve.get': { runId: string };
   'venture.improve.adopt': { runId: string; digest: string };
+  'venture.queue.list': { scope?: 'current' | 'all' };
+  'venture.queue.decide': { id: string; digest: string; action: QueueActionId; answer?: string; viewed?: boolean };
+  'venture.runs.list': { state?: 'active' | 'done' | 'all' };
+  'venture.runs.get': { runId: string };
+  'venture.team.list': Empty;
+  'venture.team.gate': { agentId: string; stepId: string; gate: 'auto' | 'hold' };
+  'venture.evidence.list': { subject?: string };
+  'venture.evidence.apply': { id: string };
   'venture.ai.options': OnboardingPayloads['venture.ai.options'];
   'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
@@ -1456,6 +1733,7 @@ export type VentureResults = {
   'venture.invoice.list': InvoiceRecord[];
   'venture.payment.record': InvoiceView;
   'venture.books.summary': BooksSummary;
+  'venture.spend.list': { rows: SpendRow[]; total: Display };
   'venture.build.brief': BriefRecord;
   'venture.build.handoff': HandoffPlan;
   'venture.build.handoffOpened': HandoffRecord;
@@ -1485,6 +1763,14 @@ export type VentureResults = {
   'venture.improve.run': ImprovementRunRecord;
   'venture.improve.get': ImprovementRunRecord;
   'venture.improve.adopt': PlaybookRecord;
+  'venture.queue.list': QueueList;
+  'venture.queue.decide': QueueDecision;
+  'venture.runs.list': { runs: RunSummary[] };
+  'venture.runs.get': RunDetail;
+  'venture.team.list': { agents: AgentView[] };
+  'venture.team.gate': { agent: AgentView };
+  'venture.evidence.list': { items: EvidenceItem[] };
+  'venture.evidence.apply': { item: EvidenceItem };
   'venture.ai.options': OnboardingResults['venture.ai.options'];
   'venture.ai.connect': OnboardingResults['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
@@ -1526,6 +1812,18 @@ export const VENTURE_ERRORS = [
   'DELIVERY_NOT_BRIEFING', 'DELEGATE_DECLINED', 'DELEGATE_FAILED', 'DELEGATE_RUN_NOT_FOUND',
   // Onboarding v2: the composer before the vault
   'COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE',
+  // Evidence ledger (P2-evidence): weaker evidence over a verified value, and an unknown item
+  'EVIDENCE_WEAK', 'EVIDENCE_NOT_FOUND',
+  // Spend (P2-spend): unpriced calls, the monthly cap, the charge record, and quotes bound to draft, figure and payer
+  'SPEND_UNPRICED', 'SPEND_CAP', 'SPEND_ALREADY_CHARGED', 'QUOTE_WAITING', 'QUOTE_CHANGED', 'QUOTE_EXPIRED',
+  // Connectors (P2-connectors): posts, staged website edits, the bank shape, leads and clip rights
+  'POST_NOT_FOUND', 'POST_ALREADY_DECIDED',
+  'SITE_EDIT_NOT_FOUND', 'SITE_EDIT_UNCHANGED', 'SITE_CHANGED_SINCE_REVIEW', 'SITE_WRITE_NOT_GRANTED', 'SITE_PATH_INVALID',
+  'BANK_CONSENT_EXPIRED', 'BANK_POLL_LIMIT', 'BANK_STATEMENT_INVALID',
+  'LEADS_SOURCE_REQUIRED', 'LEADS_EMAIL_UNVERIFIED', 'LEADS_BLOCKED', 'LEADS_ADDRESS_MISSING',
+  'RIGHTS_REQUIRED',
+  // Ink frontend views (P1-A): runs, agents and the always-ask floor on agent gates
+  'RUN_NOT_FOUND', 'AGENT_NOT_FOUND', 'STEP_NOT_FOUND', 'GATE_FLOOR',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -1580,6 +1878,12 @@ export type VentureDeps = {
   draft?: DraftHandoverPort;
   /** Whether Chausar has accepted Anthropic's terms for running Claude Code. Absent means 'pending'. */
   claudeCodeTerms?: 'accepted' | 'pending';
+  /** Posting ports. Absent means the real ones: a Playwright probe that installs nothing, and no API clients. */
+  connectors?: ConnectorPorts;
+  /** The businesses on this computer, for Today's queue across businesses. Trusted host composition; absent in most tests. */
+  workspace?: VentureWorkspacePort;
+  /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
+  publish?: (events: VentureEventRecord[]) => void;
 };
 
 export type VentureHandler<M extends VentureMethod> = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<VentureResults[M]>;
@@ -1616,4 +1920,8 @@ export type VentureHostOptions = {
   draft?: DraftHandoverPort;
   /** From CHAUSAR_CLAUDE_CODE_TERMS ('accepted' opens it). Absent or anything else is 'pending': Claude Code needs setup. */
   claudeCodeTerms?: 'accepted' | 'pending';
+  /** Trusted host composition, never from a payload: the businesses on this computer (VentureWorkspacePort). */
+  workspace?: VentureWorkspacePort;
+  /** Trusted host composition: receives the run events each venture action committed, for the desktop push and /api/events. */
+  notify?: (events: VentureRunEvent[]) => void;
 };

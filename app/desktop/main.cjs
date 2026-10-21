@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
@@ -15,6 +15,26 @@ let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
+// The Ink app (app/ui, built to app/ui/dist) replaces the old renderer only when asked: --ink or CHAUSAR_UI=ink.
+const inkRequested = process.argv.includes('--ink') || process.env.CHAUSAR_UI === 'ink';
+const inkRoot = join(root, 'app/ui/dist');
+let inkFiles = null;
+/** The allowlist for Ink: every regular file under app/ui/dist with a known type, listed once at startup. */
+async function listInkFiles() {
+  const { readdir } = require('node:fs/promises');
+  const found = new Map();
+  async function walk(folder, prefix) {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      const name = prefix + entry.name;
+      if (entry.isDirectory()) await walk(join(folder, entry.name), name + '/');
+      else if (entry.isFile() && /^[A-Za-z0-9._/-]+\.(html|js|css|svg|woff2|txt|json)$/.test(name)) found.set('/' + name, name);
+    }
+  }
+  await walk(inkRoot, '');
+  if (!found.has('/index.html')) throw new Error('The Ink app is not built. Run npm run build:ui, then start Chausar again.');
+  found.set('/', 'index.html');
+  return found;
+}
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
@@ -52,6 +72,8 @@ async function startEngine() {
   if (stopping) return;
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
   engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
+  // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
+  engine.on('venture-event', event => { if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); });
   await engine.start();
   await reportJobLifecycle();
 }
@@ -66,7 +88,7 @@ function createBackgroundTray() {
   tray.on('double-click', open);
 }
 function createWindow() {
-  window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#f7f5ee', title: demoMode ? 'Chausar Preview — synthetic data' : 'Chausar', show: false,
+  window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: inkFiles ? (require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa') : '#f7f5ee', title: demoMode ? 'Chausar Preview — synthetic data' : 'Chausar', show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -78,6 +100,10 @@ function createWindow() {
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
+  if (inkRequested) {
+    try { inkFiles = await listInkFiles(); }
+    catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }
+  }
   hostAwake = true;
   powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
   powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
@@ -87,10 +113,10 @@ if (singleInstance) app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((contents, permission) => clipboardWrite(contents, permission));
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
-    const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/launch.js', 'launch.js'], ['/assets/icon.svg', 'assets/icon.svg']]);
+    const url = new URL(request.url); const files = inkFiles ?? new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/launch.js', 'launch.js'], ['/assets/icon.svg', 'assets/icon.svg']]);
     const file = files.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
-    const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
-    const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(renderer, file));
+    const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
+    const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkFiles ? inkRoot : renderer, file));
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
   });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {

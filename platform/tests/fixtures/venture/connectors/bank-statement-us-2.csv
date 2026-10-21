@@ -1,0 +1,8 @@
+Synthetic statement written by hand for the Chausar tests. Not a real account.
+Date,Description,Amount,Reference
+2026-10-01,Coffee Corner,-4.50,
+2026-10-01,Coffee Corner,-4.50,
+2026-10-02,Client payment INV-0002,120.00,TRX-7781
+2026-10-04,"Office rent, October",-800.00,
+2026-10-06,"Refund ""late"" fee",15.25,
+2026-10-07,Bad cents,-4.505,

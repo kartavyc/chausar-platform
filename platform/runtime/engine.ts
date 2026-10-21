@@ -65,7 +65,7 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { SecretShelf, VentureHostOptions } from './venture/contracts.ts';
+import type { SecretShelf, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
@@ -174,6 +174,28 @@ export class Engine {
     moveKeys: (target: SecretShelf) => { this.#draft?.handover.moveKeys(target); },
     settle: () => { this.#draft?.handover.settle(); },
   });
+  // Run events for the Ink frontend: the desktop worker forwards them over IPC, the local server streams them at /api/events.
+  #ventureEventListeners = new Set<(event: VentureRunEvent) => void>();
+  /** Trusted host hook: hears each run event a venture action committed. Returns the unsubscribe function. */
+  onVentureEvent(listener: (event: VentureRunEvent) => void): () => void {
+    this.#ventureEventListeners.add(listener);
+    return () => { this.#ventureEventListeners.delete(listener); };
+  }
+  #publishVentureEvents(events: VentureRunEvent[]) {
+    for (const event of events) for (const listener of [...this.#ventureEventListeners]) {
+      try { listener(Object.freeze({ ...event })); } catch { /* A listener's failure is its own. */ }
+    }
+  }
+  /** What Today's queue may know about the businesses on this computer. The id is the workspace folder, as in workspace.list. */
+  #ventureWorkspace: VentureWorkspacePort = Object.freeze({
+    current: () => {
+      const workspace = this.vault?.read().workspace;
+      return { id: this.#openFolder ?? workspace?.id ?? 'main', name: workspace?.name ?? '' };
+    },
+    businesses: async () => this.options.venture?.host === 'hosted-web' ? []
+      : (await this.custodyFiles().listBusinesses(this.storageKind())).businesses.map(item => ({ id: item.folder, name: item.name, opens: item.opens, openedAt: item.openedAt })),
+    recovery: async () => this.options.venture?.host === 'hosted-web' || !this.custodyHost() ? null : (await this.custodyView()).business?.recovery ?? null,
+  });
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
@@ -181,7 +203,9 @@ export class Engine {
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
-          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }) });
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }),
+          workspace: venture.workspace ?? this.#ventureWorkspace,
+          notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); } });
       this.#venture = host;
       return host;
     });
@@ -1493,6 +1517,7 @@ export class Engine {
       case 'venture.invoice.list':
       case 'venture.payment.record':
       case 'venture.books.summary':
+      case 'venture.spend.list':
       case 'venture.build.brief':
       case 'venture.build.handoff':
       case 'venture.build.handoffOpened':
@@ -1522,6 +1547,14 @@ export class Engine {
       case 'venture.improve.adopt':
       case 'venture.delivery.delegate':
       case 'venture.delegate.get':
+      case 'venture.queue.list':
+      case 'venture.queue.decide':
+      case 'venture.runs.list':
+      case 'venture.runs.get':
+      case 'venture.team.list':
+      case 'venture.team.gate':
+      case 'venture.evidence.list':
+      case 'venture.evidence.apply':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

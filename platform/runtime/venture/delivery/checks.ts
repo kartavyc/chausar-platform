@@ -1,9 +1,9 @@
 // Chausar venture launcher, delivery package (P5): deterministic checks on a draft reply.
 // Code checks run before any judge. Each returns a plain sentence the owner can read.
-import { assertNoNumbers, doneClaimMatches, houseStyleFindings } from '../records.ts';
+import { assertNoMoney, doneClaimMatches, houseStyleFindings, modelNumbers } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type { CheckId, CheckResult, ClaimProof, Deliverable, MockEffect, ServiceType } from '../contracts.ts';
-import type { AnyReceipt } from './deliverable.ts';
+import { draftWords, type AnyReceipt } from './deliverable.ts';
 import { claimBacked } from './harness/claims.ts';
 import { quote } from './shared.ts';
 
@@ -33,18 +33,21 @@ export type CheckInput = {
   proofs?: readonly ClaimProof[];
 };
 
-/** Every piece of model words in a draft: the title, each text part and each question. */
-function wordPieces(d: Deliverable): string[] {
-  const pieces = [d.title];
-  for (const section of d.sections) for (const part of section.parts) if (part.kind === 'text') pieces.push(part.text);
-  return [...pieces, ...d.questionsForClient];
-}
+const wordPieces = draftWords;
 
+/**
+ * Model numbers pass as model estimates (no receipt); an amount of money in the words fails, because a price, tax or
+ * invoice figure comes only from a receipt.
+ */
 function noNumericProse(input: CheckInput): CheckResult {
-  for (const piece of wordPieces(input.deliverable)) {
-    try { assertNoNumbers(piece, 'draft', input.allowed); } catch {
-      return { check: 'no-numeric-prose', passed: false, detail: `This line holds a number the calculator did not make: "${quote(piece)}"` };
+  const pieces = wordPieces(input.deliverable);
+  for (const piece of pieces) {
+    try { assertNoMoney(piece, 'draft', input.allowed); } catch {
+      return { check: 'no-numeric-prose', passed: false, detail: `This line states an amount of money the calculator did not make: "${quote(piece)}"` };
     }
+  }
+  if (pieces.some(piece => modelNumbers(piece, input.allowed))) {
+    return { check: 'no-numeric-prose', passed: true, detail: 'Numbers in the words are model estimates with no receipt. Every price comes from a receipt.' };
   }
   return { check: 'no-numeric-prose', passed: true, detail: 'Every number in the draft comes from a receipt.' };
 }

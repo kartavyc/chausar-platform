@@ -21,7 +21,7 @@ import { interviewDone, isPricingModel, priceQuestionText, storedQuestion, taxRa
 import { blueprintView, compositionOf, interviewOf, latestBlueprint, nextBlueprintVersion } from './lookups.ts';
 import { offerWords, serviceTemplate } from './service-types.ts';
 import { cleanSacCode, cleanTaxId, cleanTaxState, withTaxInvoiceFields } from './tax-fields.ts';
-import { DEFAULT_WORKING_NAME, labelled, noMarkup, optionalFlag, ownerPrice, styledWords, toldByYou, wordCap } from './words.ts';
+import { DEFAULT_WORKING_NAME, labelled, modelLine, noMarkup, optionalFlag, ownerPrice, styledWords, toldByYou, wordCap } from './words.ts';
 
 // ---------------------------------------------------------------------------
 // Structure (pure, code-made)
@@ -411,7 +411,9 @@ type PlanWords = {
 };
 
 function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord, structure?: BlueprintStructure): PlanWords {
-  const say = (value: string) => labelled(value, 'assumption', by);
+  // A number in the model's words makes the line a model estimate; template words hold no numbers.
+  const allowed = copiedTokens(venture.idea, ...typedAnswers(interview));
+  const say = (value: string) => (by === 'model' ? modelLine(value, allowed) : labelled(value, 'assumption', by));
   // A composed plan's approvals are the approval blocks' fixed words, never model words.
   const approvals = structure?.blocks
     ? structure.blocks.approvals.map(block => labelled(APPROVAL_BLOCKS[block].words, 'assumption', 'engine'))

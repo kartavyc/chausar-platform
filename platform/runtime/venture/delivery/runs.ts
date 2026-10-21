@@ -16,8 +16,10 @@ import type {
 import { firstFailedCheck, runChecks } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
 import {
-  DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegationEnvelopeResult, runDelegation, type DelegateAvailability,
+  DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegateSpend, delegateSpendOutcome,
+  delegationEnvelopeResult, runDelegation, type DelegateAvailability, type DelegationResult,
 } from './harness/delegate.ts';
+import { fixedEstimate, ownerRates, reserveSpend, resolveRate, settleSpendAction, spendRefused } from '../money/spend.ts';
 import { dictionaryEntries, manifest, ownerDefinitions } from './harness/dictionary.ts';
 import { buildToolEnv, fileList, madeSoFar, namer, orderUploads, uploadsById } from './harness/env.ts';
 import type { FileLike } from './harness/files.ts';
@@ -109,7 +111,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
         preview, deliverable: null, renderedText: null, checks: [], harness, uploadIds: uploads.map(upload => upload.id),
       };
       tx.put(run);
+      tx.emit('run.started', { runId: run.id });
       tx.emit('delivery-waiting', { runId: run.id, orderId: run.orderId, practice: run.practice });
+      tx.emit('run.waiting', { runId: run.id });
       return runView(run, tx.venture!, Date.parse(tx.now));
     });
   }
@@ -129,8 +133,10 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
         deliverable, renderedText, checks,
       };
       tx.put(run);
+      tx.emit('run.started', { runId: run.id });
       recordCheckSignal(tx, run.id, checks);
       tx.emit('delivery-ready', { runId: run.id, orderId: run.orderId, servedBy: 'template' });
+      tx.emit('run.waiting', { runId: run.id });
       return runView(run, tx.venture!, Date.parse(tx.now));
     });
   }
@@ -143,7 +149,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
       preview, deliverable: null, renderedText: null, checks: [],
     };
     tx.put(run);
+    tx.emit('run.started', { runId: run.id });
     tx.emit('delivery-waiting', { runId: run.id, orderId: run.orderId, practice: run.practice });
+    tx.emit('run.waiting', { runId: run.id });
     return runView(run, tx.venture!, Date.parse(tx.now));
   });
 }
@@ -226,6 +234,8 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
       tx.replace(next);
       recordCheckSignal(tx, runId, checks);
       tx.emit('delivery-ready', { runId, orderId: next.orderId, servedBy: 'model' });
+      tx.emit('run.step', { runId });
+      tx.emit('run.waiting', { runId });
       return runView(next, tx.venture!, Date.parse(tx.now));
     });
   } catch (error) {
@@ -284,6 +294,8 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
         if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
         else if (next.phase === 'brief') tx.emit('delivery-brief-waiting', { runId: stored.id, orderId: stored.orderId });
         else tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
+        tx.emit('run.step', { runId: stored.id });
+        tx.emit('run.waiting', { runId: stored.id });
         return runView(stored, tx.venture!, Date.parse(tx.now));
       });
     }
@@ -307,6 +319,8 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
       tx.replace(next);
       recordCheckSignal(tx, run.id, checks);
       tx.emit('delivery-ready', { runId: run.id, orderId: next.orderId, servedBy: 'model' });
+      tx.emit('run.step', { runId: run.id });
+      tx.emit('run.waiting', { runId: run.id });
       return runView(next, tx.venture!, Date.parse(tx.now));
     });
   } catch (error) {
@@ -348,6 +362,8 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
     const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
     tx.replace(stored);
     tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+    tx.emit('run.step', { runId });
+    tx.emit('run.waiting', { runId });
     return runView(stored, tx.venture!, Date.parse(tx.now));
   });
 }
@@ -412,6 +428,8 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
       const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
       tx.replace(stored);
       tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+      tx.emit('run.step', { runId });
+      tx.emit('run.waiting', { runId });
       return runView(stored, tx.venture!, Date.parse(tx.now));
     });
   }
@@ -425,18 +443,32 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   check(ports && now.state !== 'needs-setup' && now.executable === open.executable && now.version === open.version, 'TIER_UNAVAILABLE',
     `${label} is gone or changed since the brief was written, so it was not started. Decline the brief and the agent can ask again.`);
   const delegateFiles = uploadsById(state, venture.id, open.uploadIds);
-  // Claimed first, in its own write: a second approval finds the brief running and starts nothing.
+  // Claimed first, in its own write: a second approval finds the brief running and starts nothing. The same write holds
+  // the run's cost on the spend ledger (its charge record), or refuses the run when it has no price or passes the cap.
+  const spend = delegateSpend(open, runId);
   const claimed = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
     const current = tx.find('venture-delivery-run', runId);
     const live = current?.harness ? openDelegation(current.harness) : null;
     check(current && current.status === 'brief-waiting' && live && live.status === 'waiting' && live.digest === open.digest, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
     check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
     const started = startDelegation(current.harness!, tx.now);
+    const rate = resolveRate({ item: spend.item, list: spend.list, owner: ownerRates(tx.list('venture-spend-policy')), subject: spend });
+    reserveSpend(tx, { ...spend, rate, estimateMicros: fixedEstimate(rate, spend) });
     tx.replace({ ...current, harness: started });
+    tx.emit('run.step', { runId });
     return started;
-  });
+  }).catch(error => spendRefused(deps, ctx, error));
   const request = openDelegation(claimed)!;
-  const result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } });
+  let result: DelegationResult;
+  try {
+    result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } });
+  } catch (error) {
+    // The tool may have run and spent: the reservation stays held and is never retried on its own.
+    await settleSpendAction(deps, ctx, spend.key, { kind: 'unknown' }).catch(() => null);
+    throw error;
+  }
+  // Settled in its own write, before anything else can fail: what the run cost does not depend on the next turn.
+  await settleSpendAction(deps, ctx, spend.key, delegateSpendOutcome(result)).catch(() => null);
 
   const at = deps.clock().toISOString();
   const base = <K extends VentureRecordKind>(kind: K, prefix: string): RecordBase<K> => ({ id: newId(prefix), kind, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, at });
@@ -480,6 +512,8 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
       : { ...current, status: 'failed', callId: null, preview: null, harness: next };
     tx.replace(stored);
     if (going) tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
+    tx.emit('run.step', { runId });
+    tx.emit(going ? 'run.waiting' : 'run.failed', { runId });
     return { view: runView(stored, tx.venture!, Date.parse(tx.now)), blocked: !agentStage(stage) };
   });
   if (previewError) throw previewError;
@@ -516,6 +550,7 @@ async function markFailedWhenSpent(deps: VentureDeps, ctx: Context, run: Deliver
       const current = tx.find('venture-delivery-run', runId);
       if (!current || current.status !== 'waiting-for-you' || current.callId !== callId) return;
       tx.replace({ ...current, status: 'failed', preview: null });
+      tx.emit('run.failed', { runId });
     });
   } catch {
     // The original error is what the owner needs to see.
@@ -557,6 +592,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
       tx.emit('signal-recorded', { signalId: signal.id, runId, source: signal.source, reason });
     }
     tx.emit('delivery-reviewed', { runId, verdict, practice });
+    tx.emit('run.done', { runId });
     return runView(next, tx.venture!, Date.parse(tx.now));
   });
 }

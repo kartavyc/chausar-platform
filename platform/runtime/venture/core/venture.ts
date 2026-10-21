@@ -17,6 +17,7 @@ import { countryProfile } from './countries.ts';
 import { engineQuestions, storedQuestion, taxRateQuestion } from './interview.ts';
 import { classifyIdea } from './service-types.ts';
 import { DEFAULT_WORKING_NAME, labelled } from './words.ts';
+import { recordPlanEvidence } from '../evidence/ledger.ts';
 
 /** Records are kept for ten years, as tax rules expect; the owner is told under More of your plan and in Trust. */
 export const VENTURE_RETENTION_DAYS = 3650;
@@ -185,6 +186,8 @@ export async function createVenture(deps: VentureDeps, ctx: Context, payload: un
       const structure = structureOf(record, interview, composition);
       const blueprint = assembleComposedBlueprint(tx, structure, interview, composition, plan);
       tx.put(blueprint);
+      // The evidence ledger: the AI wrote these business fields at compose fill, and the owner kept them.
+      recordPlanEvidence(tx, blueprint);
       tx.touch({ blueprintId: blueprint.id, status: 'blueprint' });
       tx.emit('blueprint-drafted', { blueprintId: blueprint.id, version: blueprint.version, source: 'model' });
     } else {

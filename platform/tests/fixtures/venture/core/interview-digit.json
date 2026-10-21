@@ -1,6 +1,6 @@
 {
   "label": "synthetic recording",
-  "note": "Hand-written interview output with a number the model invented. Chausar must refuse it. Not captured from a live account.",
+  "note": "Hand-written interview output with a number the model invented. Since 21 October Chausar keeps it as a model estimate; the test refuses a money variant of it. Not captured from a live account.",
   "output": {
     "serviceType": "bookkeeping",
     "questions": [

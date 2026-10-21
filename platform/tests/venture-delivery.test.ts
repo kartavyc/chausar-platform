@@ -402,11 +402,18 @@ test('draft validation: words only, offered refs only, headings from the plan; r
   assert.deepEqual(draft.questionsForClient, ['Which bank account do you use for the cafe?']);
 
   const variant = (change: (copy: any) => void) => { const copy = structuredClone(raw); change(copy); return copy; };
-  assert.throws(() => validateDraft(variant(copy => { copy.sections[0].parts[0].text = 'We will be done in 3 days.'; }), context), code('MODEL_OUTPUT_REJECTED'));
-  assert.throws(() => validateDraft(variant(copy => { copy.title = 'Plan for 2026'; }), context), code('MODEL_OUTPUT_REJECTED'));
-  assert.throws(() => validateDraft(variant(copy => { copy.questionsForClient = ['Is it 500 bills?']; }), context), code('MODEL_OUTPUT_REJECTED'));
+  // The model may write numbers: the draft is then a model estimate, with no receipt. Prices still come as figure parts.
+  assert.equal(draft.estimate, undefined, 'a draft without model numbers is not an estimate');
+  const days = validateDraft(variant(copy => { copy.sections[0].parts[0].text = 'We will be done in 3 days.'; }), context);
+  assert.equal(days.estimate, true);
+  assert.deepEqual(days.sections[0].parts[0], { kind: 'text', text: 'We will be done in 3 days.' }, 'a text part never carries a receipt');
+  assert.equal(validateDraft(variant(copy => { copy.title = 'Plan for 2026'; }), context).estimate, true);
+  assert.equal(validateDraft(variant(copy => { copy.questionsForClient = ['Is it 500 bills?']; }), context).estimate, true);
+  // An amount of money in the words would be a price without a receipt: still refused.
+  assert.throws(() => validateDraft(variant(copy => { copy.sections[0].parts[0].text = 'It costs INR 3,000 a month.'; }), context), code('MODEL_OUTPUT_REJECTED'));
+  assert.throws(() => validateDraft(variant(copy => { copy.questionsForClient = ['Is ₹500 fine?']; }), context), code('MODEL_OUTPUT_REJECTED'));
   const b2b = variant(copy => { copy.sections[0].parts[0].text = 'We help B2B cafes keep their books in order.'; });
-  assert.throws(() => validateDraft(b2b, context), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal(validateDraft(b2b, context).estimate, undefined, 'B2B is a name, not a number');
   const copied = validateDraft(b2b, { ...context, allowed: ['b2b'] });
   assert.equal((copied.sections[0].parts[0] as { text: string }).text, 'We help B2B cafes keep their books in order.');
   assert.throws(() => validateDraft(variant(copy => { copy.sections[1].parts[1].ref = 'offer_2.total'; }), context), code('MODEL_OUTPUT_REJECTED'));
@@ -463,9 +470,18 @@ test('checks: each passes on a good draft and fails on a crafted case', async ()
     return result;
   };
   const withText = (text: string): Deliverable => ({ ...draft, sections: [{ heading: 'Summary', parts: [{ kind: 'text', text }] }, ...draft.sections.slice(1)] });
-  assert.equal(only('no-numeric-prose', { deliverable: withText('Pay 500 now.') }).passed, false);
-  assert.equal(only('no-numeric-prose', { deliverable: { ...draft, questionsForClient: ['Is it 20% off?'] } }).passed, false);
+  // Model numbers pass as estimates; an amount of money in the words fails, since prices come only from receipts.
+  const estimated = only('no-numeric-prose', { deliverable: withText('Pay 500 now.') });
+  assert.equal(estimated.passed, true);
+  assert.match(estimated.detail, /model estimates/);
+  assert.equal(only('no-numeric-prose', { deliverable: { ...draft, questionsForClient: ['Is it 20% off?'] } }).passed, false, 'a discount is a price');
+  assert.equal(only('no-numeric-prose', { deliverable: { ...draft, questionsForClient: ['Do about 20% of bills arrive late?'] } }).passed, true);
+  const money = only('no-numeric-prose', { deliverable: withText('Pay INR 500 now.') });
+  assert.equal(money.passed, false);
+  assert.match(money.detail, /amount of money/);
+  assert.equal(only('no-numeric-prose', { deliverable: { ...draft, questionsForClient: ['Is 500 rupees fine?'] } }).passed, false);
   assert.equal(only('no-numeric-prose', { deliverable: withText('We help B2B cafes.'), allowed: ['b2b'] }).passed, true);
+  assert.equal(only('no-numeric-prose', { deliverable: withText('We help B2B cafes.'), allowed: ['b2b'] }).detail, 'Every number in the draft comes from a receipt.');
   assert.equal(only('figures-resolve', { deliverable: { ...draft, sections: [{ heading: 'Summary', parts: [{ kind: 'figure', receiptId: 'price_missing', figureKey: 'total' }] }] } }).passed, false);
   assert.equal(only('figures-resolve', { deliverable: { ...draft, sections: [{ heading: 'Summary', parts: [{ kind: 'figure', receiptId: env.offerReceipt.id, figureKey: 'igst' }] }] } }).passed, false);
   assert.equal(only('figures-resolve', { ventureId: 'venture_other' }).passed, false);
@@ -730,9 +746,9 @@ test('launch ladder: the shadow reason says why a rehearsal with an AI did not c
     return { status, shadow: status.stages.find(item => item.stage === 'shadow')! };
   };
 
-  // An AI is connected but its drafts were refused: not judged, and the owner is not told to connect an AI.
+  // An AI is connected but its drafts were refused (a price in the words): not judged, and the owner is not told to connect an AI.
   const bad = structuredClone(await fixture('draft-rehearsal'));
-  bad.sections[0].parts[0].text = 'Your books will be ready in 2 days.';
+  bad.sections[0].parts[0].text = 'Your books will cost INR 2,000.';
   await queueModel(env, {});
   env.models.outputs.delivery = [bad];
   const refused = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
@@ -936,8 +952,9 @@ test('real runs: a failed check on an approved draft records a signal; a refused
   assert.equal(fixedByOwner.status, 'edited');
 
   env.models.recordCalls = true;
+  // A price in the words is refused (a plain number would only make the draft a model estimate).
   const digitDraft = structuredClone(await fixture('draft-order'));
-  digitDraft.sections[0].parts[0].text = 'We will finish in 3 days.';
+  digitDraft.sections[0].parts[0].text = 'We will finish this for INR 3,000.';
   env.models.outputs.delivery = [digitDraft];
   env.models.used = {};
   const failing = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });

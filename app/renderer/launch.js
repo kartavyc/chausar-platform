@@ -2697,7 +2697,8 @@ globalThis.ChausarLaunch = Object.freeze({
       const lastSeq = Number(probe?.lastSeq) || 0;
       if (!lastSeq) return [];
       const recent = await request('venture.events', { afterSeq: Math.max(0, lastSeq - count), limit: count });
-      return recent?.events || [];
+      // run.* and queue.changed tell the Ink app to read again; they are not history to show here.
+      return (recent?.events || []).filter(event => !/^(run|queue)\./.test(String(event?.name)));
     }
     function goToItem(item) { if (item.id === 'ai') void openAiSheet(reread); else void navigate(item.place); }
 

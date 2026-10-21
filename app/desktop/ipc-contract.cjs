@@ -2,6 +2,9 @@
 
 const REQUEST_CHANNEL = 'chausar:request';
 const STATUS_CHANNEL = 'chausar:engine-status';
+// Run events pushed to the window (VentureRunEvent in platform/runtime/venture/contracts.ts). The preload checks them again.
+const VENTURE_EVENT_CHANNEL = 'chausar:venture-event';
+const VENTURE_EVENT_TYPES = Object.freeze(['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed']);
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -41,12 +44,14 @@ const METHODS = Object.freeze([
   'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
   'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
   'venture.client.add', 'venture.client.list', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
-  'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.build.brief',
+  'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
   'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
   'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt', 'venture.delivery.delegate',
   'venture.delegate.get',
+  'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
+  'venture.evidence.list', 'venture.evidence.apply',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -60,6 +65,7 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://attio.com', 'https://business.whatsapp.com', 'https://telegram.org', 'https://slack.com', 'https://discord.com',
   'https://www.notion.com', 'https://drive.google.com', 'https://linear.app', 'https://www.airtable.com', 'https://www.linkedin.com',
   'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com',
+  'https://www.youtube.com', 'https://studio.youtube.com',
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
   'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
   'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com', 'https://console.anthropic.com', 'https://platform.openai.com',
@@ -103,8 +109,10 @@ function validateRequest(input) {
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);
 }
+// The Ink app routes with the hash (#/today), which changes the frame's URL but not the document; a query still fails.
+const documentOf = url => typeof url === 'string' && /^[^#]*#\/[A-Za-z0-9/?=&%:._-]*$/.test(url) ? url.slice(0, url.indexOf('#')) : url;
 function assertTrustedSender(event, contents) {
-  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || event.senderFrame?.url !== TRUSTED_DOCUMENT) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
+  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || documentOf(event.senderFrame?.url) !== TRUSTED_DOCUMENT) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
 }
 // The only links the app opens in the system browser: one https partner link from a user click.
 function validateExternalUrl(input) {
@@ -118,4 +126,12 @@ function validateExternalUrl(input) {
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, publicError });
+// A run event from the engine worker, cut down to its four plain fields; null when anything is off.
+function validateVentureEvent(input) {
+  if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
+  const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+  if (!id(input.businessId) || (input.runId !== undefined && !id(input.runId))) return null;
+  if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
+  return Object.freeze({ type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at });
+}
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, publicError, validateVentureEvent });

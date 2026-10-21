@@ -11,8 +11,9 @@ import { ChausarError } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import type {
   CapabilityState, DateOrder, DelegateCli, DelegateFigure, DelegateLimits, DelegateOutput, DelegatePorts, DelegateProcessResponse,
-  DelegationRequest, ExecutionOutcome, Json, VentureDeps, WorkRunRef,
+  DelegationRequest, ExecutionOutcome, Json, MicroString, SpendRate, VentureDeps, WorkRunRef,
 } from '../../contracts.ts';
+import type { PaidCallRequest, SpendOutcome } from '../../money/spend.ts';
 import { parseMoneyCell } from './cells.ts';
 import { createDelegatePorts } from './delegate-process.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
@@ -205,7 +206,7 @@ export type DelegationDraft = Omit<DelegationRequest, 'toolCallId' | 'turn'>;
 /** The request the owner approves. The agent's words are checked like a hand-off question: words only, no amounts. */
 export function prepareDelegation(input: { offer: DelegateAvailability; task: string; files: readonly FileLike[]; minutes: number; allowed: readonly string[] }): DelegationDraft {
   let task: string;
-  try { task = modelWords(input.task, 'brief', 4000, { allowed: input.allowed, multiline: true }); } catch {
+  try { task = modelWords(input.task, 'brief', 4000, { allowed: input.allowed, multiline: true, numbers: 'refuse' }); } catch {
     throw new ChausarError('TOOL_INPUT_INVALID', 'The brief held a number or a heading. Write it in words; amounts come from the calculator.');
   }
   const limits: DelegateLimits = { ...DELEGATE_DEFAULT_LIMITS, minutes: input.minutes, budgetMicros: input.offer.cli === 'claude-code' ? DELEGATE_DEFAULT_LIMITS.budgetMicros : null };
@@ -223,6 +224,7 @@ export function delegationDisclosure(request: Pick<DelegationRequest, 'cli' | 'v
 
 export type DelegationResult = {
   outcome: ExecutionOutcome;
+  started: boolean; // false only when the tool could not be started, so nothing it does can have cost anything
   exitCode: number | null;
   reason: string;
   outputs: DelegateOutput[];
@@ -307,7 +309,10 @@ function recompute(outputs: readonly DelegateOutput[], files: readonly FileLike[
   });
 }
 
-/** The cost Claude Code printed, kept as printed. Never added to Chausar's spend: it is the owner's own plan. */
+/**
+ * The cost Claude Code printed, kept as printed. It is the owner's own plan, so it is untrusted text; the spend ledger
+ * settles the run's reservation at it (reportedCostMicros), labelled as the tool's own report.
+ */
 function reportedCost(cli: DelegateCli, stdout: string): { cost: string | null; isError: boolean } {
   if (cli !== 'claude-code') return { cost: null, isError: false };
   try {
@@ -317,6 +322,48 @@ function reportedCost(cli: DelegateCli, stdout: string): { cost: string | null; 
   } catch {
     return { cost: null, isError: false };
   }
+}
+
+/**
+ * The cost the tool printed ('USD 0.0421') as whole micro-dollars, read with BigInt. Digits past the sixth decimal
+ * place round up, so the ledger never shows less than was printed. Null for anything else, which leaves the run held
+ * at its reservation.
+ */
+export function reportedCostMicros(reported: string | null): MicroString | null {
+  if (reported === null) return null;
+  const match = /^USD (\d{1,12})(?:\.(\d{1,18}))?$/.exec(reported);
+  if (!match) return null;
+  const fraction = match[2] ?? '';
+  const beyond = /[1-9]/.test(fraction.slice(6)) ? 1n : 0n;
+  return String(BigInt(match[1]) * 1_000_000n + BigInt(fraction.slice(0, 6).padEnd(6, '0')) + beyond);
+}
+
+/** The day the run cap below became a spend reservation; the cap itself is Chausar's own number, not a vendor price. */
+const DELEGATE_CAP_CHECKED_ON = '2026-10-21';
+
+/**
+ * One heavy-work run as a paid call for the spend ledger. Claude Code runs under the spending limit Chausar passes
+ * it, so that limit is what the run reserves. Codex has no limit of its own and prints no cost, so it has no list
+ * price: it runs only once the owner puts a price for Codex runs on the rate card.
+ */
+export function delegateSpend(request: Pick<DelegationRequest, 'cli' | 'limits' | 'digest' | 'toolCallId'>, runId: string): PaidCallRequest {
+  const label = DELEGATE_LABELS[request.cli];
+  const item = `delegate:${request.cli}`;
+  const list: SpendRate | null = request.limits.budgetMicros === null ? null : {
+    item, unit: 'per-run-cap', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: request.limits.budgetMicros,
+    source: `The spending limit Chausar gives ${label} for one run`, checkedOn: DELEGATE_CAP_CHECKED_ON, confirmed: true, by: 'list',
+  };
+  return {
+    key: `delegate:${runId}:${request.toolCallId}:${request.digest}`, item, label: `${label} heavy work`, payer: `plan:${request.cli}`,
+    draftDigest: request.digest, connector: request.cli, ref: runId, list,
+  };
+}
+
+/** How a finished run settles: not started is not spent; a printed cost is the tool's report; otherwise the reservation stands. */
+export function delegateSpendOutcome(result: Pick<DelegationResult, 'started' | 'reportedCost'>): SpendOutcome {
+  if (!result.started) return { kind: 'released' };
+  const micros = reportedCostMicros(result.reportedCost);
+  return micros === null ? { kind: 'reservation' } : { kind: 'billed', micros, by: 'tool-report' };
 }
 
 /** Every digit hidden: the agent may read what the tool says, never repeat its numbers. */
@@ -344,7 +391,7 @@ export async function runDelegation(ports: DelegatePorts, request: DelegationReq
       });
     } catch (error) {
       const why = error instanceof ChausarError ? error.message : `${label} could not be started.`;
-      return { outcome: 'failed', exitCode: null, reason: why, outputs: [], log: '', reportedCost: null, summary: null, figures: [], uncheckedNumbers: 0 };
+      return { outcome: 'failed', started: false, exitCode: null, reason: why, outputs: [], log: '', reportedCost: null, summary: null, figures: [], uncheckedNumbers: 0 };
     }
     const outputs = await readOutputs(join(folder, 'outputs'));
     const { cost, isError } = reportedCost(request.cli, answer.stdout);
@@ -357,7 +404,7 @@ export async function runDelegation(ports: DelegatePorts, request: DelegationReq
     const figures = outcome === 'succeeded' ? recompute(outputs, files, names, env) : [];
     const log = `${answer.stderr}\n${answer.stdout}`.trim();
     return {
-      outcome, exitCode: answer.exitCode, reason, outputs, log: log.slice(-LOG_CHARS), reportedCost: cost, summary,
+      outcome, started: true, exitCode: answer.exitCode, reason, outputs, log: log.slice(-LOG_CHARS), reportedCost: cost, summary,
       figures, uncheckedNumbers: summary ? (summary.match(/\d[\d,.]*/g) ?? []).length : 0,
     };
   } finally {

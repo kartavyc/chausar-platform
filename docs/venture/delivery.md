@@ -50,7 +50,7 @@ The model never sees an amount or a date. It gets refs with words-only labels:
 - prices: for rehearsal, `offer_1.unit`, `offer_1.total` and `offer_1.tax` (tax only when above zero) for each offer with a current price receipt; for a real order, `order.unit`, `order.total` and `order.tax` from the order's receipt;
 - dates: `today` always, and `order.created` for a real order.
 
-The validator turns the model's flat output into a draft: headings only from the plan's required list, each once; one to twelve parts per section; text through the number guard with tokens copied from the client's message and the idea (so "B2B" passes and a new "500" fails); figure and date parts only with refs that were offered. A figure renders as its receipt label and display, for example `Total: INR 2,948.82`, so the label says what the number is. Dates use the country's date order.
+The validator turns the model's flat output into a draft: headings only from the plan's required list, each once; one to twelve parts per section; text through the money guard (since 21 October "ready in 3 days" passes and marks the draft `estimate: true`, shown as a model estimate with no receipt, while "INR 500" or "20% off" fails, and the harness's write step still refuses any number); figure and date parts only with refs that were offered. A figure renders as its receipt label and display, for example `Total: INR 2,948.82`, so the label says what the number is. Dates use the country's date order.
 
 The judge sees `Total: [price from Chausar]` and `[date from Chausar]` instead, so no receipt amount leaves under standing consent.
 

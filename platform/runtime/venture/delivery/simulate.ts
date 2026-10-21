@@ -361,6 +361,7 @@ export async function simulationRunHandler(deps: VentureDeps, ctx: Context, payl
     tx.put(run);
     if (tx.venture?.status === 'build') tx.touch({ status: 'rehearsal' });
     tx.emit('simulation-finished', { runId: run.id, passed: run.passed, modelMode, scenarioIds: run.scenarioIds });
+    tx.emit('run.done', { runId: run.id });
     return run;
   });
 }

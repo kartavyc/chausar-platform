@@ -1,7 +1,7 @@
 // Chausar venture launcher, delivery package (P5): the cheap judge that reads a practice draft after the code checks.
 // It sees prices and dates only as placeholders, so no receipt amount leaves Chausar under standing consent.
 import { check } from '../../contracts.ts';
-import { modelWords } from '../records.ts';
+import { modelNumbers, modelWords } from '../records.ts';
 import { JUDGE_QUESTIONS } from '../contracts.ts';
 import type { JudgeAnswer, JudgeQuestionId, ModelTask } from '../contracts.ts';
 
@@ -30,9 +30,12 @@ const JUDGE_SCHEMA = {
 
 /** proven: plain sentences, words only, on what tool runs did; empty when the agent only had the client message. */
 export type JudgeInput = { expectedOutcome: string; persona: string; draft: string; figureLabels: string[]; proven?: string[] };
-type RawAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure'; reason: string };
+type RawAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure'; reason: string; estimate?: true };
 
-/** Exactly one answer per judge question, in the fixed order; reasons go through the number guard. */
+/**
+ * Exactly one answer per judge question, in the fixed order. Reasons may hold numbers (then estimate: true, never a
+ * receipt) but no amount of money.
+ */
 export function validateJudge(raw: unknown): RawAnswer[] {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 1 && Array.isArray((raw as { answers?: unknown }).answers), 'MODEL_OUTPUT_REJECTED', 'The judge did not answer in the expected shape.');
   const answers = (raw as { answers: unknown[] }).answers;
@@ -45,7 +48,8 @@ export function validateJudge(raw: unknown): RawAnswer[] {
     const question = record.question as JudgeQuestionId;
     check((JUDGE_QUESTIONS as readonly unknown[]).includes(question) && !byQuestion.has(question), 'MODEL_OUTPUT_REJECTED', 'The judge must answer every question once.');
     check(record.answer === 'yes' || record.answer === 'no' || record.answer === 'unsure', 'MODEL_OUTPUT_REJECTED', 'A judge answer must be yes, no or unsure.');
-    byQuestion.set(question, { question, answer: record.answer, reason: modelWords(record.reason, 'judge reason', 200) });
+    const reason = modelWords(record.reason, 'judge reason', 200);
+    byQuestion.set(question, modelNumbers(reason) ? { question, answer: record.answer, reason, estimate: true } : { question, answer: record.answer, reason });
   }
   return JUDGE_QUESTIONS.map(question => byQuestion.get(question)!);
 }

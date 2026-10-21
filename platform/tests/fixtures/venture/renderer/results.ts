@@ -220,7 +220,7 @@ const categoryLabels: Record<ConnectorCard['category'], string> = {
 };
 const planned = (mode: 'handoff' | 'read' | 'write') => ({ mode, status: 'planned' as const, qualification: 'unqualified' as const, what: 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.' });
 const card = (id: string, name: string, category: ConnectorCard['category'], modes: ConnectorCard['modes'], chips: string[], vendorUrl: string | null, note: string, starter = false): ConnectorCard => ({
-  id, name, category, categoryLabel: categoryLabels[category], modes, chips, regions: ['global'], regionNote: null, auth: 'none', vendorUrl, note, starter,
+  id, name, category, categoryLabel: categoryLabels[category], modes, chips, regions: ['global'], regionNote: null, auth: 'none', vendorUrl, note, starter, postingOptions: [],
 });
 export const connectors: ConnectorCard[] = [
   card('lovable', 'Lovable', 'build', [{ mode: 'handoff', status: 'available', qualification: 'fixture-tested', what: 'Opens Lovable with your brief filled in. You press send there.' }], ['handoff'], 'https://lovable.dev/', 'Lovable keeps your brief in the browser until you press send.', true),

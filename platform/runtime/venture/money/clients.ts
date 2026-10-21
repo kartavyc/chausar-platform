@@ -4,6 +4,7 @@ import { gstinValid } from '../../memory.ts';
 import { activateTerm, exactPayload, listRecords, plainText, readVenture, singleLine, ventureAction } from '../records.ts';
 import { INDIA_STATES } from '../contracts.ts';
 import { newestFirst } from './shared.ts';
+import { recordOwnerFields } from '../evidence/ledger.ts';
 import type { ClientRecord, VentureDeps } from '../contracts.ts';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -55,6 +56,8 @@ export async function addClient(deps: VentureDeps, ctx: Context, payload: unknow
     }
     const client: ClientRecord = { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note };
     const stored = tx.put(client);
+    // The evidence ledger: each field the owner typed is owner-entered and verified.
+    recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note });
     activateTerm(tx, 'client', { recordId: stored.id, kind: 'venture-client' });
     tx.emit('client-added', { clientId: stored.id });
     return stored;

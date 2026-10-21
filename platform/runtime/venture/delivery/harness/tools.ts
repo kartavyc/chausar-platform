@@ -349,7 +349,7 @@ function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: s
 
 /** A hand-off question reaches a person, so it holds words only: an amount in it would be the model's own number. */
 function question(env: ToolEnv, text: string): string {
-  try { return modelWords(text, 'question', 300, { allowed: env.allowed }); } catch {
+  try { return modelWords(text, 'question', 300, { allowed: env.allowed, numbers: 'refuse' }); } catch {
     throw new ChausarError('TOOL_INPUT_INVALID', 'The question held a number. Ask in words; amounts come from the calculator.');
   }
 }

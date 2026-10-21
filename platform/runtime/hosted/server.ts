@@ -17,6 +17,7 @@ import { hostedConfig, type HostedConfig } from './config.ts';
 import { HostedCustody } from './custody.ts';
 import { FileDirectory, PostgresDirectory, type HostedDirectory } from './directory.ts';
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
+import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
 
 const rendererDir = fileURLToPath(new URL('../../../app/renderer/', import.meta.url));
 const hostedDir = fileURLToPath(new URL('../../../app/hosted/', import.meta.url));
@@ -153,6 +154,13 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
           return send(200, { token: app.options.custody.rendererKey(session.session.id), me: app.me(session) });
         }
         if (url.pathname === '/api/hosted/events') return stream(auth(), req, res);
+        // The Ink app's run events: the session cookie and the page's bearer, as /api/rpc asks for.
+        if (url.pathname === '/api/events') {
+          const session = auth();
+          const bearer = req.headers.authorization ?? '';
+          check(bearer.startsWith('Bearer ') && app.options.custody.sameRendererKey(session.session.id, bearer.slice(7)), 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
+          return stream(session, req, res, true);
+        }
         throw new ChausarError('NOT_FOUND', 'Nothing is here.');
       }
 
@@ -212,11 +220,15 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
     }
   };
 
-  const stream = (session: Authenticated, req: IncomingMessage, res: ServerResponse) => {
+  /** runEvents: the Ink app's stream, run events only, each as a VentureRunEvent for the open business (views/events.ts). */
+  const stream = (session: Authenticated, req: IncomingMessage, res: ServerResponse, runEvents = false) => {
     const open = streams.get(session.user.id) ?? 0;
     check(open < MAX_STREAMS_PER_USER, 'RATE_LIMITED', 'Too many open pages. Close one and try again.');
     let off: (() => void) | null = null;
-    off = app.subscribe(session, event => { res.write(`id: ${event.seq}\nevent: ${event.name}\ndata: ${JSON.stringify(event)}\n\n`); });
+    const businessId = session.session.businessId ?? '';
+    off = app.subscribe(session, runEvents
+      ? event => { const run = runEventFromActor(event, businessId); if (run) res.write(sseFrame(run)); }
+      : event => { res.write(`id: ${event.seq}\nevent: ${event.name}\ndata: ${JSON.stringify(event)}\n\n`); });
     streams.set(session.user.id, open + 1);
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write('retry: 5000\n\n');

@@ -71,6 +71,7 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://business.whatsapp.com', 'https://telegram.org', 'https://slack.com', 'https://discord.com',
   'https://www.notion.com', 'https://drive.google.com', 'https://linear.app', 'https://www.airtable.com',
   'https://www.linkedin.com', 'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com',
+  'https://www.youtube.com', 'https://studio.youtube.com',
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com',
   'https://www.mca.gov.in', 'https://www.gst.gov.in', 'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io',
   'https://posthog.com', 'https://plausible.io', 'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com',

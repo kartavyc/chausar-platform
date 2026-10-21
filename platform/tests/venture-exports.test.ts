@@ -12,6 +12,7 @@ const REQUIRED_EXPORTS: Record<VenturePackageId, string[]> = {
   money: ['handlers'],
   build: ['handlers', 'defaultGitHubTransport', 'createFixtureGitHubTransport'],
   delivery: ['handlers'],
+  views: ['handlers', 'questionRowId', 'floorReason'],
 };
 
 async function loadAll(): Promise<Record<VenturePackageId, VenturePackageModule>> {
@@ -29,7 +30,7 @@ test('each venture package exports what the host loads', async () => {
   }
 });
 
-test('the five handler tables cover every venture method, each in its owner package only', async () => {
+test('the six handler tables cover every venture method, each in its owner package only', async () => {
   const modules = await loadAll();
   const tables = Object.fromEntries(Object.entries(modules).map(([id, module]) => [id, module.handlers])) as Record<VenturePackageId, VenturePackageModule['handlers']>;
   assert.deepEqual(missingHandlers(tables), []);

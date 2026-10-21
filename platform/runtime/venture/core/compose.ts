@@ -29,7 +29,7 @@ import { applyTaxPatch, offerPricing, previewBackOffice } from './blueprint.ts';
 import { countryProfile } from './countries.ts';
 import { engineQuestions, isPricingModel, parseAnswer, storedQuestion, taxRateQuestion } from './interview.ts';
 import { isViewId, viewSpec } from './views.ts';
-import { labelled, noMarkup, ownerPrice, styledWords, wordCap } from './words.ts';
+import { labelled, modelLine, noMarkup, ownerPrice, styledWords, wordCap } from './words.ts';
 import { withTaxInvoiceFields } from './tax-fields.ts';
 
 const REJECTED = 'MODEL_OUTPUT_REJECTED';
@@ -460,7 +460,7 @@ export function makeDecision(input: {
   return {
     composeId: input.composeId, text: input.text, country: structuredClone(input.country), kind: input.output.kind,
     family: service ? labelled(input.output.family, 'assumption', 'model') : null,
-    reading: service ? labelled(input.output.reading, 'assumption', 'model') : null,
+    reading: service ? modelLine(input.output.reading, copiedTokens(input.text)) : null,
     views: service ? [...input.output.views] : [],
     refusal: service ? null : NOT_A_SERVICE_WORDS,
     callIds: [...input.callIds], writtenBy: { ...input.writtenBy }, at: input.at,
@@ -476,7 +476,8 @@ export function planDigest(plan: Omit<ComposedPlan, 'digest'> | ComposedPlan): s
 /** Builds the plan from a validated decision and output. Pure: no clock, no store, no model. */
 export function assembleComposed(decision: ComposeDecision, output: ComposeModelOutput, country: CountryProfile, meta: { writtenBy: WrittenBy; composeCallIds: string[] }): ComposedPlan {
   check(decision.kind !== 'not-a-service' && decision.family && decision.reading, 'COMPOSE_NOT_A_SERVICE', NOT_A_SERVICE_WORDS);
-  const say = (value: string) => labelled(value, 'assumption', 'model');
+  const allowed = copiedTokens(decision.text);
+  const say = (value: string) => modelLine(value, allowed);
   const kind = decision.kind as PlanKind;
   const views: ViewSelection[] = decision.views.map(id => {
     const slot = output.views[id];

@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, join } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -8,6 +8,7 @@ import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { check } from './contracts.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
+import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/views/events.ts';
 import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 
@@ -17,7 +18,25 @@ export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.ac
   ...CUSTODY_METHODS]);
 
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
-const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
+/** The Ink app (app/ui, built to app/ui/dist) is served at / instead of the old renderer only with --ink or CHAUSAR_UI=ink. */
+const inkRoot = fileURLToPath(new URL('../../app/ui/dist/', import.meta.url));
+export const inkRequested = (args: readonly string[] = process.argv, environment: NodeJS.ProcessEnv = process.env) => args.includes('--ink') || environment.CHAUSAR_UI === 'ink';
+/** The Ink allowlist: every regular file under app/ui/dist with a known type, listed once when the server starts. */
+export async function listInkFiles(folder = inkRoot): Promise<Record<string, string>> {
+  const found: Record<string, string> = {};
+  async function walk(at: string, prefix: string) {
+    for (const entry of await readdir(at, { withFileTypes: true })) {
+      const name = prefix + entry.name;
+      if (entry.isDirectory()) await walk(join(at, entry.name), `${name}/`);
+      else if (entry.isFile() && /^[A-Za-z0-9._/-]+\.(html|js|css|svg|woff2|txt|json)$/.test(name)) found[`/${name}`] = name;
+    }
+  }
+  await walk(folder, '');
+  check(found['/index.html'], 'UI_NOT_BUILT', 'The Ink app is not built. Run npm run build:ui, then start the server again.');
+  found['/'] = 'index.html';
+  return found;
+}
 const validToken = (actual: string, expected: string) => Buffer.byteLength(actual) === Buffer.byteLength(expected) && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -37,8 +56,11 @@ async function body(req: IncomingMessage) {
   }
   inspect(value); return value;
 }
-export function createLocalServer(engine: Engine, options: { token?: string; port?: number } = {}) {
+export function createLocalServer(engine: Engine, options: { token?: string; port?: number; ui?: 'ink' | 'legacy'; inkFolder?: string } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex'); let origin = ''; let closing = false;
+  let inkFiles: Record<string, string> | null = null;
+  // Open /api/events streams: closing the server ends them, so a shutdown never waits on a page that stays open.
+  const streams = new Set<ServerResponse>();
   const server = createServer(async (req, res) => {
     const send = (status: number, value: unknown) => response(res, status, value, closing);
     res.setHeader('Content-Security-Policy', csp); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'DENY');
@@ -60,6 +82,24 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { token });
       }
       if (url.pathname === '/api/health' && req.method === 'GET') return send(200, { status: 'ok', vaultOpen: !!engine.vault, mode: engine.options.demo ? 'experimental-demo' : 'postgres' });
+      // Run events as Server-Sent Events, with the same bearer as /api/rpc. Each frame says only what changed.
+      if (url.pathname === '/api/events') {
+        check(req.method === 'GET', 'METHOD_NOT_ALLOWED', 'Use GET for the event stream.');
+        check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
+        const auth = req.headers.authorization ?? '';
+        check(auth.startsWith('Bearer '), 'UNAUTHENTICATED', 'This request needs a current local session.');
+        if (!validToken(auth.slice(7), token)) {
+          try { engine.contextForSession(auth.slice(7)); }
+          catch { throw Object.assign(new Error('This workspace session expired or was revoked.'), { code: 'UNAUTHENTICATED' }); }
+        }
+        res.writeHead(200, SSE_HEADERS); res.write(SSE_PREAMBLE);
+        const off = engine.onVentureEvent(event => { res.write(sseFrame(event)); });
+        const heartbeat = setInterval(() => res.write(SSE_HEARTBEAT), 25_000); heartbeat.unref();
+        streams.add(res);
+        const done = () => { clearInterval(heartbeat); off(); streams.delete(res); };
+        req.on('close', done); res.on('close', done);
+        return;
+      }
       if (url.pathname === '/api/rpc' || url.pathname === '/mcp') {
         check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST for named requests.');
         const auth = req.headers.authorization ?? '';
@@ -78,9 +118,9 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
-      const known: Record<string, string> = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/launch.js': 'launch.js', '/assets/icon.svg': 'assets/icon.svg' };
-      check(known[url.pathname], 'NOT_FOUND', 'This application file does not exist.');
-      const path = join(renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
+      const known: Record<string, string> = inkFiles ?? { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/launch.js': 'launch.js', '/assets/icon.svg': 'assets/icon.svg' };
+      check(Object.hasOwn(known, url.pathname), 'NOT_FOUND', 'This application file does not exist.');
+      const path = join(inkFiles ? options.inkFolder ?? inkRoot : renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
       if (closing) res.setHeader('Connection', 'close');
       res.writeHead(200, { 'Content-Type': types[ext] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
     } catch (error) {
@@ -92,12 +132,14 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
   return {
     server, token,
     async listen() {
+      if (options.ui === 'ink') inkFiles = await listInkFiles(options.inkFolder ?? inkRoot);
       await new Promise<void>((resolveListen, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', () => { server.off('error', reject); resolveListen(); }); });
       const address = server.address(); check(address && typeof address === 'object', 'SERVER_FAILED', 'No local port was assigned.'); origin = `http://127.0.0.1:${address.port}`; return { origin, token };
     },
     async close(timeoutMs = 70000) {
       check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded local server shutdown deadline.');
       closing = true;
+      for (const stream of [...streams]) stream.end();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const drain = new Promise<void>((resolveClose, reject) => {
         timer = setTimeout(() => { server.closeAllConnections(); reject(new Error('Local HTTP shutdown exceeded its deadline.')); }, timeoutMs);
@@ -119,7 +161,7 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const engine = await createServerEngine(); const demo = engine.options.demo;
-  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317) });
+  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), ui: inkRequested() ? 'ink' : 'legacy' });
   const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { clearInterval(scheduler); void app.close().finally(() => process.exit(0)); });

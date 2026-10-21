@@ -949,9 +949,9 @@ test('every error code the money package throws is a listed venture code or a kn
   for (const name of found) assert.ok((VENTURE_ERRORS as readonly string[]).includes(name) || passThrough.has(name), `${name} is not listed`);
 });
 
-test('handlers cover exactly the thirteen money methods', () => {
+test('handlers cover exactly the fourteen money methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 13);
+  assert.equal(owned.length, 14);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

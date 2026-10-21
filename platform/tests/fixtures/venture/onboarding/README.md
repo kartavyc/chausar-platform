@@ -11,7 +11,7 @@ Hand-written answers for the onboarding v2 tests: connect an AI first, one open 
 | `excel-skill-in.json` | A skill in India: views `steps-first`, `questions`, `tools`, with two questions. |
 | `cafe-bills-problem-in.json` | A problem other people have, in India: views `audience-first`, `tools`, `pages`. |
 | `landlord-not-a-service.json` | A personal problem with nothing to sell: decide only, no views. |
-| `digit-then-repair.json` | A compose answer naming an offer "Walks for 2 dogs", then a valid repair answer. |
+| `digit-then-repair.json` | A compose answer naming an offer "Walks for 2 dogs", then a valid repair answer. Since 21 October the first answer is kept as a model estimate and the repair answer goes unused. |
 | `spelled-price-then-repair.json` | A compose answer describing an offer as "Twenty pounds a walk", then a valid repair answer. |
 | `markup-in-words.json` | A compose answer with `<b>` in an offer description, then a valid repair answer. |
 | `unknown-block-twice.json` | Two compose answers with an offer block Chausar does not have, so the plan is refused. |

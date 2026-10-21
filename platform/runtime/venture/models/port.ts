@@ -9,10 +9,13 @@ import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
 import type {
-  ModelOutcome, ModelPort, ModelPortOptions, ModelPreset, ModelPresetId, ModelPreview, ModelPurpose, ModelStatusView, ModelTask, ModelTier,
-  VentureDeps,
+  ModelOutcome, ModelPort, ModelPortOptions, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelStatusView, ModelTask, ModelTier,
+  SpendRate, VentureDeps,
 } from '../contracts.ts';
 import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import {
+  listRateOfTable, modelTableOf, reserveSpend, resolveRate, settleSpend, spendRatesOf, spendRefused, type SpendOutcome, type SpendSubject,
+} from '../money/spend.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
   SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, codexCommand, codexHost, codexPlan, parseClaudeCli, parseCodexCli, type CliPlan, type CodexHost,
@@ -106,8 +109,39 @@ function sweep(tx: VentureTx) {
   const nowMs = Date.parse(tx.now);
   for (const call of txCalls(tx)) {
     const view = viewCall(call, nowMs);
-    if (view !== call) replaceRecord(tx, view);
+    if (view === call) continue;
+    replaceRecord(tx, view);
+    // A send that never reported back may still have been billed: its spend stays held, marked unknown.
+    if (view.status === 'failed') settleSpend(tx, spendKey(call.id), { kind: 'unknown' });
   }
+}
+
+/** The spend ledger key of a model call: one charge per call record, so the same call is never paid for twice. */
+const spendKey = (callId: string) => `model:${callId}`;
+
+/** A model call on the spend ledger: its words, who pays (the connection's key) and the exact text paid for. */
+function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'payloadDigest'>, spec: PresetSpec): SpendSubject {
+  return {
+    key: spendKey(call.id), item: `model:${spec.id}`, label: `${spec.label}, ${call.purpose}`, payer: `connection:${call.connectionId}`,
+    draftDigest: call.payloadDigest, connector: spec.id, ref: call.id,
+  };
+}
+
+/**
+ * The price a keyed model call uses: the owner's rate card line for the preset, else the preset's list price, else a
+ * refusal (never a free call). Command-line tools run on the owner's own plan and replays spend nothing, so neither
+ * is metered: null, and their cost stays as the preset says.
+ */
+function meteredRate(state: State, ventureId: string, spec: PresetSpec, replay: boolean, subject: SpendSubject): SpendRate | null {
+  if (!spec.needsKey || replay) return null;
+  return resolveRate({ item: `model:${spec.id}`, list: listRateOfTable(`model:${spec.id}`, spec.priceTable), owner: spendRatesOf(state, ventureId), subject });
+}
+
+/** How a sent call settles: by the provider's usage, at the estimate when it answered without usage, held when no answer came. */
+function spendOutcome(sent: boolean, usage: boolean, failed: boolean, costMicros: string | null): SpendOutcome {
+  if (!sent) return { kind: 'released' };
+  if (usage && costMicros !== null) return { kind: 'billed', micros: costMicros, by: 'usage' };
+  return failed ? { kind: 'unknown' } : { kind: 'reservation' };
 }
 
 /**
@@ -244,10 +278,14 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     }
   };
 
-  /** Steps 8 to 11: dispatch once, parse, validate, then record the result in its own action. */
-  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> => {
+  /**
+   * Steps 8 to 11: dispatch once, parse, validate, then record the result in its own action. The table is the price
+   * the call was reserved at (the owner's rate card or the list price); a metered call settles its spend there too.
+   */
+  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean): Promise<ModelOutcome<T>> => {
     const apiKey = spec.needsKey ? secrets.get(SECRET(spec.id)) : null;
-    const parsed: Parsed = spec.needsKey && !apiKey
+    const sent = !(spec.needsKey && !apiKey);
+    const parsed: Parsed = !sent
       ? { ok: false, code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing, usage: null }
       : await dispatch(prepared, apiKey, call.purpose);
     let failure = parsed.ok ? null : { code: parsed.code, message: parsed.message };
@@ -257,13 +295,13 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         failure = failureOf(error, { code: 'MODEL_OUTPUT_REJECTED', message: "The model answer did not pass Chausar's checks." });
       }
     }
-    const table = spec.priceTable;
     const costMicros = parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
     await ventureAction(actionDeps, ctx, level, 'models.result', tx => {
       const current = tx.find('venture-model-call', call.id);
       check(current, 'INVALID_VENTURE_REQUEST', 'This model call record no longer exists.');
       replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure });
+      if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
     if (failure) throw new ChausarError(failure.code, failure.message);
     return { value: value as T, by: 'model', callId: call.id, presetId: spec.id, model: call.model, costMicros: costMicros ?? '0', priceConfirmed: call.priceConfirmed };
@@ -281,7 +319,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     return { state, tier, route: resolveTier(state, venture?.id ?? null, tier) };
   };
 
-  const newCall = (tx: VentureTx, route: Extract<Route, { kind: 'model' }>, tier: ModelTier, task: ModelTask<unknown>, prepared: Prepared, estimate: string, consent: CallRecord['consent']): CallRecord => {
+  const newCall = (tx: VentureTx, route: Extract<Route, { kind: 'model' }>, tier: ModelTier, task: ModelTask<unknown>, prepared: Prepared, estimate: string, consent: CallRecord['consent'], table: ModelPriceTable | null): CallRecord => {
     const { connection, spec } = route;
     return {
       ...tx.base('venture-model-call'), purpose: task.purpose, tier, presetId: spec.id, connectionId: connection.id, routeKind: spec.kind,
@@ -289,9 +327,24 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       payloadText: prepared.payloadText.slice(0, MAX_STORED_PAYLOAD), payloadDigest: digest(prepared.payloadText),
       payloadTruncated: prepared.payloadText.length > MAX_STORED_PAYLOAD, containsClientData: task.containsClientData,
       status: consent === 'standing' ? 'dispatching' : 'preview', approvedDigest: null, approvedAt: null, approvedBy: null,
-      estimatedMaxCostMicros: estimate, priceConfirmed: spec.priceTable?.confirmed ?? true,
+      estimatedMaxCostMicros: estimate, priceConfirmed: table?.confirmed ?? true,
       usage: null, costMicros: null, outputDigest: null, error: null, replay: transport.replay === true,
     };
+  };
+
+  /**
+   * The rate a call is metered at and the price table its cost is worked from: the owner's rate card line, else the
+   * preset's list price. A keyed call with neither is refused (SPEND_UNPRICED) and the refusal is written down.
+   */
+  const priceOf = async (ctx: Context, state: State, route: Extract<Route, { kind: 'model' }>, task: ModelTask<unknown>, prepared: Prepared): Promise<{ rate: SpendRate | null; table: ModelPriceTable | null }> => {
+    const payloadDigest = digest(prepared.payloadText);
+    const subject = callSpend({ id: `unsent-${payloadDigest.slice(0, 16)}`, purpose: task.purpose, connectionId: route.connection.id, payloadDigest }, route.spec);
+    try {
+      const rate = meteredRate(state, route.connection.ventureId, route.spec, transport.replay === true, subject);
+      return { rate, table: rate ? modelTableOf(rate, subject) : route.spec.priceTable };
+    } catch (error) {
+      return spendRefused(actionDeps, ctx, error);
+    }
   };
 
   const requireCurrentConnection = (tx: VentureTx, connection: ConnectionRecord): ConnectionRecord => {
@@ -387,15 +440,19 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       if (route.problem) throw new ChausarError(route.problem.code, route.problem.message);
       const prepared = prepare(route.connection, route.spec, task);
       check(clientDataFindings(prepared.payloadText, state).length === 0, 'CLIENT_DATA_NEEDS_APPROVAL', MESSAGES.clientDataFound);
-      const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, route.spec.priceTable);
+      const { rate, table } = await priceOf(ctx, state, route, task, prepared);
+      const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, table);
       const call = await ventureAction(actionDeps, ctx, 'prepare', 'models.call', tx => {
         sweep(tx);
         check(tx.state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
         const connection = requireCurrentConnection(tx, route.connection);
         checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now));
-        return putRecord(tx, newCall(tx, route, tier, task, prepared, estimate, 'standing'));
-      });
-      return send(ctx, 'prepare', call, prepared, route.spec, task.validate);
+        const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);
+        // The charge record, in the same commit as the call record: written before anything is sent.
+        if (rate) reserveSpend(tx, { ...callSpend(record, route.spec), rate, estimateMicros: estimate });
+        return putRecord(tx, record);
+      }).catch(error => spendRefused(actionDeps, ctx, error));
+      return send(ctx, 'prepare', call, prepared, route.spec, task.validate, table, rate !== null);
     },
 
     async preview<T>(ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null> {
@@ -404,11 +461,13 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       check(state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
       if (route.problem) throw new ChausarError(route.problem.code, route.problem.message);
       const prepared = prepare(route.connection, route.spec, task);
-      const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, route.spec.priceTable);
+      // Priced now so the preview shows the figure; nothing is held until the owner approves and it is sent.
+      const { table } = await priceOf(ctx, state, route, task, prepared);
+      const estimate = estimateMaxCostMicros(prepared.payloadText.length, task.maxOutputTokens, table);
       const call = await ventureAction(actionDeps, ctx, 'prepare', 'models.preview', tx => {
         sweep(tx);
         requireCurrentConnection(tx, route.connection);
-        return putRecord(tx, newCall(tx, route, tier, task, prepared, estimate, 'approved-preview'));
+        return putRecord(tx, newCall(tx, route, tier, task, prepared, estimate, 'approved-preview', table));
       });
       const expiresAtMs = Date.parse(call.at) + PREVIEW_TTL_MS;
       prunePending(clock().getTime());
@@ -424,7 +483,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
       check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The claim is the first await: two approvals of one preview send at most once.
-      const claimed: { held?: Pending } = {};
+      const claimed: { held?: Pending; table?: ModelPriceTable | null; metered?: boolean } = {};
       const call = await ventureAction(actionDeps, ctx, 'approve', 'models.approve', tx => {
         sweep(tx);
         const nowMs = Date.parse(tx.now);
@@ -441,13 +500,19 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const problem = problemOf(spec);
         if (problem) throw new ChausarError(problem.code, problem.message);
         checkBudget(txCalls(tx), connection, spec, current.estimatedMaxCostMicros, monthOf(tx.now));
+        // The charge record is written at approval, in the same commit that lets the one send go.
+        const subject = callSpend(current, spec);
+        const rate = meteredRate(tx.state, current.ventureId, spec, transport.replay === true, subject);
+        claimed.table = rate ? modelTableOf(rate, subject) : spec.priceTable;
+        claimed.metered = rate !== null;
+        if (rate) reserveSpend(tx, { ...subject, rate, estimateMicros: current.estimatedMaxCostMicros });
         const approved = replaceRecord(tx, { ...current, status: 'dispatching' as const, approvedDigest, approvedAt: tx.now, approvedBy: ctx.memberId, consent: 'approved-preview' as const });
         pending.delete(callId);
         claimed.held = held;
         return approved;
-      });
+      }).catch(error => spendRefused(actionDeps, ctx, error));
       check(claimed.held, 'APPROVAL_STALE', MESSAGES.approvalStale);
-      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate);
+      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate, claimed.table ?? null, claimed.metered === true);
     },
   };
 }

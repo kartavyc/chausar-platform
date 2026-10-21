@@ -15,4 +15,17 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
   },
+  // Run events (run.started, run.step, run.waiting, run.done, run.failed, queue.changed): four plain fields, frozen.
+  onEvent: callback => {
+    if (typeof callback !== 'function') throw new TypeError('Use a function for run events.');
+    const types = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed'];
+    const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+    const listener = (_event, value) => {
+      if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.runId !== undefined && !id(value.runId))) return;
+      if (typeof value.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.at)) return;
+      callback(Object.freeze({ type: value.type, businessId: value.businessId, ...(value.runId !== undefined ? { runId: value.runId } : {}), at: value.at }));
+    };
+    ipcRenderer.on('chausar:venture-event', listener);
+    return () => ipcRenderer.removeListener('chausar:venture-event', listener);
+  },
 }));

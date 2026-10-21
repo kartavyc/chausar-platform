@@ -14,8 +14,8 @@ import {
 } from '../runtime/venture/contracts.ts';
 import type { ClientRecord, TermRecord, VentureDeps, VentureMethod } from '../runtime/venture/contracts.ts';
 import {
-  MAX_EVENTS, activateTerm, amountText, assertNoNumbers, bpsPercent, copiedTokens, currentVenture, doneClaimFindings, exactPayload, formatMicros,
-  formatVentureDate, houseStyleFindings, isoDate, listRecords, modelWords, percentBps, plainText, requireAppChannel, singleLine, sumMicros, tidyWords,
+  MAX_EVENTS, activateTerm, amountText, assertNoMoney, assertNoNumbers, assertNoPriceWords, bpsPercent, copiedTokens, currentVenture, doneClaimFindings, exactPayload, formatMicros,
+  formatVentureDate, houseStyleFindings, isoDate, listRecords, modelNumbers, modelWords, percentBps, plainText, requireAppChannel, singleLine, sumMicros, tidyWords,
   ventureAction, type VentureTx,
 } from '../runtime/venture/records.ts';
 import { ventureHostEnv } from '../runtime/venture/host-env.ts';
@@ -46,8 +46,8 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 67 unique valid names with owners and well-formed subsets', () => {
-  assert.equal(VENTURE_METHODS.length, 67);
+test('VENTURE_METHODS: 76 unique valid names with owners and well-formed subsets', () => {
+  assert.equal(VENTURE_METHODS.length, 76);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
@@ -158,7 +158,27 @@ test('requireAppChannel: app-only methods need the desktop channel and an untain
   for (const method of VENTURE_METHODS.filter(m => !APP_ONLY_METHODS.includes(m)) as VentureMethod[]) for (const ctx of contexts) requireAppChannel(ctx, method);
 });
 
-test('assertNoNumbers and copiedTokens: the AI never writes numbers', () => {
+test('model words may hold numbers, labelled as estimates; an amount of money is still refused', () => {
+  // Numbers pass and are found, so the record that carries them gets estimate: true and no receipt.
+  for (const text of ['We will be done in 3 days.', 'Plan for 2026', 'open 24/7', 'about 20% fewer late bills', 'a few lakh views', 'two drafts a week', 'call ३ times', 'Pay 500 now.', 'your 2nd month']) {
+    assert.equal(modelWords(text, 'line'), text, text);
+    assert.equal(modelNumbers(text), true, text);
+  }
+  // Names that hold a digit, one, first, and tokens copied from the owner are not numbers.
+  for (const text of ['We help B2B and web3 teams with GPT-6 drafts', 'one call for your first client', 'Q3 planning in 3D']) assert.equal(modelNumbers(text), false, text);
+  assert.equal(modelNumbers('Walks for 2 dogs'), true);
+  // An amount of money would read as a price, tax or invoice figure, and those come only from the calculator.
+  for (const bad of ['Pay ₹500', '₹ only', 'INR 3,000 a month', '500 rupees', 'Rs500 each', 'Rs. 500 each', 'fifteen pounds a walk', 'USD 20 per hour', 'a tenner a walk', '20 lakh rupees', '20% off your first month', 'Half price for nurses']) {
+    assert.throws(() => modelWords(bad, 'line'), code('MODEL_OUTPUT_REJECTED'), bad);
+    assert.throws(() => assertNoMoney(bad, 'line'), { code: 'MODEL_OUTPUT_REJECTED', message: /amount of money/ }, bad);
+  }
+  for (const fine of ['We bill in rupees', 'INR only', '3 CAD drawings', 'Pay 500 now.', 'about 20% fewer late bills', 'Feel free to ask']) assert.doesNotThrow(() => assertNoMoney(fine, 'line', ['cad']), fine);
+  // Plan words sit beside the prices, so they also keep out price words: currency names and codes the owner did not write, free and discount.
+  for (const bad of ['Priced in GBP', 'Paid in rupees', 'A free first visit', 'Discounted walks']) assert.throws(() => assertNoPriceWords(bad, 'line'), { code: 'MODEL_OUTPUT_REJECTED', message: /price word/ }, bad);
+  for (const fine of ['Stress-free walks', 'Clear CAD drawings', 'Walks twice a week', 'Walks for 2 dogs']) assert.doesNotThrow(() => assertNoPriceWords(fine, 'line', ['cad']), fine);
+});
+
+test('assertNoNumbers and copiedTokens: template and engine words hold no numbers', () => {
   assertNoNumbers('Two drafts a week, one call', 'line');
   assertNoNumbers('INR only', 'line');
   for (const bad of ['Pay 500', '₹ only', '20% off', 'a few lakh', 'open 24/7', 'version 2.0', 'call ٣ times', 'call ३ times']) {
@@ -304,4 +324,18 @@ test('the engine routes venture methods to the venture code before and after a v
   await engine.request('workspace.create', { name: 'Venture contract test', passphrase: 'venture contract passphrase', demo: false });
   await reaches('venture.get', {});
   await reaches('venture.countries', {});
+});
+
+test('Ink views (P1-A): six methods owned by views, decide and gate app-only, run events and records declared', async () => {
+  const views = ['venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate'] as const;
+  for (const method of views) {
+    assert.ok((VENTURE_METHODS as readonly string[]).includes(method), method);
+    assert.equal(METHOD_OWNERS[method], 'views', method);
+  }
+  assert.deepEqual(views.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.queue.decide', 'venture.team.gate']);
+  for (const event of ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed']) assert.ok((VENTURE_EVENTS as readonly string[]).includes(event), event);
+  for (const kind of ['venture-queue-decision', 'venture-team-gate']) assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes(kind), kind);
+  for (const error of ['RUN_NOT_FOUND', 'AGENT_NOT_FOUND', 'STEP_NOT_FOUND', 'GATE_FLOOR']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(error), error);
+  const { METHODS } = (await import('node:module')).createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
+  for (const method of views) assert.ok(METHODS.includes(method), `the desktop allows ${method}`);
 });

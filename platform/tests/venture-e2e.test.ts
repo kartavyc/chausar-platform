@@ -238,7 +238,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
 
   // 15. The connector catalogue claims only what the code does today.
   const cards = await ask('venture.connectors.list', {}) as ConnectorCard[];
-  assert.equal(cards.length, 64);
+  assert.equal(cards.length, 66);
   assert.equal(new Set(cards.map(c => c.category)).size, 12);
   const availableFor = (mode: string) => cards.filter(c => c.modes.some(m => m.mode === mode && m.status === 'available')).map(c => c.id).sort();
   assert.deepEqual(availableFor('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);

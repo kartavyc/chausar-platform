@@ -9,11 +9,12 @@
 // - Secrets live on a memory-only shelf that close() empties; the engine closes the host on lock and attach.
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type StateStore } from '../contracts.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from './contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
-  VentureDeps, VentureEngineServices, VentureHandlerTable, VentureHostOptions, VentureMethod, VenturePackageId, VentureStorage,
+  VentureDeps, VentureEngineServices, VentureEventRecord, VentureHandlerTable, VentureHostOptions, VentureMethod, VenturePackageId,
+  VentureRunEvent, VentureRunEventType, VentureStorage,
 } from './contracts.ts';
 import { requireAppChannel } from './records.ts';
 
@@ -42,6 +43,7 @@ export const PACKAGE_LOADERS: PackageLoaders = Object.freeze({
   money: () => import('./money/index.ts') as Promise<VenturePackageModule>,
   build: () => import('./build/index.ts') as Promise<VenturePackageModule>,
   delivery: () => import('./delivery/index.ts') as Promise<VenturePackageModule>,
+  views: () => import('./views/index.ts') as Promise<VenturePackageModule>,
 });
 
 function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMethod): boolean {
@@ -139,7 +141,23 @@ export class VentureHost {
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
       ...(options.delegate ? { delegate: options.delegate } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
+      ...(options.workspace ? { workspace: options.workspace } : {}),
+      ...(options.notify ? { publish: (records: VentureEventRecord[]) => this.#publish(records) } : {}),
     });
+  }
+
+  /** The run events among what one venture action committed, for the desktop push and /api/events. */
+  #publish(records: VentureEventRecord[]): void {
+    const notify = this.#options.notify;
+    const runs = records.filter(record => (VENTURE_RUN_EVENT_TYPES as readonly string[]).includes(record.name));
+    if (!notify || !runs.length) return;
+    // The business is the workspace folder, the id workspace.list and the queue rows use.
+    let businessId: string;
+    try { businessId = this.#options.workspace?.current().id ?? this.#store.read().workspace.id; } catch { return; }
+    notify(runs.map((record): VentureRunEvent => {
+      const runId = record.data && typeof record.data === 'object' && !Array.isArray(record.data) ? record.data.runId : undefined;
+      return { type: record.name as VentureRunEventType, businessId, ...(typeof runId === 'string' ? { runId } : {}), at: record.at };
+    }));
   }
 
   /** Routes one venture method to the package that owns it. The pre-vault and draft methods never come here. */

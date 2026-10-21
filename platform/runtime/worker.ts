@@ -16,6 +16,8 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
 export function runEngineWorker(engine: Engine) {
   const scheduler = setInterval(() => { void engine.tick().catch(error => reply({ kind: 'scheduler-error', code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' })); }, 30000); scheduler.unref();
   function reply(value: unknown) { if (process.connected) process.send?.(value as any, () => {}); }
+  // Run events for the Ink frontend: the desktop main process checks each one and forwards it to the window.
+  engine.onVentureEvent(event => reply({ kind: 'venture-event', event }));
   process.on('message', async (message: any) => {
     if (message?.kind === 'host-lifecycle') {
       try { engine.updateJobLifecycle(message.state); reply({ id: message.id, kind: 'host-lifecycle', applied: true, result: { applied: true } }); }

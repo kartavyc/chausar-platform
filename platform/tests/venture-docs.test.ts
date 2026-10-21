@@ -93,7 +93,7 @@ async function catalogueCards(): Promise<ConnectorCard[]> {
 
 test('the architecture Connectors table claims exactly the modes the catalogue makes available', async () => {
   const cards = await catalogueCards();
-  assert.equal(cards.length, 64);
+  assert.equal(cards.length, 66);
   const rows = connectorRows(await readFile(new URL('architecture.md', docsFolder), 'utf8'));
   assert.equal(rows.length, 12, 'one row per connector category');
   for (const row of rows) {

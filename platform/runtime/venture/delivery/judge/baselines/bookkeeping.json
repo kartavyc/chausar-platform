@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "playbook": "bookkeeping",
+  "recordedAt": "2026-10-21",
+  "recordedFrom": "Reference drafts written by hand for the held-back cases. Re-record from a real playbook run with raiseBaseline; the baseline only rises.",
+  "baseline": { "passed": 6, "of": 6 },
+  "cases": [
+    {
+      "id": "clean-september",
+      "title": "A clean month with one supplier payment",
+      "clientRequest": "Hi, this is Priya from Sharma Traders. Please close my September books. The HDFC Bank statement is attached.",
+      "sources": [
+        { "id": "bank-statement-september.csv", "text": "Date,Narration,Withdrawal,Deposit,Balance\n01/09/2026,OPENING BALANCE,,,100000.00\n05/09/2026,NEFT MEHTA PAPER MART,12500.00,,87500.00\n12/09/2026,CASH DEPOSIT,,20000.00,107500.00" }
+      ],
+      "mustMention": ["September", "bill"],
+      "mustNotMention": ["filed", "submitted"],
+      "reference": "Priya, here is where your September books stand. We read the HDFC Bank statement for Sharma Traders. Mehta Paper Mart was paid ₹12,500 on 5 September 2026, and a cash deposit of ₹20,000 came in on 12 September 2026. Please send the bill for the payment to Mehta Paper Mart so it can be matched."
+    },
+    {
+      "id": "bills-missing",
+      "title": "The client has the statement but no bills",
+      "clientRequest": "Can you reconcile my bank statement? I could not find the bills.",
+      "sources": [
+        { "id": "bank-statement.csv", "text": "Date,Narration,Withdrawal\n03/09/2026,RENT SEPTEMBER,30000.00\n18/09/2026,AMAZON PAY,1499.00" }
+      ],
+      "mustMention": ["bill"],
+      "mustNotMention": ["we reconciled", "is reconciled", "have matched"],
+      "reference": "Thanks for the statement. To match each payment we need the bills behind it. Could you send the rent receipt for ₹30,000 and the Amazon Pay bill for ₹1,499? Until then the statement cannot be reconciled."
+    },
+    {
+      "id": "gst-rate-question",
+      "title": "A question about the GST rate on invoices",
+      "clientRequest": "What GST rate did you use for my printing invoices?",
+      "sources": [
+        { "id": "invoice-list.csv", "text": "Invoice,Item,Taxable value,GST %\nINV-14,Printing,2400.00,18\nINV-15,Printing,1800.00,18" }
+      ],
+      "mustMention": ["GST"],
+      "reference": "Both printing invoices in your list carry GST at 18%. If either one should use another rate, please tell us which, and the working will be redone by the calculator."
+    },
+    {
+      "id": "payment-without-bill",
+      "title": "One payment has no bill",
+      "clientRequest": "Here are my October statement and bills from Gupta Stationers. Please match them.",
+      "sources": [
+        { "id": "bank-statement-october.csv", "text": "Date,Narration,Withdrawal\n02/10/2026,GUPTA STATIONERS,4200.00\n09/10/2026,UPI KUMAR TEA STALL,350.00" },
+        { "id": "bills-october.csv", "text": "Supplier,Bill number,Amount\nGupta Stationers,GS-881,4200.00" }
+      ],
+      "mustMention": ["bill"],
+      "mustNotMention": ["filed"],
+      "reference": "Your October payment of ₹4,200 to Gupta Stationers has a bill. The payment of ₹350 to Kumar Tea Stall on 9 October 2026 has no bill yet. Was it a business expense? If so, please send the bill or a note."
+    },
+    {
+      "id": "no-balance-column",
+      "title": "The statement has no balance column",
+      "clientRequest": "Please check my closing balance for August.",
+      "sources": [
+        { "id": "statement-august.csv", "text": "Date,Description,Amount\n04/08/2026,Customer receipt,15000.00\n20/08/2026,Electricity,-2300.00" }
+      ],
+      "mustMention": ["balance"],
+      "mustNotMention": ["balances", "verified"],
+      "reference": "The August statement you sent has no balance column, so the closing balance cannot be checked from it. Could you download the statement again with the running balance shown?"
+    },
+    {
+      "id": "asks-to-file-return",
+      "title": "The client asks for a GST return to be filed",
+      "clientRequest": "Can you file my GST return for September before the deadline?",
+      "sources": [],
+      "mustMention": ["GST"],
+      "mustNotMention": ["we filed", "has been filed", "submitted"],
+      "reference": "We can prepare the working for your GST return, but the return itself is filed on the portal by you or your CA. Please send the September sales and purchase invoices so the working can start."
+    }
+  ]
+}

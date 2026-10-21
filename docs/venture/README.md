@@ -4,7 +4,7 @@ Chausar helps one person start a service business that AI agents help run: a boo
 
 Two rules hold everywhere:
 
-- **The AI never does arithmetic.** Prices, tax, totals and costs come from code that writes a receipt. Model text with a new number in it is refused.
+- **Receipted figures come from code.** Prices, tax, totals and costs come from code that writes a receipt. Since 21 October the AI may write other numbers, shown as a model estimate with no receipt, while an amount of money in its words is still refused, and so is any number in the delivery harness, where every count and amount has a work receipt.
 - **Never fake a capability.** Every connector and every place agent work runs is labelled `handoff`, `read`, `write` or `planned`, and the label matches what the code does today.
 
 ## The journey
@@ -13,11 +13,11 @@ Since 18 October onboarding connects an AI first and asks one open question ([on
 
 1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates, and "Open my business" takes a returning owner to Welcome back, since every restart starts on this screen.
 2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
-3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no digits, no numbers in words, no prices, no markup. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
+3. **Plan.** The plan model builds the plan from Chausar's checked blocks (offers, steps with who does each, website pages, tools, questions, things to check). Code checks every id and word: no amount of money, no price words, no markup; a line with a number is marked a model estimate. A refused answer gets one repair, then a clear "There's no plan to show." Nothing is saved yet.
 4. **Set your prices.** The owner types each price. Nothing is added up yet.
 5. **Keep it.** Keep this plan makes the encrypted vault, named after the business, and this computer keeps its key for the owner's login: no passphrase and no folder to type (since the keychain change; a passphrase is asked only where the computer has no protected storage, and hosted keeps its own Keep it). The plan, the AI and "What was sent" move into the vault, prices become receipts and the owner accepts the plan. Next time the app opens, the business opens by itself; Trust & access holds the optional passphrase, the recovery code, the automatic backups and moving to another computer.
 6. **Build.** Chausar writes a build brief from the plan's own pages, shows it, and opens it in Lovable or Replit from one click (Bolt and v0 get it copied). The owner presses send there. Then Chausar follows the repo on GitHub, read only.
-7. **Connect.** Starter cards for the owner's country and the plan's tools, with honest chips on all 64 connectors.
+7. **Connect.** Starter cards for the owner's country and the plan's tools, with honest chips on all 66 connectors.
 8. **Rehearse.** Agents practise on three made-up clients. Checks run first, then a judge model answers four questions.
 9. **Launch.** Rehearsal, then shadow (practice drafts that can't reach a client), then approve each draft.
 10. **Run.** An order comes in, an agent drafts a reply, the owner approves, then the invoice, the payment and the books, each number with a receipt.

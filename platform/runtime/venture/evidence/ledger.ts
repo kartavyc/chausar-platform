@@ -1,0 +1,191 @@
+// Chausar venture launcher, evidence ledger (P2-evidence, spec section 7.6): what backs each client and business field.
+// Every write of a client or business field by the owner or an agent records a piece of evidence. Its strength comes
+// from fixed weights (types.ts), never from the model. Only verified evidence overwrites a stored value on its own;
+// weaker evidence waits as a suggestion the owner can apply (evidenceQuestions lists them for Today). A claimed type
+// counts only when a real tool result in the run's trace backs it; otherwise it is downgraded, weak and flagged.
+import { check, type Context, type State } from '../../contracts.ts';
+import { exactPayload, listRecords, readVenture, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
+import type { ClientRecord, EvidenceItem, EvidenceRecord, Labelled, ToolCallRecord, VentureDeps } from '../contracts.ts';
+import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, type EvidenceClaim, type EvidenceType } from './types.ts';
+
+const SUBJECT = /^(?:business|client:[A-Za-z0-9_-]{1,80})$/;
+const FIELD = /^[A-Za-z][A-Za-z0-9_.-]{0,59}$/;
+const MAX_VALUE = 500;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** What a write says about one field. by 'owner' only for the owner's own typing, recorded by the engine. */
+export type EvidenceInput = {
+  subject: string; // 'business' or 'client:<id>'
+  field: string;
+  value: string;
+  type: EvidenceType;
+  claim?: EvidenceClaim; // 'needs-your-data' when Chausar cannot see the value; otherwise the type decides
+  by: 'owner' | 'agent' | 'engine';
+  runId?: string | null; // the delivery run whose trace must back a tool-backed type
+  toolCallId?: string | null;
+  source?: string; // a few plain words: the file name, or where the value was written
+};
+
+/** The shared contract's view of a record: exactly the EvidenceItem fields. */
+export function evidenceItem(record: EvidenceRecord): EvidenceItem {
+  return {
+    id: record.id, subject: record.subject, field: record.field, value: record.value, type: record.type, strength: record.strength,
+    claim: record.claim, source: record.source, applied: record.applied,
+  };
+}
+
+function fieldRecords(state: State, ventureId: string, subject: string, field: string): EvidenceRecord[] {
+  return listRecords(state, 'venture-evidence', ventureId).filter(record => record.subject === subject && record.field === field);
+}
+
+/** The tool calls of one delivery run of this business; none without a run. */
+function runTrace(state: State, ventureId: string, runId: string | null | undefined): ToolCallRecord[] {
+  if (!runId) return [];
+  const run = listRecords(state, 'venture-delivery-run', ventureId).find(record => record.id === runId);
+  return run?.harness?.toolCalls ?? [];
+}
+
+/** The type code accepts: the claimed one when the run's trace backs it (or it needs no backing), else model-inferred. */
+function acceptedType(state: State, ventureId: string, input: EvidenceInput): { type: EvidenceType; flag: string | null } {
+  if (input.type === 'model-inferred') return { type: input.type, flag: null };
+  if (input.type === 'owner-entered') return input.by === 'owner' ? { type: input.type, flag: null } : { type: 'model-inferred', flag: UNCHECKED['owner-entered'] };
+  const call = input.toolCallId ? runTrace(state, ventureId, input.runId).find(item => item.id === input.toolCallId) : undefined;
+  return call && backs(input.type, call) ? { type: input.type, flag: null } : { type: 'model-inferred', flag: UNCHECKED[input.type] };
+}
+
+function sourceLine(type: EvidenceType, input: EvidenceInput, flag: string | null): string {
+  if (flag) return `Unchecked: ${flag}`;
+  const detail = input.source ? tidyWords(input.source).slice(0, 120) : '';
+  const call = input.toolCallId && type !== 'model-inferred' && type !== 'owner-entered' ? ` (${input.toolCallId})` : '';
+  return detail ? `${EVIDENCE_TYPES[type].label}${call}: ${detail}` : `${EVIDENCE_TYPES[type].label}${call}.`;
+}
+
+/** Client fields an applied value is written back to, with the same rules as venture.client.add. Others stay in the ledger. */
+const CLIENT_FIELDS: Readonly<Record<string, (value: string) => boolean>> = Object.freeze({
+  name: value => value.length >= 2 && value.length <= 120,
+  email: value => value.length <= 200 && EMAIL.test(value),
+  note: value => value.length >= 1 && value.length <= MAX_VALUE,
+});
+
+function writeThrough(tx: VentureTx, record: EvidenceRecord) {
+  if (!record.subject.startsWith('client:')) return;
+  const valid = CLIENT_FIELDS[record.field];
+  const client = tx.find('venture-client', record.subject.slice('client:'.length));
+  if (!valid || !client) return;
+  check(valid(record.value), 'INVALID_VENTURE_REQUEST', `This ${record.field} is not one Chausar can keep for a client.`);
+  const key = record.field as 'name' | 'email' | 'note';
+  if (client[key] !== record.value) tx.replace<ClientRecord>({ ...client, [key]: record.value });
+}
+
+/** Makes a record the stored value for its field: the field's other records stop being applied. */
+function applyRecord(tx: VentureTx, record: EvidenceRecord): EvidenceRecord {
+  for (const other of fieldRecords(tx.state, record.ventureId, record.subject, record.field)) {
+    if (other.applied && other.id !== record.id) tx.replace<EvidenceRecord>({ ...other, applied: false });
+  }
+  const applied = tx.replace<EvidenceRecord>({ ...record, applied: true, appliedAt: tx.now });
+  writeThrough(tx, applied);
+  return applied;
+}
+
+/**
+ * Records one piece of evidence inside a venture action. Earlier evidence for the same value adds its weight (each
+ * source once). Verified evidence is applied at once and overwrites the stored value; strong and weak evidence waits.
+ */
+export function recordEvidence(tx: VentureTx, input: EvidenceInput): EvidenceRecord {
+  const venture = tx.venture;
+  check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
+  check(SUBJECT.test(input.subject) && FIELD.test(input.field) && typeof input.value === 'string' && EVIDENCE_TYPE_IDS.includes(input.type),
+    'INVALID_VENTURE_REQUEST', 'This evidence is not in a shape Chausar keeps.');
+  const { type, flag } = acceptedType(tx.state, venture.id, input);
+  const needsData = input.claim === 'needs-your-data';
+  const claim: EvidenceClaim = needsData ? 'needs-your-data' : EVIDENCE_TYPES[type].claim;
+  const value = needsData ? '' : tidyWords(input.value).slice(0, MAX_VALUE);
+  const source = sourceLine(type, input, flag);
+  const ref = input.toolCallId ?? source;
+  const peers = needsData ? [] : fieldRecords(tx.state, venture.id, input.subject, input.field).filter(record => record.claim !== 'needs-your-data' && record.value === value);
+  const scored = needsData
+    ? { scoreBp: 0, strength: 'weak' as const }
+    : scoreEvidence([...peers.map(record => ({ type: record.type as EvidenceType, ref: record.toolCallId ?? record.source })), { type, ref }]);
+  const stored = tx.put<EvidenceRecord>({
+    ...tx.base('venture-evidence'), subject: input.subject, field: input.field, value, type, claimedType: input.type,
+    strength: scored.strength, scoreBp: scored.scoreBp, claim, source, by: input.by, runId: input.runId ?? null,
+    toolCallId: input.toolCallId ?? null, flag, applied: false, appliedAt: null,
+  });
+  return scored.strength === 'verified' ? applyRecord(tx, stored) : stored;
+}
+
+/** The owner's own typing on a client: owner-entered, verified and applied (the record already holds these values). */
+export function recordOwnerFields(tx: VentureTx, subject: string, fields: Readonly<Record<string, string | null>>) {
+  for (const [field, value] of Object.entries(fields)) {
+    if (value !== null) recordEvidence(tx, { subject, field, value, type: 'owner-entered', by: 'owner' });
+  }
+}
+
+type PlanLines = {
+  name: Labelled<string>;
+  oneLiner: Labelled<string>;
+  customer: Labelled<string>;
+  offers: readonly { id: string; name: Labelled<string>; description: Labelled<string> }[];
+};
+
+/**
+ * A kept plan's business fields. Lines the AI wrote are model-inferred and weak, and applied because the owner kept the
+ * plan; lines the owner typed are owner-entered. Template and engine words are not evidence of anything.
+ */
+export function recordPlanEvidence(tx: VentureTx, plan: PlanLines) {
+  const lines: [string, Labelled<string>][] = [
+    ['name', plan.name], ['oneLiner', plan.oneLiner], ['customer', plan.customer],
+    ...plan.offers.flatMap(offer => [[`${offer.id}.name`, offer.name], [`${offer.id}.description`, offer.description]] as [string, Labelled<string>][]),
+  ];
+  for (const [field, line] of lines) {
+    if (line.by === 'owner') recordEvidence(tx, { subject: 'business', field, value: line.value, type: 'owner-entered', by: 'owner' });
+    else if (line.by === 'model') applyRecord(tx, recordEvidence(tx, { subject: 'business', field, value: line.value, type: 'model-inferred', by: 'agent', source: 'you kept it in your plan' }));
+  }
+}
+
+/**
+ * Suggestions waiting for the owner, newest first: evidence not applied whose value differs from the stored one, and
+ * every needs-your-data ask. The queue view turns each into a row of kind 'question'.
+ */
+export function evidenceQuestions(state: State, ventureId: string): EvidenceRecord[] {
+  const records = listRecords(state, 'venture-evidence', ventureId);
+  const stored = new Map(records.filter(record => record.applied).map(record => [`${record.subject}|${record.field}`, record.value]));
+  const seen = new Set<string>();
+  const waiting: EvidenceRecord[] = [];
+  for (const record of [...records].reverse()) {
+    if (record.applied || (record.claim !== 'needs-your-data' && stored.get(`${record.subject}|${record.field}`) === record.value)) continue;
+    const key = `${record.subject}|${record.field}|${record.value}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    waiting.push(record);
+  }
+  return waiting;
+}
+
+// ---------------------------------------------------------------------------
+// venture.evidence.list { subject? } (level read) and venture.evidence.apply { id } (prepare, inside the app)
+// ---------------------------------------------------------------------------
+
+export async function evidenceList(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ items: EvidenceItem[] }> {
+  const body = exactPayload(payload ?? {}, ['subject']);
+  check(body.subject === undefined || (typeof body.subject === 'string' && body.subject.length <= 120), 'INVALID_VENTURE_REQUEST', 'subject must be text, like business or client:<id>.');
+  const { state, venture } = readVenture(deps, ctx);
+  const records = listRecords(state, 'venture-evidence', venture.id).filter(record => body.subject === undefined || record.subject === body.subject);
+  return { items: records.reverse().map(evidenceItem) };
+}
+
+export async function evidenceApply(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ item: EvidenceItem }> {
+  requireAppChannel(ctx, 'venture.evidence.apply');
+  const body = exactPayload(payload, ['id'], ['id']);
+  check(typeof body.id === 'string' && body.id.length >= 1 && body.id.length <= 80, 'INVALID_VENTURE_REQUEST', 'id must be text.');
+  return ventureAction(deps, ctx, 'prepare', 'evidence.apply', tx => {
+    const record = tx.find('venture-evidence', body.id as string);
+    check(record, 'EVIDENCE_NOT_FOUND', 'This evidence is not in this business.');
+    if (record.applied) return { item: evidenceItem(record) };
+    check(record.claim !== 'needs-your-data', 'INVALID_VENTURE_REQUEST', "There's no value to apply: this asks for your data.");
+    const stored = fieldRecords(tx.state, record.ventureId, record.subject, record.field).find(item => item.applied);
+    check(!stored || stored.strength !== 'verified' || record.strength === 'verified', 'EVIDENCE_WEAK',
+      "A checked value is stored for this. Weaker evidence can't replace it.");
+    return { item: evidenceItem(applyRecord(tx, record)) };
+  });
+}
