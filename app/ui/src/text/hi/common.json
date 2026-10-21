@@ -86,6 +86,7 @@
   "run.answerLabel": "आपका जवाब",
   "run.send": "भेजें",
   "run.again": "फिर से चलाएँ",
+  "run.notChecked": "जाँचा नहीं गया: {detail}",
   "run.stopped": "यह रन रुक गया।",
   "run.waiting": "आपका इंतज़ार",
   "run.paused": "रुका है",

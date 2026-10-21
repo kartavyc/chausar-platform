@@ -94,6 +94,57 @@
   color: var(--fg);
 }
 
+/* The posture: four words to choose from, no frame. The chosen one reads in ink, the rest in grey. */
+.postures {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.postures legend {
+  padding: 0;
+}
+
+.postures:disabled {
+  opacity: 0.6;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+
+.choice {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--control);
+  font-size: var(--text-read);
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.choice input {
+  margin: 0;
+  accent-color: var(--fg);
+}
+
+.choice input:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.choice:has(input:checked) {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.postures:disabled .choice {
+  cursor: default;
+}
+
 .means,
 .spend {
   font-size: var(--text-read);

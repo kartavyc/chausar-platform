@@ -2,8 +2,9 @@
 // - The owner approves a draft first. Only drafts that passed the checks and that the owner approved go on a share link.
 // - The client decides each draft once, on the exact text (its digest), before the link ends. The record keeps a hash
 //   of the link's token, never the token, and the token never enters a model's context.
-// - No page serves the link in this build (SHARE_LINK_SERVING is planned): until one does, the owner sends the drafts
-//   and records the client's answer, marked 'owner-recorded'.
+// - Only the hosted Chausar with a public address serves the link, at /share/<token> (build/share-links.ts). On this
+//   computer no page serves it (SHARE_LINK_SERVING is planned here): the owner sends the drafts and records the
+//   client's answer, marked 'owner-recorded'.
 // - A draft is scheduled, posted or exported only when it passed the checks, the owner approved it, the client approved
 //   it when the offer asks for it, and its text is still the text that was approved. Each refusal says why.
 //
@@ -42,9 +43,10 @@ export type ShareLinkRecord = {
   decisions: ClientDecision[];
 };
 
+/** On this computer. The hosted Chausar with CHAUSAR_PUBLIC_URL set serves the link at /share/<token> (build/share-links.ts). */
 export const SHARE_LINK_SERVING = Object.freeze({
   status: 'planned' as const,
-  line: 'No page serves the share link yet. Until one does, send your client the drafts yourself and record their answer here.',
+  line: 'Share links open only on the hosted Chausar with a public address. Here, send your client the drafts yourself and record their answer.',
 });
 const DEFAULT_TTL_HOURS = 168;
 const MAX_DRAFTS = 60;

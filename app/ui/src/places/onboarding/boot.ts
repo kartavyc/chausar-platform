@@ -1,54 +1,39 @@
 /**
- * First run: with no business on this computer (no vault open and none listed; on hosted, none on the account) the
- * app shows only the one-sentence start. Anything else shows the app. While the engine is starting, offline or the
- * browser is not paired, the app shows with its status line, and the check runs again once the engine answers.
- * Starting a business, from the first run or from "New business", remounts the app so every place reads it.
+ * What the window shows first, read from the engine (no React here; the Boot component holds the state):
+ *   - a business is open: the app;
+ *   - no business on this computer (on hosted, none on the account): the first run, only the one-sentence start;
+ *   - businesses exist but none is open: "Welcome back", a quiet list to open one. When exactly one exists, it opens
+ *     with this computer and the owner did not close it on purpose, it opens by itself.
  */
 
-import { createContext, useCallback, useEffect, useRef, useState } from 'react';
-import { useEngine, useEngineStatus } from '../../engine/context';
-import type { EngineClient } from '../../engine/types';
+import type { EngineClient, ParamsOf } from '../../engine/types';
 
-export type Boot = 'checking' | 'first-run' | 'app';
+/** A business the welcome list can open. `opens` says whether it opens now; the other two need what the app lacks. */
+export interface Openable {
+  key: string; name: string | null; opens: 'now' | 'passphrase' | 'key-missing';
+  params: ParamsOf<'workspace.open'>;
+}
+export type BootFound = { kind: 'app' } | { kind: 'first-run' } | { kind: 'welcome'; businesses: Openable[]; closedByOwner: boolean };
 
-export async function noBusinessYet(client: EngineClient): Promise<boolean> {
+const OPENS = { 'with-this-computer': 'now', 'needs-passphrase': 'passphrase', 'key-missing': 'key-missing' } as const;
+
+export async function readBoot(client: EngineClient): Promise<BootFound> {
   const status = await client.request('workspace.status', {});
-  if (status.open) return false;
-  if (client.transport === 'hosted') return (status.hosted?.businesses.length ?? 0) === 0;
+  if (status.open) return { kind: 'app' };
+  const closedByOwner = status.closedByOwner === true;
+  if (client.transport === 'hosted') {
+    const list = status.hosted?.businesses ?? [];
+    if (list.length === 0) return { kind: 'first-run' };
+    return { kind: 'welcome', closedByOwner, businesses: list.map((b) => ({ key: b.id, name: b.name, opens: 'now', params: { businessId: b.id } })) };
+  }
   const list = await client.request('workspace.list', {});
-  return list.businesses.length === 0;
+  if (list.businesses.length === 0) return { kind: 'first-run' };
+  return { kind: 'welcome', closedByOwner, businesses: list.businesses.map((b) => ({ key: b.folder, name: b.name, opens: OPENS[b.opens], params: { folder: b.folder } })) };
 }
 
-export function useFirstRun(): { boot: Boot; generation: number; started: () => void } {
-  const client = useEngine();
-  const ready = useEngineStatus().state === 'ok';
-  const [boot, setBoot] = useState<Boot>('checking');
-  const [generation, setGeneration] = useState(0);
-  /** The engine answered the check, or a business was started here: nothing to check again. */
-  const settled = useRef(false);
-
-  useEffect(() => {
-    if (settled.current) return;
-    if (!ready) { setBoot((now) => (now === 'checking' ? 'app' : now)); return; }
-    let live = true;
-    noBusinessYet(client).then(
-      (fresh) => {
-        if (!live || settled.current) return;
-        settled.current = true;
-        setBoot(fresh ? 'first-run' : 'app');
-      },
-      () => { if (live && !settled.current) setBoot((now) => (now === 'checking' ? 'app' : now)); },
-    );
-    return () => { live = false; };
-  }, [client, ready]);
-
-  const started = useCallback(() => {
-    settled.current = true;
-    setBoot('app');
-    setGeneration((g) => g + 1);
-  }, []);
-  return { boot, generation, started };
+/** The one business to open without asking: the only one, opening with this computer, not closed by the owner. */
+export function openByItself(found: BootFound): Openable | null {
+  if (found.kind !== 'welcome' || found.closedByOwner || found.businesses.length !== 1) return null;
+  const [only] = found.businesses;
+  return only && only.opens === 'now' ? only : null;
 }
-
-/** What a place calls once a new business exists; the app provides it. */
-export const StartedContext = createContext<() => void>(() => {});

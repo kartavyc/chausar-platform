@@ -48,6 +48,15 @@ export function recordSpotCheck(tx: VentureTx, input: { runId: string; spendMicr
   return record;
 }
 
+/**
+ * The completion hook, inside the write that finishes a run: at auto with spot checks the run gets its spot-check
+ * decision, picked or not; below that posture the owner approves each run anyway, so nothing is recorded.
+ */
+export function spotCheckOnFinish(tx: VentureTx, input: { runId: string; spendMicros: MicroString; agentId?: string }): SpotCheckRecord | null {
+  if (effectivePosture(tx.state, tx.venture!, input.agentId ?? AGENT_ID) !== 'auto-spot-check') return null;
+  return recordSpotCheck(tx, input);
+}
+
 /** Picked runs the owner has not reviewed, oldest first. Today shows each as a row. */
 export function pendingSpotChecks(state: State, venture: VentureRecord): SpotCheckRecord[] {
   return listRecords(state, 'venture-spot-check', venture.id).filter(record => record.sampled && record.review === null);

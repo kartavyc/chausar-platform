@@ -98,6 +98,56 @@ describe('Team: the agent sheet', () => {
     expect(within(researcher).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
   });
 
+  it('offers the four postures, the current one chosen', async () => {
+    start();
+    const sheet = await openAgent('Editor');
+    const group = within(sheet).getByRole('group', { name: 'Posture' });
+    const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
+    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Rehearsal', 'Shadow', 'Approve each', 'Auto with spot checks']);
+    expect(radios.filter((r) => r.checked).map((r) => r.value)).toEqual(['approve-each']);
+  });
+
+  it('choosing a posture asks the engine, is disabled while it answers, and keeps its answer', async () => {
+    let answer: (value: unknown) => void = () => {};
+    const { base } = start('#/team', {
+      intercept: (method, params) => method === 'venture.team.posture'
+        ? new Promise((resolve) => { answer = resolve; }).then(() => base.request('venture.team.posture', params as never)) : undefined,
+    });
+    const sheet = await openAgent('Editor');
+    const group = within(sheet).getByRole('group', { name: 'Posture' }) as HTMLFieldSetElement;
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
+    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
+    expect(group.disabled).toBe(true);
+    await act(async () => { answer(undefined); });
+    await waitFor(() => expect(group.disabled).toBe(false));
+    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
+    expect(within(sheet).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
+    const stored = (await base.request('venture.team.list', {})).agents.find((a) => a.id === 'editor')!;
+    expect(stored.posture).toBe('shadow');
+  });
+
+  it('a posture above what the business has earned is refused in the engine words and the choice goes back', async () => {
+    const { base } = start();
+    const spy = vi.spyOn(base.engine, 'request');
+    const sheet = await openAgent('Editor');
+    const group = within(sheet).getByRole('group', { name: 'Posture' });
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Auto with spot checks' })); });
+    expect(spy).toHaveBeenCalledWith('venture.team.posture', { agentId: 'editor', posture: 'auto-spot-check' });
+    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toMatch(/^Auto with spot checks opens once/));
+    expect((within(group).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(group).getByRole('radio', { name: 'Auto with spot checks' }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('any other posture refusal says what the engine said', async () => {
+    start('#/team', {
+      intercept: (method) => method === 'venture.team.posture' ? Promise.reject(new EngineError('OFFLINE', 'The engine is not answering.')) : undefined,
+    });
+    const sheet = await openAgent('Editor');
+    await act(async () => { fireEvent.click(within(sheet).getByRole('radio', { name: 'Rehearsal' })); });
+    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change the posture: The engine is not answering."));
+    expect((within(sheet).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('lists its playbook steps, each with a gate; a floor step always asks and has no switch', async () => {
     start();
     const sheet = await openAgent('Editor');

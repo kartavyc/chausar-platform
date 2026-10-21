@@ -32,6 +32,7 @@ import { ensurePlaybook, playbookLimits, verifyChecks } from './playbook.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, readAs, todayIso, ventureReceipts } from './shared.ts';
 import { journalled } from '../journal/journal.ts';
+import { spotCheckOnFinish } from '../policy/spot-check.ts';
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
@@ -280,7 +281,13 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
     notAfter: run.preview?.expiresAt ?? null,
     quote: run.preview ? { figure: run.preview.estimatedMaxCostMicros, payer: run.preview.presetId } : null,
   }, async () => ({ outcome: 'applied', line: 'Sent to your AI. It answered.', value: await send() }));
-  return sent.value!;
+  const view = sent.value!;
+  // AI-native CA firm: a ready draft for a regulated offer goes in front of the CA of record (a Send to CA row on
+  // Today). Loaded only for a ready draft; it never fails or undoes the run.
+  if (view.status === 'ready-for-review') {
+    await import('../playbooks/ca-firm/delivery-signoff.ts').then(module => module.requestSignoffForRun(deps, ctx, view)).catch(() => null);
+  }
+  return view;
 }
 
 type HarnessApproval = {
@@ -357,6 +364,9 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
         ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: done,
       };
       tx.replace(next);
+      // The spot-check completion hook (policy/spot-check.ts): at auto with spot checks the finished run gets its
+      // decision in this same commit. That launch stage is still planned, so today this records nothing.
+      spotCheckOnFinish(tx, { runId: run.id, spendMicros: done.used.costMicros });
       recordCheckSignal(tx, run.id, checks);
       tx.emit('delivery-ready', { runId: run.id, orderId: next.orderId, servedBy: 'model' });
       tx.emit('run.step', { runId: run.id });

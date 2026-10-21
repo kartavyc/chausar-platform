@@ -1,7 +1,9 @@
 /**
  * Invoices: drafts to check and issue, open invoices waiting for payment, closed ones, and the orders not invoiced
  * yet. Each row shows the invoice's total from the engine beside the receipt that priced it; an open one also shows
- * what is still owed, as the engine wrote it. Issuing and recording a payment happen in the sheet beside the list.
+ * what is still owed, as the engine wrote it. The list rows carry their total and receipt, and what is still owed comes
+ * from one read of the books, so the list makes no call per row. Issuing and recording a payment happen in the sheet
+ * beside the list.
  */
 
 import { useState } from 'react';
@@ -22,7 +24,10 @@ export function Invoices() {
   const invoices = useResource('venture.invoice.list', {}, { refreshOn: onMoney });
   const orders = useResource('venture.order.list', {}, { refreshOn: onMoney });
   const clients = useResource('venture.client.list', {}, { refreshOn: onMoney });
+  // What each open invoice still owes, as the engine wrote it: one read for the whole list.
+  const books = useResource('venture.books.summary', { period: 'all' }, { refreshOn: onMoney });
   const names = new Map((clients.data ?? []).map((client) => [client.id, client.name]));
+  const balances = new Map((books.data?.openInvoices ?? []).map((item) => [item.invoiceId, item.balanceDisplay]));
   const list = invoices.data ?? [];
   const drafts = list.filter((invoice) => invoice.status === 'draft');
   const open = list.filter((invoice) => invoice.status === 'issued' || invoice.status === 'part-paid');
@@ -34,7 +39,7 @@ export function Invoices() {
   const group = (title: string, items: InvoiceLite[]) => items.length > 0 && (
     <Section title={title}>
       <ul className={s.list}>
-        {items.map((invoice) => <InvoiceRow key={invoice.id} invoice={invoice} client={names.get(invoice.clientId)} />)}
+        {items.map((invoice) => <InvoiceRow key={invoice.id} invoice={invoice} client={names.get(invoice.clientId)} balance={balances.get(invoice.id)} />)}
       </ul>
     </Section>
   );
@@ -60,14 +65,19 @@ export function Invoices() {
   );
 }
 
-/** One invoice. Its figures come from venture.invoice.get, so the row never works out a total or a balance. */
-function InvoiceRow({ invoice, client }: { invoice: InvoiceLite; client: string | undefined }) {
+/**
+ * One invoice. Its total and receipt come with the list row; an older engine that sends neither is read once with
+ * venture.invoice.get. Either way the row never works out a total or a balance.
+ */
+function InvoiceRow({ invoice, client, balance: listed }: { invoice: InvoiceLite; client: string | undefined; balance: string | undefined }) {
   const t = useT();
   const day = useDay();
-  const view = useResource('venture.invoice.get', { invoiceId: invoice.id }, { refreshOn: onMoney });
+  const carried = invoice.total !== undefined && invoice.receiptId !== undefined;
+  const view = useResource('venture.invoice.get', { invoiceId: invoice.id }, { refreshOn: onMoney, skip: carried });
   const who = client ?? view.data?.client.name ?? t('money.aClient');
-  const total = view.data?.figures.find((figure) => figure.key === 'total');
-  const balance = view.data?.figures.find((figure) => figure.key === 'balance');
+  const total = carried ? invoice.total : view.data?.figures.find((figure) => figure.key === 'total')?.display;
+  const receiptId = carried ? invoice.receiptId : view.data?.invoice.priceReceiptId;
+  const balance = carried ? listed : view.data?.figures.find((figure) => figure.key === 'balance')?.display;
   const owing = invoice.status === 'issued' || invoice.status === 'part-paid';
   const open = (origin: HTMLElement) => openSheet('invoice', invoice.id, origin);
 
@@ -86,16 +96,16 @@ function InvoiceRow({ invoice, client }: { invoice: InvoiceLite; client: string 
       actions={action}
     >
       {view.error && <p className={s.quiet}>{t('money.failed', { message: view.error.message })}</p>}
-      {view.data && total && (
+      {total !== undefined && receiptId !== undefined && (
         <p className={s.figures}>
           <span className={s.figureLabel}>{t('money.invoices.total')}</span>
-          {' '}<Figure>{total.display}</Figure>{' '}
-          <Receipt id={view.data.invoice.priceReceiptId} />
-          {owing && balance && (
+          {' '}<Figure>{total}</Figure>{' '}
+          <Receipt id={receiptId} />
+          {owing && balance !== undefined && (
             <>
               <span className={s.dot} aria-hidden="true">·</span>
               <span className={s.figureLabel}>{t('money.invoices.owed')}</span>
-              {' '}<Figure>{balance.display}</Figure>
+              {' '}<Figure>{balance}</Figure>
             </>
           )}
         </p>

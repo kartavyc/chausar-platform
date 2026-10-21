@@ -1,6 +1,8 @@
 /* Ink tokens. Colours are the exact values of the design spec, section 5
    (docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md). Every colour, size and time in app/ui is one of
-   these names. One extra colour, --edge, is the outline of a quiet button, taken from the approved mockup A. */
+   these names. One extra colour, --edge, is the outline of a quiet button, taken from the approved mockup A.
+   One value moved from the spec: light --dim is #6e737a, not #71767d, because #71767d on --bg is 4.42:1 and struck
+   values must read at 4.5:1 (tests/contrast.test.ts). The shift is too small to see. */
 
 :root {
   color-scheme: light dark;
@@ -10,7 +12,7 @@
   --fg: #16181b;
   --fg2: #3d4146;
   --mute: #5c6168;
-  --dim: #71767d;
+  --dim: #6e737a;
   --line: #e3e5e8;
   --hover: #eceef0;
   --link: #2f5bd3;

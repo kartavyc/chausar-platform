@@ -60,5 +60,15 @@
   "connections.ai.availability.ready": "Can connect",
   "connections.ai.availability.unverified": "Can connect",
   "connections.ai.availability.needs-setup": "Needs setup",
-  "connections.ai.availability.unavailable": "Not here"
+  "connections.ai.availability.unavailable": "Not here",
+  "connections.bank.open": "Import a statement",
+  "connections.bank.label": "Bank statement",
+  "connections.bank.title": "Import a statement",
+  "connections.bank.line": "A CSV file from your bank. Chausar reads it and never moves money.",
+  "connections.bank.account": "Account",
+  "connections.bank.accountHint": "Your own name for it, like HDFC current.",
+  "connections.bank.file": "Statement file (CSV)",
+  "connections.bank.fileFirst": "Choose the statement file first.",
+  "connections.bank.import": "Import",
+  "connections.bank.rejected": "Line {line}: {reason}"
 }

@@ -88,7 +88,7 @@ describe('onboarding: first run', () => {
     ]);
     expect(flow().slice(10).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
     await screen.findByText('Your plan is ready. Read it.');
-    inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Set your prices', 'Keep this business']));
+    inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Confirm your prices and tax', 'Keep this business']));
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
   });
 

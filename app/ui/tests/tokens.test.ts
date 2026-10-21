@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 const read = (path: string) => readFileSync(join(import.meta.dirname, path), 'utf8');
 
-/** Spec section 5, exact values. */
-const LIGHT = { bg: '#fbfbfa', surface: '#ffffff', fg: '#16181b', fg2: '#3d4146', mute: '#5c6168', dim: '#71767d', line: '#e3e5e8', hover: '#eceef0', link: '#2f5bd3', wait: '#b45309', fail: '#b42318' };
+/** Spec section 5, exact values, except light dim: #71767d read at 4.42:1 on bg, so it moved to #6e737a (contrast.test.ts). */
+const LIGHT = { bg: '#fbfbfa', surface: '#ffffff', fg: '#16181b', fg2: '#3d4146', mute: '#5c6168', dim: '#6e737a', line: '#e3e5e8', hover: '#eceef0', link: '#2f5bd3', wait: '#b45309', fail: '#b42318' };
 const DARK = { bg: '#111214', surface: '#17181a', fg: '#eceef0', fg2: '#c4c8cc', mute: '#9aa0a6', dim: '#858b92', line: '#2a2d31', hover: '#1f2123', link: '#8fb4ff', wait: '#e5a54b', fail: '#f97066' };
 
 /** The declarations inside every block whose selector matches. */

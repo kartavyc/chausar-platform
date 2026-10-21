@@ -1,5 +1,5 @@
 // Chausar venture launcher: the customer engine's lead rules as engine methods. venture.leads.add, venture.leads.list,
-// venture.leads.draft and venture.leads.recordSend. leads.ts keeps the rules; this file keeps the records.
+// venture.leads.draft, venture.leads.recordSend and venture.leads.block. leads.ts keeps the rules; this file keeps the records.
 // - A lead needs the page it was found on, and its email is checked for a mail server when it is added.
 // - Drafting checks the blocklist first, then the source, the verified email and the business postal address.
 // - The postal address is the business's: only the owner sets it, inside the app. Agents draft with the stored one.
@@ -9,7 +9,7 @@ import type { LeadRecord, LeadSettingsRecord, LeadView, OutreachDraftView, Ventu
 import {
   exactPayload, identifier, isAppChannel, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx,
 } from '../records.ts';
-import { createLead, draftOutreach, recordSend, verifyLeadEmail, type Blocklist, type Lead } from './leads.ts';
+import { addToBlocklist, createLead, draftOutreach, recordSend, verifyLeadEmail, type Blocklist, type Lead } from './leads.ts';
 
 function leadOf(record: LeadRecord): LeadView {
   const { kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, ...rest } = record;
@@ -93,5 +93,28 @@ export async function leadsRecordSend(deps: VentureDeps, ctx: Context, payload: 
     const stored = findLead(tx, leadId);
     const lead = recordSend(leadOf(stored), { draftId, sentAt }, ctx, tx.now);
     return leadOf(tx.replace(recordOf(tx, lead, stored)));
+  });
+}
+
+const EMAIL_ENTRY = /^[^\s@]{1,64}@[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/;
+const DOMAIN_ENTRY = /^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/;
+
+/**
+ * venture.leads.block { value } (approve, inside the app): puts an email or a whole domain on the blocklist for good.
+ * Drafting checks it first, so no agent drafts to anyone on it again. Answers with every blocked entry, emails first.
+ */
+export async function leadsBlock(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ blocked: string[] }> {
+  requireAppChannel(ctx, 'venture.leads.block');
+  const body = exactPayload(payload, ['value'], ['value']);
+  check(typeof body.value === 'string' && body.value.length <= 254, 'INVALID_VENTURE_REQUEST', 'Type one email address or one domain, like name@example.com or example.com.');
+  const entry = body.value.trim().toLowerCase().replace(/^@/, '');
+  check(EMAIL_ENTRY.test(entry) || DOMAIN_ENTRY.test(entry), 'INVALID_VENTURE_REQUEST', 'Type one email address or one domain, like name@example.com or example.com.');
+  return ventureAction(deps, ctx, 'approve', 'leads.block', tx => {
+    const settings = settingsOf(tx);
+    const next = addToBlocklist(blocklistOf(settings), entry);
+    const blockedEmails = [...next.emails].sort(), blockedDomains = [...next.domains].sort();
+    if (settings) tx.replace<LeadSettingsRecord>({ ...settings, blockedEmails, blockedDomains });
+    else tx.put<LeadSettingsRecord>({ ...tx.base('venture-lead-settings'), postalAddress: null, blockedEmails, blockedDomains });
+    return { blocked: [...blockedEmails, ...blockedDomains] };
   });
 }

@@ -565,6 +565,12 @@ function summaryOf(rows: QueueRow[]): Pick<QueueList, 'summary' | 'needsYou' | '
   return { summary: `${count}${across}${locked.length ? `. ${lockedText}` : ''}`, needsYou: open.length, businesses };
 }
 
+/** Every open row with the subject it stands for, for venture.queue.view (queue-view.ts). Reads only. */
+export async function queueRowsWithSubjects(deps: VentureDeps, ctx: Context): Promise<{ row: QueueRow; subject: string }[]> {
+  const { rows } = await buildRows(deps, ctx, 'all');
+  return rows.map(built => ({ row: built.row, subject: built.pending.subject }));
+}
+
 /** venture.queue.list { scope? } (read): the rows that need the owner, oldest first. 'all' adds the other businesses. */
 export async function queueListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<QueueList> {
   const body = exactPayload(payload, ['scope']);

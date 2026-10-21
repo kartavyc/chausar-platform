@@ -78,6 +78,26 @@
   background: var(--surface);
 }
 
+/* Between the narrow window and a wide one there is no room for rail, page and sheet side by side: the page would
+   shrink to a column a few letters wide. Here the page keeps its width and the sheet lies over its right side, with
+   the same shadow the narrow-window sheet has. */
+@media (min-width: 760px) and (max-width: 1099px) {
+  .app[data-sheet-open] {
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    grid-template-areas:
+      'status status'
+      'rail main';
+  }
+
+  .app[data-sheet-open] .sheet {
+    grid-area: main;
+    z-index: 2;
+    justify-self: end;
+    width: min(var(--sheet-max), 100%);
+    box-shadow: -8px 0 24px var(--shadow);
+  }
+}
+
 @media (max-width: 759px) {
   .app,
   .app[data-sheet-open] {

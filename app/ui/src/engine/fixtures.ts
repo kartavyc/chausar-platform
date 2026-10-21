@@ -47,7 +47,12 @@ export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, re
 export const NEW_BUSINESS_ROWS = {
   plan: { title: 'Your plan is ready. Read it.', read: 'Read', accept: 'Accept' },
   ai: { title: 'Connect your AI', line: 'Templates work without one. Your agents draft with your AI once it is connected.', action: 'Connect' },
-  prices: { title: 'Set your prices', line: 'Monthly plan and One-off project have no price yet.', action: 'Set prices' },
+  // The prices row has three wordings: no price yet, tax assumed by Chausar, or both (views/queue.ts setupRows).
+  prices: {
+    set: { title: 'Set your prices', action: 'Set prices' },
+    tax: { title: 'Confirm your tax', action: 'Confirm tax' },
+    both: { title: 'Confirm your prices and tax', action: 'Confirm' },
+  },
   keep: { title: 'Keep this business', line: 'Make a recovery code so you can open it if this computer is lost.', action: 'Keep it' },
 } as const;
 /** The recovery code the fake hands out once, with a passphrase or on hosted. Sample only. */
@@ -80,9 +85,11 @@ export const QUEUE: RowSeed[] = [
     actions: [{ id: 'deny', label: 'Deny', primary: false }, { id: 'approve', label: 'Approve', primary: true, secondAsk: true }],
   },
   {
+    // The engine's CA firm row (playbooks/ca-firm/signoff.ts): read the papers, then send them to the CA of record.
     id: 'q-signoff-gst', businessId: 'ledgerline', businessName: 'Ledgerline', agent: 'Bookkeeper', kind: 'signoff', createdAt: '2026-10-21T09:10:00.000Z',
-    title: 'GST working for September', line: 'Ready for your CA to sign off.',
-    actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'send-to-ca', label: 'Send to CA', primary: true }],
+    title: 'GST working for September', line: "Needs your CA's sign-off. Nothing regulated leaves Chausar until Meera Joshi signs it.",
+    viewRef: { kind: 'file', id: 'ca-req-gst-sep' },
+    actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'send-to-ca', label: 'Send to CA', primary: true, requiresView: true }],
   },
   {
     id: 'q-invoice-mehta', businessId: 'ledgerline', businessName: 'Ledgerline', agent: 'Billing', kind: 'invoice', createdAt: '2026-10-21T09:20:00.000Z',
@@ -161,6 +168,13 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
     ],
   },
   {
+    kind: 'file', id: 'ca-req-gst-sep', businessName: 'Ledgerline', agent: 'Bookkeeper', title: 'GST working for September', line: 'Mehta Traders, worked by the calculator',
+    sections: [
+      { heading: 'GST on sales', lines: ['Taxable value ₹16,000.00 (R-0419)', 'CGST at 9% ₹1,440.00 (R-0419)', 'SGST at 9% ₹1,440.00 (R-0419)'] },
+      { heading: 'Checks', lines: ['The sales register matches the invoices issued', 'Rates from GST table version 3, waiting for your CA'] },
+    ],
+  },
+  {
     kind: 'draft', id: 'post-linkedin-ep13', businessName: 'Lumen Studio', agent: 'Publisher', title: 'LinkedIn post for episode 13', line: 'Posts from your own account, after you approve',
     sections: [
       { heading: 'Post', lines: ['We tested five budget mics in one room. The ₹2,000 one surprised us.', 'Full episode on the channel, link in the comments.'] },
@@ -216,7 +230,14 @@ export const RUNS: RunDetail[] = [
     steps: [
       { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31s', audited: true, evidence: [{ kind: 'file', id: 'f-bank-sep', label: 'bank statement' }] },
       { id: 's2', purpose: 'Matched lines to invoices', state: 'done', elapsed: '3m', audited: true, tools: [{ name: 'books.match', line: '212 matched, 2 left' }] },
-      { id: 's3', purpose: 'Wrote the reconciliation', state: 'done', elapsed: '20s', audited: true, evidence: [{ kind: 'receipt', id: 'R-0412', label: 'R-0412' }] },
+      {
+        id: 's3', purpose: 'Wrote the reconciliation', state: 'done', elapsed: '20s', audited: true,
+        evidence: [
+          { kind: 'receipt', id: 'R-0412', label: 'R-0412' },
+          // The engine's words for a rules judge that settled nothing (views/runs.ts, delivery/checks.ts rulesJudge).
+          { kind: 'check', id: 'rules-judge', label: 'Failed: Not settled: cites-source. A vote without checked evidence never counts as a pass.' },
+        ],
+      },
     ],
   },
   {
@@ -329,7 +350,7 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
 export const SPEND: SpendRow[] = [
   { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: '₹45.00', settled: '₹42.10', kind: 'billed', receiptId: 'R-0412' },
   { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: '₹18.00', kind: 'estimate' },
-  { id: 'sp3', connector: 'Instagram', label: 'Paid boost for the short', reserved: 'No price', kind: 'refused' },
+  { id: 'sp3', connector: 'Instagram', label: 'Paid boost for the short', reserved: 'No price', kind: 'refused', reason: 'Instagram has no price on your rate card, so the call was refused.' },
 ];
 
 export const JOURNAL: JournalEntry[] = [

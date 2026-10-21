@@ -144,6 +144,8 @@ export class VentureHost {
       ...(options.workspace ? { workspace: options.workspace } : {}),
       // A folder on this computer: never on the hosted web server.
       ...(options.siteFolder && options.host !== 'hosted-web' ? { siteFolder: options.siteFolder } : {}),
+      // The public origin for client share links: only on the hosted web server.
+      ...(options.publicUrl && options.host === 'hosted-web' ? { publicUrl: options.publicUrl } : {}),
       ...(options.notify ? { publish: (records: VentureEventRecord[]) => this.#publish(records) } : {}),
     });
   }
@@ -175,6 +177,41 @@ export class VentureHost {
     const handler = (module.handlers as Record<string, Handler>)[name];
     await this.#modelsReady();
     return handler(this.#deps, ctx, payload ?? {});
+  }
+
+  /**
+   * The hosted /share/<token> page (build/share-links.ts): 'page' reads the link a token opens, 'decide' records the
+   * client's answer through it. Trusted host only: no RPC method reaches this, and the token never leaves the call.
+   * Answers null when the token opens nothing.
+   */
+  async shareLink(ctx: Context, op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    const module = await this.#load('build');
+    const page = module.sharePage, decide = module.shareDecide;
+    if (typeof page !== 'function' || typeof decide !== 'function') throw notBuilt();
+    if (op === 'page') return (page as (deps: VentureDeps, ctx: Context, token: string) => Promise<unknown>)(this.#deps, ctx, token);
+    const body = (input && typeof input === 'object' ? input : {}) as { decision: unknown; comment?: unknown; digest: unknown };
+    return (decide as (deps: VentureDeps, ctx: Context, token: string, input: typeof body) => Promise<unknown>)(this.#deps, ctx, token, body);
+  }
+
+  /**
+   * Sweeps the action journal of the open business (build/journal-sweep.ts): a claim older than claimLimitMs becomes
+   * outcome_unknown and is never run again; a run-out approval or proposal is rejected. The engine calls it when a vault
+   * opens (nothing of this process is in flight then, so any claim counts) and on its scheduler tick. Never throws:
+   * answers how many entries moved, 0 for a vault without a business, or null when the sweep could not run.
+   */
+  async sweepJournal(ctx: Context, claimLimitMs?: number): Promise<number | null> {
+    if (this.#closed) return null;
+    try {
+      if (!this.#store.read().conversations.some(record => record?.kind === 'venture-record')) return 0;
+      const build = await this.#load('build');
+      const sweep = build.sweepWholeJournal;
+      if (typeof sweep !== 'function') return null;
+      const moved = await (sweep as (deps: VentureDeps, ctx: Context, limit?: number) => Promise<unknown[]>)(this.#deps, ctx, claimLimitMs);
+      return moved.length;
+    } catch {
+      return null;
+    }
   }
 
   /** Empties the secret shelf and drops the model port. The engine calls it on lock and on attach. */

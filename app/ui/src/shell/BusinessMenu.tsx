@@ -6,7 +6,8 @@ import s from './BusinessMenu.module.css';
 
 /**
  * The top of the rail: the open business (name, kind, "switch"). It opens a small menu beside it, not a dialog:
- * the businesses on this computer, then plan and playbook, prices, website build, keep this business and new business.
+ * the businesses on this computer, then plan and playbook, prices, website build, your CA (only for a business on the
+ * CA firm playbook), keep this business and new business.
  * Opening a business that needs its passphrase belongs to a trusted host control, which neither the engine nor the
  * desktop preload offers yet, so this menu never asks for a passphrase: it says the business opens with one and that
  * asking for it here isn't built. A business whose key is missing says its recovery code opens it.
@@ -27,6 +28,11 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
   const type = venture.data?.venture.serviceType;
   // The playbook's own label ("YouTube channel") when the idea picked one; else the service type's label.
   const kind = venture.data?.playbook?.label ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
+  const links: (readonly [string, string])[] = [
+    ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.build', '#/business/build'],
+    ...(venture.data?.playbook?.id === 'ca-firm' ? [['business.ca', '#/business/ca'] as const] : []),
+    ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +97,7 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
           {notice && <p className={s.notice} role="status">{notice}</p>}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <ul className={s.list}>
-            {([['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.build', '#/business/build'], ['business.keep', '#/business/keep'], ['business.new', '#/onboarding']] as const).map(([key, href]) => (
+            {links.map(([key, href]) => (
               <li key={key}>
                 <a className={s.item} href={href} onClick={() => { setOpen(false); onNavigate?.(); }}>{t(key)}</a>
               </li>

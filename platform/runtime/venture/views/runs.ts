@@ -9,7 +9,7 @@
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, findRecord, identifier, listRecords } from '../records.ts';
 import type {
-  DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
+  CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
@@ -45,6 +45,18 @@ const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
 };
 
 const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
+
+/**
+ * A check result in the owner's words. A rules-judge check no vote settled with checked evidence was not checked, so it
+ * reads "Not checked", never "Failed"; a passed or failed check says so.
+ */
+export function checkLabel(result: CheckResult): string {
+  return short(`${result.passed ? 'Passed' : result.notChecked ? 'Not checked' : 'Failed'}: ${result.detail}`, 160);
+}
+/** Why a practice case that named the rules judge has no judge result: the judge is asked only after every code check passed. */
+function judgeMissing(results: readonly CheckResult[]): { kind: string; id: string; label: string } {
+  return { kind: 'check', id: 'rules-judge', label: results.every(result => result.passed) ? 'Not checked: no judge connected.' : 'Not checked: a code check failed first, so the judge was not asked.' };
+}
 /** What a call did. With a round ledger, a call that ran but failed its audit says why it does not count. */
 function toolLine(call: ToolCallRecord, audit: StepAudit | undefined): string {
   if (call.envelope.ok) return audit && !audit.audited ? short(`Done. Not counted: ${audit.reason}`, 240) : 'Done.';
@@ -173,7 +185,7 @@ function deliveryRun(deps: VentureDeps, state: State, venture: VentureRecord, re
     }
     if (step.kind === 'compute' && order) evidence.push({ kind: 'price-receipt', id: order.priceReceiptId, label: 'Price receipt' });
     if (step.kind === 'write' && run.deliverable) evidence.push({ kind: 'draft', id: run.id, label: short(run.deliverable.title, 120) });
-    if (step.kind === 'verify') for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: short(`${result.passed ? 'Passed' : 'Failed'}: ${result.detail}`, 160) });
+    if (step.kind === 'verify') for (const result of run.checks) evidence.push({ kind: 'check', id: result.check, label: checkLabel(result) });
     return plain({
       id: step.id, purpose: step.title, state: stepState, ...(elapsed !== undefined ? { elapsed } : {}),
       ...(tools.length ? { tools } : {}), ...(evidence.length ? { evidence } : {}), ...(stepState === 'failed' && error ? { error } : {}),
@@ -210,12 +222,17 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
     startedAt: record.startedAt, elapsed: elapsedText(record.startedAt, record.finishedAt),
     result: `${passed} of ${total} practice ${total === 1 ? 'client' : 'clients'} passed.`,
   };
-  const steps: RunStep[] = record.episodes.map((episode, index) => plain({
-    id: `episode-${index + 1}`, purpose: scenarios.find(item => item.id === episode.scenarioId)?.title ?? 'Practice client',
-    state: episode.passed ? 'done' as const : 'failed' as const,
-    ...(episode.checks.some(result => !result.passed) ? { evidence: episode.checks.filter(result => !result.passed).map(result => ({ kind: 'check', id: result.check, label: short(`Failed: ${result.detail}`, 160) })) } : {}),
-    ...(episode.passed ? {} : { error: short(episode.firstFailure ?? 'This practice client did not pass.', 300) }),
-  }));
+  const steps: RunStep[] = record.episodes.map((episode, index) => {
+    const scenario = scenarios.find(item => item.id === episode.scenarioId);
+    const evidence: { kind: string; id: string; label: string }[] = episode.checks.filter(result => !result.passed).map(result => ({ kind: 'check', id: result.check, label: checkLabel(result) }));
+    if (scenario?.checks.includes('rules-judge') && !episode.checks.some(result => result.check === 'rules-judge')) evidence.push(judgeMissing(episode.checks));
+    return plain({
+      id: `episode-${index + 1}`, purpose: scenario?.title ?? 'Practice client',
+      state: episode.passed ? 'done' as const : 'failed' as const,
+      ...(evidence.length ? { evidence } : {}),
+      ...(episode.passed ? {} : { error: short(episode.firstFailure ?? 'This practice client did not pass.', 300) }),
+    });
+  });
   return { summary, detail: { ...summary, steps } };
 }
 

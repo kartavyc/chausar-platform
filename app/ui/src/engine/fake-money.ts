@@ -6,9 +6,10 @@
  * open invoices and period choices.
  *
  * Like the engine it keeps amounts in minor units (paise) and lets only formatted text out, so the UI never sees an
- * amount it could add up. The sample invoices follow the shared sample orders: INV-0039 bills Boat Audio's episode 12
- * order (R-0416) and INV-0041 bills Mehta Traders' September books (R-0419), the same two the Work desk lists
- * (fixtures-work.ts). This desk answers venture.invoice.list too, so a draft or a payment made here shows everywhere.
+ * amount it could add up. The sample invoices follow the shared sample orders in fixtures.ts (ORDERS): INV-0039 bills
+ * Boat Audio's episode 12 order (R-0416) and INV-0041 bills Mehta Traders' September books (R-0419). This desk is the
+ * only one that answers venture.invoice.list, so a draft or a payment made here shows everywhere. Each list row carries
+ * its total and price receipt, as the engine's list does, so no screen needs an invoice.get per row.
  */
 
 import { RECEIPTS } from './fixtures';
@@ -132,7 +133,7 @@ export class FakeMoney {
 
   request(method: string, p: Record<string, unknown>): unknown {
     switch (method) {
-      case 'venture.invoice.list': return this.mine().sort((a, b) => b.at.localeCompare(a.at)).map((invoice) => this.lite(invoice));
+      case 'venture.invoice.list': return this.mine().sort((a, b) => b.at.localeCompare(a.at)).map((invoice) => this.listed(invoice));
       case 'venture.invoice.get': return this.view(this.find(p.invoiceId));
       case 'venture.invoice.prepare': return this.prepare(p);
       case 'venture.invoice.issue': return this.issue(p);
@@ -180,6 +181,17 @@ export class FakeMoney {
 
   private lite(invoice: HeldInvoice): InvoiceLite {
     return { id: invoice.id, at: invoice.at, orderId: invoice.orderId, clientId: invoice.clientId, number: invoice.number, status: invoice.status, issueDate: invoice.issueDate, dueDate: invoice.dueDate };
+  }
+
+  /** A list row: the record plus its total and price receipt, formatted here as the engine formats them. */
+  private listed(invoice: HeldInvoice): InvoiceLite {
+    return { ...this.lite(invoice), total: inr(totalOf(invoice.price)), receiptId: invoice.priceReceiptId };
+  }
+
+  /** "Clients owe you" for Money at a glance: the open balances of this business, added up here as the engine does. */
+  owed(): { value: string } {
+    const open = this.mine().filter((i) => (i.status === 'issued' || i.status === 'part-paid') && totalOf(i.price) > i.paid);
+    return { value: inr(open.reduce((sum, i) => sum + totalOf(i.price) - i.paid, 0)) };
   }
 
   private figures(invoice: HeldInvoice): PriceFigureLite[] {

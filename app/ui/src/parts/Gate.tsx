@@ -10,10 +10,21 @@ export interface GateProps {
   disabled?: boolean | undefined;
 }
 
-/** A step's gate: auto runs without asking, hold waits for the owner. A floor step always asks and has no switch. */
+/**
+ * A step's gate: auto runs without asking, hold waits for the owner. A floor step always asks and has no switch. Both
+ * take the same width and padding, so a list of steps shows Auto, Hold and Always asks you in one column.
+ */
 export function Gate({ purpose, gate, floor, onChange, disabled }: GateProps) {
   const t = useT();
-  if (floor) return <span className={s.floor}>{t('gate.floor')}</span>;
+  // The floor's words sit in the same column as Auto and Hold: an empty space where the switch would be.
+  if (floor) {
+    return (
+      <span className={s.floor}>
+        <span className={s.space} aria-hidden="true" />
+        <span className={s.word}>{t('gate.floor')}</span>
+      </span>
+    );
+  }
   const auto = gate === 'auto';
   return (
     <button

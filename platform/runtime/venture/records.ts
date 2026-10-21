@@ -36,6 +36,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-agent-posture': 'agentposture', 'venture-spot-check': 'spotcheck',
   'venture-ca-firm': 'cafirm',
   'venture-bank-account': 'bankaccount', 'venture-bank-import': 'bankimport', 'venture-lead': 'lead', 'venture-lead-settings': 'leadsettings',
+  'venture-sum-receipt': 'sum', 'venture-share-link': 'share',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

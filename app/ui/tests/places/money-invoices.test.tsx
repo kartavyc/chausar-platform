@@ -4,16 +4,18 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 
 type Call = [string, unknown];
+type Override = (params: unknown, request: (method: string, params?: unknown) => Promise<unknown>) => unknown;
 const NOW = () => '2026-10-21T11:00:00.000Z';
 
-function start(hash: string, engine = new FakeEngine({ now: NOW })) {
+function start(hash: string, engine = new FakeEngine({ now: NOW }), override: Record<string, Override> = {}) {
   window.location.hash = hash;
   const client = createFakeClient(engine);
   const calls: Call[] = [];
   const request = client.request.bind(client);
   client.request = (async (method: string, params?: unknown) => {
     calls.push([method, params]);
-    return request(method as never, params as never);
+    const replace = override[method];
+    return replace ? replace(params, (m, p) => request(m as never, p as never)) : request(method as never, params as never);
   }) as typeof client.request;
   render(<App client={client} language="en" />);
   return { engine, client, calls };
@@ -58,6 +60,25 @@ describe('Money: invoices', () => {
     for (const row of main().querySelectorAll('[data-row]')) expect(row.querySelectorAll('[data-variant="primary"]').length).toBeLessThanOrEqual(1);
   });
 
+  it('reads each total and receipt from the list itself, with no call per row', async () => {
+    const { calls } = start('#/money/invoices');
+    const open = (await screen.findByText('INV-0039 · Boat Audio')).closest('li')!;
+    await waitFor(() => expect(open.textContent).toContain('Owed ₹26,200.00'));
+    expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(called(calls, 'venture.invoice.get')).toEqual([]);
+    expect(called(calls, 'venture.books.summary')).toEqual([['venture.books.summary', { period: 'all' }]]);
+  });
+
+  it('an engine whose list rows carry no total is read once per invoice instead', async () => {
+    const strip = async (_params: unknown, request: (method: string, params?: unknown) => Promise<unknown>) =>
+      ((await request('venture.invoice.list', {})) as Record<string, unknown>[]).map(({ total: _t, receiptId: _r, ...row }) => row);
+    const { calls } = start('#/money/invoices', undefined, { 'venture.invoice.list': strip });
+    const open = (await screen.findByText('INV-0039 · Boat Audio')).closest('li')!;
+    await waitFor(() => expect(open.textContent).toContain('Total ₹26,200.00'));
+    expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(called(calls, 'venture.invoice.get')).toContainEqual(['venture.invoice.get', { invoiceId: 'inv-0039' }]);
+  });
+
   it('prepares an invoice from an order, opens the draft beside the list and moves the order to drafts', async () => {
     const { calls } = start('#/money/invoices');
     const order = (await screen.findByText('Boat Audio · Two mentions in episode 14')).closest('li')!;
@@ -68,7 +89,7 @@ describe('Money: invoices', () => {
     await waitFor(() => expect(sheet.textContent).toContain('₹30,000.00'));
     expect(await screen.findByRole('heading', { level: 2, name: 'Drafts' })).toBeTruthy();
     const draft = (await within(main()).findByText('Draft · Boat Audio')).closest('li')!;
-    expect(draft.textContent).toContain('Draft. Due 15 days after it is issued.');
+    await waitFor(() => expect(draft.textContent).toContain('Total ₹30,000.00'));
     expect(within(draft).getByRole('button', { name: 'Review' }).dataset.variant).toBe('primary');
     await waitFor(() => expect(screen.queryByText('Boat Audio · Two mentions in episode 14')).toBeNull());
   });

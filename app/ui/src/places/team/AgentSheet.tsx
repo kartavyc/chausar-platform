@@ -1,7 +1,7 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type AgentView, type RunSummary } from '../../engine/types';
+import { EngineError, type AgentView, type Posture, type RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { cx } from '../../parts/cx';
@@ -13,9 +13,9 @@ import s from './Team.module.css';
 type GateValue = 'auto' | 'hold';
 
 /**
- * One agent: its posture in words and what that means, its playbook steps each with an auto or hold gate, what it
- * has spent, and its runs. A gate moves when clicked and settles on the engine's answer; a refusal moves it back and
- * says why. Floor steps always ask and have no switch.
+ * One agent: its posture (a choice of four, with what the chosen one means), its playbook steps each with an auto or
+ * hold gate, what it has spent, and its runs. A gate or a posture moves when clicked and settles on the engine's
+ * answer; a refusal moves it back and says why. Floor steps always ask and have no switch.
  */
 export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -28,6 +28,9 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const [saved, setSaved] = useState<AgentView | null>(null);
   const [pending, setPending] = useState<{ stepId: string; gate: GateValue } | null>(null);
   const [problem, setProblem] = useState<{ stepId: string; text: string } | null>(null);
+  const [posturePending, setPosturePending] = useState<Posture | null>(null);
+  const [postureProblem, setPostureProblem] = useState<string | null>(null);
+  const postures = useRef<HTMLFieldSetElement>(null);
   useEffect(() => { setSaved(null); }, [team.data]);
 
   const agent = saved ?? team.data?.agents.find((a) => a.id === id);
@@ -53,15 +56,57 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     }
   }
 
+  /**
+   * venture.team.posture. The engine says when a posture is above what the business has earned
+   * (POSTURE_ABOVE_STAGE); its words are shown as they are. While it answers the choice is disabled, and focus goes
+   * back to the chosen posture after.
+   */
+  async function choose(posture: Posture) {
+    if (posturePending || !agent || posture === agent.posture) return;
+    setPostureProblem(null);
+    setPosturePending(posture);
+    try {
+      const reply = await client.request('venture.team.posture', { agentId: agent.id, posture });
+      setSaved(reply.agent);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPostureProblem(error instanceof EngineError && error.code === 'POSTURE_ABOVE_STAGE' ? message : t('team.postureFailed', { message }));
+    } finally {
+      setPosturePending(null);
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (!active || active === document.body) postures.current?.querySelector<HTMLInputElement>('input:checked')?.focus();
+      });
+    }
+  }
+
   const known = POSTURES.includes(agent.posture);
+  const chosen = posturePending ?? agent.posture;
   const mine = (runs.data?.runs ?? []).filter((run) => run.agent === agent.name);
 
   return (
     <Sheet label={t('team.sheet')} title={agent.name} line={agent.role} onClose={onClose} returnFocus={returnFocus}>
       <section className={s.section}>
-        <h3 className={s.small}>{t('team.posture')}</h3>
-        <p className={s.posture}>{known ? t(`team.posture.${agent.posture}`) : agent.posture}</p>
-        {known && <p className={s.means}>{t(`team.postureMeans.${agent.posture}`)}</p>}
+        <fieldset ref={postures} className={s.postures} disabled={posturePending !== null}>
+          <legend className={s.small}>{t('team.posture')}</legend>
+          {!known && <p className={s.posture}>{agent.posture}</p>}
+          <div className={s.choices}>
+            {POSTURES.map((posture) => (
+              <label key={posture} className={s.choice}>
+                <input
+                  type="radio"
+                  name={`posture-${agent.id}`}
+                  value={posture}
+                  checked={chosen === posture}
+                  onChange={() => void choose(posture)}
+                />
+                <span>{t(`team.posture.${posture}`)}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {POSTURES.includes(chosen) && <p className={s.means}>{t(`team.postureMeans.${chosen}`)}</p>}
+        {postureProblem && <p role="alert" className={s.problem}>{postureProblem}</p>}
       </section>
 
       <section className={s.section}>

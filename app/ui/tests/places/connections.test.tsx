@@ -75,6 +75,27 @@ describe('Connections', () => {
     expect((await row('GitHub')).querySelector('[data-posting]')).toBeNull();
   });
 
+  it("imports a bank statement file: the engine's own words for what it added, skipped as already there, or could not read", async () => {
+    const { engine } = start();
+    const bank = await row('Bank account (read only)');
+    expect(bank.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('planned');
+    fireEvent.click(within(bank).getByRole('button', { name: 'Import a statement' }));
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const sheet = await screen.findByRole('complementary', { name: 'Import a statement' });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
+    expect(within(sheet).getByRole('alert').textContent).toBe('Choose the statement file first.');
+    const csv = 'Date,Amount,Description\n2026-10-01,-1200.00,Office rent\n2026-10-02,26200.00,Boat Audio\n2026-10-03,abc,Unknown\n';
+    const spy = vi.spyOn(engine, 'request');
+    fireEvent.change(within(sheet).getByLabelText('Account'), { target: { value: 'HDFC current' } });
+    fireEvent.change(within(sheet).getByLabelText('Statement file (CSV)'), { target: { files: [new File([csv], 'october.csv', { type: 'text/csv' })] } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
+    await waitFor(() => expect(within(sheet).getByText('Added 2 transactions to HDFC current. 1 line was not read.')).toBeTruthy());
+    expect(spy.mock.calls.find(([method]) => method === 'venture.bank.import')![1]).toEqual({ csv, account: 'HDFC current' });
+    expect(within(sheet).getByText('Line 4: The amount is not a number.')).toBeTruthy();
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
+    await waitFor(() => expect(within(sheet).getByText('Added 0 transactions to HDFC current. 2 were already here, so they were skipped. 1 line was not read.')).toBeTruthy());
+  });
+
   it('on the web, Visit site is a normal link that opens apart from Chausar', async () => {
     start();
     const link = within(await row('Razorpay')).getByRole('link', { name: /Visit site/ });

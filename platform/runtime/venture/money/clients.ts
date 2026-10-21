@@ -5,7 +5,8 @@ import { activateTerm, exactPayload, listRecords, plainText, readVenture, single
 import { INDIA_STATES } from '../contracts.ts';
 import { newestFirst } from './shared.ts';
 import { recordOwnerFields } from '../evidence/ledger.ts';
-import type { ClientRecord, VentureDeps } from '../contracts.ts';
+import type { ClientListRow, ClientRecord, VentureDeps } from '../contracts.ts';
+import { owedPlan, sumReceipt } from './sums.ts';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const OTHER_TAX_ID = /^[A-Z0-9][A-Z0-9-]{4,22}[A-Z0-9]$/;
@@ -64,9 +65,19 @@ export async function addClient(deps: VentureDeps, ctx: Context, payload: unknow
   });
 }
 
-/** venture.client.list (level read): newest first. */
-export async function listClients(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ClientRecord[]> {
+/**
+ * venture.client.list (level read): newest first. A client with open invoices carries what they owe: the balances added
+ * in BigInt, formatted by code, with the sum's receipt (sums.ts). A client who owes nothing has no owed field.
+ */
+export async function listClients(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ClientListRow[]> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  return newestFirst(listRecords(state, 'venture-client', venture.id));
+  const rows: ClientListRow[] = [];
+  for (const client of newestFirst(listRecords(state, 'venture-client', venture.id))) {
+    const plan = owedPlan(state, venture, client.id);
+    if (!plan.addends.length) { rows.push(client); continue; }
+    const receipt = await sumReceipt(deps, ctx, venture.id, plan);
+    rows.push({ ...client, owed: { display: receipt.figures[0].display, receiptId: receipt.id } });
+  }
+  return rows;
 }

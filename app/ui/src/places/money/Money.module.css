@@ -171,6 +171,24 @@
   font-size: var(--text-read);
 }
 
+/* Spend settings */
+
+.rateCard {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.rateCard > .fieldLabel {
+  margin: 0;
+}
+
+.rateLine {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
 /* Books */
 
 .periods {
@@ -226,6 +244,10 @@
 
 .fold p {
   margin: var(--sp-2) 0 0;
+}
+
+.taxPart {
+  margin-top: var(--sp-4);
 }
 
 /* Sheets */

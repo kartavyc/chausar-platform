@@ -87,6 +87,7 @@
   "run.send": "Send",
   "run.again": "Run again",
   "run.stopped": "This run stopped.",
+  "run.notChecked": "Not checked: {detail}",
   "run.waiting": "Waiting on you",
   "run.paused": "paused",
   "run.result": "Result",

@@ -59,6 +59,8 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
       check(!req.headers.origin || req.headers.origin === origin, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
       check(req.headers['sec-fetch-site'] !== 'cross-site', 'INVALID_ORIGIN', 'Cross-site browser requests are blocked.');
       const url = new URL(req.url ?? '/', origin);
+      // Client share links open only on the hosted web server (hosted/server.ts); this computer serves none.
+      check(url.pathname !== '/share' && !url.pathname.startsWith('/share/'), 'NOT_FOUND', 'Share links open only on the hosted Chausar.');
       if (url.pathname === '/api/companion/rpc') {
         check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
         return await engine.handleCompanionHttp(req, res);

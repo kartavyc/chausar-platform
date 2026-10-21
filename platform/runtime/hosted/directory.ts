@@ -27,14 +27,22 @@ export type HostedSessionRecord = {
   id: string; tokenHash: string; userId: string; createdAt: string; expiresAt: string; lastSeenAt: string;
   revokedAt: string | null; method: 'magic-link' | 'passkey'; businessId: string | null;
 };
+/**
+ * Where a client share link's token leads (venture.share.create on this server): the sha256 of the token, never the
+ * token, the tenant and business that own it, the link's id and when it ends. The link itself, with the draft text, lives
+ * in that business's vault; this only finds the vault without the owner's session. Sealed like the rest of the directory.
+ */
+export type HostedShareLink = { tokenHash: string; tenantId: string; businessId: string; linkId: string; expiresAt: string };
 export type DirectoryState = {
   format: typeof DIRECTORY_FORMAT; revision: number;
   users: HostedUser[]; magicLinks: MagicLinkRecord[]; challenges: ChallengeRecord[]; sessions: HostedSessionRecord[];
   usage: Record<string, UsageEntry[]>;
+  /** Absent in directories written before share links. */
+  shareLinks?: HostedShareLink[];
 };
 
 export function emptyDirectory(): DirectoryState {
-  return { format: DIRECTORY_FORMAT, revision: 0, users: [], magicLinks: [], challenges: [], sessions: [], usage: {} };
+  return { format: DIRECTORY_FORMAT, revision: 0, users: [], magicLinks: [], challenges: [], sessions: [], usage: {}, shareLinks: [] };
 }
 
 export interface HostedDirectory {
@@ -57,6 +65,7 @@ export function prune(state: DirectoryState, nowMs: number) {
   state.magicLinks = state.magicLinks.filter(link => Date.parse(link.expiresAt) + day > nowMs);
   state.challenges = state.challenges.filter(item => Date.parse(item.expiresAt) > nowMs);
   state.sessions = state.sessions.filter(session => !session.revokedAt && Date.parse(session.expiresAt) > nowMs);
+  if (state.shareLinks) state.shareLinks = state.shareLinks.filter(link => Date.parse(link.expiresAt) > nowMs);
   const oldest = new Date(nowMs - 400 * day).toISOString().slice(0, 7);
   for (const tenant of Object.keys(state.usage)) {
     state.usage[tenant] = state.usage[tenant].filter(entry => entry.month >= oldest);

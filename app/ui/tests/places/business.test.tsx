@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { BlueprintViewLite, BuildStatusView, QueueList } from '../../src/engine/types';
+import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList } from '../../src/engine/types';
+import { lineDiff } from '../../src/places/business/SiteEdits';
 
 type Bridged = Window & { chausar?: unknown };
 
@@ -325,5 +326,163 @@ describe('Business menu', () => {
   it('speaks Hindi on the business pages', async () => {
     start('#/business/plan', new FakeEngine(), 'hi');
     expect(await screen.findByRole('heading', { level: 1, name: 'प्लान और प्लेबुक' })).toBeTruthy();
+  });
+});
+
+describe('Business: your CA (CA firm playbook)', () => {
+  it('shows the CA of record, the rate tables waiting with their citations, and the sign-offs, with a link in the pages', async () => {
+    start('#/business/ca', await ledgerline());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your CA' })).toBeTruthy();
+    expect(await screen.findByText('Meera Joshi')).toBeTruthy();
+    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('aria-current')).toBe('page'));
+    expect(screen.getByText('412345')).toBeTruthy();
+    expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
+    const rates = screen.getByRole('region', { name: 'Rate tables to confirm' });
+    expect(within(rates).getByRole('checkbox', { name: 'GST rates for services' })).toBeTruthy();
+    expect(rates.textContent).toContain('Version 3');
+    expect(rates.textContent).toContain('no end date');
+    expect(rates.textContent).toContain('CBIC rate notification for services, September 2025');
+    const requests = screen.getByRole('region', { name: 'Sign-off requests' });
+    const signed = within(requests).getByText('TDS working, July to September').closest('li')!;
+    expect(signed.textContent).toContain('Signed');
+    expect(within(signed).queryByRole('button', { name: 'Record sign-off' })).toBeNull();
+  });
+
+  it("confirms chosen rate tables with the CA's own number; another number is refused in the engine's words", async () => {
+    start('#/business/ca', await ledgerline());
+    const rates = await screen.findByRole('region', { name: 'Rate tables to confirm' });
+    fireEvent.click(within(rates).getByRole('checkbox', { name: 'GST rates for services' }));
+    fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '999999' } });
+    await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
+    await waitFor(() => expect(within(rates).getByRole('alert').textContent).toBe("That is not Meera Joshi's membership number. Only your CA of record signs."));
+    fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '412345' } });
+    await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
+    await waitFor(() => expect(within(rates).getByText('Confirmed 1 rate table.')).toBeTruthy());
+    await waitFor(() => expect(within(rates).queryByRole('checkbox', { name: 'GST rates for services' })).toBeNull());
+    expect(within(rates).getByRole('checkbox', { name: 'TDS rates, 2026-27' })).toBeTruthy();
+  });
+
+  it('asks for a rate table before confirming, without asking the engine', async () => {
+    const engine = await ledgerline();
+    const spy = vi.spyOn(engine, 'request');
+    start('#/business/ca', engine);
+    const rates = await screen.findByRole('region', { name: 'Rate tables to confirm' });
+    await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
+    expect(within(rates).getByRole('alert').textContent).toBe('Choose a rate table first.');
+    expect(spy.mock.calls.some(([method]) => method === 'venture.ca.confirmRates')).toBe(false);
+  });
+
+  it('changes the CA of record; a bad membership number is refused in words', async () => {
+    const engine = await ledgerline();
+    start('#/business/ca', engine);
+    const of = await screen.findByRole('region', { name: 'CA of record' });
+    fireEvent.click(await within(of).findByRole('button', { name: 'Change' }));
+    fireEvent.change(within(of).getByLabelText('Name'), { target: { value: 'Arjun Kulkarni' } });
+    fireEvent.change(within(of).getByLabelText('ICAI membership number'), { target: { value: '12' } });
+    await act(async () => { fireEvent.click(within(of).getByRole('button', { name: 'Save' })); });
+    await waitFor(() => expect(within(of).getByRole('alert').textContent).toBe('An ICAI membership number is six digits.'));
+    fireEvent.change(within(of).getByLabelText('ICAI membership number'), { target: { value: '523456' } });
+    await act(async () => { fireEvent.click(within(of).getByRole('button', { name: 'Save' })); });
+    await waitFor(() => expect(within(of).getByText('Arjun Kulkarni')).toBeTruthy());
+    expect(within(of).getByText('523456')).toBeTruthy();
+    expect(((await engine.request('venture.ca.get', {})) as { ca: { name: string } }).ca.name).toBe('Arjun Kulkarni');
+  });
+
+  it("papers sent to the CA from Today wait here, and the CA's sign-off is recorded with their number", async () => {
+    const engine = await ledgerline();
+    const queue = (await engine.request('venture.queue.list', { scope: 'current' })) as QueueList;
+    const row = queue.rows.find((r) => r.kind === 'signoff')!;
+    await engine.request('venture.queue.decide', { id: row.id, digest: row.digest, action: 'send-to-ca', viewed: true });
+    start('#/business/ca', engine);
+    const requests = await screen.findByRole('region', { name: 'Sign-off requests' });
+    const sent = (await within(requests).findByText('GST working for September')).closest('li')!;
+    expect(sent.textContent).toContain('With your CA');
+    fireEvent.click(within(sent).getByRole('button', { name: 'Record sign-off' }));
+    fireEvent.change(within(sent).getByLabelText("Your CA's membership number"), { target: { value: '412345' } });
+    fireEvent.change(within(sent).getByLabelText('Note, optional'), { target: { value: 'Checked against the sales register.' } });
+    const spy = vi.spyOn(engine, 'request');
+    await act(async () => { fireEvent.click(within(sent).getByRole('button', { name: 'Record' })); });
+    expect(spy.mock.calls.find(([method]) => method === 'venture.ca.recordSignoff')![1]).toEqual({ requestId: 'ca-req-gst-sep', membershipNo: '412345', note: 'Checked against the sales register.' });
+    await waitFor(() => expect(within(requests).getByText('GST working for September').closest('li')!.textContent).toContain('Signed'));
+  });
+
+  it('a business that is not a CA firm says so in one line, and its pages have no CA', async () => {
+    start('#/business/ca');
+    expect(await screen.findByText('Only a CA firm has a CA of record.')).toBeTruthy();
+    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    expect(within(nav).queryByRole('link', { name: 'Your CA' })).toBeNull();
+  });
+
+  it('the business menu of a CA firm leads to Your CA', async () => {
+    start('#/today', await ledgerline());
+    fireEvent.click(await screen.findByRole('button', { name: /Ledgerline/ }));
+    const menu = await screen.findByRole('group', { name: 'Business menu for Ledgerline' });
+    await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
+    const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/build', '#/business/ca', '#/business/keep', '#/onboarding']);
+  });
+});
+
+describe('Business: edits to the website', () => {
+  it('reads a change as lines: what went is struck, what came is added, the rest stays', () => {
+    expect(lineDiff('a\nb\nc', 'a\nB\nc\nd')).toEqual([
+      { kind: 'same', text: 'a' }, { kind: 'removed', text: 'b' }, { kind: 'added', text: 'B' }, { kind: 'same', text: 'c' }, { kind: 'added', text: 'd' },
+    ]);
+    expect(lineDiff('', 'new')).toEqual([{ kind: 'added', text: 'new' }]);
+  });
+
+  /** Opens the stage form and stages one edit, returning the section. */
+  async function stage(file: string, summary: string, text: string) {
+    const section = await screen.findByRole('region', { name: 'Edits to your site' });
+    fireEvent.click(within(section).getByRole('button', { name: 'Stage an edit' }));
+    fireEvent.change(within(section).getByLabelText('File'), { target: { value: file } });
+    fireEvent.change(within(section).getByLabelText('What it changes'), { target: { value: summary } });
+    fireEvent.change(within(section).getByLabelText('New text'), { target: { value: text } });
+    await act(async () => { fireEvent.click(within(section).getByRole('button', { name: 'Stage it' })); });
+    return section;
+  }
+
+  it('stages an edit, shows the diff, applies only after a second ask with the reviewed hash, then reverts the same way', async () => {
+    const { engine } = start('#/business/build');
+    const section = await stage('index.html', 'New episode day', '<h1>Lumen Studio</h1>\n<p>Budget gear, tested honestly.</p>\n<p>New episodes every Monday.</p>');
+    const edit = (await within(section).findByText('New episode day')).closest('li')!;
+    expect(edit.textContent).toContain('Staged, not written');
+    expect(edit.hasAttribute('data-second-ask')).toBe(true);
+    expect(edit.querySelector('del')?.textContent).toBe('Removed: <p>New episodes every Friday.</p>');
+    expect(edit.querySelector('ins')?.textContent).toBe('Added: <p>New episodes every Monday.</p>');
+    const spy = vi.spyOn(engine, 'request');
+    fireEvent.click(within(edit).getByRole('button', { name: 'Apply' }));
+    expect(within(edit).getByText('Write this to index.html? You can put it back after.')).toBeTruthy();
+    expect(spy.mock.calls.some(([method]) => method === 'venture.site.apply')).toBe(false);
+    await act(async () => { fireEvent.click(within(edit).getByRole('button', { name: 'Write it' })); });
+    expect(spy.mock.calls.find(([method]) => method === 'venture.site.apply')![1]).toEqual({ editId: 'edit-lumen-1', reviewedHash: 'p0000001' });
+    await waitFor(() => expect(edit.textContent).toContain('Applied'));
+    expect(within(edit).getByText('Read index.html back: it matches what you reviewed.')).toBeTruthy();
+    fireEvent.click(within(edit).getByRole('button', { name: 'Revert' }));
+    await act(async () => { fireEvent.click(within(edit).getByRole('button', { name: 'Put it back' })); });
+    await waitFor(() => expect(edit.textContent).toContain('Put back'));
+    expect(within(edit).queryByRole('button', { name: 'Revert' })).toBeNull();
+  });
+
+  it("a refusal shows the engine's words: an edit that changed since it was reviewed is not written", async () => {
+    const fake = createFakeClient(new FakeEngine());
+    const client = { ...fake, request: ((method: string, params?: unknown) => (method === 'venture.site.apply'
+      ? Promise.reject(new EngineError('APPROVAL_STALE', 'This edit changed after you reviewed it. Review it again.'))
+      : fake.request(method as never, params as never))) as typeof fake.request };
+    window.location.hash = '#/business/build';
+    render(<App client={client} language="en" />);
+    const section = await stage('faq.html', 'Add a FAQ page', '<h1>Questions</h1>');
+    const edit = (await within(section).findByText('Add a FAQ page')).closest('li')!;
+    fireEvent.click(within(edit).getByRole('button', { name: 'Apply' }));
+    await act(async () => { fireEvent.click(within(edit).getByRole('button', { name: 'Write it' })); });
+    await waitFor(() => expect(within(edit).getByRole('alert').textContent).toBe('This edit changed after you reviewed it. Review it again.'));
+    expect(edit.textContent).toContain('Staged, not written');
+  });
+
+  it("staging the same text as the file is refused in the engine's words", async () => {
+    start('#/business/build');
+    const section = await stage('sponsor.html', 'Nothing new', '<h1>Sponsor with us</h1>\n<p>Two mentions per episode.</p>\n<p>Write to partners@lumenstudio.in</p>');
+    await waitFor(() => expect(within(section).getByRole('alert').textContent).toBe('The new text is the same as the file now.'));
   });
 });

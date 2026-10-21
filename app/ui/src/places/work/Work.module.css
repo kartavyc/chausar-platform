@@ -267,3 +267,37 @@
   font-size: var(--text-read);
   color: var(--fg2);
 }
+
+/* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */
+.links {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: center;
+}
+
+.url {
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.until {
+  color: var(--mute);
+}
+
+@container (max-width: 560px) {
+  .links {
+    grid-column: 1 / -1;
+  }
+}

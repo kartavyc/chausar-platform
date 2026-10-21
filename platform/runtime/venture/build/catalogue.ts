@@ -141,7 +141,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('marketing', 'buffer', 'Buffer', 'https://buffer.com/', ['write'], GI, 'Buffer sign-in',
     'The one planned way to schedule social posts.'),
   entry('marketing', 'youtube', 'YouTube', 'https://www.youtube.com/', ['write'], GI, 'Google sign-in',
-    'Your own channel. Uploads through the API stay private until Google audits the app, so the owner publishes.'),
+    'Your own channel. Google no longer locks API uploads from unverified apps to private (15 October 2026), but no upload client ships in this build, so the owner uploads and publishes.'),
 
   // Books, tax and invoicing
   entry('books-tax', 'chausar-books', 'Chausar back office', null, ['read', 'write'], GI, 'None, it is inside Chausar',

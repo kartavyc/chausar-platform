@@ -178,11 +178,12 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the sixteen owned methods', () => {
+test('7. handlers keys equal the twenty owned methods', () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.consent', 'venture.bank.import',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
-    'venture.leads.add', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.share.create', 'venture.share.list', 'venture.share.revoke',
     'venture.site.apply', 'venture.site.revert', 'venture.site.stage',
   ]);
 });

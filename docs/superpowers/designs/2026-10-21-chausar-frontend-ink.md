@@ -94,7 +94,7 @@ Fonts (bundled, OFL, from the lane branch): Instrument Sans 400/500/600, DM Mono
 | `--fg` | #16181b | #eceef0 |
 | `--fg2` | #3d4146 | #c4c8cc |
 | `--mute` | #5c6168 | #9aa0a6 |
-| `--dim` (struck old values, pending steps) | #71767d | #858b92 |
+| `--dim` (struck old values, pending steps) | #6e737a (was #71767d; 4.42:1 failed the contrast test) | #858b92 |
 | `--line` | #e3e5e8 | #2a2d31 |
 | `--hover` | #eceef0 | #1f2123 |
 | `--link` | #2f5bd3 | #8fb4ff |

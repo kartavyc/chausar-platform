@@ -16,7 +16,7 @@ import { Sheet } from '../../parts/Sheet';
 import { EngineError, type ClientAddParams, type ClientLite, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Fields } from './Fields';
-import { clientsChanged, useClientsChanged, useDismissed } from './signals';
+import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
@@ -48,8 +48,22 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const orders = useResource('venture.order.list', {}, { refreshOn });
   const drafts = useResource('venture.delivery.list', {}, { refreshOn });
   const files = useResource('venture.files.list', {}, { refreshOn });
-  const [dismissed, dismiss] = useDismissed(engine);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [problems, setProblems] = useState<ReadonlyMap<string, string>>(new Map());
   useClientsChanged(engine, () => { clients.reload(); evidence.reload(); });
+
+  /** Dismiss goes to the engine and stays dismissed. The row leaves at once; a refusal brings it back with the reason. */
+  async function dismiss(itemId: string) {
+    setHidden((ids) => new Set(ids).add(itemId));
+    setProblems((map) => { const next = new Map(map); next.delete(itemId); return next; });
+    try {
+      await engine.request('venture.evidence.dismiss', { id: itemId });
+      evidence.reload();
+    } catch (error) {
+      setHidden((ids) => { const next = new Set(ids); next.delete(itemId); return next; });
+      setProblems((map) => new Map(map).set(itemId, error instanceof Error ? error.message : String(error)));
+    }
+  }
 
   const client = clients.data?.find((c) => c.id === id);
   const title = clients.error ? t('sheet.failed', { message: clients.error.message })
@@ -66,7 +80,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     <Sheet label={t('clients.sheet')} title={title} line={client?.owed ? <Owed owed={client.owed} /> : undefined} onClose={onClose} returnFocus={returnFocus}>
       {client && (
         <>
-          <Fields client={client} items={evidence.data?.items ?? []} dismissed={dismissed} onDismiss={dismiss} />
+          <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} />
 
           <section aria-labelledby={ordersId}>
             <h3 id={ordersId} className={s.heading}>{t('clients.orders')}</h3>

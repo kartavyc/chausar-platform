@@ -110,6 +110,12 @@ export class BusinessEngine {
     return this.#engine.requestAs(this.#ctx, method, payload ?? {});
   }
 
+  /** The client share page (Engine.ventureShareLink): reads a link by its token, or records the client's answer. */
+  shareLink(op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+    check(!this.#closed, 'ACTOR_ASLEEP', 'This business is asleep. Try again.');
+    return this.#engine.ventureShareLink(this.#ctx, op, token, input);
+  }
+
   /** Events after lastSeq, oldest first, and lastSeq moved past them. Nothing before the business has a venture. */
   async newEvents(): Promise<ActorEvent[]> {
     if (this.#closed) return [];

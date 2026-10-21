@@ -29,6 +29,11 @@ export type HostedConfig = {
   limits: HostedLimits;
   /** 'ink' serves the built Ink app at /app/; the same switch as the local server (--ink or CHAUSAR_UI=ink). */
   ui: 'ink' | 'legacy';
+  /**
+   * CHAUSAR_PUBLIC_URL: the address clients reach this server at, for client share links (/share/<token>). It must be
+   * this server's own origin; null when unset, and then share links are kept but get no address.
+   */
+  publicUrl: string | null;
 };
 
 const refuse = (message: string): never => { throw new ChausarError('HOSTED_CONFIG_INVALID', message); };
@@ -96,8 +101,17 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
     limits.businessesPerAccount = value;
   }
 
+  let publicUrl: string | null = null;
+  if (env.CHAUSAR_PUBLIC_URL !== undefined && env.CHAUSAR_PUBLIC_URL !== '') {
+    let given: URL;
+    try { given = new URL(env.CHAUSAR_PUBLIC_URL); } catch { return refuse('CHAUSAR_PUBLIC_URL must be an address like https://app.example.com.'); }
+    if (given.username || given.password || given.search || given.hash || (given.pathname !== '/' && given.pathname !== '')) refuse('CHAUSAR_PUBLIC_URL must be an origin only: no path, query or credentials.');
+    if (given.origin !== url.origin) refuse("CHAUSAR_PUBLIC_URL must be this server's own origin (CHAUSAR_HOSTED_ORIGIN): client share links are served here.");
+    publicUrl = given.origin;
+  }
+
   return {
-    dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin },
+    dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin }, publicUrl,
     listen: { host: listenHost, port }, dataDirectory: resolve(env.CHAUSAR_HOSTED_DATA ?? 'data/hosted'),
     custody, tls, trustProxy: env.CHAUSAR_HOSTED_TRUST_PROXY === '1' && tls.kind === 'proxy',
     mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits,

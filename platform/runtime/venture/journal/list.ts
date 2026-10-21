@@ -36,7 +36,8 @@ export function journalEntries(state: State, limit = JOURNAL_LIST_DEFAULT): Jour
   const venture = currentVenture(state);
   if (!venture) return [];
   const entries = [
-    ...listRecords(state, 'venture-journal-entry', venture.id).filter(record => !record.shadow).map(entryOf),
+    // A website edit is listed once, from its own record: its journal entry (the bound token) is the same effect.
+    ...listRecords(state, 'venture-journal-entry', venture.id).filter(record => !record.shadow && record.action !== 'site.apply').map(entryOf),
     ...postJournal(state, venture.id),
     ...listRecords(state, 'venture-site-edit', venture.id).map(siteOf),
   ];

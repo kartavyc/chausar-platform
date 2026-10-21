@@ -91,7 +91,12 @@ test('API posting stays planned until the app review is recorded, and even then 
   const youtube = cards.find(card => card.id === 'youtube')!;
   const api = option(youtube, 'api');
   assert.equal(api.status, 'planned');
-  assert.ok(api.requires.some(r => /Google API audit/.test(r)), api.requires.join(' / '));
+  // Google's videos.insert page (updated 15 October 2026): uploads from unverified API projects are no longer locked to
+  // private, so no audit is required; sign-in verification still is, and no upload client ships, so it stays planned.
+  assert.ok(api.requires.some(r => /Google sign-in verification/.test(r)), api.requires.join(' / '));
+  assert.ok(api.requires.some(r => /upload client, which this build does not ship/.test(r)), api.requires.join(' / '));
+  assert.ok(!api.requires.some(r => /audit|stay private/i.test(r)), api.requires.join(' / '));
+  assert.match(youtube.note, /no longer locks API uploads from unverified apps to private/);
   assert.match(api.reason!, /review/i);
   assert.ok(option(cards.find(card => card.id === 'instagram')!, 'api').requires.includes('Meta app review'));
 

@@ -30,7 +30,7 @@ export type EvidenceInput = {
 export function evidenceItem(record: EvidenceRecord): EvidenceItem {
   return {
     id: record.id, subject: record.subject, field: record.field, value: record.value, type: record.type, strength: record.strength,
-    claim: record.claim, source: record.source, applied: record.applied,
+    claim: record.claim, source: record.source, applied: record.applied, ...(record.dismissedAt ? { dismissed: true } : {}),
   };
 }
 
@@ -145,12 +145,13 @@ export function recordPlanEvidence(tx: VentureTx, plan: PlanLines) {
 
 /**
  * Suggestions waiting for the owner, newest first: evidence not applied whose value differs from the stored one, and
- * every needs-your-data ask. The queue view turns each into a row of kind 'question'.
+ * every needs-your-data ask. The queue view turns each into a row of kind 'question'. A value the owner dismissed stays
+ * off, and so does the same value for the same field suggested again later.
  */
 export function evidenceQuestions(state: State, ventureId: string): EvidenceRecord[] {
   const records = listRecords(state, 'venture-evidence', ventureId);
   const stored = new Map(records.filter(record => record.applied).map(record => [`${record.subject}|${record.field}`, record]));
-  const seen = new Set<string>();
+  const seen = new Set<string>(records.filter(record => record.dismissedAt).map(record => `${record.subject}|${record.field}|${record.value}`));
   const waiting: EvidenceRecord[] = [];
   for (const record of [...records].reverse()) {
     if (record.applied) continue;
@@ -168,7 +169,8 @@ export function evidenceQuestions(state: State, ventureId: string): EvidenceReco
 }
 
 // ---------------------------------------------------------------------------
-// venture.evidence.list { subject? } (level read) and venture.evidence.apply { id } (prepare, inside the app)
+// venture.evidence.list { subject? } (level read), venture.evidence.apply { id } and venture.evidence.dismiss { id }
+// (prepare, inside the app)
 // ---------------------------------------------------------------------------
 
 export async function evidenceList(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ items: EvidenceItem[] }> {
@@ -192,5 +194,25 @@ export async function evidenceApply(deps: VentureDeps, ctx: Context, payload: un
     check(!stored || stored.strength !== 'verified' || record.strength === 'verified', 'EVIDENCE_WEAK',
       "A checked value is stored for this. Weaker evidence can't replace it.");
     return { item: evidenceItem(applyRecord(tx, record)) };
+  });
+}
+
+/**
+ * venture.evidence.dismiss { id } (prepare, inside the app): the owner says no to a suggestion or an ask. The record
+ * stays in the ledger, marked dismissed, and leaves Today; the stored value is untouched. A stored value cannot be
+ * dismissed: the owner corrects it instead.
+ */
+export async function evidenceDismiss(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ item: EvidenceItem }> {
+  requireAppChannel(ctx, 'venture.evidence.dismiss');
+  const body = exactPayload(payload, ['id'], ['id']);
+  check(typeof body.id === 'string' && body.id.length >= 1 && body.id.length <= 80, 'INVALID_VENTURE_REQUEST', 'id must be text.');
+  return ventureAction(deps, ctx, 'prepare', 'evidence.dismiss', tx => {
+    const record = tx.find('venture-evidence', body.id as string);
+    check(record, 'EVIDENCE_NOT_FOUND', 'This evidence is not in this business.');
+    if (record.dismissedAt) return { item: evidenceItem(record) };
+    check(!record.applied, 'INVALID_VENTURE_REQUEST', 'This is the value in use, so it cannot be dismissed. Correct it instead.');
+    const dismissed = tx.replace<EvidenceRecord>({ ...record, dismissedAt: tx.now });
+    tx.emit('queue.changed', { evidenceId: record.id });
+    return { item: evidenceItem(dismissed) };
   });
 }

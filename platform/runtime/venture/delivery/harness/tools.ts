@@ -13,7 +13,10 @@ import type {
   ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
+import type { Context } from '../../../contracts.ts';
 import { defaultPolicyContext, ladderPolicy, type HarnessPolicy } from '../../policy/ladder.ts';
+import { shadowAction } from '../../journal/simulation.ts';
+import { AGENT_ID } from '../../views/shared.ts';
 import { evaluate, type Verdict } from '../../policy/verdict.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
 import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
@@ -50,7 +53,30 @@ export type ToolEnv = {
   delegateOffer?: readonly DelegateAvailability[];
   /** What each call is checked against before it runs. Without it a real order fails closed (policy/ladder.ts). */
   policy?: HarnessPolicy;
+  /** Who approved this turn, on a real order: shadow entries are journalled as them. Absent in rehearsals. */
+  ctx?: Context;
 };
+
+const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
+const SHADOW_NOTE = 'Shadow: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
+
+/**
+ * At shadow (the business, the agent and this real order tightened together), an outside write is journalled as a
+ * shadow entry and the agent goes on against the simulated result (journal/simulation.ts). Nothing is approved or applied.
+ */
+async function shadowOutbox(env: ToolEnv, mock: MockEffect, summary: string): Promise<unknown | null> {
+  if (env.runRef.kind !== 'delivery' || !env.ctx || env.policy?.context.posture !== 'shadow') return null;
+  const target = OUTBOX_TARGETS[mock.connector] ?? 'A connected service';
+  const words = summary.replace(/\s+/g, ' ').trim();
+  const { simulation } = await shadowAction(env.deps, env.ctx, {
+    action: 'connector.write', subject: `${env.runRef.runId}:${mock.payloadDigest.slice(0, 16)}`, target, actionDigest: mock.payloadDigest,
+    line: `${target}: ${words}`.slice(0, 300), agent: AGENT_ID,
+  });
+  return {
+    recorded: true, sent: false, shadow: true, note: SHADOW_NOTE,
+    wouldHappen: simulation.value.effects, couldNotSimulate: simulation.unsimulated.map(item => item.reason),
+  };
+}
 
 type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft };
 type Field =
@@ -317,6 +343,8 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
     input: { connector: { type: 'enum', required: true, values: ['mail-app', 'payment-link'], about: 'Where it would go.' }, summary: text('What would be sent, in words.', 300) },
     async run(env, input) {
       const mock: MockEffect = { connector: input.connector, operation: input.connector === 'mail-app' ? 'send-deliverable' : 'create-link', payloadDigest: digest(input.summary), recordedAt: env.now() };
+      const shadow = await shadowOutbox(env, mock, input.summary);
+      if (shadow) return { result: shadow, mock };
       return { result: { recorded: true, sent: false, note: 'Nothing was sent. The owner approves and sends outside actions; this build only records them.' }, mock };
     },
   },

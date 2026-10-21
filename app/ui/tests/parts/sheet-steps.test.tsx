@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sheet } from '../../src/parts/Sheet';
 import { Steps } from '../../src/parts/Steps';
 import { RunSheetView } from '../../src/parts/RunSheet';
+import { evidenceLabel } from '../../src/parts/evidence';
 import { JobList } from '../../src/parts/JobList';
 import { RUNS } from '../../src/engine/fixtures';
 import type { RunDetail, RunSummary } from '../../src/engine/types';
@@ -93,6 +94,16 @@ describe('RunSheet', () => {
     expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4m');
     expect(container.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(screen.getAllByRole('button', { name: 'Receipt R-0412' }).length).toBeGreaterThan(0);
+  });
+
+  it('a rules judge that settled nothing reads "Not checked", never "Failed", and a check is text, not a link', () => {
+    const { container } = render(<RunSheetView run={run('27')} onClose={() => {}} />);
+    const evidence = container.querySelector('p[class*="evidence"]')!;
+    expect(evidence.textContent).toContain('Not checked: Not settled: cites-source.');
+    expect(evidence.textContent).not.toContain('Failed');
+    expect(screen.queryByRole('button', { name: /Not settled/ })).toBeNull();
+    const settled = { kind: 'check', id: 'rules-judge', label: 'Failed: The draft broke rule 2.' };
+    expect(evidenceLabel(settled, (d) => `Not checked: ${d}`)).toBe('Failed: The draft broke rule 2.');
   });
 
   it('a model-written result says "model estimate" and has no receipt', () => {

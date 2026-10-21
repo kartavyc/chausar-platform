@@ -4,6 +4,7 @@
  * inferred says so in words beside it. Weaker evidence never replaces a value on its own: it waits as one quiet
  * suggestion row, placed where the value would land, with a one-line reason and two actions. Data Chausar cannot
  * see is asked for in the same place. The engine decides what may be applied; the UI only shows its answer.
+ * Dismiss goes to the engine (venture.evidence.dismiss): a dismissed item stays in the ledger and off the screen.
  */
 
 import { useId, useRef, useState } from 'react';
@@ -29,8 +30,12 @@ interface FieldModel {
   ask?: EvidenceItem | undefined;
 }
 
-/** What each field shows: its stored value, the evidence applied to it, one waiting suggestion and one ask. */
-export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], dismissed: ReadonlySet<string>): FieldModel[] {
+/**
+ * What each field shows: its stored value, the evidence applied to it, one waiting suggestion and one ask. Items the
+ * engine marks dismissed never show; `hidden` holds the ones being dismissed right now, before the engine answers.
+ */
+export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], hidden: ReadonlySet<string>): FieldModel[] {
+  const open = (item: EvidenceItem) => !item.dismissed && !hidden.has(item.id);
   const stored = (field: string): string | null => {
     if (RECORD_FIELDS.has(field)) return client[field as RecordField];
     return items.find((item) => item.field === field && item.applied)?.value ?? null;
@@ -43,8 +48,8 @@ export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], 
       stored: value,
       applied: mine.find((item) => item.applied && item.claim !== 'needs-your-data' && item.value === value),
       // One suggestion per field: the newest that is not applied, has a value, and differs from the stored one.
-      suggestion: mine.find((item) => !item.applied && item.claim !== 'needs-your-data' && item.value !== value && !dismissed.has(item.id)),
-      ask: mine.find((item) => !item.applied && item.claim === 'needs-your-data' && !dismissed.has(item.id)),
+      suggestion: mine.find((item) => !item.applied && item.claim !== 'needs-your-data' && item.value !== value && open(item)),
+      ask: mine.find((item) => !item.applied && item.claim === 'needs-your-data' && open(item)),
     };
   };
   const shown = SHOWN.map(model);
@@ -55,22 +60,34 @@ export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], 
   return [...shown, ...others];
 }
 
-export function Fields({ client, items, dismissed, onDismiss }: { client: ClientLite; items: readonly EvidenceItem[]; dismissed: ReadonlySet<string>; onDismiss: (id: string) => void }) {
+interface FieldsProps {
+  client: ClientLite;
+  items: readonly EvidenceItem[];
+  /** Items being dismissed now, kept off the screen until the engine answers. */
+  hidden: ReadonlySet<string>;
+  /** The engine's refusal of a dismiss, by item id. */
+  problems: ReadonlyMap<string, string>;
+  onDismiss: (id: string) => void;
+}
+
+export function Fields({ client, items, hidden, problems, onDismiss }: FieldsProps) {
   const t = useT();
   return (
     <div className={s.fields}>
-      {fieldModels(client, items, dismissed).map((m) => (
-        <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} onDismiss={onDismiss} />
+      {fieldModels(client, items, hidden).map((m) => (
+        <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} problems={problems} onDismiss={onDismiss} />
       ))}
     </div>
   );
 }
 
-function FieldView({ model, label, onDismiss }: { model: FieldModel; label: string; onDismiss: (id: string) => void }) {
+function FieldView({ model, label, problems, onDismiss }: { model: FieldModel; label: string; problems: ReadonlyMap<string, string>; onDismiss: (id: string) => void }) {
   const t = useT();
   const labelId = useId();
   const group = useRef<HTMLDivElement>(null);
   const { stored, applied, suggestion, ask } = model;
+  // The dismissed row leaves; focus stays on its field instead of falling to the page.
+  const dismiss = (id: string) => { group.current?.focus(); onDismiss(id); };
   return (
     <div ref={group} role="group" aria-labelledby={labelId} className={s.field} tabIndex={-1}>
       <span id={labelId} className={s.label}>{label}</span>
@@ -82,8 +99,8 @@ function FieldView({ model, label, onDismiss }: { model: FieldModel; label: stri
           </>
         ) : <span>{stored}</span>)}
         {stored === null && !suggestion && !ask && <span className={s.empty}>{t('clients.field.empty')}</span>}
-        {ask && <Ask item={ask} label={label} onDismiss={onDismiss} />}
-        {suggestion && <Suggestion key={suggestion.id} item={suggestion} label={label} onDismiss={onDismiss} onApplied={() => group.current?.focus()} />}
+        {ask && <Ask item={ask} label={label} problem={problems.get(ask.id)} onDismiss={dismiss} />}
+        {suggestion && <Suggestion key={suggestion.id} item={suggestion} label={label} problem={problems.get(suggestion.id)} onDismiss={dismiss} onApplied={() => group.current?.focus()} />}
       </div>
     </div>
   );
@@ -92,7 +109,7 @@ function FieldView({ model, label, onDismiss }: { model: FieldModel; label: stri
 type UseState = { kind: 'idle' } | { kind: 'busy' } | { kind: 'weak' } | { kind: 'failed'; message: string };
 
 /** One quiet row where the value would land. Use this asks the engine; EVIDENCE_WEAK is said in plain words. */
-function Suggestion({ item, label, onDismiss, onApplied }: { item: EvidenceItem; label: string; onDismiss: (id: string) => void; onApplied: () => void }) {
+function Suggestion({ item, label, problem, onDismiss, onApplied }: { item: EvidenceItem; label: string; problem: string | undefined; onDismiss: (id: string) => void; onApplied: () => void }) {
   const t = useT();
   const engine = useEngine();
   const [state, setState] = useState<UseState>({ kind: 'idle' });
@@ -120,12 +137,13 @@ function Suggestion({ item, label, onDismiss, onApplied }: { item: EvidenceItem;
       {/* The live region stays in place so the refusal is read out when it arrives. */}
       <span className={s.kept} role="status">{state.kind === 'weak' ? t('clients.suggest.weak') : ''}</span>
       {state.kind === 'failed' && <span className={s.failed} role="alert">{t('clients.suggest.failed', { message: state.message })}</span>}
+      {problem && <span className={s.failed} role="alert">{t('clients.suggest.dismissFailed', { message: problem })}</span>}
     </div>
   );
 }
 
 /** Data Chausar cannot see: no value to use, only the ask and where it came from. */
-function Ask({ item, label, onDismiss }: { item: EvidenceItem; label: string; onDismiss: (id: string) => void }) {
+function Ask({ item, label, problem, onDismiss }: { item: EvidenceItem; label: string; problem: string | undefined; onDismiss: (id: string) => void }) {
   const t = useT();
   return (
     <div role="group" aria-label={t('clients.ask.label', { field: label })} className={s.suggestion}>
@@ -134,6 +152,7 @@ function Ask({ item, label, onDismiss }: { item: EvidenceItem; label: string; on
         <Button variant="quiet" className={s.dismiss} onClick={() => onDismiss(item.id)}>{t('clients.suggest.dismiss')}</Button>
       </span>
       <span className={s.reason}>{item.source}</span>
+      {problem && <span className={s.failed} role="alert">{t('clients.suggest.dismissFailed', { message: problem })}</span>}
     </div>
   );
 }

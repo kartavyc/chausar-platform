@@ -4,6 +4,9 @@
 // file must still match what was reviewed; after writing, it is read back and must match the new content. Every step
 // is logged on the edit, and an applied edit can be rolled back the same way. A write that cannot be confirmed is
 // 'needs-inspection': never retried, with the original kept in the edit.
+// Applying and rolling back are outside effects, so each goes through the action journal (venture/journal/): proposed,
+// approved inside the app with a single-use token bound to the plan digest, the owner, the session and the business,
+// claimed before the file is touched, then checked by the policy gate, which only the owner's sealed approval opens.
 // Two targets: a site folder on this computer (real files), and a GitHub repo, which stays read-only unless the owner
 // gave a write grant and a writer exists. This build ships no GitHub writer, so the GitHub card's write mode is planned.
 // The stage, review by hash, apply, verify and roll back pattern follows beyondtahir/beyondseo (MIT, Copyright (c) 2026
@@ -14,6 +17,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { GitHubTransport, IsoTime, RepoRef, SiteEditRecord, SiteEditState, VentureDeps } from '../contracts.ts';
 import { MAX_STORED_PAYLOAD, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
+import { digestOf, journalled } from '../journal/journal.ts';
+import { gateEffect, sealApproval } from '../policy/holds.ts';
 
 export type SiteTarget = {
   kind: 'local-folder' | 'github';
@@ -175,6 +180,35 @@ async function writeReviewed(deps: VentureDeps, ctx: Context, target: SiteTarget
   const live = await target.read(edit.path);
   check(live !== null && contentDigest(live) === expected, 'SITE_CHANGED_SINCE_REVIEW', 'The file changed since you reviewed this edit. Nothing was written.');
 
+  const what = stepInfo.done === 'applied' ? `Apply the website edit: ${edit.summary}` : `Undo the website edit: ${edit.summary}`;
+  const done = await journalled(deps, ctx, {
+    action: 'site.apply', subject: `${edit.id}.${stepInfo.done}`, target: shortPath(edit.path), actionDigest: planDigest, line: what.slice(0, 300),
+  }, async handle => {
+    gateEffect({ name: 'site.edit.apply', digest: planDigest }, sealApproval(handle.entry, digestOf(handle.entry)));
+    const record = await writeOnce(deps, ctx, target, edit, planDigest, stepInfo, expected, want);
+    return record.state === stepInfo.done
+      ? { outcome: 'applied' as const, line: stepInfo.line, value: record }
+      : { outcome: 'unknown' as const, line: 'The write could not be confirmed. Check the file before trying again.', value: record };
+  });
+  return done.value ?? reviewedAfter(deps, editId);
+}
+
+/** A path short enough for a journal line, keeping its end, where the file name is. */
+function shortPath(path: string): string {
+  return path.length <= 120 ? path : `...${path.slice(-117)}`;
+}
+
+function reviewedAfter(deps: VentureDeps, editId: string): SiteEditRecord {
+  const edit = findEdit(deps.store.read(), editId);
+  check(edit, 'SITE_EDIT_NOT_FOUND', 'This edit is not here.');
+  return edit;
+}
+
+/** The write itself, run once inside the journal's apply: claim the edit, write, read back, record what happened. */
+async function writeOnce(
+  deps: VentureDeps, ctx: Context, target: SiteTarget, edit: SiteEditRecord, planDigest: string, stepInfo: WriteStep, expected: string, want: string,
+): Promise<SiteEditRecord> {
+  const editId = edit.id;
   await ventureAction(deps, ctx, 'approve', 'site.edit.claim', tx => {
     const current = reviewed(tx.find('venture-site-edit', editId), planDigest, target, stepInfo.from);
     tx.replace({ ...current, state: 'applying' });
@@ -222,6 +256,26 @@ export async function applySiteEdit(deps: VentureDeps, ctx: Context, target: Sit
 /** Puts back the content from before an applied edit, with the same checks. */
 export async function rollbackSiteEdit(deps: VentureDeps, ctx: Context, target: SiteTarget, payload: unknown): Promise<SiteEditRecord> {
   return writeReviewed(deps, ctx, target, payload, { from: 'applied', content: 'before', done: 'rolled-back', line: 'Put back the content from before the edit.' });
+}
+
+/**
+ * After a crash: an edit left 'applying' may or may not have been written, so it becomes needs-inspection and is never
+ * written again on its own. The journal sweep calls this for the site entries it marked outcome_unknown.
+ */
+export async function inspectInterruptedEdits(deps: VentureDeps, ctx: Context, editIds: readonly string[]): Promise<SiteEditRecord[]> {
+  if (!editIds.length) return [];
+  return ventureAction(deps, ctx, 'prepare', 'site.edit.interrupted', tx => {
+    const marked: SiteEditRecord[] = [];
+    for (const id of new Set(editIds)) {
+      const edit = tx.find('venture-site-edit', id);
+      if (edit?.state !== 'applying') continue;
+      marked.push(tx.replace<SiteEditRecord>({
+        ...edit, state: 'needs-inspection',
+        log: [...edit.log, { at: tx.now, by: 'engine', step: 'needs-inspection', line: 'Chausar stopped while writing this edit. Check the file before trying again. The original is kept in this edit.' }],
+      }));
+    }
+    return marked;
+  });
 }
 
 /** The owner turns a staged edit down. Nothing is written. */

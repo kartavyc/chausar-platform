@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 const src = join(import.meta.dirname, '../src');
 function files(dir: string): string[] {
@@ -9,9 +9,14 @@ function files(dir: string): string[] {
     return statSync(path).isDirectory() ? files(path) : [path];
   });
 }
-const code = files(src).filter((f) => /\.(tsx?|css)$/.test(f)).map((f) => ({ f: f.slice(src.length + 1), text: readFileSync(f, 'utf8') }));
+/** Paths relative to src with forward slashes on every system, so the exemptions below match on Windows too. */
+const code = files(src).filter((f) => /\.(tsx?|css)$/.test(f)).map((f) => ({ f: relative(src, f).split(sep).join('/'), text: readFileSync(f, 'utf8') }));
 
 describe('rules the UI keeps (spec section 6)', () => {
+  it('paths are relative with forward slashes, so the fake engine exemption applies on every system', () => {
+    expect(code.some(({ f }) => f === 'engine/fake.ts')).toBe(true);
+    for (const { f } of code) expect(f.includes(String.fromCharCode(92)), f).toBe(false);
+  });
   it('text nodes only: no innerHTML and no dangerouslySetInnerHTML', () => {
     for (const { f, text } of code) expect(text, f).not.toMatch(/dangerouslySetInnerHTML|\.innerHTML\s*=|outerHTML|insertAdjacentHTML/);
   });

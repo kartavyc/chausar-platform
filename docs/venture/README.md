@@ -254,6 +254,21 @@ How it was checked, on Windows 11 with Node 24.13.1:
 
 Known limits: the move was not imported on a second computer in the walk (the tests import one between two engines); the passphrase fallback and the hosted preview were checked by tests, not walked; no Mac or Linux key store has been run; the Electron window was not opened.
 
+## Ink, 21 October
+
+Ink is the new React frontend in `app/ui` for the desktop and the hosted web tier, with the engine pieces it needs: Today's approval queue across businesses and what each row is about, runs you can watch, agent gates and postures, Money at a glance with sum receipts, the tax working, the CA of record and sign-offs, the lead blocklist, client share links, the action journal with bound single-use approvals, the policy gate on every outside effect, and the three flagship playbooks. It is off by default: `npm run build:ui`, then `npm start -- --ink` or `CHAUSAR_UI=ink`. [ink.md](ink.md) says what was built, how to switch it on and what is planned.
+
+Known limits:
+
+- The old renderer is still the default; Ink's full walk at both widths in light and dark, its axe checks and the switch-over are still to do.
+- Today shows other businesses as locked rows: there is no read-only open of another vault yet.
+- Auto with spot checks stays planned. The spot-check decision is recorded when a run finishes at that posture, but the stage cannot be reached and every real-order model turn still waits for the owner.
+- Client share links open only on the hosted tier with `CHAUSAR_PUBLIC_URL` set, not on Rivet; on the desktop a link comes back with no address and says why.
+- The hosted server sweeps the action journal when a business opens but runs no five-minute tick.
+- The CA firm's tax working counts no input credit and no TDS, and computes no income tax; its totals carry no receipt the screens can open.
+- API posting stays planned: no upload or posting client ships.
+- Hindi text was drafted by machine and needs a native reviewer.
+
 ## Package pages
 
 | Page | What it covers |
@@ -269,4 +284,5 @@ Known limits: the move was not imported on a second computer in the walk (the te
 | [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the open box, the block library, the view registry, the composer and its number guard, the draft desk |
 | [launch.md](launch.md) | The launch screens in the renderer (P7), and the onboarding v2 screens |
 | [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
+| [ink.md](ink.md) | Ink, the new React frontend, and the engine methods behind it: switching it on, known limits, what is planned |
 | [architecture.md](architecture.md) | The target architecture this build follows |

@@ -1,9 +1,16 @@
-.gate {
+/* The switch and the floor line share one box: same padding, same gap, same least width, words left-aligned. */
+.gate,
+.floor {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
+  min-width: calc(var(--sp-1) * 2 + 28px + var(--sp-2) + 8.5em);
   min-height: var(--control);
   padding: 0 var(--sp-1);
+  font-size: var(--text-read);
+}
+
+.gate {
   border: 0;
   background: none;
   font-size: var(--text-read);
@@ -53,6 +60,10 @@
 }
 
 .floor {
-  font-size: var(--text-read);
   color: var(--mute);
+}
+
+.space {
+  flex: none;
+  width: 28px;
 }

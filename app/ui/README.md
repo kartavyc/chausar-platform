@@ -6,7 +6,7 @@ One app for desktop (Electron) and the web, built to `app/ui/dist`. Spec: `docs/
 
 | Command | What it does |
 |---|---|
-| `npm run dev:ui` | Vite dev server on port 5178 with the fake engine (sample data, said so on screen) |
+| `npm run dev:ui` | Vite dev server on port 5178 with the fake engine (sample data, said so on screen). Add `?fresh` for the first run, `?closed` for Welcome back, `?no-keys` for a computer without protected storage |
 | `npm run build:ui` | Builds to `app/ui/dist` (relative paths, no inline script or style) |
 | `npm run test:ui` | Vitest + jsdom + Testing Library, everything under `app/ui/tests` |
 | `npm run typecheck:ui` | `tsc --noEmit` with `app/ui/tsconfig.json` (strict) |
@@ -20,12 +20,13 @@ index.html, public/theme.js    page shell; theme.js sets data-theme before the f
 assets/fonts                   7 OFL faces, notices and manifest (from the lane branch)
 src/tokens                     tokens.css (spec section 5 values), fonts.css, motion.css, base.css
 src/text                       en/*.json, hi/*.json (common.json plus one file per place), t() and plurals
-src/engine                     types.ts (shared contract), client.ts, events.ts, context.tsx, fake.ts, fixtures.ts
+src/engine                     types.ts (shared contract), client.ts, events.ts, context.tsx, fake*.ts, fixtures*.ts
 src/shell                      App, Rail, BusinessMenu, routes, navigation, keys, sheets, places registry
 src/parts                      Row, ApprovalRow, Change, Receipt, ModelEstimate, Button, Sheet, RunSheet, Steps,
                                JobList, EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
 src/places/<place>/index.tsx   one folder per place, exporting Place (and optionally sheets)
-tests                          one file per area; parts, shell, engine, text, tokens, source rules
+tests                          one file per area; parts, shell, engine, text, tokens, source rules, axe (a11y.test.tsx),
+                               text contrast from the tokens (contrast.test.ts), the desktop IPC allowlist
 ```
 
 ## How a place plugs in
@@ -44,5 +45,6 @@ tests                          one file per area; parts, shell, engine, text, to
 - Approvals send the digest of what was shown; a stale digest shows "This changed since you opened it" and the new version.
 - Nothing in browser storage. The pairing token stays in memory and leaves the address bar at once.
 - Exactly one filled button per row. Keyboard A and D never act on a row that takes a second ask.
-- Text at 12 px or more (13 for reading). Motion once, 400 ms or less, none with reduced motion.
+- Text at 12 px or more (13 for reading), every text colour at 4.5:1 or more on the page and the sheet. Motion once, 400 ms or less, none with reduced motion.
+- State the shell depends on lives in a component in a .tsx file (onboarding/BootScreen.tsx), never in a hook the shell calls from a plain .ts file: Fast Refresh cannot see such a hook change and reuses the old hook list.
 - Plain words, no em dashes, no AI personality. Hindi is machine-drafted and needs a native reader.

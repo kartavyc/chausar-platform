@@ -7,6 +7,7 @@ import type { ClientLite, DeliveryLite, QueueRow, RunSummary } from '../../engin
 import { OrderList, orderSentence } from './OrderList';
 import { runStateOf, type OrderView } from './orders';
 import { PreviousRuns } from './PreviousRuns';
+import { ShareLinks } from './ShareLinks';
 import s from './Work.module.css';
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -32,7 +33,8 @@ export interface OrderFocusProps {
 /**
  * One order, from #/work?order=<id> (the Clients place links here): its row with state sentence and action, the
  * receipt behind its price, and every run made for it, newest first. A run the engine lists opens the run sheet;
- * a draft it does not list is shown by its title and where it stands.
+ * a draft it does not list is shown by its title and where it stands. Each real draft can be shared with the client
+ * as a preview link, when the engine has an address for one.
  */
 export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, onChanged }: OrderFocusProps) {
   const t = useT();
@@ -43,6 +45,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
   const listed = mine.flatMap((d) => runs.filter((r) => r.runId === d.id));
   const unlisted = mine.filter((d) => !runs.some((r) => r.runId === d.id));
   const runIds = new Set(runs.map((r) => r.runId));
+  const shareable = mine.filter((d) => !d.practice && d.deliverable !== null);
 
   return (
     <>
@@ -73,6 +76,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
           </>
         )}
       </Block>
+      {shareable.length > 0 && <Block title={t('work.share.heading')}><ShareLinks drafts={shareable} /></Block>}
       <div>{back}</div>
     </>
   );

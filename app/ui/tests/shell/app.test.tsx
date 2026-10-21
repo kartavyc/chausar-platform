@@ -70,9 +70,9 @@ describe('shell', () => {
 
   it('decides a row on Today against the engine and shrinks it to its receipt line', async () => {
     start();
-    const row = (await screen.findByText('GST working for September')).closest('li')!;
-    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Send to CA' })); });
-    await waitFor(() => expect(screen.getByText(/Sent to your CA/)).toBeTruthy());
+    const row = (await screen.findByText('Which title for episode 15?')).closest('li')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Later' })); });
+    await waitFor(() => expect(screen.getByText(/Moved to later/)).toBeTruthy());
   });
 
   it('speaks Hindi when asked', async () => {

@@ -8,6 +8,7 @@ import { EngineError, type BuildStatusView, type BuilderId } from '../../engine/
 import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
 import { messageOf } from './shared';
+import { SiteEdits } from './SiteEdits';
 import s from './Business.module.css';
 
 const SYNTHETIC = /synthetic recording/i;
@@ -16,6 +17,7 @@ const SYNTHETIC = /synthetic recording/i;
  * Website build (venture.build.*): the brief Chausar writes from the accepted plan, handed to Lovable or Replit through
  * the engine's own link (the owner presses send there), and the repo followed read-only on GitHub, its state in plain
  * words. A deployment address is shown as text, never as a link. The read-only key is sent once and never shown.
+ * Under them, edits to the site itself: staged, reviewed as a diff, applied with the reviewed hash, reversible.
  */
 export function BuildView() {
   const t = useT();
@@ -68,6 +70,7 @@ export function BuildView() {
       </section>
       {brief && <Builders status={build.data} ready={brief.lint.ok} onOpened={build.reload} />}
       <GitHub status={build.data} onChanged={build.reload} />
+      <SiteEdits />
     </>
   );
 }

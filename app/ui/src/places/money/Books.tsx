@@ -1,13 +1,15 @@
 /**
  * The books for a period: billed, received and earned, each from the calculator with its receipt; the engine's own
  * notes on what the figures include (tax among them); and the invoices still open. The period is in the address.
+ * Under them, the tax working (venture.tax.working): each part worked by the calculator, each figure with its receipt,
+ * and a plain line when the working needs the CA to confirm it before anything is filed.
  */
 
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { setQuery, useRoute } from '../../shell/navigation';
 import { Receipt } from '../../parts/Receipt';
-import type { BooksPeriodKey } from '../../engine/types';
+import type { BooksPeriodKey, TaxWorking } from '../../engine/types';
 import { Failed, Figure, InvoiceRef, Section } from './parts';
 import { onMoney, useDay } from './words';
 import s from './Money.module.css';
@@ -76,6 +78,40 @@ export function Books() {
           </Section>
         </>
       )}
+      <TaxWorkingPart />
     </>
+  );
+}
+
+/** The tax working for the engine's current period. A line without a receipt is shown as the engine wrote it. */
+function TaxWorkingPart() {
+  const t = useT();
+  const working = useResource('venture.tax.working', {}, { refreshOn: onMoney });
+  const data: TaxWorking | undefined = working.data;
+  if (!data && !working.error) return null;
+  return (
+    <Section title={data ? t('money.tax.title', { period: data.period }) : t('money.tax.titlePlain')}>
+      {working.error && <Failed error={working.error} />}
+      {data?.needsCaConfirmation && <p className={`${s.quiet} ${s.wait}`}>{t('money.tax.needsCa')}</p>}
+      {data?.sections.map((section) => (
+        <div key={section.id} className={s.taxPart}>
+          <h3 className={s.blockTitle}>{section.title}</h3>
+          {section.lines.length > 0 && (
+            <ul className={s.lines}>
+              {section.lines.map((line, index) => (
+                <li key={`${index}:${line.label}`} className={s.line} data-row="" data-row-id={`tax-${section.id}-${index}`} tabIndex={-1}>
+                  <span className={s.label}>{line.label}</span>
+                  <span className={s.value}>
+                    <Figure>{line.value}</Figure>
+                    {line.receiptId && <Receipt id={line.receiptId} />}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {section.note && <p className={s.quiet}>{section.note}</p>}
+        </div>
+      ))}
+    </Section>
   );
 }

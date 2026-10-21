@@ -18,6 +18,7 @@ import type {
 import { currentVenture, digest, exactPayload, identifier, isAppChannel, listRecords, plainText, singleLine, ventureAction } from '../records.ts';
 import { AGENT_WINDOW_MS, JOURNAL_ACTIONS, applyAction, approveAction, rejectAction, resolveUnknown, sweepJournal } from '../journal/journal.ts';
 import { playwrightBrowserPort } from './browser.ts';
+import { gateEffect, sealApproval } from '../policy/holds.ts';
 
 export const OWNER_SESSION_RISK = 'The platform may restrict this account.';
 const DEFAULT_STEP_TIMEOUT_MS = 30000;
@@ -47,8 +48,12 @@ const PROFILES: Readonly<Record<string, PostingProfile>> = Object.freeze({
     id: 'instagram', name: 'Instagram', maxChars: 2200, apiRequires: ['Meta app review', 'An Instagram professional account'], browser: 'media',
     handoffWhat: 'Copies your caption and opens Instagram. You add the picture and post there.', handoffUrl: () => 'https://www.instagram.com/',
   },
+  // Google's videos.insert page (updated 15 October 2026, playbooks/youtube/platform-rules.ts 'api-upload-privacy') says
+  // uploads from unverified API projects are no longer locked to private, so no audit is listed. API posting stays
+  // planned all the same: no YouTube upload client ships in this build.
   youtube: {
-    id: 'youtube', name: 'YouTube', maxChars: 5000, apiRequires: ['Google API audit, or uploads stay private', 'Google sign-in verification'], browser: 'media',
+    id: 'youtube', name: 'YouTube', maxChars: 5000,
+    apiRequires: ['Google sign-in verification for the YouTube upload scope', 'A YouTube upload client, which this build does not ship'], browser: 'media',
     handoffWhat: 'Copies the title and description and opens YouTube Studio. You upload and publish there.', handoffUrl: () => 'https://studio.youtube.com/',
   },
 });
@@ -259,6 +264,9 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
   const { token } = await approveAction(deps, ctx, { entryId: postId, digest: seen, line: 'You approved this post.' });
   const done = await applyAction(deps, ctx, { entryId: postId, token, idempotencyKey: `${postId}.post` }, async handle => {
     const post = handle.entry as ConnectorPostRecord;
+    // The policy gate before anything leaves: posting is on the always-ask floor, so only the owner's approval sealed on
+    // this post, bound to the digest the owner saw, lets it through. A refusal here is known to have sent nothing.
+    gateEffect({ name: 'connector.post', digest: seen }, sealApproval(post, post.digest));
     const result = await runPost(deps, post);
     if (result.outcome === 'posted') return { outcome: 'applied', line: result.line, url: result.url, by: 'platform', value: `Posted to ${nameOf(post.connectorId)}. ${result.line}` };
     if (result.outcome === 'not-sent') return { outcome: 'not-sent', line: result.line, by: 'platform', value: result.line };

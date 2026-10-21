@@ -8,6 +8,7 @@ import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
+import { evidenceLabel } from './evidence';
 import type { QueueActionId, QueueRow, RunDetail, RunStep } from '../engine/types';
 import s from './RunSheet.module.css';
 
@@ -113,7 +114,9 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
           {evidence.map((item, i) => (
             <Fragment key={`${item.kind}:${item.id}`}>
               {i > 0 && ', '}
-              <Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{item.label}</Button>
+              {item.kind === 'check'
+                ? <span>{evidenceLabel(item, (detail) => t('run.notChecked', { detail }))}</span>
+                : <Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{item.label}</Button>}
             </Fragment>
           ))}
         </p>

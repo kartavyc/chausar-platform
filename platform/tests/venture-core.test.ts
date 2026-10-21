@@ -862,10 +862,10 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the eleven core methods; the pre-vault answers are functions', () => {
+test('13. the handler table holds exactly the twelve core methods; the pre-vault answers are functions', () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update',
-    'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
+    'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
   ]);
   assert.equal(typeof listCountries, 'function');
   assert.equal(typeof previewPlan, 'function');

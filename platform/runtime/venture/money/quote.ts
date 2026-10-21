@@ -7,7 +7,8 @@ import { digest, exactPayload, listRecords, readVenture, ventureAction, type Ven
 import { computePrice, type PriceAmounts } from './price.ts';
 import { halfRatePercent, ratePercent, taxDecision, type TaxDecision } from './tax.ts';
 import { latestBlueprint, oneLine, quantityText, recordId, requireLatestBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type { BlueprintRecord, ClientRecord, MinorString, Offer, PriceFigure, PriceReceiptRecord, VentureDeps } from '../contracts.ts';
+import type { BlueprintRecord, ClientRecord, MinorString, Offer, PriceFigure, PriceReceiptRecord, SumReceiptRecord, VentureDeps } from '../contracts.ts';
+import { servedSumReceipt } from './sums.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -171,12 +172,15 @@ export async function quotePrice(deps: VentureDeps, ctx: Context, payload: unkno
 
 /**
  * venture.receipt.get (level read). An offer receipt reads stale once the latest blueprint version has a different
- * digest from the one it priced.
+ * digest from the one it priced. A sum receipt (sums.ts: owed, received, spent) reads stale once its subject adds up
+ * to something else.
  */
-export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord> {
+export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord | SumReceiptRecord> {
   const body = exactPayload(payload, ['id'], ['id']);
   const id = recordId(body.id, 'Receipt');
   const { state, venture } = readVenture(deps, ctx);
+  const sum = listRecords(state, 'venture-sum-receipt', venture.id).find(r => r.id === id);
+  if (sum) return servedSumReceipt(state, venture, sum);
   const receipt = listRecords(state, 'venture-price-receipt', venture.id).find(r => r.id === id);
   check(receipt, 'RECEIPT_NOT_FOUND', 'This price receipt was not found.');
   if (receipt.subject.type !== 'offer') return receipt;

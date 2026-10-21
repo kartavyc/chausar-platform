@@ -19,6 +19,7 @@
   "team.postureMeans.shadow": "असली ऑर्डर पर काम करता है, पर Chausar के बाहर का हर काम सिर्फ़ आज़माया जाता है, किया नहीं जाता।",
   "team.postureMeans.approve-each": "हर काम बाहर जाने से पहले आपसे मंज़ूरी माँगता है।",
   "team.postureMeans.auto-spot-check": "अपने आप काम करता है, और आप उसके कुछ कामों की जाँच करते हैं।",
+  "team.postureFailed": "काम का तरीका नहीं बदला: {message}",
   "team.steps": "कदम",
   "team.gateFloor": "यह कदम हमेशा आपसे पूछता है, इसलिए यह अपने आप नहीं चल सकता।",
   "team.gateFailed": "यह नहीं बदला: {message}",

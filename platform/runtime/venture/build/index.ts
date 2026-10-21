@@ -7,7 +7,8 @@ import { buildStatus, linkRepo, syncRepo } from './github.ts';
 import { markHandoffOpened, prepareHandoff } from './handoff.ts';
 import { bankConsent, bankImport } from './bank-methods.ts';
 import { siteApply, siteRevert, siteStage } from './site-methods.ts';
-import { leadsAdd, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
+import { leadsAdd, leadsBlock, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
+import { shareCreate, shareList, shareRevoke } from './share-links.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -35,6 +36,11 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.leads.list': leadsList satisfies VentureHandler<'venture.leads.list'>,
   'venture.leads.draft': leadsDraft satisfies VentureHandler<'venture.leads.draft'>,
   'venture.leads.recordSend': leadsRecordSend satisfies VentureHandler<'venture.leads.recordSend'>,
+  'venture.leads.block': leadsBlock satisfies VentureHandler<'venture.leads.block'>,
+  // Read-only preview links for clients (share-links.ts); the hosted web server serves /share/<token>.
+  'venture.share.create': shareCreate satisfies VentureHandler<'venture.share.create'>,
+  'venture.share.list': shareList satisfies VentureHandler<'venture.share.list'>,
+  'venture.share.revoke': shareRevoke satisfies VentureHandler<'venture.share.revoke'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';
@@ -42,3 +48,7 @@ export { planHandoff } from './handoff.ts';
 export { lintBrief, REQUIRED_BRIEF_LINES, UI_POLICY } from './brief-lint.ts';
 export { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from './lz.ts';
 export { CONNECTOR_CATALOGUE } from './catalogue.ts';
+// The journal sweep the host runs when a vault opens and on the engine's tick: a trusted host entry point, not a method.
+export { JOURNAL_CLAIM_LIMIT_MS, sweepWholeJournal } from './journal-sweep.ts';
+// The hosted /share/<token> page: trusted host entry points, never RPC methods (VentureHost.shareLink).
+export { shareDecide, sharePage } from './share-links.ts';

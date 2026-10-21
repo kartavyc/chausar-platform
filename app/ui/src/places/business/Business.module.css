@@ -261,3 +261,49 @@
   font-size: var(--text-body);
   color: var(--fg);
 }
+
+/* A staged site edit: the change as lines. Removed lines are struck in grey, added lines are in ink. */
+.diff {
+  display: grid;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-family: var(--font-mono);
+  font-size: var(--text-read);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.removed,
+.added,
+.same {
+  display: block;
+  min-height: 1.5em;
+}
+
+.removed {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.added {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.same {
+  color: var(--mute);
+}
+
+.log {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.log li + li {
+  margin-top: 2px;
+}

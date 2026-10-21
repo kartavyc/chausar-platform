@@ -13,8 +13,9 @@ import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
+import { FakeExtrasDesk } from './fake-extras';
 import type { OrderLite } from './types';
-import { EngineError, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
+import { EngineError, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -42,6 +43,10 @@ export interface FakeOptions {
   hosted?: boolean;
   /** The queue to start with, in place of the sample QUEUE (for example [] for "Nothing needs you."). */
   queue?: Omit<QueueRow, 'digest'>[];
+  /** The businesses on this computer start closed: none is open (Welcome back). `?closed` in the dev page's address. */
+  closed?: boolean;
+  /** Keep only these sample businesses on this computer, by id (for example ['lumen']). */
+  only?: string[];
 }
 
 /** A business on this computer, as the fake keeps it. */
@@ -94,6 +99,8 @@ export class FakeEngine {
   private readonly work: FakeWorkDesk;
   /** Invoices and payments, the books' open invoices: fake-money.ts. Public so a test can change a draft (money.touch). */
   readonly money: FakeMoney;
+  /** Money at a glance, tax working, spend settings, the CA page, leads, bank imports, site edits, links: fake-extras.ts. */
+  private readonly extras: FakeExtrasDesk;
 
   constructor(options: FakeOptions = {}) {
     // `npm run dev:ui` can show the first run: add ?fresh to the address (and ?no-keys for a computer without
@@ -106,7 +113,7 @@ export class FakeEngine {
     this.evidence = clone(EVIDENCE);
     this.latencyMs = options.latencyMs ?? 0;
     this.now = options.now ?? (() => new Date().toISOString());
-    this.businesses = BUSINESSES.map((b): HeldBusiness => ({ ...clone(b), recovery: 'made' }));
+    this.businesses = BUSINESSES.filter((b) => !options.only || options.only.includes(b.id)).map((b): HeldBusiness => ({ ...clone(b), recovery: 'made' }));
     for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
     this.hosted = options.hosted ?? false;
@@ -127,9 +134,15 @@ export class FakeEngine {
       orders: () => this.work.request('venture.order.list', {}) as OrderLite[],
       changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }),
     });
+    this.extras = new FakeExtrasDesk({
+      current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
+      playbook: (id) => this.desk.playbook(id), owed: () => this.money.owed(), hosted: () => this.hosted, emit: (event) => this.emit(event),
+    }, { fresh });
     if (fresh) {
       this.rows = []; this.runs = []; this.agents = {}; this.clients = {}; this.evidence = [];
       this.businesses = []; this.ventures.clear(); this.open = false; this.current = '';
+    } else if (options.closed ?? devAsks('closed')) {
+      this.open = false; this.current = '';
     }
   }
 
@@ -162,7 +175,7 @@ export class FakeEngine {
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
-    // Invoices and payments answer from one desk, ahead of the Work desk's read-only invoice list.
+    // Invoices and payments answer from one desk.
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     switch (method) {
       case 'venture.queue.list': return this.queueList(p.scope === 'current' ? 'current' : 'all');
@@ -184,10 +197,12 @@ export class FakeEngine {
       }
       case 'venture.team.list': return { agents: clone(this.agents[this.current] ?? []) };
       case 'venture.team.gate': return this.gate(p as ParamsOf<'venture.team.gate'>);
+      case 'venture.team.posture': return this.posture(p as ParamsOf<'venture.team.posture'>);
       case 'venture.spend.list': return { rows: clone(SPEND), total: '₹60.10 this month (includes estimates)' };
       case 'venture.journal.list': return { entries: clone(JOURNAL).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
       case 'venture.evidence.list': return { items: clone(this.evidence).filter((e) => typeof p.subject !== 'string' || e.subject === p.subject) };
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
+      case 'venture.evidence.dismiss': return this.dismissEvidence(String(p.id ?? ''));
       case 'venture.client.list': return clone(this.clients[this.current] ?? []);
       case 'venture.client.add': return this.addClient(p);
       case 'venture.events': return { events: [], lastSeq: this.seq };
@@ -208,7 +223,8 @@ export class FakeEngine {
         businesses: this.businesses.map((b) => ({ folder: b.id, name: b.name, demo: true, unlock: b.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', opens: b.opens, recovery: b.recovery, openedAt: b.id === this.current ? this.now() : null, listedFrom: 'card' })),
       };
       case 'workspace.open': {
-        const business = this.businesses.find((b) => b.id === p.folder);
+        // On this computer a business opens by its folder; the hosted server opens one by its id on the account.
+        const business = this.businesses.find((b) => b.id === (this.hosted ? p.businessId : p.folder));
         if (!business) throw new EngineError('WORKSPACE_NOT_FOUND', 'No business in that folder.');
         if (business.opens === 'needs-passphrase' && typeof p.passphrase !== 'string') throw new EngineError('PASSPHRASE_REQUIRED', 'This business opens with its passphrase.');
         this.current = business.id;
@@ -220,6 +236,7 @@ export class FakeEngine {
       default:
         if (this.desk.handles(method)) return this.desk.request(method, p);
         if (this.work.handles(method)) return this.work.request(method, p);
+        if (this.extras.handles(method)) return this.extras.request(method, p);
         throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
@@ -246,6 +263,7 @@ export class FakeEngine {
     if (action.id === 'approve' && row.viewRef?.kind === 'plan') this.desk.accept(row.businessId, row.viewRef.id);
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
+    if (action.id === 'send-to-ca' && row.viewRef?.kind === 'file') this.extras.sentToCa(row.viewRef.id);
     this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
     const said = DONE_LINES[action.id] ?? 'Done';
     return receiptId ? { outcome: 'done', line: `${said} · ${receiptId}`, receiptId } : { outcome: 'done', line: said };
@@ -267,6 +285,21 @@ export class FakeEngine {
     if (!step) throw new EngineError('STEP_NOT_FOUND', 'No such step for this agent.');
     if (step.floor && p.gate === 'auto') throw new EngineError('GATE_FLOOR', 'This step always asks you.');
     step.gate = p.gate;
+    return { agent: clone(agent) };
+  }
+
+  /**
+   * venture.team.posture with the engine's ladder: rehearsal, shadow, approve each, auto with spot checks. A sample
+   * business has not delivered enough approved work for the top step, so it is refused (POSTURE_ABOVE_STAGE).
+   */
+  private posture(p: ParamsOf<'venture.team.posture'>) {
+    const agent = (this.agents[this.current] ?? []).find((a) => a.id === p.agentId);
+    if (!agent) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
+    const ladder: readonly Posture[] = ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'];
+    if (!ladder.includes(p.posture)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose rehearsal, shadow, approve each or auto with spot checks.');
+    if (p.posture === 'auto-spot-check') throw new EngineError('POSTURE_ABOVE_STAGE', 'Auto with spot checks opens once this business has delivered work you approved for a few weeks. It is too early for that.');
+    agent.posture = p.posture;
+    this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
     return { agent: clone(agent) };
   }
 
@@ -317,6 +350,15 @@ export class FakeEngine {
     }
     return { item: clone(item) };
   }
+  /** venture.evidence.dismiss: the owner said no to a suggestion. A value in use stays; apply another one instead. */
+  private dismissEvidence(id: string) {
+    const item = this.evidence.find((e) => e.id === id);
+    if (!item) throw new EngineError('EVIDENCE_NOT_FOUND', 'This evidence is not in this business.');
+    if (item.applied) throw new EngineError('EVIDENCE_APPLIED', 'This value is in use. Apply a different one to replace it.');
+    item.dismissed = true;
+    return { item: clone(item) };
+  }
+
   // -------------------------------------------------------------------------------------------------------------
   // Onboarding, in the engine's order: countries and the template preview before any vault; workspace.create makes
   // the vault (it refuses while one is open); then venture.create, the template interview and the plan inside it.
@@ -444,6 +486,19 @@ export class FakeEngine {
     return { interview: { questions: clone(questions) }, done: questions.every((q) => q.answer !== null) };
   }
 
+  /**
+   * The prices row in the engine's words (views/queue.ts): both offers start with no price, and tax counts as set only
+   * when the owner answered it; left unanswered, Chausar assumed it and asks the owner to confirm.
+   */
+  private pricesRow(questions: InterviewQuestionLite[]): Pick<QueueRow, 'title' | 'line' | 'actions'> {
+    const assumed = questions.find((q) => q.id === 'q_tax')?.answer?.assumed === true;
+    const taxLabel = this.ventures.get(this.current)?.countryCode === 'IN' ? 'GST' : 'Tax';
+    const noPrice = 'Monthly plan and One-off project have no price yet';
+    const words = assumed ? NEW_BUSINESS_ROWS.prices.both : NEW_BUSINESS_ROWS.prices.set;
+    const line = assumed ? `${noPrice}, and Chausar assumed you do not charge ${taxLabel}.` : `${noPrice}.`;
+    return { title: words.title, line, actions: [{ id: 'set-prices', label: words.action, primary: true }] };
+  }
+
   private draftPlan(questions: InterviewQuestionLite[]): BlueprintViewLite {
     if (!questions.every((q) => q.answer !== null)) throw new EngineError('INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
     const venture = this.ventures.get(this.current)!;
@@ -461,7 +516,7 @@ export class FakeEngine {
         { ...base, id: `q-plan-${business.id}`, kind: 'plan', title: NEW_BUSINESS_ROWS.plan.title, line: oneLiner, viewRef: { kind: 'plan', id: planId },
           actions: [{ id: 'read', label: NEW_BUSINESS_ROWS.plan.read, primary: false }, { id: 'approve', label: NEW_BUSINESS_ROWS.plan.accept, primary: true, requiresView: true }] },
         { ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.ai.title, line: NEW_BUSINESS_ROWS.ai.line, actions: [{ id: 'connect', label: NEW_BUSINESS_ROWS.ai.action, primary: true }] },
-        { ...base, id: `q-setup-prices-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.prices.title, line: NEW_BUSINESS_ROWS.prices.line, actions: [{ id: 'set-prices', label: NEW_BUSINESS_ROWS.prices.action, primary: true }] },
+        { ...base, id: `q-setup-prices-${business.id}`, kind: 'setup', ...this.pricesRow(questions), },
       ];
       if (business.recovery === 'not-made') {
         seeds.push({ ...base, id: `q-setup-keep-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.keep.title, line: NEW_BUSINESS_ROWS.keep.line, actions: [{ id: 'keep', label: NEW_BUSINESS_ROWS.keep.action, primary: true }] });
@@ -487,7 +542,10 @@ export class FakeEngine {
       ],
       approvals: [label('Each draft before it goes to a client'), label('Prices and invoices')],
       backOffice: {
-        currency: country.currency, taxLabel: india ? 'GST' : 'Tax', taxRegistered: { value: false, label: 'told-by-you' as const, by: 'owner' as const },
+        currency: country.currency, taxLabel: india ? 'GST' : 'Tax',
+        taxRegistered: questions.find((q) => q.id === 'q_tax')?.answer?.assumed === true
+          ? { value: false, label: 'assumption' as const, by: 'template' as const }
+          : { value: false, label: 'told-by-you' as const, by: 'owner' as const },
         invoiceKind: india ? 'tax-invoice' as const : 'invoice' as const, taxInvoiceReady: false, taxInvoiceMissing: [], paymentRail: india ? 'razorpay' : 'paypal',
       },
       starterConnectorIds: [],

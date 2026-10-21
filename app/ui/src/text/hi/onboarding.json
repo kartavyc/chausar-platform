@@ -27,5 +27,15 @@
   "onboarding.code.copied": "कॉपी हो गया।",
   "onboarding.code.copyFailed": "कॉपी नहीं हुआ। कोड चुनकर ख़ुद कॉपी करें।",
   "onboarding.code.saved": "मैंने इसे सुरक्षित जगह रख लिया है",
-  "onboarding.needsAnswer": "आपकी योजना को पहले इसका जवाब चाहिए: {question}"
+  "onboarding.needsAnswer": "आपकी योजना को पहले इसका जवाब चाहिए: {question}",
+  "onboarding.welcome.title": "फिर से स्वागत है",
+  "onboarding.welcome.list": "इस कंप्यूटर पर बिज़नेस",
+  "onboarding.welcome.noName": "बिना नाम का एक बिज़नेस",
+  "onboarding.welcome.opens.passphrase": "अपने पासफ़्रेज़ से खुलता है",
+  "onboarding.welcome.opens.key-missing": "अपने रिकवरी कोड से खुलता है",
+  "onboarding.welcome.passphrase": "{name} अपने पासफ़्रेज़ से खुलता है। यहाँ उसे पूछना अभी बना नहीं है।",
+  "onboarding.welcome.keyMissing": "{name} इस कंप्यूटर की चाबी से नहीं खुलता। आपका रिकवरी कोड इसे खोलता है।",
+  "onboarding.welcome.opening": "खुल रहा है।",
+  "onboarding.welcome.new": "एक और बिज़नेस शुरू करें",
+  "onboarding.welcome.back": "अपने बिज़नेस पर वापस"
 }

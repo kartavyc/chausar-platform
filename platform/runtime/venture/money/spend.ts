@@ -37,6 +37,8 @@ export const SPEND_WORDS = Object.freeze({
   alreadyCharged: 'This was already paid for, or its payment is still being checked. Chausar never pays twice: look at the earlier charge first.',
   noPrice: 'No price',
   notSent: ' (not sent)',
+  refusedNoPrice: 'Not run: there is no price for it on your rate card, and Chausar never counts an unknown price as free.',
+  refusedOther: 'Not run.',
   estimate: ' (estimate)',
   toolReport: ' (as the tool reported, on your own plan)',
   unknown: '. The answer never came, so the cost is not known and stays held.',
@@ -154,6 +156,17 @@ function counted(record: SpendRecord): bigint {
   if (record.phase === 'settled' && record.settledMicros !== null) return BigInt(record.settledMicros);
   if (record.phase === 'reserved' || record.phase === 'unknown') return BigInt(record.reservedMicros);
   return 0n;
+}
+
+/**
+ * The paid calls of one UTC month (as the model limits count them) with what each counts toward the month: settled
+ * calls at what they settled at, held ones at what they reserved. estimate is true when the figure is not a billed one.
+ * Money at a glance (overview.ts) sums these with a receipt.
+ */
+export function spendOfMonth(records: readonly SpendRecord[], month: string): { record: SpendRecord; micros: bigint; estimate: boolean }[] {
+  return records.filter(record => monthOf(record.at) === month)
+    .map(record => ({ record, micros: counted(record), estimate: rowKind(record) === 'estimate' }))
+    .filter(item => item.micros > 0n);
 }
 
 function monthTotal(records: readonly SpendRecord[], month: string): bigint {
@@ -480,7 +493,15 @@ export function spendRow(record: SpendRecord, agent: string | null = record.agen
     reserved: unpriced ? SPEND_WORDS.noPrice : formatMicros(record.reservedMicros) + unconfirmed,
     ...(settled !== undefined ? { settled } : {}),
     kind: rowKind(record),
+    ...(record.phase === 'refused' ? { reason: refusalReason(record) } : {}),
   };
+}
+
+/** Why a call was refused, in the engine's own words: no price, the monthly limit, a quote waiting for the owner. */
+function refusalReason(record: SpendRecord): Display {
+  if (record.refusal?.code === 'SPEND_UNPRICED') return SPEND_WORDS.refusedNoPrice;
+  const message = record.refusal?.message?.replace(/\s+/g, ' ').trim();
+  return message ? `${SPEND_WORDS.refusedOther} ${message}` : SPEND_WORDS.refusedOther;
 }
 
 /**

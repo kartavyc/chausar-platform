@@ -56,6 +56,9 @@ const METHODS = Object.freeze([
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend',
   'venture.spend.policy.get', 'venture.spend.policy.set',
+  'venture.queue.view', 'venture.team.posture', 'venture.evidence.dismiss', 'venture.money.overview', 'venture.tax.working',
+  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
+  'venture.leads.block', 'venture.share.create', 'venture.share.list', 'venture.share.revoke',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';

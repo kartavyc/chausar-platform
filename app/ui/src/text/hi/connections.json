@@ -60,5 +60,15 @@
   "connections.ai.availability.ready": "जुड़ सकता है",
   "connections.ai.availability.unverified": "जुड़ सकता है",
   "connections.ai.availability.needs-setup": "सेटअप चाहिए",
-  "connections.ai.availability.unavailable": "यहाँ नहीं"
+  "connections.ai.availability.unavailable": "यहाँ नहीं",
+  "connections.bank.open": "स्टेटमेंट इम्पोर्ट करें",
+  "connections.bank.label": "बैंक स्टेटमेंट",
+  "connections.bank.title": "स्टेटमेंट इम्पोर्ट करें",
+  "connections.bank.line": "आपके बैंक की CSV फ़ाइल। Chausar इसे पढ़ता है और कभी पैसे नहीं भेजता।",
+  "connections.bank.account": "खाता",
+  "connections.bank.accountHint": "इसके लिए आपका अपना नाम, जैसे HDFC करंट।",
+  "connections.bank.file": "स्टेटमेंट फ़ाइल (CSV)",
+  "connections.bank.fileFirst": "पहले स्टेटमेंट फ़ाइल चुनें।",
+  "connections.bank.import": "इम्पोर्ट करें",
+  "connections.bank.rejected": "पंक्ति {line}: {reason}"
 }

@@ -57,6 +57,8 @@ export function buildToolEnv(input: EnvInput): ToolEnv {
     dictionary: dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
     sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed], delegateOffer: [...(input.delegateOffer ?? [])],
     policy: { context: harnessPolicyContext({ state, venture, playbook: input.playbook, runRef: input.runRef, ...(input.approval ? { approval: input.approval } : {}) }) },
+    // Only a real order journals anything (shadow entries at shadow), as the person who approved the turn.
+    ...(input.runRef.kind === 'delivery' ? { ctx } : {}),
   };
 }
 

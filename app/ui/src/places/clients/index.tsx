@@ -1,12 +1,13 @@
 /**
  * Clients (spec section 4): one row per client with their last order in one sentence and what they owe (engine
  * figure, with its receipt). Opening a row shows the client sheet beside the list. Rows keep the shell keys
- * (J/K/Enter). The place follows the open business: switching business reloads it.
+ * (J/K/Enter). The place follows the open business: switching business reloads it. Leads, the people the owner may
+ * write to, are one address away (#/clients/leads, Leads.tsx).
  */
 
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { openSheet } from '../../shell/navigation';
+import { openSheet, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
@@ -14,12 +15,42 @@ import { Row } from '../../parts/Row';
 import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { ClientSheet, Owed } from './ClientSheet';
+import { AddLead, LeadSheet, Leads } from './Leads';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
 export function Place() {
+  return useRoute().sub === 'leads' ? <LeadsPage /> : <ClientsPage />;
+}
+
+/** Clients and Leads, side by side under the title. */
+function SubNav({ here }: { here: 'clients' | 'leads' }) {
+  const t = useT();
+  return (
+    <nav aria-label={t('clients.nav')} className={s.subnav}>
+      <a href="#/clients" aria-current={here === 'clients' ? 'page' : undefined}>{t('clients.sub.clients')}</a>
+      <a href="#/clients/leads" aria-current={here === 'leads' ? 'page' : undefined}>{t('clients.sub.leads')}</a>
+    </nav>
+  );
+}
+
+function LeadsPage() {
+  const t = useT();
+  return (
+    <>
+      <div className={s.head}>
+        <PageTitle title={t('place.clients')} />
+        <AddLead />
+      </div>
+      <SubNav here="leads" />
+      <Leads />
+    </>
+  );
+}
+
+function ClientsPage() {
   const t = useT();
   const engine = useEngine();
   const clients = useResource('venture.client.list', {}, { refreshOn });
@@ -39,6 +70,7 @@ export function Place() {
           <Button data-add-client="" onClick={(event) => openSheet('client', 'new', event.currentTarget)}>{t('clients.add')}</Button>
         )}
       </div>
+      <SubNav here="clients" />
       {clients.error && <p className={s.failed} role="alert">{t('sheet.failed', { message: clients.error.message })}</p>}
       {clients.data && list.length === 0 && (
         <EmptyState
@@ -68,4 +100,4 @@ function ClientRow({ client, last }: { client: ClientLite; last: OrderLite | und
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { client: ClientSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = { client: ClientSheet, lead: LeadSheet };

@@ -3,7 +3,7 @@
 // from the owner approves, and an approval covers that one tool with that one input, once, in the next act turn. Any
 // other answer declines it and goes to the agent as the owner's words.
 import { ChausarError } from '../../contracts.ts';
-import type { HarnessState, PolicyHold, Posture } from '../contracts.ts';
+import type { ApprovalSeal, HarnessState, PolicyHold, Posture } from '../contracts.ts';
 import type { FloorKind } from './floor.ts';
 import { ladderPolicy, type Approval } from './ladder.ts';
 import { evaluateSync, type Policy, type Verdict } from './verdict.ts';
@@ -47,4 +47,14 @@ export function gateEffect(
   const verdict = evaluateSync([...(options.policies ?? []), ladderPolicy], { phase: 'outside-effect', ...action }, context);
   if (verdict.verdict !== 'allow') throw new ChausarError(verdict.verdict === 'ask' ? 'POLICY_ASK' : 'POLICY_DENIED', verdict.reason);
   return verdict;
+}
+
+/**
+ * The owner approval a claimed journal entry carries, for gateEffect: its seal, spent by this claim, bound to the
+ * entry's own digest. Anything else (no seal, a seal not used yet, no approver) is no approval, so the gate asks.
+ */
+export function sealApproval(entry: { approval?: ApprovalSeal | null }, entryDigest: string): Approval {
+  const seal = entry.approval ?? null;
+  return seal && seal.usedAt !== null && typeof seal.approvedBy === 'string' && seal.approvedBy.length > 0 && entryDigest.length > 0
+    ? { kind: 'owner-action', digest: entryDigest, memberId: seal.approvedBy } : { kind: 'none' };
 }

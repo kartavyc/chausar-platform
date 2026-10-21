@@ -39,43 +39,52 @@ function words(root: Element): string[] {
 }
 
 describe('Money overview', () => {
-  it('shows what is owed, what came in this month and what AI and tools cost, each figure as the engine wrote it', async () => {
+  it('shows what clients owe, what came in this month and what AI and tools cost, in the engine words and figures', async () => {
     start('#/money');
     expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeTruthy();
-    const owed = await waitFor(() => lineOf('Owed to you'));
+    const owed = await waitFor(() => lineOf('Clients owe you'));
     expect(owed.textContent).toContain('₹26,200.00');
-    expect(owed.textContent).toContain('Boat Audio, due 28 Oct 2026');
-    expect(within(owed).getByRole('button', { name: 'Invoice INV-0039' })).toBeTruthy();
-    const received = await waitFor(() => lineOf('Received this month'));
+    expect(within(owed).getByRole('link', { name: 'All open invoices' }).getAttribute('href')).toBe('#/money/invoices');
+    const received = await waitFor(() => lineOf('Came in this month'));
     expect(received.textContent).toContain('₹86,200.00');
     expect(within(received).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
-    const spent = await waitFor(() => lineOf('Spent on AI and tools'));
-    expect(spent.textContent).toContain('₹60.10 this month (includes estimates)');
+    const spent = await waitFor(() => lineOf('AI and tools this month'));
+    expect(spent.textContent).toContain('₹60.10, includes estimates');
     expect(within(spent).getByRole('link', { name: 'Each call' }).getAttribute('href')).toBe('#/money/spend');
+    // A cost estimate is not a number a model wrote, and it has no receipt until it settles.
+    expect(spent.querySelector('[data-receipt]')).toBeNull();
+    expect(spent.textContent).not.toContain('model estimate');
   });
 
-  it('asks the engine for this month only, and every figure on it carries its reference', async () => {
+  it('reads one engine view and adds nothing up; every figure on it carries its reference', async () => {
     const { calls } = start('#/money');
     await screen.findByText('₹86,200.00');
-    await screen.findByText('₹60.10 this month (includes estimates)');
-    expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
+    await screen.findByText('₹60.10, includes estimates');
+    expect(calls.map(([m]) => m)).toContain('venture.money.overview');
+    expect(calls.map(([m]) => m)).not.toContain('venture.books.summary');
+    expect(calls.map(([m]) => m)).not.toContain('venture.spend.list');
     const figures = main().querySelectorAll('[data-figure]');
     expect(figures.length).toBe(3);
     for (const figure of figures) expect(figure.closest('li')!.querySelector('[data-receipt], [data-invoice], [data-ref]'), figure.textContent ?? '').toBeTruthy();
   });
 
-  it('says plainly when nothing is owed', async () => {
-    start('#/money', { override: { 'venture.books.summary': () => ({ currency: 'INR', period: { from: '2026-10-01', to: '2026-10-31' }, figures: [], openInvoices: [], notes: [] }) } });
-    expect(await screen.findByText('Nothing is owed to you.')).toBeTruthy();
+  it('a figure a model wrote says so and never carries a receipt', async () => {
+    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000.00', receiptId: 'R-0402', estimate: true }] }) } });
+    const received = await waitFor(() => lineOf('Came in this month'));
+    expect(received.textContent).toContain('model estimate');
+    expect(received.querySelector('[data-receipt]')).toBeNull();
   });
 
-  it('a receipt opens the receipt sheet and an invoice number opens the invoice', async () => {
+  it('shows what the engine says when nothing is owed', async () => {
+    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'owed', label: 'Clients owe you', value: '₹0.00' }] }) } });
+    expect((await waitFor(() => lineOf('Clients owe you'))).textContent).toContain('₹0.00');
+  });
+
+  it('a receipt opens the receipt sheet', async () => {
     start('#/money');
     await click(await screen.findByRole('button', { name: 'Receipt R-0402' }));
     expect(window.location.hash).toBe('#/money?sheet=receipt%3AR-0402');
     expect(await screen.findByRole('complementary', { name: 'R-0402' })).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'Invoice INV-0039' }));
-    expect(await screen.findByRole('complementary', { name: 'INV-0039' })).toBeTruthy();
   });
 
   it('keeps each part of Money in the address; an unknown part shows the overview', async () => {
@@ -91,21 +100,20 @@ describe('Money overview', () => {
     expect(links[0]!.getAttribute('aria-current')).toBeNull();
     expect(await screen.findByText('Send invoice · Mehta Traders')).toBeTruthy();
     await go('#/money/nowhere');
-    expect(await screen.findByText('Owed to you')).toBeTruthy();
+    expect(await screen.findByText('Clients owe you')).toBeTruthy();
   });
 
   it('stays near forty words at rest', async () => {
     start('#/money');
     await screen.findByText('₹86,200.00');
-    await screen.findByText('₹60.10 this month (includes estimates)');
-    await screen.findByText('Boat Audio, due 28 Oct 2026');
+    await screen.findByText('₹60.10, includes estimates');
     expect(words(main()).length).toBeLessThanOrEqual(45);
   });
 
   it('speaks Hindi', async () => {
     start('#/money', { language: 'hi' });
     expect(await screen.findByRole('heading', { level: 1, name: 'पैसा' })).toBeTruthy();
-    expect(await screen.findByText('आपको मिलना है')).toBeTruthy();
+    expect(await screen.findByText('सभी खुले बिल')).toBeTruthy();
   });
 });
 

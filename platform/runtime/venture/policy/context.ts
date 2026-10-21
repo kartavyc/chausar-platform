@@ -69,7 +69,8 @@ export function harnessPolicyContext(input: ContextInput): PolicyContext {
 
 /**
  * Stores an agent's own posture (approve, inside the app). Any rung may be stored; it only ever tightens the business
- * posture, so a looser one waits until the business moves up. No method reaches this yet: the Ink contract has none.
+ * posture, so a looser one waits until the business moves up. venture.team.posture (views/team.ts) is stricter: it
+ * refuses a looser one with POSTURE_ABOVE_STAGE.
  */
 export async function setAgentPosture(deps: VentureDeps, ctx: Context, agentId: string, posture: Posture): Promise<AgentPostureRecord> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');

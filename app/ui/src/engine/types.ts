@@ -42,7 +42,8 @@ export interface AgentView {
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed';
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string }
 // phase 2 views
-export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string }
+/** `reason`: the engine's words for why a call was refused (no price, over the monthly limit, waiting for approval). */
+export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display }
 /** venture.spend.policy.get/set. Micro figures are whole micro-USD strings, sent back as they came; the UI shows the Display fields. */
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export interface SpendRateLine {
@@ -54,7 +55,60 @@ export interface SpendRateInput {
 }
 export interface SpendPolicyView { capMicros: string | null; askFirstMicros: string | null; cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null }
 export interface JournalEntry { id: string; action: string; target: string; state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; at: string; line: Display; receiptId?: string }
-export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean }
+/** `dismissed`: the owner said no to this suggestion (venture.evidence.dismiss); it stays in the ledger, off the screen. */
+export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean; dismissed?: boolean }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Ink final pass: the views and actions the engine added for the last screens (engine-final, 21 Oct). Every figure is
+// engine text (Display); amounts the owner types go to the engine as typed strings and come back formatted.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** `venture.money.overview`: Money at a glance, three lines the engine adds up (owed, received, spent). */
+export interface MoneyOverviewLine { id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean }
+export interface MoneyOverview { lines: MoneyOverviewLine[] }
+
+/** `venture.tax.working`: the tax working for a period, worked by the calculator, each figure with its receipt. */
+export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
+export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorkingLine[]; note?: Display }
+export interface TaxWorking { period: Display; sections: TaxWorkingSection[]; needsCaConfirmation: boolean }
+
+/** `venture.ca.get` (the CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
+export interface CaOfRecord { name: string; membershipNo: string }
+export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
+export interface CaSignoffRequest { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
+export interface CaView { ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[] }
+
+/** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
+export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
+export interface OutreachDraftView {
+  id: string; leadId: string; to: string; subject: string; text: string;
+  footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string; by: 'agent' | 'owner'; at: string; digest: string;
+}
+export interface LeadSendView { draftId: string; sentAt: string; recordedBy: string; recordedAt: string; channel: 'own-mailbox' }
+export interface LeadView {
+  id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string; emailCheck: LeadEmailCheck;
+  status: 'new' | 'drafted' | 'contacted' | 'replied' | 'lost' | 'blocked'; drafts: OutreachDraftView[]; sends: LeadSendView[]; addedBy: string; addedAt: string;
+}
+
+/** Bank statements (contracts.ts BankImportResult, BankConsentView). No bank provider is wired: imports are CSV files. */
+export interface BankImportResult { account: string; accountId: string; added: number; duplicates: number; rejected: { line: number; reason: string }[]; line: Display; transactions: number }
+export interface BankConsentLite { id: string; provider: string | null; accountLabel: string; scope: 'read-only'; grantedAt: string; expiresAt: string; revokedAt: string | null }
+export interface BankConsentView {
+  account: string; accountId: string; consent: BankConsentLite;
+  status: { state: 'active' | 'expiring' | 'expired' | 'revoked'; daysLeft: number; line: Display };
+  provider: Display;
+}
+
+/** A staged website edit (contracts.ts SiteEditRecord), trimmed. Apply and revert send planDigest as the reviewed hash. */
+export type SiteEditState = 'staged' | 'applying' | 'applied' | 'rolled-back' | 'rejected' | 'needs-inspection';
+export interface SiteEditLite {
+  id: string; at: string; target: { kind: 'local-folder' | 'github'; identity: string }; path: string; summary: string;
+  before: string; after: string; beforeDigest: string; afterDigest: string; planDigest: string; state: SiteEditState;
+  log: { at: string; by: string; step: 'staged' | 'applied' | 'verified' | 'rolled-back' | 'rejected' | 'needs-inspection'; line: string }[];
+}
+
+/** A preview link for a client (venture.share.*). `url` is null when there is no public address; `reason` says why. */
+export interface ShareLink { id: string; url: string | null; reason?: Display; expiresAt: string }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Mirrors of existing engine shapes (trimmed). Source: platform/runtime/workspace-custody-contracts.ts and
@@ -217,9 +271,9 @@ export interface CustodyViewLite {
 export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
 
 /**
- * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is an
- * Ink view field the engine does not send yet (P3-wire): what the client owes on open invoices, formatted by the engine,
- * with the receipt behind it. Without it the row shows nothing owed; the UI never adds up invoices itself.
+ * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is
+ * what the client owes on open invoices, formatted by the engine, with the receipt behind it. Without it the row shows
+ * nothing owed; the UI never adds up invoices itself.
  */
 export interface ClientLite {
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
@@ -245,10 +299,14 @@ export interface DeliveryLite {
   /** DeliveryRunView: the run waits on the owner (it is on Today). The engine always sends it. */
   awaitingYou?: boolean;
 }
-/** `venture.invoice.list` (InvoiceRecord), trimmed to what an order's state needs. `number` is null until issued. */
+/**
+ * `venture.invoice.list` (InvoiceRecord), trimmed to what an order's state needs. `number` is null until issued.
+ * `total` and `receiptId` (the price receipt) come with each row of the list, so a list needs no invoice.get per row.
+ */
 export interface InvoiceLite {
   id: string; at: string; orderId: string; clientId: string; number: string | null;
   status: 'draft' | 'issued' | 'part-paid' | 'paid' | 'void'; issueDate: string | null; dueDate: string | null;
+  total?: Display; receiptId?: string;
 }
 /**
  * `venture.invoice.get`, `.prepare`, `.issue` and `venture.payment.record` (InvoiceView), trimmed. Amounts reach the UI
@@ -329,6 +387,30 @@ export interface EngineMethods {
   'venture.journal.list': { params: { limit?: number }; result: { entries: JournalEntry[] } };
   'venture.evidence.list': { params: { subject?: string }; result: { items: EvidenceItem[] } };
   'venture.evidence.apply': { params: { id: string }; result: { item: EvidenceItem } };
+  'venture.evidence.dismiss': { params: { id: string }; result: { item: EvidenceItem } };
+  'venture.money.overview': { params: Record<string, never>; result: MoneyOverview };
+  'venture.tax.working': { params: { period?: string }; result: TaxWorking };
+  /** Refused with POSTURE_ABOVE_STAGE when the business is not far enough along for that posture. */
+  'venture.team.posture': { params: { agentId: string; posture: Posture }; result: { agent: AgentView } };
+  'venture.ca.get': { params: Record<string, never>; result: CaView };
+  /** After each CA write the page reads venture.ca.get again, so it shows what the engine holds. */
+  'venture.ca.setOfRecord': { params: { name: string; membershipNo: string }; result: CaView };
+  'venture.ca.recordSignoff': { params: { requestId: string; membershipNo: string; note?: string }; result: { request: CaSignoffRequest } };
+  'venture.ca.confirmRates': { params: { tableIds: string[]; membershipNo: string }; result: CaView };
+  'venture.leads.add': { params: { name: string; company?: string; email?: string; sourceUrl: string }; result: LeadView };
+  'venture.leads.list': { params: Record<string, never>; result: { leads: LeadView[] } };
+  'venture.leads.draft': { params: { leadId: string; subject: string; body: string; postalAddress?: string }; result: { lead: LeadView; draft: OutreachDraftView } };
+  'venture.leads.recordSend': { params: { leadId: string; draftId: string; sentAt: string }; result: LeadView };
+  'venture.leads.block': { params: { value: string }; result: { blocked: string[] } };
+  'venture.bank.import': { params: { csv: string; account: string }; result: BankImportResult };
+  'venture.bank.consent': { params: { account: string; days?: number; revoke?: boolean }; result: BankConsentView };
+  'venture.site.stage': { params: { path: string; after: string; summary: string }; result: SiteEditLite };
+  'venture.site.apply': { params: { editId: string; reviewedHash: string }; result: SiteEditLite };
+  'venture.site.revert': { params: { editId: string; reviewedHash: string }; result: SiteEditLite };
+  'venture.share.create': { params: { deliveryId: string; expiresInHours?: number }; result: ShareLink };
+  /** `links` is the contract's name; the engine sends the same list as `shares` too. */
+  'venture.share.list': { params: { deliveryId?: string }; result: { links?: ShareLink[]; shares?: ShareLink[] } };
+  'venture.share.revoke': { params: { id: string }; result: ShareLink };
   'venture.events': { params: { afterSeq?: number; limit?: number }; result: VentureEventsResult };
   'venture.get': { params: Record<string, never>; result: VentureViewLite | null };
   'venture.receipt.get': { params: { id: string }; result: ReceiptLite };
@@ -372,7 +454,8 @@ export interface EngineMethods {
   'venture.invoice.list': { params: Record<string, never>; result: InvoiceLite[] };
   'venture.files.add': { params: { orderId: string; name: string; contentBase64: string }; result: UploadLite };
   'workspace.list': { params: Record<string, never>; result: BusinessList };
-  'workspace.open': { params: { folder?: string; passphrase?: string }; result: unknown };
+  /** On this computer a business opens by its folder; on hosted, by its id on the account (platform/runtime/hosted/app.ts). */
+  'workspace.open': { params: { folder?: string; passphrase?: string; businessId?: string }; result: unknown };
   // Onboarding, in the engine's order.
   'workspace.status': { params: Record<string, never>; result: WorkspaceStatusLite };
   'workspace.lock': { params: Record<string, never>; result: { locked: true } };

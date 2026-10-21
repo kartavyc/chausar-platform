@@ -194,3 +194,53 @@
   font-size: var(--text-read);
   color: var(--mute);
 }
+
+/* Welcome back: the businesses on this computer, one line each, no boxes. */
+.businesses {
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.business {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-4);
+  width: 100%;
+  min-height: var(--target);
+  padding: var(--sp-2) 0;
+  border: 0;
+  border-top: var(--hair) solid var(--line);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.business:hover:not(:disabled) {
+  color: var(--link);
+}
+
+.business:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.business:disabled {
+  cursor: default;
+}
+
+.businessNote {
+  font-size: var(--text-read);
+  font-weight: var(--weight-regular);
+  color: var(--mute);
+}
+
+.back {
+  margin-top: var(--sp-4);
+  font-size: var(--text-read);
+}

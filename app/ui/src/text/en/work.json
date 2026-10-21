@@ -61,5 +61,15 @@
   "work.focus.price": "Priced on",
   "work.focus.missing": "This order isn't in this business.",
   "work.focus.back": "All orders",
-  "work.focus.draft": "Draft"
+  "work.focus.draft": "Draft",
+  "work.share.heading": "Preview for the client",
+  "work.share.create": "Share with client",
+  "work.share.creating": "Sharing",
+  "work.share.links": "Links for {title}",
+  "work.share.until": "Works until {day}",
+  "work.share.copy": "Copy",
+  "work.share.copied": "Copied",
+  "work.share.revoke": "Revoke",
+  "work.share.failed": "Couldn't share this: {message}",
+  "work.share.revokeFailed": "Couldn't revoke this link: {message}"
 }

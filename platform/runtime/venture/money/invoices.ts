@@ -14,9 +14,10 @@ import { insertBooksFact, invoiceFact } from './facts.ts';
 import { buildPriceReceipt, receiptFigure, receiptTaxable } from './quote.ts';
 import { halfRateBps, stateName, taxDecision } from './tax.ts';
 import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
-import { journalled, type ApplyHandle } from '../journal/journal.ts';
+import { digestOf, journalled, type ApplyHandle } from '../journal/journal.ts';
+import { gateEffect, sealApproval } from '../policy/holds.ts';
 import {
-  experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceRecord,
+  experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceListRow, type InvoiceRecord,
   type InvoiceView, type MinorString, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
 } from '../contracts.ts';
 
@@ -261,6 +262,9 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
   const journal = await journalled(deps, ctx, {
     action: 'invoice.issue', subject: invoiceId, target: clientName, actionDigest: approved, line: `Issue the invoice for ${clientName}.`,
   }, async handle => {
+    // The policy gate before the effect: issuing is on the always-ask floor, so only the owner's approval sealed on this
+    // entry, bound to this exact invoice digest, lets it through. Anything else asks or is denied, and nothing is issued.
+    gateEffect({ name: 'invoice.issue', digest: approved }, sealApproval(handle.entry, digestOf(handle.entry)));
     const value = await issueCommit(handle);
     return { outcome: 'applied', line: `Issued ${value.number}.`, receiptId: value.priceReceiptId, value };
   });
@@ -287,9 +291,13 @@ export async function getInvoice(deps: VentureDeps, ctx: Context, payload: unkno
   return invoiceView(state, venture, invoice, deps);
 }
 
-/** venture.invoice.list (level read): newest first. */
-export async function listInvoices(deps: VentureDeps, ctx: Context, payload: unknown): Promise<InvoiceRecord[]> {
+/**
+ * venture.invoice.list (level read): newest first. Each row carries its total, formatted by code, and the price receipt
+ * that covers it, so a list needs no invoice.get per row.
+ */
+export async function listInvoices(deps: VentureDeps, ctx: Context, payload: unknown): Promise<InvoiceListRow[]> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  return newestFirst(listRecords(state, 'venture-invoice', venture.id));
+  return newestFirst(listRecords(state, 'venture-invoice', venture.id))
+    .map(invoice => ({ ...invoice, total: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId }));
 }

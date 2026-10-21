@@ -69,7 +69,7 @@ describe('fake engine: the queue', () => {
     const listener = vi.fn();
     client.subscribe(listener);
     const row = (await client.request('venture.queue.list', {})).rows.find((r) => r.kind === 'signoff')!;
-    await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: 'send-to-ca' });
+    await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: 'send-to-ca', viewed: true });
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ type: 'queue.changed', businessId: row.businessId }));
   });
 });

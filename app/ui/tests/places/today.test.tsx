@@ -27,6 +27,13 @@ const rowOf = async (title: string) => (await within(needsYou()).findByText(titl
 const rowIds = () => [...needsYou().querySelectorAll('[data-row]')].map((li) => li.getAttribute('data-row-id'));
 const press = (key: string, target: Element = document.activeElement ?? document.body) => fireEvent.keyDown(target, { key });
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); }); };
+/** A sign-off row's Send to CA unlocks once its papers were read (the engine's requiresView). */
+async function readFirst(row: HTMLElement) {
+  await click(within(row).getByRole('button', { name: 'Read' }));
+  await settleHash();
+  await screen.findByRole('complementary', { name: 'GST working for September' });
+  await waitFor(() => expect((within(row).getByRole('button', { name: 'Send to CA' }) as HTMLButtonElement).disabled).toBe(false));
+}
 
 const lockedLedgerline: Seed = {
   id: 'q-locked-ledgerline', businessId: 'ledgerline', businessName: 'Ledgerline', kind: 'locked', createdAt: '2026-10-21T10:11:00.000Z',
@@ -82,9 +89,11 @@ describe('Today: the header and the list', () => {
 });
 
 describe('Today: deciding', () => {
-  it('a licensed sign-off goes to the CA and shrinks to one line', async () => {
+  it('a licensed sign-off is read first, then goes to the CA and shrinks to one line', async () => {
     start();
     const row = await rowOf('GST working for September');
+    expect((within(row).getByRole('button', { name: 'Send to CA' }) as HTMLButtonElement).disabled).toBe(true);
+    await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
     expect(screen.getByText('11 need you, across 3 businesses')).toBeTruthy();
@@ -212,6 +221,7 @@ describe('Today: deciding', () => {
     };
     start({ engine, client });
     const row = await rowOf('GST working for September');
+    await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     expect(row.textContent).toContain('Mehta Traders has no GSTIN yet. Add it under Clients, then send it.');
     expect(within(row).getByRole('button', { name: 'Send to CA' })).toBeTruthy();
@@ -220,6 +230,7 @@ describe('Today: deciding', () => {
   it('a decided line stays for the rest of the session, after leaving Today and coming back', async () => {
     start();
     const row = await rowOf('GST working for September');
+    await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')).toBeTruthy());
     await go('#/team');
@@ -233,7 +244,7 @@ describe('Today: deciding', () => {
     const { client } = start();
     await rowOf('GST working for September');
     const target = (await client.request('venture.queue.list', { scope: 'all' })).rows.find((r) => r.id === 'q-signoff-gst')!;
-    await act(async () => { await client.request('venture.queue.decide', { id: target.id, digest: target.digest, action: 'send-to-ca' }); });
+    await act(async () => { await client.request('venture.queue.decide', { id: target.id, digest: target.digest, action: 'send-to-ca', viewed: true }); });
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"]')?.textContent).toBe('GST working for September · Resolved elsewhere'));
   });
 });
@@ -344,7 +355,9 @@ describe('Today: keys', () => {
     await settleHash();
     expect(window.location.hash).toBe('#/today?sheet=view%3Adraft%3Adraft-ep14');
 
-    (await rowOf('GST working for September')).focus();
+    const signoff = await rowOf('GST working for September');
+    await readFirst(signoff);
+    signoff.focus();
     await act(async () => { press('a'); });
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"]')!.textContent).toBe('GST working for September · Sent to your CA'));
     expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-signoff-gst');

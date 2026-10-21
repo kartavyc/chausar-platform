@@ -192,7 +192,11 @@ function rulesJudge(input: CheckInput): CheckResult | null {
   const first = verdict.rules.find(rule => rule.outcome === verdict.outcome);
   const said = verdict.outcome === 'fail' ? first?.votes.find(vote => vote.verified && vote.answer === 'no')?.reason : undefined;
   const why = first && first.detail !== verdict.detail ? ` ${first.detail}` : '';
-  return { check: 'rules-judge', passed: false, detail: `${verdict.detail}${why}${said ? ` The judge said: "${quote(said, 160)}"` : ''}` };
+  return {
+    check: 'rules-judge', passed: false, detail: `${verdict.detail}${why}${said ? ` The judge said: "${quote(said, 160)}"` : ''}`,
+    // No rule settled with checked evidence: nothing was checked, so the screens say so instead of calling it a failure.
+    ...(verdict.outcome === 'unverified' ? { notChecked: true as const } : {}),
+  };
 }
 
 const RUNNERS: Readonly<Record<CheckId, (input: CheckInput) => CheckResult | null>> = {

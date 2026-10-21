@@ -4,7 +4,8 @@
  * engine's risk line and, when planned, the engine's reason. Nothing here claims more than the engine says.
  * Actions are only what the engine really does: Open hands the build brief to a builder (venture.build.handoff),
  * Follow a repo leads to Website build (venture.build.link, the one connector the engine links), Visit site opens the
- * engine's vendor link. Your AI lives at the top. A connector opens beside the page with every mode it lists.
+ * engine's vendor link, Import a statement reads a bank statement file (venture.bank.import). Your AI lives at the top.
+ * A connector opens beside the page with every mode it lists.
  */
 
 import { useId, useMemo, useState } from 'react';
@@ -19,6 +20,7 @@ import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { EngineError, type BuilderId, type ConnectorCardLite, type PostingOptionLite } from '../../engine/types';
 import { BUILDERS, BUILDER_NAMES, handOff } from '../business/handoff';
+import { BankImportSheet } from './BankImport';
 import { ExternalLink, openProblem } from './external';
 import { YourAi } from './YourAi';
 import s from './Connections.module.css';
@@ -107,6 +109,8 @@ function ConnectorRow({ card }: { card: ConnectorCardLite }) {
       )}
       {/* GitHub is the one connector the engine links (venture.build.link, read only); the form is on Website build. */}
       {card.id === 'github' && <a className={s.link} href="#/business/build">{t('connections.follow')}</a>}
+      {/* A statement file is read today; reading the bank itself waits for a provider, as the card's label says. */}
+      {card.id === 'bank-account' && <Button onClick={(event) => openSheet('bank-import', card.id, event.currentTarget)}>{t('connections.bank.open')}</Button>}
       {card.vendorUrl && <ExternalLink href={card.vendorUrl}>{t('connections.visit')}<span className="sr-only">, {card.name}</span></ExternalLink>}
     </>
   );
@@ -179,4 +183,4 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-export const sheets = { connector: ConnectorSheet };
+export const sheets = { connector: ConnectorSheet, 'bank-import': BankImportSheet };

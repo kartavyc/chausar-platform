@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { EngineClient } from '../../src/engine/types';
+import { EngineError, type EngineClient } from '../../src/engine/types';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
@@ -172,17 +172,44 @@ describe('client sheet', () => {
     await waitFor(() => expect(field(sheet, 'Email').textContent).toContain('hello@nimbusmics.in'));
   });
 
-  it('dismisses a suggestion for the rest of the session', async () => {
-    start();
+  it('dismisses a suggestion in the engine, so it stays dismissed after reopening and in a new session', async () => {
+    const { client, spy, unmount } = start();
     let sheet = await openClient('Nimbus Mics');
     const suggestion = await within(field(sheet, 'Email')).findByRole('group', { name: 'Suggested email' });
-    fireEvent.click(within(suggestion).getByRole('button', { name: 'Dismiss' }));
+    await act(async () => { fireEvent.click(within(suggestion).getByRole('button', { name: 'Dismiss' })); });
+    expect(spy).toHaveBeenCalledWith('venture.evidence.dismiss', { id: 'ev-n2' });
     expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    expect(document.activeElement).toBe(field(sheet, 'Email'));
     await click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
     sheet = await openClient('Nimbus Mics');
     await waitFor(() => expect(field(sheet, 'Email').textContent).toContain('Not given'));
     expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    // The engine keeps it: a new window on the same engine does not show it either.
+    unmount();
+    window.location.hash = '#/clients';
+    render(<App client={client} language="en" />);
+    sheet = await openClient('Nimbus Mics');
+    await waitFor(() => expect(field(sheet, 'Email').textContent).toContain('Not given'));
+    expect(within(field(sheet, 'Email')).queryByRole('group', { name: 'Suggested email' })).toBeNull();
+    const items = (await client.request('venture.evidence.list', { subject: 'client:c-nimbus' })).items;
+    expect(items.find((item) => item.id === 'ev-n2')?.dismissed).toBe(true);
+  });
+
+  it('a refused dismiss brings the suggestion back with the reason in words', async () => {
+    start('#/clients', {
+      override: (client) => {
+        const base = client.request.bind(client);
+        client.request = ((method: string, params?: unknown) => (method === 'venture.evidence.dismiss'
+          ? Promise.reject(new EngineError('EVIDENCE_APPLIED', 'This value is in use. Apply a different one to replace it.'))
+          : base(method as never, params as never))) as EngineClient['request'];
+      },
+    });
+    const sheet = await openClient('Nimbus Mics');
+    const suggestion = await within(field(sheet, 'Email')).findByRole('group', { name: 'Suggested email' });
+    await act(async () => { fireEvent.click(within(suggestion).getByRole('button', { name: 'Dismiss' })); });
+    const back = await within(field(sheet, 'Email')).findByRole('group', { name: 'Suggested email' });
+    expect(within(back).getByRole('alert').textContent).toBe("Couldn't dismiss this: This value is in use. Apply a different one to replace it.");
   });
 
   it('asks for data Chausar cannot see, where the value would go, with no value to use', async () => {

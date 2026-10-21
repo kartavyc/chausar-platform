@@ -8,6 +8,12 @@ import s from './Business.module.css';
 
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
+/** A day (2026-10-21) or a moment as the reader's calendar writes the date. Dates only; no figure is formatted here. */
+export function dayOf(at: string, language: string): string {
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00.000Z` : at);
+  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { dateStyle: 'medium', timeZone: 'UTC' }).format(date);
+}
+
 /** Who said a line, in small grey words; a number a model wrote says "model estimate". */
 export function LabelTag({ line }: { line: Pick<LabelledLite<unknown>, 'label' | 'estimate'> }) {
   const t = useT();

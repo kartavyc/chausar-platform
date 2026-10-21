@@ -27,5 +27,15 @@
   "onboarding.code.copied": "Copied.",
   "onboarding.code.copyFailed": "Couldn't copy. Select the code and copy it yourself.",
   "onboarding.code.saved": "I saved it somewhere safe",
-  "onboarding.needsAnswer": "Your plan needs an answer to this first: {question}"
+  "onboarding.needsAnswer": "Your plan needs an answer to this first: {question}",
+  "onboarding.welcome.title": "Welcome back",
+  "onboarding.welcome.list": "Businesses on this computer",
+  "onboarding.welcome.noName": "A business with no name",
+  "onboarding.welcome.opens.passphrase": "Opens with its passphrase",
+  "onboarding.welcome.opens.key-missing": "Opens with its recovery code",
+  "onboarding.welcome.passphrase": "{name} opens with its passphrase. Asking for it here isn't built yet.",
+  "onboarding.welcome.keyMissing": "{name} can't open with this computer's key. Your recovery code opens it.",
+  "onboarding.welcome.opening": "Opening.",
+  "onboarding.welcome.new": "Start another business",
+  "onboarding.welcome.back": "Back to your businesses"
 }

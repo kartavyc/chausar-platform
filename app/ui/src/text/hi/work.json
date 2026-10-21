@@ -61,5 +61,15 @@
   "work.focus.price": "कीमत की रसीद",
   "work.focus.missing": "यह ऑर्डर इस बिज़नेस में नहीं है।",
   "work.focus.back": "सारे ऑर्डर",
-  "work.focus.draft": "ड्राफ़्ट"
+  "work.focus.draft": "ड्राफ़्ट",
+  "work.share.heading": "क्लाइंट के लिए झलक",
+  "work.share.create": "क्लाइंट से साझा करें",
+  "work.share.creating": "साझा हो रहा है",
+  "work.share.links": "{title} के लिंक",
+  "work.share.until": "{day} तक चलेगा",
+  "work.share.copy": "कॉपी करें",
+  "work.share.copied": "कॉपी हो गया",
+  "work.share.revoke": "रद्द करें",
+  "work.share.failed": "साझा नहीं हुआ: {message}",
+  "work.share.revokeFailed": "लिंक रद्द नहीं हुआ: {message}"
 }

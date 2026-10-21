@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -218,6 +218,49 @@ describe('Work: one order from the address', () => {
     expect(run.textContent).toContain('Started 0s ago');
     await go('#/work?order=nope');
     expect(await screen.findByText("This order isn't in this business.")).toBeTruthy();
+  });
+});
+
+describe('Work: preview links for the client', () => {
+  it('offers sharing on each real draft, never a practice one; with no public address it says the engine reason', async () => {
+    const { calls } = await start('#/work?order=o-boat-14');
+    const share = await screen.findByRole('region', { name: 'Preview for the client' });
+    const line = await rowOf('Sponsor script for episode 14', share);
+    expect(within(share).queryByText('Practice sponsor script')).toBeNull();
+    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Share with client' })); });
+    expect(calls.find((c) => c.method === 'venture.share.create')?.params).toEqual({ deliveryId: 'd-ep14-script' });
+    await waitFor(() => expect(within(line).getByRole('status').textContent).toBe('This computer has no public address, so a client cannot open a link from it. Send them the file instead.'));
+    expect(within(line).queryByRole('list')).toBeNull();
+    expect(line.textContent).not.toMatch(/https?:/);
+  });
+
+  it('on hosted, shows the link as text with when it stops working, copies it, and revokes it', async () => {
+    window.location.hash = '#/work?order=o-boat-14';
+    const engine = new FakeEngine({ hosted: true });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    render(<App client={createFakeClient(engine)} language="en" />);
+    const share = await screen.findByRole('region', { name: 'Preview for the client' });
+    const line = await rowOf('Sponsor script for episode 14', share);
+    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Share with client' })); });
+    const links = await within(line).findByRole('list', { name: 'Links for Sponsor script for episode 14' });
+    const link = within(links).getByRole('listitem');
+    expect(link.textContent).toContain('https://share.chausar.test/s/');
+    expect(link.textContent).toMatch(/Works until \d{1,2} \w+/);
+    await act(async () => { fireEvent.click(within(link).getByRole('button', { name: 'Copy' })); });
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/share\.chausar\.test\/s\//));
+    await waitFor(() => expect(within(link).getByRole('button', { name: 'Copied' })).toBeTruthy());
+    await act(async () => { fireEvent.click(within(link).getByRole('button', { name: 'Revoke' })); });
+    await waitFor(() => expect(within(line).queryByRole('list')).toBeNull());
+    expect((await engine.request('venture.share.list', { deliveryId: 'd-ep14-script' }) as { shares: unknown[] }).shares).toEqual([]);
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  it('a refusal to share is said in plain words', async () => {
+    await start('#/work?order=o-boat-14', { intercept: { 'venture.share.create': () => { throw new EngineError('OFFLINE', 'The engine is not answering.'); } } });
+    const line = await rowOf('Sponsor script for episode 14', await screen.findByRole('region', { name: 'Preview for the client' }));
+    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Share with client' })); });
+    await waitFor(() => expect(within(line).getByRole('alert').textContent).toBe("Couldn't share this: The engine is not answering."));
   });
 });
 

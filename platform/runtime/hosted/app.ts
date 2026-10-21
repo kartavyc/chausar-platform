@@ -1,12 +1,13 @@
 // Chausar hosted tier: the application behind the HTTP server. It signs people in, keeps each business's vault key in
 // custody, and routes every request to the business actor its session has open. The tenant always comes from the
 // session; a request can name a business only from its own user's list.
+import { createHash } from 'node:crypto';
 import { check } from '../contracts.ts';
 import type { PostgresPool } from '../postgres.ts';
 import type { ModelTransport, VentureHostOptions } from '../venture/contracts.ts';
 import { AccountService, exact, userView, type Authenticated } from './accounts.ts';
 import { HostedCustody, isBusinessId, newBusinessId } from './custody.ts';
-import type { HostedDirectory } from './directory.ts';
+import type { HostedDirectory, HostedShareLink } from './directory.ts';
 import { ConcurrencyGate, RateLimiter, type HostedLimits } from './limits.ts';
 import type { Mailer } from './mailer.ts';
 import { hostedModelTransport, usageFromCalls } from './models.ts';
@@ -23,6 +24,21 @@ export const HOSTED_METHODS: readonly string[] = Object.freeze([
   ...ACTOR_ACTIONS.filter(method => method !== 'workspace.status'),
 ]);
 const NOT_HOSTED = 'This part runs in the Chausar desktop app for now. The hosted web app has the launch places only.';
+/** The client share page (/share/<token>): thirty reads or answers at once from one address, one more every two seconds. */
+const SHARE_PAGE_RATE = Object.freeze({ capacity: 30, refillEveryMs: 2_000 });
+/** A share link's token: 24 random bytes as base64url (venture/build/share-links.ts). */
+export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+/** The token at the end of a share address made on this server, or null. */
+function shareTokenOf(url: string): string | null {
+  const match = /\/share\/([A-Za-z0-9_-]{32})$/.exec(url);
+  return match ? match[1] : null;
+}
+/** What the share page shows (SharePage in venture/build/share-links.ts). Text only; the page escapes every field. */
+export type SharePageView = {
+  businessName: string; title: string; text: string; expires: string; digest: string;
+  decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
+};
 
 export type HostedAppOptions = {
   root: string; // tenants live in <root>/tenants
@@ -38,6 +54,8 @@ export type HostedAppOptions = {
   /** The server's PostgreSQL pool. With it, business vaults are PostgreSQL rows; without it, experimental files. */
   postgres?: PostgresPool;
   clock?: () => Date;
+  /** CHAUSAR_PUBLIC_URL (config.publicUrl): the origin client share links use. Absent: links get no address. */
+  publicUrl?: string | null;
   /** Tests may pass a runtime built over the same directory and custody. */
   runtime?: (options: { root: string; passphrase: (key: ActorKey) => Promise<string>; engineOptions: (key: ActorKey) => any; postgres?: PostgresPool }) => VentureRuntime;
 };
@@ -50,6 +68,7 @@ export class HostedApp {
   #rpcRate: RateLimiter;
   #modelRate: RateLimiter;
   #githubRate: RateLimiter;
+  #shareRate: RateLimiter;
   #modelGate: ConcurrencyGate;
   #dirty = new Set<string>();
   #sleeper: ReturnType<typeof setInterval> | null = null;
@@ -62,6 +81,7 @@ export class HostedApp {
     this.#rpcRate = new RateLimiter('rpc-session', options.limits.rpcPerSession, ms);
     this.#modelRate = new RateLimiter('model-tenant', options.limits.modelCallsPerTenant, ms);
     this.#githubRate = new RateLimiter('github-tenant', options.limits.githubSyncsPerTenant, ms);
+    this.#shareRate = new RateLimiter('share-address', SHARE_PAGE_RATE, ms);
     this.#modelGate = new ConcurrencyGate(options.limits.modelConcurrencyPerTenant);
     const root = `${options.root.replace(/[\\/]+$/, '')}/tenants`;
     const runtimeOptions = { root, passphrase: (key: ActorKey) => this.#passphrase(key), engineOptions: (key: ActorKey) => this.#engineOptions(key), postgres: options.postgres };
@@ -99,7 +119,8 @@ export class HostedApp {
       rate: this.#modelRate, gate: this.#modelGate, clock: this.#clock,
       dispatched: () => { this.#dirty.add(id); },
     });
-    const venture: VentureHostOptions = { host: 'hosted-web', modelTransport, githubTransport: this.options.githubTransport, clock: this.#clock };
+    const venture: VentureHostOptions = { host: 'hosted-web', modelTransport, githubTransport: this.options.githubTransport, clock: this.#clock,
+      ...(this.options.publicUrl ? { publicUrl: this.options.publicUrl } : {}) };
     // The engine keeps its preview profile (demo) on both stores: exact integer arithmetic, labelled experimental.
     return { demo: true, storage: this.#storage(), version: this.options.version, venture };
   }
@@ -150,8 +171,54 @@ export class HostedApp {
     }
     const key = this.#key(auth);
     if (GITHUB_ACTIONS.has(method)) this.#githubRate.take(auth.user.tenantId, 'This account checked GitHub many times in the last few minutes. Wait a little.');
-    try { return await this.runtime.get(key).action(method, input, WEB); }
+    let result: unknown;
+    try { result = await this.runtime.get(key).action(method, input, WEB); }
     finally { await this.#syncUsage(key).catch(() => {}); }
+    if (method === 'venture.share.create') await this.#indexShare(key, result);
+    if (method === 'venture.share.revoke') await this.#unindexShare(key, result);
+    return result;
+  }
+
+  /**
+   * After venture.share.create: notes where the new link's token leads, so /share/<token> finds the business without the
+   * owner's session. Only the token's sha256 is kept. A link made without an address (no CHAUSAR_PUBLIC_URL) is not noted.
+   */
+  async #indexShare(key: ActorKey, result: unknown) {
+    const view = result as { id?: unknown; url?: unknown; expiresAt?: unknown } | null;
+    if (!view || typeof view.url !== 'string' || typeof view.id !== 'string' || typeof view.expiresAt !== 'string') return;
+    const token = shareTokenOf(view.url);
+    check(token, 'SHARE_LINK_REFUSED', 'The share link came back without its address.');
+    const entry: HostedShareLink = { tokenHash: sha256(token), tenantId: key[0], businessId: key[1], linkId: view.id, expiresAt: view.expiresAt };
+    await this.options.directory.update(state => { (state.shareLinks ??= []).push(entry); });
+  }
+
+  /** After venture.share.revoke: the link no longer leads anywhere. The vault refuses it too. */
+  async #unindexShare(key: ActorKey, result: unknown) {
+    const id = (result as { id?: unknown } | null)?.id;
+    if (typeof id !== 'string') return;
+    await this.options.directory.update(state => {
+      state.shareLinks = (state.shareLinks ?? []).filter(link => !(link.tenantId === key[0] && link.businessId === key[1] && link.linkId === id));
+    });
+  }
+
+  /**
+   * The client share page: a read of the link a token opens, or with an answer, the client's decision. No session: the
+   * token is the only key, checked again inside the business's vault. Every miss (unknown, ended, taken back, a business
+   * that is gone) answers null alike, so the page says only that nothing is here. Limited per address.
+   */
+  async sharePage(token: string, address: string, answer?: { decision: unknown; comment?: unknown; digest: unknown }): Promise<SharePageView | null> {
+    this.#shareRate.take(address, 'Too many tries from here. Wait a minute and try again.');
+    if (!SHARE_TOKEN_PATTERN.test(token)) return null;
+    const hash = sha256(token);
+    const nowMs = this.#clock().getTime();
+    const directory = this.options.directory.read();
+    const found = (directory.shareLinks ?? []).find(link => link.tokenHash === hash && Date.parse(link.expiresAt) > nowMs);
+    if (!found) return null;
+    const owner = directory.users.find(user => user.tenantId === found.tenantId && user.status === 'active');
+    if (!owner?.businesses.some(business => business.id === found.businessId)) return null;
+    const handle = this.runtime.get([found.tenantId, found.businessId]);
+    if (typeof handle.shareLink !== 'function') return null;
+    return await handle.shareLink(answer ? 'decide' : 'page', token, answer ?? {}) as SharePageView | null;
   }
 
   async #status(auth: Authenticated) {
@@ -207,6 +274,7 @@ export class HostedApp {
     await this.options.directory.update(state => {
       for (const user of state.users) if (user.tenantId === key[0]) user.businesses = user.businesses.filter(item => item.id !== key[1]);
       for (const session of state.sessions) if (session.businessId === key[1]) session.businessId = null;
+      if (state.shareLinks) state.shareLinks = state.shareLinks.filter(link => !(link.tenantId === key[0] && link.businessId === key[1]));
     });
     return { deleted: true, copiesRemoved: 0, externalCopies: 'Copies made outside Chausar must be removed by their owner.' };
   }

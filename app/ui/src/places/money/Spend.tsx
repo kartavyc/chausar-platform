@@ -1,7 +1,8 @@
 /**
  * What paid calls cost: each one reserved before it ran and settled after, by agent or connector, with the engine's
  * word for the figure (estimate, billed) and its receipt when there is one. A call with no price is refused, never
- * treated as free; the engine has no way to set such a price from the app yet, and the page says so.
+ * treated as free; a refused row says why in the engine's words. Under the calls, the owner's limits and rate card
+ * (SpendPolicy.tsx).
  */
 
 import { useT } from '../../text';
@@ -11,6 +12,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import type { SpendRow } from '../../engine/types';
 import { Failed, Figure } from './parts';
+import { SpendPolicy } from './SpendPolicy';
 import { onRuns } from './words';
 import s from './Money.module.css';
 
@@ -29,11 +31,13 @@ export function Spend() {
           {rows.map((row) => (
             <Row key={row.id} id={row.id} eyebrow={row.agent ?? row.connector} title={row.label}>
               <SpendFigures row={row} />
+              {row.kind === 'refused' && row.reason && <p className={s.quiet}>{row.reason}</p>}
             </Row>
           ))}
         </ul>
       )}
-      {rows.some((row) => row.kind === 'refused') && <p className={s.quiet}>{t('money.spend.refusedNote')}</p>}
+      {rows.some((row) => row.kind === 'refused' && !row.reason) && <p className={s.quiet}>{t('money.spend.refusedNote')}</p>}
+      <SpendPolicy />
     </>
   );
 }

@@ -1,77 +1,55 @@
 /**
- * Money at a glance: what clients owe, what came in this month, and what AI and tools cost. Three engine lines, each
- * figure beside what explains it: an invoice, a receipt, or the list of paid calls. Nothing is added up here.
+ * Money at a glance: what clients owe, what came in this month, and what AI and tools cost. The engine sends the
+ * three lines (venture.money.overview) with their words and figures; each figure sits beside what explains it: the
+ * open invoices, a receipt, or the list of paid calls. Nothing is added up here.
  */
 
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
+import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Receipt } from '../../parts/Receipt';
-import { Failed, Figure, InvoiceRef } from './parts';
-import { onMoney, onRuns, useDay } from './words';
+import type { MoneyOverviewLine, VentureRunEvent } from '../../engine/types';
+import { Failed, Figure } from './parts';
+import { onMoney, onRuns } from './words';
 import s from './Money.module.css';
 
-/** At most this many open invoices at rest; the rest are one link away. */
-const AT_REST = 3;
+/** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
+const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
 
 export function Overview() {
   const t = useT();
-  const day = useDay();
-  const books = useResource('venture.books.summary', { period: 'this-month' }, { refreshOn: onMoney });
-  const spend = useResource('venture.spend.list', {}, { refreshOn: onRuns });
-  const open = books.data?.openInvoices ?? [];
-  const shown = open.slice(0, AT_REST);
-  const received = books.data?.figures.find((figure) => figure.operation === 'received');
+  const overview = useResource('venture.money.overview', {}, { refreshOn: onOverview });
 
   return (
     <section aria-label={t('money.sub.overview')}>
-      {books.error && <Failed error={books.error} />}
-      <ul className={s.lines}>
-        {books.data && shown.length === 0 && (
-          <li className={s.line} data-row="" data-row-id="owed-none" tabIndex={-1}>
-            <span className={s.label}>{t('money.owed')}</span>
-            <span className={`${s.value} ${s.note}`}>{t('money.owedNone')}</span>
-          </li>
-        )}
-        {shown.map((item, index) => (
-          <li key={item.invoiceId} className={s.line} data-row="" data-row-id={`owed-${item.invoiceId}`} tabIndex={-1}>
-            <span className={s.label}>{index === 0 ? t('money.owed') : <span className="sr-only">{t('money.owed')}</span>}</span>
-            <span className={s.value}>
-              <Figure>{item.balanceDisplay}</Figure>
-              <InvoiceRef id={item.invoiceId} number={item.number} />
-              <span className={s.note}>{t('money.owedLine', { client: item.clientName, due: day(item.dueDate) })}</span>
-            </span>
-          </li>
-        ))}
-        {open.length > shown.length && (
-          <li className={s.line}>
-            <span className={s.label} />
-            <a className={s.more} href="#/money/invoices">{t('money.owedAll')}</a>
-          </li>
-        )}
-        {received && (
-          <li className={s.line} data-row="" data-row-id="received" tabIndex={-1}>
-            <span className={s.label}>{t('money.received')}</span>
-            <span className={s.value}>
-              <Figure>{received.display}</Figure>
-              <Receipt id={received.receiptId} />
-              {received.stale && <span className={s.stale}>{t('money.changed')}</span>}
-            </span>
-          </li>
-        )}
-        {(spend.data || spend.error) && (
-          <li className={s.line} data-row="" data-row-id="spent" tabIndex={-1}>
-            <span className={s.label}>{t('money.spent')}</span>
-            {spend.data ? (
-              <span className={s.value}>
-                <Figure>{spend.data.total}</Figure>
-                <a className={s.more} href="#/money/spend" data-ref="">{t('money.spentEach')}</a>
-              </span>
-            ) : spend.error ? (
-              <span className={`${s.value} ${s.note}`}>{t('money.failed', { message: spend.error.message })}</span>
-            ) : null}
-          </li>
-        )}
-      </ul>
+      {overview.error && <Failed error={overview.error} />}
+      {overview.data && (
+        <ul className={s.lines}>
+          {overview.data.lines.map((line) => <OverviewLine key={line.id} line={line} />)}
+        </ul>
+      )}
     </section>
+  );
+}
+
+/**
+ * One line: the engine's label and figure, then its reference. A receipted figure opens its receipt; a figure a model
+ * wrote says so and has none. What clients owe leads to the open invoices; what was spent leads to each call.
+ */
+function OverviewLine({ line }: { line: MoneyOverviewLine }) {
+  const t = useT();
+  // Spend counts calls not settled yet at their estimate, and the engine says so in the figure ("includes
+  // estimates"): that is a cost estimate, not a number a model wrote, so it leads to each call instead.
+  const modelWrote = line.estimate === true && line.id !== 'spent';
+  return (
+    <li className={s.line} data-row="" data-row-id={`overview-${line.id}`} tabIndex={-1}>
+      <span className={s.label}>{line.label}</span>
+      <span className={s.value}>
+        <Figure>{line.value}</Figure>
+        {modelWrote ? <ModelEstimate /> : line.receiptId && !line.estimate && <Receipt id={line.receiptId} />}
+        {line.id === 'owed' && <a className={s.more} href="#/money/invoices" data-ref="">{t('money.owedAll')}</a>}
+        {line.id === 'spent' && <a className={s.more} href="#/money/spend" data-ref="">{t('money.spentEach')}</a>}
+      </span>
+    </li>
   );
 }
