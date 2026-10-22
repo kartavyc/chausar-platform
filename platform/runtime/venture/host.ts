@@ -9,11 +9,12 @@
 // - Secrets live on a memory-only shelf that close() empties; the engine closes the host on lock and attach.
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type StateStore } from '../contracts.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from './contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
-  VentureDeps, VentureEngineServices, VentureHandlerTable, VentureHostOptions, VentureMethod, VenturePackageId, VentureStorage,
+  VentureDeps, VentureEngineServices, VentureEventRecord, VentureHandlerTable, VentureHostOptions, VentureMethod, VenturePackageId,
+  VentureRunEvent, VentureRunEventType, VentureStorage,
 } from './contracts.ts';
 import { requireAppChannel } from './records.ts';
 
@@ -42,6 +43,7 @@ export const PACKAGE_LOADERS: PackageLoaders = Object.freeze({
   money: () => import('./money/index.ts') as Promise<VenturePackageModule>,
   build: () => import('./build/index.ts') as Promise<VenturePackageModule>,
   delivery: () => import('./delivery/index.ts') as Promise<VenturePackageModule>,
+  views: () => import('./views/index.ts') as Promise<VenturePackageModule>,
 });
 
 function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMethod): boolean {
@@ -139,7 +141,27 @@ export class VentureHost {
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
       ...(options.delegate ? { delegate: options.delegate } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
+      ...(options.workspace ? { workspace: options.workspace } : {}),
+      // A folder on this computer: never on the hosted web server.
+      ...(options.siteFolder && options.host !== 'hosted-web' ? { siteFolder: options.siteFolder } : {}),
+      // The public origin for client share links: only on the hosted web server.
+      ...(options.publicUrl && options.host === 'hosted-web' ? { publicUrl: options.publicUrl } : {}),
+      ...(options.notify ? { publish: (records: VentureEventRecord[]) => this.#publish(records) } : {}),
     });
+  }
+
+  /** The run events among what one venture action committed, for the desktop push and /api/events. */
+  #publish(records: VentureEventRecord[]): void {
+    const notify = this.#options.notify;
+    const runs = records.filter(record => (VENTURE_RUN_EVENT_TYPES as readonly string[]).includes(record.name));
+    if (!notify || !runs.length) return;
+    // The business is the workspace folder, the id workspace.list and the queue rows use.
+    let businessId: string;
+    try { businessId = this.#options.workspace?.current().id ?? this.#store.read().workspace.id; } catch { return; }
+    notify(runs.map((record): VentureRunEvent => {
+      const runId = record.data && typeof record.data === 'object' && !Array.isArray(record.data) ? record.data.runId : undefined;
+      return { type: record.name as VentureRunEventType, businessId, ...(typeof runId === 'string' ? { runId } : {}), at: record.at };
+    }));
   }
 
   /** Routes one venture method to the package that owns it. The pre-vault and draft methods never come here. */
@@ -155,6 +177,41 @@ export class VentureHost {
     const handler = (module.handlers as Record<string, Handler>)[name];
     await this.#modelsReady();
     return handler(this.#deps, ctx, payload ?? {});
+  }
+
+  /**
+   * The hosted /share/<token> page (build/share-links.ts): 'page' reads the link a token opens, 'decide' records the
+   * client's answer through it. Trusted host only: no RPC method reaches this, and the token never leaves the call.
+   * Answers null when the token opens nothing.
+   */
+  async shareLink(ctx: Context, op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    const module = await this.#load('build');
+    const page = module.sharePage, decide = module.shareDecide;
+    if (typeof page !== 'function' || typeof decide !== 'function') throw notBuilt();
+    if (op === 'page') return (page as (deps: VentureDeps, ctx: Context, token: string) => Promise<unknown>)(this.#deps, ctx, token);
+    const body = (input && typeof input === 'object' ? input : {}) as { decision: unknown; comment?: unknown; digest: unknown };
+    return (decide as (deps: VentureDeps, ctx: Context, token: string, input: typeof body) => Promise<unknown>)(this.#deps, ctx, token, body);
+  }
+
+  /**
+   * Sweeps the action journal of the open business (build/journal-sweep.ts): a claim older than claimLimitMs becomes
+   * outcome_unknown and is never run again; a run-out approval or proposal is rejected. The engine calls it when a vault
+   * opens (nothing of this process is in flight then, so any claim counts) and on its scheduler tick. Never throws:
+   * answers how many entries moved, 0 for a vault without a business, or null when the sweep could not run.
+   */
+  async sweepJournal(ctx: Context, claimLimitMs?: number): Promise<number | null> {
+    if (this.#closed) return null;
+    try {
+      if (!this.#store.read().conversations.some(record => record?.kind === 'venture-record')) return 0;
+      const build = await this.#load('build');
+      const sweep = build.sweepWholeJournal;
+      if (typeof sweep !== 'function') return null;
+      const moved = await (sweep as (deps: VentureDeps, ctx: Context, limit?: number) => Promise<unknown[]>)(this.#deps, ctx, claimLimitMs);
+      return moved.length;
+    } catch {
+      return null;
+    }
   }
 
   /** Empties the secret shelf and drops the model port. The engine calls it on lock and on attach. */

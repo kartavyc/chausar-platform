@@ -8,6 +8,9 @@ import { getInvoice, issueInvoice, listInvoices, prepareInvoice } from './invoic
 import { createOrder, deliverOrder, listOrders } from './orders.ts';
 import { recordPayment } from './payments.ts';
 import { getReceipt, quotePrice } from './quote.ts';
+import { listSpend, spendPolicyGet, spendPolicySet } from './spend.ts';
+import { moneyOverview } from './overview.ts';
+import { taxWorking } from './tax-working.ts';
 
 export { computePrice, type PriceInput } from './price.ts';
 export { taxTreatmentFor } from './tax.ts';
@@ -26,4 +29,9 @@ export const handlers: VentureHandlerTable = {
   'venture.invoice.list': listInvoices,
   'venture.payment.record': recordPayment,
   'venture.books.summary': booksSummary,
+  'venture.spend.list': listSpend,
+  'venture.spend.policy.get': spendPolicyGet,
+  'venture.spend.policy.set': spendPolicySet,
+  'venture.money.overview': moneyOverview,
+  'venture.tax.working': taxWorking,
 };

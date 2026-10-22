@@ -13,6 +13,7 @@ import type {
 import { taxWord } from './countries.ts';
 import { interviewOf } from './lookups.ts';
 import { classifyIdea, serviceTemplate, type ServiceTemplate } from './service-types.ts';
+import { flagshipPlan } from '../playbooks/plan.ts';
 import { optionalFlag, ownerPrice, styledWords } from './words.ts';
 
 export type StoredQuestion = InterviewRecord['questions'][number];
@@ -63,12 +64,17 @@ function taxQuestionText(country: CountryProfile): string {
   return 'Do you charge any tax on your invoices?';
 }
 
-/** Fixed engine questions, in order: pricing model, price, tax. q_tax_rate is added only after a yes on q_tax. */
-export function engineQuestions(country: CountryProfile, model: PricingModel = 'monthly'): InterviewQuestion[] {
+/**
+ * Fixed engine questions, in order: pricing model, price, tax. q_tax_rate is added only after a yes on q_tax. lead puts
+ * one pricing choice first: a flagship playbook's first offer is sold per project or per month, so its own way leads.
+ */
+export function engineQuestions(country: CountryProfile, model: PricingModel = 'monthly', lead: PricingModel | null = null): InterviewQuestion[] {
+  const choices = [{ id: 'monthly', label: 'Per month' }, { id: 'project', label: 'Per project' }, { id: 'hourly', label: 'Per hour' }];
+  if (lead) choices.sort((a, b) => Number(b.id === lead) - Number(a.id === lead));
   return [
     {
       id: INTERVIEW_IDS.pricingModel, kind: 'choice', field: 'pricing-model', text: 'How will you charge?',
-      choices: [{ id: 'monthly', label: 'Per month' }, { id: 'project', label: 'Per project' }, { id: 'hourly', label: 'Per hour' }],
+      choices,
       by: 'engine', required: true, prefill: null,
     },
     { id: INTERVIEW_IDS.price, kind: 'money', field: 'price', text: priceQuestionText(model, country.currency), choices: [], by: 'engine', required: false, prefill: null },
@@ -97,9 +103,12 @@ export function openingQuestions(output: InterviewModelOutput, by: 'model' | 'te
   }));
 }
 
-/** The template interview the plan preview fills inline, q_tax_rate included (shown only after a yes). */
-export function previewQuestions(template: ServiceTemplate, country: CountryProfile): InterviewQuestion[] {
-  return [...openingQuestions(templateInterview(template), 'template'), ...engineQuestions(country), taxRateQuestion(country)];
+/**
+ * The template interview the plan preview fills inline, q_tax_rate included (shown only after a yes). lead: a flagship
+ * playbook's first offer pricing, asked first and priced in its unit.
+ */
+export function previewQuestions(template: ServiceTemplate, country: CountryProfile, lead: PricingModel | null = null): InterviewQuestion[] {
+  return [...openingQuestions(templateInterview(template), 'template'), ...engineQuestions(country, lead ?? 'monthly', lead), taxRateQuestion(country)];
 }
 
 export function templateInterview(template: ServiceTemplate): InterviewModelOutput {
@@ -177,14 +186,23 @@ export function interviewTask(venture: VentureRecord, template: () => InterviewM
 // ---------------------------------------------------------------------------
 
 type ParsedAnswer = { answer: InterviewAnswer; answerMinor: string | null; answerBps: string | null };
-const ANSWER_KEYS = ['choiceId', 'text', 'amount', 'yes', 'rate', 'skipped'] as const;
+const ANSWER_KEYS = ['choiceId', 'text', 'amount', 'yes', 'rate', 'skipped', 'assumed'] as const;
 
-/** Checks one answer against its question's kind. Exactly one answer field; skipping only optional questions. */
+/**
+ * Checks one answer against its question's kind. Exactly one answer field; skipping only optional questions. The one
+ * exception is { yes: false, assumed: true } on the tax question: the owner gave no answer and a screen filled the
+ * default, so the plan keeps it as an assumption until the owner confirms it.
+ */
 export function parseAnswer(question: StoredQuestion, value: unknown, country: CountryProfile): ParsedAnswer {
   const given = exactPayload(value, ANSWER_KEYS);
-  const keys = Object.keys(given);
+  const keys = Object.keys(given).filter(name => name !== 'assumed');
   check(keys.length === 1, 'INVALID_VENTURE_REQUEST', 'Send exactly one answer.');
   const key = keys[0];
+  if (Object.hasOwn(given, 'assumed')) {
+    check(given.assumed === true && question.id === INTERVIEW_IDS.tax && key === 'yes' && given.yes === false, 'INVALID_VENTURE_REQUEST',
+      'Only the tax answer can be assumed, and only as not charging tax.');
+    return { answer: { yes: false, assumed: true }, answerMinor: null, answerBps: null };
+  }
   if (key === 'skipped') {
     check(given.skipped === true, 'INVALID_VENTURE_REQUEST', 'Send skipped as true to skip a question.');
     check(!question.required, 'INVALID_VENTURE_REQUEST', 'This question needs an answer.');
@@ -275,16 +293,20 @@ export async function interviewNext(deps: VentureDeps, ctx: Context, payload: un
     const venture = tx.venture as VentureRecord;
     const current = interviewOf(tx.state, venture.id);
     if (current.questions.length > 0) return interviewView(current);
-    const questions = [...openingQuestions(output, by), ...engineQuestions(venture.country)].map(storedQuestion);
+    // A flagship playbook keeps its own base type and asks its first offer's pricing first (playbooks/plan.ts).
+    const flagship = flagshipPlan(venture.idea);
+    const lead = flagship?.offers[0]?.model ?? null;
+    const serviceType = flagship?.serviceType ?? output.serviceType;
+    const questions = [...openingQuestions(output, by), ...engineQuestions(venture.country, lead ?? 'monthly', lead)].map(storedQuestion);
     const record: InterviewRecord = {
       ...current,
-      serviceType: { value: output.serviceType, label: 'assumption', by },
+      serviceType: { value: serviceType, label: 'assumption', by },
       questions,
       modelCallIds: [...current.modelCallIds, ...callIds],
       source: by,
     };
     tx.replace(record);
-    tx.touch({ serviceType: output.serviceType });
+    tx.touch({ serviceType });
     tx.emit('interview-updated', { source: by, questions: questions.length });
     return interviewView(record);
   });

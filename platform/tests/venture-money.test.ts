@@ -10,7 +10,7 @@ import { TrustService } from '../runtime/trust.ts';
 import { digest, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { METHOD_OWNERS, STEP_PLAN, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
-  BackOffice, BlueprintRecord, ClientRecord, CountryProfile, ModelPort, Offer, PricingModel, RecordBase, SecretName, SecretShelf,
+  BackOffice, BlueprintRecord, ClientRecord, CountryProfile, ModelPort, Offer, PriceReceiptRecord, PricingModel, RecordBase, SecretName, SecretShelf,
   TermRecord, VentureDeps, VentureHandler, VentureMethod, VentureRecord, VentureResults, VentureStorage,
 } from '../runtime/venture/contracts.ts';
 import { computePrice, handlers, taxTreatmentFor } from '../runtime/venture/money/index.ts';
@@ -323,7 +323,7 @@ test('numberGuard passes on the explanation of all five tax treatments', async (
   const other = await orderFor(env, { name: 'Bengaluru Bakes', countryCode: 'IN', stateCode: '29' });
   const abroad = await orderFor(env, { name: 'Brooklyn Beans', countryCode: 'US' });
   const noState = await orderFor(env, { name: 'Corner Shop' });
-  const receipt = (id: string) => call(env, 'venture.receipt.get', { id });
+  const receipt = (id: string) => call(env, 'venture.receipt.get', { id }) as Promise<PriceReceiptRecord>;
   const cgst = await receipt(same.order.priceReceiptId);
   const igst = await receipt(other.order.priceReceiptId);
   const lut = await receipt(abroad.order.priceReceiptId);
@@ -445,7 +445,7 @@ test('orders need the accepted plan and make their own receipt with the client t
   assert.equal(order.request, request);
   assert.equal(order.deliveredOn, null);
   assert.equal(order.saleFactId, null);
-  const receipt = await call(env, 'venture.receipt.get', { id: order.priceReceiptId });
+  const receipt = await call(env, 'venture.receipt.get', { id: order.priceReceiptId }) as PriceReceiptRecord;
   assert.deepEqual(receipt.subject, { type: 'order', orderId: order.id });
   assert.equal(receipt.inputs.blueprintDigest, draft.digest);
   // Same state 27: CGST 22491 and SGST 22491, total 294882.
@@ -949,9 +949,9 @@ test('every error code the money package throws is a listed venture code or a kn
   for (const name of found) assert.ok((VENTURE_ERRORS as readonly string[]).includes(name) || passThrough.has(name), `${name} is not listed`);
 });
 
-test('handlers cover exactly the thirteen money methods', () => {
+test('handlers cover exactly the eighteen money methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 13);
+  assert.equal(owned.length, 18);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

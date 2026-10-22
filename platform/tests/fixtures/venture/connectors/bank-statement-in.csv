@@ -1,0 +1,10 @@
+Synthetic statement written by hand for the Chausar tests. Not a real account.
+Account,Lumen Studio current account
+
+Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance
+01/10/26,UPI-CAFE BLUE-OK,0000000000,01/10/26,450.00,,"1,04,550.00"
+01/10/26,UPI-CAFE BLUE-OK,0000000000,01/10/26,450.00,,"1,04,100.00"
+03/10/26,NEFT CR-LEDGER CAFE BOOKS-INV-0001,N276260001234,03/10/26,,"2,948.82","1,07,048.82"
+05/10/26,ATM WDL,000000123456,05/10/26,"2,000.00",,"1,05,048.82"
+
+*** End of statement ***

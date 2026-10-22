@@ -9,21 +9,23 @@ import { check, newId, type Context, type State } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
 import type {
-  AttributionLevel, CaseScore, CheckId, Diagnosis, Episode, GateCase, GateResult, ImprovementCase, ImprovementRound, ImprovementRunRecord,
+  AttributionLevel, CaseScore, CheckId, Diagnosis, Episode, GateCase, GatePreference, GateResult, ImprovementCase, ImprovementRound, ImprovementRunRecord,
   ImprovementStatus, ImproveModelOutput, Json, ModelOutcome, ModelTask, PlaybookPatch, PlaybookPatchOp, PlaybookRecord, Scenario,
   SignalRecord, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
+import { PREFER_QUESTION, preferDraft } from './checks.ts';
+import { renderForJudge, type AnyReceipt } from './deliverable.ts';
 import { dictionaryEntries } from './harness/dictionary.ts';
 import { applyPatch, describePatch, toolCeiling, type PlaybookBody } from './harness/patches.ts';
 import { computeLaunchStatus } from './launch.ts';
 import { currentPlaybook, ensurePlaybook, validatePlaybook } from './playbook.ts';
 import { scenariosFor, signalScenario } from './scenarios.ts';
-import { acceptedBlueprint, newestFirst, optionalFlag, readAs } from './shared.ts';
+import { acceptedBlueprint, newestFirst, optionalFlag, readAs, ventureReceipts } from './shared.ts';
 import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
 
 export const MAX_ROUNDS = 4;
 const DEFAULT_ROUNDS = 2;
-const CRITICAL: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-done-claims', 'no-outside-writes'];
+const CRITICAL: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-done-claims', 'no-outside-writes', 'claims-grounded'];
 
 type Rule = { level: 'harness' | 'tools'; op: PlaybookPatchOp; stepId: string; value: string } | { level: 'dictionary' | 'calculator'; why: string };
 const CLAIMS_RULE: Rule = { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Say work is done only when the proven list shows it, and describe everything else as work ahead.' };
@@ -45,6 +47,7 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'length-bounds': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Keep each section to a few short sentences.' },
   'too-short': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Give each section at least two full sentences.' },
   'claims-work-not-done': CLAIMS_RULE, 'no-done-claims': CLAIMS_RULE, 'no-unbacked-claims': CLAIMS_RULE,
+  'claims-grounded': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: "Name only the people, firms, figures and dates that the client's message, answers or files show." },
   'turn-limit': { level: 'harness', op: 'guidance.add', stepId: 'clarify', value: 'Ask all your questions in one hand-off.' },
   'goal-met': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Answer what the client asked for in the Summary section.' },
   'policy-followed': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Keep the plan price and the scope, and promise no discount, free work or date.' },
@@ -153,12 +156,22 @@ function winner(parent: CaseScore, candidate: CaseScore): GateCase['winner'] {
   return 'tie';
 }
 
+/** True when the scores alone cannot choose between the two versions on a case. */
+export function scoresTie(parent: CaseScore, candidate: CaseScore): boolean {
+  return winner(parent, candidate) === 'tie';
+}
+
 /**
  * The gate. Keep the candidate only with zero new critical errors, no case the parent passed and the candidate fails,
- * and strictly more paired wins than losses (so at least one net win on a small set).
+ * and strictly more paired wins than losses (so at least one net win on a small set). Scores decide each case first;
+ * only a tie is settled by the judge's pairwise preference, and never between template drafts.
  */
-export function gate(cases: readonly { scenarioId: string; set: 'reserve' | 'rehearsal'; parent: CaseScore; candidate: CaseScore }[], sameDrafts: boolean): GateResult {
-  const scored: GateCase[] = cases.map(item => ({ ...item, winner: winner(item.parent, item.candidate) }));
+export function gate(cases: readonly { scenarioId: string; set: 'reserve' | 'rehearsal'; parent: CaseScore; candidate: CaseScore; pairwise?: GatePreference }[], sameDrafts: boolean): GateResult {
+  const scored: GateCase[] = cases.map(item => {
+    const byScore = winner(item.parent, item.candidate);
+    const preferred = byScore === 'tie' && !sameDrafts ? item.pairwise?.winner ?? null : null;
+    return { ...item, winner: preferred ?? byScore };
+  });
   const wins = scored.filter(item => item.winner === 'candidate').length;
   const losses = scored.filter(item => item.winner === 'parent').length;
   const ties = scored.length - wins - losses;
@@ -201,8 +214,39 @@ function scoresOf(outcome: RehearsalOutcome): Map<string, CaseScore> {
   return new Map(outcome.episodes.filter(episode => episode.index === 0).map(episode => [episode.scenarioId, scoreEpisode(episode)]));
 }
 
+/**
+ * For each case the scores leave tied where both versions wrote a draft and the drafts differ, the judge compares
+ * the two drafts pairwise (prices and dates as placeholders). Practice clients only, so no client data is sent.
+ */
+async function tiePreferences(
+  deps: VentureDeps, ctx: Context,
+  cases: readonly { scenario: Scenario; parent: CaseScore; candidate: CaseScore }[],
+  versions: { parent: RehearsalOutcome; candidate: RehearsalOutcome; receipts: readonly AnyReceipt[] },
+  spend: RehearsalOutcome['spend'],
+): Promise<Map<string, GatePreference>> {
+  const preferences = new Map<string, GatePreference>();
+  const draftOf = (outcome: RehearsalOutcome, scenarioId: string): string | null => {
+    const episode = outcome.episodes.find(item => item.scenarioId === scenarioId && item.index === 0);
+    return episode?.deliverable ? renderForJudge(episode.deliverable, [...versions.receipts, ...outcome.receipts]) : null;
+  };
+  const ask = async <T>(task: ModelTask<T>) => {
+    const outcome = await deps.models.generate(ctx, task);
+    spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+    return { value: outcome.value, callId: outcome.callId };
+  };
+  for (const item of cases) {
+    if (!scoresTie(item.parent, item.candidate)) continue;
+    const parent = draftOf(versions.parent, item.scenario.id), candidate = draftOf(versions.candidate, item.scenario.id);
+    if (!parent || !candidate || parent === candidate) continue;
+    const { winner, detail } = await preferDraft(ask, { question: PREFER_QUESTION, criteria: [item.scenario.expectedOutcome], parent, candidate, containsClientData: false });
+    preferences.set(item.scenario.id, { winner, detail });
+  }
+  return preferences;
+}
+
 /** venture.improve.run { maxRounds?, useTemplate? }: one improvement run; stores its record and, if one was kept, the candidate. */
 export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ImprovementRunRecord> {
+  const startedAt = deps.clock().toISOString();
   const body = exactPayload(payload, ['maxRounds', 'useTemplate']);
   const maxRounds = body.maxRounds === undefined ? DEFAULT_ROUNDS : smallInteger(body.maxRounds, 'Rounds', 1, MAX_ROUNDS);
   const useTemplate = optionalFlag(body.useTemplate, 'useTemplate');
@@ -254,7 +298,13 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
     spend.push(...rehearsal.spend);
     const scores = scoresOf(rehearsal);
     const sameDrafts = useTemplate || rehearsal.spend.every(item => item.by === 'template');
-    const result = gate(gateCases.map(item => ({ scenarioId: item.scenarioId, set: item.set as 'reserve' | 'rehearsal', parent: retained.scores!.get(item.scenarioId)!, candidate: scores.get(item.scenarioId)! })), sameDrafts);
+    const scored = gateCases.map((item, index) => ({ item, scenario: scenarios[index], parent: retained.scores!.get(item.scenarioId)!, candidate: scores.get(item.scenarioId)! }));
+    const preferences = sameDrafts ? new Map<string, GatePreference>()
+      : await tiePreferences(deps, ctx, scored, { parent: retained.rehearsal!, candidate: rehearsal, receipts: ventureReceipts(state, venture.id) }, spend);
+    const result = gate(scored.map(({ item, parent, candidate }) => {
+      const pairwise = preferences.get(item.scenarioId);
+      return { scenarioId: item.scenarioId, set: item.set as 'reserve' | 'rehearsal', parent, candidate, ...(pairwise ? { pairwise } : {}) };
+    }), sameDrafts);
     rounds.push({ round, diagnosis, patch, refused: null, candidateHash: candidate.hash, gate: result });
     if (result.decision === 'keep-candidate') retained = { record: candidate, body: candidateBody, scores, rehearsal };
   }
@@ -278,7 +328,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       ...tx.base('venture-improvement-run'), status, parentPlaybookId: parent.id, parentHash: parent.hash, candidatePlaybookId,
       frozen: { ...frozen.cases, digest: digest({ pool: frozen.cases.pool, reserve: frozen.cases.reserve, rehearsal: frozen.cases.rehearsal }) },
       rounds, maxRounds, costMicros, costDisplay, modelMode, incompleteReason: status === 'incomplete' ? incompleteReason ?? 'No change could be tried.' : null,
-      changes, digest: '',
+      changes, digest: '', startedAt,
     };
     record.digest = digest({ runId: record.id, candidatePlaybookId, changes });
     tx.put(record);

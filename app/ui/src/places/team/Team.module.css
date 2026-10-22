@@ -1,0 +1,215 @@
+/* Team: rows of agents and the agent sheet. Hairlines and type only; colour marks waiting and failure. */
+
+.list {
+  margin: var(--sp-7) 0 0;
+  padding: 0;
+}
+
+.facts {
+  margin: var(--sp-2) 0 0;
+  display: grid;
+  gap: 2px;
+  font-size: var(--text-read);
+}
+
+.fact {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+}
+
+.fact dt {
+  flex: none;
+  width: 40px;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.now,
+.runOpen {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.now:hover,
+.runOpen:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.now.waiting,
+.waiting {
+  color: var(--wait);
+}
+
+.none,
+.quiet {
+  color: var(--mute);
+}
+
+.failed,
+.failure,
+.problem {
+  color: var(--fail);
+}
+
+.failed {
+  margin-top: var(--sp-4);
+  font-size: var(--text-read);
+}
+
+.link {
+  font-size: var(--text-read);
+}
+
+/* The agent sheet. */
+
+.section {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.small {
+  margin-bottom: var(--sp-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.posture {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+/* The posture: four words to choose from, no frame. The chosen one reads in ink, the rest in grey. */
+.postures {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.postures legend {
+  padding: 0;
+}
+
+.postures:disabled {
+  opacity: 0.6;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+
+.choice {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--control);
+  font-size: var(--text-read);
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.choice input {
+  margin: 0;
+  accent-color: var(--fg);
+}
+
+.choice input:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.choice:has(input:checked) {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.postures:disabled .choice {
+  cursor: default;
+}
+
+.means,
+.spend {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.steps,
+.runs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-3);
+  align-items: center;
+  min-height: var(--control);
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.purpose {
+  flex: 1;
+  min-width: 0;
+}
+
+.problem {
+  flex-basis: 100%;
+  padding-bottom: var(--sp-2);
+  font-size: var(--text-read);
+}
+
+.run {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.run:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+}
+
+.runTop {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+}
+
+.runOpen {
+  flex: 1;
+  min-width: 0;
+}
+
+.elapsed {
+  flex: none;
+  color: var(--mute);
+}
+
+.result {
+  color: var(--fg2);
+}

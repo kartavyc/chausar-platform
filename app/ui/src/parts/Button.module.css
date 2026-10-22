@@ -1,0 +1,47 @@
+.button {
+  font: inherit;
+  font-size: var(--text-read);
+  line-height: 1.2;
+  min-height: var(--control);
+  padding: var(--sp-2) 14px;
+  border-radius: var(--radius);
+  border: var(--hair) solid var(--edge);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--t-press) var(--ease), border-color var(--t-press) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--surface);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--fg2);
+  border-color: var(--fg2);
+}
+
+.quiet {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+}
+
+.quiet:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}

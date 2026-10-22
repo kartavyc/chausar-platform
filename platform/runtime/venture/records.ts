@@ -27,7 +27,16 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-event': 'vevent',
   'venture-upload': 'upload', 'venture-work-table': 'worktable', 'venture-work-receipt': 'work', 'venture-improvement-run': 'improve',
   'venture-delegate-run': 'delegaterun',
+  'venture-spend': 'spend', 'venture-spend-quote': 'spendquote', 'venture-spend-policy': 'spendpolicy',
   'venture-composition': 'composition',
+  'venture-connector-post': 'post', 'venture-site-edit': 'siteedit',
+  'venture-queue-decision': 'qdecision', 'venture-team-gate': 'teamgate',
+  'venture-evidence': 'evidence',
+  'venture-journal-entry': 'journal',
+  'venture-agent-posture': 'agentposture', 'venture-spot-check': 'spotcheck',
+  'venture-ca-firm': 'cafirm',
+  'venture-bank-account': 'bankaccount', 'venture-bank-import': 'bankimport', 'venture-lead': 'lead', 'venture-lead-settings': 'leadsettings',
+  'venture-sum-receipt': 'sum', 'venture-share-link': 'share',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -89,7 +98,8 @@ export async function ventureAction<T>(
   work: (tx: VentureTx) => T | Promise<T>, options: { create?: boolean } = {},
 ): Promise<T> {
   authorize(deps.store, ctx, level);
-  return deps.store.update(async state => {
+  let committed: VentureEventRecord[] = [];
+  const outcome = await deps.store.update(async state => {
     authorize(stateView(state, deps.store), ctx, level);
     const now = deps.clock().toISOString();
     const venture = currentVenture(state);
@@ -130,25 +140,45 @@ export async function ventureAction<T>(
       },
     };
     const result = await work(tx);
-    if (tx.venture && events.length) appendEvents(state, tx.venture.id, ctx, now, events);
+    // Today's rows are read from these records, so the screens read the queue again: one queue.changed, after the rest.
+    if (events.some(event => QUEUE_EVENTS.has(event.name)) && !events.some(event => event.name === 'queue.changed')) events.push({ name: 'queue.changed', data: {} });
+    committed = tx.venture && events.length ? appendEvents(state, tx.venture.id, ctx, now, events) : [];
     audit(state, `venture.${name}`, { ventureId: tx.venture?.id ?? null, memberId: ctx.memberId });
     return structuredClone(result);
   });
+  // Only after the commit: the desktop push and /api/events never announce a change that was rolled back.
+  if (committed.length && deps.publish) {
+    try { deps.publish(committed); } catch { /* The commit stands; a listener's failure is its own. */ }
+  }
+  return outcome;
 }
 
-function appendEvents(state: State, ventureId: string, ctx: Context, at: IsoTime, events: { name: VentureEventName; data: Json }[]) {
+/**
+ * Events that change what Today's queue shows. Build events are left out: their tests pin them as the newest event,
+ * and the connector rows they affect are read again on the next queue read.
+ */
+const QUEUE_EVENTS: ReadonlySet<VentureEventName> = new Set<VentureEventName>([
+  'blueprint-drafted', 'blueprint-accepted', 'model-connected', 'model-disconnected', 'invoice-prepared', 'invoice-issued',
+  'launch-stage-changed', 'handoff-opened', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'delivery-needs-answer',
+  'delivery-brief-waiting', 'delegate-finished', 'run.started', 'run.waiting', 'run.done', 'run.failed',
+]);
+
+function appendEvents(state: State, ventureId: string, ctx: Context, at: IsoTime, events: { name: VentureEventName; data: Json }[]): VentureEventRecord[] {
   const existing = listRecords(state, 'venture-event', ventureId);
   let seq = existing.reduce((max, e) => Math.max(max, e.seq), 0);
+  const added: VentureEventRecord[] = [];
   for (const event of events) {
     seq += 1;
     const record: VentureEventRecord = { id: newId('vevent'), kind: 'venture-event', ventureId, memberId: ctx.memberId, epoch: ctx.epoch, at, seq, name: event.name, data: event.data };
     state.conversations.push(record);
+    added.push(structuredClone(record));
   }
   const all = listRecords(state, 'venture-event', ventureId);
   if (all.length > MAX_EVENTS) {
     const drop = new Set(all.sort((a, b) => a.seq - b.seq).slice(0, all.length - MAX_EVENTS).map(e => e.id));
     state.conversations = state.conversations.filter(r => !drop.has(r?.id));
   }
+  return added;
 }
 
 /** Marks a proposed term active when evidence arrives. No-op when the term does not exist. */
@@ -289,8 +319,9 @@ export function copiedTokens(...inputs: string[]): string[] {
 }
 
 /**
- * The AI never writes numbers. Refuses currency signs, percent and magnitude words in any case, and every token
- * holding a digit (in any script) unless the token also holds a letter and is in allowed (from copiedTokens).
+ * Words with no numbers: template and engine words, and the delivery harness's words (modelWords numbers 'refuse'),
+ * where every count and amount has a work receipt. Refuses currency signs, percent and magnitude words in any case,
+ * and every token holding a digit (in any script) unless the token also holds a letter and is in allowed (copiedTokens).
  */
 export function assertNoNumbers(value: string, field: string, allowed: readonly string[] = []) {
   const message = `The ${field} contained a number. Numbers come from Chausar's calculator, not the AI.`;
@@ -343,6 +374,104 @@ export function assertNoSpelledNumbers(value: string, field: string, allowed: re
       if (!SPELLED_NUMBERS.has(word)) return;
       if (word === 'free' && index > 0) return; // joined by a hyphen before it: stress-free, fee-free
       check(false, 'MODEL_OUTPUT_REJECTED', message);
+    });
+  }
+}
+
+// Model words and numbers (founder decision of 21 October 2026): the AI may write numbers. Chausar finds them, so the
+// record that carries the words is marked estimate: true and never gets a receipt. An amount of money stays refused in
+// model words: it would read as a price, tax or invoice figure, and those come only from Chausar's calculator.
+
+/** Words that count or scale: cardinals from two, ordinals from second, multipliers and magnitudes. One and first are not numbers here. */
+const COUNT_WORDS: ReadonlySet<string> = new Set([
+  'zero', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+  'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety',
+  'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth',
+  'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth', 'thirtieth', 'fortieth', 'fiftieth', 'hundredth', 'thousandth',
+  'dozen', 'dozens', 'half', 'halves', 'quarter', 'double', 'twice', 'triple', 'quadruple',
+  'hundred', 'hundreds', 'thousand', 'thousands', 'lakh', 'lakhs', 'crore', 'crores', 'million', 'millions', 'billion', 'billions', 'percent',
+]);
+/** Currency codes and names. Next to a number they make an amount of money. */
+const CURRENCY_WORDS: ReadonlySet<string> = new Set([
+  'inr', 'gbp', 'usd', 'eur', 'aud', 'cad', 'sgd', 'aed', 'nzd', 'jpy', 'rs', 'pound', 'pounds', 'pence', 'penny', 'pennies', 'quid',
+  'dollar', 'dollars', 'buck', 'bucks', 'cent', 'cents', 'rupee', 'rupees', 'paise', 'euro', 'euros', 'yen', 'dirham', 'dirhams', 'rand',
+  'franc', 'francs', 'peso', 'pesos', 'grand',
+]);
+/** Words that are an amount of money on their own. */
+const AMOUNT_WORDS: ReadonlySet<string> = new Set(['tenner', 'tenners', 'fiver', 'fivers']);
+/** The letters of a digit token that make it a number rather than a name (20k, 2nd, 10am); B2B, GPT-6 and 3D stay names. */
+const NUMBER_SUFFIXES: ReadonlySet<string> = new Set(['k', 'm', 'mn', 'bn', 'cr', 'lakh', 'lakhs', 'crore', 'crores', 'st', 'nd', 'rd', 'th', 'x', 'am', 'pm']);
+const CURRENCY_SIGN = /\p{Sc}/u;
+
+type WordToken = { raw: string; lower: string; digits: boolean; letters: string };
+
+function tokensOf(value: string): WordToken[] {
+  return [...value.matchAll(TOKEN)].map(match => {
+    const lower = match[0].toLowerCase().replace(/’/g, "'");
+    return { raw: match[0], lower, digits: HAS_DIGIT.test(lower), letters: lower.replace(/[^\p{L}]/gu, '') };
+  });
+}
+
+function isNumberToken(token: WordToken | undefined, allowed: readonly string[]): boolean {
+  if (!token || allowed.includes(token.lower)) return false;
+  if (token.digits) return token.letters === '' || NUMBER_SUFFIXES.has(token.letters) || CURRENCY_WORDS.has(token.letters);
+  if (ALLOWED_COMPOUNDS.has(token.lower)) return false;
+  return token.lower.split('-').some(part => COUNT_WORDS.has(part.replace(/'s$/, '').replace(/'$/, '')));
+}
+
+/**
+ * True when model words hold a number the owner did not write: digits in any script (not names such as B2B or GPT-6,
+ * nor tokens copied from the owner), number characters, percent, or a number in words. The record carrying the words
+ * is then marked estimate: true, never with a receipt.
+ */
+export function modelNumbers(value: string, allowed: readonly string[] = []): boolean {
+  if (OTHER_NUMBER.test(value) || value.includes('%') || /\bper cent\b/i.test(value)) return true;
+  return tokensOf(value).some(token => isNumberToken(token, allowed));
+}
+
+/**
+ * Model words never state an amount of money: a currency sign, a currency code or name next to a number ("INR 500",
+ * "500 rupees", "fifteen pounds"), a digit token with currency letters (Rs500, 15GBP, even copied from the owner),
+ * slang amounts (a tenner), or a number before off or price ("20% off", "half price"). Prices, tax, invoice amounts
+ * and books come only from Chausar's calculator. Currency codes the owner wrote (allowed: "CAD drawings") pass.
+ */
+export function assertNoMoney(value: string, field: string, allowed: readonly string[] = []) {
+  const message = `The ${field} stated an amount of money. Prices, tax and invoice amounts come from Chausar's calculator, not the AI.`;
+  check(!CURRENCY_SIGN.test(value), 'MODEL_OUTPUT_REJECTED', message);
+  const tokens = tokensOf(value);
+  const counted = (near: WordToken | undefined) => isNumberToken(near, allowed) || near?.lower === 'one';
+  tokens.forEach((token, index) => {
+    check(!(token.digits && CURRENCY_WORDS.has(token.letters)), 'MODEL_OUTPUT_REJECTED', message);
+    if (allowed.includes(token.lower)) return;
+    check(!AMOUNT_WORDS.has(token.lower), 'MODEL_OUTPUT_REJECTED', message);
+    if (PRICE_AFTER.has(token.lower)) check(!isNumberToken(tokens[index - 1], allowed), 'MODEL_OUTPUT_REJECTED', message);
+    if (token.digits || !CURRENCY_WORDS.has(token.lower)) return;
+    check(!counted(tokens[index - 1]) && !counted(tokens[index + 1]), 'MODEL_OUTPUT_REJECTED', message);
+  });
+}
+
+/** After a number these make a price: "20% off", "half price". */
+const PRICE_AFTER: ReadonlySet<string> = new Set(['off', 'price', 'prices']);
+/** Words that state a price without a number, and currency names. */
+const PRICE_WORDS: ReadonlySet<string> = new Set([
+  'free', 'discount', 'discounts', 'discounted', 'tenner', 'tenners', 'fiver', 'fivers',
+  'pound', 'pounds', 'pence', 'penny', 'pennies', 'quid', 'dollar', 'dollars', 'buck', 'bucks', 'cent', 'cents', 'rupee', 'rupees',
+  'paise', 'euro', 'euros', 'yen', 'dirham', 'dirhams', 'rand', 'franc', 'francs', 'peso', 'pesos',
+]);
+
+/**
+ * Plan words sit beside the owner's prices, so they also keep out price words: upper-case currency codes and currency
+ * names the owner did not write ("Priced in GBP", "paid in rupees"), free and discount. "stress-free" passes.
+ */
+export function assertNoPriceWords(value: string, field: string, allowed: readonly string[] = []) {
+  const message = `The ${field} used a price word. Prices come from you and Chausar's calculator, not the AI.`;
+  for (const token of tokensOf(value)) {
+    if (token.digits || allowed.includes(token.lower) || ALLOWED_COMPOUNDS.has(token.lower)) continue;
+    check(!CURRENCY_CODES.has(token.raw), 'MODEL_OUTPUT_REJECTED', message);
+    token.lower.split('-').forEach((part, index) => {
+      const word = part.replace(/'s$/, '').replace(/'$/, '');
+      if (word === 'free' && index > 0) return; // joined by a hyphen before it: stress-free, fee-free
+      check(!PRICE_WORDS.has(word), 'MODEL_OUTPUT_REJECTED', message);
     });
   }
 }
@@ -400,18 +529,26 @@ export function tidyWords(value: string, multiline = false): string {
 
 const HIDDEN_CHARACTER = /[\p{Cf}\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
 
-export type ModelWordsOptions = { allowed?: readonly string[]; multiline?: boolean };
+/**
+ * numbers 'refuse': words from the delivery harness, which works on the client's own files and books. There every
+ * count and amount has a work receipt and reaches the words only by reference (w1.total), so a model number is refused.
+ */
+export type ModelWordsOptions = { allowed?: readonly string[]; multiline?: boolean; numbers?: 'refuse' };
 
-/** Model words: tidy, bounded, no numbers, no line that starts a markdown heading. */
+/**
+ * Model words: tidy, bounded, no amount of money, no line that starts a markdown heading. Other numbers pass; the
+ * caller marks the record that carries them estimate: true (modelNumbers), never with a receipt.
+ */
 export function modelWords(value: unknown, field: string, max = 400, options: ModelWordsOptions = {}): string {
   check(typeof value === 'string', 'MODEL_OUTPUT_REJECTED', `The ${field} was not text.`);
   // Hidden characters (zero-width spaces, soft hyphens, controls) could split a word past the checks below
-  // (a zero-width space inside "two" still shows as "two"), so model words never carry them.
+  // (a zero-width space inside "rupees" still shows as "rupees"), so model words never carry them.
   check(!HIDDEN_CHARACTER.test(value), 'MODEL_OUTPUT_REJECTED', `The ${field} held hidden characters. Chausar shows plain words only.`);
   const words = tidyWords(value, options.multiline === true);
   check(words.length >= 1 && words.length <= max, 'MODEL_OUTPUT_REJECTED', `The ${field} was empty or too long.`);
   check(!/^#/m.test(words), 'MODEL_OUTPUT_REJECTED', `The ${field} tried to start a heading.`);
-  assertNoNumbers(words, field, options.allowed ?? []);
+  if (options.numbers === 'refuse') assertNoNumbers(words, field, options.allowed ?? []);
+  else assertNoMoney(words, field, options.allowed ?? []);
   return words;
 }
 

@@ -1,6 +1,6 @@
 # Venture launcher: build and connectors (P4)
 
-This package writes the build brief, checks it, opens it in Lovable or Replit (or copies it for Bolt and v0), follows the result on GitHub read only, and lists 64 connectors with labels that match what the code does today.
+This package writes the build brief, checks it, opens it in Lovable or Replit (or copies it for Bolt and v0), follows the result on GitHub read only, and lists 66 connectors with labels that match what the code does today.
 
 Code: `platform/runtime/venture/build/`. Tests: `platform/tests/venture-build.test.ts` and `platform/tests/venture-connectors.test.ts`. Fixtures: `platform/tests/fixtures/venture/build/` (both are synthetic recordings).
 
@@ -14,7 +14,7 @@ Code: `platform/runtime/venture/build/`. Tests: `platform/tests/venture-build.te
 | `venture.build.link { repo, token? }` | admin, app only | Follows one GitHub repo. A token must be fine-grained (`github_pat_`) and lives only on the secret shelf. Emits `repo-linked`. |
 | `venture.build.sync {}` | prepare | Reads GitHub (at most nine GET calls), stores a read receipt and the status. Emits `repo-synced`. |
 | `venture.build.status {}` | read | The follow record, the latest brief, handoffs newest first, and the token link. |
-| `venture.connectors.list { category?, starterOnly? }` | read | The 64 connector cards, starter cards first. |
+| `venture.connectors.list { category?, starterOnly? }` | read | The 66 connector cards, starter cards first, with posting modes on the social and video cards. |
 
 ## The brief
 
@@ -43,12 +43,29 @@ The status says who made the last commit from the logins GitHub verifies (never 
 
 ## Connectors
 
-`CONNECTOR_CATALOGUE` holds 64 entries in 12 categories, ported from research R6 and rewritten in plain words. The modes in this build:
+`CONNECTOR_CATALOGUE` holds 66 entries in 12 categories, ported from research R6 and rewritten in plain words. YouTube and a read-only bank account joined on 21 October. The modes in this build:
 
 - Handoff available: Lovable and Replit (fixture-tested), Bolt, v0 and your own mail app (built-in).
 - Read available: GitHub and TallyPrime (fixture-tested), Chausar CRM and the Chausar back office (built-in).
 - Write available: Chausar CRM and the Chausar back office only.
-- Everything else is planned. Every other vendor shows a planned handoff and a plain "Visit site" link that is not counted as a mode. Zoho Books reading is planned because it needs a sign-in path this build lacks.
+- Everything else is planned. Every other vendor shows a planned handoff and a plain "Visit site" link that is not counted as a mode. Zoho Books reading is planned because it needs a sign-in path this build lacks. GitHub writing is planned: staged edits reach a repo only with a write grant and a writer, and this build has neither. The bank account is planned: no provider is linked.
+
+### Posting modes (LinkedIn, X, Instagram, YouTube)
+
+Each posting card has `postingOptions` (api, owner-browser-session, handoff, each with `status`, `risk`, `requires` and a `reason` when planned) and a `posting` summary: the first available option, else the owner-browser-session one.
+
+- `api` is planned until the platform's review of the app is recorded (`CHAUSAR_APP_REVIEWED`) and a posting client exists. None ships, so it stays planned.
+- `owner-browser-session` drives the owner's own signed-in browser on this computer, only when Playwright with Chromium is already installed; Chausar installs and downloads nothing. It is available for text posts on X and LinkedIn when present, marked as not yet checked against the live site, and always carries "The platform may restrict this account." Instagram and YouTube need a picture or video upload, which is not built. On the hosted web server it is planned.
+- `handoff` is planned: `postHandoff` builds the link or text, but no screen opens it yet.
+- Each post is proposed (`proposePost`), waits on Today as its own `connector` row (`connectorQueueRows`), and is approved or denied once (`decidePost`, or `decideConnectorRow` for `venture.queue.decide`). The journal goes described, approved (a claim committed before the browser starts), then applied, rejected or outcome_unknown. A timeout or crash is outcome_unknown and is never resent; the owner checks the platform and records what they found (`resolveUnknownPost`).
+- Not built, on purpose: proxy or VPN rotation, changed user agents or anything else that hides the automation, and posting to accounts that are not the owner's.
+
+### Bank, website edits, leads and clip rights
+
+- `build/bank.ts`: statement import into BigInt minor units, a stable id per transaction (the bank reference, or a hash with a counter for identical twins) so a re-import never counts twice, consent with a visible end date, four unattended reads a day, and alerts sent only to the address the owner set in the app. Tested on synthetic statements in `platform/tests/fixtures/venture/connectors/`.
+- `build/site-edits.ts`: stage an edit to one existing file, apply only the exact plan digest the owner reviewed, refuse if the file changed since review, read it back after writing, log each step, roll back the same way. A write that cannot be confirmed is needs-inspection and never retried.
+- `customers/leads.ts`: a lead needs its source URL; an email is verified only by a passing MX lookup; the blocklist comes before every other drafting rule; agents only draft and the owner records each real send; every draft carries an unsubscribe line and the postal address (`LEADS_ADDRESS_MISSING` without it).
+- `delivery/rights.ts`: the intake `rights` field (own footage, a licence or a creator clip programme with its reference); clipping steps refuse with `RIGHTS_REQUIRED` without it.
 
 ## How it was checked
 

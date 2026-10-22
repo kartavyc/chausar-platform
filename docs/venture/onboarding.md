@@ -16,7 +16,7 @@ The spec (revision 2) and the research behind the ChatGPT row are local working 
        |  call 1, the quick model (decide): idea, skill or problem? which two to four views fit?
 3  Working                    still outlines in the shapes of those views; nothing spins, nothing loops
        |  call 2, the plan model (compose): blocks from the library, short words for each
-       |  code checks every block id, count, word cap and word: no digits, no numbers in words, no prices, no markup
+       |  code checks every block id, count, word cap and word: no money, no price words, no markup (a number marks a model estimate)
 4  Here's your plan           drawn by Chausar's own code from the blocks
 5  Set your prices            typed by the owner; nothing is added up yet
        |  Keep this plan: Chausar makes the encrypted vault itself, named after the business, and this
@@ -200,13 +200,15 @@ venture.compose.fill { composeId }
 ### The number guard, every layer
 
 1. **Schema.** No number or integer type anywhere a model writes.
-2. **Digits and signs.** No digit unless the token also holds a letter and was copied from the owner's own sentence (so "B2B" passes and "2 dogs" doesn't); no currency signs, percent or magnitude words.
-3. **Numbers and money in words.** Cardinals from two upward, ordinals from second upward, dozen, half, quarter, double, twice, triple, currency names, currency codes the owner didn't write themselves, and the price words free, discount and discounted. "One sentence", "your first client", "stress-free" and "second-hand" are allowed. "Twenty pounds a walk" is refused and repaired (founder flag F23).
+2. **Numbers are model estimates.** Since the founder's decision of 21 October a number the model writes, in digits or in words ("Walks for 2 dogs", "twice a week"), passes and marks its plan line `estimate: true`, shown as a model estimate and never given a receipt.
+3. **Money and price words.** No currency sign, no currency code or name next to a number ("INR 500", "Twenty pounds a walk"), no amount token even if the owner typed it (Rs500, 15GBP), no "20% off" or "half price", and none of the currency names, currency codes the owner didn't write themselves, or the price words free, discount and discounted. "stress-free" is allowed. "Twenty pounds a walk" is refused and repaired (founder flag F23).
 4. **Ids and choices** are enums and refs, never free text.
 5. **Prices** are typed by the owner, parsed by code into the currency's smallest unit, and shown back as the engine formats them. Before the plan is kept it shows only what the owner typed: no tax and no total (founder flag F5). After it, each priced offer gets a calculator receipt.
 6. **The renderer** never parses or works out an amount. It sends the typed text as typed and shows the engine's words.
 
 ## The screens
+
+> A record of the old renderer (`app/renderer`), removed on 22 October 2026 when Ink (`app/ui`) became the app; see [ink.md](ink.md). The renderer tests named in this section no longer exist. The engine side described above is unchanged.
 
 The renderer package builds these screens in look B, "bold and graphic", from a prototype the founder picked (a local working file, not in the repository): a split layout with the asking on the left and the business assembling on the right (in real words since the keychain change; see above), light and dark, one column at phone width. Pairing, the recovery code and Welcome back move to the same look (Keep it safe did too, until the keychain change took it out of the local flow). The spec's motion rules: short, once, nothing loops, nothing over 400 ms, and reduced motion turns it all off.
 

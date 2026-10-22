@@ -1,5 +1,6 @@
 // Chausar delivery harness: the files a client sends with an order, and the tables the agent's tools read from them.
-// Files live in the vault as client data. CSV and XLSX are read by code in this process; PDF text comes from the
+// Files live in the vault as client data. CSV, XLSX and transcripts (SRT or VTT, read as timed lines with segment ids)
+// are read by code in this process; PDF text comes from the
 // trusted Python helper (pdf.extract). The shared hosted server never runs the Python helper, so there a PDF is refused
 // before it is stored. Practice files for rehearsal are made up by Chausar and never stored.
 import { check, ChausarError, type Context } from '../../../contracts.ts';
@@ -8,6 +9,7 @@ import { digest, exactPayload, identifier, listRecords, requireAppChannel, singl
 import type { UploadFormat, UploadRecord, UploadView, VentureDeps, WorkTableRecord, WorkTableRow } from '../../contracts.ts';
 import { readAs } from '../shared.ts';
 import { csvRows } from './cells.ts';
+import { parseTranscript, type Cue } from '../../playbooks/youtube/transcript.ts';
 
 /** Fits one desktop request (two million bytes) once encoded. */
 export const MAX_UPLOAD_BYTES = 1_450_000;
@@ -44,7 +46,19 @@ export function sniffFormat(name: string, bytes: Uint8Array): UploadFormat {
     try { new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw new ChausarError('UNSUPPORTED_UPLOAD', 'This CSV is not UTF-8 text. Save it as CSV UTF-8 and add it again.'); }
     return 'csv';
   }
-  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file. Photos and scans need a reader this build does not have.');
+  if (lower.endsWith('.srt') || lower.endsWith('.vtt')) {
+    let text: string;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw new ChausarError('UNSUPPORTED_UPLOAD', 'This transcript is not UTF-8 text. Export it again as SRT or VTT in UTF-8 and add it again.'); }
+    check(parseTranscript(text).length > 0, 'UNSUPPORTED_UPLOAD', 'This transcript has no timed lines. Export it again as SRT or VTT and add it again.');
+    return 'transcript';
+  }
+  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file, or a transcript as SRT or VTT. Photos and scans need a reader this build does not have.');
+}
+
+/** A transcript's lines in file order, each with its segment id (seg-1, seg-2 ...), the only way agents name a moment. */
+export function transcriptCues(file: FileLike): Cue[] {
+  check(file.format === 'transcript', 'TOOL_FAILED', `${file.name} is not a transcript.`);
+  return parseTranscript(Buffer.from(file.contentBase64, 'base64').toString('utf8'));
 }
 
 /** venture.files.add { orderId, name, contentBase64 } (app only): one client file for an order, kept in the vault. */
@@ -61,7 +75,7 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
   const format = sniffFormat(name, bytes);
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const file: FileLike = { id: 'upload_check', name, format, bytes: bytes.length, digest: digest(encoded), contentBase64: encoded, clientData: true };
-  if (format !== 'pdf') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
+  if (format === 'csv' || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'files.add', tx => {
     const order = tx.find('venture-order', orderId);
@@ -119,6 +133,7 @@ const tableCache = new Map<string, SourceTable[]>();
 /** The tables in a CSV (one) or an XLSX workbook (one per sheet with data). Cached by content digest. */
 export function tablesOfFile(file: FileLike): SourceTable[] {
   check(file.format !== 'pdf', 'TOOL_FAILED', 'A PDF has pages, not tables. Read its text instead.');
+  check(file.format !== 'transcript', 'TOOL_FAILED', 'A transcript has timed lines, not tables. Read its lines instead.');
   const key = `${file.id}:${file.digest}`;
   const cached = tableCache.get(key);
   if (cached) return cached;

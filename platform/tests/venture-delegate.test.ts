@@ -29,6 +29,7 @@ import { PRACTICE_FILES } from '../runtime/venture/delivery/harness/practice.ts'
 import { HOSTED_NO_OWNER_CLI } from '../runtime/venture/delivery/harness/sandbox.ts';
 import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
 import { sumRows } from '../runtime/venture/delivery/harness/work.ts';
+import { listSpend } from '../runtime/venture/money/spend.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -373,6 +374,11 @@ test('real order: nothing starts before the owner approves the exact brief; the 
     assert.equal(record.untrusted, true);
     assert.equal(record.approvedDigest, request.digest);
     assert.equal(record.reportedCost, 'USD 0.0421');
+    // The spend ledger held Claude Code's own limit (2,000,000 micros) before it started, then settled at what it printed.
+    const spend = await listSpend(env.deps, owner, {});
+    assert.deepEqual(spend.rows.map(row => [row.kind, row.reserved, row.settled, row.connector, row.label]),
+      [['billed', 'USD 2.0000', 'USD 0.0421 (as the tool reported, on your own plan)', 'claude-code', 'Claude Code heavy work']]);
+    assert.equal(spend.total, 'USD 0.0421 this month');
     assert.deepEqual(await call(env, 'venture.delegate.get', { id: record.id }), record, 'the owner reads it back as stored');
     await assert.rejects(call(env, 'venture.delegate.get', { id: 'delegaterun_missing' }), code('DELEGATE_RUN_NOT_FOUND'));
     assert.deepEqual(record.outputs.filter(output => output.text !== null).map(output => output.name).sort(), ['figures.json', 'summary.md', 'tables/matched.csv']);
@@ -451,6 +457,9 @@ test('real order: the time limit stops the tool and its whole process tree; a fa
     const [record] = listRecords(env.store.read(), 'venture-delegate-run') as DelegateRunRecord[];
     assert.equal(record.outcome, 'timedOut');
     assert.match(record.reason, /ran past its 10 minute limit and was stopped/);
+    // It printed no cost, so it settles at its limit and says that is an estimate; it is never counted as free.
+    const [held] = (await listSpend(env.deps, owner, {})).rows;
+    assert.deepEqual([held.kind, held.settled], ['estimate', 'USD 2.0000 (estimate)']);
     assert.deepEqual(record.outputs.map(output => output.name), ['started.md']);
     const envelope = run.harness!.toolCalls[0].envelope;
     assert.equal(!envelope.ok && envelope.error.code, 'TOOL_TIMEOUT');

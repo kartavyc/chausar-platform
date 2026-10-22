@@ -1,0 +1,23 @@
+.line {
+  padding: 6px var(--sp-6);
+  border-bottom: var(--hair) solid var(--line);
+  background: var(--bg);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.line[data-state='offline'],
+.line[data-state='session-ended'],
+.line[data-state='error'] {
+  color: var(--fail);
+}
+
+.line[data-state='unpaired'],
+.line[data-state='starting'] {
+  color: var(--wait);
+}
+
+.line[data-state='fake'] {
+  color: var(--mute);
+  font-size: var(--text-label);
+}

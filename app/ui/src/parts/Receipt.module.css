@@ -1,0 +1,15 @@
+.receipt {
+  font-size: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.receipt:hover {
+  text-decoration-thickness: 2px;
+}

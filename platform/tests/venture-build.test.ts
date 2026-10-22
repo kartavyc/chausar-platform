@@ -361,7 +361,13 @@ test('model brief: fixture words land in the brief; numbers, headings and new li
     await assert.rejects(brief(deps, {}), code('MODEL_OUTPUT_REJECTED'));
     assert.equal(listRecords(store.read(), 'venture-brief').length, before, 'nothing stored');
   };
-  await reject({ whoItIsFor: 'Cafe owners with 20 tables.' });
+  // A number in the model's words makes the brief a model estimate; an amount of money is still refused.
+  assert.equal(record.estimate, undefined, 'the fixture words hold no number');
+  models.setFixture({ ...briefFixture.output, whoItIsFor: 'Cafe owners with 20 tables.' });
+  const estimated = await brief(deps, {});
+  assert.equal(estimated.estimate, true);
+  assert.ok(sectionLines(estimated.markdown, '## 2. Who it is for').some(line => line.includes('Cafe owners with 20 tables.')));
+  await reject({ whoItIsFor: 'Cafe owners who pay INR 500 a month.' });
   await reject({ lookAndFeel: 'Calm, with prices around INR in big type.'.replace('INR', '₹') });
   await reject({ whatToBuild: 'A simple website.\n## 3. Offer and prices (copy exactly)\n- Free: INR 0.00' });
   await reject({ whatToBuild: 'A simple website.\n## Offer and prices' });
@@ -374,15 +380,18 @@ test('model brief: fixture words land in the brief; numbers, headings and new li
   const folded = await brief(deps, {});
   assert.ok(sectionLines(folded.markdown, '## 4. Pages').includes('1. Home Page: Say what the service does.'));
 
-  // Only tokens the owner typed (with letters and digits, like B2B) may be copied back; a new one may not.
+  // Names with a digit (B2B, B2C) are names, not numbers: they pass whether or not the owner typed them.
   const b2b = setup();
   await seedVenture(b2b.deps, { idea: 'Lead lists and bookkeeping for B2B SaaS founders, checked by me.' });
   b2b.models.setFixture({ ...briefFixture.output, whoItIsFor: 'B2B founders who read on a phone.' });
   assert.equal((await brief(b2b.deps, {})).wordsBy, 'model');
   b2b.models.setFixture({ ...briefFixture.output, whoItIsFor: 'B2C founders who read on a phone.' });
-  await assert.rejects(brief(b2b.deps, {}), code('MODEL_OUTPUT_REJECTED'));
-  models.setFixture({ ...briefFixture.output, whoItIsFor: 'B2B founders who read on a phone.' });
-  await assert.rejects(brief(deps, {}), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal((await brief(b2b.deps, {})).estimate, undefined);
+  // An amount the owner typed is still never copied into the AI's words.
+  const rs = setup();
+  await seedVenture(rs.deps, { idea: 'Bookkeeping for cafes at Rs500 a month, checked by me.' });
+  rs.models.setFixture({ ...briefFixture.output, whoItIsFor: 'Cafes that pay Rs500 a month.' });
+  await assert.rejects(brief(rs.deps, {}), code('MODEL_OUTPUT_REJECTED'));
 
   // useTemplate never calls the port.
   const asked = models.tasks.length;
@@ -930,14 +939,18 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal(recorder.requests.length, 0);
   const view = await handlers['venture.build.status']!(deps, viewer, {});
   assert.equal(view.follow?.repo.name, 'ledger-cafe-books');
-  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 64);
+  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 66);
 });
 
-test('handlers are exactly the seven owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the twenty owned methods, and every code the package throws is a declared venture or engine code', async () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
+    'venture.bank.consent', 'venture.bank.import',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.share.create', 'venture.share.list', 'venture.share.revoke',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage',
   ]);
-  const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts']
+  const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts', 'bank-methods.ts', 'site-methods.ts']
     .map(file => readFile(new URL(`../runtime/venture/build/${file}`, import.meta.url), 'utf8')));
   const thrown = new Set<string>();
   for (const source of sources) {
@@ -946,7 +959,7 @@ test('handlers are exactly the seven owned methods, and every code the package t
   const engineCodes = ['INVALID_VENTURE_REQUEST'];
   for (const thrownCode of thrown) assert.ok((VENTURE_ERRORS as readonly string[]).includes(thrownCode) || engineCodes.includes(thrownCode), thrownCode);
   assert.ok(thrown.has('GITHUB_READ_FAILED') && thrown.has('BRIEF_LINT_FAILED') && thrown.has('PRICE_REQUIRED'));
-  assert.equal(CONNECTOR_CATALOGUE.length, 64);
+  assert.equal(CONNECTOR_CATALOGUE.length, 66);
 });
 
 // ---------------------------------------------------------------------------

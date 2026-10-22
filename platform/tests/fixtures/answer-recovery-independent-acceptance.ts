@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve, isAbsolute } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
 import { createLocalServer } from '../../runtime/server.ts';
-import { harness } from './conversation-acceptance-renderer.ts';
+import { preloadBridge } from './preload-bridge.ts';
 
 // Actual pre-repair Engine encrypted authority and public originals. No authored
 // State, deleted cutoff, live provider, native SQL, installed GUI or user vault.
@@ -47,8 +47,9 @@ export async function fixture(t: TestContext) {
     await rm(directory, { recursive: true, force: true });
   });
   await http('workspace.open', { passphrase: legacy.passphrase });
-  const h = await harness({ mount: true, dispatch: http });
-  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
+  // Every public request goes through the real desktop preload and strict IPC contract, then this loopback HTTP server.
+  const bridge = await preloadBridge({ dispatch: http });
+  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => bridge.request(method, payload);
   const advance = (milliseconds = 1000) => t.mock.timers.setTime(Date.now() + milliseconds);
   let lastExportedTime = 0;
   const snapshot = async () => {
@@ -106,7 +107,7 @@ export async function fixture(t: TestContext) {
     definition.field = 'taxMinor'; definition.meaning = 'Independent current dictionary: count explicitly reported invoice tax.';
     return request('ontology.publish', { draft });
   };
-  return { h, directory, authorityPath, request, raw, snapshot, originals, history, evidence, review, declaration,
+  return { bridge, directory, authorityPath, request, raw, snapshot, originals, history, evidence, review, declaration,
     prepare, executePayload, refusal, restart, correct, publishTax, advance,
     setBearer: (token: string) => { bearer = token; }, get engine() { return engine; } };
 }

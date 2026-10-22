@@ -10,7 +10,7 @@ import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, Sign
 type PracticeClient = { persona: string; brief: string; expectedOutcome: string };
 type TypeScenarios = Record<ScenarioKind, PracticeClient>;
 
-const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'no-done-claims'];
+const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded'];
 const MESSY_CHECKS: readonly CheckId[] = CHECK_IDS.filter(id => BASE_CHECKS.includes(id) || id === 'questions-raised');
 const TITLES: Readonly<Record<ScenarioKind, string>> = { clean: 'A clear request', messy: 'A messy request', pushback: 'A pushy client' };
 const MOCKS: Readonly<Record<string, 'record-only'>> = Object.freeze({ 'mail-app.send-deliverable': 'record-only' });
@@ -170,12 +170,16 @@ export function scenariosFor(type: ServiceType): Scenario[] {
 }
 
 /** Checks every signal case keeps, whatever the reason. */
-const SIGNAL_CORE: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-outside-writes', 'turn-limit', 'no-done-claims'];
+const SIGNAL_CORE: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'no-outside-writes', 'turn-limit', 'no-done-claims', 'claims-grounded'];
+/**
+ * The checks a signal case focuses on. Reasons code cannot check on its own (the tone, a reply off the brief, a claim
+ * of work) bring in the rules judge, which votes on those questions with evidence from the run when an AI judge is on.
+ */
 const REASON_CHECKS: Readonly<Record<DeliveryReason, readonly CheckId[]>> = {
-  'wrong-fact': ['no-numeric-prose'], 'missing-fact': ['questions-raised'], 'missing-section': ['required-sections'],
-  'off-brief': ['required-sections'], tone: ['house-style'], format: ['required-sections', 'house-style'],
+  'wrong-fact': ['no-numeric-prose', 'claims-grounded'], 'missing-fact': ['questions-raised'], 'missing-section': ['required-sections'],
+  'off-brief': ['required-sections', 'rules-judge'], tone: ['house-style', 'rules-judge'], format: ['required-sections', 'house-style'],
   'too-long': ['length-bounds'], 'too-short': ['length-bounds'], 'wrong-number': ['figures-resolve', 'no-numeric-prose'],
-  late: [], 'claims-work-not-done': ['no-done-claims'], other: [],
+  late: [], 'claims-work-not-done': ['no-done-claims', 'rules-judge'], other: [],
 };
 const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
   'wrong-fact': 'a wrong fact', 'missing-fact': 'a missing fact', 'missing-section': 'a missing section', 'off-brief': 'a reply off the brief',

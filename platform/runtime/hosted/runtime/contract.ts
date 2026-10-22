@@ -46,6 +46,11 @@ export interface ActorHandle {
   action(name: string, input: unknown, caller: ActionCaller): Promise<unknown>;
   /** Rivet: conn.on(event, listener). Only declared events. Returns the unsubscribe function. */
   on(event: string, listener: (event: ActorEvent) => void): () => void;
+  /**
+   * The client share page (/share/<token>): the server's own call, never an owner action, so it is not in ACTOR_ACTIONS.
+   * Only the local runtime has it; without it the page answers that nothing is here.
+   */
+  shareLink?(op: 'page' | 'decide', token: string, input: unknown): Promise<unknown>;
 }
 
 export interface VentureRuntime {

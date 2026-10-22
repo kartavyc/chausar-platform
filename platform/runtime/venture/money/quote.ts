@@ -7,7 +7,8 @@ import { digest, exactPayload, listRecords, readVenture, ventureAction, type Ven
 import { computePrice, type PriceAmounts } from './price.ts';
 import { halfRatePercent, ratePercent, taxDecision, type TaxDecision } from './tax.ts';
 import { latestBlueprint, oneLine, quantityText, recordId, requireLatestBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type { BlueprintRecord, ClientRecord, MinorString, Offer, PriceFigure, PriceReceiptRecord, VentureDeps } from '../contracts.ts';
+import type { BlueprintRecord, ClientRecord, MinorString, Offer, PriceFigure, PriceReceiptRecord, SumReceiptRecord, VentureDeps } from '../contracts.ts';
+import { servedSumReceipt } from './sums.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -171,15 +172,39 @@ export async function quotePrice(deps: VentureDeps, ctx: Context, payload: unkno
 
 /**
  * venture.receipt.get (level read). An offer receipt reads stale once the latest blueprint version has a different
- * digest from the one it priced.
+ * digest from the one it priced. A sum receipt (sums.ts: owed, received, spent) reads stale once its subject adds up
+ * to something else.
  */
-export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord> {
+export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord | SumReceiptRecord> {
   const body = exactPayload(payload, ['id'], ['id']);
   const id = recordId(body.id, 'Receipt');
   const { state, venture } = readVenture(deps, ctx);
+  const sum = listRecords(state, 'venture-sum-receipt', venture.id).find(r => r.id === id);
+  if (sum) return servedSumReceipt(state, venture, sum);
   const receipt = listRecords(state, 'venture-price-receipt', venture.id).find(r => r.id === id);
   check(receipt, 'RECEIPT_NOT_FOUND', 'This price receipt was not found.');
   if (receipt.subject.type !== 'offer') return receipt;
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
   return { ...receipt, stale: receipt.stale || latest === null || latest.digest !== receipt.inputs.blueprintDigest };
+}
+
+// ---------------------------------------------------------------------------
+// Quote binding for paid calls (Open Edit's rule): a quote holds one draft, one figure and one payer for one hour
+// ---------------------------------------------------------------------------
+
+/** How long a quoted figure holds. After an hour the owner has moved on and the price may have too: quote again. */
+export const QUOTE_TTL_MS = 60 * 60_000;
+
+/** What a quote binds: the digest of exactly what is paid for, the figure in whole units, and who is billed. */
+export type QuoteBinding = { draftDigest: string; figure: string; payer: string };
+
+/**
+ * Refuses an approval or a spend that no longer matches its quote: QUOTE_CHANGED when the draft, the figure or the
+ * payer differ in any way, QUOTE_EXPIRED when more than an hour has passed since the quote was made. Pure: the caller
+ * passes the time.
+ */
+export function checkQuoteBinding(quoted: QuoteBinding & { quotedAt: string }, offered: QuoteBinding, nowIso: string): void {
+  check(quoted.draftDigest === offered.draftDigest && quoted.figure === offered.figure && quoted.payer === offered.payer, 'QUOTE_CHANGED',
+    'This changed since it was quoted: the draft, the cost or who pays. Look at the new quote.');
+  check(Date.parse(nowIso) - Date.parse(quoted.quotedAt) <= QUOTE_TTL_MS, 'QUOTE_EXPIRED', 'This quote is over an hour old. Ask for a fresh one.');
 }

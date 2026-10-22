@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 // A variable import allows Node's native TypeScript test runner to exercise the JS CLI without a TS emit step.
 const modulePath = '../../scripts/desktop-package.mjs';
-const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput } = await import(modulePath);
+const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput, validateInkPackagingConfig, desktopPackageCommands, INK_SOURCE_EXCLUSIONS } = await import(modulePath);
 const preview = JSON.parse(await readFile(new URL('../../app/desktop/builder.preview.json', import.meta.url), 'utf8'));
 const final = JSON.parse(await readFile(new URL('../../app/desktop/builder.json', import.meta.url), 'utf8'));
 const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
@@ -14,8 +14,8 @@ const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.
 async function fixture(t: any, config = preview) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const path of ['app/desktop', 'app/renderer', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
-  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/renderer/index.html', 'app/renderer/app.js', 'app/renderer/styles.css']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
+  for (const path of ['app/desktop', 'app/ui/src', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
+  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
   await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify(config));
   await writeFile(join(root, 'app/desktop/builder.json'), JSON.stringify(final));
@@ -110,8 +110,36 @@ test('preview preflight is read-only and identifies missing local dependencies w
   assert.deepEqual(await readdir(root), before);
 });
 
+test('both configurations ship the Ink build and none of its sources, tooling or the retired renderer', () => {
+  for (const config of [preview, final]) {
+    validateInkPackagingConfig(config);
+    assert.ok(config.files.includes('app/ui/dist/**/*'));
+    for (const glob of INK_SOURCE_EXCLUSIONS) assert.ok(config.files.includes(glob), glob);
+    assert.equal(JSON.stringify(config).includes('app/renderer'), false);
+  }
+  for (const glob of ['!app/ui/src/**/*', '!app/ui/tests/**/*', '!app/ui/public/**/*', '!app/ui/vite.config.ts', '!app/ui/vitest.config.ts']) assert.ok(INK_SOURCE_EXCLUSIONS.includes(glob), glob);
+  for (const config of [
+    { ...preview, files: preview.files.map((glob: string) => glob === 'app/ui/dist/**/*' ? 'app/renderer/**/*' : glob) },
+    { ...preview, files: preview.files.filter((glob: string) => glob !== 'app/ui/dist/**/*') },
+    { ...final, files: final.files.filter((glob: string) => glob !== '!app/ui/src/**/*') },
+    { ...final, files: [...final.files, 'app/renderer/**/*'] },
+    { ...preview, asarUnpack: [...preview.asarUnpack, 'app/ui/dist/**/*'] },
+  ]) assert.throws(() => validateInkPackagingConfig(config));
+});
+
+test('packaging builds Ink with the local Vite CLI, as npm run build:ui does, before electron-builder runs', () => {
+  const plan = createDesktopPackagePlan();
+  const commands = desktopPackageCommands(plan, { cliPath: '/local/electron-builder/cli.js', viteCli: '/local/vite/bin/vite.js' });
+  assert.deepEqual(commands.map((command: any) => command.name), ['Ink build', 'electron-builder']);
+  assert.deepEqual(commands[0].args, ['/local/vite/bin/vite.js', 'build', '--config', 'app/ui/vite.config.ts']);
+  assert.equal(pkg.scripts['build:ui'], `vite ${commands[0].args.slice(1).join(' ')}`, 'the package build and npm run build:ui are the same build');
+  assert.deepEqual(commands[1].args, ['/local/electron-builder/cli.js', ...plan.builderArguments]);
+  assert.ok(pkg.devDependencies.vite, 'vite is a pinned dependency the prerequisites check');
+});
+
 test('preview checks refuse accidental final signing, runtime bundling, inheritance or build hooks', async t => {
   const variants = [
+    { ...preview, files: preview.files.map((glob: string) => glob === 'app/ui/dist/**/*' ? 'app/renderer/**/*' : glob) },
     { ...preview, forceCodeSigning: true },
     { ...preview, productName: final.productName },
     { ...preview, extraMetadata: { ...preview.extraMetadata, chausarPreview: false } },

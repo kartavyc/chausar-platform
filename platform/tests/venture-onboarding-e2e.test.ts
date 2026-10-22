@@ -319,10 +319,21 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   assert.ok(invoices.some(invoice => invoice.id === issued.invoice.id), 'the issued invoice is still there');
 });
 
-test('the number guard and the repair: a digit or a price in words is refused once and repaired, markup too', async t => {
+test('model numbers: a digit is kept and labelled a model estimate, with one compose call and no receipt', async t => {
+  const fixture = await recording('digit-then-repair.json');
+  const { ask } = await newEngine(t, fixture);
+  await connectPair(ask);
+  const decision = await ask('venture.compose.decide', { text: fixture.text, countryCode: 'GB' }) as ComposeDecision;
+  const plan = await ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
+  assert.deepEqual(plan.offers[0].name, { value: 'Walks for 2 dogs', label: 'assumption', by: 'model', estimate: true });
+  assert.equal(plan.offers[0].description.estimate, undefined, 'a line without a number is not an estimate');
+  assert.equal(plan.offers[0].priceDisplay, null, 'the price still comes only from the owner and the calculator');
+  assert.equal(plan.calls.compose.length, 1, 'the first answer is kept; nothing needed repair');
+});
+
+test('the money guard and the repair: a price in words is refused once and repaired, markup too', async t => {
   const cases = [
-    ['digit-then-repair.json', 'Walks for 2 dogs', 'The offer name contained a number.'],
-    ['spelled-price-then-repair.json', 'Twenty pounds a walk', 'The offer description wrote a number or a price in words.'],
+    ['spelled-price-then-repair.json', 'Twenty pounds a walk', 'The offer description stated an amount of money.'],
     ['markup-in-words.json', '<b>', 'The offer description held markup or a link.'],
   ] as const;
   for (const [name, refusedText, rule] of cases) {

@@ -1,0 +1,174 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group {
+  margin-top: var(--sp-9);
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.heading:focus {
+  outline: none;
+}
+
+.heading:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+}
+
+.subheading {
+  margin: var(--sp-6) 0 var(--sp-1);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.label,
+.posting {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.postingWord {
+  margin-right: var(--sp-2);
+  color: var(--mute);
+}
+
+.reason {
+  display: block;
+  margin-top: 2px;
+  color: var(--mute);
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.line {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.said {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.problem {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.link {
+  font-size: var(--text-read);
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  max-width: 520px;
+}
+
+.consent {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
+.agree {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.buttons {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.tiers {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.tiers li + li {
+  margin-top: var(--sp-1);
+}
+
+.mode {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+  list-style: none;
+}
+
+.modeHead {
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.status {
+  margin-left: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.fold {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+}
+
+.fold summary {
+  cursor: pointer;
+  color: var(--link);
+}
+
+.rejected {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.rejected li + li {
+  margin-top: 2px;
+}
+
+/* What may leave this computer: three choices on their own lines, no box. */
+.rule {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

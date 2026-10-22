@@ -1,0 +1,9 @@
+{
+  "today.failed": "आपका इंतज़ार कर रही चीज़ें नहीं खुलीं: {message}",
+  "today.opened": "खुल गया",
+  "today.toRow": ", इसकी पंक्ति पर जाएँ",
+  "today.view.draft": "ड्राफ़्ट",
+  "today.view.file": "फ़ाइल",
+  "today.view.plan": "प्लान",
+  "today.view.missing": "यह नहीं खुला"
+}

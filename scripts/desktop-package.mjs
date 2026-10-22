@@ -14,6 +14,12 @@ const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
 const artifactExtensions = { win32: ['zip'], darwin: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
+// The window is the Ink app (app/ui). A package carries its build (app/ui/dist), made fresh by packageDesktop, and never
+// its sources, tests, public files already copied into the build, fonts already copied into the build, or tooling.
+const inkBuildGlob = 'app/ui/dist/**/*';
+export const INK_SOURCE_EXCLUSIONS = Object.freeze(['!app/ui/src/**/*', '!app/ui/tests/**/*', '!app/ui/public/**/*', '!app/ui/assets/**/*', '!app/ui/node_modules/**/*',
+  '!app/ui/index.html', '!app/ui/README.md', '!app/ui/tsconfig.json', '!app/ui/vite.config.ts', '!app/ui/vitest.config.ts']);
+const inkConfig = 'app/ui/vite.config.ts';
 
 function inside(root, path) {
   const result = relative(root, path);
@@ -125,6 +131,14 @@ export function desktopPackagingEnvironment(mode, environment = process.env) {
   return result;
 }
 
+/** Both configurations ship the Ink build and none of its sources; nothing names the retired app/renderer. */
+export function validateInkPackagingConfig(config) {
+  if (!Array.isArray(config.files) || !config.files.includes(inkBuildGlob)) throw new Error(`the package must include the Ink build (${inkBuildGlob})`);
+  for (const glob of INK_SOURCE_EXCLUSIONS) if (!config.files.includes(glob)) throw new Error(`the package must exclude Ink sources and tooling (${glob})`);
+  if (JSON.stringify([config.files, config.asarUnpack ?? []]).includes('app/renderer')) throw new Error('the retired app/renderer must not be packaged');
+  if ((config.asarUnpack ?? []).some(glob => glob.startsWith('app/ui'))) throw new Error('the Ink build is read from the archive; it is never unpacked');
+}
+
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
@@ -135,7 +149,7 @@ function validatePreviewConfig(config) {
   for (const [key, targets] of Object.entries(expected)) {
     if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented formats; Windows preview is ZIP only`);
   }
-  for (const glob of ['app/desktop/**/*', 'app/renderer/**/*', 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
+  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`preview package is missing ${glob}`);
   }
   for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
@@ -169,7 +183,7 @@ async function dependencyPrerequisites(root, platform) {
     const url = new URL(entry.resolved);
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('locked packages must resolve to HTTPS registry artifacts');
   }
-  for (const name of ['electron', 'electron-builder', 'pg', '@duckdb/node-api']) {
+  for (const name of ['electron', 'electron-builder', 'vite', 'pg', '@duckdb/node-api']) {
     const packagePath = join(root, 'node_modules', name, 'package.json');
     await regular(packagePath);
     const installed = JSON.parse(await readFile(packagePath, 'utf8'));
@@ -181,11 +195,18 @@ async function dependencyPrerequisites(root, platform) {
   if (typeof bin !== 'string' || !inside(builderRoot, resolve(builderRoot, bin))) throw new Error('installed electron-builder requires a local bin entry inside its package');
   const cliPath = resolve(builderRoot, bin);
   await regular(cliPath);
+  // The Ink build runs through Vite's own local CLI, never npm or a shell.
+  const viteRoot = join(root, 'node_modules', 'vite');
+  const vite = JSON.parse(await readFile(join(viteRoot, 'package.json'), 'utf8'));
+  const viteBin = typeof vite.bin === 'string' ? vite.bin : vite.bin?.vite;
+  if (typeof viteBin !== 'string' || !inside(viteRoot, resolve(viteRoot, viteBin))) throw new Error('installed vite requires a local bin entry inside its package');
+  const viteCli = resolve(viteRoot, viteBin);
+  await regular(viteCli);
   const electronRoot = join(root, 'node_modules', 'electron');
   const executable = (await readFile(join(electronRoot, 'path.txt'), 'utf8')).trim();
   if (executable !== binaryPaths[platform]) throw new Error('the installed Electron distribution must match the target platform');
   await validateLocalElectronDistribution(electronRoot, pkg.devDependencies.electron, platform, process.arch);
-  return { cliPath, version: pkg.version };
+  return { cliPath, viteCli, version: pkg.version };
 }
 
 /** Read-only: never installs dependencies, vendors runtimes, creates keys or starts Electron. */
@@ -193,18 +214,19 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
   const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
   const failures = [], checks = [];
-  let cliPath, version;
+  let cliPath, viteCli, version;
   const check = async (name, work) => {
     try { await work(); checks.push(name); }
     catch (error) { failures.push({ check: name, reason: error.code === 'ENOENT' ? 'required local file is missing; no download or substitute was attempted' : error.message }); }
   };
   await check('Node runtime', () => { if (!nodeVersionSupported(process.versions.node)) throw new Error('Node 24.13.1 or later is required'); });
   await check('desktop source entrypoints', async () => {
-    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/renderer/index.html', 'app/renderer/app.js', 'app/renderer/styles.css']) await regular(join(root, path));
+    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
   });
-  await check('locked local packaging dependencies and Electron distribution', async () => { ({ cliPath, version } = await dependencyPrerequisites(root, plan.platform)); });
+  await check('locked local packaging dependencies and Electron distribution', async () => { ({ cliPath, viteCli, version } = await dependencyPrerequisites(root, plan.platform)); });
   await check('packaging configuration', async () => {
     const config = JSON.parse(await readFile(join(root, plan.config), 'utf8'));
+    validateInkPackagingConfig(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');
   });
@@ -214,7 +236,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
     checks.push(...final.checks.map(name => `final: ${name}`));
     failures.push(...final.failures.map(item => ({ ...item, check: `final: ${item.check}` })));
   }
-  return { ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, version, checks, failures, qualification: plan.qualification };
+  return { ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, viteCli, version, checks, failures, qualification: plan.qualification };
 }
 
 async function sha256(path) {
@@ -243,18 +265,32 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
   return { receiptPath, expectedArtifacts };
 }
 
+/**
+ * The children packaging runs, in order: the Ink build (vite build, which empties and refills app/ui/dist), then
+ * electron-builder. Each is a local CLI run by this Node, with no shell. Nothing else is spawned.
+ */
+export function desktopPackageCommands(plan, { cliPath, viteCli }) {
+  return [
+    { name: 'Ink build', args: [viteCli, 'build', '--config', inkConfig] },
+    { name: 'electron-builder', args: [cliPath, ...plan.builderArguments] },
+  ];
+}
+
 /** Windows preview uses ZIP without NSIS. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
-  const arguments_ = [prerequisites.cliPath, ...plan.builderArguments];
-  const status = await new Promise((accept, reject) => {
-    const child = spawn(process.execPath, arguments_, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
-    child.once('error', reject);
-    child.once('exit', (code, signal) => signal ? reject(new Error(`electron-builder stopped with signal ${signal}`)) : accept(code));
-  });
-  if (status !== 0) throw new Error(`electron-builder failed with exit code ${status}`);
+  for (const command of desktopPackageCommands(plan, prerequisites)) {
+    const status = await new Promise((accept, reject) => {
+      const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
+      child.once('error', reject);
+      child.once('exit', (code, signal) => signal ? reject(new Error(`${command.name} stopped with signal ${signal}`)) : accept(code));
+    });
+    if (status !== 0) throw new Error(`${command.name} failed with exit code ${status}`);
+    // The window refuses to start without the build, so a package without it is refused here first.
+    if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
+  }
   const artifacts = [];
   if (plan.mode === 'preview' && !plan.unpacked) {
     const output = join(root, previewOutput);
@@ -263,7 +299,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
       artifacts.push({ path: name, size: info.size, sha256: await sha256(path) });
     }
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, qualification: plan.qualification, checks: prerequisites.checks, artifacts };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }

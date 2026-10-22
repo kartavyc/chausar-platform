@@ -1,0 +1,93 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  height: 100%;
+  padding: var(--sp-6) var(--sp-4);
+  border-right: var(--hair) solid var(--line);
+  overflow-y: auto;
+}
+
+.top {
+  display: block;
+}
+
+.menuButton {
+  display: none;
+}
+
+.places {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--sp-2) 10px;
+  border-radius: var(--radius);
+  font-size: var(--text-body);
+  color: var(--mute);
+  text-decoration: none;
+}
+
+.place:hover {
+  color: var(--fg);
+}
+
+.on {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.count {
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+@media (max-width: 759px) {
+  .rail {
+    height: auto;
+    padding: var(--sp-2) var(--sp-4);
+    border-right: 0;
+    border-bottom: var(--hair) solid var(--line);
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+
+  .top > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .menuButton {
+    display: block;
+    min-height: var(--target);
+    padding: 0 var(--sp-3);
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-read);
+    color: var(--fg);
+    cursor: pointer;
+  }
+
+  .places {
+    display: none;
+    padding-bottom: var(--sp-2);
+  }
+
+  .rail[data-menu-open] .places {
+    display: flex;
+  }
+}

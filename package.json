@@ -9,34 +9,56 @@
     "node": ">=24.13.1"
   },
   "scripts": {
+    "prestart": "npm run build:ui",
     "start": "node platform/runtime/server.ts --demo",
+    "prestart:production": "npm run build:ui",
     "start:production": "node platform/runtime/server.ts",
+    "prestart:hosted": "npm run build:ui",
     "start:hosted": "node platform/runtime/hosted/server.ts --hosted --dev",
+    "predesktop": "npm run build:ui",
     "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
     "check": "node scripts/check.mjs",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/check.mjs && node --test platform/tests/*.test.ts",
+    "prebuild": "npm run build:ui",
     "build": "node scripts/build.mjs",
     "package": "node scripts/desktop-package.mjs --mode final",
     "bench": "node scripts/bench.mjs",
+    "predesktop:production": "npm run build:ui",
     "desktop:production": "node scripts/desktop-launch.mjs --production",
     "desktop:check": "node scripts/desktop-launch.mjs --demo --check",
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
     "package:preview": "node scripts/desktop-package.mjs --mode preview",
     "package:check": "node scripts/desktop-package.mjs --mode preview --check",
     "phone:preview": "node scripts/phone-web-preview.mjs",
-    "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json"
+    "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json",
+    "dev:ui": "vite --config app/ui/vite.config.ts --mode fake",
+    "build:ui": "vite build --config app/ui/vite.config.ts",
+    "test:ui": "vitest run --config app/ui/vitest.config.ts",
+    "bench:ui": "node scripts/ui-bench.mjs",
+    "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json"
   },
   "dependencies": {
-    "pg": "8.23.0",
-    "@duckdb/node-api": "1.5.5-r.3"
+    "@duckdb/node-api": "1.5.5-r.3",
+    "pg": "8.23.0"
   },
   "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "24.0.0",
+    "@types/pg": "8.15.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "axe-core": "4.10.3",
     "electron": "44.4.5",
     "electron-builder": "26.0.12",
+    "jsdom": "30.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "typescript": "5.9.3",
-    "@types/node": "24.0.0",
-    "@types/pg": "8.15.5"
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
   }
 }

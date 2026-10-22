@@ -1,7 +1,7 @@
 // Chausar venture launcher, core (P1): small helpers for labelled lines, model words and owner amounts.
 import { check } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
-import { amountText, assertNoSpelledNumbers, doneClaimFindings, houseStyleFindings, modelWords } from '../records.ts';
+import { amountText, assertNoPriceWords, doneClaimFindings, houseStyleFindings, modelNumbers, modelWords } from '../records.ts';
 import type { Labelled, LineAuthor, LineLabel } from '../contracts.ts';
 
 /** The highest price an owner may type, in minor units (inclusive). */
@@ -16,15 +16,20 @@ export function toldByYou<T>(value: T): Labelled<T> {
   return { value, label: 'told-by-you', by: 'owner' };
 }
 
+/** A line the model wrote: an assumption, marked estimate: true when it holds a number the owner did not write. */
+export function modelLine(value: string, allowed: readonly string[]): Labelled<string> {
+  const line = labelled(value, 'assumption', 'model');
+  return modelNumbers(value, allowed) ? { ...line, estimate: true } : line;
+}
+
 /**
- * Words a model wrote: tidy, bounded, no numbers unless copied from the owner (in digits or in words: no "twenty
- * pounds", no "twice"), none of the words Chausar keeps out of anything it shows (house style), and no claim of
- * finished work ('your books are reconciled'), the same checks the template words pass. Refuses with
- * MODEL_OUTPUT_REJECTED.
+ * Words a model wrote: tidy, bounded, no amount of money and no price word (no "twenty pounds", no "free"), none of
+ * the words Chausar keeps out of anything it shows (house style), and no claim of finished work ('your books are
+ * reconciled'). Other numbers pass; modelLine marks the line a model estimate. Refuses with MODEL_OUTPUT_REJECTED.
  */
 export function styledWords(value: unknown, field: string, max: number, allowed: readonly string[], multiline = false): string {
   const words = modelWords(value, field, max, { allowed, multiline });
-  assertNoSpelledNumbers(words, field, allowed);
+  assertNoPriceWords(words, field, allowed);
   check(houseStyleFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} used words Chausar keeps out of its plans.`);
   check(doneClaimFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} claimed work that has not been done.`);
   return words;

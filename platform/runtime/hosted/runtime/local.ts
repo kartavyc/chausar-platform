@@ -101,7 +101,24 @@ export class LocalVentureRuntime implements VentureRuntime {
       key: slot.key,
       action(name: string, input: unknown, caller: ActionCaller) { return runtime.#action(slot.key, name, input, caller); },
       on(event: string, listener: (event: ActorEvent) => void) { return runtime.#on(slot.key, event, listener); },
+      shareLink(op: 'page' | 'decide', token: string, input: unknown) { return runtime.#shareLink(slot.key, op, token, input); },
     });
+  }
+
+  /** The client share page: wakes the business like an action does, then reads or records through its engine. */
+  async #shareLink(key: ActorKey, op: 'page' | 'decide', token: string, input: unknown): Promise<unknown> {
+    check(op === 'page' || op === 'decide', 'INVALID_REQUEST', 'Read the link or answer it.');
+    const slot = this.#slot(key);
+    slot.inflight++;
+    try {
+      const business = await this.#ready(slot);
+      slot.lastUsed = this.#clock();
+      return await business.shareLink(op, token, input);
+    } finally {
+      slot.inflight--;
+      slot.lastUsed = this.#clock();
+      this.#pump(slot);
+    }
   }
 
   async #action(key: ActorKey, name: string, input: unknown, caller: ActionCaller): Promise<unknown> {

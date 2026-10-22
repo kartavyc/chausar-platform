@@ -1,0 +1,345 @@
+/* Work: lines, not boxes. Rows match the foundation's JobList so active and previous read as one list. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-8);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filter {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  min-height: var(--control);
+  padding: var(--sp-2) 10px;
+  border-radius: var(--radius);
+  font-size: var(--text-read);
+  color: var(--mute);
+  text-decoration: none;
+}
+
+.filter:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.filter[aria-current='true'] {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.sections {
+  display: grid;
+  gap: var(--sp-9);
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  container-type: inline-size;
+}
+
+/* Three columns every row shares, so the state lines up down the list: who, what, then where it stands with its
+   one action at the end. Under 560 px of list they stack. */
+.item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 2fr) minmax(0, 3fr);
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  align-items: baseline;
+  padding: 10px 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+@container (max-width: 560px) {
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .who {
+    font-size: var(--text-label);
+    color: var(--mute);
+  }
+}
+
+.item:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 4px;
+}
+
+.who {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.what {
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.tail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.open {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: var(--text-read);
+  cursor: pointer;
+}
+
+.open:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.outcome,
+.state,
+.failure {
+  flex: 1 1 14em;
+  min-width: 0;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.wait {
+  color: var(--wait);
+}
+
+.failure {
+  color: var(--fail);
+}
+
+.quiet {
+  flex: 1 1 14em;
+  color: var(--mute);
+}
+
+.act {
+  flex: none;
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-left: auto;
+}
+
+.problem {
+  grid-column: 2 / -1;
+  color: var(--fail);
+}
+
+.confirm {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ask {
+  margin-right: auto;
+  color: var(--fg);
+}
+
+/* The new-order sheet. */
+
+.form {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.label {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--control);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+}
+
+.select:focus-visible,
+.file:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+.file {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.file::file-selector-button {
+  min-height: var(--control);
+  margin-right: var(--sp-3);
+  padding: var(--sp-2) 14px;
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.file::file-selector-button:hover {
+  background: var(--hover);
+}
+
+.hint {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* Intake: choices as plain lines, no frame. */
+.group {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group legend {
+  margin-bottom: var(--sp-1);
+  padding: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+
+.choice {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--control);
+  font-size: var(--text-read);
+  color: var(--fg);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.choice input {
+  margin: 0;
+  accent-color: var(--fg);
+}
+
+.choice input:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.files {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.files .problem {
+  grid-column: auto;
+}
+
+@container (max-width: 560px) {
+  .problem,
+  .confirm {
+    grid-column: 1 / -1;
+  }
+}
+
+.submit {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.note {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+/* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */
+.links {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: center;
+}
+
+.url {
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.until {
+  color: var(--mute);
+}
+
+@container (max-width: 560px) {
+  .links {
+    grid-column: 1 / -1;
+  }
+}

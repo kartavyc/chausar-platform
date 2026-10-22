@@ -1,0 +1,374 @@
+/* Clients: hairlines, no boxes. Only failure earns a hue; links are links. */
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Clients and Leads: two quiet words under the title, the current one underlined in ink. */
+.subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-5);
+  margin: -12px 0 var(--sp-7);
+  font-size: var(--text-read);
+}
+
+.subnav a {
+  padding: 6px 0;
+  border-bottom: var(--hair) solid transparent;
+  color: var(--mute);
+  text-decoration: none;
+}
+
+.subnav a:hover {
+  color: var(--fg);
+}
+
+.subnav a[aria-current='page'] {
+  color: var(--fg);
+  border-bottom-color: var(--fg);
+}
+
+.subnav a:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* A lead's source page, as text: where they were found. */
+.source {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
+  color: var(--dim);
+}
+
+.lineText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owed {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.owesWord {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.failed {
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* Fields in the sheet */
+
+.fields {
+  display: grid;
+}
+
+.field {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: var(--hair) solid var(--line);
+}
+
+.field:focus {
+  outline: none;
+}
+
+.field:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.label {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.value {
+  min-width: 0;
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.claim {
+  margin-left: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.empty {
+  color: var(--dim);
+}
+
+/* A suggestion or an ask sits where the value would land: one quiet row, a thin rule on its left. */
+
+.suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp-3);
+  row-gap: 2px;
+  align-items: baseline;
+  margin-top: var(--sp-1);
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
+  border-left: var(--hair) dotted var(--edge);
+}
+
+.suggestion:first-child {
+  margin-top: 0;
+}
+
+.suggestion:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.suggestValue {
+  min-width: 0;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.reason,
+.kept,
+.suggestion .failed {
+  grid-column: 1 / -1;
+}
+
+.reason {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.kept {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.ask {
+  color: var(--fg2);
+}
+
+.suggestActions {
+  display: flex;
+  flex: none;
+  gap: var(--sp-3);
+  align-items: baseline;
+}
+
+.dismiss {
+  color: var(--mute);
+}
+
+/* Orders, drafts and files */
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+}
+
+.itemText,
+.link {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemText {
+  color: var(--fg);
+}
+
+/* An order opens in Work; like a row title it reads as ink and underlines on hover and focus. */
+.link {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.state {
+  flex: none;
+  color: var(--mute);
+}
+
+.format {
+  flex: none;
+  font-size: var(--text-label);
+  color: var(--mute);
+  text-transform: uppercase;
+}
+
+/* A lead: what is known, its drafts as written, the owner's own send, the block */
+
+.facts {
+  margin: 0;
+  display: grid;
+}
+
+.fact {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+}
+
+.fact dt {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.factNote {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.draft {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+}
+
+.draftTo {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.draftSubject {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.draftText {
+  color: var(--fg2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The lines the engine adds to every outreach email, in the grey of something fixed. */
+.footer {
+  display: grid;
+  margin-top: var(--sp-1);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.sendLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: baseline;
+  margin-top: var(--sp-1);
+}
+
+.inlineForm {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.blockLine {
+  margin: 0;
+}
+
+.ask2 {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.choice {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+/* Add client */
+
+.form {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.formActions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+@media (max-width: 759px) {
+  .head {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .head > button {
+    margin-bottom: var(--sp-6);
+  }
+}

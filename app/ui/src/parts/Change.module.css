@@ -1,0 +1,21 @@
+.change {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  font-size: var(--text-read);
+}
+
+.label {
+  color: var(--mute);
+}
+
+.old {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.now {
+  color: var(--fg);
+}

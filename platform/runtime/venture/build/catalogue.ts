@@ -1,5 +1,6 @@
 // Chausar venture launcher: the connector catalogue (package P4).
-// 64 connectors in 12 categories, ported from research R6 section 8 and rewritten in plain words.
+// 66 connectors in 12 categories, ported from research R6 section 8 and rewritten in plain words. YouTube and the
+// read-only bank account joined with the posting modes and the bank shape (P2-connectors).
 // `targets` lists the modes R6 aims for one day; connectors.ts decides which of them work in this build,
 // so a card never claims more than the code does today. A vendorUrl is a plain "Visit site" link, never a mode.
 import type { ConnectorCategory, ConnectorModeName } from '../contracts.ts';
@@ -38,7 +39,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'Builds from the brief you paste. Its GitHub sync commits on its own and keeps its own version when there is a conflict.'),
   entry('build', 'v0', 'v0', 'https://v0.app/', ['write'], GI, 'None for copying the brief',
     'Builds from the brief you paste. It has no link that fills in a brief.'),
-  entry('build', 'github', 'GitHub', 'https://github.com/', ['read'], GI, 'A fine-grained token for one repo, read only',
+  entry('build', 'github', 'GitHub', 'https://github.com/', ['read', 'write'], GI, 'A fine-grained token for one repo, read only',
     'Where your builder keeps the code. Chausar reads one repo and never pushes to it.'),
 
   // Site and domain
@@ -139,6 +140,8 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'Reading ad spend into your books as expenses is planned.'),
   entry('marketing', 'buffer', 'Buffer', 'https://buffer.com/', ['write'], GI, 'Buffer sign-in',
     'The one planned way to schedule social posts.'),
+  entry('marketing', 'youtube', 'YouTube', 'https://www.youtube.com/', ['write'], GI, 'Google sign-in',
+    'Your own channel. Google no longer locks API uploads from unverified apps to private (15 October 2026), but no upload client ships in this build, so the owner uploads and publishes.'),
 
   // Books, tax and invoicing
   entry('books-tax', 'chausar-books', 'Chausar back office', null, ['read', 'write'], GI, 'None, it is inside Chausar',
@@ -154,6 +157,8 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'Not offered in India.'),
   entry('books-tax', 'stripe-tax', 'Stripe Tax', 'https://stripe.com/tax', ['read'], G, 'Stripe key',
     'Works out tax on Stripe sales in some countries. It does not support businesses based in India.'),
+  entry('books-tax', 'bank-account', 'Bank account (read only)', null, ['read'], GI, 'Your consent, with an end date you can see',
+    'Reads balances and transactions only and never moves money. In India this would go through an account aggregator.'),
   entry('books-tax', 'gst-einvoice', 'GST e-invoicing (IRP)', 'https://www.gst.gov.in/', ['write'], I, 'Through a GST suvidha provider',
     'Needed for business sales once turnover passes the government limit. New businesses rarely need it in their first year.'),
 

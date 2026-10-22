@@ -6,6 +6,7 @@ import { blueprintAccept, blueprintDraft, blueprintGet, blueprintUpdate } from '
 import { ventureEvents } from './events.ts';
 import { interviewAnswer, interviewNext } from './interview.ts';
 import { createVenture, getVenture } from './venture.ts';
+import { evidenceApply, evidenceDismiss, evidenceList } from '../evidence/ledger.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.create': createVenture,
@@ -17,6 +18,10 @@ export const handlers: VentureHandlerTable = {
   'venture.blueprint.get': blueprintGet,
   'venture.blueprint.update': blueprintUpdate,
   'venture.blueprint.accept': blueprintAccept,
+  // The evidence ledger lives in ../evidence/; core owns its two methods because it backs business and client fields.
+  'venture.evidence.list': evidenceList,
+  'venture.evidence.apply': evidenceApply,
+  'venture.evidence.dismiss': evidenceDismiss,
 };
 
 export { listCountries } from './countries.ts';

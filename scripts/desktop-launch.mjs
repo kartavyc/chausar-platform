@@ -42,6 +42,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const prerequisites = await desktopLaunchPrerequisites();
     if (checkOnly) console.log(`Desktop launch prerequisites passed for ${process.platform}-${process.arch}; no window was launched.`);
     else {
+      // The window is the Ink build; say so here rather than in an error box. npm run desktop builds it first.
+      const built = await lstat(join(projectRoot, 'app/ui/dist/index.html')).then(info => info.isFile(), () => false);
+      if (!built) throw new Error('The Ink app is not built. Run npm run build:ui (npm run desktop does it first), then launch again.');
       const child = spawn(prerequisites.executablePath, [projectRoot, demo ? '--demo' : '--production', ...(background ? ['--background'] : [])], { cwd: projectRoot, env: desktopLaunchEnvironment(), shell: false, windowsHide: true, stdio: 'inherit' });
       child.once('error', error => { console.error(error.message); process.exitCode = 1; });
       child.once('exit', code => { process.exitCode = code ?? 1; });

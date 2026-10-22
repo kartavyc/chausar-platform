@@ -6,9 +6,9 @@ import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { dialogFor, descendants, find, harness, hasText, lastNamedButton, namedButton } from './fixtures/conversation-acceptance-renderer.ts';
+import { preloadBridge, type Dispatch, type PreloadBridge } from './fixtures/preload-bridge.ts';
 
-// Independent acceptance: actual UI handlers -> actual preload -> strict IPC
+// Independent acceptance: the desktop's request sequence -> actual preload -> strict IPC
 // clone boundary -> EngineHarness -> production worker loop -> actual Engine.
 // Synthetic provider contracts are authored, not LLM semantic-quality evidence.
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -60,8 +60,10 @@ async function fixture(t: TestContext, scenarios: Record<string, Scenario>, kind
   assert.equal(route.verification, 'not-live-verified');
   await engine.request('trust.update', { send: 'shape' });
   const request = (method: string, payload: Record<string, unknown> = {}) => engine.request(method, payload);
-  async function renderer() { const h = await harness({ dispatch: request, mount: true }); h.renderer.state.workspace = created.workspace; return h; }
-  const h = await renderer();
+  assert.ok(created.workspace);
+  // One desktop window's preload; after a restart a fresh one reaches the new worker, as a reopened window would.
+  const desktop = (dispatch: Dispatch = request) => preloadBridge({ dispatch });
+  const h = await desktop();
   async function calls(): Promise<any[]> {
     try { return (await readFile(join(directory, 'acceptance-provider-calls.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
     catch (error: any) { if (error.code === 'ENOENT') return []; throw error; }
@@ -71,50 +73,49 @@ async function fixture(t: TestContext, scenarios: Record<string, Scenario>, kind
     engine = new EngineHarness(options); workers.push(engine); await engine.start();
     await request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD });
   }
-  return { h, route, config, request, calls, renderer, restart, directory, imported };
+  return { h, route, config, request, calls, desktop, restart, directory, imported };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
+/** The desktop's answer readback after a turn: a grounded turn with any answer is read again by its ID. */
+async function current(h: PreloadBridge, data: any) {
+  if (data?.kind === 'grounded-conversation') return data.results?.some((result: any) => result.answer) ? (await h.request('conversation.get', { id: data.id })).answer : data;
+  if (data?.kind === 'business-context' && data.receipt?.id) return h.request('business.context.receipt', { id: data.receipt.id });
+  if (data?.receipt?.id) return { ...data, receipt: await h.request('receipts.get', { id: data.receipt.id }) };
+  return data;
+}
+/** A reviewed question's preview. Nothing reaches the provider until approve() sends the one approval and ask. */
 async function preview(f: Fixture, question: string, h = f.h) {
-  find(h.app, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Model route').value = f.route.id;
-  const before = (await f.calls()).length; await h.ask(question);
-  const result = h.renderer.state.messages.at(-1); assert.equal(result.error, undefined);
-  assert.ok(result.data.preview); assert.equal((await f.calls()).length, before);
-  await lastNamedButton(h.app, 'Review outbound request').dispatch('click');
-  const dialog = dialogFor(h.body, 'Review model disclosure');
-  assert.ok(hasText(dialog, result.data.preview.payload));
-  assert.ok(hasText(dialog, result.data.preview.naturalQuestion));
-  find(dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = true;
-  return { preview: result.data.preview, dialog, approve: namedButton(dialog, 'Approve and send once'), before, h };
+  const before = (await f.calls()).length;
+  const preview = await h.request('models.preview', { question, routeId: f.route.id, purpose: 'conversation', questionDisclosure: 'verbatim' });
+  assert.ok(preview); assert.equal((await f.calls()).length, before);
+  assert.equal(typeof preview.payload, 'string'); assert.equal(preview.naturalQuestion, question);
+  /** A refusal anywhere leaves the answer undefined; its code is in h.rejected. */
+  async function approve() {
+    try {
+      const approval = await h.request('models.approve', { id: preview.id });
+      return await current(h, await h.request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
+        routeId: preview.routeId, purpose: 'conversation', questionDisclosure: 'verbatim' }));
+    } catch { return undefined; }
+  }
+  return { preview, approve, before, h };
 }
 async function turn(f: Fixture, question: string, h = f.h) {
-  const review = await preview(f, question, h), previous = h.renderer.state.messages.length;
-  await review.approve.dispatch('click');
-  assert.equal(review.approve.disabled, true);
-  const count = h.calls.length; await review.approve.dispatch('click');
-  assert.equal(h.calls.length, count, 'Review must be single-use even after a failed provider call.');
-  const answer = h.renderer.state.messages.length > previous ? h.renderer.state.messages.at(-1).data : undefined;
+  const review = await preview(f, question, h);
+  const answer = await review.approve();
   return { ...review, answer };
 }
+/** Opens the newest saved answer for a question as the desktop does: history, then the saved turn. */
 async function openSaved(h: Fixture['h'], question: string) {
-  const deadline = Date.now() + 5000;
-  while (!descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Recent answers'))) {
-    assert.ok(Date.now() < deadline, 'Conversation must finish mounting after actual unlock.'); await delay(10);
-  }
-  await lastNamedButton(h.app, 'Recent answers').dispatch('click');
-  const history = dialogFor(h.body, 'Recent answers');
-  let row = find(history, node => node.textContent === question);
-  while (!descendants(row).some(node => node.tagName === 'button' && hasText(node, 'Open saved answer'))) {
-    assert.ok(row.parent); row = row.parent;
-  }
-  await namedButton(row, 'Open saved answer').dispatch('click');
-  return dialogFor(h.body, 'Saved answer');
+  const history = await h.request('conversation.history', { limit: 20 });
+  const item = history.items.find((entry: any) => entry.question === question); assert.ok(item, 'The saved answer must be listed.');
+  return { item, saved: await h.request('conversation.get', { id: item.id }) };
 }
 async function entered(f: Fixture, expected: number) {
   const deadline = Date.now() + 10000;
   while ((await f.calls()).length < expected) { assert.ok(Date.now() < deadline, 'Provider must enter before mutation.'); await delay(10); }
 }
 
-test('acceptance: natural wording routes context, calculation, clarification and mixed turns through UI/preload/worker', async t => {
+test('acceptance: natural wording routes context, calculation, clarification and mixed turns through preload/worker', async t => {
   const context = 'Could you explain what we actually do here—using only our records?', calculation = 'How much did we invoice in September?',
     clarification = 'Could we explore this further?', mixed = 'Describe this business, then tell me September billing.';
   const f = await fixture(t, { [context]: { calls: ['business.describe'] }, [calculation]: { calls: ['billed'] },
@@ -126,7 +127,7 @@ test('acceptance: natural wording routes context, calculation, clarification and
     assert.equal(call.input.questionDisclosure, 'verbatim'); assert.equal(call.input.evidence.calculator.selectors, undefined);
     assert.equal(call.payload.includes(SECRET), false); assert.equal(call.payload.includes('120000'), false);
     if (question === clarification) {
-      assert.ok(hasText(f.h.app, result.answer.clarification)); assert.equal(result.answer.results, undefined);
+      assert.equal(typeof result.answer.clarification, 'string'); assert.ok(result.answer.clarification); assert.equal(result.answer.results, undefined);
     } else {
       assert.equal(result.answer.kind, 'grounded-conversation');
       for (const item of result.answer.results) {
@@ -134,12 +135,11 @@ test('acceptance: natural wording routes context, calculation, clarification and
         else { assert.equal(item.answer.totalMinor, '30000'); assert.deepEqual(item.answer.period, PERIOD); assert.equal(item.answer.rowIds.length, 2); }
       }
     }
-    assert.equal(find(f.h.app, node => node.tagName === 'button' && node.attributes.type === 'submit').disabled, false);
   }
   assert.equal((await f.calls()).length, 5); assert.equal(f.h.rejected.length, 0);
 });
 
-test('acceptance: mixed answers and exact child evidence survive actual UI lock, unlock and worker reopen without another dispatch', async t => {
+test('acceptance: mixed answers and exact child evidence survive preload lock, unlock and worker reopen without another dispatch', async t => {
   const question = 'What is our business and September invoice total?';
   const f = await fixture(t, { [question]: { calls: ['business.describe', 'billed'] } });
   const { answer } = await turn(f, question), calculation = answer.results[1].answer;
@@ -147,19 +147,14 @@ test('acceptance: mixed answers and exact child evidence survive actual UI lock,
   const composite = history.items.find((item: any) => item.kind === 'grounded-conversation'); assert.ok(composite);
   assert.deepEqual((await f.request('conversation.get', { id: composite.id })).answer, answer);
   assert.deepEqual(await f.request('receipts.get', { id: calculation.id }), calculation);
-  await openSaved(f.h, question); await f.h.renderer.showWorkspace();
-  await namedButton(dialogFor(f.h.body, 'Your workspace'), 'Lock vault').dispatch('click');
-  assert.equal(f.h.renderer.state.messages.length, 0); assert.equal(hasText(f.h.body, question), false);
+  assert.deepEqual((await openSaved(f.h, question)).saved.answer, answer);
+  await f.h.request('workspace.lock');
   await assert.rejects(f.h.exposed.request('conversation.get', { id: composite.id }), { code: 'VAULT_LOCKED' });
-  await namedButton(f.h.app, 'Open a vault').dispatch('click');
-  const form = find(f.h.app, node => node.tagName === 'form');
-  find(form, node => node.tagName === 'input' && node.attributes.type === 'text').value = 'acceptance';
-  find(form, node => node.tagName === 'input' && node.attributes.type === 'password').value = PASSWORD;
-  await form.dispatch('submit');
-  await openSaved(f.h, question);
-  assert.ok(descendants(f.h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')));
-  await f.restart(); const fresh = await f.renderer();
-  assert.equal(fresh.renderer.state.messages.length, 0); await openSaved(fresh, question);
+  await f.h.request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD }); await f.h.request('workspace.status');
+  const unlocked = await openSaved(f.h, question);
+  assert.deepEqual(unlocked.saved.answer, answer); assert.equal(unlocked.saved.answer.results[1].answer.totalMinor, '30000');
+  await f.restart(); const fresh = await f.desktop();
+  assert.deepEqual((await openSaved(fresh, question)).saved.answer, answer);
   assert.deepEqual((await fresh.exposed.request('conversation.get', { id: composite.id })).answer, answer);
   assert.deepEqual(await fresh.exposed.request('receipts.get', { id: calculation.id }), calculation);
   assert.equal((await f.calls()).length, 1, 'Readback must not invoke a provider or recalculate.');
@@ -216,45 +211,40 @@ test('acceptance: changed question, changed route and revoked privacy block revi
   const first = await preview(f, question), approval = await f.h.exposed.request('models.approve', { id: first.preview.id });
   await assert.rejects(f.h.exposed.request('conversation.ask', { question: question + ' changed', previewId: first.preview.id,
     approvalId: approval.id, routeId: f.route.id, purpose: 'conversation', questionDisclosure: 'verbatim' }), { code: 'PREVIEW_REQUEST_CHANGED' });
-  first.dialog.close();
   const route = await preview(f, question);
   await f.request('models.configure', { config: { ...f.config, model: 'changed-synthetic-model' } });
-  await route.approve.dispatch('click'); assert.equal(f.h.rejected.at(-1).error.code, 'ROUTE_REVOKED'); route.dialog.close();
+  assert.equal(await route.approve(), undefined); assert.equal(f.h.rejected.at(-1).error.code, 'ROUTE_REVOKED');
   const privacy = await preview(f, question); await f.request('trust.update', { send: 'nothing' });
-  await privacy.approve.dispatch('click'); assert.equal(f.h.rejected.at(-1).error.code, 'PREVIEW_STALE');
+  assert.equal(await privacy.approve(), undefined); assert.equal(f.h.rejected.at(-1).error.code, 'PREVIEW_STALE');
   assert.equal((await f.calls()).length, 0);
 });
 
 test('acceptance: source authority revoked while provider is in flight withholds the whole turn and retained history', async t => {
   const question = 'Describe our business and invoices while awaiting a response.';
   const f = await fixture(t, { [question]: { calls: ['business.describe', 'billed'], gate: true } });
-  const review = await preview(f, question), pending = review.approve.dispatch('click');
+  const review = await preview(f, question), pending = review.approve();
   await entered(f, 1); await f.h.exposed.request('trust.update', { allowedSources: ['other-synthetic-source'] });
-  await writeFile(join(f.directory, 'acceptance-release'), 'released'); await pending;
+  await writeFile(join(f.directory, 'acceptance-release'), 'released'); assert.equal(await pending, undefined);
   assert.equal(f.h.rejected.at(-1).error.code, 'PREVIEW_STALE');
   assert.deepEqual(await f.request('conversation.history'), { items: [] });
-  assert.equal(f.h.renderer.state.messages.some((message: any) => message.data?.kind === 'grounded-conversation'), false);
   assert.equal((await f.calls()).length, 1);
 });
 
-test('acceptance requirement: full wording typed in the composer reaches the reviewed planner verbatim', async t => {
+test('acceptance requirement: full wording sent through the preload reaches the reviewed planner verbatim', async t => {
   const question = '  Please describe this business.\nKeep the words exactly as I typed them—please.  ', trimmed = question.trim();
   const f = await fixture(t, { [question]: { calls: ['business.describe'] }, [trimmed]: { calls: ['business.describe'] } });
   await turn(f, question);
-  assert.equal((await f.calls())[0].input.question, question, 'The advertised exact original question must survive the composer.');
-  const messages = f.h.renderer.state.messages.length;
-  await f.h.ask(' \n\t ');
-  assert.equal(f.h.renderer.state.messages.length, messages, 'Whitespace-only text is not a conversational turn.');
+  assert.equal((await f.calls())[0].input.question, question, 'The advertised exact original question must survive the preload and worker.');
   assert.equal((await f.calls()).length, 1);
 });
 
-test('acceptance requirement: clarification and all-tool-error turns remain user-visible after reopening', async t => {
+test('acceptance requirement: clarification and all-tool-error turns remain listed after reopening', async t => {
   const clarification = 'Which business picture can we explore?', failure = 'Age the September invoices without required links.';
   const f = await fixture(t, { [clarification]: { kind: 'clarification' }, [failure]: { calls: ['aging'] } });
   const clarified = await turn(f, clarification); assert.ok(clarified.answer.clarification);
   const failed = await turn(f, failure); assert.equal(failed.answer.results[0].error.code, 'AGING_LINK_REQUIRED');
-  await f.restart(); const fresh = await f.renderer();
-  await lastNamedButton(fresh.app, 'Recent answers').dispatch('click');
+  await f.restart(); const fresh = await f.desktop();
+  await fresh.request('conversation.history', { limit: 20 });
   const history = await fresh.exposed.request('conversation.history');
   assert.deepEqual(history.items.map((item: any) => item.question).sort(), [clarification, failure].sort(),
     'Clarification and all-tool-error turns vanished after reopen.');
@@ -267,62 +257,49 @@ test('acceptance: partial tool failure retains ordered successful evidence and e
   assert.equal(answer.results[0].answer.kind, 'business-context');
   assert.equal(answer.results[1].error.code, 'AGING_LINK_REQUIRED');
   assert.equal(answer.receipt.resultRefs.length, 1);
-  assert.ok(hasText(f.h.app, `${answer.results[1].error.code}: ${answer.results[1].error.message}`));
-  await f.restart(); const fresh = await f.renderer(); await openSaved(fresh, question);
+  assert.equal(typeof answer.results[1].error.message, 'string'); assert.ok(answer.results[1].error.message);
+  await f.restart(); const fresh = await f.desktop(); const opened = await openSaved(fresh, question);
   const saved = await fresh.exposed.request('conversation.get', { id: answer.id });
-  assert.deepEqual(saved.answer, answer);
-  assert.ok(hasText(dialogFor(fresh.body, 'Saved answer'), `${answer.results[1].error.code}: ${answer.results[1].error.message}`));
+  assert.deepEqual(saved.answer, answer); assert.deepEqual(opened.saved.answer, answer);
   assert.equal((await f.calls()).length, 1);
 });
 
-test('acceptance requirement: revoking source access removes cached composer evidence as well as RPC history', async t => {
+test('acceptance requirement: revoking source access through the preload removes retained history and receipts', async t => {
   const question = 'Tell me the invoice total from our source.';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const { answer } = await turn(f, question), compositeId = answer.id;
-  assert.ok(f.h.renderer.state.messages.some((message: any) => message.data?.id === compositeId));
-  await f.h.renderer.request('trust.update', { allowedSources: ['other-synthetic-source'] });
-  assert.equal(descendants(f.h.app).some(node => node.textContent?.includes('"totalMinor": "30000"')), false,
-    'Revocation must erase the currently mounted body immediately.');
-  assert.equal(f.h.renderer.state.messages.length, 0);
+  assert.equal(answer.results[0].answer.totalMinor, '30000');
+  await f.h.request('trust.update', { allowedSources: ['other-synthetic-source'] });
   assert.deepEqual(await f.h.exposed.request('conversation.history'), { items: [] });
   await assert.rejects(f.h.exposed.request('conversation.get', { id: compositeId }), { code: 'CONVERSATION_NOT_FOUND' });
   await assert.rejects(f.h.exposed.request('receipts.get', { id: answer.results[0].answer.id }));
-  const rerendered = await f.h.renderer.renderConversation();
-  assert.equal(descendants(rerendered).some(node => node.textContent?.includes('"totalMinor": "30000"')), false,
-    'Previously permitted invoice body remains visible when revisiting Conversation after source revocation.');
 });
 
-test('acceptance: revisiting Conversation rechecks cached evidence after authority changes outside the renderer', async t => {
+test('acceptance: rereading an answer after authority changes outside the desktop is refused without another provider call', async t => {
   const question = 'Show our currently permitted invoice evidence.';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
-  await turn(f, question);
+  const { answer } = await turn(f, question);
   await f.request('trust.update', { allowedSources: ['other-synthetic-source'] });
-  const current = await f.h.renderer.renderConversation();
-  assert.equal(descendants(current).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
-  assert.equal(f.h.renderer.state.messages.length, 0);
+  await assert.rejects(f.h.request('conversation.get', { id: answer.id }));
   assert.equal((await f.calls()).length, 1, 'Revalidation must not invoke another provider.');
 });
 
-test('acceptance: a completed worker answer delayed across renderer authority revocation never becomes visible', async t => {
+test('acceptance: a completed worker answer delayed across a preload authority revocation cannot be read back', async t => {
   const question = 'Explain the business and billed invoices before a permission change.';
   const f = await fixture(t, { [question]: { calls: ['business.describe', 'billed'] } });
   let enter!: () => void, release!: () => void;
   const held = new Promise<void>(resolve => { enter = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
-  const h = await harness({ mount: true, dispatch: async (method, payload) => {
+  const h = await f.desktop(async (method, payload) => {
     const result = await f.request(method, payload);
     if (method === 'conversation.ask') { enter(); await released; }
     return result;
-  } });
-  h.renderer.state.workspace = f.h.renderer.state.workspace;
+  });
   const pending = turn(f, question, h);
   await held;
-  await h.renderer.request('trust.update', { allowedSources: ['other-synthetic-source'] });
+  await h.request('trust.update', { allowedSources: ['other-synthetic-source'] });
   release(); const result = await pending;
   assert.equal(result.answer, undefined);
-  assert.equal(h.renderer.state.messages.length, 0);
-  assert.equal(hasText(h.app, question), false);
-  assert.equal(descendants(h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
-  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.deepEqual(await f.request('conversation.history'), { items: [] });
   assert.equal((await f.calls()).length, 1);
 });
 

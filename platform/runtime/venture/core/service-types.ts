@@ -4,6 +4,7 @@
 // doneClaimFindings.
 import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contracts.ts';
 import type { InterviewModelOutput, PricingModel, ServiceType } from '../contracts.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
 
 /** Substring keywords per type, matched against the lower-cased idea. */
 export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = Object.freeze({
@@ -17,10 +18,14 @@ export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, re
 });
 
 /**
- * Picks a service type from the idea: each keyword found counts one hit for its type, the highest count wins,
- * a tie goes to the type listed first in SERVICE_TYPES, and no hit at all gives 'other'.
+ * Picks a service type from the idea. A flagship playbook the idea picks (playbooks/registry.ts) gives the type it
+ * extends, so "a faceless YouTube channel" plans as a studio and "a content calendar service" as an agency, whatever
+ * other keywords the idea holds: the playbook's plan sits on that type. Otherwise each keyword found counts one hit
+ * for its type, the highest count wins, a tie goes to the type listed first in SERVICE_TYPES, and no hit is 'other'.
  */
 export function classifyIdea(idea: string): ServiceType {
+  const picked = pickPlaybook(idea);
+  if (picked) return picked.serviceType;
   const text = idea.toLowerCase();
   let best: ServiceType = 'other';
   let bestHits = 0;

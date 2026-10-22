@@ -1,0 +1,123 @@
+.app {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'status status'
+    'rail main';
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app[data-sheet-open] {
+  grid-template-columns: var(--rail) minmax(0, 1fr) clamp(var(--sheet-min), 32vw, var(--sheet-max));
+  grid-template-areas:
+    'status status status'
+    'rail main sheet';
+}
+
+.skip {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  z-index: 10;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--text-read);
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  transform: none;
+}
+
+.status {
+  grid-area: status;
+}
+
+/* While the app checks for a first run, the rail and the place wait out of sight; the status line stays. */
+.app[data-boot] .rail,
+.app[data-boot] .main {
+  visibility: hidden;
+}
+
+.rail {
+  position: relative;
+  grid-area: rail;
+  min-height: 0;
+}
+
+.main {
+  position: relative;
+  grid-area: main;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-10) var(--sp-12);
+}
+
+.main:focus {
+  outline: none;
+}
+
+.page {
+  max-width: 880px;
+}
+
+.sheet {
+  position: relative;
+  grid-area: sheet;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: var(--hair) solid var(--line);
+  background: var(--surface);
+}
+
+/* Between the narrow window and a wide one there is no room for rail, page and sheet side by side: the page would
+   shrink to a column a few letters wide. Here the page keeps its width and the sheet lies over its right side, with
+   the same shadow the narrow-window sheet has. */
+@media (min-width: 760px) and (max-width: 1099px) {
+  .app[data-sheet-open] {
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    grid-template-areas:
+      'status status'
+      'rail main';
+  }
+
+  .app[data-sheet-open] .sheet {
+    grid-area: main;
+    z-index: 2;
+    justify-self: end;
+    width: min(var(--sheet-max), 100%);
+    box-shadow: -8px 0 24px var(--shadow);
+  }
+}
+
+@media (max-width: 759px) {
+  .app,
+  .app[data-sheet-open] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'status'
+      'rail'
+      'main';
+  }
+
+  .main {
+    padding: var(--sp-6) var(--sp-4);
+  }
+
+  /* The sheet covers the place on a narrow window; this is the one place a shadow is allowed. */
+  .sheet {
+    grid-area: main;
+    z-index: 2;
+    border-left: 0;
+    box-shadow: 0 -1px 0 var(--line), 0 8px 24px var(--shadow);
+  }
+}

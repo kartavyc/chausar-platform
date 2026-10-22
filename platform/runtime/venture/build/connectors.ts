@@ -5,6 +5,7 @@ import { CONNECTOR_CATEGORIES, STARTER_CONNECTORS } from '../contracts.ts';
 import type { ConnectorCard, ConnectorCategory, ConnectorMode, ConnectorModeName, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, listRecords } from '../records.ts';
 import { CATEGORY_LABELS, CONNECTOR_CATALOGUE, type CatalogueEntry } from './catalogue.ts';
+import { NOT_PROBED, postingEnvironment, postingOptions, type PostingEnvironment } from './posting.ts';
 
 const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read', 'write']);
 
@@ -21,6 +22,11 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   tally: { qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' },
   'chausar-crm': { qualification: 'built-in', what: 'Shows your clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Shows invoices, payments and the books inside Chausar, each number with a receipt.' },
+  // venture.bank.import reads a statement file the owner downloaded; venture.bank.consent keeps consent for a provider not yet wired.
+  'bank-account': {
+    qualification: 'built-in',
+    what: 'Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.',
+  },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
@@ -29,6 +35,9 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
   'zoho-books': { read: 'Needs a Zoho sign-in. Not in this build.' },
+  // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
+  // build has neither, so the write mode stays planned.
+  github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.' },
 });
 
 function planned(mode: ConnectorModeName, what: string): ConnectorMode {
@@ -61,12 +70,15 @@ export function connectorChips(modes: readonly ConnectorMode[]): string[] {
   return chips;
 }
 
-export function connectorCard(item: CatalogueEntry, starter: boolean): ConnectorCard {
+/** env says what this computer can do for posting; without it every posting mode is planned. */
+export function connectorCard(item: CatalogueEntry, starter: boolean, env: PostingEnvironment = NOT_PROBED): ConnectorCard {
   const modes = connectorModes(item);
+  const options = postingOptions(item.id, env);
+  const posting = options.find(option => option.status === 'available') ?? options.find(option => option.mode === 'owner-browser-session');
   return {
     id: item.id, name: item.name, category: item.category, categoryLabel: CATEGORY_LABELS[item.category],
     modes, chips: connectorChips(modes), regions: [...item.regions], regionNote: item.regionNote,
-    auth: item.auth, vendorUrl: item.vendorUrl, note: item.note, starter,
+    auth: item.auth, vendorUrl: item.vendorUrl, note: item.note, starter, ...(posting ? { posting } : {}), postingOptions: options,
   };
 }
 
@@ -109,9 +121,10 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   authorize(deps.store, ctx, 'read');
   const state = deps.store.read();
   const starters = new Set(starterIds(state, currentVenture(state)));
+  const env = await postingEnvironment(deps);
   const cards = CONNECTOR_CATALOGUE
     .filter(item => body.category === undefined || item.category === body.category)
-    .map(item => connectorCard(item, starters.has(item.id)))
+    .map(item => connectorCard(item, starters.has(item.id), env))
     .filter(card => body.starterOnly !== true || card.starter);
   return orderCards(cards);
 }

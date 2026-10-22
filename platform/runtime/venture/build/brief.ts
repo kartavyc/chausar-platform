@@ -8,7 +8,7 @@ import type {
   BlueprintRecord, BriefModelOutput, BriefRecord, CountryProfile, DateOrder, Json, ModelTask, Offer, PriceReceiptRecord, ServiceType,
   VentureDeps, VentureRecord,
 } from '../contracts.ts';
-import { copiedTokens, digest, exactPayload, listRecords, modelWords, readVenture, tidyWords, ventureAction } from '../records.ts';
+import { copiedTokens, digest, exactPayload, listRecords, modelNumbers, modelWords, readVenture, tidyWords, ventureAction } from '../records.ts';
 import type { BriefLint } from '../contracts.ts';
 import {
   ANON_KEY_LINE, BRIEF_HEADINGS, LINTAPPLE_LINE, NO_TRACKING_LINE, RLS_LINE, SIGN_IN_LINE, UI_POLICY_LINE, WORKFLOW_LINE, WORKFLOW_STEPS_LINE,
@@ -128,6 +128,11 @@ export function templateFixedText(serviceType: ServiceType): string[] {
 // ---------------------------------------------------------------------------
 // Model output validation: words only, within BriefModelOutput limits.
 // ---------------------------------------------------------------------------
+
+/** Every line of words in a brief's model output. */
+function briefWordList(words: BriefModelOutput): string[] {
+  return [words.whatToBuild, words.whoItIsFor, ...words.pages.flatMap(page => [page.title, page.purpose]), words.lookAndFeel, ...words.doneMeans];
+}
 
 export function validateBriefOutput(raw: unknown, allowed: readonly string[]): BriefModelOutput {
   const body = exactPayload(raw, ['whatToBuild', 'whoItIsFor', 'pages', 'lookAndFeel', 'doneMeans'], ['whatToBuild', 'whoItIsFor', 'pages', 'lookAndFeel', 'doneMeans'], 'MODEL_OUTPUT_REJECTED');
@@ -285,7 +290,8 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
       oneLiner: blueprint.oneLiner.value,
       customer: blueprint.customer.value,
       offers: blueprint.offers.map(offer => ({ name: offer.name.value, description: offer.description.value })),
-      steps: blueprint.deliverySteps.map(step => step.title.value),
+      // A flagship plan lists the steps that run (playbooks/steps.ts); the builder brief describes those.
+      steps: blueprint.flagshipSteps?.map(step => step.title.value) ?? blueprint.deliverySteps.map(step => step.title.value),
       country: venture.country.name,
       ...(pages ? { pages } : {}),
     },
@@ -343,6 +349,8 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
       briefId, version, markdown, chars: markdown.length, digest: digest(markdown), blueprintDigest: plan.digest,
       priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId,
       lint: lintFor(markdown, receipts, briefId, clientArea),
+      // A number in the model's words is a model estimate, never a receipt.
+      ...(wordsBy === 'model' && briefWordList(words).some(line => modelNumbers(line, copiedTokens(current.idea))) ? { estimate: true as const } : {}),
     };
     const stored = tx.put(record);
     tx.emit('brief-ready', { briefId, version, lintOk: record.lint.ok });

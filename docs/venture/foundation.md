@@ -16,7 +16,7 @@ This is the shared base every venture package builds on. It was made first, alon
 | `platform/tests/venture-contracts.test.ts` | The P0 contract tests (17 tests) | P0 |
 | `platform/tests/fixtures/venture/README.md` | Says every fixture here is a synthetic recording | P0 |
 
-The contracts, helpers, host-env reader, host stub, package stubs, renderer stub and test store are copied exactly from section 3 of the build spec.
+The contracts, helpers, host-env reader, host stub, package stubs, renderer stub and test store are copied exactly from section 3 of the build spec. (The renderer stub, `app/renderer/launch.js`, went with the old renderer on 22 October 2026, when Ink became the app.)
 
 ## Wiring (frozen until Phase C)
 

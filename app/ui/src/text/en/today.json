@@ -1,0 +1,9 @@
+{
+  "today.failed": "Couldn't load what needs you: {message}",
+  "today.opened": "Opened",
+  "today.toRow": ", go to its row",
+  "today.view.draft": "Draft",
+  "today.view.file": "File",
+  "today.view.plan": "Plan",
+  "today.view.missing": "Couldn't load this"
+}

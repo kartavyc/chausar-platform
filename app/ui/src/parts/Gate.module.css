@@ -1,0 +1,69 @@
+/* The switch and the floor line share one box: same padding, same gap, same least width, words left-aligned. */
+.gate,
+.floor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: calc(var(--sp-1) * 2 + 28px + var(--sp-2) + 8.5em);
+  min-height: var(--control);
+  padding: 0 var(--sp-1);
+  font-size: var(--text-read);
+}
+
+.gate {
+  border: 0;
+  background: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.gate:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+  border: var(--hair) solid var(--edge);
+  background: var(--surface);
+  transition: background-color var(--t-press) var(--ease);
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mute);
+  transition: transform var(--t-press) var(--ease);
+}
+
+.gate[data-gate='auto'] .track {
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
+.gate[data-gate='auto'] .knob {
+  background: var(--surface);
+  transform: translateX(12px);
+}
+
+.word {
+  min-width: 3em;
+  text-align: left;
+}
+
+.floor {
+  color: var(--mute);
+}
+
+.space {
+  flex: none;
+  width: 28px;
+}

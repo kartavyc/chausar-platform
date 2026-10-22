@@ -1,0 +1,19 @@
+.empty {
+  padding: 18px 0;
+  border-top: var(--hair) solid var(--line);
+}
+
+.title {
+  font-size: var(--text-body);
+  color: var(--fg2);
+}
+
+.line {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.action {
+  margin-top: var(--sp-3);
+}

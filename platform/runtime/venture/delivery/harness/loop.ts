@@ -3,14 +3,23 @@
 // shrink to stubs so each turn costs about the same. When a limit is reached the write step is forced and must say
 // what was found and what is left. A hand-off ends the turn and waits for an answer. The loop is a resumable state
 // machine: rehearsal drives it with standing consent, a real order one approved turn at a time.
+// Each act turn is one round: the manager plans it (the turn's note and calls), the executor runs one step per call,
+// and the read-only auditor (judge/auditor.ts) checks each step's real output. Only audited steps add proofs, and
+// every round goes into the round ledger on the run.
+// The policy (venture/policy) checks each call before it runs. A call it holds ends the turn like a hand-off: the owner
+// gets a question, and an approval lets exactly that call run once in the next turn. Starting heavy work is an outside
+// effect on the owner's own signed-in tool, so it needs the owner's approval bound to the brief.
 import { check } from '../../../contracts.ts';
 import { assertNoNumbers, tidyWords } from '../../records.ts';
 import { REQUIRED_SECTIONS } from '../../contracts.ts';
 import type {
-  ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, ServiceType, ToolEnvelope, ToolName,
+  AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, Json, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
   UploadFormat, VentureHostKind, WorkReceiptRecord,
 } from '../../contracts.ts';
 import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type FigureRefEntry } from '../deliverable.ts';
+import { auditStep, notRunStep } from '../judge/auditor.ts';
+import { decideHold, gateEffect, holdQuestion } from '../../policy/holds.ts';
+import type { Approval } from '../../policy/ladder.ts';
 import { callTool, MAX_INPUT_CHARS, offeredTools, receiptAlias, ROW_LANGUAGE, toolManifest, type ToolEnv } from './tools.ts';
 
 export const DEFAULT_LIMITS: HarnessLimits = Object.freeze({
@@ -29,6 +38,7 @@ export const AGENT_TURN_INSTRUCTIONS = [
   'When you need something only the client or the owner can tell you, call handoff.client or handoff.owner with one short question. That ends your turn.',
   'Set finished to true when the work your tools can do is done, or when nothing more can be done. The reply is written next, with tools off.',
   'note says in a few plain words what this turn is for. No amounts and no dates as numbers.',
+  'Each earlier tool call says audited true when Chausar checked its real output. Only audited work counts as done; a call that was not audited is evidence to plan around, not progress.',
 ].join(' ');
 
 export const HARNESS_WRITE_INSTRUCTIONS = [
@@ -70,6 +80,11 @@ export type LoopContext = {
   host?: VentureHostKind;
   /** The owner's command-line tools found and checked now. agent.delegate is offered only when there is one. */
   delegate?: readonly DelegateCli[];
+  /**
+   * A flagship playbook's drafting step for this order (delivery/playbook.ts flagshipDraft): its headings, whether or
+   * not tools proved work, and its guidance. Absent for the eight fixed steps.
+   */
+  draft?: { sections: readonly string[]; guidance: readonly string[] } | null;
 };
 
 function turnSchema(grant: readonly ToolName[]): Json {
@@ -116,9 +131,13 @@ export function validateTurn(raw: unknown, limits: HarnessLimits, allowed: reado
   return { note, calls, finished: record.finished as boolean };
 }
 
-/** What the model sees of earlier turns: the newest tool results whole, older ones cut to a stub. */
+/**
+ * What the model sees of earlier turns: the newest tool results whole, older ones cut to a stub. With a round ledger
+ * each call also says whether the auditor passed it, and why not, so the next round plans from verified work.
+ */
 export function compactHistory(state: HarnessState): Json {
   const keep = new Set(state.toolCalls.slice(-state.limits.keepOutputs).map(call => call.id));
+  const audits = new Map((state.rounds ?? []).flatMap(round => round.steps.map(step => [step.toolCallId, step] as const)));
   const stub = (value: unknown, max: number) => {
     const text = JSON.stringify(value) ?? '';
     return text.length <= max ? value as Json : `${text.slice(0, max)}... (shortened; call the tool again if you need it)`;
@@ -126,14 +145,18 @@ export function compactHistory(state: HarnessState): Json {
   return state.turns.filter(turn => turn.step === 'act').map(turn => ({
     turn: turn.turn,
     note: turn.note,
-    calls: state.toolCalls.filter(call => call.turn === turn.turn).map(call => ({
-      call: call.id,
-      tool: call.tool,
-      input: keep.has(call.id) ? (call.input ?? null) : stub(call.input, 200),
-      ...(call.envelope.ok
-        ? { ok: true, result: keep.has(call.id) ? call.envelope.result : stub(call.envelope.result, state.limits.stubChars) }
-        : { ok: false, error: { code: call.envelope.error.code, message: call.envelope.error.message } }),
-    })),
+    calls: state.toolCalls.filter(call => call.turn === turn.turn).map(call => {
+      const audit = audits.get(call.id);
+      return {
+        call: call.id,
+        tool: call.tool,
+        input: keep.has(call.id) ? (call.input ?? null) : stub(call.input, 200),
+        ...(call.envelope.ok
+          ? { ok: true, result: keep.has(call.id) ? call.envelope.result : stub(call.envelope.result, state.limits.stubChars) }
+          : { ok: false, error: { code: call.envelope.error.code, message: call.envelope.error.message } }),
+        ...(audit ? { audited: audit.audited, ...(audit.audited ? {} : { auditNote: audit.reason }) } : {}),
+      };
+    }),
   }));
 }
 
@@ -171,7 +194,9 @@ const PROOF_WORK = new Set(['transformed', 'totals', 'reconciled', 'matched', 'b
 
 /**
  * Runs the turn's tool calls in order and moves the loop on. A hand-off ends the turn: later calls are cancelled.
+ * A call the policy holds ends it the same way, as a question for the owner; it did not run and does not count.
  * The run's tool call limit cancels the rest too. Tables and receipts the tools made are returned for storing.
+ * The auditor checks each step that ran; only an audited step's proofs join the run. The round goes into the ledger.
  */
 export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTurn, meta: { by: 'model' | 'template'; callId: string | null; costMicros: string }): Promise<HarnessState> {
   const next: HarnessState = structuredClone(state);
@@ -179,20 +204,42 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
   next.turns.push({ turn: number, step: 'act', note: turn.note, calls: turn.calls, finished: turn.finished, forced: false, by: meta.by, callId: meta.callId, costMicros: meta.costMicros });
   next.used.turns = number;
   next.used.costMicros = String(BigInt(next.used.costMicros) + BigInt(meta.costMicros));
+  const round: AuditRound = { round: number, plan: turn.note, steps: [], progress: 0 };
+  next.rounds = [...(next.rounds ?? []), round];
   let handoff: { to: 'client' | 'owner'; question: string } | null = null;
   let delegated: NonNullable<HarnessState['delegations']>[number] | null = null;
+  let held: PolicyHold | null = null;
   for (const [index, call] of turn.calls.entries()) {
-    const cancelled = (code: string, message: string) => next.toolCalls.push({
-      id: `t${number}.${index + 1}`, turn: number, tool: call.tool.slice(0, 60), input: null, inputDigest: '', envelope: { ok: false, error: { code, name: code === 'HARNESS_LIMIT' ? 'HarnessLimit' : 'ToolSkipped', message } },
-      outcome: 'cancelled', effect: null, tier: null, receiptIds: [], tableIds: [],
-    });
+    const cancelled = (code: string, message: string) => {
+      const id = `t${number}.${index + 1}`;
+      next.toolCalls.push({
+        id, turn: number, tool: call.tool.slice(0, 60), input: null, inputDigest: '', envelope: { ok: false, error: { code, name: code === 'HARNESS_LIMIT' ? 'HarnessLimit' : 'ToolSkipped', message } },
+        outcome: 'cancelled', effect: null, tier: null, receiptIds: [], tableIds: [],
+      });
+      round.steps.push(notRunStep(id, call.tool.slice(0, 60), message));
+    };
     if (handoff) { cancelled('TOOL_SKIPPED', 'A hand-off ended this turn, so this call did not run.'); continue; }
     if (delegated) { cancelled('TOOL_SKIPPED', 'A heavy-work brief ended this turn, so this call did not run.'); continue; }
+    if (held) { cancelled('TOOL_SKIPPED', 'A call on hold ended this turn, so this call did not run.'); continue; }
     if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The run used all its tool calls.'); continue; }
-    const outcome = await callTool(env, next.grant, number, index, call);
+    const outcome = await callTool(env, next.grant, number, index, call, next.holds ?? []);
+    if (outcome.hold) {
+      next.toolCalls.push(outcome.record);
+      round.steps.push(notRunStep(outcome.record.id, outcome.record.tool, outcome.hold.reason));
+      held = {
+        id: `h${number}.${index + 1}`, toolCallId: outcome.record.id, tool: outcome.hold.tool, stepId: outcome.hold.stepId, inputDigest: outcome.hold.inputDigest,
+        code: outcome.hold.code, reason: outcome.hold.reason, turn: number, handoff: next.handoffs.length, status: 'waiting', validTurn: null,
+      };
+      continue;
+    }
+    const used = outcome.verdict?.holdId ? next.holds?.find(hold => hold.id === outcome.verdict!.holdId) : undefined;
+    if (used) used.status = 'used';
+    const audit = auditStep(env, outcome);
+    round.steps.push({ toolCallId: outcome.record.id, tool: outcome.record.tool, ...audit });
+    if (audit.audited) round.progress += 1;
     next.used.toolCalls += 1;
     next.toolCalls.push(outcome.record);
-    next.proofs.push(...outcome.proofs);
+    if (audit.audited) next.proofs.push(...outcome.proofs);
     next.tableIds.push(...outcome.tables.map(table => table.id));
     next.workReceiptIds.push(...outcome.receipts.map(receipt => receipt.id));
     if (outcome.mock) next.mocks.push(outcome.mock);
@@ -210,6 +257,12 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     next.phase = 'needs-answer';
     return next;
   }
+  if (held) {
+    next.holds = [...(next.holds ?? []), held];
+    next.handoffs.push({ to: 'owner', question: holdQuestion(held).slice(0, 300), turn: number, answer: null, answeredBy: null });
+    next.phase = 'needs-answer';
+    return next;
+  }
   return settle(next, turn.finished);
 }
 
@@ -224,13 +277,14 @@ function settle(state: HarnessState, finished: boolean): HarnessState {
   return state;
 }
 
-/** Records the answer to the open hand-off and moves the loop on. */
+/** Records the answer to the open hand-off and moves the loop on. When the question was a held call, the answer decides it. */
 export function answerHandoff(state: HarnessState, answer: string, by: 'owner' | 'practice-client'): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = next.handoffs.findLast(handoff => handoff.answer === null);
   check(open && next.phase === 'needs-answer', 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
   open.answer = answer;
   open.answeredBy = by;
+  decideHold(next, next.handoffs.indexOf(open), answer, by);
   return settle(next, false);
 }
 
@@ -240,11 +294,15 @@ export function openDelegation(state: HarnessState): NonNullable<HarnessState['d
   return (state.delegations ?? []).findLast(item => item.status === 'waiting' || item.status === 'running') ?? null;
 }
 
-/** Marks the open brief as running: claimed once, so a second approval finds it taken. */
-export function startDelegation(state: HarnessState, startedAt: string): HarnessState {
+/**
+ * Marks the open brief as running: claimed once, so a second approval finds it taken. Starting it is an outside effect
+ * on the owner's own signed-in tool, on the always-ask floor: only the owner's approval of this brief's digest opens it.
+ */
+export function startDelegation(state: HarnessState, startedAt: string, approval: Approval = { kind: 'none' }): HarnessState {
   const next: HarnessState = structuredClone(state);
   const open = openDelegation(next);
   check(open && open.status === 'waiting', 'DELIVERY_NOT_BRIEFING', 'This draft reply is not waiting for a brief to be approved.');
+  gateEffect({ name: 'delegate.start', digest: open.digest }, approval);
   open.status = 'running';
   open.startedAt = startedAt;
   return next;
@@ -252,7 +310,8 @@ export function startDelegation(state: HarnessState, startedAt: string): Harness
 
 /**
  * Closes the open brief, declined or finished. The agent's call gets its real result in place of 'waiting', so the
- * next turn reads it in its history. Receipts the calculator made from the tool's figures join the run.
+ * next turn reads it in its history. Receipts the calculator made from the tool's figures join the run. The brief's
+ * step in the round ledger is audited again: only a finished run counts as progress.
  */
 export function settleDelegation(state: HarnessState, change: { status: 'declined' | 'finished'; envelope: ToolEnvelope; outcome: ExecutionOutcome; delegateRunId: string | null; receiptIds: string[]; proofs: ClaimProof[] }): HarnessState {
   const next: HarnessState = structuredClone(state);
@@ -262,7 +321,19 @@ export function settleDelegation(state: HarnessState, change: { status: 'decline
   open.delegateRunId = change.delegateRunId;
   const call = next.toolCalls.find(item => item.id === open.toolCallId);
   if (call) { call.envelope = change.envelope; call.outcome = change.outcome; call.receiptIds = [...change.receiptIds]; }
-  next.proofs.push(...change.proofs);
+  const audited = change.status === 'finished' && change.envelope.ok;
+  for (const round of next.rounds ?? []) {
+    for (const step of round.steps) {
+      if (step.toolCallId !== open.toolCallId) continue;
+      round.progress += (audited ? 1 : 0) - (step.audited ? 1 : 0);
+      step.audited = audited;
+      step.evidence = [...change.receiptIds];
+      step.reason = change.status === 'declined' ? 'The owner declined the brief, so nothing ran.'
+        : audited ? "The owner's tool finished. Its words were not checked; only figures the calculator worked out again back a claim."
+          : `The owner's tool did not finish: ${change.envelope.ok ? change.outcome : change.envelope.error.message}`;
+    }
+  }
+  if (audited || !next.rounds) next.proofs.push(...change.proofs);
   next.workReceiptIds.push(...change.receiptIds);
   if (next.proofs.some(proof => PROOF_WORK.has(proof.kind))) next.sections = 'report';
   return settle(next, false);
@@ -315,7 +386,7 @@ export function lastReconciliation(receipts: readonly WorkReceiptRecord[]): Work
 
 /** The write step: tools off, the reply from the proven work, money and counts only through figure refs. */
 export function writeTask(ctx: WriteContext, state: HarnessState, receipts: readonly WorkReceiptRecord[]): ModelTask<Deliverable> {
-  const sections = state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[ctx.serviceType];
+  const sections = ctx.draft?.sections ?? (state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[ctx.serviceType]);
   const refs = harnessRefs(ctx.priceRefs, receipts);
   const attached = lastReconciliation(receipts);
   const forced = state.stopReason !== null;
@@ -334,10 +405,11 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
     dates: refs.dates.map(date => ({ ref: date.ref, label: date.label })),
     attached: attached ? 'A reconciliation table worked out by the calculator.' : 'Nothing.',
   };
-  const guidance = writeGuidance(ctx.playbook);
+  const guidance = ctx.draft ? [...ctx.draft.guidance] : writeGuidance(ctx.playbook);
   if (guidance.length) input.guidance = guidance;
   if (forced) input.stopped = state.stopReason;
-  const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections };
+  // Counts and amounts from the client's files have work receipts, so here a model number is still refused.
+  const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections, numbers: 'refuse' as const };
   return {
     purpose: 'delivery', instructions, input, schemaName: 'venture-delivery', schema: deliverySchema(ctx.serviceType, sections),
     validate: raw => withAttachments(validateDraft(raw, context), attached),

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "playbook": "fixture-books",
+  "recordedAt": "2026-10-21",
+  "recordedFrom": "Test fixture: four held-back cases, one with a weak reference draft that invents a certification.",
+  "baseline": { "passed": 3, "of": 4 },
+  "cases": [
+    {
+      "id": "clean-month",
+      "title": "A clean month with one supplier",
+      "clientRequest": "Hi, this is Priya from Sharma Traders. Please close my September books. The HDFC Bank statement is attached.",
+      "sources": [
+        { "id": "bank-statement.csv", "text": "Date,Narration,Withdrawal,Deposit,Balance\n05/09/2026,NEFT MEHTA PAPER MART,12500.00,,87500.00\n12/09/2026,CASH DEPOSIT,,20000.00,107500.00" }
+      ],
+      "known": ["Bright Books"],
+      "mustMention": ["September"],
+      "mustNotMention": ["filed", "submitted"],
+      "reference": "Priya, here is where your September books stand. We read the HDFC Bank statement for Sharma Traders. Mehta Paper Mart was paid ₹12,500 on 5 September 2026. Please send the bill for that payment so we can match it."
+    },
+    {
+      "id": "missing-bills",
+      "title": "Bills are missing",
+      "clientRequest": "Can you reconcile my bank statement? I could not find the bills.",
+      "sources": [
+        { "id": "bank-statement.csv", "text": "Date,Narration,Withdrawal\n03/09/2026,RENT SEPTEMBER,30000.00" }
+      ],
+      "mustMention": ["bill"],
+      "mustNotMention": ["reconciled"],
+      "reference": "Thanks for the statement. To match each payment we need the bills. Could you send the bill for the rent payment of ₹30,000?"
+    },
+    {
+      "id": "gst-rate",
+      "title": "A question about the GST rate",
+      "clientRequest": "What GST rate did you use for my printing invoices?",
+      "sources": [
+        { "id": "invoice-list.csv", "text": "Invoice,Item,Rate,GST %\nINV-14,Printing,2400.00,18" }
+      ],
+      "mustMention": ["GST"],
+      "reference": "The printing invoices in your list carry GST at 18%. If any invoice used another rate, please tell us which one."
+    },
+    {
+      "id": "weak-reference",
+      "title": "A reference draft that invents a certification",
+      "clientRequest": "Are you able to take on my books from next month?",
+      "sources": [],
+      "known": ["Bright Books"],
+      "mustMention": ["books"],
+      "reference": "Yes, Bright Books can take on your books from next month. We are ISO 9001 certified."
+    }
+  ]
+}

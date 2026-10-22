@@ -1,4 +1,4 @@
-// P4 tests for the connector catalogue: 64 cards in 12 categories, honest modes and chips, starter cards.
+// P4 tests for the connector catalogue: 66 cards in 12 categories, honest modes and chips, starter cards.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
@@ -46,9 +46,9 @@ const cards = () => CONNECTOR_CATALOGUE.map(item => connectorCard(item, false));
 const availableIds = (mode: 'handoff' | 'read' | 'write') =>
   cards().filter(card => card.modes.some(m => m.mode === mode && m.status === 'available')).map(card => card.id).sort();
 
-test('1. 64 entries, unique ids, all 12 categories present', () => {
-  assert.equal(CONNECTOR_CATALOGUE.length, 64);
-  assert.equal(new Set(CONNECTOR_CATALOGUE.map(item => item.id)).size, 64);
+test('1. 66 entries, unique ids, all 12 categories present', () => {
+  assert.equal(CONNECTOR_CATALOGUE.length, 66);
+  assert.equal(new Set(CONNECTOR_CATALOGUE.map(item => item.id)).size, 66);
   assert.deepEqual([...new Set(CONNECTOR_CATALOGUE.map(item => item.category))].sort(), [...CONNECTOR_CATEGORIES].sort());
   const labels = new Set(cards().map(card => card.categoryLabel));
   assert.deepEqual([...labels], ['Build', 'Site and domain', 'Payments', 'Email and inbox', 'Booking and calendar', 'Customers and CRM', 'Messaging and support',
@@ -58,7 +58,7 @@ test('1. 64 entries, unique ids, all 12 categories present', () => {
 test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_ORIGINS', () => {
   for (const item of CONNECTOR_CATALOGUE) {
     if (item.vendorUrl === null) {
-      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'chausar-templates'].includes(item.id), item.id);
+      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'chausar-templates', 'bank-account'].includes(item.id), item.id);
       continue;
     }
     const url = new URL(item.vendorUrl);
@@ -72,7 +72,7 @@ test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_OR
 
 test('3. available modes are exactly what this build does; everything else is planned and unqualified', () => {
   assert.deepEqual(availableIds('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
-  assert.deepEqual(availableIds('read'), ['chausar-books', 'chausar-crm', 'github', 'tally']);
+  assert.deepEqual(availableIds('read'), ['bank-account', 'chausar-books', 'chausar-crm', 'github', 'tally']);
   assert.deepEqual(availableIds('write'), ['chausar-books', 'chausar-crm']);
 
   const byId = new Map(cards().map(card => [card.id, card]));
@@ -101,7 +101,15 @@ test('3. available modes are exactly what this build does; everything else is pl
   const stripe = byId.get('stripe')!;
   assert.deepEqual(stripe.chips, ['planned: handoff', 'planned: read', 'planned: write']);
   assert.deepEqual(byId.get('lovable')!.chips, ['handoff', 'planned: read', 'planned: write']);
-  assert.deepEqual(byId.get('github')!.chips, ['read', 'planned: handoff']);
+  assert.deepEqual(byId.get('github')!.chips, ['read', 'planned: handoff', 'planned: write']);
+  assert.match(mode('github', 'write')!.what, /grant write access\. Chausar only reads today\./);
+  assert.match(mode('github', 'write')!.what, /stage an edit from it/);
+  assert.deepEqual(byId.get('bank-account')!.chips, ['read']);
+  assert.deepEqual(mode('bank-account', 'read'), {
+    mode: 'read', status: 'available', qualification: 'built-in',
+    what: 'Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.',
+  });
+  assert.deepEqual(byId.get('youtube')!.chips, ['planned: handoff', 'planned: write']);
   assert.deepEqual(byId.get('chausar-books')!.chips, ['read', 'write']);
   assert.deepEqual(byId.get('mail-app')!.chips, ['handoff']);
   assert.deepEqual(byId.get('zoho-books')!.chips, ['planned: handoff', 'planned: read', 'planned: write']);
@@ -136,12 +144,12 @@ test('5. the WhatsApp card carries its business-rules note; cards are plain, hon
 test('6. starter flags and ordering for an India venture, before and after the plan is accepted', async () => {
   const { deps } = setup();
   const none = await list(deps);
-  assert.equal(none.length, 64);
+  assert.equal(none.length, 66);
   assert.ok(none.every(card => !card.starter), 'no venture yet: no starter cards');
 
   await seedIndia(deps);
   const before = await list(deps);
-  assert.equal(before.length, 64);
+  assert.equal(before.length, 66);
   const expectedStarters = STARTER_CONNECTORS.map(id => (id === '<payment-rail>' ? 'razorpay' : id));
   assert.deepEqual(before.filter(card => card.starter).map(card => card.id).sort(), [...expectedStarters].sort());
   // Starter cards first, then category order, then name.
@@ -170,9 +178,13 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the seven owned methods', () => {
+test('7. handlers keys equal the twenty owned methods', () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
+    'venture.bank.consent', 'venture.bank.import',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.share.create', 'venture.share.list', 'venture.share.revoke',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage',
   ]);
 });
 

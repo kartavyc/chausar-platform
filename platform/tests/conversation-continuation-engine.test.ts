@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fixture, turn, openSaved } from './fixtures/conversation-public-flow-acceptance.ts';
-import { dialogFor, hasText } from './fixtures/conversation-acceptance-renderer.ts';
 
-// Real renderer/preload/production worker/Engine, authored synthetic HTTP only.
+// Real desktop preload/strict IPC/production worker/Engine, authored synthetic HTTP only. Opening a saved clarification
+// selects it for the next reviewed reply, as the desktop does.
 const OBJECTIVE = 'What was billed?';
 const REPLY = 'September 2026';
 
@@ -12,9 +12,9 @@ test('actual reviewed September reply carries billed objective, calculates exact
   const first = await turn(f, OBJECTIVE), history = await f.request('conversation.history');
   const pending = history.items.find((item: any) => item.kind === 'clarification'); assert.ok(pending);
   assert.equal(first.answer.clarification.length > 0, true);
-  await f.restart(); const fresh = await f.renderer();
-  const saved = await openSaved(fresh, OBJECTIVE); saved.close(); dialogFor(fresh.body, 'Recent answers').close();
-  const second = await turn(f, REPLY, fresh), calls = await f.calls(), input = calls[1].input;
+  await f.restart(); const fresh = await f.desktop();
+  const saved = await openSaved(fresh, OBJECTIVE); assert.equal(saved.continuationId, pending.id);
+  const second = await turn(f, REPLY, fresh, saved.continuationId), calls = await f.calls(), input = calls[1].input;
   assert.equal(calls.length, 2); assert.equal(input.question, REPLY);
   assert.equal(input.continuation.turnId, pending.id); assert.equal(input.continuation.originalQuestion, OBJECTIVE);
   assert.equal(input.continuation.clarification, first.answer.clarification);
@@ -39,15 +39,15 @@ test('further clarification keeps original objective through two reviewed replie
   const f = await fixture(t, { [OBJECTIVE]: { kind: 'clarification' }, [firstReply]: { kind: 'clarification' },
     [secondReply]: { calls: ['billed'] } }, 'ollama');
   const first = await turn(f, OBJECTIVE); let pending = (await f.request('conversation.history')).items.find((item: any) => item.kind === 'clarification');
-  let saved = await openSaved(f.h, OBJECTIVE); saved.close(); dialogFor(f.h.body, 'Recent answers').close();
-  const second = await turn(f, firstReply);
+  let saved = await openSaved(f.h, OBJECTIVE); assert.equal(saved.continuationId, pending.id);
+  const second = await turn(f, firstReply, f.h, saved.continuationId);
   await assert.rejects(f.request('conversation.continuation', { id: pending.id }), { code: 'CONVERSATION_CONTINUATION_RESOLVED' });
   pending = (await f.request('conversation.history')).items.find((item: any) => item.kind === 'clarification' && item.question === firstReply);
   const descriptor = await f.request('conversation.continuation', { id: pending.id });
   assert.equal(descriptor.originalQuestion, OBJECTIVE); assert.deepEqual(descriptor.exchanges, [
     { question: OBJECTIVE, clarification: first.answer.clarification }, { question: firstReply, clarification: second.answer.clarification } ]);
-  saved = await openSaved(f.h, firstReply); saved.close(); dialogFor(f.h.body, 'Recent answers').close();
-  const third = await turn(f, secondReply), calls = await f.calls();
+  saved = await openSaved(f.h, firstReply); assert.equal(saved.continuationId, pending.id);
+  const third = await turn(f, secondReply, f.h, saved.continuationId), calls = await f.calls();
   assert.equal(calls.length, 3); assert.equal(calls[2].input.continuation.originalQuestion, OBJECTIVE);
   assert.deepEqual(calls[2].input.continuation.exchanges, descriptor.exchanges);
   assert.equal(third.answer.results[0].answer.totalMinor, '30000');
@@ -58,10 +58,11 @@ test('failed provider reply leaves original clarification pending and requires a
   const f = await fixture(t, { [OBJECTIVE]: { kind: 'clarification' }, [badReply]: { calls: ['billed'], transportFailure: true },
     [goodReply]: { calls: ['billed'] } }, 'ollama');
   await turn(f, OBJECTIVE); const pending = (await f.request('conversation.history')).items.find((item: any) => item.kind === 'clarification');
-  const saved = await openSaved(f.h, OBJECTIVE); saved.close(); dialogFor(f.h.body, 'Recent answers').close();
-  const failed = await turn(f, badReply); assert.equal(failed.answer, undefined);
+  const saved = await openSaved(f.h, OBJECTIVE); assert.equal(saved.continuationId, pending.id);
+  // A failed reply keeps the selection, so the next reviewed reply continues the same clarification.
+  const failed = await turn(f, badReply, f.h, saved.continuationId); assert.equal(failed.answer, undefined);
   assert.equal((await f.calls()).length, 2); assert.equal((await f.request('conversation.continuation', { id: pending.id })).originalQuestion, OBJECTIVE);
-  const succeeded = await turn(f, goodReply);
+  const succeeded = await turn(f, goodReply, f.h, saved.continuationId);
   assert.equal(succeeded.answer.results[0].answer.totalMinor, '30000'); assert.equal((await f.calls()).length, 3);
   assert.notEqual(succeeded.preview.id, failed.preview.id);
 });
@@ -114,8 +115,8 @@ test('actual worker admits eight reviewed continuation links then refuses a nint
   await assert.rejects(f.request('models.preview', { question: 'A ninth reply', purpose: 'conversation', questionDisclosure: 'verbatim',
     routeId: f.route.id, continuationId: pending.id }), { code: 'INVALID_CONVERSATION_CONTINUATION' });
   const saved = await openSaved(f.h, replies[replies.length - 1]!);
-  assert.equal(hasText(saved, answer.clarification), true); assert.equal(hasText(saved, 'This clarification chain is full. Start a new question.'), true);
-  saved.close(); dialogFor(f.h.body, 'Recent answers').close();
+  assert.equal(saved.saved.answer.clarification, answer.clarification); assert.equal(saved.continuationId, undefined);
+  assert.deepEqual(saved.refusal, { code: 'CONVERSATION_CONTINUATION_LIMIT', message: 'This clarification chain is full. Start a new question.' });
   assert.equal((await f.calls()).length, 9);
   const fresh = await f.request('models.preview', { question: 'An explicitly new question', purpose: 'conversation', questionDisclosure: 'verbatim', routeId: f.route.id });
   assert.equal(fresh.continuationId, undefined); assert.equal((await f.calls()).length, 9);

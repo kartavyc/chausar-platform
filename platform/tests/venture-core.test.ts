@@ -359,10 +359,18 @@ test('5. template interview: every country asks about tax; prices and rates are 
     'Are you registered for consumption tax, so you charge it on your invoices?');
 });
 
-test('6. model interview: model questions are checked words; a new digit is refused and nothing is stored', async () => {
+test('6. model interview: model questions are checked words; an amount of money is refused and nothing is stored', async () => {
+  // A number the model wrote is allowed since 21 October (a model estimate, never a receipt).
+  const digits = setup();
+  await digits.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN' });
+  digits.models.fixtures.interview = fixture('interview-digit');
+  const counted = await digits.call('venture.interview.next', {});
+  assert.equal(counted.interview.questions[0].text, 'Will you start with 5 cafes or more?');
+
   const h = setup();
   await h.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN' });
-  h.models.fixtures.interview = fixture('interview-digit');
+  const digit = fixture('interview-digit') as { questions: { text: string }[] };
+  h.models.fixtures.interview = { ...digit, questions: [{ ...digit.questions[0], text: 'Will you charge INR 500 a month or more?' }] };
   await assert.rejects(h.call('venture.interview.next', {}), codeOf('MODEL_OUTPUT_REJECTED'));
   const stored = () => h.store.read().conversations.find((r: any) => r.kind === 'venture-interview');
   assert.deepEqual(stored().questions, []);
@@ -394,7 +402,7 @@ test('6. model interview: model questions are checked words; a new digit is refu
   assert.equal(view.interview.modelCallIds.length, 1);
   assert.equal((await h.call('venture.get')).venture.serviceType, 'bookkeeping');
 
-  // "B2B" copied from the owner's idea passes; the model may not invent its own tokens with digits.
+  // "B2B" is a name with a digit, not a number: it passes whether or not the owner wrote it.
   const b2b = setup();
   await b2b.call('venture.create', { idea: 'Lead lists for B2B SaaS founders in Berlin', countryCode: 'DE' });
   b2b.models.fixtures.interview = fixture('interview-b2b');
@@ -403,7 +411,7 @@ test('6. model interview: model questions are checked words; a new digit is refu
   const b2c = setup();
   await b2c.call('venture.create', { idea: 'Lead lists for SaaS founders in Berlin', countryCode: 'DE' });
   b2c.models.fixtures.interview = fixture('interview-b2b');
-  await assert.rejects(b2c.call('venture.interview.next', {}), codeOf('MODEL_OUTPUT_REJECTED'));
+  assert.equal((await b2c.call('venture.interview.next', {})).interview.questions[0].text, 'Which B2B teams will you serve first?');
 
   // useTemplate never calls the port.
   const templ = setup();
@@ -854,10 +862,10 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the nine core methods; the pre-vault answers are functions', () => {
+test('13. the handler table holds exactly the twelve core methods; the pre-vault answers are functions', () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update',
-    'venture.create', 'venture.events', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
+    'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
   ]);
   assert.equal(typeof listCountries, 'function');
   assert.equal(typeof previewPlan, 'function');
@@ -962,4 +970,35 @@ test('template offer words follow how the owner charges, and stay an assumption'
     const template = serviceTemplate(type);
     assert.deepEqual(template.offers, [offerWords(type, 0, 'monthly'), offerWords(type, 1, SECOND_OFFER_MODEL[type])]);
   }
+});
+
+test('a tax answer the owner did not give is kept as an assumption until the owner confirms it on the plan', async () => {
+  const h = setup();
+  await h.call('venture.create', { idea: CAFE_IDEA, countryCode: 'IN', workingName: 'Ledger Cafe Books' });
+  await h.call('venture.interview.next', { useTemplate: true });
+  await answer(h, 'q_1', { skipped: true });
+  await answer(h, 'q_2', { skipped: true });
+  await answer(h, 'q_pricing_model', { choiceId: 'monthly' });
+  await answer(h, 'q_price', { skipped: true });
+  // Only "not registered" can be assumed, and only on the tax question.
+  await assert.rejects(answer(h, 'q_tax', { yes: true, assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(answer(h, 'q_price', { skipped: true, assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(answer(h, 'q_tax', { assumed: true }), codeOf('INVALID_VENTURE_REQUEST'));
+  const view = await answer(h, 'q_tax', { yes: false, assumed: true });
+  assert.deepEqual(view.interview.questions.find((q: any) => q.id === 'q_tax').answer, { yes: false, assumed: true });
+  assert.equal(view.done, true);
+  const draft = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(draft.backOffice.taxRegistered, { value: false, label: 'assumption', by: 'template' });
+  assert.equal(structureFromBlueprint(draft).backOffice.taxRegistered.label, 'assumption');
+  // A price edit on the plan keeps the assumption; saying no to tax on the plan makes it the owner's answer.
+  const priced = (await h.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', unitPrice: '2,499' }] } })).blueprint;
+  assert.deepEqual(priced.backOffice.taxRegistered, { value: false, label: 'assumption', by: 'template' });
+  const confirmed = (await h.call('venture.blueprint.update', { patch: { taxRegistered: false } })).blueprint;
+  assert.deepEqual(confirmed.backOffice.taxRegistered, { value: false, label: 'told-by-you', by: 'owner' });
+
+  // The owner's own no stays the owner's.
+  const told = setup();
+  await interviewed(told, { tax: false });
+  const plan = (await told.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(plan.backOffice.taxRegistered, { value: false, label: 'told-by-you', by: 'owner' });
 });

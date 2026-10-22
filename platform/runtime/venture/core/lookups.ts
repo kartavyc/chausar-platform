@@ -1,8 +1,20 @@
 // Chausar venture launcher, core (P1): read-only lookups over venture records in a state snapshot or draft.
 import { check, type State } from '../../contracts.ts';
-import { listRecords } from '../records.ts';
-import type { BlueprintRecord, BlueprintView, InterviewRecord, PriceReceiptRecord } from '../contracts.ts';
+import { findRecord, listRecords } from '../records.ts';
+import type { BlueprintRecord, BlueprintView, InterviewRecord, OfferIntakeAsk, PlaybookPick, PriceReceiptRecord, VentureHostKind } from '../contracts.ts';
 import type { CompositionRecord } from '../onboarding-contracts.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
+import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
+import { offerIntakeAsk } from '../playbooks/intake.ts';
+
+/**
+ * The flagship playbook an idea picks, as the screens show it. An empty object when none fits, so a view spreads it
+ * and the field is simply absent. Worked out from the idea each time, never stored, so no record or digest changes.
+ */
+export function playbookField(idea: string): { playbook?: PlaybookPick } {
+  const pick = pickPlaybook(idea);
+  return pick ? { playbook: { id: pick.id, label: pick.label } } : {};
+}
 
 /** The venture's interview record (one per venture, made at create). */
 export function interviewOf(state: State, ventureId: string): InterviewRecord {
@@ -49,6 +61,23 @@ export function offerReceipts(state: State, blueprint: BlueprintRecord): Record<
   return result;
 }
 
-export function blueprintView(state: State, blueprint: BlueprintRecord): BlueprintView {
-  return { blueprint, offerReceipts: offerReceipts(state, blueprint) };
+/**
+ * What an order for each of the plan's offers asks at intake, by offer id, the way venture.order.create checks it
+ * (playbooks/intake.ts): only a flagship playbook's offers ask anything. An empty object when none does.
+ */
+export function intakeField(idea: string, blueprint: Pick<BlueprintRecord, 'offers'>, host: VentureHostKind): { intake?: Record<string, OfferIntakeAsk> } {
+  const plan = flagshipPlan(idea);
+  const asks: Record<string, OfferIntakeAsk> = {};
+  for (const offer of blueprint.offers) {
+    const own = flagshipOffer(plan, offer);
+    const ask = plan && own ? offerIntakeAsk(plan.id, own, host) : null;
+    if (ask) asks[offer.id] = ask;
+  }
+  return Object.keys(asks).length ? { intake: asks } : {};
+}
+
+/** host: what the intake asks depends on it (the hosted server never asks for a file on the owner's computer). */
+export function blueprintView(state: State, blueprint: BlueprintRecord, host: VentureHostKind): BlueprintView {
+  const venture = findRecord(state, 'venture-record', blueprint.ventureId);
+  return { blueprint, offerReceipts: offerReceipts(state, blueprint), ...(venture ? { ...playbookField(venture.idea), ...intakeField(venture.idea, blueprint, host) } : {}) };
 }

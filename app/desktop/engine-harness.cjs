@@ -2,7 +2,7 @@
 const { fork } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { EventEmitter } = require('node:events');
-const { validateRequest } = require('./ipc-contract.cjs');
+const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
@@ -28,6 +28,8 @@ class EngineHarness extends EventEmitter {
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }
+          // A run event the engine committed: checked again here, then main forwards it to the window.
+          if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;
           this.waiting.delete(message.id); clearTimeout(pending.timer);

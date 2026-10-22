@@ -1,0 +1,87 @@
+.wrap {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.progress {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.mark {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+
+.purpose {
+  flex: 1;
+  min-width: 0;
+}
+
+.time {
+  flex: none;
+  color: var(--mute);
+}
+
+.done .line {
+  color: var(--fg2);
+}
+
+.current .line {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.pending .line {
+  color: var(--dim);
+}
+
+.waiting .line {
+  color: var(--wait);
+}
+
+.waitWord {
+  flex: none;
+  color: var(--wait);
+}
+
+.failed .line {
+  color: var(--fail);
+}
+
+.error {
+  margin: 0 0 var(--sp-2) calc(1em + 10px);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.tools {
+  margin: 0 0 var(--sp-2) calc(1em + 10px);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.tools summary {
+  cursor: pointer;
+}
+
+.tool {
+  margin-top: var(--sp-1);
+  color: var(--fg2);
+}

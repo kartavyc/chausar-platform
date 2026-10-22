@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -36,18 +36,54 @@ jobs:
       - name: Typecheck runtime and tests
         run: npm run typecheck
       - name: Run repository open tests and capture benchmark receipt
-        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/5 --output results/factory-bench.json
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --output results/factory-bench.json
       - name: Upload open-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-5
+          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-6
           path: results/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
 
+  ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          package-manager-cache: false
+      - name: Install pinned dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck the Ink frontend
+        run: npm run typecheck:ui
+      - name: Run the Ink frontend tests and capture their receipt
+        run: node scripts/ui-bench.mjs --output results/ui-tests.json
+      - name: Build the Ink frontend
+        run: npm run build:ui
+      - name: Upload UI test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-report-${{ matrix.os }}
+          path: results/ui-tests.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The ui job runs the Ink frontend (app/ui) on both OSes: its strict typecheck, every vitest test (a failed, skipped
+  # or todo test fails it, as in the open suite) and the production build that Electron and the servers serve.
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
-  # Each OS requires all five shards to pass. The four ordinary groups remain
-  # stable; the independent activation suite has its own fifth shard. Every test
-  # file belongs to exactly one group. A shard receipt is not a full-suite result.
+  # Each OS requires all six shards to pass: five ordinary round-robin groups and
+  # the independent activation suite on its own sixth shard (the five-shard plan
+  # with four groups still exists in bench.mjs; it outgrew the ten-minute deadline
+  # on Windows in October 2026). Every test file belongs to exactly one group. A
+  # shard receipt is not a full-suite result.

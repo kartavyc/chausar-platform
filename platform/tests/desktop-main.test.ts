@@ -35,7 +35,9 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+      // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
+      readdir: async () => [{ name: 'index.html', isDirectory: () => false, isFile: () => true }] };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return require(name);
   }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });

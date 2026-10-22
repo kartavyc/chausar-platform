@@ -192,7 +192,6 @@ test('validateDecide refuses each broken rule with MODEL_OUTPUT_REJECTED', () =>
     ['lead not first', { ...DOG_DECIDE, views: ['pages', 'offers-first'] }],
     ['one view', { ...DOG_DECIDE, views: ['offers-first'] }],
     ['five views', { ...DOG_DECIDE, views: ['offers-first', 'pages', 'tools', 'questions', 'notes'] }],
-    ['digit in reading', { ...DOG_DECIDE, reading: 'Walk dogs for 2 nurses' }],
     ['spelled price in reading', { ...DOG_DECIDE, reading: 'Walk dogs for twenty pounds' }],
     ['thirteen words', { ...DOG_DECIDE, reading: 'Walk the dogs of nurses who work long shifts in the city of Leeds' }],
     ['markup in reading', { ...DOG_DECIDE, reading: 'Walk <b>dogs</b> for nurses' }],
@@ -201,6 +200,8 @@ test('validateDecide refuses each broken rule with MODEL_OUTPUT_REJECTED', () =>
     ['unknown family', { ...DOG_DECIDE, family: 'pets' }],
   ];
   for (const [label, raw] of bad) assert.throws(() => validateDecide(raw, allowed), rejected(), label);
+  // A number in the reading is a model estimate now, not a refusal.
+  assert.equal(validateDecide({ ...DOG_DECIDE, reading: 'Walk dogs for 2 nurses' }, allowed).reading, 'Walk dogs for 2 nurses');
   assert.deepEqual(validateDecide({ kind: 'not-a-service', family: 'whatever', reading: 'ignored 9', views: [] }, allowed).views, []);
 });
 
@@ -234,9 +235,7 @@ test('validateCompose refuses every rule of section 6.4', () => {
     ['view keys not decided', p => { p.views = { 'offers-first': { lead: ['offer_1'] }, pages: { lead: ['page_1', 'page_2'] } }; }],
     ['lead ref to a missing item', p => { p.views['offers-first'].lead = ['offer_1', 'offer_3']; }],
     ['lead count out of range', p => { p.views.pages.lead = ['page_1']; }],
-    ['digit', p => { p.offers[0].description = 'Walks for 2 dogs at once.'; }],
     ['currency sign', p => { p.offers[0].description = 'Walks from £ each time.'; }],
-    ['magnitude word', p => { p.oneLiner = 'Walks for thousands of dogs in Leeds.'; }],
     ['em dash', p => { p.oneLiner = 'Dog walks \u2014 for nurses in Leeds.'; }],
     ['banned word', p => { p.oneLiner = 'We leverage local walkers for nurses.'; }],
     ['finished-work claim', p => { p.oneLiner = 'Every walk is completed and checked.'; }],
@@ -245,20 +244,26 @@ test('validateCompose refuses every rule of section 6.4', () => {
     ['five-word name', p => { p.name = 'Shift Paws Dog Walks Leeds'; }],
     ['five-word offer name', p => { p.offers[0].name = 'Weekly walks for busy nurses'; }],
     ['five-word step title', p => { p.steps[1].title = 'Walk the dogs each day'; }],
-    ['Twenty pounds a walk', p => { p.offers[0].description = 'Twenty pounds a walk.'; }, /in words/],
+    ['Twenty pounds a walk', p => { p.offers[0].description = 'Twenty pounds a walk.'; }, /amount of money/],
     ['fifty rupees', p => { p.oneLiner = 'Walks for fifty rupees.'; }],
-    ['ten sessions', p => { p.offers[1].description = 'Covers ten sessions while you are away.'; }],
-    ['GBP', p => { p.offers[1].description = 'Priced in GBP while you are away.'; }],
+    ['GBP', p => { p.offers[1].description = 'Priced in GBP while you are away.'; }, /price word/],
     ['half price', p => { p.offers[1].description = 'Half price for nurses.'; }],
-    ['free first visit', p => { p.offers[0].description = 'A free first visit.'; }],
-    ['a second visit', p => { p.offers[0].description = 'A second visit on long days.'; }],
-    ['two-day course', p => { p.offers[1].description = 'A two-day cover plan.'; }],
-    ['twice a week', p => { p.offers[0].description = 'Walks twice a week.'; }],
+    ['free first visit', p => { p.offers[0].description = 'A free first visit.'; }, /price word/],
     ['discounted rates', p => { p.oneLiner = 'Discounted walks for nurses in Leeds.'; }],
     ['same offer name', p => { p.offers[1].name = 'weekly WALKS'; }],
     ['step block twice', p => { p.steps[0].block = 'in-person-work'; }],
   ];
   for (const [label, change, pattern] of cases) assert.throws(() => validateCompose(dogWith(change), DOG_CTX), rejected(pattern), label);
+  // Numbers in digits or words pass since 21 October: the plan line is marked a model estimate when it is assembled.
+  const estimates: [string, (plan: any) => void][] = [
+    ['digit', p => { p.offers[0].description = 'Walks for 2 dogs at once.'; }],
+    ['magnitude word', p => { p.oneLiner = 'Walks for thousands of dogs in Leeds.'; }],
+    ['ten sessions', p => { p.offers[1].description = 'Covers ten sessions while you are away.'; }],
+    ['a second visit', p => { p.offers[0].description = 'A second visit on long days.'; }],
+    ['two-day course', p => { p.offers[1].description = 'A two-day cover plan.'; }],
+    ['twice a week', p => { p.offers[0].description = 'Walks twice a week.'; }],
+  ];
+  for (const [label, change] of estimates) assert.doesNotThrow(() => validateCompose(dogWith(change), DOG_CTX), label);
   // These pass: copied letter-and-digit tokens, a currency code the owner wrote, and allowed compounds and words.
   const passes: [string, string, (plan: any) => void][] = [
     ['B2B', 'Help B2B teams with dog walks in Leeds.', p => { p.oneLiner = 'Dog walks for B2B teams in Leeds.'; }],
@@ -275,22 +280,22 @@ test('validateCompose refuses every rule of section 6.4', () => {
   validateCompose(clone(CAFE_COMPOSE), { views: CAFE_DECIDE.views, allowed: copiedTokens(CAFE_TEXT) });
 });
 
-test('the number guard has no side doors: number signs, hidden characters, copied amounts and money in answer choices', () => {
+test('the money guard has no side doors: hidden characters, copied amounts and money in answer choices', () => {
   const cases: [string, (plan: any) => void][] = [
-    ['a fraction sign', p => { p.offers[0].description = 'Walks at ½ the usual time.'; }],
-    ['a superscript', p => { p.offers[1].description = 'Covers dogs² while you are away.'; }],
-    ['a Roman numeral sign', p => { p.name = 'Shift Paws Ⅲ'; }],
-    ['a zero-width space inside two', p => { p.offers[1].description = 'Covers tw​o dogs while you are away.'; }],
+    ['a zero-width space inside rupees', p => { p.offers[1].description = 'Covers ten rup​ees a walk while you are away.'; }],
     ['a soft hyphen inside twenty', p => { p.oneLiner = 'Walks for twen­ty nurses in Leeds.'; }],
-    ['zero', p => { p.offers[0].description = 'Walks with zero waiting.'; }],
     ['money slang', p => { p.offers[0].description = 'A walk for a tenner.'; }],
   ];
   for (const [label, change] of cases) assert.throws(() => validateCompose(dogWith(change), DOG_CTX), rejected(), label);
-  // A price the owner wrote is not copied into the AI's words, even as one letter-and-digit token.
-  for (const [text, word] of [['Dog walks at 15GBP each for nurses in Leeds.', '15GBP'], ['Dog walks at Rs500 for nurses in Pune.', 'Rs500'], ['Dog walks for nurses, 20k a year.', '20k']]) {
+  // Number signs are model numbers now, so they pass and the line is marked an estimate when the plan is assembled.
+  for (const change of [(p: any) => { p.offers[0].description = 'Walks at ½ the usual time.'; }, (p: any) => { p.name = 'Shift Paws Ⅲ'; }, (p: any) => { p.offers[0].description = 'Walks with zero waiting.'; }]) {
+    assert.doesNotThrow(() => validateCompose(dogWith(change), DOG_CTX));
+  }
+  // An amount the owner wrote is not copied into the AI's words as money, even as one letter-and-digit token.
+  for (const [text, word] of [['Dog walks at 15GBP each for nurses in Leeds.', '15GBP'], ['Dog walks at Rs500 for nurses in Pune.', 'Rs500']]) {
     const ctx = { views: DOG_DECIDE.views, allowed: copiedTokens(text) };
     assert.ok(ctx.allowed.includes(word.toLowerCase()), word);
-    assert.throws(() => validateCompose(dogWith(p => { p.offers[0].description = `Regular walks from ${word}.`; }), ctx), rejected(/number/), word);
+    assert.throws(() => validateCompose(dogWith(p => { p.offers[0].description = `Regular walks from ${word}.`; }), ctx), rejected(/amount of money/), word);
   }
   // Names the owner wrote with a digit still pass.
   validateCompose(dogWith(p => { p.oneLiner = 'Dog walks for B2B teams in Leeds.'; }), { views: DOG_DECIDE.views, allowed: copiedTokens('Help B2B teams with dog walks in Leeds.') });
@@ -375,7 +380,8 @@ async function callsOf(engine: any): Promise<ModelCallRecord[]> {
 }
 
 test('repair: a rejected compose then a valid one gives a plan with two compose calls, the first failed; the repair sends the problem, not the rejected text', async t => {
-  const broken = { ...clone(DOG_COMPOSE), offers: [{ ...DOG_COMPOSE.offers[0], description: 'Walks for 2 dogs at once.' }, DOG_COMPOSE.offers[1]] };
+  // A plain number is a model estimate now; an amount of money is still refused, so it is what needs the repair.
+  const broken = { ...clone(DOG_COMPOSE), offers: [{ ...DOG_COMPOSE.offers[0], description: 'Walks at fifteen pounds a time.' }, DOG_COMPOSE.offers[1]] };
   const { engine } = await engineFor(t, { responses: [
     ...planEntries(DOG_TEXT, DOG_DECIDE, broken),
     anthropicEntry('compose', DOG_COMPOSE, ['chausar-recompose-v1', DOG_TEXT.slice(0, 16)]),
@@ -392,8 +398,8 @@ test('repair: a rejected compose then a valid one gives a plan with two compose 
   const repair = composeCalls[1].payloadText;
   assert.match(repair, /chausar-recompose-v1/);
   assert.match(repair, /Your last answer was refused/);
-  assert.match(repair, /offer description contained a number/);
-  assert.doesNotMatch(repair, /Walks for 2 dogs/, 'the rejected text is never sent back');
+  assert.match(repair, /offer description stated an amount of money/);
+  assert.doesNotMatch(repair, /fifteen pounds/, 'the rejected text is never sent back');
   assert.doesNotMatch(composeCalls[0].payloadText, /GBP|"currency"/, 'the compose input holds no currency');
 });
 

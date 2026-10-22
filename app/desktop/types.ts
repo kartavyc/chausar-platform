@@ -17,7 +17,7 @@ import type { InvestigationSearchRequest } from '../../platform/runtime/investig
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
 import type { ConversationHistoryService, ConversationResultReference } from '../../platform/runtime/conversation-history.ts';
 import type { ModelRequest } from '../../platform/runtime/gateway.ts';
-import type { VentureMethod, VenturePayloads, VentureResults } from '../../platform/runtime/venture/contracts.ts';
+import type { VentureMethod, VenturePayloads, VentureResults, VentureRunEvent } from '../../platform/runtime/venture/contracts.ts';
 
 /** Venture methods whose payload has at least one required field; the others may be called without a payload. */
 type VentureRequiredMethod = { [M in VentureMethod]: {} extends VenturePayloads[M] ? never : M }[VentureMethod];
@@ -153,5 +153,7 @@ export interface DesktopBridge {
   /** Opens one listed https partner link in the system browser, from an owner click. Rejects with { code } when refused. */
   openExternal(url: string): Promise<void>;
   onEngineStatus(callback: (status: EngineStatus) => void): () => void;
+  /** Run events the engine committed (run.* and queue.changed), frozen. Read the queue or the run again on each. */
+  onEvent(callback: (event: Readonly<VentureRunEvent>) => void): () => void;
 }
 declare global { interface Window { chausar?: Readonly<DesktopBridge>; } }

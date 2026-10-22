@@ -1,0 +1,66 @@
+.waiting {
+  color: var(--wait);
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--fg2);
+  padding: var(--sp-1) 0;
+}
+
+.result {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.failure {
+  display: grid;
+  gap: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.failureText {
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.question {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--line);
+}
+
+.small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.ask {
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.answer {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.evidence {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.link {
+  font-size: var(--text-read);
+}

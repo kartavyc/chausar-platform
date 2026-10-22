@@ -1,34 +1,69 @@
 // Chausar hosted tier: the HTTP server. Experimental and off by default: it starts only with CHAUSAR_HOSTED=1 or --hosted.
 //   node platform/runtime/hosted/server.ts --hosted --dev      (npm run start:hosted: http://localhost:4320, development outbox)
 // Every response carries a strict content policy. Every POST must come from the configured origin. Sessions live in
-// HttpOnly SameSite=Strict cookies; /api/rpc also needs the page's bearer, an HMAC of the session id. The renderer is the
-// same app.js and launch.js as the desktop, told by one meta tag that it runs hosted.
+// HttpOnly SameSite=Strict cookies; /api/rpc also needs the page's bearer, an HMAC of the session id. The app at /app/ is
+// the built Ink app (app/ui/dist), the same build as the desktop, served from an allowlist made at startup and told by
+// one meta tag that it runs hosted. Without the build the server refuses to start (npm run build:ui).
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, open, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
 import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
-import { HostedApp } from './app.ts';
+import { HostedApp, SHARE_TOKEN_PATTERN, type SharePageView } from './app.ts';
 import { hostedConfig, type HostedConfig } from './config.ts';
 import { HostedCustody } from './custody.ts';
 import { FileDirectory, PostgresDirectory, type HostedDirectory } from './directory.ts';
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
+import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
+import { INK_ROOT, INK_TYPES, listInkFiles } from '../ui-ink.ts';
 
-const rendererDir = fileURLToPath(new URL('../../../app/renderer/', import.meta.url));
 const hostedDir = fileURLToPath(new URL('../../../app/hosted/', import.meta.url));
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES: Readonly<Record<string, string>> = INK_TYPES; // html, js, css, svg, and the Ink build's fonts and data
+/** The sign-in page and its two files. Everything under /app/ comes from the Ink build's own allowlist instead. */
 const STATIC: Record<string, [string, string]> = {
   '/': [hostedDir, 'index.html'], '/index.html': [hostedDir, 'index.html'], '/hosted.js': [hostedDir, 'hosted.js'], '/hosted.css': [hostedDir, 'hosted.css'],
-  '/assets/icon.svg': [rendererDir, 'assets/icon.svg'],
-  '/app/': [rendererDir, 'index.html'], '/app/index.html': [rendererDir, 'index.html'], '/app/app.js': [rendererDir, 'app.js'], '/app/launch.js': [rendererDir, 'launch.js'],
-  '/app/styles.css': [rendererDir, 'styles.css'], '/app/assets/icon.svg': [rendererDir, 'assets/icon.svg'],
 };
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 const HOSTED_META = '<meta name="chausar-mode" content="hosted">';
+
+// The client share page (/share/<token>): plain HTML, no scripts, one style allowed by its hash, a form that posts to
+// itself and nowhere else. Every field is escaped text. The token is only in the address; the page never repeats it.
+const SHARE_STYLE = ':root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8}'
+  + '@media (prefers-color-scheme:dark){:root{--bg:#111214;--fg:#eceef0;--mute:#9aa0a6;--line:#2a2d31}}'
+  + 'body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}'
+  + 'main{max-width:40rem;margin:0 auto;padding:2.5rem 1rem 4rem}h1{font-size:1.6rem;font-weight:600;margin:.25rem 0 .5rem}'
+  + '.mute{color:var(--mute);font-size:13px;margin:0}.text{white-space:pre-wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:1.25rem 0;margin:1.5rem 0}'
+  + 'form{display:grid;gap:.5rem}label{font-size:13px;color:var(--mute)}textarea{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:6px;padding:.5rem}'
+  + '.actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem}button{font:inherit;border-radius:6px;padding:.45rem .9rem;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}'
+  + 'button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}.said{font-weight:500}';
+const SHARE_CSP = `default-src 'none'; style-src 'sha256-${createHash('sha256').update(SHARE_STYLE).digest('base64')}'; img-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`;
+const SHARE_MAX_FORM_BYTES = 4096;
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
+const SHARE_GONE = 'This link does not open. It may have ended or been taken back. Ask whoever sent it for a new one.';
+
+function shareDocument(title: string, body: string): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">`
+    + `<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(title)}</title><style>${SHARE_STYLE}</style></head><body><main>${body}</main></body></html>`;
+}
+
+/** The page for an open link: the draft, read only, and either the client's answer or the form to give it. */
+function sharePageHtml(page: SharePageView, said: string | null): string {
+  const decision = page.decision
+    ? `<p class="said">${page.decision.decision === 'approved' ? 'You approved this draft.' : 'You asked for changes.'}</p>`
+      + (page.decision.comment ? `<p>${escapeHtml(page.decision.comment)}</p>` : '')
+    : `<form method="post"><input type="hidden" name="digest" value="${escapeHtml(page.digest)}">`
+      + `<label for="comment">Anything to change? (optional)</label><textarea id="comment" name="comment" rows="3" maxlength="1000"></textarea>`
+      + `<div class="actions"><button type="submit" name="decision" value="changes">Ask for changes</button>`
+      + `<button class="primary" type="submit" name="decision" value="approved">Approve</button></div></form>`;
+  return shareDocument(`${page.title} from ${page.businessName}`,
+    `<p class="mute">${escapeHtml(page.businessName)} shared a draft with you. Read only.</p><h1>${escapeHtml(page.title)}</h1>`
+    + `<p class="mute">This link ends on ${escapeHtml(page.expires)}.</p>${said ? `<p class="said">${escapeHtml(said)}</p>` : ''}`
+    + `<div class="text">${escapeHtml(page.text)}</div>${decision}`);
+}
 const MAX_STREAMS_PER_USER = 3;
 
 export type HostedServerOptions = {
@@ -38,6 +73,9 @@ export type HostedServerOptions = {
   maxBodyBytes: number;
   /** Loaded certificate files when tls.kind is 'files'. */
   certificate?: { cert: Buffer; key: Buffer };
+  /** The built Ink app and its allowlist (listInkFiles), served at /app/. startHosted always passes it; without it (tests
+   * of the API alone) /app/ answers 404. */
+  ink?: { folder: string; files: Record<string, string> };
 };
 
 const statusOf = (code: string | undefined) => {
@@ -90,6 +128,12 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
   const names = secure ? { session: '__Host-chausar-session', browser: '__Host-chausar-browser' } : { session: 'chausar-session', browser: 'chausar-browser' };
   const streams = new Map<string, number>();
   let closing = false;
+  /** The files served as they are: the sign-in page, and everything under /app/ from the Ink build's own allowlist. */
+  const ink = options.ink ?? null;
+  const staticFile = (path: string): readonly [string, string] | null => {
+    if (ink && path.startsWith('/app/')) { const key = path.slice('/app'.length); return Object.hasOwn(ink.files, key) ? [ink.folder, ink.files[key]] : null; }
+    return Object.hasOwn(STATIC, path) ? STATIC[path] : null;
+  };
 
   const cookie = (name: string, value: string, maxAgeSeconds: number) =>
     `${name}=${value}; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}; Max-Age=${maxAgeSeconds}`;
@@ -127,6 +171,7 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
         return fresh;
       };
       const browser = (create: boolean): Browser => ({ binding: binding(create), address });
+      if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res);
       const auth = (): Authenticated => app.accounts.authenticate(cookies.get(names.session));
       const signIn = (signed: SignedIn) => {
         setCookies.push(cookie(names.session, signed.token, Math.floor(SESSION_TTL_MS / 1000)));
@@ -135,11 +180,12 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
 
       if (req.method === 'GET' || req.method === 'HEAD') {
         if (url.pathname === '/app') { res.writeHead(308, { Location: '/app/' }); res.end(); return; }
-        if (Object.hasOwn(STATIC, url.pathname)) {
-          const [base, file] = STATIC[url.pathname];
+        const found = staticFile(url.pathname);
+        if (found) {
+          const [base, file] = found;
           let data: Buffer | string = await readFile(join(base, file));
           if (url.pathname === '/app/' || url.pathname === '/app/index.html') {
-            data = data.toString('utf8').replace('<head>', `<head>\n  ${HOSTED_META}`).replace('Opening your local workspace', 'Opening your workspace');
+            data = data.toString('utf8').replace('<head>', `<head>\n  ${HOSTED_META}`);
           }
           if (file.endsWith('.html')) binding(true);
           if (setCookies.length) res.setHeader('Set-Cookie', setCookies);
@@ -153,6 +199,13 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
           return send(200, { token: app.options.custody.rendererKey(session.session.id), me: app.me(session) });
         }
         if (url.pathname === '/api/hosted/events') return stream(auth(), req, res);
+        // The Ink app's run events: the session cookie and the page's bearer, as /api/rpc asks for.
+        if (url.pathname === '/api/events') {
+          const session = auth();
+          const bearer = req.headers.authorization ?? '';
+          check(bearer.startsWith('Bearer ') && app.options.custody.sameRendererKey(session.session.id, bearer.slice(7)), 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
+          return stream(session, req, res, true);
+        }
         throw new ChausarError('NOT_FOUND', 'Nothing is here.');
       }
 
@@ -212,11 +265,65 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
     }
   };
 
-  const stream = (session: Authenticated, req: IncomingMessage, res: ServerResponse) => {
+  /**
+   * /share/<token>: the client share page. GET shows the draft read only; POST (a same-origin form) records Approve or
+   * Ask for changes through the business's vault. No session and no cookie: the token is the key. Every miss answers the
+   * same plain 404 page, and nothing about the request is logged.
+   */
+  const share = async (token: string, address: string, req: IncomingMessage, res: ServerResponse) => {
+    const page = (status: number, html: string) => {
+      res.setHeader('Content-Security-Policy', SHARE_CSP);
+      res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : html);
+    };
+    const gone = () => page(404, shareDocument('Nothing is here', `<h1>Nothing is here</h1><p>${escapeHtml(SHARE_GONE)}</p>`));
+    try {
+      if (!SHARE_TOKEN_PATTERN.test(token)) return gone();
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        const found = await app.sharePage(token, address);
+        return found ? page(200, sharePageHtml(found, null)) : gone();
+      }
+      check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use the buttons on the page.');
+      check(req.headers.origin === origin.origin, 'INVALID_ORIGIN', 'Answer from the page itself.');
+      const site = req.headers['sec-fetch-site'];
+      check(site === undefined || site === 'same-origin', 'INVALID_ORIGIN', 'Answer from the page itself.');
+      check((req.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded'), 'INVALID_CONTENT_TYPE', 'Answer from the page itself.');
+      let size = 0; const chunks: Buffer[] = [];
+      for await (const chunk of req) { size += chunk.length; check(size <= SHARE_MAX_FORM_BYTES, 'REQUEST_TOO_LARGE', 'That comment is too long.'); chunks.push(chunk); }
+      const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+      check([...form.keys()].every(key => key === 'decision' || key === 'comment' || key === 'digest') && form.getAll('decision').length === 1 && form.getAll('digest').length === 1
+        && form.getAll('comment').length <= 1, 'INVALID_REQUEST', 'Choose Approve or Ask for changes.');
+      const answer = { decision: form.get('decision'), digest: form.get('digest'), comment: form.get('comment') ?? undefined };
+      let saved: SharePageView | null;
+      try { saved = await app.sharePage(token, address, answer); }
+      catch (error) {
+        const code = (error as { code?: unknown })?.code;
+        if (code !== 'ALREADY_DECIDED' && code !== 'APPROVAL_STALE') throw error;
+        const current = await app.sharePage(token, address);
+        return current ? page(409, sharePageHtml(current, code === 'ALREADY_DECIDED' ? 'An answer was already recorded on this draft.' : 'This draft changed since you opened it. Read it again.')) : gone();
+      }
+      return saved ? page(200, sharePageHtml(saved, 'Thank you. Your answer is recorded.')) : gone();
+    } catch (error) {
+      const code = error instanceof ChausarError ? error.code : (error as { code?: unknown })?.code;
+      if (code === 'RATE_LIMITED') res.setHeader('Retry-After', String((error as any).retryAfterSeconds ?? 60));
+      const status = typeof code === 'string' && code !== 'SERVER_ERROR' ? statusOf(code) : 500;
+      // Only Chausar's own refusals show their words; nothing about the link or the request is logged.
+      const known = error instanceof ChausarError;
+      if (!known) console.error('[hosted] share page failed');
+      if (res.headersSent) { res.end(); return; }
+      return page(known ? status : 500, shareDocument('Not done', `<h1>Not done</h1><p>${escapeHtml(known ? (error as Error).message : 'Something went wrong on the server. Nothing was recorded.')}</p>`));
+    }
+  };
+
+  /** runEvents: the Ink app's stream, run events only, each as a VentureRunEvent for the open business (views/events.ts). */
+  const stream = (session: Authenticated, req: IncomingMessage, res: ServerResponse, runEvents = false) => {
     const open = streams.get(session.user.id) ?? 0;
     check(open < MAX_STREAMS_PER_USER, 'RATE_LIMITED', 'Too many open pages. Close one and try again.');
     let off: (() => void) | null = null;
-    off = app.subscribe(session, event => { res.write(`id: ${event.seq}\nevent: ${event.name}\ndata: ${JSON.stringify(event)}\n\n`); });
+    const businessId = session.session.businessId ?? '';
+    off = app.subscribe(session, runEvents
+      ? event => { const run = runEventFromActor(event, businessId); if (run) res.write(sseFrame(run)); }
+      : event => { res.write(`id: ${event.seq}\nevent: ${event.name}\ndata: ${JSON.stringify(event)}\n\n`); });
     streams.set(session.user.id, open + 1);
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write('retry: 5000\n\n');
@@ -277,6 +384,8 @@ async function openDirectory(config: HostedConfig, custody: HostedCustody, conne
  */
 export async function startHosted(config: HostedConfig, print: (line: string) => void = line => console.log(line),
   connect: (options: NonNullable<HostedConfig['postgres']>) => Promise<PostgresPool> = options => openLoopbackPool(options, 'chausar-hosted')) {
+  // Listed before anything opens, so an unbuilt Ink app stops the start with its own plain reason (UI_NOT_BUILT).
+  const ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) };
   await mkdir(config.dataDirectory, { recursive: true, mode: 0o700 });
   const custody = config.custody.kind === 'env' ? HostedCustody.fromKey(config.custody.key) : await devCustody(config.dataDirectory);
   const { directory, pool } = await openDirectory(config, custody, connect);
@@ -292,9 +401,9 @@ export async function startHosted(config: HostedConfig, print: (line: string) =>
       githubTransport = (store: any) => build.createFixtureGitHubTransport(fixture, () => ({
         briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' }));
     }
-    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool });
+    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool, publicUrl: config.publicUrl });
     const certificate = config.tls.kind === 'files' ? { cert: await readFile(config.tls.cert), key: await readFile(config.tls.key) } : undefined;
-    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate });
+    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate, ink });
     app.startHousekeeping();
     return { app, http, custody };
   } catch (error) { await directory.close().catch(() => {}); throw error; }
@@ -304,7 +413,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   let config: HostedConfig;
   try { config = hostedConfig(process.env, process.argv); }
   catch (error) { console.error((error as Error).message); process.exit(1); }
-  const { http } = await startHosted(config);
+  let started: Awaited<ReturnType<typeof startHosted>>;
+  try { started = await startHosted(config); }
+  catch (error) { if ((error as ChausarError).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
+  const { http } = started;
   await http.listen(config.listen.host, config.listen.port);
   console.log(`Chausar hosted web (experimental) at ${config.origin}, listening on ${config.listen.host}:${config.listen.port}.`);
   console.log(config.storage === 'postgres'
@@ -312,6 +424,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     : 'Businesses are kept in experimental encrypted file storage. Practise here; nothing is deployed.');
   if (config.custody.kind === 'dev-file') console.log(`Development custody key in ${join(config.dataDirectory, 'dev-custody.key')}. Never use it for real accounts.`);
   if (config.mailer === 'dev-outbox') console.log('Sign-in links are printed here, not emailed.');
+  console.log(`The app is at ${config.origin}/app/, built from app/ui.`);
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void http.close().finally(() => process.exit(0)); });
 }
 

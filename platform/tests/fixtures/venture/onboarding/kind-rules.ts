@@ -1,6 +1,6 @@
 // Deterministic open-box classifier for TESTS ONLY (onboarding spec, section 3). The product never classifies by
 // keywords: with no AI connected, decide refuses NO_MODEL_CONNECTED and the screen offers a built-in plan instead.
-// The renderer's fake engine and a recordings test import this; nothing under platform/runtime/ may.
+// The onboarding recordings test imports this; nothing under platform/runtime/ may.
 import type { OpenBoxKind } from '../../../../runtime/venture/onboarding-contracts.ts';
 
 const SKILL = ["i'm good at", 'i am good at', 'i can', 'i know how'];

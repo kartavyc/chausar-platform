@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import { fixture, legacy, INITIAL, CURRENT, SEPTEMBER, OCTOBER, scope, sha256 } from './fixtures/answer-recovery-independent-acceptance.ts';
 import { ExperimentalFileSnapshotAdapter, Vault } from '../runtime/vault.ts';
 import { ChausarError } from '../runtime/contracts.ts';
-import { descendants, dialogFor, find, hasText, namedButton } from './fixtures/conversation-acceptance-renderer.ts';
 
 const ordinaryAnswers = (state: any) => state.answers.filter((answer: any) => answer.request && answer.receiptId);
 const originalId = (name = 'billed') => legacy.originals[name].answer.id;
@@ -111,31 +110,27 @@ test('aging recovery requires a new onDate and honestly chosen all-event-date sc
   assert.deepEqual(f.originals(await f.snapshot()), f.originals(baseline));
 });
 
-test('renderer-selected September aging scope excludes October invoices as its declared inclusive event period promises', async t => {
+test('a September aging scope declared through the desktop preload excludes October invoices as its inclusive event period promises', async t => {
   const f = await fixture(t), originalBytes = JSON.stringify(f.originals(await f.snapshot()));
-  await namedButton(f.h.app, 'Older calculations').dispatch('click');
-  const older = dialogFor(f.h.body, 'Older calculations');
-  const section = descendants(older).find(node => node.tagName === 'section' && hasText(node, originalId('aging')));
-  assert.ok(section); await namedButton(section, 'Review fresh calculation').dispatch('click');
-  const dialog = dialogFor(f.h.body, 'Fresh calculation from an older answer');
-  const timestamp = find(dialog, node => node.tagName === 'input' && node.attributes.type === 'text');
-  const dates = descendants(dialog).filter(node => node.tagName === 'input' && node.attributes.type === 'date');
-  assert.equal(timestamp.value, ''); assert.ok(dates.every(node => node.value === ''));
-  timestamp.value = INITIAL; find(dialog, node => node.tagName === 'select').value = 'period';
-  dates[0].value = SEPTEMBER.from; dates[1].value = SEPTEMBER.to; dates[2].value = '2026-11-01';
-  find(dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = true;
-  await find(dialog, node => node.tagName === 'form').dispatch('submit');
-  const prepared = f.h.calls.find(call => call.method === 'answers.recovery.prepare');
+  // The owner's sequence: list unpinned saved answers, review the aging one, declare a new time scope, then execute.
+  const unpinned = (await f.request('trials.savedQuestions')).filter((answer: any) => answer.request && !Object.hasOwn(answer.request, 'asOf'));
+  assert.ok(unpinned.some((answer: any) => answer.id === originalId('aging')));
+  const review = await f.review('aging');
+  const issued = await f.request('answers.recovery.prepare', { answerId: originalId('aging'), source: review.source, reviewedEvidencePin: review.reviewedEvidencePin,
+    timeScope: { asOf: INITIAL, period: { ...SEPTEMBER }, comparePeriod: null, onDate: '2026-11-01' }, confirmedNewCalculation: true });
+  const prepared = f.bridge.calls.find(call => call.method === 'answers.recovery.prepare');
   assert.deepEqual(prepared.payload.timeScope, scope({ asOf: INITIAL, onDate: '2026-11-01' }));
-  await namedButton(dialog, 'Create this fresh calculation').dispatch('click');
-  const execution = f.h.calls.find(call => call.method === 'answers.recovery.execute');
+  assert.equal(prepared.payload.newRequestId, undefined); assert.equal(f.bridge.rejected.length, 0);
+  await f.request('answers.recovery.execute', f.executePayload(issued));
+  const execution = f.bridge.calls.find(call => call.method === 'answers.recovery.execute');
+  assert.deepEqual(Object.keys(execution.payload).sort(), ['newRequestId', 'preparationDigest']);
   const result = await f.request('answers.recovery.get', { newRequestId: execution.payload.newRequestId });
   assert.equal(result.status, 'completed'); assert.deepEqual(result.receipt.period, SEPTEMBER);
   assert.equal(JSON.stringify(f.originals(await f.snapshot())), originalBytes);
-  t.diagnostic(JSON.stringify({ qualification: 'actual-renderer-preload-IPC-HTTP-Engine', declaredPeriod: result.receipt.period,
+  t.diagnostic(JSON.stringify({ qualification: 'actual-preload-IPC-HTTP-Engine', declaredPeriod: result.receipt.period,
     onDate: result.receipt.assumptions.onDate, actualTotalMinor: result.receipt.totalMinor,
     includedEntities: result.receipt.rows.map((row: any) => row.entityId), expectedSeptemberTotalMinor: '30000' }));
-  assert.equal(result.receipt.totalMinor, '30000', 'The UI declares an inclusive September event period; October invoice A3 must not be counted.');
+  assert.equal(result.receipt.totalMinor, '30000', 'The declared scope is an inclusive September event period; October invoice A3 must not be counted.');
   assert.deepEqual(result.receipt.rows.map((row: any) => row.entityId).sort(), ['A1', 'A2']);
 });
 

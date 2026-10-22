@@ -217,6 +217,53 @@ test('five planned shards preserve the four ordinary groups and execute the inde
   }
 });
 
+test('six planned shards spread the ordinary files over five groups and execute the independent file once with deterministic complete coverage', async t => {
+  const f = await fixture(t, false, false, true), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
+  const ordinaryFiles = Array.from({ length: 6 }, (_, index) => `platform/tests/fixture-${index + 1}.test.ts`);
+  const discovered = [...ordinaryFiles, independentFixtureFile].sort();
+  const groups = [...Array.from({ length: 5 }, (_, index) => ordinaryFiles.filter((_, position) => position % 5 === index)), [independentFixtureFile]];
+  for (const index of [1, 2, 3, 4, 5, 6]) {
+    await writeFile(join(f.directory, 'executed.jsonl'), '');
+    const output = `results/six-shard-${index}.json`;
+    const args = index % 2 ? [`--shard=${index}/6`, '--output', output] : ['--output=' + output, '--shard', `${index}/6`];
+    const result = f.invoke(args), report = await f.report(output), executed = await f.executed();
+    assert.equal(result.status, 0, JSON.stringify(report));
+    assertCompleteRun(report, groups[index - 1].length, discovered);
+    assert.equal(report.fullSuite, false);
+    assert.deepEqual(report.shard, { index, total: 6 });
+    assert.equal(report.scope, `Repository open tests (shard ${index}/6)`);
+    assert.equal(report.testFiles.selection, 'explicit-stable-six-shard-plan');
+    assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
+    assert.deepEqual(report.testFiles.plan, { name: 'five-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 5,
+      dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', ...groups[index - 1]]);
+    assert.equal(new Set(executed).size, executed.length);
+    for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
+    covered.push(executed); inventories.push(report.testFiles);
+  }
+  assert.deepEqual(covered, [[1, 6], [2], [3], [4], [5], [7]]);
+  for (const inventory of inventories) assert.deepEqual(inventory.plan, inventories[0].plan);
+  assert.deepEqual(inventories[0].plan!.groups.flatMap(group => group.files).sort(), discovered);
+  for (const index of [1, 6]) {
+    await writeFile(join(f.directory, 'executed.jsonl'), '');
+    const output = `results/six-repeat-${index}.json`;
+    assert.equal(f.invoke([`--shard=${index}/6`, '--output', output]).status, 0);
+    assert.deepEqual((await f.report(output)).testFiles, inventories[index - 1]);
+    assert.deepEqual(await f.executed(), covered[index - 1]);
+  }
+});
+
+test('a missing independent file or empty complementary group refuses the six-way plan before spawning tests', async t => {
+  for (const f of [await fixture(t), await fixture(t, false, false, true, 4)]) {
+    for (const index of [1, 6]) {
+      const result = f.invoke([`--shard=${index}/6`]);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Six-shard plan requires the dedicated independent activation test file|Six-shard plan must provide nonempty, disjoint groups/);
+    }
+    await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+  }
+});
+
 test('a missing independent file or empty complementary group refuses the five-way plan before spawning tests', async t => {
   for (const f of [await fixture(t), await fixture(t, false, false, true, 3)]) {
     for (const index of [1, 2, 3, 4, 5]) {
@@ -235,10 +282,12 @@ test('invalid, duplicated and unknown shard options refuse before spawning fixtu
     ['--shard'], ['--shard='], ['--shard', '--output=x.json'],
     ...['0/2', '3/2', '1/0', '1/1', '1/3', '01/2', '+1/2', '1.0/2', '1/02', '1/2/3', ' 1/2', '1/2 ',
       '0/4', '5/4', '01/4', '+1/4', '1.0/4', '1/04', '1/4/4', ' 1/4', '1/4 ',
-      '0/5', '6/5', '1/6', '01/5', '+1/5', '1.0/5', '1/05', '1/5/5', ' 1/5', '1/5 '].map(value => ['--shard=' + value]),
+      '0/5', '6/5', '1/7', '01/5', '+1/5', '1.0/5', '1/05', '1/5/5', ' 1/5', '1/5 ',
+      '0/6', '7/6', '01/6', '+1/6', '1.0/6', '1/06', '1/6/6', ' 1/6', '1/6 '].map(value => ['--shard=' + value]),
     ['--shard=1/2', '--shard=2/2'], ['--shard', '1/2', '--shard', '1/2'],
     ['--shard=1/4', '--shard=4/4'], ['--shard', '3/4', '--shard', '3/4'], ['--shard=1/2', '--shard=1/4'],
     ['--shard=1/5', '--shard=5/5'], ['--shard', '3/5', '--shard', '3/5'], ['--shard=1/4', '--shard=1/5'],
+    ['--shard=1/6', '--shard=6/6'], ['--shard', '3/6', '--shard', '3/6'], ['--shard=1/5', '--shard=1/6'],
     ['--output=a.json', '--output', 'b.json'], ['--unknown=1/2'], ['--shard=1/2', 'extra'],
   ]) {
     const result = f.invoke(args);
@@ -322,18 +371,35 @@ test('five planned shards retain failure, skip and todo admission guards', async
   }
 });
 
-test('CI requires all five planned shards on both operating systems with ten unique report artifacts', async () => {
+test('CI requires all six planned shards on both operating systems with twelve unique report artifacts', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /fail-fast: false/);
   assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /shard: \[1, 2, 3, 4, 5\]/);
+  assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6\]/);
   assert.match(workflow, /node-version: '24\.13\.1'/);
-  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/5 --output results\/factory-bench\.json/);
-  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-5/);
-  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4, 5].map(shard => `open-test-report-${os}-shard-${shard}-of-5`));
-  assert.equal(new Set(artifacts).size, 10);
+  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/6 --output results\/factory-bench\.json/);
+  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-6/);
+  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4, 5, 6].map(shard => `open-test-report-${os}-shard-${shard}-of-6`));
+  assert.equal(new Set(artifacts).size, 12);
   const script = await readFile(new URL('../../scripts/bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /10 \* 60 \* 1000/);
   assert.match(script, /16 \* 1024 \* 1024/);
   assert.doesNotMatch(workflow, /continue-on-error: true|--test-name-pattern|--test-skip-pattern/);
+});
+
+test('CI runs the Ink frontend on both operating systems: typecheck, every test with no skips, and the build', async () => {
+  const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const start = workflow.search(/^  ui:$/m);
+  assert.ok(start > 0, 'the ui job exists');
+  const ui = workflow.slice(start);
+  assert.match(ui, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.match(ui, /node-version: '24\.13\.1'/);
+  assert.match(ui, /run: npm run typecheck:ui/);
+  assert.match(ui, /run: node scripts\/ui-bench\.mjs --output results\/ui-tests\.json/);
+  assert.match(ui, /run: npm run build:ui/);
+  assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}/);
+  assert.doesNotMatch(workflow, /continue-on-error: true/);
+  const script = await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url), 'utf8');
+  assert.match(script, /counts\.fail === 0 && counts\.skipped === 0 && counts\.todo === 0/);
+  assert.match(script, /counts\.tests > 0/);
 });

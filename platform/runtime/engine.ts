@@ -65,7 +65,7 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { SecretShelf, VentureHostOptions } from './venture/contracts.ts';
+import type { SecretShelf, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
@@ -104,6 +104,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
   maxEntryBytes: 16 * 1024 * 1024, maxTotalEntryBytes: 16 * 1024 * 1024, maxEntries: 4096, maxJsonDepth: 128, maxJsonNodes: 200_000 };
 const defaultBackupFilesystemBudgets: WorkspaceBackupV2FilesystemBudgets = { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 };
+/** How often the scheduler tick sweeps the venture action journal (venture/build/journal-sweep.ts). */
+const JOURNAL_SWEEP_EVERY_MS = 5 * 60_000;
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
@@ -146,7 +148,7 @@ export class Engine {
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
   #venture: { request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void } | null = null;
-  #venturePromise: Promise<{ request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void }> | null = null;
+  #venturePromise: Promise<{ request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void; shareLink(ctx: Context, op: 'page' | 'decide', token: string, input?: unknown): Promise<unknown> }> | null = null;
   #ventureModule() {
     return import('./venture/host.ts').catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
   }
@@ -174,6 +176,28 @@ export class Engine {
     moveKeys: (target: SecretShelf) => { this.#draft?.handover.moveKeys(target); },
     settle: () => { this.#draft?.handover.settle(); },
   });
+  // Run events for the Ink frontend: the desktop worker forwards them over IPC, the local server streams them at /api/events.
+  #ventureEventListeners = new Set<(event: VentureRunEvent) => void>();
+  /** Trusted host hook: hears each run event a venture action committed. Returns the unsubscribe function. */
+  onVentureEvent(listener: (event: VentureRunEvent) => void): () => void {
+    this.#ventureEventListeners.add(listener);
+    return () => { this.#ventureEventListeners.delete(listener); };
+  }
+  #publishVentureEvents(events: VentureRunEvent[]) {
+    for (const event of events) for (const listener of [...this.#ventureEventListeners]) {
+      try { listener(Object.freeze({ ...event })); } catch { /* A listener's failure is its own. */ }
+    }
+  }
+  /** What Today's queue may know about the businesses on this computer. The id is the workspace folder, as in workspace.list. */
+  #ventureWorkspace: VentureWorkspacePort = Object.freeze({
+    current: () => {
+      const workspace = this.vault?.read().workspace;
+      return { id: this.#openFolder ?? workspace?.id ?? 'main', name: workspace?.name ?? '' };
+    },
+    businesses: async () => this.options.venture?.host === 'hosted-web' ? []
+      : (await this.custodyFiles().listBusinesses(this.storageKind())).businesses.map(item => ({ id: item.folder, name: item.name, opens: item.opens, openedAt: item.openedAt })),
+    recovery: async () => this.options.venture?.host === 'hosted-web' || !this.custodyHost() ? null : (await this.custodyView()).business?.recovery ?? null,
+  });
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
@@ -181,7 +205,9 @@ export class Engine {
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
-          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }) });
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }),
+          workspace: venture.workspace ?? this.#ventureWorkspace,
+          notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); } });
       this.#venture = host;
       return host;
     });
@@ -445,6 +471,10 @@ export class Engine {
     return this.#requestContext.run(scoped, async () => await work());
   }
   async requestAs(context: Context, method: string, payload: any = {}): Promise<any> { return this.withContext(context, () => this.request(method, payload)); }
+  /** The hosted /share/<token> page (VentureHost.shareLink). Trusted host only: request() never routes here. */
+  async ventureShareLink(context: Context, op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+    return this.withContext(context, async () => (await this.#ventureHost()).shareLink(context, op, token, input));
+  }
   bootstrapContext(): Context {
     if (!this.vault) return { ...this.#baseContext };
     const member = this.currentWorkspaceOwner(this.vault);
@@ -786,7 +816,30 @@ export class Engine {
     // survive an otherwise read-only lock/reopen.
     if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
     if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
+    // The action journal: nothing of this process is in flight while a vault opens, so any claim left behind was
+    // interrupted. It becomes outcome_unknown and is never run again on its own. Only for a vault with a business.
+    this.#journalSweptAt = Date.now();
+    await this.sweepVentureJournal(1);
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; this.resetCustodySession(); throw error; } }
+  /** When the tick last swept the action journal (wall clock, ms). Opening a vault sweeps it too. */
+  #journalSweptAt = 0;
+  /** Sweeps the open business's action journal through the venture host. Never throws; null when it did not run. */
+  private async sweepVentureJournal(claimLimitMs?: number): Promise<number | null> {
+    const vault = this.vault;
+    if (!vault || !vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return null;
+    try {
+      const host = await this.#ventureHost() as unknown as { sweepJournal?: (ctx: Context, claimLimitMs?: number) => Promise<number | null> };
+      if (this.vault !== vault || typeof host.sweepJournal !== 'function') return null;
+      return await host.sweepJournal({ ...this.#baseContext }, claimLimitMs);
+    } catch { return null; }
+  }
+  /** At a tick, every few minutes: the journal sweep, with the longest claim limit any effect needs. Never throws. */
+  private async journalTick() {
+    if (this.#closing || this.#transition || !this.vault || Date.now() - this.#journalSweptAt < JOURNAL_SWEEP_EVERY_MS) return;
+    this.#journalSweptAt = Date.now();
+    this.#activeRequests++;
+    try { await this.sweepVentureJournal(); } finally { this.#activeRequests--; this.notifyIdle(); }
+  }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
@@ -1493,6 +1546,9 @@ export class Engine {
       case 'venture.invoice.list':
       case 'venture.payment.record':
       case 'venture.books.summary':
+      case 'venture.spend.list':
+      case 'venture.spend.policy.get':
+      case 'venture.spend.policy.set':
       case 'venture.build.brief':
       case 'venture.build.handoff':
       case 'venture.build.handoffOpened':
@@ -1522,6 +1578,37 @@ export class Engine {
       case 'venture.improve.adopt':
       case 'venture.delivery.delegate':
       case 'venture.delegate.get':
+      case 'venture.queue.list':
+      case 'venture.queue.decide':
+      case 'venture.runs.list':
+      case 'venture.runs.get':
+      case 'venture.team.list':
+      case 'venture.team.gate':
+      case 'venture.evidence.list':
+      case 'venture.evidence.apply':
+      case 'venture.journal.list':
+      case 'venture.bank.import':
+      case 'venture.bank.consent':
+      case 'venture.site.stage':
+      case 'venture.site.apply':
+      case 'venture.site.revert':
+      case 'venture.leads.add':
+      case 'venture.leads.list':
+      case 'venture.leads.draft':
+      case 'venture.leads.recordSend':
+      case 'venture.queue.view':
+      case 'venture.team.posture':
+      case 'venture.evidence.dismiss':
+      case 'venture.money.overview':
+      case 'venture.tax.working':
+      case 'venture.ca.get':
+      case 'venture.ca.setOfRecord':
+      case 'venture.ca.recordSignoff':
+      case 'venture.ca.confirmRates':
+      case 'venture.leads.block':
+      case 'venture.share.create':
+      case 'venture.share.list':
+      case 'venture.share.revoke':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }
@@ -2285,8 +2372,9 @@ export class Engine {
     this.#jobLifecycle = { ...host };
   }
   async tick() {
-    // Automatic backups run before the autonomy check: they don't depend on scheduled jobs.
+    // Automatic backups run before the autonomy check: they don't depend on scheduled jobs. So does the journal sweep.
     await this.backupTick();
+    await this.journalTick();
     const host = { ...this.#jobLifecycle };
     if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;

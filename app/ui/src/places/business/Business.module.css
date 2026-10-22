@@ -1,0 +1,334 @@
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-5);
+  margin: calc(var(--sp-4) * -1) 0 var(--sp-6);
+  font-size: var(--text-read);
+}
+
+.navLink {
+  padding: var(--sp-1) 0;
+  color: var(--mute);
+  text-decoration: none;
+  border-bottom: var(--hair) solid transparent;
+}
+
+.navLink:hover {
+  color: var(--fg);
+}
+
+.navLink[aria-current='page'] {
+  color: var(--fg);
+  border-bottom-color: var(--fg);
+}
+
+.section {
+  margin-top: var(--sp-8);
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.heading:focus {
+  outline: none;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meta {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-sheet);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.name:focus {
+  outline: none;
+}
+
+.lead {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-body);
+  color: var(--fg2);
+}
+
+.line {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.tag {
+  margin-left: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-body);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.unit {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.quiet {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.link {
+  font-size: var(--text-read);
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--sp-1) var(--sp-5);
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.pair {
+  display: contents;
+}
+
+.figures dd {
+  margin: 0;
+  color: var(--fg);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: 10px 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.stepWho {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.plain {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-body);
+  color: var(--fg2);
+}
+
+.plain li + li {
+  margin-top: var(--sp-1);
+}
+
+.fold {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.fold summary {
+  cursor: pointer;
+  color: var(--link);
+}
+
+.fold[open] summary {
+  margin-bottom: var(--sp-2);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  max-width: 520px;
+}
+
+.inlineForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: flex-end;
+  margin-top: var(--sp-3);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-3);
+}
+
+.problem {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.said {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.warn {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--wait);
+}
+
+.strong {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.repo {
+  margin-left: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.pre {
+  margin: 0;
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}
+
+.code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0;
+  font-size: var(--text-row);
+  color: var(--fg);
+}
+
+.agree {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-2);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+/* A staged site edit: the change as lines. Removed lines are struck in grey, added lines are in ink. */
+.diff {
+  display: grid;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-family: var(--font-mono);
+  font-size: var(--text-read);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.removed,
+.added,
+.same {
+  display: block;
+  min-height: 1.5em;
+}
+
+.removed {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.added {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.same {
+  color: var(--mute);
+}
+
+.log {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.log li + li {
+  margin-top: 2px;
+}
+
+/* Keep this business: every backup on a thin line, and the export's two kinds of copy. */
+.backupRow {
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+}
+
+.backupLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  align-items: baseline;
+}
+
+.backupLine > button {
+  margin-left: auto;
+}
+
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

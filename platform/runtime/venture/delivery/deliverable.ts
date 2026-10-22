@@ -2,7 +2,7 @@
 // The model writes words and picks references; the engine fills every price and date from receipts and its clock.
 // A draft reply is never called a deliverable on screen: an agent in this build only has the client's message.
 import { check, type State } from '../../contracts.ts';
-import { copiedTokens, formatVentureDate, modelWords } from '../records.ts';
+import { copiedTokens, formatVentureDate, modelNumbers, modelWords } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
   BlueprintRecord, CountryProfile, Deliverable, DeliveryModelOutput, IsoDate, Json, ModelTask, OrderRecord, PriceFigure,
@@ -23,8 +23,11 @@ export type FigureRefEntry = { ref: string; label: string; receiptId: string; fi
 export type DateRefEntry = { ref: string; label: string; iso: IsoDate };
 /** What the engine offers a draft: words-only labels for the model, receipts and dates kept on the engine side. */
 export type DraftRefs = { figures: FigureRefEntry[]; dates: DateRefEntry[] };
-/** sections overrides the service type's reply headings, for a report on proven work. */
-export type DraftContext = { serviceType: ServiceType; refs: DraftRefs; allowed: readonly string[]; sections?: readonly string[] };
+/**
+ * sections overrides the service type's reply headings, for a report on proven work. numbers 'refuse': the harness's
+ * write step, whose counts and amounts all have work receipts and reach the words only as figure refs.
+ */
+export type DraftContext = { serviceType: ServiceType; refs: DraftRefs; allowed: readonly string[]; sections?: readonly string[]; numbers?: 'refuse' };
 
 const UNIT_WORD: Record<string, string> = { month: 'month', project: 'project', hour: 'hour' };
 
@@ -102,13 +105,14 @@ function closed(value: unknown, keys: readonly string[], what: string): Record<s
 
 /**
  * Turns the model's flat output into a draft reply. Headings come from the required list, each at most once;
- * text goes through the number guard with tokens copied from the client's message and the idea; figure and date
- * parts must use a ref the engine offered.
+ * text may hold numbers but no amount of money (tokens copied from the client's message and the idea pass), and a
+ * draft whose words hold a number is marked estimate: true; figure and date parts must use a ref the engine offered.
  */
 export function validateDraft(raw: unknown, context: DraftContext): Deliverable {
   const output = closed(raw, ['title', 'sections', 'questionsForClient'], 'draft') as unknown as DeliveryModelOutput;
   const required = context.sections ?? REQUIRED_SECTIONS[context.serviceType];
-  const title = modelWords(output.title, 'draft title', 120);
+  const numbers = context.numbers;
+  const title = modelWords(output.title, 'draft title', 120, { numbers });
   check(Array.isArray(output.sections) && output.sections.length >= 1 && output.sections.length <= required.length, 'MODEL_OUTPUT_REJECTED', 'The draft needs between one section and every required section.');
   const used = new Set<string>();
   const sections: Deliverable['sections'] = [];
@@ -125,7 +129,7 @@ export function validateDraft(raw: unknown, context: DraftContext): Deliverable 
       check(typeof part.text === 'string' && typeof part.ref === 'string', 'MODEL_OUTPUT_REJECTED', 'A draft part was not text.');
       if (part.kind === 'text') {
         check(part.ref === '', 'MODEL_OUTPUT_REJECTED', 'A text part carried a reference.');
-        parts.push({ kind: 'text', text: modelWords(part.text, 'draft text', 1200, { allowed: context.allowed }) });
+        parts.push({ kind: 'text', text: modelWords(part.text, 'draft text', 1200, { allowed: context.allowed, numbers }) });
       } else if (part.kind === 'figure') {
         check(part.text === '', 'MODEL_OUTPUT_REJECTED', 'A price part carried words.');
         const figure = context.refs.figures.find(entry => entry.ref === part.ref);
@@ -143,8 +147,17 @@ export function validateDraft(raw: unknown, context: DraftContext): Deliverable 
     sections.push({ heading, parts });
   }
   check(Array.isArray(output.questionsForClient) && output.questionsForClient.length <= 3, 'MODEL_OUTPUT_REJECTED', 'The draft asked more than three questions.');
-  const questionsForClient = (output.questionsForClient as unknown[]).map(question => modelWords(question, 'question for the client', 200, { allowed: context.allowed }));
-  return { title, sections, questionsForClient };
+  const questionsForClient = (output.questionsForClient as unknown[]).map(question => modelWords(question, 'question for the client', 200, { allowed: context.allowed, numbers }));
+  const draft: Deliverable = { title, sections, questionsForClient };
+  // A number in the model's words is a model estimate: the draft says so and no receipt is attached to the words.
+  return draftWords(draft).some(words => modelNumbers(words, context.allowed)) ? { ...draft, estimate: true } : draft;
+}
+
+/** Every piece of model words in a draft: the title, each text part and each question. */
+export function draftWords(draft: Deliverable): string[] {
+  const pieces = [draft.title];
+  for (const section of draft.sections) for (const part of section.parts) if (part.kind === 'text') pieces.push(part.text);
+  return [...pieces, ...draft.questionsForClient];
 }
 
 /** One sentence per required section for each service type. Each promises work ahead and never reports it done. */
@@ -231,6 +244,8 @@ export type DeliveryTaskInput = {
   templateTotalRef: 'offer_1.total' | 'order.total';
   /** The playbook's guidance for the writing step; sent only when there is some. */
   guidance?: readonly string[];
+  /** The drafting step's own headings, when a flagship playbook gives them; else the service type's. */
+  sections?: readonly string[];
 };
 
 /** The words a draft may copy that hold digits: tokens with a letter and a digit from the client's message or the idea. */
@@ -241,21 +256,22 @@ export function draftAllowedTokens(clientRequest: string, idea: string): string[
 /** One delivery model call: gather, clarify and draft in one, over the client's message only. */
 export function deliveryTask(input: DeliveryTaskInput): ModelTask<Deliverable> {
   const allowed = draftAllowedTokens(input.clientRequest, input.idea);
-  const context: DraftContext = { serviceType: input.serviceType, refs: input.refs, allowed };
+  const sections = input.sections ?? REQUIRED_SECTIONS[input.serviceType];
+  const context: DraftContext = { serviceType: input.serviceType, refs: input.refs, allowed, ...(input.sections ? { sections: input.sections } : {}) };
   return {
     purpose: 'delivery',
     instructions: DELIVERY_INSTRUCTIONS,
     input: {
       serviceType: input.serviceType,
       offer: { name: input.offer.name, description: input.offer.description },
-      requiredSections: [...REQUIRED_SECTIONS[input.serviceType]],
+      requiredSections: [...sections],
       clientRequest: input.clientRequest,
       figures: input.refs.figures.map(figure => ({ ref: figure.ref, label: figure.label })),
       dates: input.refs.dates.map(date => ({ ref: date.ref, label: date.label })),
       ...(input.guidance?.length ? { guidance: [...input.guidance] } : {}),
     },
     schemaName: 'venture-delivery',
-    schema: deliverySchema(input.serviceType),
+    schema: deliverySchema(input.serviceType, sections),
     validate: raw => validateDraft(raw, context),
     template: () => templateOutline(input.serviceType, templateTotal(input.refs, input.templateTotalRef)),
     containsClientData: input.containsClientData,

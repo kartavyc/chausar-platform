@@ -3,18 +3,25 @@
 // only when the playbook grants it to the run. Nothing here writes outside Chausar; an outside write is only ever
 // recorded for the owner's approval. Money comes back as calculator receipts the draft cites by reference. On the
 // shared hosted server the tools that need agent-written code, a container, the Python helper or the owner's own
-// command-line tool are refused before they start, and the agent is not offered them.
+// command-line tool are refused before they start, and the agent is not offered them. Every call that passes those
+// checks is put to the policy (venture/policy) before it runs: a deny or a failing check blocks it, an ask holds it
+// for the owner, and only an allow lets it start.
 import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import { TOOL_NAMES } from '../../contracts.ts';
 import type {
-  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, RecordBase, SandboxPorts, ToolCallRecord,
+  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
+import type { Context } from '../../../contracts.ts';
+import { defaultPolicyContext, ladderPolicy, type HarnessPolicy } from '../../policy/ladder.ts';
+import { shadowAction } from '../../journal/simulation.ts';
+import { AGENT_ID } from '../../views/shared.ts';
+import { evaluate, type Verdict } from '../../policy/verdict.ts';
 import { amountCandidates, dateCandidates } from './cells.ts';
 import { DELEGATE_LABELS, DELEGATE_MINUTES, prepareDelegation, REAL_ORDER_ONLY, type DelegateAvailability, type DelegationDraft } from './delegate.ts';
 import { browse, DICTIONARY_KINDS, resolve, type DictionaryEntry, type DictionaryKind } from './dictionary.ts';
-import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, type FileLike, type SourceTable } from './files.ts';
+import { HOSTED_NO_PDF, pdfPages, tableOfRecord, tablesOfFile, transcriptCues, type FileLike, type SourceTable } from './files.ts';
 import { labelFinding, runPythonTransform, runRowProgram, tierRefusal } from './sandbox.ts';
 import { parseRowProgram, ROW_LANGUAGE_GUIDE } from './sandbox-lang.ts';
 import { reconcileMonth, sumRows, totalsBy, type WorkEnv, type WorkReceiptDraft } from './work.ts';
@@ -24,6 +31,14 @@ export const MAX_INPUT_CHARS = 12000;
 const TOOL_TIMEOUT_MS = 60000;
 const SAMPLE_ROWS = 5;
 const PAGE_ROWS = 60;
+/** Transcript lines one read returns; the next read starts from the segment id it names. */
+const PAGE_SEGMENTS = 200;
+/** A time in a transcript as a viewer reads it: 0:45, 12:03 or 1:02:03. */
+function segmentClock(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
 
 /** Everything a tool may touch during one run. Records a tool makes wait in pending until the run stores them. */
 export type ToolEnv = {
@@ -44,7 +59,32 @@ export type ToolEnv = {
   allowed: readonly string[];
   /** The owner's command-line tools found and checked for this run. Empty in rehearsals and on the hosted server. */
   delegateOffer?: readonly DelegateAvailability[];
+  /** What each call is checked against before it runs. Without it a real order fails closed (policy/ladder.ts). */
+  policy?: HarnessPolicy;
+  /** Who approved this turn, on a real order: shadow entries are journalled as them. Absent in rehearsals. */
+  ctx?: Context;
 };
+
+const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
+const SHADOW_NOTE = 'Shadow: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
+
+/**
+ * At shadow (the business, the agent and this real order tightened together), an outside write is journalled as a
+ * shadow entry and the agent goes on against the simulated result (journal/simulation.ts). Nothing is approved or applied.
+ */
+async function shadowOutbox(env: ToolEnv, mock: MockEffect, summary: string): Promise<unknown | null> {
+  if (env.runRef.kind !== 'delivery' || !env.ctx || env.policy?.context.posture !== 'shadow') return null;
+  const target = OUTBOX_TARGETS[mock.connector] ?? 'A connected service';
+  const words = summary.replace(/\s+/g, ' ').trim();
+  const { simulation } = await shadowAction(env.deps, env.ctx, {
+    action: 'connector.write', subject: `${env.runRef.runId}:${mock.payloadDigest.slice(0, 16)}`, target, actionDigest: mock.payloadDigest,
+    line: `${target}: ${words}`.slice(0, 300), agent: AGENT_ID,
+  });
+  return {
+    recorded: true, sent: false, shadow: true, note: SHADOW_NOTE,
+    wouldHappen: simulation.value.effects, couldNotSimulate: simulation.unsimulated.map(item => item.reason),
+  };
+}
 
 type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft };
 type Field =
@@ -91,6 +131,7 @@ function tableOf(env: ToolEnv, alias: unknown): SourceTable {
     if (file) {
       const upload = fileOf(env, file[1]);
       if (upload.format === 'pdf') fail(`${file[1]} is a PDF. Read its text with files.read, and use bills.pick for bill amounts.`);
+      if (upload.format === 'transcript') fail(`${file[1]} is a transcript. Read its timed lines with part pages.`);
       const tables = tablesOfFile(upload);
       const found = file[2] ? tables.find(table => table.id === `${upload.id}${file[2]}`) : tables[0];
       if (found) return found;
@@ -122,6 +163,7 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
       const files = env.files.map((file, index) => {
         const alias = `f${index + 1}`;
         if (file.format === 'pdf') return { file: alias, name: file.name, format: file.format, tables: [] };
+        if (file.format === 'transcript') return { file: alias, name: file.name, format: file.format, tables: [], segments: transcriptCues(file).length };
         let tables: Json = [];
         let note: string | null = null;
         try { tables = tablesOfFile(file).map(table => ({ table: tableAlias(env, table), name: table.name, columns: table.columns, rows: table.rows.length })); }
@@ -134,15 +176,23 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
   },
   'files.read': {
     name: 'files.read', effect: 'read', tier: 'code', endsTurn: false,
-    summary: 'Reads a table (part columns, sample or rows, from a row id) or the text of a PDF (part pages), with amounts and dates you can pick by id.',
+    summary: 'Reads a table (part columns, sample or rows, from a row id), the text of a PDF (part pages), with amounts and dates you can pick by id, or the timed lines of a transcript (part pages), each with the segment id you name a moment by.',
     input: {
-      target: text('A table such as f1, f1.s2 or t1, or a PDF file such as f2.', 12),
-      part: { type: 'enum', required: true, values: ['columns', 'sample', 'rows', 'pages'], about: 'columns, sample (first rows), rows (a page of rows) or pages (PDF text).' },
-      from: text('For part rows: the row id to start from, such as r61.', 12, false),
+      target: text('A table such as f1, f1.s2 or t1, or a PDF or transcript file such as f2.', 12),
+      part: { type: 'enum', required: true, values: ['columns', 'sample', 'rows', 'pages'], about: 'columns, sample (first rows), rows (a page of rows) or pages (PDF text, or a transcript\'s timed lines).' },
+      from: text('For part rows: the row id to start from, such as r61. For a transcript: the segment id to start from, such as seg-201.', 12, false),
     },
     async run(env, input) {
       if (input.part === 'pages') {
         const file = fileOf(env, input.target);
+        if (file.format === 'transcript') {
+          // Moments are named only by these ids, never by times or words the agent writes itself.
+          const cues = transcriptCues(file);
+          const start = input.from ? cues.findIndex(cue => cue.id === input.from) : 0;
+          if (start < 0) fail(`${input.target} has no segment ${input.from}.`);
+          const segments = cues.slice(start, start + PAGE_SEGMENTS).map(cue => ({ id: cue.id, at: segmentClock(cue.startMs), text: cue.text }));
+          return { result: { file: input.target, segments, next: cues[start + PAGE_SEGMENTS]?.id ?? null }, proofs: [{ kind: 'file-read', tableId: file.id }] };
+        }
         if (file.format !== 'pdf') fail(`${input.target} is a table. Read it with part columns, sample or rows.`);
         const pdf = await pdfPages(env.deps, file);
         const all = pdf.pages.map(page => page.text).join('\n');
@@ -311,6 +361,8 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
     input: { connector: { type: 'enum', required: true, values: ['mail-app', 'payment-link'], about: 'Where it would go.' }, summary: text('What would be sent, in words.', 300) },
     async run(env, input) {
       const mock: MockEffect = { connector: input.connector, operation: input.connector === 'mail-app' ? 'send-deliverable' : 'create-link', payloadDigest: digest(input.summary), recordedAt: env.now() };
+      const shadow = await shadowOutbox(env, mock, input.summary);
+      if (shadow) return { result: shadow, mock };
       return { result: { recorded: true, sent: false, note: 'Nothing was sent. The owner approves and sends outside actions; this build only records them.' }, mock };
     },
   },
@@ -349,7 +401,7 @@ function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: s
 
 /** A hand-off question reaches a person, so it holds words only: an amount in it would be the model's own number. */
 function question(env: ToolEnv, text: string): string {
-  try { return modelWords(text, 'question', 300, { allowed: env.allowed }); } catch {
+  try { return modelWords(text, 'question', 300, { allowed: env.allowed, numbers: 'refuse' }); } catch {
     throw new ChausarError('TOOL_INPUT_INVALID', 'The question held a number. Ask in words; amounts come from the calculator.');
   }
 }
@@ -426,22 +478,37 @@ function failure(code: string, message: string): ToolEnvelope {
   return { ok: false, error: { code, name: errorName(code), message: message.slice(0, 600) } };
 }
 
-export type ToolOutcome = { record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null };
+/** A call the policy held for the owner: it did not run. */
+export type HeldCall = { tool: ToolName; stepId: string | null; inputDigest: string; code: string; reason: string };
+export type ToolOutcome = {
+  record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null;
+  verdict?: Verdict | null; hold?: HeldCall | null;
+};
+
+/** The digest an approval of a held call binds to: the checked input, so spacing in the JSON text does not matter. */
+function inputDigestOf(input: Record<string, any>, inputText: string): string {
+  try { return digest(input); } catch { return digest(inputText); }
+}
 
 /**
- * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields; otherwise run
- * with a time limit. Every result, refusal included, is an envelope the agent reads on its next turn.
+ * One tool call: refused unless the tool exists and is granted, its input parses and fits its fields, and the policy
+ * allows it; otherwise run with a time limit. Every result, refusal included, is an envelope the agent reads on its next
+ * turn. holds: the run's held calls, so an approved one can run once.
  */
-export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }): Promise<ToolOutcome> {
+export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: number, index: number, call: { tool: string; input: string }, holds: readonly PolicyHold[] = []): Promise<ToolOutcome> {
   const id = `t${turn}.${index + 1}`;
   const spec = toolSpec(call.tool);
   const inputText = typeof call.input === 'string' ? call.input : '';
+  // The step's times, for the runs view: when the call started and when its answer, or its refusal, was ready.
+  const startedAt = env.now();
   const outcome = (envelope: ToolEnvelope, state: ExecutionOutcome, input: Json | null, extra: Partial<ToolOutcome> = {}): ToolOutcome => ({
     record: {
       id, turn, tool: call.tool.slice(0, 60), input, inputDigest: digest(inputText), envelope, outcome: state,
       effect: spec?.effect ?? null, tier: spec?.tier ?? null, receiptIds: (extra.receipts ?? []).map(item => item.id), tableIds: (extra.tables ?? []).map(item => item.id),
+      startedAt, finishedAt: env.now(),
     },
     proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [], delegate: extra.delegate ?? null,
+    verdict: extra.verdict ?? null, hold: extra.hold ?? null,
   });
   if (!spec) return outcome(failure('TOOL_DENIED', `There is no tool called ${call.tool.slice(0, 60)}.`), 'failed', null);
   if (!grant.includes(spec.name)) return outcome(failure('TOOL_DENIED', `${spec.name} is not granted to this agent. Use only the tools you were given.`), 'failed', null);
@@ -455,6 +522,16 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
   try { input = validate(spec.input, parsed, 'input'); } catch (error) {
     return outcome(failure('TOOL_INPUT_INVALID', error instanceof Error ? error.message : 'The tool input does not fit.'), 'failed', parsed as Json);
   }
+  // The policy, before anything starts. It fails closed: a check that throws or does not answer in time blocks the call.
+  const policy = env.policy ?? { context: defaultPolicyContext(env.runRef) };
+  const inputDigest = inputDigestOf(input, inputText);
+  const verdict = await evaluate([...(policy.policies ?? []), ladderPolicy], { phase: 'tool-call', name: spec.name, effect: spec.effect, inputDigest },
+    { ...policy.context, grant, turn, holds }, policy.timeoutMs === undefined ? {} : { timeoutMs: policy.timeoutMs });
+  if (verdict.verdict === 'deny') return outcome(failure('POLICY_DENIED', verdict.reason), 'failed', input as Json, { verdict });
+  if (verdict.verdict === 'ask') {
+    const hold: HeldCall = { tool: spec.name, stepId: verdict.step ?? null, inputDigest, code: verdict.code, reason: verdict.reason };
+    return outcome(failure('POLICY_ASK', `${verdict.reason} The owner was asked; nothing ran.`), 'cancelled', input as Json, { verdict, hold });
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
@@ -467,11 +544,11 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     env.tables.push(...(result.tables ?? []));
     env.receipts.push(...(result.receipts ?? []));
     const delegate: DelegationRequest | null = result.delegate ? { ...result.delegate, toolCallId: id, turn } : null;
-    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate });
+    return outcome({ ok: true, result: result.result as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate, verdict });
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : 'TOOL_FAILED';
     const message = error instanceof ChausarError ? error.message : 'The tool failed.';
-    return outcome(failure(code, message), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json);
+    return outcome(failure(code, message), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict });
   } finally {
     clearTimeout(timer);
   }
