@@ -1,5 +1,5 @@
-// The Ink app (app/ui/dist) is served by the local server and by Electron only when asked (--ink or CHAUSAR_UI=ink),
-// from an allowlist built from the dist folder at startup; the old renderer stays the default.
+// The Ink app (app/ui/dist) is the only app the local server and Electron serve, from an allowlist built from the dist
+// folder at startup. Without a build, both refuse to start and say to run npm run build:ui.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -8,7 +8,8 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { createLocalServer, inkRequested, listInkFiles } from '../runtime/server.ts';
+import { createLocalServer } from '../runtime/server.ts';
+import { listInkFiles } from '../runtime/ui-ink.ts';
 import type { Engine } from '../runtime/engine.ts';
 
 const require = createRequire(import.meta.url);
@@ -24,25 +25,19 @@ async function dist() {
   return folder;
 }
 
-test('the switch is --ink or CHAUSAR_UI=ink, nothing else', () => {
-  assert.equal(inkRequested(['node', 'server.ts', '--demo'], {}), false);
-  assert.equal(inkRequested(['node', 'server.ts', '--demo', '--ink'], {}), true);
-  assert.equal(inkRequested(['node', 'server.ts'], { CHAUSAR_UI: 'ink' }), true);
-  assert.equal(inkRequested(['node', 'server.ts'], { CHAUSAR_UI: 'legacy' }), false);
-});
-
-test('the Ink allowlist holds the built files of known types and refuses an unbuilt folder', async t => {
+test('the Ink allowlist holds the built files of known types and refuses an unbuilt or missing folder', async t => {
   const folder = await dist(); t.after(() => rm(folder, { recursive: true, force: true }));
   const files = await listInkFiles(folder);
   assert.deepEqual(Object.keys(files).sort(), ['/', '/assets/font-x.woff2', '/assets/index-abc.js', '/index.html', '/theme.js']);
   const empty = await mkdtemp(join(tmpdir(), 'chausar-ink-empty-')); t.after(() => rm(empty, { recursive: true, force: true }));
-  await assert.rejects(listInkFiles(empty), { code: 'UI_NOT_BUILT' });
+  await assert.rejects(listInkFiles(empty), { code: 'UI_NOT_BUILT', message: /Run npm run build:ui/ });
+  await assert.rejects(listInkFiles(join(empty, 'dist')), { code: 'UI_NOT_BUILT', message: /Run npm run build:ui/ });
 });
 
-test('the local server serves Ink at / with --ink, keeps /api/rpc, and serves nothing else', async t => {
+test('the local server serves Ink at /, keeps /api/rpc, and serves nothing else', async t => {
   const folder = await dist(); t.after(() => rm(folder, { recursive: true, force: true }));
   const engine = { shutdown: async () => {} } as unknown as Engine;
-  const app = createLocalServer(engine, { ui: 'ink', inkFolder: folder });
+  const app = createLocalServer(engine, { ink: { folder, files: await listInkFiles(folder) } });
   const { origin } = await app.listen(); t.after(() => app.close(100));
   const page = await fetch(`${origin}/`);
   assert.equal(page.status, 200);
@@ -56,13 +51,12 @@ test('the local server serves Ink at / with --ink, keeps /api/rpc, and serves no
   assert.equal(rpc.status, 401);
 });
 
-test('without the switch the local server still serves the old renderer', async t => {
+test('a local server made without the Ink build serves the API and no application file', async t => {
   const engine = { shutdown: async () => {} } as unknown as Engine;
   const app = createLocalServer(engine);
   const { origin } = await app.listen(); t.after(() => app.close(100));
-  const page = await (await fetch(`${origin}/`)).text();
-  assert.match(page, /launch\.js/);
-  assert.equal((await fetch(`${origin}/app.js`)).status, 200);
+  for (const path of ['/', '/index.html', '/app.js', '/launch.js', '/styles.css', '/assets/icon.svg']) assert.equal((await fetch(`${origin}${path}`)).status, 404, path);
+  assert.equal((await fetch(`${origin}/api/rpc`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
 });
 
 /** Runs main.cjs in a vm with a small Electron stand-in, like desktop-main.test.ts, and returns its protocol handler. */
@@ -106,30 +100,33 @@ async function desktop(args: string[], env: Record<string, string>, distFiles: R
   return { handler, errors, reads, app, windows };
 }
 
-test('Electron serves Ink from app/ui/dist only when asked, from the folder listing, and refuses other files', async () => {
+test('Electron serves Ink from app/ui/dist, from the folder listing, and refuses other files', async () => {
   const built = { 'index.html': '', 'theme.js': '', 'assets/index-abc.js': '', 'assets/notes.exe': '' };
-  const ink = await desktop(['--demo', '--ink'], {}, built);
+  const ink = await desktop(['--demo'], {}, built);
   assert.equal(ink.errors.length, 0);
   assert.equal((await ink.handler!({ url: 'chausar://app/index.html' })).status, 200);
   assert.equal((await ink.handler!({ url: 'chausar://app/assets/index-abc.js' })).headers.get('Content-Type'), 'text/javascript; charset=utf-8');
   assert.equal((await ink.handler!({ url: 'chausar://app/app.js' })).status, 404);
   assert.equal((await ink.handler!({ url: 'chausar://app/assets/notes.exe' })).status, 404);
-  assert.ok(ink.reads.every(path => path.includes('/app/ui/dist/')), ink.reads.join(', '));
-
-  const byEnv = await desktop(['--demo'], { CHAUSAR_UI: 'ink' }, built);
-  assert.equal((await byEnv.handler!({ url: 'chausar://app/theme.js' })).status, 200);
-
-  const legacy = await desktop(['--demo'], {}, built);
-  assert.equal((await legacy.handler!({ url: 'chausar://app/app.js' })).status, 200);
-  assert.equal((await legacy.handler!({ url: 'chausar://app/theme.js' })).status, 404);
-  assert.ok(legacy.reads.every(path => path.includes('/app/renderer/')), legacy.reads.join(', '));
+  for (const path of ['launch.js', 'styles.css', 'assets/icon.svg']) assert.equal((await ink.handler!({ url: `chausar://app/${path}` })).status, 404, path);
+  assert.equal(ink.windows.length, 1);
+  assert.equal(ink.windows[0].webContents.mainFrame.url, 'chausar://app/index.html');
+  assert.ok(ink.reads.length > 0 && ink.reads.every(path => path.includes('/app/ui/dist/')), ink.reads.join(', '));
 });
 
-test('Electron with --ink and no build says so and quits', async () => {
-  const missing = await desktop(['--demo', '--ink'], {}, {});
-  assert.match(missing.errors[0] ?? '', /npm run build:ui/);
-  assert.equal(missing.app.quits, 1);
-  assert.equal(missing.windows.length, 0);
+test('Electron with no build, or an empty dist folder, says so and quits before any window', async () => {
+  for (const files of [null, {}]) {
+    const missing = await desktop(['--demo'], {}, files);
+    assert.match(missing.errors[0] ?? '', /Run npm run build:ui/);
+    assert.equal(missing.app.quits, 1);
+    assert.equal(missing.windows.length, 0);
+  }
+});
+
+test('every npm script that opens the app builds Ink first, so a fresh checkout never starts without it', async () => {
+  const { scripts } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  for (const name of ['start', 'start:production', 'start:hosted', 'desktop', 'desktop:production']) assert.equal(scripts[`pre${name}`], 'npm run build:ui', name);
+  assert.equal(scripts['build:ui'], 'vite build --config app/ui/vite.config.ts');
 });
 
 test('a hash route keeps the window trusted; a query does not', () => {

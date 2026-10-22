@@ -1,5 +1,5 @@
 /**
- * The one-sentence start, in the engine's own order (docs/venture/onboarding.md, app/renderer/launch.js runSetup):
+ * The one-sentence start, in the engine's own order (docs/venture/onboarding.md; runSetup in the old renderer, removed):
  *
  *   venture.preview        the built-in plan for the sentence and country, before any vault (nothing is stored)
  *   workspace.lock         only when a business is open on this computer: the engine keeps one vault open

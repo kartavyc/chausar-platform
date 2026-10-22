@@ -6,11 +6,11 @@
  */
 
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND } from './fixtures';
-import { COUNTRIES, NEW_BUSINESS_ROWS, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
-import type { BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
+import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
+import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
 import { QUEUE_VIEWS } from './fixtures';
-import { FakeBusinessDesk } from './fake-business';
+import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
 import { FakeExtrasDesk } from './fake-extras';
@@ -47,13 +47,24 @@ export interface FakeOptions {
   closed?: boolean;
   /** Keep only these sample businesses on this computer, by id (for example ['lumen']). */
   only?: string[];
+  /** These sample businesses have lost this computer's key: only the recovery code opens them (for example ['ledgerline']). */
+  keyMissing?: string[];
 }
 
-/** A business on this computer, as the fake keeps it. */
-interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made' }
+/** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
+interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
 interface HeldVenture { workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number }
-/** Answered with no vault open, as the engine answers them before its vault check. */
-const BEFORE_VAULT = new Set(['workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview']);
+/** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
+const BEFORE_VAULT = new Set([
+  'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
+  'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
+]);
+/** The recovery codes the sample opens with: the one made at creation and the one Keep this business makes. */
+const SAMPLE_CODES = new Set([SAMPLE_RECOVERY_CODE, 'R4KD9QXM2HTW7PLB3NCF6YJV']);
+/** TRANSFER.maxTextChars in workspace-custody-contracts.ts. */
+const MOVE_MAX_CHARS = 1_900_000;
+const UNLOCK_FAILED = 'Unable to unlock vault. Check your credential or restore a valid backup.';
+const NO_KEYRING = 'This computer has no keyring Chausar can use, so Chausar asks for a passphrase.';
 const NOT_ONBOARDING = Symbol('not onboarding');
 /** A flag in the dev page's address, such as ?fresh. Never true in tests, which have no query. */
 function devAsks(flag: string): boolean {
@@ -123,7 +134,11 @@ export class FakeEngine {
     this.evidence = clone(EVIDENCE);
     this.latencyMs = options.latencyMs ?? 0;
     this.now = options.now ?? (() => new Date().toISOString());
-    this.businesses = BUSINESSES.filter((b) => !options.only || options.only.includes(b.id)).map((b): HeldBusiness => ({ ...clone(b), recovery: 'made' }));
+    this.businesses = BUSINESSES.filter((b) => !options.only || options.only.includes(b.id)).map((b): HeldBusiness => ({
+      ...clone(b), recovery: 'made',
+      ...(options.keyMissing?.includes(b.id) ? { opens: 'key-missing' as const } : {}),
+      ...(b.opens === 'needs-passphrase' ? { passphrase: SAMPLE_PASSPHRASE } : {}),
+    }));
     for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
     this.hosted = options.hosted ?? false;
@@ -236,7 +251,11 @@ export class FakeEngine {
         // On this computer a business opens by its folder; the hosted server opens one by its id on the account.
         const business = this.businesses.find((b) => b.id === (this.hosted ? p.businessId : p.folder));
         if (!business) throw new EngineError('WORKSPACE_NOT_FOUND', 'No business in that folder.');
-        if (business.opens === 'needs-passphrase' && typeof p.passphrase !== 'string') throw new EngineError('PASSPHRASE_REQUIRED', 'This business opens with its passphrase.');
+        const typed = typeof p.passphrase === 'string';
+        if (business.opens === 'needs-passphrase' && !typed) throw new EngineError('PASSPHRASE_REQUIRED', CUSTODY_ERROR_WORDS.PASSPHRASE_REQUIRED);
+        // A typed passphrase opens only a business locked with that passphrase, as Vault.open checks it.
+        if (typed && (business.opens !== 'needs-passphrase' || (business.passphrase !== undefined && p.passphrase !== business.passphrase))) throw new EngineError('UNLOCK_FAILED', UNLOCK_FAILED);
+        if (business.opens === 'key-missing') throw new EngineError('DEVICE_KEY_FAILED', CUSTODY_ERROR_WORDS.DEVICE_KEY_FAILED);
         this.current = business.id;
         this.open = true;
         this.closedByOwner = false;
@@ -393,6 +412,16 @@ export class FakeEngine {
         return { locked: true };
       }
       case 'workspace.create': return this.createWorkspace(p);
+      case 'workspace.backups.list': {
+        if (this.open) return NOT_ONBOARDING;
+        // No business open (Welcome back): every backup on this computer, newest first.
+        const all: BackupLite[] = this.businesses.flatMap((b) => this.desk.backupsOf(b.id));
+        return { backups: clone(all.sort((a, b) => b.at.localeCompare(a.at))), more: false };
+      }
+      case 'workspace.recover': return this.recover(p);
+      case 'workspace.restore': return this.restoreAsNew(p);
+      case 'workspace.transfer.import': return this.moveHere(p);
+      case 'workspace.delete': return this.deleteBusiness(p);
       case 'venture.countries': return clone(COUNTRIES);
       case 'venture.preview': {
         const idea = this.idea(p.idea);
@@ -454,16 +483,123 @@ export class FakeEngine {
     const typed = typeof p.passphrase === 'string';
     if (!this.hosted && !typed && !this.deviceKeys) throw new EngineError('DEVICE_KEYS_UNAVAILABLE', 'This computer has no keyring Chausar can use, so Chausar asks for a passphrase.');
     if (typed && ((p.passphrase as string).length < 12 || (p.passphrase as string).length > 1024)) throw new EngineError('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business';
-    let id = slug;
-    for (let n = 2; this.businesses.some((b) => b.id === id); n++) id = `${slug}-${n}`;
+    const id = this.freeId(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business');
     const shown = typed || this.hosted;
-    this.businesses.push({ id, name, serviceType: 'other', opens: typed ? 'needs-passphrase' : 'with-this-computer', recovery: shown ? 'made' : 'not-made' });
+    this.businesses.push({ id, name, serviceType: 'other', opens: typed ? 'needs-passphrase' : 'with-this-computer', recovery: shown ? 'made' : 'not-made', ...(typed ? { passphrase: p.passphrase as string } : {}) });
     this.current = id;
     this.open = true;
     this.closedByOwner = false;
     const code = shown ? SAMPLE_RECOVERY_CODE : null;
     return { workspace: { name }, folder: id, unlock: typed ? 'passphrase' : 'this-computer', recoveryKit: code, recoveryCode: code, experimental: true };
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // Custody with no business open: the recovery code, a backup opened as a new business, a business moved here. And
+  // deleting the open business. The engine's rules: one business open at a time; a new passphrase only when this
+  // computer can't keep the key (DEVICE_KEYS_UNAVAILABLE); the engine's own words for each refusal.
+  // -------------------------------------------------------------------------------------------------------------
+
+  /** A folder name not taken yet: slug, slug-2, slug-3. */
+  private freeId(slug: string): string {
+    let id = slug;
+    for (let n = 2; this.businesses.some((b) => b.id === id); n++) id = `${slug}-${n}`;
+    return id;
+  }
+
+  private notWhileOpen(): void {
+    if (this.open) throw new EngineError('VAULT_OPEN', 'Lock the current workspace first.');
+  }
+
+  /** How a business opens after a new key: this computer's, or the new passphrase when it can't keep one. */
+  private newKey(p: Record<string, unknown>): { opens: HeldBusiness['opens']; passphrase?: string } {
+    if (typeof p.passphrase === 'string') {
+      if (p.passphrase.length < 12 || p.passphrase.length > 1024) throw new EngineError('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
+      return { opens: 'needs-passphrase', passphrase: p.passphrase };
+    }
+    if (!this.deviceKeys) throw new EngineError('DEVICE_KEYS_UNAVAILABLE', NO_KEYRING);
+    return { opens: 'with-this-computer' };
+  }
+
+  private openHere(business: HeldBusiness): { workspace: { id: string; name: string } } {
+    this.current = business.id;
+    this.open = true;
+    this.closedByOwner = false;
+    this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
+    return { workspace: { id: business.id, name: business.name } };
+  }
+
+  /** workspace.recover: the recovery code opens the business, and this computer keeps the key again. */
+  private recover(p: Record<string, unknown>) {
+    this.notWhileOpen();
+    const business = this.businesses.find((b) => b.id === p.folder);
+    if (!business) throw new EngineError('WORKSPACE_NOT_FOUND', 'No business in that folder.');
+    if (typeof p.recoveryCode !== 'string' || !SAMPLE_CODES.has(p.recoveryCode) || business.recovery !== 'made') throw new EngineError('UNLOCK_FAILED', UNLOCK_FAILED);
+    const key = this.newKey(p);
+    business.opens = key.opens;
+    business.passphrase = key.passphrase;
+    business.recovery = 'made';
+    return this.openHere(business);
+  }
+
+  /**
+   * workspace.restore: a backup by its name, opened as a new business beside the original. It opens the way the
+   * backup does: with the passphrase it was locked with, with this computer's key, or with the recovery code.
+   */
+  private restoreAsNew(p: Record<string, unknown>) {
+    this.notWhileOpen();
+    const source = this.businesses.find((b) => this.desk.backupsOf(b.id).some((backup) => backup.file === p.backupFile));
+    if (!source) throw new EngineError('BACKUP_NOT_FOUND', CUSTODY_ERROR_WORDS.BACKUP_NOT_FOUND);
+    const coded = typeof p.recoveryCode === 'string';
+    let key: { opens: HeldBusiness['opens']; passphrase?: string };
+    if (coded) {
+      if (!SAMPLE_CODES.has(p.recoveryCode as string)) throw new EngineError('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.');
+      key = this.newKey(p);
+    } else if (source.opens === 'needs-passphrase') {
+      if (typeof p.passphrase !== 'string') throw new EngineError('PASSPHRASE_REQUIRED', CUSTODY_ERROR_WORDS.PASSPHRASE_REQUIRED);
+      if (p.passphrase !== source.passphrase) throw new EngineError('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.');
+      key = { opens: 'needs-passphrase', passphrase: p.passphrase };
+    } else if (source.opens === 'key-missing') {
+      throw new EngineError('DEVICE_KEY_FAILED', CUSTODY_ERROR_WORDS.DEVICE_KEY_FAILED);
+    } else {
+      key = { opens: 'with-this-computer' };
+    }
+    const id = this.freeId(typeof p.folder === 'string' && p.folder ? p.folder : `${source.id}-restored`);
+    const restored: HeldBusiness = { id, name: source.name, serviceType: source.serviceType, recovery: 'made', ...key };
+    this.businesses.push(restored);
+    const venture = this.ventures.get(source.id);
+    if (venture) this.ventures.set(id, clone(venture));
+    return { ...this.openHere(restored), folder: id };
+  }
+
+  /** workspace.transfer.import: the move file and its code. A business already here is opened from the list instead. */
+  private moveHere(p: Record<string, unknown>) {
+    this.notWhileOpen();
+    const text = typeof p.fileText === 'string' ? p.fileText : '';
+    if (text.length > MOVE_MAX_CHARS) throw new EngineError('TRANSFER_TOO_LARGE', CUSTODY_ERROR_WORDS.TRANSFER_TOO_LARGE);
+    let file: { backupFormat?: unknown; business?: unknown; name?: unknown };
+    try { file = JSON.parse(text) as typeof file; } catch { file = {}; }
+    if (file.backupFormat !== SAMPLE_MOVE_FORMAT || typeof file.business !== 'string' || typeof file.name !== 'string') throw new EngineError('TRANSFER_INVALID', CUSTODY_ERROR_WORDS.TRANSFER_INVALID);
+    if (p.transferCode !== SAMPLE_MOVE_CODE) throw new EngineError('TRANSFER_CODE_WRONG', CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG);
+    if (this.businesses.some((b) => b.id === file.business)) throw new EngineError('TRANSFER_SAME_BUSINESS', CUSTODY_ERROR_WORDS.TRANSFER_SAME_BUSINESS);
+    const key = this.newKey(p);
+    const moved: HeldBusiness = { id: file.business, name: file.name, serviceType: 'other', recovery: 'made', ...key };
+    this.businesses.push(moved);
+    this.ventures.set(moved.id, { workingName: moved.name, serviceType: null, idea: '', countryCode: 'IN', done: 1 });
+    return { ...this.openHere(moved), folder: moved.id, unlock: key.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer' };
+  }
+
+  /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go. */
+  private deleteBusiness(p: Record<string, unknown>) {
+    const business = this.businesses.find((b) => b.id === this.current);
+    if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+    this.businesses = this.businesses.filter((b) => b.id !== business.id);
+    this.ventures.delete(business.id);
+    this.desk.dropBackups(business.id);
+    this.rows = this.rows.filter((r) => r.businessId !== business.id);
+    this.open = false;
+    this.current = '';
+    return { deleted: true, copiesRemoved: [], externalCopies: 'Copies made outside this app must be removed by their owner.' };
   }
 
   private templateInterview(countryCode: string): InterviewQuestionLite[] {

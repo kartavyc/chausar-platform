@@ -3,6 +3,7 @@ import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { EngineError, type CountryLite } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { saveTextFile } from '../../parts/custody';
 import { goTo } from '../../shell/navigation';
 import { browserRegion, cleanSentence, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
 import s from './Onboarding.module.css';
@@ -209,6 +210,7 @@ export function Start({ variant, onStarted }: { variant: 'first-run' | 'place'; 
             </div>
             <div className={s.codeTools}>
               <Button onClick={() => void copy(stage.code)}>{t('onboarding.code.copy')}</Button>
+              <Button variant="quiet" onClick={() => saveTextFile('chausar-recovery-code.txt', `Chausar recovery code\n${kept ? `Business: ${kept.name}\n` : ''}\n${stage.code}\n`, 'text/plain')}>{t('onboarding.code.saveFile')}</Button>
               {copyNote && <span className={s.note} role="status">{copyNote}</span>}
             </div>
             <label className={s.check}>

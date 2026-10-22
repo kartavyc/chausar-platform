@@ -6,9 +6,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { dialogFor, descendants, find, harness, hasText, lastNamedButton, namedButton } from "./conversation-acceptance-renderer.ts";
+import { preloadBridge, type PreloadBridge } from './preload-bridge.ts';
 
-// Independent acceptance: actual UI handlers -> actual preload -> strict IPC
+// Independent acceptance: the desktop's request sequence -> actual preload -> strict IPC
 // clone boundary -> EngineHarness -> production worker loop -> actual Engine.
 // Synthetic provider contracts are authored, not LLM semantic-quality evidence.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -60,8 +60,10 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
   assert.equal(route.verification, 'not-live-verified');
   await engine.request('trust.update', { send: 'shape' });
   const request = (method: string, payload: Record<string, unknown> = {}) => engine.request(method, payload);
-  async function renderer() { const h = await harness({ dispatch: request, mount: true }); h.renderer.state.workspace = created.workspace; return h; }
-  const h = await renderer();
+  assert.ok(created.workspace);
+  // One desktop window's preload; after a restart a fresh one reaches the new worker, as a reopened window would.
+  const desktop = () => preloadBridge({ dispatch: request });
+  const h = await desktop();
   async function calls(): Promise<any[]> {
     try { return (await readFile(join(directory, 'acceptance-provider-calls.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
     catch (error: any) { if (error.code === 'ENOENT') return []; throw error; }
@@ -71,49 +73,65 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
     engine = new EngineHarness(options); workers.push(engine); await engine.start();
     await request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD });
   }
-  return { h, route, config, request, calls, renderer, restart, directory, imported };
+  return { h, route, config, request, calls, desktop, restart, directory, imported };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
-async function preview(f: Fixture, question: string, h = f.h) {
-  find(h.app, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Model route').value = f.route.id;
-  const before = (await f.calls()).length; await h.ask(question);
-  const result = h.renderer.state.messages.at(-1); assert.equal(result.error, undefined);
-  assert.ok(result.data.preview); assert.equal((await f.calls()).length, before);
-  await lastNamedButton(h.app, 'Review outbound request').dispatch('click');
-  const dialog = dialogFor(h.body, 'Review model disclosure');
-  assert.ok(hasText(dialog, result.data.preview.payload));
-  assert.ok(hasText(dialog, result.data.preview.naturalQuestion));
-  const consent = find(dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox');
-  assert.equal(consent.checked, false);
-  const warning = find(dialog, node => node.className === 'notice warn' && hasText(node, result.data.preview.definitionDisclosureWarning));
-  assert.equal(warning.parent, consent.parent?.parent);
-  assert.equal(warning.parent!.children.indexOf(warning) + 1, warning.parent!.children.indexOf(consent.parent!));
-  for (let ancestor = warning.parent; ancestor; ancestor = ancestor.parent) assert.notEqual(ancestor.tagName, 'details');
-  consent.checked = true;
-  return { preview: result.data.preview, dialog, approve: namedButton(dialog, 'Approve and send once'), before, h };
+/** The desktop's answer readback after a turn: a grounded turn with any answer is read again by its ID. */
+async function current(h: PreloadBridge, data: any) {
+  if (data?.kind === 'grounded-conversation') return data.results?.some((result: any) => result.answer) ? (await h.request('conversation.get', { id: data.id })).answer : data;
+  if (data?.kind === 'business-context' && data.receipt?.id) return h.request('business.context.receipt', { id: data.receipt.id });
+  if (data?.receipt?.id) return { ...data, receipt: await h.request('receipts.get', { id: data.receipt.id }) };
+  return data;
 }
-export async function turn(f: Fixture, question: string, h = f.h) {
-  const review = await preview(f, question, h), previous = h.renderer.state.messages.length;
-  await review.approve.dispatch('click');
-  assert.equal(review.approve.disabled, true);
-  const count = h.calls.length; await review.approve.dispatch('click');
-  assert.equal(h.calls.length, count, 'Review must be single-use even after a failed provider call.');
-  const answer = h.renderer.state.messages.length > previous ? h.renderer.state.messages.at(-1).data : undefined;
+/** A reviewed question's preview, with an optional retained clarification it continues. Nothing reaches the provider yet. */
+async function preview(f: Fixture, question: string, h = f.h, continuationId?: string) {
+  if (continuationId) await h.request('conversation.continuation', { id: continuationId });
+  const before = (await f.calls()).length;
+  const preview = await h.request('models.preview', { question, routeId: f.route.id, purpose: 'conversation', questionDisclosure: 'verbatim',
+    ...(continuationId ? { continuationId } : {}) });
+  assert.ok(preview); assert.equal((await f.calls()).length, before);
+  assert.equal(typeof preview.payload, 'string'); assert.equal(preview.naturalQuestion, question);
+  assert.equal(typeof preview.definitionDisclosureWarning, 'string'); assert.ok(preview.definitionDisclosureWarning);
+  /** One approval and one ask for exactly the reviewed question; a refusal leaves the answer undefined and is in h.rejected. */
+  async function approve() {
+    try {
+      if (continuationId) await h.request('conversation.continuation', { id: continuationId });
+      const approval = await h.request('models.approve', { id: preview.id });
+      return await current(h, await h.request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
+        routeId: preview.routeId, purpose: 'conversation', questionDisclosure: 'verbatim', ...(continuationId ? { continuationId } : {}) }));
+    } catch { return undefined; }
+  }
+  return { preview, approve, before, h };
+}
+export async function turn(f: Fixture, question: string, h = f.h, continuationId?: string) {
+  const review = await preview(f, question, h, continuationId);
+  const answer = await review.approve();
   return { ...review, answer };
 }
+/**
+ * Opens the newest saved answer for a question as the desktop does: history, then the saved turn. A retained
+ * clarification is also checked as a continuation; continuationId is set when it can still be continued, and refusal
+ * holds the engine's reason when its chain is resolved or full.
+ */
 export async function openSaved(h: Fixture['h'], question: string) {
-  const deadline = Date.now() + 5000;
-  while (!descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Recent answers'))) {
-    assert.ok(Date.now() < deadline, 'Conversation must finish mounting after actual unlock.'); await delay(10);
+  const history = await h.request('conversation.history', { limit: 20 });
+  const item = history.items.find((entry: any) => entry.question === question); assert.ok(item, 'The saved answer must be listed.');
+  const saved = await h.request('conversation.get', { id: item.id });
+  let continuationId: string | undefined, refusal: { code: string; message: string } | undefined;
+  if (typeof saved.answer?.clarification === 'string' && saved.answer.modelReceiptId) {
+    try {
+      const pending = await h.request('conversation.get', { id: item.id });
+      assert.equal(typeof pending.answer?.clarification, 'string');
+      const descriptor = await h.request('conversation.continuation', { id: item.id });
+      assert.equal(descriptor.schemaVersion, 1); assert.equal(descriptor.turnId, item.id);
+      assert.equal(typeof descriptor.originalQuestion, 'string'); assert.equal(typeof descriptor.clarification, 'string');
+      continuationId = item.id;
+    } catch (error: any) {
+      if (!['CONVERSATION_CONTINUATION_RESOLVED', 'CONVERSATION_CONTINUATION_LIMIT'].includes(error.code)) throw error;
+      refusal = { code: error.code, message: error.message };
+    }
   }
-  await lastNamedButton(h.app, 'Recent answers').dispatch('click');
-  const history = dialogFor(h.body, 'Recent answers');
-  let row = find(history, node => node.textContent === question);
-  while (!descendants(row).some(node => node.tagName === 'button' && hasText(node, 'Open saved answer'))) {
-    assert.ok(row.parent); row = row.parent;
-  }
-  await namedButton(row, 'Open saved answer').dispatch('click');
-  return dialogFor(h.body, 'Saved answer');
+  return { item, saved, continuationId, refusal };
 }
 async function entered(f: Fixture, expected: number) {
   const deadline = Date.now() + 10000;

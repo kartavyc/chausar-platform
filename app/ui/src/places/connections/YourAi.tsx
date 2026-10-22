@@ -139,7 +139,54 @@ export function YourAi({ focus }: { focus: boolean }) {
           </details>
         </>
       )}
+      {data && !draft && client.transport !== 'hosted' && <SendRule now={data.sendPolicy} onSaved={() => status.reload()} />}
     </section>
+  );
+}
+
+const SEND_RULES = ['nothing', 'shape', 'samples'] as const;
+
+/**
+ * What may leave this computer for an AI (trust.update { send }), the old Trust & access page's disclosure rule. The
+ * engine checks it before every AI call. A choice is sent only on Save; afterwards the page shows the engine's setting.
+ */
+function SendRule({ now, onSaved }: { now: ModelStatusLite['sendPolicy']; onSaved: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const name = useId();
+  const [chosen, setChosen] = useState(now);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => { setChosen(now); }, [now]);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setProblem(null);
+    try {
+      await client.request('trust.update', { send: chosen });
+      onSaved();
+    } catch (error) {
+      setProblem(t('connections.ai.sendFailed', { message: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className={s.form} onSubmit={(event) => void save(event)}>
+      <fieldset className={s.rule}>
+        <legend className={s.subheading}>{t('connections.ai.sendTitle')}</legend>
+        {SEND_RULES.map((rule) => (
+          <label key={rule} className={s.agree}>
+            <input type="radio" name={name} checked={chosen === rule} onChange={() => setChosen(rule)} />
+            {t(`connections.ai.send.${rule}`)}
+          </label>
+        ))}
+        {problem && <p className={s.problem} role="alert">{problem}</p>}
+        <div className={s.buttons}><Button type="submit" disabled={busy || chosen === now}>{t('connections.ai.sendSave')}</Button></div>
+      </fieldset>
+    </form>
   );
 }
 

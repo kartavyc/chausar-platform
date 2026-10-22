@@ -57,6 +57,22 @@ export const NEW_BUSINESS_ROWS = {
 } as const;
 /** The recovery code the fake hands out once, with a passphrase or on hosted. Sample only. */
 export const SAMPLE_RECOVERY_CODE = 'K7QM4X2D9PLR8T3WNB6Y5HJC';
+/** Sitara Events' passphrase in the sample. Sample only; the real engine never holds one in the clear. */
+export const SAMPLE_PASSPHRASE = 'sitara keeps every booking';
+/** A move code with the engine's shape: CHT- and 24 characters from its alphabet. Sample only. */
+export const SAMPLE_MOVE_CODE = 'CHT-7QM4X2D9PLR8T3WNB6Y5HJ';
+/** CUSTODY_WORDS in platform/runtime/workspace-custody-contracts.ts: the engine's words for its custody refusals. */
+export const CUSTODY_ERROR_WORDS = {
+  PASSPHRASE_REQUIRED: 'This business is locked with a passphrase. Type it to open.',
+  DEVICE_KEY_FAILED: "This computer's key didn't open your business. Use your recovery code, or a backup with it.",
+  PASSPHRASE_WRONG: "That passphrase doesn't match.",
+  TRANSFER_CODE_WRONG: "That code doesn't open this file. Check it and try again.",
+  TRANSFER_INVALID: "This isn't a Chausar move file.",
+  TRANSFER_TOO_LARGE: 'This file is bigger than Chausar can take in one go.',
+  TRANSFER_SAME_BUSINESS: 'This business is already on this computer. Open it from the list.',
+  BACKUP_NOT_FOUND: 'That backup is not in the backups folder.',
+  BACKUP_OTHER_BUSINESS: 'This backup belongs to another business.',
+} as const;
 
 type RowSeed = Omit<QueueRow, 'digest'>;
 

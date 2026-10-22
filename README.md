@@ -2,7 +2,7 @@
 
 A local business workspace where every financial answer carries its rows, definitions, period, exclusions and calculation receipt.
 
-This repository implements the desktop architecture in the supplied Chausar plans: a sandboxed renderer, a separate TypeScript engine, encrypted workspace authority, data-only dictionaries and mappings, deterministic calculations, explicit action approvals, durable jobs and isolated WASM extensions. It includes the recovered enterprise reference engine in `enterprise/` for a separate, opt-in deployment path.
+This repository implements the desktop architecture in the supplied Chausar plans: a sandboxed app (Ink, in `app/ui`), a separate TypeScript engine, encrypted workspace authority, data-only dictionaries and mappings, deterministic calculations, explicit action approvals, durable jobs and isolated WASM extensions. It includes the recovered enterprise reference engine in `enterprise/` for a separate, opt-in deployment path.
 
 **Release: 0.1.0-preview.1.** The complete local verification run passed **206 tests with zero failures or skipped tests**. This is a runnable engineering preview. It is not a production-qualified release of every contract in the plans. [Supported features](docs/supported-features.md) distinguishes implemented behavior, experimental adapters and outstanding requirements; [build status](docs/build-status.md) records the actual evidence.
 
@@ -11,12 +11,15 @@ This repository implements the desktop architecture in the supplied Chausar plan
 Install Node.js **24.13.1 or later**, then from this directory:
 
 ```sh
-node platform/runtime/server.ts --demo
+npm install
+npm start
 ```
 
-Open the owner pairing link printed by the server. Its URL fragment is an owner credential: the interface transfers it to memory and removes it from history. A bare visit to [http://127.0.0.1:4317](http://127.0.0.1:4317), or a refresh, shows the pairing form. Create a workspace with a strong passphrase and save its recovery kit. Select the synthetic demo option to import the sample business. The preview runs without installing npm dependencies. It uses the explicitly experimental encrypted file adapter; PostgreSQL remains the production authority adapter.
+`npm start` builds the app (`npm run build:ui`, Ink in `app/ui` to `app/ui/dist`) and then runs `node platform/runtime/server.ts --demo`. The server refuses to start without that build and says so.
 
-The interface contains Conversation, Daily Brief, Sources, Dictionary, Memory, Decisions, Actions, Jobs, Trust, Models, Plugins and Activity. CSV, native XLSX, typed JSON, bank CSV, Tally XML, Zoho and Shopify exports and GST JSON enter the same reconciliation path. Supply independently obtained control totals rather than treating the importer's own sum as independent evidence.
+Open the owner pairing link printed by the server. Its URL fragment is an owner credential: the app keeps it in memory only and removes it from the address bar. The demo uses the explicitly experimental encrypted file adapter; PostgreSQL remains the production authority adapter.
+
+The app opens on Today, the approval queue, beside Team, Work, Clients, Money and Connections; see [docs/frontend.md](docs/frontend.md). CSV, native XLSX, typed JSON, bank CSV, Tally XML, Zoho and Shopify exports and GST JSON enter the same reconciliation path. Supply independently obtained control totals rather than treating the importer's own sum as independent evidence.
 
 The synthetic September business bills INR 3,000, receives INR 2,600, earns INR 2,500, refunds INR 100 and has INR 1,100 of imported contribution costs. September net sales are INR 2,400 and contribution is INR 1,300. Billed, received and earned are separate measures. Asking without a period also includes the August comparison record.
 
@@ -47,15 +50,15 @@ Without any AI connected, built-in templates do the work and say so. This build 
 
 ```sh
 npm install
-npm run desktop -- --demo
+npm run desktop
 ```
 
 The Electron renderer has no Node access. A narrow IPC bridge calls a separate engine process. The desktop process can initialize the vendored loopback PostgreSQL cluster; genuine platform-specific PostgreSQL and Python distributions must first be staged as described in [runtime-binaries/README.md](runtime-binaries/README.md). They are not downloaded or fabricated by this source checkout.
 
-For a separately provisioned local PostgreSQL instance, supply `CHAUSAR_POSTGRES_URL` using the example configuration and run:
+For a separately provisioned local PostgreSQL instance, supply `CHAUSAR_POSTGRES_URL` using the example configuration and run (it builds the app first, like `npm start`):
 
 ```sh
-node platform/runtime/server.ts
+npm run start:production
 ```
 
 Production calculations additionally verify the authorized projection using registered SQL in an isolated in-memory DuckDB subprocess before persisting a receipt. Missing PostgreSQL or DuckDB refuses production operation. The database adapter stores authenticated encrypted workspace snapshots with locking and revision checks; the desktop schema is distinct from the relational enterprise schema.
@@ -69,7 +72,8 @@ node scripts/check.mjs
 node --test platform/tests/*.test.ts
 node scripts/bench.mjs
 npm run typecheck
-node scripts/build.mjs
+npm run test:ui
+npm run build
 ```
 
 The factory benchmark emits a machine-readable report and fails on failed, cancelled or missing test results. Real Python cases run when the test environment supplies `CHAUSAR_PYTHON`; otherwise the report must identify those cases as unavailable. Typecheck requires the pinned development dependencies. Node syntax validation and execution do not substitute for TypeScript checking.
@@ -91,7 +95,7 @@ The factory benchmark emits a machine-readable report and fails on failed, cance
 | Path | Purpose |
 |---|---|
 | `app/desktop/` | Electron host, sandboxed preload and packaging configuration |
-| `app/renderer/` | Twelve-view product interface |
+| `app/ui/` | Ink, the React app for the desktop window and the web, built to `app/ui/dist` |
 | `platform/runtime/` | Authority, business memory, calculators, connectors, approvals and integrations |
 | `platform/helpers/` | Registered Python analytical helpers |
 | `platform/tests/` | Numerical, security, transport and acceptance cases |

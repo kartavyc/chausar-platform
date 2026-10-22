@@ -1,15 +1,17 @@
 // P6: checks P0's shell wiring for the venture launcher: the link opener in the IPC contract, main process and
-// preload, the web server's launch.js route, and the rule that server.ts and worker.ts never load host.ts.
+// preload, the web server's route for the Ink build's scripts, and the rule that server.ts and worker.ts never load
+// host.ts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer, createServerEngine } from '../runtime/server.ts';
+import { listInkFiles } from '../runtime/ui-ink.ts';
 import { createWorkerEngine } from '../runtime/worker.ts';
 import { EXTERNAL_ORIGINS } from '../runtime/venture/contracts.ts';
 import type { PlanPreview, VentureView } from '../runtime/venture/contracts.ts';
@@ -101,7 +103,9 @@ async function desktop() {
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => path.endsWith('package.json') ? JSON.stringify({ chausarPreview: true, version: '2.3.4' }) : '', mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
+    // readdir lists a one-page Ink build, so main.cjs finds app/ui/dist and opens its window.
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => path.endsWith('package.json') ? JSON.stringify({ chausarPreview: true, version: '2.3.4' }) : '', mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+      readdir: async () => [{ name: 'index.html', isDirectory: () => false, isFile: () => true }] };
     return require(name);
   }, process: { argv: ['electron', '/owned/app'], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
@@ -197,20 +201,25 @@ test('preload.cjs exposes openExternal, which invokes the open-external channel 
   });
 });
 
-test('the local web server serves launch.js as JavaScript under the same content security policy', async t => {
+test('the local web server serves the Ink build\'s script as JavaScript under the same content security policy', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-venture-shell-'));
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
-  const app = createLocalServer(engine);
+  // A stand-in for app/ui/dist: one page and one hashed script, listed the way the entrypoint lists the real build.
+  const folder = join(directory, 'ink'); await mkdir(join(folder, 'assets'), { recursive: true });
+  const script = 'export const shell = "synthetic Ink script";\n';
+  await writeFile(join(folder, 'index.html'), '<!doctype html><title>Chausar</title>'); await writeFile(join(folder, 'assets/index-abc.js'), script);
+  const app = createLocalServer(engine, { ink: { folder, files: await listInkFiles(folder) } });
   const { origin } = await app.listen();
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
-  const response = await fetch(`${origin}/launch.js`);
+  assert.equal((await fetch(`${origin}/launch.js`)).status, 404, 'the old renderer\'s launch.js is gone');
+  const response = await fetch(`${origin}/assets/index-abc.js`);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'text/javascript; charset=utf-8');
   const csp = response.headers.get('content-security-policy') ?? '';
   assert.match(csp, /script-src 'self'/);
   assert.match(csp, /default-src 'self'/);
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(await response.text(), await readFile(new URL('../../app/renderer/launch.js', import.meta.url), 'utf8'));
+  assert.equal(await response.text(), script);
 });
 
 test('server.ts and worker.ts never load host.ts, and replay files need demo mode plus their own switch', async t => {

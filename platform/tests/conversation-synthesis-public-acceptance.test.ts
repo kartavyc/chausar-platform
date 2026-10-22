@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { setTimeout as delay } from 'node:timers/promises';
-import { dialogFor, descendants, find, hasText, lastNamedButton, namedButton } from './fixtures/conversation-acceptance-renderer.ts';
-import { fixture, MODEL_PROSE, openSaved, PASSWORD, PERIOD, SECRET, SOURCE, synthesize, tools, type Fixture } from './fixtures/conversation-synthesis-public-flow.ts';
+import type { PreloadBridge } from './fixtures/preload-bridge.ts';
+import { fixture, MODEL_PROSE, openSaved, PASSWORD, PERIOD, SECRET, selectContinuation, SOURCE, synthesize, tools, type Fixture } from './fixtures/conversation-synthesis-public-flow.ts';
 
-// Independent two-stage acceptance through actual UI -> preload -> structured
+// Independent two-stage acceptance through the actual desktop preload -> structured
 // clone -> strict IPC -> EngineHarness -> production worker and installed codec.
 // These authored fixtures prove transport/grounding, not model prose entailment.
 function verifySlots(final: any, original: any, call: any) {
@@ -46,18 +45,16 @@ function verifySlots(final: any, original: any, call: any) {
   assert.match(final.receipt.inputDigest, /^[a-f0-9]{64}$/); assert.match(final.receipt.outputDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(final.cautions.map((item: any) => item.ref), summary.evidence.filter((item: any) => item.kind === 'caution').map((item: any) => item.ref));
 }
-async function mounted(h: Fixture['h']) {
-  const deadline = Date.now() + 5000;
-  while (!descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Recent answers'))) {
-    assert.ok(Date.now() < deadline, 'Conversation must mount after actual unlock.'); await delay(10);
-  }
+/** Lock, then open the vault again the way the desktop app does: workspace.open, then workspace.status. */
+async function lockAndUnlock(bridge: PreloadBridge) {
+  await bridge.request('workspace.lock');
+  await bridge.request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD });
+  assert.equal((await bridge.request('workspace.status')).open, true);
 }
-async function unlockInRenderer(h: Fixture['h']) {
-  h.renderer.renderSetup(); await namedButton(h.app, 'Open a vault').dispatch('click');
-  const form = find(h.app, node => node.tagName === 'form');
-  find(form, node => node.tagName === 'input' && node.attributes.type === 'text').value = 'acceptance';
-  find(form, node => node.tagName === 'input' && node.attributes.type === 'password').value = PASSWORD;
-  await form.dispatch('submit'); await mounted(h);
+/** A calculation receipt opened the way the desktop app opens it. */
+async function calculationReceipt(f: Fixture, id: string, bridge = f.bridge) {
+  const result = await bridge.request('receipts.get', { id, receiptId: id });
+  return result.receipt || result;
 }
 
 test('natural mixed question reaches both reviewed stages and final model prose has current tool and citation receipts', async t => {
@@ -76,37 +73,30 @@ test('natural mixed question reaches both reviewed stages and final model prose 
   assert.equal(calls[1].payload, reviewed.preview.payload, 'Dispatch must match the independently reviewed exact payload.');
   assert.equal(final.receipt.synthesisModelReceiptId, reviewed.preview.id);
   verifySlots(final, original, calls[1]); assert.ok(final.paragraphs[0].startsWith(MODEL_PROSE));
-  for (const paragraph of final.paragraphs) assert.ok(hasText(f.h.app, paragraph));
-  for (const caution of final.cautions) assert.ok(hasText(f.h.app, caution.text));
+  for (const caution of final.cautions) assert.equal(typeof caution.text, 'string');
   const evidence = calls[1].input.evidence;
   assert.ok(evidence.some((item: any) => item.kind === 'claim' && item.citationRefs.length));
   assert.ok(evidence.some((item: any) => item.kind === 'figure'));
   for (const privateText of [original.id, original.modelReceiptId, original.results[0].answer.id, original.results[1].answer.id, SOURCE, SECRET, '30000', '300.00', '2026-09-01']) {
     assert.equal(calls[1].payload.includes(privateText), false, 'Stage-two summary must omit host-only value or identifier: ' + privateText);
   }
-  assert.ok(hasText(f.h.app, 'Tool results and receipts')); assert.ok(hasText(f.h.app, 'Final answer evidence binding'));
-  assert.equal(descendants(f.h.app).filter(node => node.tagName === 'button' && hasText(node, 'Review final answer')).length, 1,
-    'Final answer does not recursively offer synthesis for its nested tools.');
-  await lastNamedButton(f.h.app, 'Open calculation receipt').dispatch('click');
-  const receipt = dialogFor(f.h.body, 'Calculation receipt'); assert.ok(hasText(receipt, original.results[1].answer.id));
+  assert.equal((await calculationReceipt(f, original.results[1].answer.id)).id, original.results[1].answer.id);
   assert.equal((await f.calls()).length, 2);
 });
 
-test('final answer stays visible in saved history after actual lock/unlock and a complete worker restart', async t => {
+test('final answer stays readable in saved history after actual lock/unlock and a complete worker restart', async t => {
   const question = 'What was billed in the selected September invoices?';
   const f = await fixture(t, { [question]: { calls: ['billed'] } }, 'ollama');
   const original = (await tools(f, question)).answer, final = (await synthesize(f, original.id)).answer;
   verifySlots(final, original, (await f.calls())[1]);
   assert.deepEqual((await f.request('conversation.get', { id: final.id })).answer, final);
-  await f.h.renderer.request('workspace.lock');
-  assert.equal(f.h.renderer.state.messages.length, 0); await unlockInRenderer(f.h);
-  const saved = await openSaved(f, final.id); for (const paragraph of final.paragraphs) assert.ok(hasText(saved, paragraph));
-  for (const caution of final.cautions) assert.ok(hasText(saved, caution.text));
-  await namedButton(saved, 'Open calculation receipt').dispatch('click');
-  assert.ok(hasText(dialogFor(f.h.body, 'Calculation receipt'), original.results[0].answer.id));
+  await lockAndUnlock(f.bridge);
+  const saved = await openSaved(f, final.id); assert.deepEqual(saved.paragraphs, final.paragraphs);
+  assert.deepEqual(saved.cautions, final.cautions);
+  assert.equal((await calculationReceipt(f, original.results[0].answer.id)).id, original.results[0].answer.id);
   assert.equal((await f.calls()).length, 2);
-  await f.restart(); const reopened = await f.renderer(), savedAgain = await openSaved(f, final.id, reopened);
-  for (const paragraph of final.paragraphs) assert.ok(hasText(savedAgain, paragraph));
+  await f.restart(); const reopened = await f.newBridge(), savedAgain = await openSaved(f, final.id, reopened);
+  assert.deepEqual(savedAgain.paragraphs, final.paragraphs);
   assert.deepEqual((await f.request('conversation.get', { id: final.id })).answer, final);
   assert.equal((await f.calls()).length, 2, 'Lock, reopen and saved readback never invoke either provider stage.');
 });
@@ -127,7 +117,7 @@ test('repeated objectives retain distinct final IDs and summaries without cross-
   const history = await f.request('conversation.history', { limit: 20 });
   for (const final of finals) {
     assert.ok(history.items.some((item: any) => item.id === final.id && item.kind === 'synthesized-conversation'));
-    const saved = await openSaved(f, final.id); for (const paragraph of final.paragraphs) assert.ok(hasText(saved, paragraph));
+    const saved = await openSaved(f, final.id); assert.deepEqual(saved.paragraphs, final.paragraphs);
     assert.deepEqual((await f.request('conversation.get', { id: final.id })).answer, final);
   }
   assert.equal((await f.calls()).length, 6);
@@ -145,7 +135,7 @@ test('unknown and failing tools retain their canonical warnings alongside separa
       if (result.error) { assert.ok(final.cautions.some((item: any) => item.text === result.error.message)); assert.equal(result.error.code, 'AGING_LINK_REQUIRED'); }
       else for (const unknown of result.answer.unknowns) assert.ok(final.cautions.some((item: any) => item.text === unknown.message));
     }
-    for (const caution of final.cautions) assert.ok(hasText(f.h.app, caution.text));
+    for (const caution of final.cautions) assert.equal(typeof caution.text, 'string');
     if (original.results.every((item: any) => item.error)) {
       assert.match(final.paragraphs.join(' '), /unavailable/); assert.equal(synthesis.input.evidence.some((item: any) => item.kind === 'figure'), false);
       assert.deepEqual(final.tools.receipt.resultRefs, []);
@@ -159,10 +149,11 @@ test('saved clarification replies synthesize the retained original objective, no
   const f = await fixture(t, { [objective]: { planner: { kind: 'clarification' } }, [reply]: { calls: ['billed'] } }, 'ollama');
   const clarification = (await tools(f, objective)).answer; assert.equal(typeof clarification.clarification, 'string');
   assert.equal((await f.calls()).length, 1);
-  await f.h.renderer.request('workspace.lock'); await unlockInRenderer(f.h);
-  await lastNamedButton(f.h.app, 'Recent answers').dispatch('click');
-  await namedButton(dialogFor(f.h.body, 'Recent answers'), 'Continue this question').dispatch('click');
-  const original = (await tools(f, reply)).answer; assert.equal(original.kind, 'grounded-conversation');
+  await lockAndUnlock(f.bridge);
+  // Recent answers lists the retained clarification; continuing it selects that saved turn.
+  const pending = (await f.request('conversation.history', { limit: 20 })).items.find((item: any) => item.kind === 'clarification');
+  assert.ok(pending); assert.equal((await selectContinuation(f.bridge, pending.id)).originalQuestion, objective);
+  const original = (await tools(f, reply, { continuationId: pending.id })).answer; assert.equal(original.kind, 'grounded-conversation');
   assert.equal(original.results[0].answer.totalMinor, '30000'); assert.equal((await f.calls()).length, 2);
   const final = (await synthesize(f, original.id)).answer, calls = await f.calls();
   assert.equal(calls[1].input.question, reply); assert.equal(calls[1].input.continuation.originalQuestion, objective);
@@ -171,17 +162,13 @@ test('saved clarification replies synthesize the retained original objective, no
   verifySlots(final, original, calls[2]); assert.equal(calls.length, 3);
 });
 
-test('external authority revocation removes cached and saved final prose without redispatch', async t => {
+test('external authority revocation removes saved final prose without redispatch', async t => {
   const question = 'What did the permitted September records bill?';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const original = (await tools(f, question)).answer, final = (await synthesize(f, original.id)).answer;
-  assert.ok(hasText(await openSaved(f, final.id), final.paragraphs[0]));
+  assert.equal((await openSaved(f, final.id)).paragraphs[0], final.paragraphs[0]);
   await f.request('trust.update', { allowedSources: [] });
   await assert.rejects(f.request('conversation.get', { id: final.id }));
   assert.equal((await f.request('conversation.history', { limit: 20 })).items.some((item: any) => item.id === final.id), false);
-  const page = await f.h.renderer.renderConversation();
-  assert.equal(f.h.renderer.state.messages.length, 0);
-  for (const paragraph of final.paragraphs) assert.equal(hasText(page, paragraph), false);
-  assert.equal(descendants(f.h.body).some(node => node.tagName === 'dialog' && hasText(node, final.paragraphs[0])), false);
   assert.equal((await f.calls()).length, 2);
 });

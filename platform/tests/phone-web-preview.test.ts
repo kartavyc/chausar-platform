@@ -67,7 +67,7 @@ test('portable TypeScript is stripped before browser delivery', async () => {
 
 test('closed asset allowlist hides the desktop engine, workspace files and arbitrary modules', async () => {
   await withPreview(async port => {
-    for (const path of ['/api/session', '/api/rpc', '/mcp', '/package.json', '/.env', '/.git/config', '/platform/runtime/server.ts', '/platform/runtime/phone/approval.ts', '/app/renderer/app.js', '/app/companion/shared/not-an-asset.ts', '/favicon.ico']) {
+    for (const path of ['/api/session', '/api/rpc', '/mcp', '/package.json', '/.env', '/.git/config', '/platform/runtime/server.ts', '/platform/runtime/phone/approval.ts', '/app/ui/src/main.tsx', '/app/ui/dist/index.html', '/app/companion/shared/not-an-asset.ts', '/favicon.ico']) {
       const result = await get(port, path);
       assert.equal(result.status, 404, path); assert.equal(result.body, 'Preview route not found.');
     }

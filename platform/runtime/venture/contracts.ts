@@ -1023,7 +1023,7 @@ export type LeadRecord = RecordBase<'venture-lead'> & Omit<LeadView, 'id'>;
 /** The business's outreach settings: the postal address every draft carries (set by the owner only) and the blocklist. */
 export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & { postalAddress: string | null; blockedEmails: string[]; blockedDomains: string[] };
 
-/** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs and app/renderer/app.js. */
+/** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
@@ -1955,7 +1955,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.team.posture', 'venture.evidence.dismiss', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
   'venture.leads.block', 'venture.share.create', 'venture.share.revoke',
 ] as const);
-/** Methods whose success changes what saved answers may cite; the renderer adds them to evidenceChanges. */
+/** Methods whose success changes what saved answers may cite (the retired app/renderer cleared its cached answers on them). */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.create', 'venture.invoice.issue', 'venture.payment.record', 'venture.order.deliver',
 ] as const);

@@ -131,6 +131,8 @@ Rules the UI keeps (carried from the old renderer's tests):
 
 Switch-over: a setting `ui.renderer` = `ink` | `legacy` (default `legacy` until every place passes its checks, then `ink`). Electron's asset allowlist and the hosted server's allowlist gain the built `app/ui/dist` files.
 
+Done on 22 October, without the setting: Ink is the only app, `app/renderer` and its tests are removed, Electron and both servers serve only the `app/ui/dist` allowlist and refuse to start without it (`UI_NOT_BUILT`), the start commands and packaging build Ink first, and the engine acceptance tests drive the engine through the real preload instead of the old screens. See `docs/venture/ink.md`.
+
 ## 7. Engine additions
 
 ### 7.1 Contracts the UI needs (new methods)

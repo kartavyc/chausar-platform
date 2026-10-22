@@ -163,3 +163,12 @@
 .rejected li + li {
   margin-top: 2px;
 }
+
+/* What may leave this computer: three choices on their own lines, no box. */
+.rule {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

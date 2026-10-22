@@ -41,13 +41,17 @@ describe('Welcome back: businesses on this computer, none open', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm'));
   });
 
-  it('a business that opens with its passphrase says so and asks for nothing here', async () => {
+  it('a business that opens with its passphrase asks for it under its own row, and sends nothing until it is typed', async () => {
     const { calls, show } = start({ closed: true });
     await show();
+    expect(screen.queryByLabelText(/passphrase/i)).toBeNull();
     const sitara = await screen.findByRole('button', { name: /Sitara Events/ });
+    expect(sitara.getAttribute('aria-expanded')).toBe('false');
     await act(async () => { fireEvent.click(sitara); });
-    expect(screen.getByText("Sitara Events opens with its passphrase. Asking for it here isn't built yet.").getAttribute('role')).toBe('status');
+    expect(sitara.getAttribute('aria-expanded')).toBe('true');
+    expect(within(sitara.closest('li')!).getByLabelText('Passphrase for Sitara Events')).toBeTruthy();
     expect(opened(calls)).toEqual([]);
+    await act(async () => { fireEvent.click(sitara); });
     expect(screen.queryByLabelText(/passphrase/i)).toBeNull();
   });
 

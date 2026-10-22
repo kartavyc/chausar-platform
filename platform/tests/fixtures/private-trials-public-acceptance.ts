@@ -9,7 +9,7 @@ import type { CalculationReceipt, CalculationRequest } from '../../runtime/calcu
 import type { ImportInput, MappingRecipe } from '../../runtime/ingest.ts';
 import type { Dictionary } from '../../runtime/ontology.ts';
 import type { PrivateTrialChange, PrivateTrialEvaluation, PrivateTrialVersionPin } from '../../runtime/private-trial-contracts.ts';
-import { harness } from './conversation-acceptance-renderer.ts';
+import { preloadBridge } from './preload-bridge.ts';
 
 // Fresh synthetic encrypted custody, actual preload/strict IPC and real Engine.
 // This fixture grants no native database, connector, provider or security qualification.
@@ -48,11 +48,10 @@ export async function fixture(t: TestContext, mode: 'definition' | 'recipe' = 'd
     assert.ok(basename(target).startsWith('chausar-private-trial-acceptance-'));
     await rm(target, { recursive: true, force: true });
   });
-  const created = await engine.request('workspace.create', { name: COMPANY, folder: 'acceptance',
+  await engine.request('workspace.create', { name: COMPANY, folder: 'acceptance',
     passphrase: PASSWORD, demo: false, pack: 'retail' });
-  const h = await harness({ dispatch: (method, payload) => context
-    ? engine.requestAs(context, method, payload) : engine.request(method, payload), mount: true });
-  h.renderer.state.workspace = created.workspace;
+  const h = await preloadBridge({ dispatch: (method, payload) => context
+    ? engine.requestAs(context, method, payload) : engine.request(method, payload) });
   const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
   await request('trust.update', { retentionDays: 3650 });
   const author: Member | undefined = actor ? await request('members.add', {

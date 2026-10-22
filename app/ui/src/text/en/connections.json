@@ -70,5 +70,11 @@
   "connections.bank.file": "Statement file (CSV)",
   "connections.bank.fileFirst": "Choose the statement file first.",
   "connections.bank.import": "Import",
-  "connections.bank.rejected": "Line {line}: {reason}"
+  "connections.bank.rejected": "Line {line}: {reason}",
+  "connections.ai.sendTitle": "What may leave this computer",
+  "connections.ai.send.nothing": "Nothing leaves this computer",
+  "connections.ai.send.shape": "The shape of each question",
+  "connections.ai.send.samples": "Small samples you approve",
+  "connections.ai.sendSave": "Save",
+  "connections.ai.sendFailed": "Couldn't save that: {message}"
 }

@@ -2,6 +2,8 @@
 
 Assessment base: `3160d5a896b5fb3539405948671d530367cfe30d`. 2411 source requirement records retain all 250 numbered final-plan contracts and all 412 gap findings, plus architecture/live-plan/user requirements. Records overlap across source documents deliberately; this is a traceability ledger, not a feature count.
 
+Evidence that points at `app/renderer/` is historical: those links are pinned to the assessment base, and the old renderer was removed on 22 October 2026 when Ink (`app/ui`) became the app (see [docs/venture/ink.md](../venture/ink.md)). Renderer requirements need fresh evidence against Ink.
+
 **Release acceptance is unverified. Dedicated security review is blocked and unverified. No existing test count, local stub or fixture receipt certifies complete end-to-end completion.**
 
 The complete requirement text, acceptance conditions, blockers, implementation evidence and exact source references are in [ledger.json](ledger.json). The table is a compact index. See [module ownership](module-ownership.md), [confirmed user scope](user-scope.md), [source provenance](sources.json) and [ancestry](ancestry.json).

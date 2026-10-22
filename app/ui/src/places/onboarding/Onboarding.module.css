@@ -244,3 +244,57 @@
   margin-top: var(--sp-4);
   font-size: var(--text-read);
 }
+
+/* Welcome back's ways in: a field that opens under its row, the folds of more options and of backups. */
+.ask {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  margin: var(--sp-2) 0 var(--sp-4);
+}
+
+.more {
+  margin-top: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.more summary {
+  cursor: pointer;
+  color: var(--link);
+}
+
+.more[open] summary {
+  margin-bottom: var(--sp-2);
+}
+
+.file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.backups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backup {
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+}
+
+.backupLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  align-items: center;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.backupLine > :last-child {
+  margin-left: auto;
+}

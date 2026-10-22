@@ -47,7 +47,8 @@ describe('onboarding: first run', () => {
     expect(await screen.findByText('Based in India')).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
     const main = screen.getByRole('main');
-    expect(within(main).getAllByRole('button').map((b) => b.textContent)).toEqual(['Change', 'Start']);
+    // A computer with no business yet also offers one quiet way to a business that exists elsewhere (moved, restored).
+    expect(within(main).getAllByRole('button').map((b) => b.textContent)).toEqual(['Change', 'Start', 'Open a business you already have']);
     expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you want to start?');
   });
 
@@ -191,6 +192,16 @@ describe('onboarding: what the engine forces before a vault', () => {
     expect(code.textContent).toBe('K7QM4X2D9PLR8T3WNB6Y5HJC');
     expect(within(code).getAllByText(/^.{4}$/)).toHaveLength(6);
     expect(screen.queryByLabelText('Passphrase')).toBeNull();
+    // Save as file takes the exact code, on its own line, only when the owner asks.
+    let file: Blob | null = null;
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: (value: Blob) => { file = value; return 'blob:chausar/1'; } });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => {} });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await press('Save as file');
+    expect(click.mock.contexts.map((link) => (link as HTMLAnchorElement).download)).toEqual(['chausar-recovery-code.txt']);
+    expect((await (file as unknown as Blob).text()).split('\n')).toContain('K7QM4X2D9PLR8T3WNB6Y5HJC');
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
     expect(flow().filter(([m]) => m === 'workspace.create').map(([, p]) => p)).toEqual([
       { name: 'Bookkeeping studio', pack: 'services', folder: null },
       { name: 'Bookkeeping studio', pack: 'services', folder: null, passphrase: 'correct horse battery' },

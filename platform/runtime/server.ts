@@ -11,19 +11,15 @@ import { ventureHostEnv } from './venture/host-env.ts';
 import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/views/events.ts';
 import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
-import { INK_ROOT, inkRequested, listInkFiles } from './ui-ink.ts';
+import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   ...CUSTODY_METHODS]);
 
-const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
-const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
-/** The Ink app (app/ui, built to app/ui/dist) is served at / instead of the old renderer only with --ink or CHAUSAR_UI=ink. */
-const inkRoot = INK_ROOT;
-// The switch and the allowlist live in ui-ink.ts, shared with the hosted web server.
-export { inkRequested, listInkFiles };
+/** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */
+export type InkBuild = { folder: string; files: Record<string, string> };
 const validToken = (actual: string, expected: string) => Buffer.byteLength(actual) === Buffer.byteLength(expected) && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -43,9 +39,13 @@ async function body(req: IncomingMessage) {
   }
   inspect(value); return value;
 }
-export function createLocalServer(engine: Engine, options: { token?: string; port?: number; ui?: 'ink' | 'legacy'; inkFolder?: string } = {}) {
+/**
+ * The owner's loopback server: the Ink app at / and the named requests at /api/rpc. The entrypoint always passes the Ink
+ * build, listed before the engine opens; without it (tests of the API alone) every application file answers 404.
+ */
+export function createLocalServer(engine: Engine, options: { token?: string; port?: number; ink?: InkBuild } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex'); let origin = ''; let closing = false;
-  let inkFiles: Record<string, string> | null = null;
+  const ink = options.ink ?? null;
   // Open /api/events streams: closing the server ends them, so a shutdown never waits on a page that stays open.
   const streams = new Set<ServerResponse>();
   const server = createServer(async (req, res) => {
@@ -107,11 +107,10 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
-      const known: Record<string, string> = inkFiles ?? { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/launch.js': 'launch.js', '/assets/icon.svg': 'assets/icon.svg' };
-      check(Object.hasOwn(known, url.pathname), 'NOT_FOUND', 'This application file does not exist.');
-      const path = join(inkFiles ? options.inkFolder ?? inkRoot : renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
+      check(ink !== null && Object.hasOwn(ink.files, url.pathname), 'NOT_FOUND', 'This application file does not exist.');
+      const path = join(ink.folder, ink.files[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
       if (closing) res.setHeader('Connection', 'close');
-      res.writeHead(200, { 'Content-Type': types[ext] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
+      res.writeHead(200, { 'Content-Type': INK_TYPES[ext] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
     } catch (error) {
       const e = error as Error & { code?: string; reason?: unknown }; const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'UNAUTHENTICATED' ? 401 : e.code?.includes('FORBIDDEN') || e.code === 'INVALID_HOST' || e.code === 'INVALID_ORIGIN' ? 403 : e.code === 'METHOD_NOT_ALLOWED' ? 405 : 400;
       // DEVICE_KEYS_UNAVAILABLE carries why, so the page can show the engine's words without guessing.
@@ -121,7 +120,6 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
   return {
     server, token,
     async listen() {
-      if (options.ui === 'ink') inkFiles = await listInkFiles(options.inkFolder ?? inkRoot);
       await new Promise<void>((resolveListen, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', () => { server.off('error', reject); resolveListen(); }); });
       const address = server.address(); check(address && typeof address === 'object', 'SERVER_FAILED', 'No local port was assigned.'); origin = `http://127.0.0.1:${address.port}`; return { origin, token };
     },
@@ -149,8 +147,12 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Listed before the engine opens, so an unbuilt Ink app stops the start with its own plain reason (UI_NOT_BUILT).
+  let ink: InkBuild;
+  try { ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }; }
+  catch (error) { if ((error as { code?: string }).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
   const engine = await createServerEngine(); const demo = engine.options.demo;
-  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), ui: inkRequested() ? 'ink' : 'legacy' });
+  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), ink });
   const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { clearInterval(scheduler); void app.close().finally(() => process.exit(0)); });

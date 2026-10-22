@@ -11,7 +11,7 @@ One app for desktop (Electron) and the web, built to `app/ui/dist`. Spec: `docs/
 | `npm run test:ui` | Vitest + jsdom + Testing Library, everything under `app/ui/tests` |
 | `npm run typecheck:ui` | `tsc --noEmit` with `app/ui/tsconfig.json` (strict) |
 
-Serving the built app: `npm run build:ui`, then `npm start -- --ink` (local server, Ink at `/`, `/api/rpc` unchanged) or Electron with `--ink`, or set `CHAUSAR_UI=ink` for either (`npm run desktop` passes the variable through). Without the switch, the old renderer stays the default.
+Serving the built app: Ink is the only app. `npm start` (local server, Ink at `/`, `/api/rpc` unchanged), `npm run desktop` (Electron) and `npm run start:hosted` (Ink at `/app/`) each run `npm run build:ui` first, and each refuses to start without the build. The old renderer (`app/renderer`) was removed on 22 October 2026.
 
 ## Structure
 

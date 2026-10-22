@@ -109,3 +109,13 @@
   font-size: var(--text-label);
   color: var(--mute);
 }
+
+.noticeLine {
+  margin: 0 0 var(--sp-1);
+}
+
+.notice .item {
+  width: auto;
+  margin-left: calc(var(--sp-2) * -1);
+  color: var(--link);
+}

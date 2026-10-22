@@ -7,7 +7,7 @@ import { Engine } from '../../runtime/engine.ts';
 import type { Context, Member } from '../../runtime/contracts.ts';
 import type { CalculationReceipt, CalculationRequest } from '../../runtime/calculator.ts';
 import type { ForecastRequest, SavedForecastEvaluation } from '../../runtime/forecast-contracts.ts';
-import { harness } from './conversation-acceptance-renderer.ts';
+import { preloadBridge } from './preload-bridge.ts';
 
 // Synthetic CSV evidence through real preload/strict IPC and Engine. This qualifies
 // the local experimental flow, not native storage, a connector, or predictive quality.
@@ -29,11 +29,10 @@ export async function fixture(t: TestContext) {
     assert.ok(basename(target).startsWith('chausar-forecast-acceptance-'));
     await rm(target, { recursive: true, force: true });
   });
-  const created = await engine.request('workspace.create', { name: COMPANY, folder: 'acceptance',
+  await engine.request('workspace.create', { name: COMPANY, folder: 'acceptance',
     passphrase: PASSWORD, demo: false, pack: 'retail' });
-  const h = await harness({ dispatch: (method, payload) => context
-    ? engine.requestAs(context, method, payload) : engine.request(method, payload), mount: true });
-  h.renderer.state.workspace = created.workspace;
+  const h = await preloadBridge({ dispatch: (method, payload) => context
+    ? engine.requestAs(context, method, payload) : engine.request(method, payload) });
   const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
   await request('trust.update', { retentionDays: 3650 });
   const dictionaryHash = (await request('ontology.get')).current.hash as string;

@@ -1,19 +1,22 @@
 # Ink: the new frontend and the engine pieces behind it
 
-Ink is the React app in `app/ui` that will replace the old renderer (`app/renderer`) on the desktop and on the hosted web tier. It is built around one idea: the owner approves, the team works. The spec is `docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md` and the build plan is `docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. This page says what was built on 21 October, how to switch it on, and what is still missing.
+Ink is the React app in `app/ui`, and since 22 October it is Chausar's only app, on the desktop and on the hosted web tier. It is built around one idea: the owner approves, the team works. The spec is `docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md` and the build plan is `docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. This page says what was built on 21 October, how to run it, and what is still missing.
 
-Ink is off by default. The old renderer stays the default until every place passes its checks.
+## The switch-over (22 October)
 
-## Switch it on
+The old renderer (`app/renderer`: `app.js`, `launch.js`, `styles.css`, `index.html`) is gone, with its tests. Electron, the local server and the hosted server serve only the Ink build in `app/ui/dist`, from an allowlist of its files made at startup and under the same strict content security policy as before. The `--ink` switch and `CHAUSAR_UI` are gone too: there is nothing left to switch, and both are now ignored.
 
-Build the app once, then start the engine with the switch:
+The engine acceptance tests that used to drive the old screens now drive the engine through the real desktop preload and its strict IPC contract (`platform/tests/fixtures/preload-bridge.ts`), which is the path Ink takes on the desktop. Every engine assertion stayed; the checks on the old screens' text went with them.
+
+## Run it
 
 ```sh
-npm run build:ui
-npm start -- --ink
+npm start             # local server: Ink at /, the pairing link is printed
+npm run desktop       # the Electron window
+npm run start:hosted  # hosted web tier, development mode: Ink at /app/
 ```
 
-`CHAUSAR_UI=ink` does the same as `--ink`, and it is the way to switch the desktop window: `CHAUSAR_UI=ink npm run desktop` (in PowerShell, `$env:CHAUSAR_UI='ink'; npm run desktop`). The hosted web tier serves Ink at `/app/` with the same switch: `npm run start:hosted -- --ink`. Without a build the server refuses to start with `UI_NOT_BUILT` and says to run `npm run build:ui`.
+Each of these runs `npm run build:ui` first (an npm `pre` script), so a fresh checkout works. Started any other way without a build, the local and hosted servers refuse with `UI_NOT_BUILT`, the desktop launcher stops before opening Electron, and a window started directly shows the reason in an error box; each says to run `npm run build:ui`. Packaging (`npm run package:preview`, `npm run package`) builds Ink itself with Vite before electron-builder runs, and the package carries `app/ui/dist` and none of the app's sources, tests or tooling.
 
 For work on the screens alone, `npm run dev:ui` runs the app against its fake engine (two made-up businesses, Lumen Studio and Ledgerline), and `npm run test:ui` runs its tests.
 
@@ -54,7 +57,7 @@ Only the hosted web tier serves the link, at `/share/<token>`, and only when `CH
 
 ## Known limits
 
-- **The switch.** The old renderer is still the default. Ink was checked with its own tests (vitest and jsdom) and the engine tests; the full walk in light and dark at 1280 and 390 px, the axe checks on every place and the switch-over to `ui.renderer = ink` are still to do.
+- **The walk.** Ink was checked with its own tests (vitest and jsdom) and the engine tests. The full walk in light and dark at 1280 and 390 px and the axe checks on every place are still to do.
 - **Other businesses are locked rows.** Each business is its own encrypted vault and the engine keeps one open, so Today shows other businesses as locked rows until a read-only vault open exists.
 - **Auto with spot checks is not open.** The spot-check decision is now recorded when a run's write finishes at that posture, but the launch ladder keeps the stage planned, `venture.launch.advance` refuses it, the delivery runs allow only shadow and approve each, and every model turn on a real order still waits for the owner to approve its exact text. Opening it needs the ladder step, a stage the runs accept, and a decision on unattended turns for client data.
 - **The hosted tick.** The hosted server sweeps the journal when a business opens, but does not run the engine's five-minute tick.
@@ -65,4 +68,4 @@ Only the hosted web tier serves the link, at `/share/<token>`, and only when `CH
 
 ## Planned
 
-The switch-over to Ink as the default renderer, a read-only open for other businesses on Today, the auto with spot checks stage, the hosted tick, share links on Rivet, API posting once a platform's app review is done and a client ships, a payments register for TDS, purchases for input credit, and a bank connector with a real provider (the read-only consent shape is built and planned).
+A read-only open for other businesses on Today, the auto with spot checks stage, the hosted tick, share links on Rivet, API posting once a platform's app review is done and a client ships, a payments register for TDS, purchases for input credit, and a bank connector with a real provider (the read-only consent shape is built and planned).

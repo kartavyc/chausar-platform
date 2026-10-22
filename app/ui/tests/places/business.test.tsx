@@ -315,7 +315,8 @@ describe('Business menu: the playbook label', () => {
     expect(current.textContent).toContain('YouTube channel');
     const ledgerline = await within(menu).findByRole('button', { name: /Ledgerline/ });
     await act(async () => { fireEvent.click(ledgerline); });
-    await waitFor(() => expect(within(rail).getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm · switch'));
+    // Switching reads the whole app again for the other business, so the rail is a new one.
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm · switch'));
   });
 
   it("falls back to the service type's label when the engine sends no playbook", async () => {
@@ -334,14 +335,41 @@ describe('Business menu: the playbook label', () => {
 });
 
 describe('Business menu', () => {
-  it("a business that opens with its passphrase says so, and that this screen can't ask for it yet", async () => {
+  it('a business that opens with its passphrase says so; Continue closes this one and asks for it on Welcome back', async () => {
     const { engine } = start('#/today');
     const spy = vi.spyOn(engine, 'request');
     fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
     { const target = await within(menu).findByRole('button', { name: /Sitara Events/ }); await act(async () => { fireEvent.click(target); }); }
-    expect(within(menu).getByText("Sitara Events opens with its passphrase. Asking for it here isn't built yet.")).toBeTruthy();
+    expect(within(menu).getByText('Sitara Events opens with its passphrase. Chausar closes this business first.')).toBeTruthy();
+    expect(spy.mock.calls.some(([method]) => method === 'workspace.open' || method === 'workspace.lock')).toBe(false);
+    await act(async () => { fireEvent.click(within(menu).getByRole('button', { name: 'Continue' })); });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
+    expect(spy.mock.calls.filter(([method]) => method === 'workspace.lock')).toHaveLength(1);
     expect(spy.mock.calls.some(([method]) => method === 'workspace.open')).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('Passphrase for Sitara Events'));
+  });
+
+  it("a business whose key is missing goes to its recovery code on Welcome back, after this one closes", async () => {
+    start('#/today', new FakeEngine({ keyMissing: ['ledgerline'] }));
+    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    { const target = await within(menu).findByRole('button', { name: /Ledgerline/ }); await act(async () => { fireEvent.click(target); }); }
+    expect(within(menu).getByText("Ledgerline can't open with this computer's key. Your recovery code opens it. Chausar closes this business first.")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(menu).getByRole('button', { name: 'Continue' })); });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Use your recovery code' })).toBeTruthy();
+    expect((screen.getByLabelText('Business') as HTMLSelectElement).value).toBe('ledgerline');
+  });
+
+  it('switching closes the open business first, as the engine keeps one open, then opens the other', async () => {
+    const { engine } = start('#/today');
+    const spy = vi.spyOn(engine, 'request');
+    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    { const target = await within(menu).findByRole('button', { name: /Ledgerline/ }); await act(async () => { fireEvent.click(target); }); }
+    const order = spy.mock.calls.map(([method]) => method).filter((method) => method === 'workspace.lock' || method === 'workspace.open');
+    expect(order).toEqual(['workspace.lock', 'workspace.open']);
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
 
   it('leads to plan and playbook, prices, website build and a new business', async () => {

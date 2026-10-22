@@ -4,10 +4,12 @@
  * session; under them, what the team is working on now. Keys (J, K, Enter, A, D) come from the shell.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet } from '../../shell/navigation';
+import { refusalWords } from '../../parts/custody';
+import { LeftContext } from '../onboarding/started';
 import { ApprovalRow, type DecideExtra } from '../../parts/ApprovalRow';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
@@ -42,6 +44,7 @@ const focusedRowId = () => (document.activeElement as HTMLElement | null)?.close
 export function Place() {
   const t = useT();
   const client = useEngine();
+  const left = useContext(LeftContext);
   const session = useTodaySession();
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
   // A stale decision hands back the new version; it shows until the list itself catches up.
@@ -95,14 +98,31 @@ export function Place() {
     if (hadFocus) setFocusAfter(row.id);
   }
 
+  /**
+   * Open a locked row's business. The engine keeps one business open, so on this computer the open one closes first.
+   * A business that needs its passphrase or its recovery code is then asked for it on Welcome back, under its own
+   * row; this page never asks for either.
+   */
   async function openBusiness(row: QueueRow): Promise<QueueDecision> {
+    const hosted = client.transport === 'hosted';
+    try {
+      if (!hosted) await client.request('workspace.lock', {});
+    } catch (error) {
+      return { outcome: 'refused', line: refusalWords(error, t), reason: error instanceof EngineError ? error.code : 'OPEN_FAILED' };
+    }
     try {
       await client.request('workspace.open', { folder: row.businessId });
       session.hide(row.id);
       return { outcome: 'done', line: t('today.opened') };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return { outcome: 'refused', line: message, reason: error instanceof EngineError ? error.code : 'OPEN_FAILED' };
+      const code = error instanceof EngineError ? error.code : 'OPEN_FAILED';
+      if (!hosted) {
+        if (code === 'PASSPHRASE_REQUIRED') left({ ask: { folder: row.businessId, with: 'passphrase' } });
+        else if (code === 'DEVICE_KEY_FAILED') left({ ask: { folder: row.businessId, with: 'recovery-code' } });
+        else left({ problem: refusalWords(error, t) });
+        return { outcome: 'refused', line: refusalWords(error, t), reason: code };
+      }
+      return { outcome: 'refused', line: refusalWords(error, t), reason: code };
     }
   }
 

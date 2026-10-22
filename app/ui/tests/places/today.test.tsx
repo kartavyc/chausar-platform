@@ -282,12 +282,13 @@ describe('Today: setup and locked rows', () => {
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-setup-ai"]')!.textContent).toBe('Connect your AI · Moved to later'));
   });
 
-  it('a business that needs its passphrase says so in the row', async () => {
+  it('a business that needs its passphrase: Open closes this one and Welcome back asks for it under its own row', async () => {
     start();
     const row = await rowOf('Sitara Events is locked. Open to see what needs you.');
     expect(row.textContent).toContain('Sitara Events');
     await click(within(row).getByRole('button', { name: 'Open' }));
-    expect(row.textContent).toContain('This business opens with its passphrase.');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText('Passphrase for Sitara Events'));
   });
 
   it('a business this computer can open opens from its locked row', async () => {

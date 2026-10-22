@@ -256,11 +256,11 @@ Known limits: the move was not imported on a second computer in the walk (the te
 
 ## Ink, 21 October
 
-Ink is the new React frontend in `app/ui` for the desktop and the hosted web tier, with the engine pieces it needs: Today's approval queue across businesses and what each row is about, runs you can watch, agent gates and postures, Money at a glance with sum receipts, the tax working, the CA of record and sign-offs, the lead blocklist, client share links, the action journal with bound single-use approvals, the policy gate on every outside effect, and the three flagship playbooks. It is off by default: `npm run build:ui`, then `npm start -- --ink` or `CHAUSAR_UI=ink`. [ink.md](ink.md) says what was built, how to switch it on and what is planned.
+Ink is the new React frontend in `app/ui` for the desktop and the hosted web tier, with the engine pieces it needs: Today's approval queue across businesses and what each row is about, runs you can watch, agent gates and postures, Money at a glance with sum receipts, the tax working, the CA of record and sign-offs, the lead blocklist, client share links, the action journal with bound single-use approvals, the policy gate on every outside effect, and the three flagship playbooks. Since 22 October it is the only app: the old renderer (`app/renderer`) and its tests are gone, and `npm start`, `npm run desktop` and `npm run start:hosted` build Ink and serve it. [ink.md](ink.md) says what was built, how to run it, how the switch-over went and what is planned.
 
 Known limits:
 
-- The old renderer is still the default; Ink's full walk at both widths in light and dark, its axe checks and the switch-over are still to do.
+- Ink's full walk at both widths in light and dark and its axe checks are still to do.
 - Today shows other businesses as locked rows: there is no read-only open of another vault yet.
 - Auto with spot checks stays planned. The spot-check decision is recorded when a run finishes at that posture, but the stage cannot be reached and every real-order model turn still waits for the owner.
 - Client share links open only on the hosted tier with `CHAUSAR_PUBLIC_URL` set, not on Rivet; on the desktop a link comes back with no address and says why.
@@ -282,7 +282,7 @@ Known limits:
 | [harness.md](harness.md) | The delivery harness: tools, client files, work receipts, the sandbox tiers and the improvement loop |
 | [shell.md](shell.md) | The venture host, desktop types, shell and end-to-end tests (P6) |
 | [onboarding.md](onboarding.md) | Onboarding v2: connect an AI first, the open box, the block library, the view registry, the composer and its number guard, the draft desk |
-| [launch.md](launch.md) | The launch screens in the renderer (P7), and the onboarding v2 screens |
+| [launch.md](launch.md) | The launch and onboarding v2 screens as built in the old renderer (P7); a record since Ink replaced it on 22 October |
 | [hosted.md](hosted.md) | The experimental hosted web tier: sign-in, custody, tenancy, one actor per business, limits, and what a deploy needs |
-| [ink.md](ink.md) | Ink, the new React frontend, and the engine methods behind it: switching it on, known limits, what is planned |
+| [ink.md](ink.md) | Ink, the app, and the engine methods behind it: running it, the switch-over, known limits, what is planned |
 | [architecture.md](architecture.md) | The target architecture this build follows |

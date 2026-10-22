@@ -70,5 +70,11 @@
   "connections.bank.file": "स्टेटमेंट फ़ाइल (CSV)",
   "connections.bank.fileFirst": "पहले स्टेटमेंट फ़ाइल चुनें।",
   "connections.bank.import": "इम्पोर्ट करें",
-  "connections.bank.rejected": "पंक्ति {line}: {reason}"
+  "connections.bank.rejected": "पंक्ति {line}: {reason}",
+  "connections.ai.sendTitle": "इस कंप्यूटर से क्या बाहर जा सकता है",
+  "connections.ai.send.nothing": "इस कंप्यूटर से कुछ बाहर नहीं जाता",
+  "connections.ai.send.shape": "हर सवाल का ढाँचा",
+  "connections.ai.send.samples": "आपके मंज़ूर किए छोटे नमूने",
+  "connections.ai.sendSave": "सेव करें",
+  "connections.ai.sendFailed": "सेव नहीं हुआ: {message}"
 }

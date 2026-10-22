@@ -8,7 +8,6 @@ import { loopbackPostgresUrl, type LoopbackPostgres } from '../postgres.ts';
 import { parseMasterKey } from './custody.ts';
 import { DEFAULT_LIMITS, type HostedLimits } from './limits.ts';
 import type { RelyingParty } from './webauthn.ts';
-import { inkRequested } from '../ui-ink.ts';
 
 export type HostedConfig = {
   dev: boolean;
@@ -27,8 +26,6 @@ export type HostedConfig = {
   postgres: LoopbackPostgres | null;
   runtime: 'local';
   limits: HostedLimits;
-  /** 'ink' serves the built Ink app at /app/; the same switch as the local server (--ink or CHAUSAR_UI=ink). */
-  ui: 'ink' | 'legacy';
   /**
    * CHAUSAR_PUBLIC_URL: the address clients reach this server at, for client share links (/share/<token>). It must be
    * this server's own origin; null when unset, and then share links are kept but get no address.
@@ -115,6 +112,5 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
     listen: { host: listenHost, port }, dataDirectory: resolve(env.CHAUSAR_HOSTED_DATA ?? 'data/hosted'),
     custody, tls, trustProxy: env.CHAUSAR_HOSTED_TRUST_PROXY === '1' && tls.kind === 'proxy',
     mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits,
-    ui: inkRequested(args, env) ? 'ink' : 'legacy',
   };
 }

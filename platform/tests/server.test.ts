@@ -1,17 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
+import { listInkFiles } from '../runtime/ui-ink.ts';
 
 async function server(t: any) {
   const path = await mkdtemp(join(tmpdir(), 'chausar-http-')); const engine = new Engine({ directory: path, demo: true, storage: 'experimental-file' });
-  const app = createLocalServer(engine); const connection = await app.listen();
+  // A one-page stand-in for the Ink build (app/ui/dist), listed the way the entrypoint lists the real one.
+  const folder = join(path, 'ink'); await mkdir(folder); await writeFile(join(folder, 'index.html'), '<!doctype html><title>Chausar</title>');
+  const app = createLocalServer(engine, { ink: { folder, files: await listInkFiles(folder) } }); const connection = await app.listen();
   t.after(async () => { await app.close(); await rm(path, { recursive: true, force: true }); }); return { ...connection, engine, app };
 }
-test('real local HTTP application serves its renderer and authenticates named requests', async t => {
+test('real local HTTP application serves its app and authenticates named requests', async t => {
   const { origin, token } = await server(t);
   const page = await fetch(origin); assert.equal(page.status, 200); assert.ok((await page.text()).includes('<title>Chausar')); assert.ok(page.headers.get('content-security-policy')?.includes("script-src 'self'"));
   assert.equal((await fetch(`${origin}/api/session`)).status, 401);

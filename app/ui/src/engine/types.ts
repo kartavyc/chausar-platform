@@ -283,6 +283,15 @@ export interface CustodyViewLite {
   } | null;
 }
 export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
+/** The vault's own record of a business, as workspace.open, .recover, .restore and the moves return it (trimmed). */
+export interface WorkspaceLite { id?: string; name: string }
+/**
+ * `workspace.transfer.export`: the move file's text and its one-time code. Both arrive once; the UI saves the text only
+ * when the owner asks and keeps neither after the screen that showed them.
+ */
+export interface MoveFile { fileName: string; text: string; transferCode: string; bytes: number }
+/** `workspace.delete`: what the engine removed, and its words for the copies it cannot reach. */
+export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopies: string }
 
 /**
  * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is
@@ -456,8 +465,32 @@ export interface EngineMethods {
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };
   'workspace.custody.passphraseOff': { params: { passphrase: string }; result: { custody: CustodyViewLite } };
+  /** With a business open, its backups; with none open (Welcome back), every backup on this computer, newest first. */
   'workspace.backups.list': { params: Record<string, never>; result: { backups: BackupLite[]; more: boolean } };
   'workspace.backups.create': { params: Record<string, never>; result: BackupLite };
+  /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
+  'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
+  /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
+  'workspace.transfer.export': { params: { passphrase?: string }; result: MoveFile };
+  /** With no business open: the move file's text and its code. A new passphrase only after DEVICE_KEYS_UNAVAILABLE. */
+  'workspace.transfer.import': { params: { fileText: string; transferCode: string; passphrase?: string }; result: { workspace: WorkspaceLite; folder: string; unlock: UnlockMode } };
+  /** With no business open: the recovery code opens it. A new passphrase only after DEVICE_KEYS_UNAVAILABLE. */
+  'workspace.recover': { params: { folder: string; recoveryCode: string; passphrase?: string }; result: { workspace: WorkspaceLite } };
+  /**
+   * With no business open: a backup by its name in the backups folder (never a path), opened as a new business beside
+   * the original (folder null lets the engine choose). PASSPHRASE_REQUIRED asks for the passphrase; DEVICE_KEY_FAILED
+   * asks for the recovery code.
+   */
+  'workspace.restore': { params: { backupFile: string; folder?: string | null; passphrase?: string; recoveryCode?: string }; result: { workspace: WorkspaceLite; folder?: string } };
+  /** A copy in Chausar's exports folder. `confirmed` is sent only after the owner chose; plaintext only after a second ask. */
+  'workspace.export': { params: { confirmed: true; plaintext: boolean }; result: { path: string; encrypted: boolean } };
+  /** `confirmation` is the business name exactly as the vault holds it (workspace.status). */
+  'workspace.delete': { params: { confirmation: string }; result: Deleted };
+  /**
+   * The business's privacy rule (platform/runtime/trust.ts updatePolicy, a partial patch): `send` is what may leave
+   * this computer for an AI, checked by the engine before every call. Ink changes only `send`; the reply is the policy.
+   */
+  'trust.update': { params: { send: ModelStatusLite['sendPolicy'] }; result: { send: ModelStatusLite['sendPolicy'] } };
   'venture.client.list': { params: Record<string, never>; result: ClientLite[] };
   'venture.client.add': { params: ClientAddParams; result: ClientLite };
   'venture.order.list': { params: Record<string, never>; result: OrderLite[] };

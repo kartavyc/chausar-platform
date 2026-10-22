@@ -1,6 +1,5 @@
-// The hosted web server serves the Ink app (app/ui/dist) at /app/ behind the same switch as the local server
-// (--ink or CHAUSAR_UI=ink), from an allowlist built from the dist folder, under the hosted content policy. The sign-in
-// page at / stays; without the switch /app/ is still the old renderer.
+// The hosted web server serves the Ink app (app/ui/dist) at /app/, from an allowlist built from the dist folder, under
+// the hosted content policy. The sign-in page at / stays, with the app's icon. startHosted always lists the build first.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
@@ -20,6 +19,7 @@ async function dist() {
   await mkdir(join(folder, 'assets'));
   await writeFile(join(folder, 'index.html'), '<!doctype html>\n<html lang="en">\n<head>\n  <title>Ink</title>\n  <script src="./theme.js"></script>\n</head>\n<body></body>\n</html>\n');
   await writeFile(join(folder, 'theme.js'), '/* theme */');
+  await writeFile(join(folder, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   await writeFile(join(folder, 'assets/index-abc.js'), 'export {};');
   await writeFile(join(folder, 'assets/font-x.woff2'), 'wOF2');
   await writeFile(join(folder, 'assets/notes.exe'), 'MZ');
@@ -48,11 +48,10 @@ async function serve(t: any, ink?: { folder: string; files: Record<string, strin
   return port;
 }
 
-test('hosted takes the same switch as the local server: --ink or CHAUSAR_UI=ink, else the old renderer', () => {
-  assert.equal(hostedConfig({ CHAUSAR_HOSTED: '1' }, ['--dev']).ui, 'legacy');
-  assert.equal(hostedConfig({ CHAUSAR_HOSTED: '1', CHAUSAR_UI: 'ink' }, ['--dev']).ui, 'ink');
-  assert.equal(hostedConfig({ CHAUSAR_HOSTED: '1' }, ['--dev', '--ink']).ui, 'ink');
-  assert.equal(hostedConfig({ CHAUSAR_HOSTED: '1', CHAUSAR_UI: 'legacy' }, ['--dev']).ui, 'legacy');
+test('hosted has no app switch: the config carries no ui choice, whatever the old switch says', () => {
+  for (const [env, args] of [[{ CHAUSAR_HOSTED: '1' }, ['--dev']], [{ CHAUSAR_HOSTED: '1', CHAUSAR_UI: 'legacy' }, ['--dev', '--ink']]] as const) {
+    assert.equal(Object.hasOwn(hostedConfig(env, args), 'ui'), false);
+  }
 });
 
 test('with Ink, /app/ serves the built files told they run hosted, under the hosted policy, and nothing else', async t => {
@@ -77,19 +76,18 @@ test('with Ink, /app/ serves the built files told they run hosted, under the hos
   for (const path of ['/app/app.js', '/app/launch.js', '/app/styles.css', '/app/assets/notes.exe', '/app/assets/../index.html.bak', '/theme.js', '/assets/index-abc.js']) {
     assert.equal((await get(port, path)).status, 404, path);
   }
-  // The sign-in page at / is the hosted one either way.
+  // The sign-in page at / is the hosted one, with the Ink build's icon.
   const landing = await get(port, '/');
   assert.equal(landing.status, 200);
   assert.match(landing.text, /hosted\.js/);
+  assert.match(landing.text, /href="\.\/app\/icon\.svg"/);
+  assert.equal((await get(port, '/app/icon.svg')).headers['content-type'], 'image/svg+xml');
+  assert.equal((await get(port, '/assets/icon.svg')).status, 404);
   assert.equal((await get(port, '/app')).status, 308);
 });
 
-test('without Ink, /app/ is still the old renderer', async t => {
+test('a hosted server made without the Ink build serves the sign-in page and no app file', async t => {
   const port = await serve(t);
-  const page = await get(port, '/app/');
-  assert.equal(page.status, 200);
-  assert.match(page.text, /<meta name="chausar-mode" content="hosted">/);
-  assert.match(page.text, /launch\.js/);
-  assert.equal((await get(port, '/app/app.js')).status, 200);
-  assert.equal((await get(port, '/app/theme.js')).status, 404);
+  assert.equal((await get(port, '/')).status, 200);
+  for (const path of ['/app/', '/app/index.html', '/app/app.js', '/app/launch.js', '/app/theme.js', '/assets/icon.svg']) assert.equal((await get(port, path)).status, 404, path);
 });

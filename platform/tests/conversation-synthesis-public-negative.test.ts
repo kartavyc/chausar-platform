@@ -1,21 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { descendants, find, hasText } from './fixtures/conversation-acceptance-renderer.ts';
-import { fixture, prepare, release, synthesisReview, tools, waitEntered } from './fixtures/conversation-synthesis-public-flow.ts';
+import { approveFinal, fixture, prepare, release, synthesisReview, tools, waitEntered } from './fixtures/conversation-synthesis-public-flow.ts';
 
-// Actual renderer/preload/strict IPC and production worker, with authored HTTP
+// Actual desktop preload/strict IPC and production worker, with authored HTTP
 // responses and the default production codec. No live inference or private vault.
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function noFinal(f: Fixture) {
   const page = await f.request('conversation.history', { limit: 50 });
   assert.equal(page.items.some((item: any) => item.kind === 'synthesized-conversation'), false,
     'A refused stage-two turn must not retain a final answer.');
-  assert.equal(f.h.renderer.state.messages.some((message: any) => message.data?.kind === 'synthesized-conversation'), false);
 }
 async function refusedRun(f: Fixture, prepared: Awaited<ReturnType<typeof prepare>>, original: any) {
   const before = (await f.calls()).length;
   let rejection: unknown, admitted: any;
-  try { admitted = await f.h.renderer.request('conversation.synthesis.run', prepared.payload); }
+  try { admitted = await f.request('conversation.synthesis.run', prepared.payload); }
   catch (error) { rejection = error; }
   if (!rejection) {
     const saved = await f.request('conversation.get', { id: admitted.id });
@@ -25,15 +23,11 @@ async function refusedRun(f: Fixture, prepared: Awaited<ReturnType<typeof prepar
       listedFinal: history.items.some((item: any) => item.id === admitted.id && item.kind === 'synthesized-conversation') }));
   }
   assert.equal((await f.calls()).length, before + 1, 'Exactly one authored provider attempt; no retry or fallback.');
-  await assert.rejects(f.h.renderer.request('conversation.synthesis.run', prepared.payload));
+  await assert.rejects(f.request('conversation.synthesis.run', prepared.payload));
   assert.equal((await f.calls()).length, before + 1, 'A used or failed preview cannot redispatch.');
   await noFinal(f);
   assert.deepEqual((await f.request('conversation.get', { id: original.id })).answer, original,
     'A provider refusal does not replace the still-current local tool result.');
-}
-function approveChecked(review: Awaited<ReturnType<typeof synthesisReview>>) {
-  find(review.dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = true;
-  return review.approve.dispatch('click');
 }
 
 test('public synthesis refuses malformed grounding and currency assertions without retaining or redispatching', async t => {
@@ -93,7 +87,7 @@ test('Shape planner consent does not permit a final answer preview or second dis
   const question = 'Synthetic Shape-only final question';
   const f = await fixture(t, { [question]: { calls: ['billed'] } }, 'openai-responses', 'shape');
   const turn = await tools(f, question), before = (await f.calls()).length;
-  await assert.rejects(f.h.renderer.request('conversation.synthesis.preview', { id: turn.answer.id }));
+  await assert.rejects(f.request('conversation.synthesis.preview', { id: turn.answer.id }));
   assert.equal((await f.calls()).length, before); await noFinal(f);
   assert.deepEqual((await f.request('conversation.get', { id: turn.answer.id })).answer, turn.answer);
 });
@@ -112,59 +106,56 @@ test('missing or cross-preview approval and forged public synthesis fields refus
     { ...firstReview.payload, approvalId: secondReview.approval.id },
     { ...firstReview.payload, id: second.answer.id },
     { ...firstReview.payload, paragraphs: ['Injected caller final answer'] },
-  ]) await assert.rejects(f.h.renderer.request('conversation.synthesis.run', payload));
+  ]) await assert.rejects(f.request('conversation.synthesis.run', payload));
   for (const payload of [
     { id: first.answer.id, summary: { question: 'Caller supplied evidence' } },
     { id: first.answer.id, routeId: 'synthetic-different-route' },
     { id: first.answer.id, output: { paragraphs: [] } },
-  ]) await assert.rejects(f.h.renderer.request('conversation.synthesis.preview', payload));
+  ]) await assert.rejects(f.request('conversation.synthesis.preview', payload));
   assert.equal((await f.calls()).length, before); await noFinal(f);
   assert.deepEqual((await f.request('conversation.get', { id: first.answer.id })).answer, first.answer);
   assert.deepEqual((await f.request('conversation.get', { id: second.answer.id })).answer, second.answer);
 });
 
-test('unchecked separate final-answer consent cannot approve or dispatch through the renderer', async t => {
+test('a reviewed final-answer preview without its separate approval cannot approve or dispatch through the desktop preload', async t => {
   const question = 'Synthetic explicitly unchecked final consent';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const turn = await tools(f, question), review = await synthesisReview(f, turn.answer.id);
-  find(review.dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = false;
-  const before = (await f.calls()).length, approvals = f.h.calls.filter(call => call.method === 'models.approve').length;
-  await review.approve.dispatch('click');
+  const before = (await f.calls()).length, approvals = f.bridge.calls.filter(call => call.method === 'models.approve').length;
+  await assert.rejects(f.request('conversation.synthesis.run', { id: turn.answer.id, previewId: review.preview.id }));
   assert.equal((await f.calls()).length, before);
-  assert.equal(f.h.calls.filter(call => call.method === 'models.approve').length, approvals);
-  await noFinal(f); assert.ok(hasText(f.h.app, turn.answer.results[0].answer.figures[0].display));
+  assert.equal(f.bridge.calls.filter(call => call.method === 'models.approve').length, approvals);
+  await noFinal(f); assert.equal(typeof turn.answer.results[0].answer.figures[0].display, 'string');
+  assert.deepEqual((await f.request('conversation.get', { id: turn.answer.id })).answer, turn.answer);
 });
 
-test('external source authority loss before final preview refuses and clears cached tools', async t => {
+test('external source authority loss before final preview refuses', async t => {
   const question = 'Synthetic revoked-before-preview final objective';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const turn = await tools(f, question), before = (await f.calls()).length;
   await f.request('trust.update', { allowedSources: ['synthetic-unrelated-authority'] });
-  await assert.rejects(f.h.renderer.request('conversation.synthesis.preview', { id: turn.answer.id }));
-  await f.h.renderer.renderConversation();
-  assert.equal((await f.calls()).length, before); assert.equal(f.h.renderer.state.messages.length, 0); await noFinal(f);
+  await assert.rejects(f.request('conversation.synthesis.preview', { id: turn.answer.id }));
+  assert.equal((await f.calls()).length, before); await noFinal(f);
 });
 
-test('external authority loss after separate approval blocks dispatch and removes cached disclosure', async t => {
+test('external authority loss after separate approval blocks dispatch', async t => {
   const question = 'Synthetic revoked-after-approval final objective';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const turn = await tools(f, question), prepared = await prepare(f, turn.answer.id), before = (await f.calls()).length;
   await f.request('trust.update', { allowedSources: ['synthetic-unrelated-authority'] });
-  await assert.rejects(f.h.renderer.request('conversation.synthesis.run', prepared.payload));
-  await f.h.renderer.renderConversation();
-  assert.equal((await f.calls()).length, before); assert.equal(f.h.renderer.state.messages.length, 0); await noFinal(f);
+  await assert.rejects(f.request('conversation.synthesis.run', prepared.payload));
+  assert.equal((await f.calls()).length, before); await noFinal(f);
 });
 
 test('external authority loss during the second provider response withholds prose without retry', async t => {
   const question = 'Synthetic revoked-during-provider final objective';
   const f = await fixture(t, { [question]: { calls: ['billed'], synthesis: { gate: true } } });
   const turn = await tools(f, question), review = await synthesisReview(f, turn.answer.id), before = (await f.calls()).length;
-  const pending = approveChecked(review);
+  // The outcome of the held run is not asserted here; what must hold is that no final answer is kept and no retry is sent.
+  const pending = approveFinal(review).catch(() => undefined);
   try {
     await waitEntered(f, before + 1);
     await f.request('trust.update', { allowedSources: ['synthetic-unrelated-authority'] });
   } finally { await release(f); await pending; }
-  await f.h.renderer.renderConversation();
-  assert.equal((await f.calls()).length, before + 1); assert.equal(f.h.renderer.state.messages.length, 0); await noFinal(f);
-  assert.equal(descendants(f.h.app).some(node => hasText(node, 'Final answer evidence binding')), false);
+  assert.equal((await f.calls()).length, before + 1); await noFinal(f);
 });

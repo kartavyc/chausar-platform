@@ -8,7 +8,7 @@ import type { CalculationReceipt, CalculationRequest } from '../../runtime/calcu
 import type { Context, State } from '../../runtime/contracts.ts';
 import { Engine } from '../../runtime/engine.ts';
 import type { MappingRecipe } from '../../runtime/ingest.ts';
-import { harness } from './conversation-acceptance-renderer.ts';
+import { preloadBridge } from './preload-bridge.ts';
 
 export const SOURCE = 'synthetic-public-interchange-shop';
 export const PASSWORD = 'Synthetic workspace interchange disposable passphrase';
@@ -72,7 +72,7 @@ export async function fixture(t: TestContext, withHistoricalAuthority = true) {
     assert.ok(child && !child.startsWith('..') && !isAbsolute(child) && basename(target).startsWith(prefix));
     await rm(target, { recursive: true, force: true });
   });
-  const h = await harness({ dispatch: (method, payload) => engine.requestAs(context, method, payload) });
+  const h = await preloadBridge({ dispatch: (method, payload) => engine.requestAs(context, method, payload) });
   const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
   async function requestAs(current: Context, method: string, payload: Record<string, unknown> = {}) {
     const prior = context; context = current;

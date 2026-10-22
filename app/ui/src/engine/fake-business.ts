@@ -8,9 +8,10 @@
  */
 
 import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, MODEL_PRESETS, MODEL_STATUS, OFFER_RECEIPTS, PLAYBOOKS, TEMPLATES_TIER, templateBrief } from './fixtures-business';
+import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
   EngineError, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
-  type CustodyViewLite, type ModelStatusLite, type ModelTier, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
+  type CustodyViewLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
 } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -28,7 +29,7 @@ export interface DeskHost {
   settle(rowId: string): void;
   emit(event: VentureRunEvent): void;
   /** The business as the fake keeps it; the desk changes how it opens and whether its recovery code exists. */
-  business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made' } | null;
+  business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */
   deviceKeys(): boolean;
 }
@@ -39,8 +40,11 @@ const DESK_METHODS = new Set([
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
   'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
-  'workspace.backups.list', 'workspace.backups.create',
+  'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
+  'trust.update',
 ]);
+/** The engine's move file format, in the sample. The real file is the encrypted vault, sealed under the move code. */
+export const SAMPLE_MOVE_FORMAT = 'chausar.move.sample';
 /** CUSTODY_WORDS in platform/runtime/workspace-custody-contracts.ts, for a Windows computer. */
 const WHERE = 'Windows keeps the key for your login on this computer.';
 const LOSS = 'Reinstalling Windows, or a password reset by someone else, can lose the key.';
@@ -152,10 +156,19 @@ export class FakeBusinessDesk {
       case 'workspace.custody.passphraseOn': return this.passphraseOn(biz, p);
       case 'workspace.custody.passphraseOff': return this.passphraseOff(biz, p);
       case 'workspace.backups.list': return { backups: clone(this.backupsOf(biz)), more: false };
-      case 'workspace.backups.create': {
-        const backup: BackupLite = { file: `backup-${biz}-${++this.seq}.vault`, kind: 'manual', at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true };
-        this.backupsOf(biz).unshift(backup);
-        return clone(backup);
+      case 'workspace.backups.create': return clone(this.addBackup(biz, 'manual'));
+      case 'workspace.backups.restore': return this.restoreBackup(biz, p);
+      case 'trust.update': {
+        // trust.ts updatePolicy: only known fields, and send is one of three.
+        if (Object.keys(p).some((key) => key !== 'send') || !['nothing', 'shape', 'samples'].includes(p.send as string)) throw new EngineError('INVALID_POLICY', 'Choose nothing, shape, or samples.');
+        this.modelsOf(biz).sendPolicy = p.send as ModelStatusLite['sendPolicy'];
+        return { send: this.modelsOf(biz).sendPolicy };
+      }
+      case 'workspace.transfer.export': return this.moveFile(biz, p);
+      case 'workspace.export': {
+        if (p.confirmed !== true) throw new EngineError('CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
+        const plaintext = p.plaintext === true;
+        return { path: `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`, encrypted: !plaintext };
       }
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -334,9 +347,47 @@ export class FakeBusinessDesk {
   // ---------------------------------------------------------------------------------------------------------------
 
   private backups: Record<string, BackupLite[]> = {};
-  private backupsOf(biz: string): BackupLite[] {
-    this.backups[biz] ??= [{ file: `backup-${biz}-auto.vault`, kind: 'auto', at: '2026-10-21T06:00:00.000Z', revision: 1, bytes: 47_902, name: this.host.businessName(biz), opensNow: true }];
+  /** A business's backups, newest first. Lumen Studio's sample has one of each kind, the oldest from before a lock change. */
+  backupsOf(biz: string): BackupLite[] {
+    const name = this.host.businessName(biz);
+    const sample = (file: string, kind: BackupLite['kind'], at: string, revision: number, opensNow = true): BackupLite => ({ file: `chausar-${biz}-${file}.backup`, kind, at, revision, bytes: 47_902, name, opensNow });
+    this.backups[biz] ??= biz === 'lumen'
+      ? [sample('auto', 'auto', '2026-10-21T06:00:00.000Z', 14), sample('safety', 'safety', '2026-10-20T18:30:00.000Z', 12), sample('manual', 'manual', '2026-10-18T08:33:00.000Z', 9, false)]
+      : [sample('auto', 'auto', '2026-10-21T06:00:00.000Z', 1)];
     return this.backups[biz];
+  }
+
+  /** A business left this computer: its backups go with it. */
+  dropBackups(biz: string): void {
+    delete this.backups[biz];
+  }
+
+  private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {
+    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true };
+    this.backupsOf(biz).unshift(backup);
+    return backup;
+  }
+
+  /** workspace.backups.restore: confirmed, this business's own backup, and a safety copy of how it is now first. */
+  private restoreBackup(biz: string, p: Record<string, unknown>) {
+    if (p.confirmed !== true) throw new EngineError('CONFIRMATION_REQUIRED', 'Confirm the restore in the app.');
+    const restoredFrom = this.backupsOf(biz).find((b) => b.file === p.file);
+    if (!restoredFrom) {
+      const elsewhere = Object.entries(this.backups).some(([other, list]) => other !== biz && list.some((b) => b.file === p.file));
+      throw elsewhere ? new EngineError('BACKUP_OTHER_BUSINESS', CUSTODY_ERROR_WORDS.BACKUP_OTHER_BUSINESS) : new EngineError('BACKUP_NOT_FOUND', CUSTODY_ERROR_WORDS.BACKUP_NOT_FOUND);
+    }
+    const safety = this.addBackup(biz, 'safety');
+    this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
+    return { workspace: { id: biz, name: this.host.businessName(biz) }, restoredFrom: clone(restoredFrom), safety: clone(safety) };
+  }
+
+  /** workspace.transfer.export: one file and one code. A business locked with a passphrase needs it. */
+  private moveFile(biz: string, p: Record<string, unknown>): MoveFile {
+    const held = this.heldOrThrow(biz);
+    if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase === held.passphrase)) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
+    const madeAt = this.host.now();
+    const text = JSON.stringify({ backupFormat: SAMPLE_MOVE_FORMAT, business: biz, name: this.host.businessName(biz), madeAt });
+    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
   }
 
   private custodyView(biz: string): CustodyViewLite {
@@ -372,6 +423,7 @@ export class FakeBusinessDesk {
   private recoveryCode(biz: string, p: Record<string, unknown>) {
     const held = this.heldOrThrow(biz);
     if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase)) throw new EngineError('PASSPHRASE_REQUIRED', 'This business is locked with a passphrase. Type it to open.');
+    if (held.opens === 'needs-passphrase' && held.passphrase !== undefined && p.passphrase !== held.passphrase) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     this.madeCode(biz);
     return { custody: this.custodyView(biz), recoveryCode: SAMPLE_CODE };
   }
@@ -383,6 +435,7 @@ export class FakeBusinessDesk {
     if (passphrase.length < 12 || passphrase.length > 1024) throw new EngineError('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
     const first = held.recovery !== 'made';
     held.opens = 'needs-passphrase';
+    held.passphrase = passphrase;
     if (first) this.madeCode(biz);
     return { custody: this.custodyView(biz), recoveryCode: first ? SAMPLE_CODE : null };
   }
@@ -391,8 +444,10 @@ export class FakeBusinessDesk {
     const held = this.heldOrThrow(biz);
     if (held.opens !== 'needs-passphrase') throw new EngineError('CUSTODY_UNCHANGED', "It's already set that way.");
     if (!(typeof p.passphrase === 'string' && p.passphrase)) throw new EngineError('PASSPHRASE_REQUIRED', 'This business is locked with a passphrase. Type it to open.');
+    if (held.passphrase !== undefined && p.passphrase !== held.passphrase) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     if (!this.host.deviceKeys()) throw new EngineError('DEVICE_KEYS_UNAVAILABLE', NO_KEYRING);
     held.opens = 'with-this-computer';
+    delete held.passphrase;
     return { custody: this.custodyView(biz) };
   }
 

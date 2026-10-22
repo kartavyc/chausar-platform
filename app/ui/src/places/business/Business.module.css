@@ -307,3 +307,28 @@
 .log li + li {
   margin-top: 2px;
 }
+
+/* Keep this business: every backup on a thin line, and the export's two kinds of copy. */
+.backupRow {
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+}
+
+.backupLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  align-items: baseline;
+}
+
+.backupLine > button {
+  margin-left: auto;
+}
+
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

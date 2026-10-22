@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HostedApp } from '../runtime/hosted/app.ts';
@@ -17,6 +17,7 @@ import { DevOutbox } from '../runtime/hosted/mailer.ts';
 import { createHostedServer } from '../runtime/hosted/server.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import { createFixtureGitHubTransport } from '../runtime/venture/build/index.ts';
+import { listInkFiles } from '../runtime/ui-ink.ts';
 
 const ORIGIN = 'http://localhost:4399';
 const HOST = 'localhost:4399';
@@ -95,7 +96,12 @@ async function startServer(t: any, limits = DEFAULT_LIMITS) {
     modelTransport: createReplayTransport(modelFixture),
     githubTransport: store => createFixtureGitHubTransport(githubFixture, () => ({ briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' })),
   });
-  const http = createHostedServer(app, { origin: ORIGIN, tls: { kind: 'none' }, trustProxy: false, maxBodyBytes: limits.maxBodyBytes });
+  // A small stand-in for the Ink build (app/ui/dist), listed the way startHosted lists the real one.
+  const inkFolder = join(folder, 'ink'); await mkdir(join(inkFolder, 'assets'), { recursive: true });
+  await writeFile(join(inkFolder, 'index.html'), '<!doctype html>\n<html lang="en">\n<head>\n  <title>Chausar</title>\n</head>\n<body></body>\n</html>\n');
+  await writeFile(join(inkFolder, 'assets/index-abc.js'), 'export {};');
+  const ink = { folder: inkFolder, files: await listInkFiles(inkFolder) };
+  const http = createHostedServer(app, { origin: ORIGIN, tls: { kind: 'none' }, trustProxy: false, maxBodyBytes: limits.maxBodyBytes, ink });
   const { port } = await http.listen('127.0.0.1', 0);
   t.after(async () => { await http.close(); await rm(folder, { recursive: true, force: true }); });
   const signIn = async (email: string) => {
@@ -148,8 +154,8 @@ test('pages and answers carry strict headers; the host, the origin and the conte
   assert.equal(String(home.headers['set-cookie']).includes('Secure'), false, 'plain http on localhost only, in development');
   const page = await browser.get('/app/');
   assert.match(page.text, /<meta name="chausar-mode" content="hosted">/);
-  assert.equal(page.text.includes('Opening your local workspace'), false);
-  assert.equal((await browser.get('/app/launch.js')).status, 200);
+  assert.equal((await browser.get('/app/assets/index-abc.js')).status, 200);
+  assert.equal((await browser.get('/app/launch.js')).status, 404);
   assert.equal((await browser.get('/app')).status, 308);
   assert.equal((await browser.get('/nothing')).status, 404);
   assert.equal((await browser.get('/', { Host: 'evil.test' })).status, 403);

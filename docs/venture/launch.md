@@ -1,8 +1,10 @@
 # Venture launcher: the launch screens (P7)
 
+> A record. These screens lived in the old renderer (`app/renderer`), which was removed on 22 October 2026 when Ink (`app/ui`) became the app; see [ink.md](ink.md). The files and tests named below are as they were then, and the renderer tests no longer exist.
+
 This package is the renderer side of the venture launcher. A new person sees one question, "What service business do you want to start?", types one sentence and sees a plan at once, with nothing saved and no key asked for. After that it is one clear step at a time: keep the plan in an encrypted vault, accept it, hand the brief to a builder, then run the business from seven places. The twelve original views stay reachable, unchanged, under "Back office". The same files run in the desktop window and in the paired local browser.
 
-The full description of the screens and the method table is the Launch section of [../frontend.md](../frontend.md).
+The full description of these screens and their method table was the Launch section of `docs/frontend.md` until 22 October; that page now describes Ink.
 
 ## Keychain custody: what changed on these screens (18 October)
 

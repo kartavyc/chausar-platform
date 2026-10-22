@@ -8,7 +8,7 @@ import { createLocalServer } from '../runtime/server.ts';
 import { ExperimentalFileSnapshotAdapter } from '../runtime/vault.ts';
 import { ChausarError, hash, type Context } from '../runtime/contracts.ts';
 import type { Binding, ImportInput } from '../runtime/ingest.ts';
-import { descendants, dialogFor, find, harness, hasText, namedButton } from './fixtures/conversation-acceptance-renderer.ts';
+import { preloadBridge } from './fixtures/preload-bridge.ts';
 
 // Actual isolated synthetic HTTP, encrypted Vault, calculator and strict desktop IPC.
 // Test-only legacy-record setup and completed-write faults grant no live/native/GUI qualification.
@@ -214,35 +214,27 @@ test('concurrent exact public retries preserve the configured verifier and commi
   assert.deepEqual(f.engine.vault!.read(), ready, 'Verifier refusal persists neither a partial receipt nor uncommitted lineage.');
 });
 
-test('real renderer and strict IPC require a newly declared time scope and retain public fresh-result readback', async t => {
-  const f = await fixture(t), h = await harness({ mount: true, dispatch: (method, payload) => f.rpc(method, payload) });
-  await namedButton(h.app, 'Older calculations').dispatch('click');
-  const older = dialogFor(h.body, 'Older calculations'); await namedButton(older, 'Review fresh calculation').dispatch('click');
-  const dialog = dialogFor(h.body, 'Fresh calculation from an older answer'), controls = descendants(dialog);
-  const timestamp = find(dialog, node => node.tagName === 'input' && node.attributes.type === 'text');
-  const dates = controls.filter(node => node.tagName === 'input' && node.attributes.type === 'date');
-  assert.equal(timestamp.value, ''); assert.ok(dates.every(node => node.value === ''));
-  const mode = find(dialog, node => node.tagName === 'select'), form = find(dialog, node => node.tagName === 'form');
-  assert.equal(mode.value, '');
-  await form.dispatch('submit'); assert.equal(h.calls.filter(call => call.method === 'answers.recovery.prepare').length, 0);
-  timestamp.value = '2026-10-03T17:30:00+05:30'; mode.value = 'period'; dates[0].value = period.from; dates[1].value = period.to;
-  find(dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = true;
-  await form.dispatch('submit');
-  assert.equal(h.rejected.length, 0); const prepared = h.calls.find(call => call.method === 'answers.recovery.prepare');
-  assert.deepEqual(prepared.payload.timeScope, { asOf: timestamp.value, period, comparePeriod: null, onDate: null });
+test('the desktop preload and strict IPC carry a newly declared time scope and retain public fresh-result readback', async t => {
+  const f = await fixture(t), bridge = await preloadBridge({ dispatch: (method, payload) => f.rpc(method, payload) });
+  // The owner's sequence: list unpinned saved answers, review one, declare a new time scope, execute, then read back.
+  const unpinned = (await bridge.request('trials.savedQuestions')).filter((answer: any) => answer.request && !Object.hasOwn(answer.request, 'asOf'));
+  assert.deepEqual(unpinned.map((answer: any) => answer.id), [f.originalAnswerId]);
+  const review = await bridge.request('answers.recovery.review', { answerId: f.originalAnswerId });
+  const declared = { asOf: '2026-10-03T17:30:00+05:30', period, comparePeriod: null, onDate: null };
+  const issued = await bridge.request('answers.recovery.prepare', { answerId: f.originalAnswerId, source: review.source,
+    reviewedEvidencePin: review.reviewedEvidencePin, timeScope: declared, confirmedNewCalculation: true });
+  assert.equal(bridge.rejected.length, 0); const prepared = bridge.calls.find(call => call.method === 'answers.recovery.prepare');
+  assert.deepEqual(prepared.payload.timeScope, declared);
   assert.equal(prepared.payload.confirmedNewCalculation, true); assert.equal(prepared.payload.newRequestId, undefined);
-  await namedButton(dialog, 'Create this fresh calculation').dispatch('click');
-  assert.ok(hasText(dialog, 'Fresh calculation completed. The original answer and receipt remain unchanged.'));
-  const wire = h.calls.find(call => call.method === 'answers.recovery.execute');
+  await bridge.request('answers.recovery.execute', { newRequestId: issued.newRequestId, preparationDigest: issued.preparationDigest });
+  const wire = bridge.calls.find(call => call.method === 'answers.recovery.execute');
   assert.deepEqual(Object.keys(wire.payload).sort(), ['newRequestId', 'preparationDigest']);
   const result = await f.rpc('answers.recovery.get', { newRequestId: wire.payload.newRequestId });
   assert.equal(result.status, 'completed'); assert.equal(result.receipt.asOf, newClock);
   assert.equal(f.original().answer.request.asOf, undefined);
-  const count = h.calls.filter(call => call.method === 'answers.recovery.prepare').length;
-  await form.dispatch('submit'); assert.equal(h.calls.filter(call => call.method === 'answers.recovery.prepare').length, count);
-  dialog.close();
-  await namedButton(older, 'Check earlier fresh requests').dispatch('click');
-  const readback = dialogFor(h.body, 'Earlier fresh calculation requests');
-  assert.ok(hasText(readback, 'Separate fresh calculation; the original answer remains unchanged.'));
-  assert.equal(h.calls.filter(call => call.method === 'answers.recovery.execute').length, 1, 'Rediscovery must never execute implicitly.');
+  assert.deepEqual(await bridge.request('answers.recovery.get', { newRequestId: issued.newRequestId }), result);
+  const readback = await bridge.request('answers.recovery.list', { answerId: f.originalAnswerId });
+  assert.deepEqual(readback.items, [result]);
+  assert.equal(bridge.calls.filter(call => call.method === 'answers.recovery.execute').length, 1, 'Rediscovery must never execute implicitly.');
+  assert.equal(bridge.rejected.length, 0);
 });
