@@ -147,11 +147,13 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  // Listed before the engine opens, so an unbuilt Ink app stops the start with its own plain reason (UI_NOT_BUILT).
+  // The host settings are checked first (a refused Codex CLI host stops here, CLI_HOST_EVIDENCE_INVALID), then the Ink
+  // build is listed, both before anything listens: an unbuilt Ink app stops the start with its own plain reason
+  // (UI_NOT_BUILT). Making the engine opens no vault.
+  const engine = await createServerEngine(); const demo = engine.options.demo;
   let ink: InkBuild;
   try { ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }; }
   catch (error) { if ((error as { code?: string }).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
-  const engine = await createServerEngine(); const demo = engine.options.demo;
   const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), ink });
   const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
