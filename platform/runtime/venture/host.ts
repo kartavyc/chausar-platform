@@ -147,6 +147,9 @@ export class VentureHost {
       // The public origin for client share links: only on the hosted web server.
       ...(options.publicUrl && options.host === 'hosted-web' ? { publicUrl: options.publicUrl } : {}),
       ...(options.notify ? { publish: (records: VentureEventRecord[]) => this.#publish(records) } : {}),
+      // A transcript made on this computer: the ffmpeg port, and how the engine stops it when the workspace closes.
+      ...(options.ffmpeg && options.host !== 'hosted-web' ? { ffmpeg: options.ffmpeg } : {}),
+      ...(options.closing ? { closing: options.closing } : {}),
     });
   }
 
@@ -289,8 +292,8 @@ export class VentureHost {
       async checkCli(presetId: ModelPresetId): Promise<void> { return port().checkCli(presetId); },
       async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
       async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T) {
-        return port().runPreview(ctx, callId, approvedDigest, validate);
+      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' }) {
+        return port().runPreview(ctx, callId, approvedDigest, validate, options);
       },
     });
   }

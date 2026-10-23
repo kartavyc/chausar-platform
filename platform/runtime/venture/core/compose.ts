@@ -138,7 +138,8 @@ export function decideTask(text: string, country: CountryProfile, problem: strin
 /** The refs or ids a lead-refs slot may name. */
 function slotEnum(id: ViewId): readonly string[] {
   switch (viewSpec(id).draws) {
-    case 'offers': return OFFER_REFS;
+    // Only the offers the AI may compose: a flagship's fourth offer (offer_4) is never one it names.
+    case 'offers': return OFFER_REFS.slice(0, BLOCK_LIMITS.offers[1]);
     case 'steps': return STEP_REFS;
     case 'pages': return PAGE_REFS;
     case 'tools': return TOOL_BLOCK_IDS;
@@ -504,7 +505,8 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
       id: OFFER_REFS[index], block: offer.block, name: say(offer.name), description: say(offer.description),
       pricing: offerPricing(offer.pricingModel, null), allowedPricing: [...OFFER_BLOCKS[offer.block].allowed], priceDisplay: null,
     }));
-  // Every flagship plan has three offers, so a lead view's offer refs (offer_1 to offer_3) all stay in the plan.
+  // Every flagship plan has three offers or more (the social agency's has four), so a lead view's offer refs (offer_1
+  // to offer_3) all stay in the plan.
   const questions: ComposedQuestion[] = output.questions.map((q, index) => ({
     id: QUESTION_REFS[index], kind: q.kind, field: QUESTION_BLOCKS[q.block].field, text: q.text,
     choices: q.kind === 'choice' ? q.choices.map((label, i) => ({ id: `c_${i + 1}`, label })) : [],

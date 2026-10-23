@@ -2,14 +2,16 @@
 // Data: offers, fourteen typed steps with agent roles, approvals, connectors and the never list (playbook.ts); the
 // channel capability table (channels.ts); the dated register of platform rules with sources (register.ts).
 // Deterministic checks with no model: channel limits, claims against proof files, disclosure, banned words and thread
-// splitting (checks.ts); calendar slots by code (calendar.ts); owner-then-client approvals, the share link record and
-// draft-before-schedule (approvals.ts); the monthly report from client-uploaded exports with receipts (report.ts).
-// Judge rules and the committed baseline (judge.ts, baselines/social-agency.json).
+// splitting (checks.ts); calendar slots by code (calendar.ts) and the slot each drafted post fills (draft-posts.ts);
+// owner-then-client approvals, the share link record and draft-before-schedule (approvals.ts); the monthly report from
+// client-uploaded exports with receipts (report.ts). Judge rules and the committed baseline (judge.ts,
+// baselines/social-agency.json).
 export * from './registration.ts';
 export * from './register.ts';
 export * from './channels.ts';
 export * from './checks.ts';
 export * from './calendar.ts';
+export * from './draft-posts.ts';
 export * from './approvals.ts';
 export * from './playbook.ts';
 export * from './report.ts';

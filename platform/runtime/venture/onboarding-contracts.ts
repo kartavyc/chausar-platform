@@ -58,7 +58,11 @@ export type QuestionBlockId = typeof QUESTION_BLOCK_IDS[number];
 export const NOTE_BLOCK_IDS = ['licence-may-apply', 'insurance', 'personal-data', 'children-or-care', 'regulated-advice', 'safety'] as const;
 export type NoteBlockId = typeof NOTE_BLOCK_IDS[number];
 
-export const OFFER_REFS = ['offer_1', 'offer_2', 'offer_3'] as const;
+/**
+ * Offer refs in a plan. The AI composes at most BLOCK_LIMITS.offers of them; offer_4 is only ever a flagship playbook's
+ * own fourth offer (the social agency's monthly report, playbooks/plan.ts).
+ */
+export const OFFER_REFS = ['offer_1', 'offer_2', 'offer_3', 'offer_4'] as const;
 export type OfferRef = typeof OFFER_REFS[number];
 export const STEP_REFS = ['step_1', 'step_2', 'step_3', 'step_4', 'step_5', 'step_6'] as const;
 export type StepRef = typeof STEP_REFS[number];

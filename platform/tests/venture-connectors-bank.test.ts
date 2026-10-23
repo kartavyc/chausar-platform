@@ -131,9 +131,9 @@ test('alerts: checked by code with BigInt, sent only to the address the owner se
   assert.throws(() => setAlertWebhook(settings, 'https://hooks.example.test/a', { ...owner, sourceTainted: true }, '2026-10-21T10:00:00.000Z'), code('APP_APPROVAL_REQUIRED'));
   assert.throws(() => setAlertWebhook(settings, 'http://hooks.example.test/a', owner, '2026-10-21T10:00:00.000Z'), code('INVALID_VENTURE_REQUEST'));
   settings = setAlertWebhook(settings, 'https://hooks.example.test/a', owner, '2026-10-21T10:00:00.000Z');
-  const deliveries = alertDeliveries(settings, alerts);
-  assert.equal(deliveries.length, 4);
-  assert.ok(deliveries.every(d => d.url === 'https://hooks.example.test/a'));
+  // Ink v2 wave 2 (2D, spec 5.7): one delivery carrying the count of alerts and nothing else, never one per alert.
+  assert.deepEqual(alertDeliveries(settings, alerts), [{ url: 'https://hooks.example.test/a', body: { count: 4 } }]);
+  assert.deepEqual(alertDeliveries(settings, []), [], 'no alerts: nothing is sent');
   const view = modelBankView(settings);
   assert.ok(!JSON.stringify(view).includes('hooks.example.test'), 'the model view hides the address');
   assert.equal(view.alertsGoTo, 'the address you set in the app');

@@ -46,6 +46,7 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
   const kind = venture.data?.playbook?.label ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
   const links: (readonly [string, string])[] = [
     ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.build', '#/business/build'],
+    ['business.practice', '#/business/practice'],
     ...(venture.data?.playbook?.id === 'ca-firm' ? [['business.ca', '#/business/ca'] as const] : []),
     ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
   ];

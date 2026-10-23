@@ -79,6 +79,8 @@ export type InterestPayload = {
   assessmentYear: string;
   yearStart: IsoDate;
   dueDate: IsoDate;
+  /** The due date for a person with business or professional income whose accounts need no audit, when the law gives one of its own. */
+  businessDueDate?: IsoDate;
   ratePerMonthBps: string;
   roundDownMinor: string;
   advanceTaxThresholdMinor: string;
@@ -241,6 +243,27 @@ const INTEREST_AY_2026_27: RateTable<InterestPayload> = {
     ],
     presumptiveInstallments: [{ by: '2026-03-15', shareBps: '10000', toleranceBps: null, months: 1 }],
   },
+};
+
+// Version 2 (Ink v2 2A2 review): the Finance Act, 2026 substituted Explanation 2 to section 139(1) of the 1961 Act with
+// effect from 1 March 2026, so a person with business or professional income whose accounts need no audit was due on
+// 31 August 2026 for assessment year 2026-27, not 31 July. Version 1 had one due date for all; it stays in
+// RATE_TABLE_HISTORY. The official pages were reached through their search listing only (they refused a full read on
+// 23 October 2026), so the CA confirms the date, and every receipt that uses it says so.
+const OFFICIAL_LISTING = 'Read from the official page as its search listing showed it on 23 October 2026; the page did not load for a full read. The CA confirms.';
+const INTEREST_AY_2026_27_V2: RateTable<InterestPayload> = {
+  ...INTEREST_AY_2026_27,
+  version: 2,
+  citations: [
+    cite(IT_1961, 'Section 139(1), Explanation 2, as substituted by the Finance Act, 2026 with effect from 1 March 2026: 31 August for a person with business or professional income whose accounts need no audit', 'https://www.incometaxindia.gov.in/w/section-139-93', OFFICIAL_LISTING),
+    cite('Finance Act, 2026', 'Section 139 of the Income-tax Act, 1961: Explanation 2 to sub-section (1) substituted with effect from 1 March 2026', 'https://www.incometaxindia.gov.in/documents/d/guest/finance-act-2026-pdf-1', OFFICIAL_LISTING),
+    ...INTEREST_AY_2026_27.citations,
+  ],
+  openQuestions: [
+    ...INTEREST_AY_2026_27.openQuestions,
+    'Business or professional income whose accounts need no audit was due on 31 August 2026 (Explanation 2 to section 139(1) as the Finance Act, 2026 substituted it); the CA confirms the date used.',
+  ],
+  payload: { ...INTEREST_AY_2026_27.payload, businessDueDate: '2026-08-31' },
 };
 
 const GST_SECTIONS = [
@@ -443,15 +466,74 @@ const TDS_FY_2026_27: RateTable<TdsPayload> = {
   },
 };
 
+// Interest on tax for the tax year 2026-27 (assessment year 2027-28 in the older words), under the Income-tax Act, 2025
+// (Ink v2 2A2). Sections 423, 424 and 425 keep the 1961 Act's 234A, 234B and 234C at the same rates and instalments; the
+// return of a person with business income and no audit stays due on 31 August, the date the Finance Act, 2026 gave from
+// assessment year 2026-27 (Explanation 2 to section 139(1), and section 263(1)(c) of the 2025 Act). Read from official
+// pages on 23 October 2026; the instalment section's new number and the rounding rule's text were not found there.
+const INTEREST_AY_2027_28: RateTable<InterestPayload> = {
+  id: 'in-income-tax-interest-ay-2027-28',
+  kind: 'income-tax-interest',
+  title: 'Interest for late filing and short advance tax for the tax year 2026-27 (assessment year 2027-28)',
+  version: 1,
+  validFrom: '2026-04-01',
+  validTo: '2027-04-01',
+  appliesTo: 'Interest on tax for income of the tax year 2026-27 (1 April 2026 to 31 March 2027), for an individual whose accounts need no audit, under the Income-tax Act, 2025.',
+  citations: [
+    cite(IT_2025, 'Section 423 (earlier section 234A): simple interest at 1 percent a month or part of a month on the tax unpaid, from the day after the due date until the return is filed', 'https://www.incometaxindia.gov.in/w/section-423-5'),
+    cite(IT_2025, 'Section 424 (earlier section 234B): advance tax below 90 percent of the assessed tax, interest at 1 percent a month from 1 April after the tax year', 'https://www.incometaxindia.gov.in/w/section-424-5'),
+    cite(IT_2025, 'Section 425 (earlier section 234C): 15, 45, 75 and 100 percent by 15 June, 15 September, 15 December and 15 March, 3 percent on a shortfall at each of the first three and 1 percent at the last; none when 12 percent is paid by 15 June or 36 percent by 15 September; one instalment by 15 March under the presumptive scheme of section 58(2)', 'https://www.incometaxindia.gov.in/w/section-425-5'),
+    cite('Income Tax Department, FAQs on interest under sections 423, 424, 425 and 426', 'How each interest section of the 2025 Act is worked', 'https://www.incometaxindia.gov.in/documents/d/guest/faqs-on-interest-under-section-423-424-425-426'),
+    cite('Income Tax Department, FAQs on advance tax', 'Section 404: advance tax is payable when the tax for the year, after tax deducted at source, is 10,000 rupees or more', 'https://www.incometaxindia.gov.in/documents/d/guest/faq-on-advance-tax'),
+    cite('Income Tax Department, FAQs for senior citizens', 'Section 403: a resident senior citizen with no business or professional income pays no advance tax', 'https://www.incometaxindia.gov.in/documents/d/guest/faqs-for-senior-citizens'),
+    cite('Income Tax Department, FAQs on the transition to the Income-tax Act, 2025', 'Advance tax for the tax year 2026-27 falls under the 2025 Act, with the instalment dates and amounts unchanged', 'https://www.incometaxindia.gov.in/documents/81799/11848482/FAQs-on-Interplay-and-Transition.pdf/05f80c1a-073c-a5d7-fb6f-55509242be53'),
+    cite(IT_2025, 'Section 263(1)(c), the due date of the return: 31 July for an individual whose accounts need no audit', 'https://www.incometaxindia.gov.in/w/section-263-72'),
+    cite('Finance Bill, 2026, memorandum explaining its provisions', 'Section 263(1)(c) amended from the tax year 2026-27: 31 August for a person with business or professional income whose accounts need no audit', 'https://www.incometaxindia.gov.in/documents/81799/11848482/memo-2026.pdf', 'The CA confirms the Finance Act, 2026 kept this date.'),
+    cite(RULES_2026, 'Rule 269 (earlier rule 119A): how interest is worked, by the navigator of the 2026 Rules', 'https://www.incometaxindia.gov.in/documents/20117/15818071/navigator-Income-tax-Rules-2026.pdf'),
+    cite('Rate table for assessment year 2026-27', 'The section number for the advance tax instalments (section 211 of the 1961 Act); the rounding of the amount interest is worked on down to a hundred rupees under rule 269', null, CARRIED_FORWARD),
+  ],
+  sections: [
+    section('due-date', IT_2025, '263(1)(c)', 'Due date of the return (earlier section 139(1))'),
+    section('advance-tax-exempt', IT_2025, '403', 'Resident senior citizen with no business income (earlier section 207(2))'),
+    section('advance-tax-threshold', IT_2025, '404', 'When advance tax is payable (earlier section 208)'),
+    section('installments', IT_1961, '211', 'Advance tax instalments, number carried forward'),
+    section('interest-234a', IT_2025, '423', 'Interest for a late return (earlier section 234A)'),
+    section('interest-234b', IT_2025, '424', 'Interest for short advance tax (earlier section 234B)'),
+    section('interest-234c', IT_2025, '425', 'Interest for deferred advance tax (earlier section 234C)'),
+  ],
+  needsCaConfirmation: true,
+  openQuestions: [
+    RENUMBERING_QUESTION, ACT_2025_QUESTION,
+    'The due date may be extended by the CBDT for the year, and a person whose accounts need an audit files later; the CA confirms the due date used.',
+  ],
+  payload: {
+    assessmentYear: '2027-28',
+    yearStart: '2027-04-01',
+    dueDate: '2027-07-31',
+    businessDueDate: '2027-08-31',
+    ratePerMonthBps: '100',
+    roundDownMinor: RUPEES(100),
+    advanceTaxThresholdMinor: RUPEES(10_000),
+    shortfallShareBps: '9000',
+    installments: [
+      { by: '2026-06-15', shareBps: '1500', toleranceBps: '1200', months: 3 },
+      { by: '2026-09-15', shareBps: '4500', toleranceBps: '3600', months: 3 },
+      { by: '2026-12-15', shareBps: '7500', toleranceBps: null, months: 3 },
+      { by: '2027-03-15', shareBps: '10000', toleranceBps: null, months: 1 },
+    ],
+    presumptiveInstallments: [{ by: '2027-03-15', shareBps: '10000', toleranceBps: null, months: 1 }],
+  },
+};
+
 /** The tables new work is done on, picked by kind and transaction date (rateTableFor). */
 export const RATE_TABLES: readonly RateTable[] = Object.freeze([
-  INCOME_TAX_AY_2026_27, INTEREST_AY_2026_27, GST_V1, GST_V2, TDS_FY_2025_26_V2, INCOME_TAX_AY_2027_28, TDS_FY_2026_27,
+  INCOME_TAX_AY_2026_27, INTEREST_AY_2026_27_V2, GST_V1, GST_V2, TDS_FY_2025_26_V2, INCOME_TAX_AY_2027_28, TDS_FY_2026_27, INTEREST_AY_2027_28,
 ] as RateTable[]);
 /**
  * Versions a correction replaced for the same days, kept unchanged so a receipt made on one can be read again. Nothing
  * new is worked on them, and a receipt that rests on one fails rates-in-window: it is worked again on the current one.
  */
-export const RATE_TABLE_HISTORY: readonly RateTable[] = Object.freeze([TDS_FY_2025_26] as RateTable[]);
+export const RATE_TABLE_HISTORY: readonly RateTable[] = Object.freeze([TDS_FY_2025_26, INTEREST_AY_2026_27] as RateTable[]);
 
 const KINDS: readonly RateTableKind[] = ['income-tax', 'income-tax-interest', 'gst-rates', 'tds-sections'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

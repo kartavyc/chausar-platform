@@ -218,7 +218,8 @@ test('files: added in the app only, checked for size and format, kept as client 
 
 async function orderWithFiles(env: Env): Promise<OrderRecord> {
   const order = await seedOrder(env);
-  for (const file of PRACTICE_FILES['bookkeeping-clean']) await call(env, 'venture.files.add', { orderId: order.id, name: file.name.replace('september', 'aroma'), contentBase64: b64(file.content) });
+  // The bank statement and the bills: the clean month's sales register is for a CA firm's GST working (W2 2A1).
+  for (const file of PRACTICE_FILES['bookkeeping-clean'].slice(0, 2)) await call(env, 'venture.files.add', { orderId: order.id, name: file.name.replace('september', 'aroma'), contentBase64: b64(file.content) });
   return order;
 }
 
@@ -235,6 +236,10 @@ const RECONCILE = turnOf('Reconcile the statement against the bills', [['books.r
 }]]);
 const ASK = turnOf('Check which account this is', [['handoff.owner', { question: 'Is this the cafe current account?' }], ['files.list', {}]]);
 const DONE = turnOf('Ready to write the report', [], true);
+/** The judge: the rules judge votes yes on every rule citing the draft; the practice judge answers yes. */
+const rulesYes = (task: ModelTask<any>) => task.schemaName === 'venture-judge-rules'
+  ? { votes: (task.input as { rules: { id: string }[] }).rules.map(rule => ({ rule: rule.id, answer: 'yes', cites: ['draft'], quote: '', reason: 'Fine.' })) }
+  : { answers: ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'].map(question => ({ question, answer: 'yes', reason: 'Fine.' })) };
 
 test('real order: each turn waits for approval of its exact text, tools run here between turns, and the report cites receipts', async () => {
   const env = await setup('approve-each');
@@ -293,6 +298,8 @@ test('real order: each turn waits for approval of its exact text, tools run here
   assert.ok(input.proven.includes('The statement balances: the closing balance worked out equals the one on the statement.'));
   assert.equal(input.attached, 'A reconciliation table worked out by the calculator.');
 
+  // The ready report goes to the client, so the rules judge reads it (judgeAuto, judge-run.ts).
+  env.models.respond.judge = rulesYes;
   run = await approve(env, run);
   assert.equal(run.status, 'ready-for-review');
   assert.equal(run.harness!.phase, 'done');
@@ -302,7 +309,12 @@ test('real order: each turn waits for approval of its exact text, tools run here
   for (const line of ['Payments matched to bills: 5', 'Closing balance on the statement: INR 77,730.00', '## Reconciliation', 'The statement balances.', 'Total: INR 2,948.82']) {
     assert.ok(run.renderedText!.includes(line), line);
   }
-  assert.equal(env.models.sent, 5);
+  // Approved here rather than on Today, so no standing consent was given: the judge's call waits for the owner.
+  assert.equal(run.judge!.status, 'waiting');
+  assert.equal(env.models.sent, 5, 'five turns; the judge waits');
+  run = await call<DeliveryRunView>(env, 'venture.delivery.judgeSend', { runId: run.id, digest: run.judge!.preview!.digest });
+  assert.equal(run.checks.find(result => result.check === 'rules-judge')!.passed, true, 'judged with checked votes');
+  assert.equal(env.models.sent, 6, 'five turns, then the judge once');
   assert.equal(env.models.generated.length, 0);
   const receipt = await call<WorkReceiptRecord>(env, 'venture.work.get', { id: receipts[0].id });
   assert.equal(receipt.operation, 'work.reconcile');
@@ -506,7 +518,7 @@ function improvementScript(env: Env, proposal: unknown) {
   };
   env.models.respond['agent-turn'] = () => DONE;
   env.models.respond['client-sim'] = () => ({ message: 'Hello, I need help with my books for the month.', asksForPerson: false });
-  env.models.respond.judge = () => ({ answers: ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'].map(question => ({ question, answer: 'yes', reason: 'Fine.' })) });
+  env.models.respond.judge = rulesYes;
   env.models.respond.improve = () => proposal;
 }
 

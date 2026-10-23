@@ -5,6 +5,7 @@
  *   #/business/build   website build
  *   #/business/keep    keep this business: the recovery code and the optional passphrase (Today's "Keep it")
  *   #/business/ca      your CA, for a business on the CA firm playbook (the page is listed only there)
+ *   #/business/practice  practice clients, the improvement loop and the judge setting (PracticeView)
  * Any other address shows the plan. Switching business and starting a new one live in the menu itself.
  */
 
@@ -16,12 +17,14 @@ import { BuildView } from './BuildView';
 import { KeepView } from './KeepView';
 import { PlanView } from './PlanView';
 import { PricesView } from './PricesView';
+import { PracticeView } from './PracticeView';
 import { YourCa } from './YourCa';
 import s from './Business.module.css';
 
 const PAGES = [
   { sub: 'plan', title: 'business.plan', View: PlanView },
   { sub: 'prices', title: 'business.prices', View: PricesView },
+  { sub: 'practice', title: 'business.practice', View: PracticeView },
   { sub: 'build', title: 'business.build', View: BuildView },
   { sub: 'keep', title: 'business.keep', View: KeepView },
   { sub: 'ca', title: 'business.ca', View: YourCa },

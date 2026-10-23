@@ -52,7 +52,7 @@ test('CA of record: a name and a six-digit ICAI membership number', () => {
 
 test('steps: typed, with roles, and accepted by the engine\'s playbook validator', () => {
   assert.deepEqual(CA_STEPS.map(step => [step.id, step.kind, step.role.kind]), [
-    ['gather', 'gather', 'agent'], ['clarify', 'question', 'agent'], ['reconcile', 'work', 'agent'], ['compute', 'compute', 'code'],
+    ['gather', 'gather', 'agent'], ['clarify', 'question', 'agent'], ['reconcile', 'work', 'agent'], ['compute', 'work', 'agent'],
     ['draft', 'write', 'agent'], ['verify', 'verify', 'code'], ['approve', 'approve', 'owner'], ['ca-signoff', 'approve', 'ca'],
     ['portal-diff', 'compute', 'code'], ['file', 'operator', 'human'],
   ]);

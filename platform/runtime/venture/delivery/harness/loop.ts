@@ -18,7 +18,7 @@ import type {
   AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, IsoTime, Json, MicroString, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
   UploadFormat, VentureHostKind, WorkReceiptRecord,
 } from '../../contracts.ts';
-import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type FigureRefEntry } from '../deliverable.ts';
+import { deliverySchema, templateOutline, templateTotal, validateDraft, type DraftRefs, type DraftTimes, type FigureRefEntry } from '../deliverable.ts';
 import { auditStep, notRunStep } from '../judge/auditor.ts';
 import { decideHold, gateEffect, holdQuestion } from '../../policy/holds.ts';
 import type { Approval } from '../../policy/ladder.ts';
@@ -137,6 +137,12 @@ export function validateTurn(raw: unknown, limits: HarnessLimits, allowed: reado
   return { note, calls, finished: record.finished as boolean };
 }
 
+/** A refusal as the agent reads it: one a tool marked retry false (the same answer every time) says so first. */
+function refusalWords(error: { message: string; details?: Json }): string {
+  const details = error.details as { retry?: unknown } | null | undefined;
+  return details && typeof details === 'object' && details.retry === false ? `Do not retry: ${error.message}` : error.message;
+}
+
 /**
  * What the model sees of earlier turns: the newest tool results whole, older ones cut to a stub. With a round ledger
  * each call also says whether the auditor passed it, and why not, so the next round plans from verified work.
@@ -159,7 +165,7 @@ export function compactHistory(state: HarnessState): Json {
         input: keep.has(call.id) ? (call.input ?? null) : stub(call.input, 200),
         ...(call.envelope.ok
           ? { ok: true, result: keep.has(call.id) ? call.envelope.result : stub(call.envelope.result, state.limits.stubChars) }
-          : { ok: false, error: { code: call.envelope.error.code, message: call.envelope.error.message } }),
+          : { ok: false, error: { code: call.envelope.error.code, message: refusalWords(call.envelope.error) } }),
         ...(audit ? { audited: audit.audited, ...(audit.audited ? {} : { auditNote: audit.reason }) } : {}),
       };
     }),
@@ -245,6 +251,8 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
   next.rounds = [...(next.rounds ?? []), round];
   // A real order is latched from its first turn: the client's request and file names are outside content (policy/taint.ts).
   if (env.runRef.kind === 'delivery' && !next.taint) next.taint = { turn: number, source: 'client-request', toolCallId: null, tool: null };
+  // The run's own call list, which grows below as each call finishes: evidence.record looks up what backs a claim in it.
+  env.calls = next.toolCalls;
   let handoff: { to: 'client' | 'owner'; question: string } | null = null;
   let delegated: NonNullable<HarnessState['delegations']>[number] | null = null;
   let held: PolicyHold | null = null;
@@ -505,7 +513,9 @@ export function provenSentences(state: HarnessState, receipts: readonly WorkRece
     const receipt = proof.receiptId ? receipts.find(item => item.id === proof.receiptId) : undefined;
     if (proof.kind === 'file-read') say(`The agent read ${names(proof.tableId ?? '')}.`);
     if (proof.kind === 'transformed') say(`A row program the agent wrote ran over ${names(proof.tableId ?? '')} in the sandbox and made new columns.`);
-    if (proof.kind === 'totals' && receipt) say(`The calculator totalled ${receipt.figures.filter(figure => figure.unit === 'money').map(figure => figure.label).join(', ')}.`);
+    // The social report's figures are counts, a rate and a post, worked out from the platform's exports (tools-social.ts).
+    if (proof.kind === 'totals' && receipt?.operation === 'social.report') say(`Chausar worked out the report figures from the platform exports: ${receipt.figures.map(figure => figure.label).join(', ')}.`);
+    else if (proof.kind === 'totals' && receipt) say(`The calculator totalled ${receipt.figures.filter(figure => figure.unit === 'money').map(figure => figure.label).join(', ')}.`);
     if (proof.kind === 'reconciled') say('The calculator reconciled the bank statement against the bills and checked the closing balance.');
     if (proof.kind === 'matched') say('The calculator matched payments in the statement to bills.');
     if (proof.kind === 'balanced') say('The statement balances: the closing balance worked out equals the one on the statement.');
@@ -521,7 +531,14 @@ export function provenSentences(state: HarnessState, receipts: readonly WorkRece
   return sentences;
 }
 
-export type WriteContext = LoopContext & { idea: string; allowed: readonly string[]; priceRefs: DraftRefs; templateTotalRef: 'offer_1.total' | 'order.total'; proven: string[] };
+/**
+ * What code worked out in the run for the write step to use as given (tools-youtube.ts youtubeWorked): the hooks the
+ * scorer kept and the drafted chapters, as screened, and the chapter time codes a text part under that heading may
+ * begin with.
+ */
+export type WorkedForWriter = { tables: Json[]; times: DraftTimes | null };
+export type WriteContext = LoopContext & { idea: string; allowed: readonly string[]; priceRefs: DraftRefs; templateTotalRef: 'offer_1.total' | 'order.total'; proven: string[]; worked?: WorkedForWriter | null };
+const WORKED_NOTE = "Chausar's code worked these out from the client's files. Use them as given: copy a hook word for word, and keep each chapter time exactly as written.";
 
 /** The last reconciliation receipt of the run: the one Chausar attaches after the agent's words. */
 export function lastReconciliation(receipts: readonly WorkReceiptRecord[]): WorkReceiptRecord | null {
@@ -552,8 +569,10 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
   const guidance = ctx.draft ? [...ctx.draft.guidance] : writeGuidance(ctx.playbook);
   if (guidance.length) input.guidance = guidance;
   if (forced) input.stopped = state.stopReason;
-  // Counts and amounts from the client's files have work receipts, so here a model number is still refused.
-  const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections, numbers: 'refuse' as const };
+  if (ctx.worked?.tables.length) input.worked = { note: WORKED_NOTE, tables: ctx.worked.tables };
+  // Counts and amounts from the client's files have work receipts, so here a model number is still refused. Only a
+  // chapter time code worked out in this run may begin a text part, under the chapters heading.
+  const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections, numbers: 'refuse' as const, times: ctx.worked?.times ?? null };
   return {
     purpose: 'delivery', instructions: withAwaiting(instructions, state, input), input, schemaName: 'venture-delivery', schema: deliverySchema(ctx.serviceType, sections),
     validate: raw => withAttachments(validateDraft(raw, context), attached),

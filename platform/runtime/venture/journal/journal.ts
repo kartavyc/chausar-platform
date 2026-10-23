@@ -183,12 +183,19 @@ export function proposeIn(tx: VentureTx, input: Required<ProposeInput>): Journal
   return describeIn(tx, input);
 }
 
-export type ApproveInput = { entryId: string; digest: string; offered?: { figure: string; payer: string }; line?: string };
+/**
+ * standing: no person approved this send; it goes under a standing setting the owner gave earlier (the rules judge on
+ * its own, delivery/judge-run.ts). Its journal says so in line, the engine is the actor, and no approver is recorded.
+ */
+export type ApproveInput = { entryId: string; digest: string; offered?: { figure: string; payer: string }; line?: string; standing?: boolean };
 
 /** The owner's approval inside the app: the entry moves to approved and a token bound to it comes back. */
 export function approveIn(tx: VentureTx, ctx: Context, store: object, input: ApproveInput): { record: Journalled; token: string } {
   const record = requireEntry(findIn(tx, input.entryId));
   check(!isShadow(record), 'JOURNAL_SHADOW', SHADOW_LINE);
+  // Only the rules judge's own send goes under a standing setting (delivery/judge-run.ts); everything else has a person.
+  check(!input.standing || (record.kind === 'venture-journal-entry' && record.action === 'delivery.send' && record.subject.includes(':judge:')),
+    'INVALID_VENTURE_REQUEST', 'Only the judge goes under a standing setting; a person approves everything else.');
   if (record.state !== 'described') throw decidedRefusal(record);
   check(digestOf(record) === input.digest, 'APPROVAL_STALE', 'This changed since you opened it.');
   const nowMs = Date.parse(tx.now);
@@ -203,8 +210,9 @@ export function approveIn(tx: VentureTx, ctx: Context, store: object, input: App
   const token = mintApprovalToken(store, {
     entryId: record.id, actionDigest: digestOf(record), memberId: ctx.memberId, epoch: ctx.epoch, session: sessionOf(store, ctx), businessId: businessOf(tx.state), expiresAt,
   });
-  const seal: ApprovalSeal = { tokenHash: tokenHash(token), approvedBy: ctx.memberId, at: tx.now, expiresAt, usedAt: null, key: null };
-  const next = tx.replace(stepTo(record, 'approved', tx.now, ctx.memberId, input.line ?? 'You approved this.', { approval: seal, decidedBy: ctx.memberId }));
+  const approver = input.standing ? null : ctx.memberId;
+  const seal: ApprovalSeal = { tokenHash: tokenHash(token), approvedBy: approver, at: tx.now, expiresAt, usedAt: null, key: null };
+  const next = tx.replace(stepTo(record, 'approved', tx.now, approver ?? 'engine', input.line ?? 'You approved this.', { approval: seal, decidedBy: approver }));
   return { record: next, token };
 }
 
@@ -231,8 +239,10 @@ export async function approveAction(deps: VentureDeps, ctx: Context, input: Appr
   requireApp(ctx);
   requireId(input?.entryId, 'entryId');
   check(typeof input.digest === 'string' && input.digest.length > 0 && input.digest.length <= 200, 'INVALID_VENTURE_REQUEST', 'Send the digest you saw.');
+  // A person approves through this method, so it never makes a standing approval (journalled sets that for the judge).
+  const { standing: _person, ...asked } = input;
   return ventureAction(deps, ctx, 'approve', 'journal.approve', tx => {
-    const { record, token } = approveIn(tx, ctx, deps.store, input);
+    const { record, token } = approveIn(tx, ctx, deps.store, asked);
     return { entry: record, token };
   });
 }
@@ -362,14 +372,18 @@ export async function applyAction<T>(
  */
 export async function journalled<T>(
   deps: VentureDeps, ctx: Context, input: ProposeInput, run: (handle: ApplyHandle) => Promise<ApplyResult<T>>,
-  options: { timeoutMs?: number; offered?: { figure: string; payer: string } } = {},
+  options: { timeoutMs?: number; offered?: { figure: string; payer: string }; standing?: { line: string } } = {},
 ): Promise<ApplyDone<T>> {
   requireApp(ctx);
   const normalized = normalizeProposal(input);
   check(!normalized.shadow, 'JOURNAL_SHADOW', SHADOW_LINE);
   const approved = await ventureAction(deps, ctx, 'approve', 'journal.approve', tx => {
     const proposed = proposeIn(tx, normalized);
-    const { record, token } = approveIn(tx, ctx, deps.store, { entryId: proposed.id, digest: normalized.actionDigest, ...(options.offered ? { offered: options.offered } : {}) });
+    const { record, token } = approveIn(tx, ctx, deps.store, {
+      entryId: proposed.id, digest: normalized.actionDigest, ...(options.offered ? { offered: options.offered } : {}),
+      // A send under a standing setting (options.standing): no approver, the engine acts, the line says why.
+      ...(options.standing ? { standing: true, line: options.standing.line } : {}),
+    });
     return { id: record.id, token };
   });
   return applyAction(deps, ctx, { entryId: approved.id, token: approved.token, idempotencyKey: `${approved.id}.once`, ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) }, run);

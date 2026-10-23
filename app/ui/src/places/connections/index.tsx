@@ -21,7 +21,9 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { EngineError, type BuilderId, type ConnectorCardLite, type PostingOptionLite } from '../../engine/types';
 import { BUILDERS, BUILDER_NAMES, handOff } from '../business/handoff';
 import { BankImportSheet } from './BankImport';
+import { BankSheet } from './BankSheet';
 import { ExternalLink, openProblem } from './external';
+import { Posting } from './Posting';
 import { YourAi } from './YourAi';
 import s from './Connections.module.css';
 
@@ -109,8 +111,9 @@ function ConnectorRow({ card }: { card: ConnectorCardLite }) {
       )}
       {/* GitHub is the one connector the engine links (venture.build.link, read only); the form is on Website build. */}
       {card.id === 'github' && <a className={s.link} href="#/business/build">{t('connections.follow')}</a>}
-      {/* A statement file is read today; reading the bank itself waits for a provider, as the card's label says. */}
-      {card.id === 'bank-account' && <Button onClick={(event) => openSheet('bank-import', card.id, event.currentTarget)}>{t('connections.bank.open')}</Button>}
+      {/* A statement file is read today; reading the bank itself waits for a provider, as the card's label says. One import
+          path: the bank account sheet holds the import, the ledger, consent and alerts (BankSheet.tsx). */}
+      {card.id === 'bank-account' && <Button onClick={(event) => openSheet('bank', card.id, event.currentTarget)}>{t('connections.bank.open')}</Button>}
       {card.vendorUrl && <ExternalLink href={card.vendorUrl}>{t('connections.visit')}<span className="sr-only">, {card.name}</span></ExternalLink>}
     </>
   );
@@ -125,6 +128,7 @@ function ConnectorRow({ card }: { card: ConnectorCardLite }) {
           {card.posting.status === 'planned' && card.posting.reason && <span className={s.reason}>{card.posting.reason}</span>}
         </p>
       )}
+      <Posting card={card} />
       {said && (
         <p className={said.problem ? s.problem : s.said} role="status">
           {said.text}
@@ -183,4 +187,4 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-export const sheets = { connector: ConnectorSheet, 'bank-import': BankImportSheet };
+export const sheets = { connector: ConnectorSheet, 'bank-import': BankImportSheet, bank: BankSheet };

@@ -1,6 +1,8 @@
 // Chausar venture launcher, delivery package (P5): practice clients for rehearsal.
 // Three made-up clients per service type (clean, messy, pushy), plus cases made from the owner's signals.
 // Scenario words hold no digits and never copy a real client's request.
+// Every case names the rules judge (Ink v2 wave 2, Q1): it is asked only when an AI judge is on and every code check
+// passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { practiceFileNames } from './harness/practice.ts';
@@ -10,7 +12,7 @@ import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, Sign
 type PracticeClient = { persona: string; brief: string; expectedOutcome: string };
 type TypeScenarios = Record<ScenarioKind, PracticeClient>;
 
-const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts'];
+const BASE_CHECKS: readonly CheckId[] = ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts', 'rules-judge'];
 const MESSY_CHECKS: readonly CheckId[] = CHECK_IDS.filter(id => BASE_CHECKS.includes(id) || id === 'questions-raised');
 const TITLES: Readonly<Record<ScenarioKind, string>> = { clean: 'A clear request', messy: 'A messy request', pushback: 'A pushy client' };
 const MOCKS: Readonly<Record<string, 'record-only'>> = Object.freeze({ 'mail-app.send-deliverable': 'record-only' });
@@ -190,15 +192,20 @@ const SOURCE_WORDS: Readonly<Record<SignalRecord['source'], string>> = {
   'owner-rejected': 'a draft you rejected', 'owner-edited': 'a draft you edited', 'check-failed': 'a draft that failed a check',
 };
 
+/** A reason that is neither a check nor the owner's: a rule the judge failed a real draft on (delivery/judge-run.ts). */
+const isJudgeRule = (reason: string) => !(CHECK_IDS as readonly string[]).includes(reason) && !Object.hasOwn(REASON_CHECKS, reason);
+
 function focusChecks(reason: SignalRecord['reason']): readonly CheckId[] {
   if (reason === null) return [];
   if ((CHECK_IDS as readonly string[]).includes(reason)) return [reason as CheckId];
+  if (isJudgeRule(reason)) return ['rules-judge'];
   return REASON_CHECKS[reason as DeliveryReason] ?? [];
 }
 
 function reasonWords(reason: SignalRecord['reason']): string {
   if (reason === null) return 'a problem you flagged';
   if ((CHECK_IDS as readonly string[]).includes(reason)) return `the ${reason} check`;
+  if (isJudgeRule(reason)) return `the judge's rule ${reason}`;
   return REASON_WORDS[reason as DeliveryReason] ?? 'a problem you flagged';
 }
 

@@ -54,8 +54,14 @@ test('venture.bank.import: an Indian statement becomes exact minor units, and th
   assert.match(imports[0].fileDigest, /^[0-9a-f]{64}$/);
   assert.equal(imports[1].transactions.length, 0);
 
+  // The same file is never counted in a second account (Ink v2 wave 2, 2D): it is refused in plain words.
+  await assert.rejects(call(env, 'venture.bank.import', { csv, account: 'Savings' }), (error: any) => {
+    assert.equal(error.code, 'BANK_STATEMENT_INVALID');
+    assert.match(error.message, /already imported into Ledger Cafe current account/);
+    return true;
+  });
   // Another account keeps its own ledger.
-  const other = await call<BankImportResult>(env, 'venture.bank.import', { csv, account: 'Savings' });
+  const other = await call<BankImportResult>(env, 'venture.bank.import', { csv: csv.replace('ATM WDL', 'ATM WITHDRAWAL'), account: 'Savings' });
   assert.notEqual(other.accountId, first.accountId);
   assert.equal(other.added, 4);
 });

@@ -21,7 +21,20 @@ export type PlaybookRegistration = {
   picks: readonly string[];
   /** One plain sentence on what the playbook is for. */
   summary: string;
+  /**
+   * How much harm a mistake in this playbook's work can do: 'high' for regulated or legal work (tax papers), 'medium'
+   * for work published in the client's name, 'low' for internal work. Shown with the playbook's dated rules.
+   */
+  riskLevel: PlaybookRiskLevel;
+  /**
+   * The day Chausar's build last reviewed this playbook's steps, checks and rules (a build audit), like 2026-10-23. It is
+   * not a person's review or sign-off; no person has reviewed these playbooks for an owner yet.
+   */
+  lastReviewed: string;
 };
+
+export type PlaybookRiskLevel = 'low' | 'medium' | 'high';
+const RISK_LEVELS: readonly PlaybookRiskLevel[] = ['low', 'medium', 'high'];
 
 export const PLAYBOOK_REGISTRY: readonly PlaybookRegistration[] = Object.freeze([
   CA_FIRM_REGISTRATION,
@@ -31,7 +44,17 @@ export const PLAYBOOK_REGISTRY: readonly PlaybookRegistration[] = Object.freeze(
 
 const ID = /^[a-z][a-z0-9-]{0,40}$/;
 
-/** Ids are unique and short, every registration has a label, and no phrase picks two playbooks. */
+/** A real calendar day written like 2026-10-23. */
+function realDay(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const day = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Ids are unique and short, every registration has a label, a risk level and the day it was last reviewed, and no
+ * phrase picks two playbooks.
+ */
 export function validateRegistry(registry: readonly PlaybookRegistration[] = PLAYBOOK_REGISTRY): void {
   const ids = new Set<string>();
   const phrases = new Map<string, string>();
@@ -40,6 +63,8 @@ export function validateRegistry(registry: readonly PlaybookRegistration[] = PLA
     if (ids.has(entry.id)) throw new Error(`The playbook ${entry.id} is registered twice.`);
     ids.add(entry.id);
     if (typeof entry.label !== 'string' || !entry.label.trim()) throw new Error(`The playbook ${entry.id} has no label.`);
+    if (!RISK_LEVELS.includes(entry.riskLevel)) throw new Error(`The playbook ${entry.id} needs a risk level: low, medium or high.`);
+    if (!realDay(entry.lastReviewed)) throw new Error(`The playbook ${entry.id} needs the day it was last reviewed, like 2026-10-23.`);
     if (!entry.picks.length) throw new Error(`The playbook ${entry.id} has no phrases that pick it.`);
     for (const phrase of entry.picks) {
       if (phrase !== phrase.toLowerCase().trim() || !phrase) throw new Error(`The playbook ${entry.id} has a phrase that is not lower case: ${JSON.stringify(phrase)}.`);

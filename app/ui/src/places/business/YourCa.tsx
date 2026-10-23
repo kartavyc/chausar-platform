@@ -3,14 +3,14 @@ import { useLanguage, useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import type { CaOfRecord, CaPendingRate, CaSignoffRequest } from '../../engine/types';
+import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
 import { dayOf, messageOf } from './shared';
 import s from './Business.module.css';
 
 /**
  * Your CA (venture.ca.*), for a business on the CA firm playbook: the CA of record, the rate tables waiting for that
- * CA to confirm, and the papers sent to the CA for sign-off. The CA signs and confirms with their own ICAI membership
- * number, typed here; agents never file or sign. Each write is followed by a fresh read, so the page shows the
+ * CA to confirm, the papers sent to the CA for sign-off, and the newest regulated papers' receipts worked again by the
+ * engine. The CA signs and confirms with their own ICAI membership number, typed here; agents never file or sign. Each write is followed by a fresh read, so the page shows the
  * engine's own state, never a guess.
  */
 export function YourCa() {
@@ -21,14 +21,111 @@ export function YourCa() {
   if (venture.data !== undefined && venture.data?.playbook?.id !== 'ca-firm') return <p className={s.note}>{t('business.ca.notFirm')}</p>;
   if (ca.error) return <p className={s.problem} role="alert">{t('business.failed', { message: ca.error.message })}</p>;
   if (!ca.data) return <p className={s.note}>{t('business.loading')}</p>;
-  const { ca: of, pendingRates, requests } = ca.data;
+  const { ca: of, pendingRates, requests, latestPapers } = ca.data;
   return (
     <>
       <p className={s.lead}>{t('business.ca.lead')}</p>
       <OfRecord ca={of} onSaved={ca.reload} />
       {of && <RateTables rates={pendingRates} onConfirmed={ca.reload} />}
       <Requests requests={requests} onRecorded={ca.reload} />
+      <Receipts papers={latestPapers ?? null} />
     </>
+  );
+}
+
+/**
+ * The receipts of the newest regulated papers (Ink v2 2A2), each worked again by the engine from its stored inputs on
+ * the rate tables it stamped (venture.ca.receipt): "same", or the engine's line for what came out otherwise.
+ */
+function Receipts({ papers }: { papers: CaLatestPapers | null }) {
+  const t = useT();
+  const headingId = useId();
+  return (
+    <section className={s.section} aria-labelledby={headingId}>
+      <h2 id={headingId} className={s.heading}>{t('business.ca.receipts')}</h2>
+      {!papers ? (
+        <p className={s.line}>{t('business.ca.receiptsNone')}</p>
+      ) : (
+        <>
+          <p className={s.strong}>{papers.title}</p>
+          <ul className={s.steps}>
+            {papers.receiptIds.map((id) => <ReceiptLine key={id} id={id} />)}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ReceiptLine({ id }: { id: string }) {
+  const t = useT();
+  const receipt = useResource('venture.ca.receipt', { id });
+  if (receipt.error) return <li className={s.step}><span className={s.problem} role="alert">{t('business.failed', { message: receipt.error.message })}</span></li>;
+  if (!receipt.data) return <li className={s.step}><span className={s.stepWho}>{t('business.loading')}</span></li>;
+  const { engine, rederived, differs, portalDifferences } = receipt.data;
+  return (
+    <li className={s.step} data-receipt={id}>
+      <span>{t(`business.ca.engine.${engine}`)}</span>
+      <span className={s.stepWho}>{rederived === 'same' ? t('business.ca.recomputed.same') : t(`business.ca.recomputed.${rederived}`, { line: differs?.line ?? '' })}</span>
+      {portalDifferences && portalDifferences.length > 0 && (
+        <ul className={s.steps}>
+          {portalDifferences.map((row) => <DiffLine key={row.key} receiptId={id} row={row} onExplained={receipt.reload} />)}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+type PortalDifference = NonNullable<CaReceiptView['portalDifferences']>[number];
+
+/**
+ * One difference between the portal's figures and the receipts (Ink v2 2A2). Until the CA of record explains it, the
+ * papers can't be accepted: Explain asks for the CA's words and their ICAI number, and the engine records it once
+ * (venture.ca.explainDiff), or refuses in its own words.
+ */
+function DiffLine({ receiptId, row, onExplained }: { receiptId: string; row: PortalDifference; onExplained: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [number, setNumber] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setProblem(null);
+    try {
+      await client.request('venture.ca.explainDiff', { receiptId, key: row.key, note: note.trim(), membershipNo: number.trim() });
+      setOpen(false);
+      onExplained();
+    } catch (error) {
+      setProblem(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className={s.step} data-difference={row.key}>
+      <span>{t(`business.ca.diff.${row.state}`, { label: row.label, ours: row.ours ?? '', portal: row.portal ?? '' })}</span>
+      {row.explanation !== null ? (
+        <span className={s.stepWho}>{t('business.ca.diff.explained', { note: row.explanation })}</span>
+      ) : open ? (
+        <form className={s.form} onSubmit={(event) => void submit(event)}>
+          <Field label={t('business.ca.diff.note')} value={note} maxLength={400} onChange={(event) => setNote(event.currentTarget.value)} />
+          <Field label={t('business.ca.caNumber')} value={number} inputMode="numeric" maxLength={6} autoComplete="off" spellCheck={false} onChange={(event) => setNumber(event.currentTarget.value)} />
+          {problem && <p className={s.problem} role="alert">{problem}</p>}
+          <div className={s.buttons}>
+            <Button variant="quiet" onClick={() => { setOpen(false); setProblem(null); }}>{t('approval.cancel')}</Button>
+            <Button variant="primary" type="submit" disabled={busy}>{t('business.ca.diff.record')}</Button>
+          </div>
+        </form>
+      ) : (
+        <div className={s.buttons}><Button onClick={() => setOpen(true)}>{t('business.ca.diff.explain')}</Button></div>
+      )}
+    </li>
   );
 }
 

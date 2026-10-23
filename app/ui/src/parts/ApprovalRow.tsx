@@ -67,6 +67,7 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
   const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined } | null>(null);
   const [viewedHere, setViewedHere] = useState(false);
   const [answer, setAnswer] = useState('');
+  const [sending, setSending] = useState<QueueAction['id'] | null>(null);
   const hintId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -87,6 +88,7 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
   const eyebrow = showBusiness ? (current.agent ? `${current.businessName} · ${current.agent}` : current.businessName) : (current.agent ?? '');
 
   async function decide(action: QueueAction, text?: string) {
+    setSending(action.id);
     setPhase('sending');
     setNotice(null);
     try {
@@ -182,6 +184,8 @@ export function ApprovalRow({ row, onDecide, onView, viewed, onOpen, onReceipt, 
       )}
       {/* An outside action whose description does not show all it will send says so (W1 H21). */}
       {current.descriptionComplete === false && <p className={s.notice}>{t('approval.incomplete')}</p>}
+      {/* A post going out drives a browser window on this computer: the owner keeps their hands off it (K1). */}
+      {busy && current.kind === 'connector' && sending === 'approve' && <p className={s.notice} role="status">{t('today.posting.inProgress')}</p>}
       {notice && (
         <p className={notice.kind === 'stale' ? s.notice : s.refusal} role="status">
           {notice.text}

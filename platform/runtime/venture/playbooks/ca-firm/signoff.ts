@@ -1,5 +1,6 @@
 // AI-native CA firm: the CA of record, the CA's confirmation of each rate-table version, and recorded sign-offs on
-// regulated papers. Everything is an append-only 'venture-ca-firm' record. Today's queue reads caFirmQueueItems:
+// regulated papers, and the CA's explanation of each difference from the portal (Ink v2 2A2). Everything is an
+// append-only 'venture-ca-firm' record. Today's queue reads caFirmQueueItems:
 // regulated papers and unconfirmed rate tables first make a 'signoff' row with Send to CA; once sent, a second row
 // asks the CA to sign by typing their ICAI membership number, which must match the CA it was sent to. Nothing here
 // files, signs on a portal or sends anything outside Chausar: "send to CA" marks the papers for the CA of record,
@@ -9,7 +10,9 @@ import { ChausarError, check, type Context, type State } from '../../../contract
 import { digest, exactPayload, listRecords, singleLine, ventureAction } from '../../records.ts';
 import type { CaFirmRecord, QueueAction, QueueActionId, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { caLabel, validateCaOfRecord, type CaOfRecord } from './playbook.ts';
+import type { PortalDiff } from './portal.ts';
 import { RATE_TABLES, rateTableHash, type RateConfirmation, type RateTable, type RateUse } from './rates.ts';
+import { portalDiffExplained } from './stored-receipt.ts';
 
 type EntryName = CaFirmRecord['entry'];
 type Entry<E extends EntryName> = Extract<CaFirmRecord, { entry: E }>;
@@ -61,6 +64,13 @@ export function signoffRequests(state: State, ventureId: string): SignoffRequest
 
 export function signoffFor(state: State, ventureId: string, requestId: string): SignoffRecord | null {
   return entries(state, ventureId, 'signoff').filter(item => item.requestId === requestId).at(-1) ?? null;
+}
+
+export type DiffExplanation = Entry<'diff-explanation'>;
+
+/** The CA's explanations of portal differences, oldest first; only those on one receipt when receiptId is given. */
+export function diffExplanations(state: State, ventureId: string, receiptId?: string): DiffExplanation[] {
+  return entries(state, ventureId, 'diff-explanation').filter(item => receiptId === undefined || item.receiptId === receiptId);
 }
 
 function requireCa(state: State, ventureId: string): CaOfRecord {
@@ -187,6 +197,50 @@ export async function confirmRateTables(deps: VentureDeps, ctx: Context, payload
     }
     tx.emit('queue.changed', { caFirm: 'rate-confirmation' });
     return confirmed;
+  });
+}
+
+/**
+ * Records the CA of record's explanation of one portal difference (approve, Ink v2 2A2). The number typed must be the
+ * CA of record's (CA_NOT_OF_RECORD); the receipt must be a stored portal diff of this business (CA_RECEIPT_NOT_FOUND),
+ * and the key one of its rows that is not the same (CA_DIFF_KEY_UNKNOWN). Each difference is explained once
+ * (CA_DIFF_EXPLAINED), and never once the run's papers are signed off (CA_DIFF_SIGNED). In the same write the portal-diff-explained
+ * check of the run that made the receipt is worked again with every explanation so far, so Accept reads it as it is now.
+ */
+export async function recordDiffExplanation(deps: VentureDeps, ctx: Context, payload: { receiptId: string; key: string; note: string; membershipNumber: string }): Promise<DiffExplanation> {
+  return ventureAction(deps, ctx, 'approve', 'ca-firm.diff-explanation', tx => {
+    const ventureId = tx.venture!.id;
+    const ca = requireCa(tx.state, ventureId);
+    if (payload.membershipNumber !== ca.membershipNumber) throw new ChausarError('CA_NOT_OF_RECORD', `That is not the ICAI membership number of ${ca.name}, your CA of record. Only they explain a difference.`);
+    const receipt = tx.find('venture-work-receipt', payload.receiptId);
+    if (!receipt || receipt.ventureId !== ventureId || receipt.operation !== 'ca.engine' || receipt.ca?.engine !== 'portal-diff') {
+      throw new ChausarError('CA_RECEIPT_NOT_FOUND', "That is not a comparison of the portal's figures with the receipts.");
+    }
+    const rows = (receipt.ca.working as unknown as PortalDiff).rows.filter(row => row.state !== 'same');
+    if (!rows.some(row => row.key === payload.key)) {
+      throw new ChausarError('CA_DIFF_KEY_UNKNOWN', `${payload.key} is not a difference on that comparison. The differences are: ${rows.map(row => row.key).join(', ') || 'none'}.`);
+    }
+    // Under a signature nothing changes: once the run's papers are signed off, no explanation is added to them.
+    const runId = receipt.runRef.kind === 'delivery' ? receipt.runRef.runId : null;
+    const signed = runId !== null && signoffRequests(tx.state, ventureId).some(request => request.deliveryId === runId && signoffFor(tx.state, ventureId, request.id)?.decision === 'signed');
+    if (signed) throw new ChausarError('CA_DIFF_SIGNED', 'These papers are signed off, so no explanation is added under the signature. The agents prepare new papers if something changed.');
+    const earlier = diffExplanations(tx.state, ventureId);
+    // One explanation per difference: what the CA said is never replaced.
+    const given = earlier.find(item => item.receiptId === receipt.id && item.key === payload.key);
+    if (given) throw new ChausarError('CA_DIFF_EXPLAINED', `${given.caName} explained ${payload.key} already: "${given.note}" An explanation is not changed once it is recorded.`);
+    const record = tx.put<CaFirmRecord>({
+      ...tx.base('venture-ca-firm'), entry: 'diff-explanation', receiptId: receipt.id, key: payload.key, note: payload.note,
+      caName: ca.name, membershipNumber: ca.membershipNumber, recordedBy: ctx.memberId,
+    }) as DiffExplanation;
+    const run = receipt.runRef.kind === 'delivery' ? tx.find('venture-delivery-run', receipt.runRef.runId) : undefined;
+    if (run && run.ventureId === ventureId && run.playbookChecks?.some(item => item.check === 'portal-diff-explained')) {
+      const made = (run.harness?.workReceiptIds ?? []).flatMap(id => { const found = tx.find('venture-work-receipt', id); return found ? [found] : []; });
+      const result = portalDiffExplained(made, [...earlier, record]);
+      tx.replace({ ...run, playbookChecks: run.playbookChecks.map(item => (item.check === result.check ? { ...item, outcome: result.outcome, detail: result.detail } : item)) });
+      tx.emit('run.step', { runId: run.id });
+    }
+    tx.emit('queue.changed', { caFirm: 'diff-explanation', receiptId: receipt.id });
+    return record;
   });
 }
 

@@ -488,9 +488,12 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       };
     },
 
-    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
+    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' }): Promise<ModelOutcome<T>> {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
       check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
+      // The rules judge's call going on its own (delivery/judge-run.ts) is recorded under the business's standing
+      // consent, never as the owner's approval of that call. Only a judge call can go that way.
+      const standing = options?.consent === 'standing-judge';
       // The claim is the first await: two approvals of one preview send at most once.
       const claimed: { held?: Pending; table?: ModelPriceTable | null; metered?: boolean } = {};
       const call = await ventureAction(actionDeps, ctx, 'approve', 'models.approve', tx => {
@@ -501,6 +504,12 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const stale = new ChausarError('APPROVAL_STALE', MESSAGES.approvalStale);
         if (!current || current.status !== 'preview' || current.approvedDigest !== null || current.payloadDigest !== approvedDigest || !held) throw stale;
         if (nowMs > Date.parse(current.at) + PREVIEW_TTL_MS) throw stale;
+        check(!standing || current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the judge goes on standing consent.');
+        if (standing) {
+          // Read again in the commit that claims the call: the judge setting must still be on with its consent.
+          const setting = listRecords(tx.state, 'venture-judge-setting', current.ventureId).at(-1);
+          check(setting && setting.auto && setting.consent, 'POLICY_DENIED', 'The judge setting is off, or its standing consent is not recorded, so nothing went on its own.');
+        }
         const spec = presetSpec(current.presetId);
         const connection = current.connectionId ? txConnections(tx).find(item => item.id === current.connectionId) : undefined;
         if (!connection || connection.status !== 'connected' || connection.presetId !== current.presetId || connection.model !== current.model
@@ -515,7 +524,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         claimed.table = rate ? modelTableOf(rate, subject) : spec.priceTable;
         claimed.metered = rate !== null;
         if (rate) reserveSpend(tx, { ...subject, rate, estimateMicros: current.estimatedMaxCostMicros });
-        const approved = replaceRecord(tx, { ...current, status: 'dispatching' as const, approvedDigest, approvedAt: tx.now, approvedBy: ctx.memberId, consent: 'approved-preview' as const });
+        const approved = replaceRecord(tx, {
+          ...current, status: 'dispatching' as const, approvedDigest, approvedAt: tx.now,
+          approvedBy: standing ? null : ctx.memberId, consent: standing ? 'standing-judge' as const : 'approved-preview' as const,
+        });
         pending.delete(callId);
         claimed.held = held;
         return approved;

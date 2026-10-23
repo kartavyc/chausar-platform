@@ -22,7 +22,18 @@ const PROOFS_BY_TOOL: Readonly<Record<string, readonly ClaimProofKind[]>> = Obje
   'calc.sum': ['totals'], 'calc.totals': ['totals'],
   'books.reconcile': ['reconciled', 'matched', 'balanced'],
   'sandbox.transform': ['transformed'], 'sandbox.python': ['transformed'],
+  // The CA firm's tax engines (tools-ca.ts): the calculator's receipt for a tax working.
+  'tax.income': ['totals'], 'tax.interest': ['totals'], 'tax.gst': ['totals'], 'tax.tds': ['totals'],
+  // Its checks (tools-ca-checks.ts): the receipt of the statements matched and of the portal compared.
+  'tax.statements': ['totals'], 'tax.portal': ['totals'],
+  // The social agency's report figures (tools-social.ts): the receipt of figures worked out from the exports.
+  'social.report': ['totals'],
 });
+/**
+ * Receipt operations a totals proof can rest on: the calculator's sums and totals, a CA tax engine's working, and the
+ * social report figures worked out from a platform's exports.
+ */
+const TOTALS_OPERATIONS: readonly string[] = Object.freeze(['work.sum', 'work.totals', 'ca.engine', 'social.report']);
 
 export const NOT_RUN_REASON = 'The step did not run.';
 export const BEFORE_LEDGER_REASON = 'This run started before steps were audited.';
@@ -94,7 +105,7 @@ export function auditStep(env: AuditEnv, outcome: ToolOutcome): AuditVerdict {
       if (!evidence.includes(target)) evidence.push(target);
     }
     if (proof.kind === 'transformed' && (!proof.tableId || !record.tableIds.includes(proof.tableId))) return no('The transform proof does not point at the table this step made.', evidence);
-    if (proof.kind === 'totals' && !(receipt && (receipt.operation === 'work.sum' || receipt.operation === 'work.totals'))) return no('The totals proof has no totals receipt.', evidence);
+    if (proof.kind === 'totals' && !(receipt && TOTALS_OPERATIONS.includes(receipt.operation))) return no('The totals proof has no totals receipt.', evidence);
     if (proof.kind === 'reconciled' && !(receipt?.operation === 'work.reconcile' && rec?.statementClosing)) return no('The reconciliation receipt could not check the closing balance.', evidence);
     if (proof.kind === 'matched' && !(rec && rec.matched.length > 0)) return no('The reconciliation receipt matched no payment to a bill.', evidence);
     if (proof.kind === 'balanced' && !(rec?.statementClosing && rec.balanced)) return no('The reconciliation receipt does not show a balance that agrees.', evidence);

@@ -2,7 +2,9 @@
 // real order resumed after each approval. Reads only; tables and receipts the tools make are stored by the caller.
 import { check, type Context, type State } from '../../../contracts.ts';
 import { findRecord, listRecords } from '../../records.ts';
-import type { HarnessState, PlaybookRecord, UploadRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkRunRef, WorkTableRecord } from '../../contracts.ts';
+import type { HarnessState, OrderIntake, PlaybookRecord, UploadRecord, VentureDeps, VentureRecord, WorkReceiptRecord, WorkRunRef, WorkTableRecord } from '../../contracts.ts';
+import { REHEARSAL, type RateUse } from '../../playbooks/ca-firm/rates.ts';
+import { rateUseFor } from '../../playbooks/ca-firm/signoff.ts';
 import type { DelegateAvailability } from './delegate.ts';
 import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
@@ -49,6 +51,13 @@ export type EnvInput = {
   delegateOffer?: readonly DelegateAvailability[];
   /** Who approved this turn. A real order's caller says so; without it the policy has no approval and holds every call. */
   approval?: Approval;
+  /** The order's intake; absent or null in rehearsals and improvement runs, whose practice clients record none. */
+  intake?: OrderIntake | null;
+  /**
+   * How the CA firm's tax engines may use rate tables. Absent: a real order needs the CA's confirmation of each table
+   * version (rateUseFor 'client'), and a rehearsal or improvement run works on unconfirmed tables (REHEARSAL).
+   */
+  rateUse?: RateUse;
 };
 
 export function buildToolEnv(input: EnvInput): ToolEnv {
@@ -66,6 +75,8 @@ export function buildToolEnv(input: EnvInput): ToolEnv {
     ...(input.runRef.kind === 'delivery' ? { ctx } : {}),
     // A real order's approved calls read the order, the client, the stage and the run's cap again just before they run.
     ...(runRef.kind === 'delivery' ? { recheck: () => recheckRun(deps, venture.id, runRef.runId) } : {}),
+    intake: input.intake ?? null,
+    rateUse: input.rateUse ?? (runRef.kind === 'delivery' ? rateUseFor(state, venture.id, 'client') : REHEARSAL),
   };
 }
 

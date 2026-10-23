@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { orderView, previousFailure } from '../../src/places/work/orders';
 import { fileProblem } from '../../src/places/work/files';
-import { EngineError, type BlueprintViewLite, type DeliveryLite, type InvoiceLite, type MethodName, type OrderLite, type RunSummary } from '../../src/engine/types';
+import { EngineError, type BlueprintViewLite, type DeliveryLite, type InvoiceLite, type MethodName, type OrderLite, type RunSummary, type UploadLite } from '../../src/engine/types';
 
 const order = (over: Partial<OrderLite> = {}): OrderLite => ({
   id: 'o1', at: '2026-10-20T09:00:00.000Z', clientId: 'c1', offerId: 'offer_1', quantity: '1', request: 'Books for October',
@@ -210,6 +210,67 @@ describe('a new order for an offer that cuts footage', () => {
   });
 });
 
+// A social agency's content calendar asks for its calendar and the client's own word lists (Ink v2 wave 2): the
+// engine plans the dated slots from what the sheet sends, and the checks read the lists.
+describe('a new order for a content calendar', () => {
+  const socialView = async (engine: FakeEngine): Promise<BlueprintViewLite> => {
+    const view = (await engine.request('venture.blueprint.get', {})) as BlueprintViewLite;
+    return { ...view, intake: { offer_sponsor: { rights: [], fields: ['aiVoice', 'aiPresenter', 'paidPromotion', 'calendar', 'clientRules'] } } };
+  };
+  const made = (params: unknown) => ({
+    id: 'o-cal', at: '2026-10-21T10:00:00.000Z', clientId: 'c-boat', offerId: 'offer_sponsor', quantity: '1', request: (params as { request: string }).request,
+    status: 'open', priceReceiptId: 'R-1', deliveredOn: null,
+  });
+
+  it("asks for the month, channels, posts and weekdays, and the client's word lists, and sends them with the order", async () => {
+    const engine = await lumen();
+    const social = await socialView(engine);
+    const { calls, sheet, service, add } = await openOrder(engine, { 'venture.blueprint.get': () => social, 'venture.order.create': made });
+    fireEvent.change(service, { target: { value: 'offer_sponsor' } });
+    const calendar = within(sheet).getByRole('group', { name: 'Posting calendar' });
+    fireEvent.change(within(calendar).getByLabelText('Month'), { target: { value: '2026-11' } });
+    fireEvent.click(within(calendar).getByRole('checkbox', { name: 'LinkedIn' }));
+    fireEvent.click(within(calendar).getByRole('checkbox', { name: 'Instagram' }));
+    fireEvent.change(within(calendar).getByLabelText('Posts per channel'), { target: { value: '3' } });
+    for (const day of ['Friday', 'Monday', 'Wednesday']) fireEvent.click(within(calendar).getByRole('checkbox', { name: day }));
+    const words = within(sheet).getByRole('group', { name: "Your client's words" });
+    fireEvent.change(within(words).getByLabelText('Words to avoid'), { target: { value: 'cheap, guaranteed results' } });
+    fireEvent.change(within(words).getByLabelText('Competitors'), { target: { value: 'Yoga Hub' } });
+    fireEvent.change(within(words).getByLabelText('Their own names, never flagged'), { target: { value: 'Cheap Seats Yoga' } });
+    expect(add().disabled).toBe(false);
+    await act(async () => { fireEvent.click(add()); });
+    expect(created(calls)?.intake).toEqual({
+      aiVoice: false, aiPresenter: false, paidPromotion: false,
+      calendar: { month: '2026-11', channels: ['linkedin', 'instagram'], postsPerChannel: 3, weekdays: [1, 3, 5] },
+      clientRules: { bannedWords: ['cheap', 'guaranteed results'], bannedTopics: [], competitors: ['Yoga Hub'], protectedPhrases: ['Cheap Seats Yoga'] },
+    });
+  });
+
+  it('sends no calendar while the month is empty, and no word lists while they are empty', async () => {
+    const engine = await lumen();
+    const social = await socialView(engine);
+    const { calls, service, add } = await openOrder(engine, { 'venture.blueprint.get': () => social, 'venture.order.create': made });
+    fireEvent.change(service, { target: { value: 'offer_sponsor' } });
+    await act(async () => { fireEvent.click(add()); });
+    expect(created(calls)?.intake).toEqual({ aiVoice: false, aiPresenter: false, paidPromotion: false });
+  });
+
+  it('says the engine\'s words when it refuses the calendar, and keeps what was typed', async () => {
+    const engine = await lumen();
+    const social = await socialView(engine);
+    const { sheet, service, add } = await openOrder(engine, {
+      'venture.blueprint.get': () => social,
+      'venture.order.create': () => { throw new EngineError('INVALID_VENTURE_REQUEST', '2026-11 has 13 posting days on the weekdays you picked, fewer than the posts per channel. Add a weekday or post less.'); },
+    });
+    fireEvent.change(service, { target: { value: 'offer_sponsor' } });
+    const calendar = within(sheet).getByRole('group', { name: 'Posting calendar' });
+    fireEvent.change(within(calendar).getByLabelText('Month'), { target: { value: '2026-11' } });
+    await act(async () => { fireEvent.click(add()); });
+    expect(await within(sheet).findByText(/13 posting days on the weekdays you picked/)).toBeTruthy();
+    expect((within(calendar).getByLabelText('Month') as HTMLInputElement).value).toBe('2026-11');
+  });
+});
+
 describe('the fake engine keeps the rights rule', () => {
   it('refuses an order for a footage offer without rights it accepts, and keeps one with them', async () => {
     const engine = await lumen();
@@ -240,5 +301,95 @@ describe('transcripts from the client', () => {
     expect(srt.format).toBe('transcript');
     const vtt = (await engine.request('venture.files.add', { orderId: 'o-boat-14', name: 'episode.vtt', contentBase64: content })) as { format: string };
     expect(vtt.format).toBe('transcript');
+  });
+});
+
+// A transcript made on this computer (Ink v2 wave 2, 2E2): an order whose intake names the finished cut, and that has
+// no transcript yet, offers to make one with the ffmpeg and whisper.cpp already on this computer (desktop only).
+describe('a transcript made on this computer', () => {
+  const CUT = 'D:\\footage\\episode-15.mp4';
+  /** Lumen with a shorts order: its cut named at intake, or not. */
+  async function footage(cutFile: string | null) {
+    const engine = await lumen();
+    const intake = { rights: { basis: 'own-footage', holder: 'Boat Audio' }, format: 'short' as const, ...(cutFile ? { cutFile } : {}) };
+    const order = (await engine.request('venture.order.create', { clientId: 'c-boat', offerId: 'offer_shorts', request: 'Six shorts from episode 15', intake })) as OrderLite;
+    return { engine, order };
+  }
+  function show(engine: FakeEngine, orderId: string, options: { intercept?: Intercept; hosted?: boolean } = {}) {
+    window.location.hash = `#/work?order=${orderId}`;
+    const client = createFakeClient(engine);
+    const calls: Call[] = [];
+    const request = client.request.bind(client);
+    client.request = ((method: MethodName, params?: unknown) => {
+      calls.push({ method, params });
+      const own = options.intercept?.[method];
+      if (own) return Promise.resolve().then(() => own(params));
+      return request(method, params as never);
+    }) as typeof client.request;
+    render(<App client={options.hosted ? { ...client, transport: 'hosted' } : client} language="en" />);
+    return calls;
+  }
+  const MAKE = 'Make a transcript on this computer';
+
+  it('an order with a cut and no transcript offers it; it calls the engine, then lists the transcript as an order file', async () => {
+    const { engine, order } = await footage(CUT);
+    const calls = show(engine, order.id);
+    const make = await screen.findByRole('button', { name: MAKE });
+    expect(screen.getByText('Uses the ffmpeg and whisper.cpp already on this computer. Nothing is uploaded or installed.')).toBeTruthy();
+    // Before the owner starts: one quiet line naming the cut file it will read.
+    expect(screen.getByText('Reads the cut episode-15.mp4 on this computer.')).toBeTruthy();
+    await act(async () => { fireEvent.click(make); });
+    expect(calls.filter((c) => c.method === 'venture.files.transcribe').map((c) => c.params)).toEqual([{ orderId: order.id }]);
+    expect(await screen.findByText('Transcript: episode-15.srt')).toBeTruthy();
+    expect(screen.getByText('Made on this computer from the cut.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
+    const files = (await engine.request('venture.files.list', { orderId: order.id })) as UploadLite[];
+    // The fake keeps where it came from on the file itself, as the engine does.
+    expect(files.map((f) => [f.name, f.format, f.origin])).toEqual([['episode-15.srt', 'transcript', 'local-transcription']]);
+  });
+
+  it("shows the engine's words when it refuses, and keeps the button", async () => {
+    const { engine, order } = await footage(CUT);
+    show(engine, order.id, { intercept: { 'venture.files.transcribe': () => { throw new EngineError('TRANSCRIBE_NOT_AVAILABLE', 'ffmpeg not found on this computer. Chausar never installs it.'); } } });
+    const make = await screen.findByRole('button', { name: MAKE });
+    await act(async () => { fireEvent.click(make); });
+    expect(await screen.findByText("Couldn't make the transcript: ffmpeg not found on this computer. Chausar never installs it.")).toBeTruthy();
+    expect(screen.getByRole('button', { name: MAKE })).toBeTruthy();
+  });
+
+  it('is not offered for an order that names no cut', async () => {
+    const plain = await footage(null);
+    show(plain.engine, plain.order.id);
+    await screen.findByRole('heading', { name: 'Runs' });
+    expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
+  });
+
+  it('is not offered when the client sent a transcript, which is listed as theirs', async () => {
+    const sent = await footage(CUT);
+    await sent.engine.request('venture.files.add', { orderId: sent.order.id, name: 'episode.srt', contentBase64: btoa('1\n00:00:00,000 --> 00:00:04,000\nWhy your savings shrink.\n') });
+    show(sent.engine, sent.order.id);
+    expect(await screen.findByText('Transcript: episode.srt')).toBeTruthy();
+    expect(screen.queryByText('Made on this computer from the cut.')).toBeNull();
+    expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
+  });
+
+  it('is not offered on the hosted server, which reads no file on your computer', async () => {
+    const hosted = await footage(CUT);
+    show(hosted.engine, hosted.order.id, { hosted: true });
+    await screen.findByRole('heading', { name: 'Runs' });
+    expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
+  });
+
+  it('the fake engine keeps the rules: no cut, a transcript already there and the hosted server are refused', async () => {
+    const plain = await footage(null);
+    await expect(plain.engine.request('venture.files.transcribe', { orderId: plain.order.id })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
+    const made = await footage(CUT);
+    const upload = (await made.engine.request('venture.files.transcribe', { orderId: made.order.id })) as UploadLite;
+    expect([upload.name, upload.format, upload.origin]).toEqual(['episode-15.srt', 'transcript', 'local-transcription']);
+    await expect(made.engine.request('venture.files.transcribe', { orderId: made.order.id })).rejects.toMatchObject({ code: 'TRANSCRIPT_EXISTS' });
+    const hosted = new FakeEngine({ hosted: true });
+    await expect(hosted.request('venture.files.transcribe', { orderId: 'o-boat-14' })).rejects.toMatchObject({ code: 'TIER_UNAVAILABLE' });
+    // The fake's own way of keeping a transcript made here is not a method its public request answers.
+    await expect(made.engine.request('fake.files.keepMade' as never, { orderId: made.order.id, name: 'x.srt', contentBase64: btoa('1\n00:00:00,000 --> 00:00:01,000\nHi\n') } as never)).rejects.toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
   });
 });

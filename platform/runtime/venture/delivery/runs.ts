@@ -15,7 +15,7 @@ import type {
 } from '../contracts.ts';
 import { correctDraft, firstFailedCheck, knownNames, runChecks, withDraftChecks, type CheckInput } from './checks.ts';
 import type { ReceiptCorrection } from './judge/claim-check.ts';
-import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs } from './deliverable.ts';
+import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs, type DraftTimes } from './deliverable.ts';
 import {
   DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegateSpend, delegateSpendOutcome,
   delegationEnvelopeResult, runDelegation, type DelegateAvailability, type DelegationResult,
@@ -28,12 +28,15 @@ import {
   actTask, addCapWindow, answerHandoff, applyTurn, capShortfall, finishWrite, newHarnessState, openDelegation, playbookGrant, provenSentences, REPORT_SECTIONS, reserveRunCall,
   settleDelegation, skipActs, startDelegation, validateTurn, writeGuidance, writeTask, type AgentTurn, type LoopContext,
 } from './harness/loop.ts';
+import { youtubeWorked } from './harness/tools-youtube.ts';
 import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
 import { recheckRun, recheckSend } from './harness/recheck.ts';
+import { storeRunEvidence } from './harness/tools-evidence.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits, verifyChecks } from './playbook.ts';
 import { failedPlaybookCheck, runFlagshipChecks } from '../playbooks/draft-checks.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import { caOfferFor, caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { diffExplanations } from '../playbooks/ca-firm/signoff.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, previewShownWhole, readAs, todayIso, ventureReceipts } from './shared.ts';
 import { journalled } from '../journal/journal.ts';
@@ -44,6 +47,24 @@ export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to s
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
+/** The judge's line on a run the owner edited: the edit is the owner's own words, which the judge never reads. */
+export const JUDGE_EDIT_LINE = "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft.";
+export const JUDGE_READING = 'The judge is reading this draft. Accept it once its answer is in.';
+
+/** How long a ready draft stays marked as due for the judge (judgePending) before Accept opens anyway. */
+export const JUDGE_PENDING_MS = 10 * 60_000;
+
+/**
+ * True while the judge is due on this draft or reading it (judge-run.ts): marked due by the commit that made it ready
+ * and not asked yet, or its automatic call out, with no line saying it stopped and its preview still live. Each holds
+ * only for its own time, so a judge that never came back stops holding. Accept waits meanwhile, so a failing verdict
+ * never lands on an accepted draft.
+ */
+export function judgeReading(run: Pick<DeliveryRunRecord, 'judge' | 'judgePending'>, nowMs: number): boolean {
+  const judge = run.judge;
+  if (!judge) return !!run.judgePending && Date.parse(run.judgePending.until) > nowMs;
+  return judge.status === 'waiting' && judge.auto === true && !judge.line && !!judge.preview && Date.parse(judge.preview.expiresAt) > nowMs;
+}
 const MAX_EDITED_CHARS = 20000;
 const MAX_ANSWER_CHARS = 2000;
 
@@ -74,15 +95,19 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
 /**
  * A flagship playbook's own checks on a draft (playbooks/draft-checks.ts), after the harness checks; undefined for
  * the eight fixed steps. The finishing check reads a cut on this computer, so the hosted server never runs it. The CA
- * firm calculator's refusals among the run's tool calls go with them, so a refused working fails, do not retry.
+ * firm calculator's refusals among the run's tool calls go with them, so a refused working fails, do not retry. The
+ * tables the run's tools made and its tool calls go too, for the checks that read them.
  */
-async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { work?: readonly WorkReceiptRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
+async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
   if (!playbook.flagship) return undefined;
   return runFlagshipChecks({
     flagship: playbook.flagship, offerKey: context.offerKey, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
     files: extras.files ?? [], receipts: [...context.receipts, ...(extras.work ?? [])], known: context.known, mode: 'client',
     today: todayIso(deps, context.venture), dateOrder: context.venture.country.dateOrder, ...(deps.host === 'hosted-web' ? { finishing: null } : {}),
     refusals: refusalsOf(extras.harness?.toolCalls ?? []),
+    tables: extras.tables ?? [], toolCalls: extras.harness?.toolCalls ?? [],
+    // The CA's explanations of portal differences, so one recorded while the run waited counts now (Ink v2 2A2).
+    caExplanations: diffExplanations(deps.store.read(), context.venture.id),
   });
 }
 
@@ -95,12 +120,15 @@ function draftContext(context: OrderContext, today: string): { refs: DraftRefs; 
 type DraftCheckExtras = {
   work?: readonly WorkReceiptRecord[]; proofs?: readonly ClaimProof[]; sections?: readonly string[]; answers?: readonly string[];
   harness?: HarnessState | null; files?: readonly FileLike[]; corrections?: readonly ReceiptCorrection[];
+  /** The run's own chapter time codes and their heading (youtubeWorked), which no-numeric-prose leaves out. */
+  times?: DraftTimes | null;
 };
 
 /**
  * The verify step's checks on a real order's draft. The claim check reads the order's request, the owner's answers,
- * the client's files, the tool results and the receipts. The rules judge is never asked here: its call would carry the
- * client's words, which needs the owner's approval of each call, so rules-judge is left out (it runs in rehearsal).
+ * the client's files, the tool results and the receipts. The rules judge is never asked here: its call carries the
+ * client's words, so it goes through the action journal after these checks pass (judge-run.ts), on its own under the
+ * business's standing consent or when the owner sends it.
  */
 function checkDraft(context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, renderedText: string, extras: DraftCheckExtras = {}): CheckResult[] {
   return runChecks(draftCheckInput(context, playbook, deliverable, renderedText, extras));
@@ -125,7 +153,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
     ...(extras.corrections?.length ? { corrections: extras.corrections } : {}),
     allowed: copiedTokens(context.order.request, context.venture.idea, ...(extras.answers ?? [])), receipts: [...context.receipts, ...(extras.work ?? [])], ventureId: context.venture.id,
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: deliverable.questionsForClient.length > 0,
-    ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}),
+    ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}), ...(extras.times ? { times: extras.times } : {}),
     grounding: {
       clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [],
       known: context.known, dateOrder: context.venture.country.dateOrder, ownerWords: context.ownerWords,
@@ -184,8 +212,8 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     });
   }
 
-  // A flagship playbook drafts with its own step for this offer: that step's headings and guidance.
-  const draft = flagshipDraft(playbook, context.offerKey);
+  // A flagship playbook drafts with its own step for this offer: that step's headings and guidance, and this order's slots.
+  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
     containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
@@ -234,7 +262,7 @@ function loopContext(deps: VentureDeps, ctx: Context, state: State, context: Ord
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
     files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
-    delegate: delegate.map(item => item.cli), draft: flagshipDraft(playbook, context.offerKey),
+    delegate: delegate.map(item => item.cli), draft: flagshipDraft(playbook, context.offerKey, context.order.intake ?? null),
   };
 }
 
@@ -247,9 +275,10 @@ function nextTask(loop: LoopContext, context: OrderContext, refs: DraftRefs, har
   if (harness.phase === 'act') return actTask(loop, harness);
   const answers = answersOf(harness);
   const proven = provenSentences(harness, receipts, namer({ files: [...files], tables: [...tables] }));
+  // The hooks the scorer kept and the drafted chapters, as screened, go to the writer as given (tools-youtube.ts).
   return writeTask({
     ...loop, idea: context.venture.idea, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), priceRefs: refs,
-    templateTotalRef: 'order.total', proven,
+    templateTotalRef: 'order.total', proven, worked: youtubeWorked(harness.toolCalls, tables),
   }, harness, receipts);
 }
 
@@ -261,6 +290,15 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
 
 /** venture.delivery.approve: sends the exact previewed text once, then checks and stores the draft (or runs the turn). */
 export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
+  return approveDelivery(deps, ctx, payload);
+}
+
+/**
+ * The approval itself. judgeNoticeShown: the judge's notice exactly as the approving surface showed it, bound by that
+ * surface's own digest (Today's row, views/queue.ts). Only then does approving the write turn give the judge's standing
+ * consent; venture.delivery.approve binds the turn's text, not the notice, so it gives none.
+ */
+export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: unknown, options: { judgeNoticeShown?: string | null } = {}): Promise<DeliveryRunView> {
   requireAppChannel(ctx, 'venture.delivery.approve');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Draft reply');
@@ -288,11 +326,19 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
     // The run's own spend cap, held before the call: the call that would cross it is refused before it is sent.
     if (run.harness) reserveRunCall(run.harness, run.preview.estimatedMaxCostMicros);
   }
+  // The write turn of a draft the judge will then read on its own: its approval says so, with what the judge's check
+  // could cost (judge-run.ts judgeNotice). The commit that makes the draft ready keeps that bound and marks the judge
+  // as due, so Accept waits until the judge was asked, and the judge goes on its own only within the bound shown.
+  const judge = await import('./judge-run.ts').catch(() => null);
+  const notice = judge?.judgeNotice(deps, ctx, state, venture, run) ?? null;
+  const pending: DeliveryRunRecord['judgePending'] = notice
+    ? { boundMicros: notice.boundMicros, bound: notice.cost, until: new Date(deps.clock().getTime() + JUDGE_PENDING_MS).toISOString() }
+    : null;
 
   const send = async (): Promise<DeliveryRunView> => {
     // The gate again, just before the send, on what the vault says now; a deny closes the journal entry with its reason.
     recheckSend(deps, venture.id, runId, callId, approved);
-    if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved });
+    if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
     const draft = flagshipDraft(playbook, context.offerKey);
     let deliverable: Deliverable;
@@ -317,7 +363,7 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
         check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
         const next: DeliveryRunRecord = {
           ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
-          ...(playbookChecks ? { playbookChecks } : {}),
+          ...(playbookChecks ? { playbookChecks } : {}), ...(pending ? { judgePending: pending } : {}),
         };
         tx.replace(next);
         recordCheckSignal(tx, runId, checks);
@@ -338,12 +384,20 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
   // rejected or outcome_unknown. An unknown outcome (a timeout) is never sent again. The token stays in memory here.
   const client = findRecord(state, 'venture-client', context.order.clientId)?.name ?? 'your client';
   const sent = await journalled(deps, ctx, {
-    action: 'delivery.send', subject: `${run.id}:${callId}`, target: client, actionDigest: approved, line: `Send the next step for ${client} to your AI.`,
+    action: 'delivery.send', subject: `${run.id}:${callId}`, target: client, actionDigest: approved, line: `Send the next step for ${client} to your AI.${notice ? ` ${notice.short}` : ''}`,
     notAfter: run.preview?.expiresAt ?? null,
     quote: run.preview ? { figure: run.preview.estimatedMaxCostMicros, payer: run.preview.presetId } : null,
     descriptionComplete: run.preview ? previewShownWhole(run.preview) : false,
   }, async () => ({ outcome: 'applied', line: 'Sent to your AI. It answered.', value: await send() }));
-  const view = sent.value!;
+  const sentView = sent.value!;
+  // The consent is recorded only when none exists, and only when the approving surface bound the setting's words it
+  // showed (Today's row digest); never from the cost line alone.
+  if (notice && !notice.consented && judge && options.judgeNoticeShown === notice.line) await judge.recordDefaultConsent(deps, ctx, sent.entry.id).catch(() => null);
+  // The rules judge on its own (judgeAuto, judge-run.ts): a ready draft for a client or the public is judged once,
+  // before the CA sees any papers, so papers the judge failed never go to the CA. It never fails or undoes the run.
+  const view = sentView.status === 'ready-for-review' && judge
+    ? await judge.autoJudge(deps, ctx, sentView).catch(() => sentView)
+    : sentView;
   // AI-native CA firm: a ready draft for a regulated offer goes in front of the CA of record (a Send to CA row on
   // Today). Loaded only for a ready draft; it never fails or undoes the run.
   if (view.status === 'ready-for-review') {
@@ -355,6 +409,8 @@ export async function deliveryApproveHandler(deps: VentureDeps, ctx: Context, pa
 type HarnessApproval = {
   state: State; run: DeliveryRunRecord; harness: HarnessState; context: OrderContext; playbook: PlaybookRecord; refs: DraftRefs;
   offer: { name: string; description: string }; callId: string; approved: string;
+  /** The judge's due marker for the write turn's ready commit (judge-run.ts), or null. */
+  pending?: DeliveryRunRecord['judgePending'];
 };
 
 /**
@@ -381,7 +437,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   try {
     if (harness.phase === 'act') {
       // The owner approved this turn's exact text before it ran: that is the approval a step on hold waits for.
-      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available, approval: { kind: 'owner-turn', callId } });
+      const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available, approval: { kind: 'owner-turn', callId }, intake: context.order.intake ?? null });
       const next = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros });
       const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
       // A hand-off waits for an answer and a heavy-work brief for the owner's decision: neither previews a turn yet.
@@ -399,6 +455,8 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
           ? { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
           : { ...current, status: next.phase === 'brief' ? 'brief-waiting' : 'needs-answer', callId: null, preview: null, harness: next, practice: current.practice || stage === 'shadow' };
         tx.replace(stored);
+        // Facts the agent noted (evidence.record), checked again against the trace just stored: suggestions for the owner.
+        storeRunEvidence(tx, env.evidence ?? [], { runId: run.id, clientId: context.order.clientId });
         if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
         else if (next.phase === 'brief') tx.emit('delivery-brief-waiting', { runId: stored.id, orderId: stored.orderId });
         else tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
@@ -415,10 +473,10 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     const renderedText = renderDeliverable(deliverable, receipts, context.venture.country);
     const draft = flagshipDraft(playbook, context.offerKey);
     const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
-      work: made.receipts, proofs: harness.proofs, answers, harness: done, files, corrections,
+      work: made.receipts, proofs: harness.proofs, answers, harness: done, files, corrections, times: youtubeWorked(harness.toolCalls, made.tables).times,
       sections: draft?.sections ?? (harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]),
     });
-    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { work: made.receipts, files, harness: done });
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { work: made.receipts, tables: made.tables, files, harness: done });
     return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
       const current = tx.find('venture-delivery-run', run.id);
       check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
@@ -426,7 +484,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       const next: DeliveryRunRecord = {
         ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: done,
-        ...(playbookChecks ? { playbookChecks } : {}),
+        ...(playbookChecks ? { playbookChecks } : {}), ...(a.pending ? { judgePending: a.pending } : {}),
       };
       tx.replace(next);
       // The spot-check completion hook (policy/spot-check.ts): at auto with spot checks the finished run gets its
@@ -712,11 +770,16 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
     if (verdict === 'accepted') {
       acceptableAsIs(run.checks, run.playbookChecks);
+      check(!judgeReading(run, Date.parse(tx.now)), 'INVALID_VENTURE_REQUEST', JUDGE_READING);
       // AI-native CA firm: regulated papers are accepted only once the CA of record signed off this exact draft.
       const unsigned = caSignoffBlock(tx.state, tx.venture!, run);
       if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
     }
-    const next: DeliveryRunRecord = { ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText };
+    const next: DeliveryRunRecord = {
+      ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText,
+      // The owner's edit is the owner's own words: the judge never reads it, and its line says so (judge-run.ts).
+      ...(verdict === 'edited' && run.judge ? { judge: { ...run.judge, line: JUDGE_EDIT_LINE } } : {}),
+    };
     tx.replace(next);
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
@@ -737,10 +800,11 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
 /**
  * Why a draft can't be accepted as it stands, or null when every check passed: the harness checks first, then a
  * flagship playbook's own (a check that did not run blocks nothing). The owner edits or rejects it. A draft that
- * claims work no tool run proves gets its own words.
+ * claims work no tool run proves gets its own words. The rules judge's result comes last (judge-run.ts): a checked no
+ * blocks with the judge's reason; a verdict no checked vote settled was not checked, so it blocks nothing.
  */
-function failedCheckReason(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]): string | null {
-  const failed = checks.filter(result => !result.passed);
+export function failedCheckReason(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]): string | null {
+  const failed = checks.filter(result => !result.passed && !result.notChecked);
   if (failed.some(result => result.check === 'no-done-claims')) return DONE_CLAIM_REASON;
   if (failed.length) return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
   const playbook = failedPlaybookCheck(playbookChecks);
@@ -779,7 +843,9 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   // A next call that would cross the run's spend cap waits for one more window on Today instead of an approval.
   const capped = live && !!run.harness && capShortfall(run.harness, run.preview!.estimatedMaxCostMicros) !== null;
   const canApprove = live && !capped;
-  const blocked = ready ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks, run.playbookChecks) ?? (state ? caSignoffBlock(state, venture, run) : null)) : null;
+  const blocked = ready
+    ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? caSignoffBlock(state, venture, run) : null))
+    : null;
   const canAccept = ready && blocked === null;
   const awaitingYou = waiting ? live : asking ? agentStage(stage) && !cancelled : brief ? briefWaits && agentStage(stage) && !cancelled : ready ? !practiceNow || stage === 'shadow' : false;
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };

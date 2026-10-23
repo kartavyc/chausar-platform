@@ -4,6 +4,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Row } from '../../parts/Row';
+import { TranscriptionSetup } from './TranscriptionSetup';
 import type { ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
 import s from './Connections.module.css';
 
@@ -140,6 +141,7 @@ export function YourAi({ focus }: { focus: boolean }) {
         </>
       )}
       {data && !draft && client.transport !== 'hosted' && <SendRule now={data.sendPolicy} onSaved={() => status.reload()} />}
+      {data && !draft && client.transport !== 'hosted' && <TranscriptionSetup />}
     </section>
   );
 }

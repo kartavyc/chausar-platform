@@ -8,7 +8,8 @@ import { teamGateHandler, teamListHandler, teamPostureHandler } from './team.ts'
 import { journalListHandler, journalResolveHandler } from '../journal/list.ts';
 import { untrustedModeHandler, untrustedReleaseHandler } from '../policy/untrusted-methods.ts';
 import { queueViewHandler } from './queue-view.ts';
-import { caConfirmRates, caGet, caRecordSignoff, caSetOfRecord } from '../playbooks/ca-firm/methods.ts';
+import { caConfirmRates, caExplainDiff, caGet, caReceipt, caRecordSignoff, caSetOfRecord } from '../playbooks/ca-firm/methods.ts';
+import { rulesListHandler } from '../playbooks/rules-view.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.queue.list': queueListHandler,
@@ -32,6 +33,10 @@ export const handlers: VentureHandlerTable = {
   'venture.ca.setOfRecord': caSetOfRecord,
   'venture.ca.recordSignoff': caRecordSignoff,
   'venture.ca.confirmRates': caConfirmRates,
+  // Ink v2 wave 2: stored CA receipts and portal differences (2A2), and the dated platform rules (2H).
+  'venture.ca.receipt': caReceipt,
+  'venture.ca.explainDiff': caExplainDiff,
+  'venture.rules.list': rulesListHandler,
 };
 
 export { questionRowId } from './queue.ts';
