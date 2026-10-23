@@ -1,8 +1,9 @@
 // AI-native CA firm: the TDS working for a business that deducts tax, for common sections, from the versioned
 // section table, in BigInt paise. Per payee and section it applies the threshold (per bill or per year for
-// contractors, per year for fees, commission and interest, per month for rent), deducts at twice the rate or 20%
-// when there is no valid PAN, puts the catch-up on earlier bills onto the payment that crosses the threshold, and
-// lists the challans by section and month with the deposit due date. TDS is rounded to the nearest rupee. The CA
+// contractors, per year for fees, commission and interest, per month for rent), deducts at the highest of the rate
+// in the Act, the rate in force or 20% when there is no valid PAN (section 206AA, and 397(2) from FY 2026-27), puts
+// the catch-up on earlier bills onto the payment that crosses the threshold, and lists the challans by section and
+// month with the deposit due date. TDS is rounded to the nearest rupee. The CA
 // files the TDS returns (24Q, 26Q) on TRACES; agents never do.
 import { ChausarError } from '../../../contracts.ts';
 import { bpsText, divRound, invalid, isoDate, maxBig, notModelled, paise, sumBig, type IsoDate } from './money.ts';
@@ -12,7 +13,7 @@ import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
 export type PayeeKind = 'individual' | 'huf' | 'company' | 'firm' | 'other';
 export type TdsSectionCode = '194A' | '194C' | '194H' | '194I-building' | '194I-plant' | '194J-professional' | '194J-technical' | '194T';
 export type TdsPayment = { id: string; payee: string; pan: string | null; payeeKind: PayeeKind; section: TdsSectionCode; date: IsoDate; amountMinor: string };
-export type TdsWorkingInput = { financialYear: '2025-26'; payments: TdsPayment[] };
+export type TdsWorkingInput = { financialYear: '2025-26' | '2026-27'; payments: TdsPayment[] };
 export type TdsRow = {
   id: string; payee: string; section: string; date: IsoDate; amountMinor: string; rateBps: string;
   /** This payment's own share of TDS once the threshold is crossed; 0 when it never is. */
@@ -117,10 +118,16 @@ export function tdsWorking(input: TdsWorkingInput, use: RateUse = REHEARSAL): Ca
   }
   for (const item of items) item.due = item.deductedAt ? divRound(item.amount * item.rate, 1_000_000n, 'half-up') * 100n : 0n;
 
+  // The no-PAN rule in the Act's words: the highest of the rate in the Act, the rate in force or the floor. Only
+  // version 1 of the FY 2025-26 table, kept for history, doubled the rate.
+  const floor = bpsText(rates.noPanFloorBps);
+  const noPanRule = rates.noPanMultiplier === '1'
+    ? `the rate in the Act, the rate in force or ${floor}, whichever is highest`
+    : `twice the rate or ${floor}, whichever is higher`;
   const rows: TdsRow[] = items.map(item => {
     const atThis = items.filter(other => other.deductedAt?.id === item.payment.id);
     const notes: string[] = [];
-    if (item.noPan) notes.push(`No PAN: ${bpsText(item.rate)}, twice the rate or 20%, whichever is higher.`);
+    if (item.noPan) notes.push(`No PAN: ${bpsText(item.rate)}, ${noPanRule}.`);
     if (!item.deductedAt) notes.push('Below the threshold so far: nothing to deduct.');
     else if (item.deductedAt.id !== item.payment.id) notes.push(`Deducted on ${item.deductedAt.date}, when the threshold was crossed.`);
     if (atThis.some(other => other.payment.id !== item.payment.id)) notes.push('Carries the catch-up on earlier bills.');
@@ -146,7 +153,9 @@ export function tdsWorking(input: TdsWorkingInput, use: RateUse = REHEARSAL): Ca
   const codes = [...new Set(items.map(item => item.payment.section))].sort();
   for (const code of codes) {
     const section = rates.sections.find(entry => entry.code === code)!;
-    builder.step(`tds-${code}`, `TDS under ${section.title.toLowerCase()}`, sumBig(items.filter(item => item.payment.section === code).map(item => item.due)), sectionOf(table, `tds-${section.section}`));
+    // Section references are keyed by the payment's code ('194I-building' reads 'tds-194I'), so a table that names
+    // the Income-tax Act, 2025 section (393) keeps the same keys.
+    builder.step(`tds-${code}`, `TDS under ${section.title.toLowerCase()}`, sumBig(items.filter(item => item.payment.section === code).map(item => item.due)), sectionOf(table, `tds-${code.split('-')[0]}`));
   }
   builder.step('tds-total', 'TDS for the year so far', sumBig(items.map(item => item.due)));
   if (items.some(item => item.noPan)) builder.cite(sectionOf(table, 'no-pan'));

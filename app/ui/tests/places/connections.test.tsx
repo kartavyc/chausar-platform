@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CONNECTORS } from '../../src/engine/fixtures';
-import type { ConnectorCardLite, ModelStatusLite, BuildStatusView } from '../../src/engine/types';
+import { EngineError, type ConnectorCardLite, type ModelStatusLite, type BuildStatusView } from '../../src/engine/types';
 
 type Bridged = Window & { chausar?: unknown };
 
@@ -193,6 +193,32 @@ describe('Connections: Your AI', () => {
     expect(sent.map((p) => [p.presetId, p.tiers])).toEqual([['anthropic-haiku-5-5', ['fast']], ['anthropic-sonnet-5-5', ['main']]]);
     const status = (await engine.request('venture.models.status', {})) as ModelStatusLite;
     expect(status.connections.filter((c) => c.status === 'connected')).toHaveLength(2);
+  });
+
+  it('the key field sits outside any form, is sent from a button, and is cleared when Connect fails too', async () => {
+    const engine = new FakeEngine();
+    const real = engine.request.bind(engine);
+    vi.spyOn(engine, 'request').mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'venture.models.connect') throw new EngineError('MODEL_KEY_REJECTED', 'Anthropic refused this key.');
+      return real(method, params);
+    });
+    start('#/connections', engine);
+    const section = await ai();
+    const recommended = (await within(section).findByText('Claude Haiku 5.5 and Sonnet 5.5')).closest('li')!;
+    fireEvent.click(within(recommended).getByRole('button', { name: 'Connect' }));
+    const key = within(recommended).getByLabelText('Your Anthropic key') as HTMLInputElement;
+    expect(key.closest('form')).toBeNull();
+    expect(section.querySelector('form input[type="password"]')).toBeNull();
+    expect(key.getAttribute('autocomplete')).toBe('off');
+    fireEvent.change(key, { target: { value: 'sk-ant-secret-123' } });
+    fireEvent.click(within(recommended).getByRole('checkbox', { name: 'I agree' }));
+    const connect = within(recommended).getByRole('button', { name: 'Connect' });
+    expect(connect.getAttribute('type')).toBe('button');
+    await act(async () => { fireEvent.click(connect); });
+    await waitFor(() => expect(within(recommended).getByRole('alert').textContent).toContain('Anthropic refused this key.'));
+    expect(key.value).toBe('');
+    expect(document.body.textContent).not.toContain('sk-ant-secret-123');
+    expect((within(recommended).getByRole('button', { name: 'Connect' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("a preset that needs setup shows the engine's reason and offers no Connect", async () => {

@@ -26,15 +26,19 @@ test('spend policy methods: listed, owned by money, and set is an owner action i
 
 test('spend policy: nothing set reads as no limit and no ask-first; set keeps what it leaves out and marks rates confirmed', async () => {
   const env = await setup();
-  assert.deepEqual(await get(env), { capMicros: null, askFirstMicros: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null });
+  assert.deepEqual(await get(env), {
+    capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
+  });
 
   const view = await set(env, { cap: '5000000', askFirst: '1000000', rates: [FAL_LINE] });
   assert.deepEqual({ ...view, rates: undefined }, {
-    capMicros: '5000000', askFirstMicros: '1000000', cap: 'USD 5.0000 a month', askFirst: 'Asks you first above USD 1.0000', rates: undefined, setAt: env.now(),
+    capMicros: '5000000', askFirstMicros: '1000000', capUsd: '5.00', askFirstUsd: '1.00', cap: 'USD 5.0000 a month', askFirst: 'Asks you first above USD 1.0000', rates: undefined, setAt: env.now(),
+    inrPerUsd: null, rupeeRate: null,
   });
   assert.deepEqual(view.rates, [{
     item: 'connector:fal', unit: 'per-call', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '150000',
     source: 'fal pricing page', checkedOn: '2026-10-15', confirmed: true, by: 'owner', price: 'USD 0.1500 per call',
+    inputUsdPerMillion: null, outputUsdPerMillion: null, usdPerCall: '0.15',
   }]);
   assert.deepEqual(await get(env), view);
 

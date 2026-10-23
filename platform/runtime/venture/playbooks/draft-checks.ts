@@ -10,14 +10,15 @@
 //   whether the papers wait for the CA of record's sign-off (ca-firm/signoff.ts records it).
 // - Social media agency: the post checks of social/checks.ts on each post the draft names a channel for: channel
 //   limits, disclosure, claims against the client's message and files, and the client's words.
+// - Every flagship: the prompt-leak lint on the agent's words (prompt-leak.ts); a leak fails and blocks Accept.
 // The rules judge asks each playbook's own rules in rehearsal (flagshipJudgeRules).
 import type { DateOrder, Deliverable, IsoDate, OrderIntake, PlaybookCheckResult } from '../contracts.ts';
 import type { AnyReceipt } from '../delivery/deliverable.ts';
 import { transcriptCues, type FileLike } from '../delivery/harness/files.ts';
-import { deliverableWords, sourcesFromFiles, type SourceText } from '../delivery/judge/claim-check.ts';
+import { deliverableWords } from '../delivery/judge/claim-check.ts';
 import type { JudgeRule } from '../delivery/judge/rules.ts';
 import { CA_OFFERS } from './ca-firm/playbook.ts';
-import { checkCaDraft, CA_JUDGE_RULES } from './ca-firm/claims.ts';
+import { checkCaDraft, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
 import type { CaReceipt } from './ca-firm/receipt.ts';
 import { CA_FIRM_ID } from './ca-firm/registration.ts';
 import { parsePackageText, runYoutubeChecks, type YoutubeCheckResult, type YoutubeOrder } from './youtube/checks.ts';
@@ -25,10 +26,11 @@ import { finishingCheck, finishingResult, systemFfmpeg, type FfmpegPort } from '
 import { YOUTUBE_DRAFT_RULES } from './youtube/judge.ts';
 import { YOUTUBE_OFFERS, YOUTUBE_STEPS, type YoutubeOfferId } from './youtube/playbook.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
-import { SOCIAL_CHANNELS, channelCapability, type SocialChannel } from './social/channels.ts';
-import { checkDraftClaims, checkSocialDraft, checkWords, type ClientRules, type Finding, type PostDraft, type SocialCheckId } from './social/checks.ts';
+import { checkDraftClaims, checkSocialDraft, checkWords, type Finding, type PostDraft, type SocialCheckId } from './social/checks.ts';
+import { postOfLine, socialRules } from './social/post-lines.ts';
 import { SOCIAL_JUDGE_RULES } from './social/judge.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
+import { PROMPT_LEAK_CHECK, promptLeakLine, promptLeaks, type PromptLeak } from './prompt-leak.ts';
 
 export type FlagshipCheckInput = {
   flagship: string;
@@ -51,6 +53,8 @@ export type FlagshipCheckInput = {
   dateOrder: DateOrder;
   /** The ffmpeg the finishing check runs; null where no cut on this computer is read (the hosted server). Default: the ffmpeg on PATH. */
   finishing?: { ffmpeg: FfmpegPort; exists?: (path: string) => boolean } | null;
+  /** The CA firm calculator's refusals in this run (ca-firm/claims.ts refusalsOf): a tax working they touch fails, do not retry. */
+  refusals?: readonly CalculatorRefusal[];
 };
 
 /** The rules judge's rules for a flagship playbook's drafts, or null for any other playbook. */
@@ -71,8 +75,24 @@ function textLines(deliverable: Deliverable): string[] {
   return deliverable.sections.flatMap(section => section.parts.flatMap(part => (part.kind === 'text' ? [part.text] : [])));
 }
 
-/** The playbook's checks on a draft. Template outlines are not drafts these checks read, so nothing runs on them. */
+/**
+ * The playbook's checks on a draft, then the prompt-leak lint on the agent's words (prompt-leak.ts). Template outlines
+ * are not drafts these checks read, so nothing runs on them.
+ */
 export async function runFlagshipChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
+  const own = await playbookOwnChecks(input);
+  if (!own.length || input.servedBy === 'template') return own;
+  const line = promptLeakLine(draftLeaks(input));
+  return [...own, { playbook: input.flagship, check: PROMPT_LEAK_CHECK, outcome: line ? 'fail' : 'pass', detail: line ?? 'No words meant for the AI and no template placeholders.' }];
+}
+
+/** Leaks in the whole draft, and in each social post line read as the exact post (where template labels count too). */
+function draftLeaks(input: FlagshipCheckInput): PromptLeak[] {
+  const posts = input.flagship === SOCIAL_AGENCY_ID ? textLines(input.deliverable).flatMap(line => postOfLine(line) ?? []) : [];
+  return [...promptLeaks(deliverableWords(input.deliverable)), ...posts.flatMap(post => promptLeaks(post.text, 'post'))];
+}
+
+async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
   const as = (check: string, outcome: PlaybookCheckResult['outcome'], detail: string): PlaybookCheckResult => ({ playbook: input.flagship, check, outcome, detail });
   if (![YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID].includes(input.flagship)) return [];
   if (input.servedBy === 'template') return [as('playbook-checks', 'not-run', "not run: this playbook's checks read an agent's draft, and this is a template outline.")];
@@ -126,13 +146,17 @@ async function youtubeChecks(input: FlagshipCheckInput): Promise<YoutubeCheckRes
 // ---------------------------------------------------------------------------
 
 function caChecks(input: FlagshipCheckInput): { check: string; outcome: PlaybookCheckResult['outcome']; detail: string }[] {
-  // Price and work receipts read as receipts here: their figures with labels. Only the calculator's tax receipts carry rate tables.
+  // Price and work receipts read as receipts here: their figures with labels. Only the calculator's tax receipts carry
+  // rate tables and an engine, which is how the tax figure check tells them apart.
   const receipts = input.receipts.map(receipt => {
-    const raw = receipt as unknown as { id: string; figures: CaReceipt['figures']; working?: unknown; tables?: CaReceipt['tables'] };
-    return { id: raw.id, figures: raw.figures, working: raw.working ?? null, tables: Array.isArray(raw.tables) ? raw.tables : [] } as unknown as CaReceipt;
+    const raw = receipt as unknown as { id: string; figures: CaReceipt['figures']; working?: unknown; tables?: CaReceipt['tables']; engine?: CaReceipt['engine'] };
+    return { id: raw.id, figures: raw.figures, working: raw.working ?? null, tables: Array.isArray(raw.tables) ? raw.tables : [], ...(raw.engine ? { engine: raw.engine } : {}) } as unknown as CaReceipt;
   });
   const usesTables = receipts.some(receipt => receipt.tables.length > 0);
-  const { findings } = checkCaDraft({ draft: deliverableWords(input.deliverable), receipts, clientRequest: input.request, mode: input.mode, known: [...input.known] });
+  const { findings } = checkCaDraft({
+    draft: deliverableWords(input.deliverable), receipts, clientRequest: input.request, mode: input.mode, known: [...input.known],
+    offer: input.offerKey, refusals: input.refusals ?? [],
+  });
   const results = findings.map(item => (!usesTables && (item.check === 'rates-confirmed' || item.check === 'rates-in-window')
     ? { check: item.check, outcome: 'not-run' as const, detail: 'not run: the draft rests on no tax working with a rate table.' }
     : { check: item.check, outcome: item.passed ? 'pass' as const : 'fail' as const, detail: item.detail }));
@@ -148,8 +172,6 @@ function caChecks(input: FlagshipCheckInput): { check: string; outcome: Playbook
 // Social media agency
 // ---------------------------------------------------------------------------
 
-const CHANNEL_BY_NAME = new Map<string, SocialChannel>(SOCIAL_CHANNELS.flatMap(id => [[id, id], [channelCapability(id).name.toLowerCase(), id]] as [string, SocialChannel][]));
-const POST = /^\s*([A-Za-z][A-Za-z ]{0,20}?)\s*:\s*(.+)$/;
 const GROUPS: readonly { id: string; checks: readonly SocialCheckId[]; pass: string }[] = [
   { id: 'channel-limits', checks: ['channel-length', 'channel-hashtags', 'alt-text'], pass: "Every post fits its channel's length and hashtag limits." },
   { id: 'claims', checks: ['claims'], pass: "Every specific in the draft is in the client's message or files." },
@@ -165,16 +187,14 @@ function grouped(id: string, findings: readonly Finding[], pass: string): { chec
 }
 
 function socialChecks(input: FlagshipCheckInput): { check: string; outcome: PlaybookCheckResult['outcome']; detail: string }[] {
-  const sources: SourceText[] = [{ id: 'client-message', text: input.request }, ...sourcesFromFiles(input.files)];
-  const client: ClientRules = { ...(input.known[0] ? { businessName: input.known[0] } : {}), known: [...input.known], proofFiles: sources, dateOrder: input.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year' };
+  const client = socialRules(input);
   const paid = input.offerKey === 'ugc-ads' || !!input.intake?.paidPromotion;
   const ai = { person: !!input.intake?.aiPresenter, voice: !!input.intake?.aiVoice };
   const style = input.offerKey === 'community-replies' ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
   const posts: PostDraft[] = textLines(input.deliverable).flatMap((line, index) => {
-    const match = POST.exec(line);
-    const channel = match ? CHANNEL_BY_NAME.get(match[1].trim().toLowerCase()) : undefined;
+    const post = postOfLine(line);
     // The channel toggles are the owner's posting checklist: the publish step turns them on for a paid or AI post.
-    return channel ? [{ id: `post-${index + 1}`, channel, text: match![2].trim(), paid, ai, style, platformLabels: { paidPartnership: paid, aiGenerated: ai.person || ai.voice } }] : [];
+    return post ? [{ id: `post-${index + 1}`, channel: post.channel, text: post.text, paid, ai, style, platformLabels: { paidPartnership: paid, aiGenerated: ai.person || ai.voice } }] : [];
   });
   const media = { check: 'channel-media', outcome: 'not-run' as const, detail: 'not run: pictures and video come with the briefs; this draft holds text only.' };
   if (!posts.length) {

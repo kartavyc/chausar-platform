@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { EngineError } from '../../src/engine/types';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
@@ -139,6 +140,61 @@ describe('Clients: leads', () => {
     expect((call[1] as { sentAt: string }).sentAt).toBe(new Date('2026-10-21T11:30').toISOString());
     await waitFor(() => expect(sheet.textContent).toContain('You sent it'));
     expect(sheet.textContent).toContain('You wrote');
+  });
+
+  it('the sample engine refuses with the real engine codes, so the screens react to the codes the real engine sends', async () => {
+    const client = createFakeClient(new FakeEngine());
+    const refusal = (promise: Promise<unknown>) => promise.then(() => 'answered', (error: { code?: string }) => error.code);
+    expect(await refusal(client.request('venture.leads.add', { name: 'Ravi Menon', sourceUrl: 'a friend told me' }))).toBe('LEADS_SOURCE_REQUIRED');
+    expect(await refusal(client.request('venture.leads.draft', { leadId: 'lead-missing', subject: 'Hello there', body: 'A short note about our mic tests.' }))).toBe('LEADS_NOT_FOUND');
+    expect(await refusal(client.request('venture.leads.draft', { leadId: 'lead-kite', subject: 'Hello there', body: 'A short note about our mic tests.' }))).toBe('LEADS_EMAIL_UNVERIFIED');
+    await client.request('workspace.open', { folder: 'ledgerline' });
+    const lead = await client.request('venture.leads.add', { name: 'Neha Iyer', email: 'neha@example.in', sourceUrl: 'https://example.in/stores' });
+    const note = { leadId: lead.id, subject: 'Monthly books', body: 'We keep books for small traders in Pune.' };
+    expect(await refusal(client.request('venture.leads.draft', note))).toBe('LEADS_ADDRESS_MISSING');
+    expect(await refusal(client.request('venture.leads.recordSend', { leadId: lead.id, draftId: 'draft-missing', sentAt: '2026-10-21T06:00:00.000Z' }))).toBe('INVALID_VENTURE_REQUEST');
+    await client.request('venture.leads.block', { value: 'example.in' });
+    expect(await refusal(client.request('venture.leads.draft', { ...note, postalAddress: 'Ledgerline, 2 FC Road, Pune 411004' }))).toBe('LEADS_BLOCKED');
+  });
+
+  it('the sample engine keeps each stage move with its evidence, forward only, as the engine does', async () => {
+    const client = createFakeClient(new FakeEngine());
+    const listed = async () => (await client.request('venture.leads.list', {})).leads.find((l) => l.id === 'lead-pocket')!;
+    expect((await listed()).moves).toEqual([]);
+    const { draft, lead: drafted } = await client.request('venture.leads.draft', { leadId: 'lead-pocket', subject: 'Hello there', body: 'A short note about our mic tests.' });
+    expect(drafted.moves).toEqual([{ from: 'new', to: 'drafted', at: draft.at, by: 'owner', evidence: { kind: 'draft', id: draft.id } }]);
+    const sent = await client.request('venture.leads.recordSend', { leadId: 'lead-pocket', draftId: draft.id, sentAt: '2026-10-21T06:00:00.000Z' });
+    expect(sent.status).toBe('contacted');
+    expect(sent.moves.at(-1)).toMatchObject({ from: 'drafted', to: 'contacted', by: 'owner', evidence: { kind: 'send', id: draft.id } });
+    const { draft: second } = await client.request('venture.leads.draft', { leadId: 'lead-pocket', subject: 'Following up', body: 'Thanks for reading our note.' });
+    const again = await client.request('venture.leads.recordSend', { leadId: 'lead-pocket', draftId: second.id, sentAt: '2026-10-21T07:00:00.000Z' });
+    expect(again.moves).toHaveLength(2);
+    await client.request('venture.leads.block', { value: 'pocketaudio.in' });
+    expect((await listed()).moves.at(-1)).toMatchObject({ from: 'contacted', to: 'blocked', by: 'owner', evidence: { kind: 'opt-out', id: 'pocketaudio.in' } });
+  });
+
+  it('the address field appears and the source field is marked when a real engine refuses with its codes', async () => {
+    window.location.hash = '#/clients/leads';
+    const client = createFakeClient(new FakeEngine());
+    const real = client.request.bind(client);
+    vi.spyOn(client, 'request').mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'venture.leads.draft' && !(params as { postalAddress?: string }).postalAddress) throw new EngineError('LEADS_ADDRESS_MISSING', 'Add your business postal address. Every outreach email carries it.');
+      if (method === 'venture.leads.add') throw new EngineError('LEADS_SOURCE_REQUIRED', 'Add the web page where this lead was found.');
+      return real(method as never, params as never);
+    });
+    render(<App client={client} language="en" />);
+    const sheet = await openLead('Asha Rao');
+    await draft(sheet, 'A mic for your next review', 'We tested five budget mics. Would you like the results for your channel?');
+    expect(within(sheet).getByRole('alert').textContent).toContain('Add your business postal address.');
+    expect(within(sheet).getByLabelText('Your postal address')).toBeTruthy();
+    await click(screen.getByRole('button', { name: 'Close' }));
+    await click(await screen.findByRole('button', { name: 'Add a lead' }));
+    const add = await screen.findByRole('complementary', { name: 'Add a lead' });
+    type(within(add).getByLabelText('Name'), 'Ravi Menon');
+    type(within(add).getByLabelText('Where you found them'), 'https://example.in/team');
+    await act(async () => { fireEvent.click(within(add).getByRole('button', { name: 'Add lead' })); });
+    await waitFor(() => expect(within(add).getByLabelText('Where you found them').getAttribute('aria-invalid')).toBe('true'));
+    expect(add.textContent).toContain('Add the web page where this lead was found.');
   });
 
   it('blocks the address or its whole domain after a second ask', async () => {

@@ -1,17 +1,21 @@
 // AI-native CA firm: claim checks and judge rules for drafts. The checks run with no model: every rupee figure in a
-// draft must be on a receipt; the draft never says a return was filed, signed or e-verified; it cites no section the
-// CA has not confirmed for client documents (the Income-tax Act, 2025 may renumber them); a real client's receipts
-// rest on rate tables the CA confirmed, unchanged since; every reconciliation difference appears among the open
-// items; a request to hide income or inflate a deduction is refused; and notices and audits go to the CA.
+// draft must be on a receipt; a GST, TDS or income tax working quotes its tax figure from the calculator's receipt,
+// never from a price receipt or the model; the draft never says a return was filed, signed or e-verified; it cites no
+// section the CA has not confirmed for client documents (the Income-tax Act, 2025 may renumber them); a real client's
+// receipts rest on rate tables the CA confirmed, unchanged since; every reconciliation difference appears among the
+// open items; a request to hide income or inflate a deduction is refused; and notices and audits go to the CA.
+// The calculator's refusals (a case it does not model, a date no rate table covers) are final for the run: they reach
+// the checks as "do not retry", since asking again gives the same answer.
 // The judge rules ask what code cannot see, as yes or no questions with their own floors (delivery/judge/rules.ts),
 // and a committed baseline of held-back cases (baselines/ca-firm.json) fails the suite if quality drops.
 import { checkClaims, type SourceText } from '../../delivery/judge/claim-check.ts';
 import { loadBaseline, type BaselineFile } from '../../delivery/judge/baseline.ts';
 import { validateRules, type JudgeRule } from '../../delivery/judge/rules.ts';
+import type { ToolEnvelope } from '../../contracts.ts';
 import { bpsText } from './money.ts';
 import { RATE_TABLES, rateTableHash } from './rates.ts';
-import type { CaCheckId } from './playbook.ts';
-import type { CaReceipt } from './receipt.ts';
+import type { CaCheckId, CaOfferId } from './playbook.ts';
+import type { CaEngine, CaReceipt } from './receipt.ts';
 import type { Difference } from './reconcile.ts';
 
 export type CaFinding = { check: CaCheckId; passed: boolean; detail: string };
@@ -26,14 +30,63 @@ export type CaDraftInput = {
   differences?: readonly Difference[];
   /** Names that are never claims: the business, the owner, the client. */
   known?: readonly string[];
+  /** The playbook offer the draft is for. A GST, TDS or income tax working needs its tax figure from the calculator. */
+  offer?: CaOfferId | string | null;
+  /** The calculator's refusals in this run (refusalsOf). Any one fails the working: do not retry. */
+  refusals?: readonly CalculatorRefusal[];
 };
 
 /** Document and year names that hold digits but are not figures: Form 16, GSTR-3B, ITR-4, AY 2026-27, section 139(1). */
 const REFERENCES = [
   /\b(?:Form|ITR|GSTR|Rule)[\s-]?\d+[A-Z]{0,2}\b/gi,
-  /\b(?:AY|FY|assessment year|financial year|previous year)\s+\d{4}-\d{2}\b/gi,
+  /\b(?:AY|FY|TY|assessment year|financial year|previous year|tax year)\s+\d{4}-\d{2}\b/gi,
   /\b(?:section|sections|sec\.?|u\/s)\s*\d{1,3}[A-Z]{0,4}(?:\([0-9a-z]{1,4}\))*/gi,
+  // The Income-tax Act, 2025 names TDS rows by table serial: "Table serial 6(i)", "Sl. No. 6(i)", "S. No. 7".
+  /\b(?:Table\s+)?(?:serial|Sl\.?\s*No\.?|S\.\s*No\.?)\s*\d{1,2}(?:\([ivx]{1,4}\))?/gi,
 ];
+
+// ---------------------------------------------------------------------------
+// The calculator's refusals
+// ---------------------------------------------------------------------------
+
+/** The calculator's refusals that no retry fixes: a case it does not model, or a date no rate table covers. */
+export const CALCULATOR_REFUSALS = Object.freeze(['NOT_MODELLED', 'RATE_TABLE_MISSING', 'RATE_TABLE_STALE'] as const);
+export type CalculatorRefusal = { code: typeof CALCULATOR_REFUSALS[number]; message: string; retry: false; line: string };
+const DO_NOT_RETRY = 'Do not retry: the calculator gives the same answer every time. This goes to your CA.';
+
+/**
+ * The calculator's refusal in an error, marked do not retry; null for anything else. A mistake in the inputs
+ * (TAX_INPUT_INVALID) or a table waiting for the CA (RATE_UNCONFIRMED) is not one: those are fixed and asked again.
+ */
+export function calculatorRefusal(error: unknown): CalculatorRefusal | null {
+  const value = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof value?.code === 'string' ? value.code : '';
+  if (!(CALCULATOR_REFUSALS as readonly string[]).includes(code)) return null;
+  const message = typeof value?.message === 'string' ? value.message.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
+  return { code: code as CalculatorRefusal['code'], message, retry: false, line: `${message} ${DO_NOT_RETRY}`.trim() };
+}
+
+/**
+ * The calculator's refusals still standing after a run's tool calls, in order. A later call to the same tool that
+ * worked settles that tool's earlier refusals: the agent sent a case the calculator does model, and the working stands.
+ */
+export function refusalsOf(calls: readonly { tool: string; envelope: ToolEnvelope }[]): CalculatorRefusal[] {
+  const standing: { tool: string; refusal: CalculatorRefusal }[] = [];
+  for (const call of calls) {
+    if (call.envelope.ok) {
+      for (let index = standing.length - 1; index >= 0; index -= 1) if (standing[index].tool === call.tool) standing.splice(index, 1);
+      continue;
+    }
+    const refusal = calculatorRefusal(call.envelope.error);
+    if (refusal) standing.push({ tool: call.tool, refusal });
+  }
+  return standing.map(item => item.refusal);
+}
+
+// ---------------------------------------------------------------------------
+// Claim checks
+// ---------------------------------------------------------------------------
+
 const SECTION_REF = /\b(?:section|sec\.?|u\/s)\s*(\d{1,3}[A-Z]{0,4}(?:\([0-9a-z]{1,4}\))*)/gi;
 const BARE_SECTION = /\b(80(?:C|CCD|CCC|D|DD|DDB|E|EE|EEA|EEB|G|GG|GGA|GGC|TTA|TTB|U)(?:\([0-9A-Za-z]{1,4}\))?|87A|115BAC|234[ABC]|44ADA|44AD|44AE|139\(\d\)|194[A-Z]{0,2}|206AA|288[AB])\b/g;
 const FILING_CLAIMS = [
@@ -74,6 +127,65 @@ function figuresFromReceipts(input: CaDraftInput): CaFinding {
   return missing.length
     ? { check: 'figures-from-receipts', passed: false, detail: `These figures are on no receipt: ${missing.map(text => `"${text}"`).join(', ')}.` }
     : { check: 'figures-from-receipts', passed: true, detail: 'Every figure in the draft is on a receipt.' };
+}
+
+/** The workings whose tax figure the calculator works, the engines whose receipts may hold it, and its name in words. */
+const TAX_WORKINGS: Readonly<Partial<Record<CaOfferId, { engines: readonly CaEngine[]; tax: string }>>> = Object.freeze({
+  'gst-working': { engines: ['gst-working'], tax: 'GST' },
+  'tds-working': { engines: ['tds-working'], tax: 'TDS' },
+  'itr-salaried': { engines: ['income-tax', 'interest-234'], tax: 'income tax' },
+  'itr-small-business': { engines: ['income-tax', 'interest-234'], tax: 'income tax' },
+});
+/** The figures on a calculator receipt that are the tax itself or its total, by engine: a working quotes one of these. */
+const TAX_FIGURE_KEYS: Readonly<Partial<Record<CaEngine, RegExp>>> = Object.freeze({
+  'gst-working': /^(?:(?:output|cash)-(?:igst|cgst|sgst)|net-payable)$/,
+  'tds-working': /^tds-/,
+  'income-tax': /^(?:slab-tax|tax-after-rebate|tax-liability|tax-liability-rounded|balance)$/,
+  'interest-234': /^interest-(?:234a|234b|234c|total)$/,
+});
+/** A line that talks about tax: every figure on it must be the calculator's. */
+const TAX_LINE = /\b(?:gst|cgst|sgst|igst|utgst|tds|tcs|cess|tax|taxes|taxable|itc|surcharge|rebate|challans?)\b/i;
+
+function lineAt(text: string, at: number): string {
+  const start = text.lastIndexOf('\n', Math.max(0, at - 1)) + 1;
+  const end = text.indexOf('\n', at);
+  return text.slice(start, end < 0 ? text.length : end);
+}
+
+/**
+ * A GST, TDS or income tax working quotes its tax figure from the calculator's receipt for that tax: at least one of
+ * the receipt's tax or total figures, and no figure on a tax line from anywhere else (a price receipt or the model).
+ * A refusal from the calculator still standing in this run fails the working outright, marked do not retry.
+ */
+function taxFigureReceipted(input: CaDraftInput): CaFinding {
+  const check = 'tax-figure-receipted' as const;
+  const refusals = input.refusals ?? [];
+  if (refusals.length) return { check, passed: false, detail: `The calculator refused this working. ${refusals.map(item => item.line).join(' ')}` };
+  const working = input.offer ? TAX_WORKINGS[input.offer as CaOfferId] : undefined;
+  if (!working) return { check, passed: true, detail: 'This work has no tax figure for the calculator to work.' };
+  const calculator = input.receipts.filter(receipt => working.engines.includes(receipt.engine));
+  const figures = checkClaims(mask(input.draft, REFERENCES), receiptSources(calculator), { known: input.known }).claims.filter(claim => claim.kind === 'figure');
+  const typed = figures.filter(claim => !claim.matched && TAX_LINE.test(lineAt(input.draft, claim.at))).map(claim => `"${claim.text.trim()}"`);
+  if (typed.length) {
+    return { check, passed: false, detail: `These ${working.tax} figures are on no calculator receipt: ${typed.join(', ')}. Only the calculator's figures go in a ${working.tax} working.` };
+  }
+  // The tax or its total, not just any figure the working holds (a taxable value is on the receipt but is not the tax).
+  const taxSources = calculator.map(receipt => ({
+    id: receipt.id,
+    text: receipt.figures.filter(figure => TAX_FIGURE_KEYS[receipt.engine]?.test(figure.key)).map(figure => `${figure.label}: ${figure.display}`).join('\n'),
+  }));
+  const quoted = checkClaims(mask(input.draft, REFERENCES), taxSources, { known: input.known }).claims
+    .filter(claim => claim.kind === 'figure' && claim.matched && !claim.key.endsWith('%'));
+  if (!quoted.length) {
+    return {
+      check, passed: false,
+      detail: calculator.length
+        ? `The draft gives no ${working.tax} figure from the calculator's receipt. Quote the figure the calculator worked.`
+        : `The draft gives no ${working.tax} figure, and no calculator receipt backs one. The calculator works the ${working.tax} figure first.`,
+    };
+  }
+  const ids = [...new Set(quoted.map(claim => claim.sourceId))].join(', ');
+  return { check, passed: true, detail: `The ${working.tax} figures in the draft are on the calculator's receipt (${ids}).` };
 }
 
 function noFilingClaims(input: CaDraftInput): CaFinding {
@@ -143,7 +255,7 @@ function caOnlyToCa(input: CaDraftInput): CaFinding {
 /** Every CA firm draft check, in the order the verify step runs them. passed only when all pass. */
 export function checkCaDraft(input: CaDraftInput): { passed: boolean; findings: CaFinding[] } {
   const findings = [
-    figuresFromReceipts(input), noFilingClaims(input), sectionsFlagged(input), ratesConfirmed(input), ratesInWindow(input),
+    figuresFromReceipts(input), taxFigureReceipted(input), noFilingClaims(input), sectionsFlagged(input), ratesConfirmed(input), ratesInWindow(input),
     differencesListed(input), refusesToHide(input), caOnlyToCa(input),
   ];
   return { passed: findings.every(item => item.passed), findings };

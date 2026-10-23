@@ -7,6 +7,7 @@
 // - Disclosure: paid content says so upfront and sets the platform's toggle; an AI person, voice or realistic scene is
 //   labelled as AI; an AI creator never speaks as a real customer.
 // - Words: the client's banned words and topics, competitors in ads, health and money claims, engagement bait, house style.
+// - Prompt leak: words meant for the AI, not the reader, or a template label left in the post (../prompt-leak.ts).
 // - Thread splitting: by explicit breaks, then paragraphs, sentences, words and graphemes, so every part fits.
 //
 // Ideas taken, code written here: cogsend/cogsend (MIT, Copyright (c) cogsend contributors) splits long text into
@@ -16,12 +17,13 @@ import { check } from '../../../contracts.ts';
 import type { PostingModeName } from '../../contracts.ts';
 import { houseStyleFindings } from '../../records.ts';
 import { checkClaims, type ClaimCheck, type SourceText } from '../../delivery/judge/claim-check.ts';
+import { promptLeakLine, promptLeaks } from '../prompt-leak.ts';
 import { channelCapability, type MediaKind, type Ratio, type SocialChannel } from './channels.ts';
 import { platformRule } from './register.ts';
 
 export const SOCIAL_CHECK_IDS = [
   'channel-length', 'channel-hashtags', 'channel-media', 'alt-text', 'claims', 'disclosure-paid', 'disclosure-ai', 'synthetic-testimonial',
-  'banned-words', 'banned-topics', 'competitor-names', 'regulated-claims', 'engagement-bait', 'house-style',
+  'banned-words', 'banned-topics', 'competitor-names', 'regulated-claims', 'engagement-bait', 'house-style', 'prompt-leak',
 ] as const;
 export type SocialCheckId = typeof SOCIAL_CHECK_IDS[number];
 /** 'block': the draft does not reach the owner as ready. 'ask-owner': it does, with this line for the owner to decide. */
@@ -333,6 +335,16 @@ export function checkWords(draft: PostDraft, client: ClientRules): Finding[] {
 }
 
 // ---------------------------------------------------------------------------
+// Prompt leak
+// ---------------------------------------------------------------------------
+
+/** Words meant for the AI, or a template label, in the post or any part of its thread. Always blocks. */
+export function checkPromptLeak(draft: PostDraft): Finding[] {
+  const line = promptLeakLine(partsOf(draft).flatMap(part => promptLeaks(part, 'post')), 'post');
+  return line ? [finding('prompt-leak', line, null)] : [];
+}
+
+// ---------------------------------------------------------------------------
 // All checks together
 // ---------------------------------------------------------------------------
 
@@ -346,6 +358,7 @@ export function checkSocialDraft(draft: PostDraft, client: ClientRules, options:
     ...claims.findings,
     ...checkDisclosure(draft),
     ...checkWords(draft, client),
+    ...checkPromptLeak(draft),
   ];
   return { passed: findings.every(item => item.severity !== 'block'), findings, claims: claims.claims };
 }

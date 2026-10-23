@@ -74,6 +74,7 @@
   "clients.leads.status.drafted": "Drafted",
   "clients.leads.status.contacted": "You wrote",
   "clients.leads.status.replied": "Replied",
+  "clients.leads.status.won": "Won",
   "clients.leads.status.lost": "Not now",
   "clients.leads.status.blocked": "Blocked",
   "clients.leads.sheet": "Lead",

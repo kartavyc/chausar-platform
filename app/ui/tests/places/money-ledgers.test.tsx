@@ -119,6 +119,27 @@ describe('Money: spend', () => {
     expect((await screen.findByText(/never counted as free/)).textContent).toContain('Limits and rates');
   });
 
+  it('shows each figure and the month in rupees beside the dollars when the engine gives them, with the owner\'s rate', async () => {
+    const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
+    start('#/money/spend', {
+      'venture.spend.list': () => ({
+        rows: [{ id: 'sp1', connector: 'fal', label: 'Render', reserved: 'USD 1.0000', reservedRupees: `₹83.50 ${at}`, settled: 'USD 0.2500', settledRupees: `₹20.88 ${at}`, kind: 'billed' }],
+        total: 'USD 0.2500 this month', totalRupees: `₹20.88 ${at}`,
+      }),
+    });
+    const row = (await screen.findByText('Render')).closest('li')!;
+    expect(row.textContent).toContain(`USD 1.0000 · ₹83.50 ${at}`);
+    expect(row.textContent).toContain(`USD 0.2500 · ₹20.88 ${at}`);
+    expect(main().textContent).toContain(`USD 0.2500 this month · ₹20.88 ${at}`);
+  });
+
+  it('the AI spend line at a glance shows rupees beside the dollars when the engine gives them', async () => {
+    const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
+    start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: 'USD 0.2500', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) });
+    const line = await waitFor(() => lineOf('AI and tools this month'));
+    expect(line.textContent).toContain(`USD 0.2500 · ₹20.88 ${at}`);
+  });
+
   it('says so when there are no paid calls', async () => {
     start('#/money/spend', { 'venture.spend.list': () => ({ rows: [], total: '₹0.00 this month' }) });
     expect(await screen.findByText('No paid calls yet.')).toBeTruthy();
@@ -138,14 +159,45 @@ describe('Money: spend settings', () => {
     expect(within(region).queryByRole('textbox')).toBeNull();
   });
 
+  it('takes rupees per US dollar; then the limits show rupees beside the dollars, with the rate and the day it was set', async () => {
+    const { calls } = start('#/money/spend');
+    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    expect(within(settings()).queryByText(/per \$1/)).toBeNull();
+    await click(within(settings()).getByRole('button', { name: 'Change' }));
+    const rate = within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement;
+    expect([rate.value, rate.inputMode]).toEqual(['', 'decimal']);
+    expect(within(settings()).getByText('Your own rate, like 83.50. Spend then shows in rupees too. Leave it empty for dollars only.')).toBeTruthy();
+    await type(rate, '83.50');
+    await click(within(settings()).getByRole('button', { name: 'Save' }));
+    await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
+    expect(calls.find(([m]) => m === 'venture.spend.policy.set')![1]).toMatchObject({ inrPerUsd: '83.50' });
+    expect(await within(settings()).findByText('₹1,670.00 at ₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
+    expect(within(settings()).getByText('₹167.00 at ₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
+    expect(within(settings()).getByText('₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
+    await click(within(settings()).getByRole('button', { name: 'Change' }));
+    expect((within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement).value).toBe('83.50');
+  });
+
+  it('asks for every figure in US dollars, never in millionths of a dollar', async () => {
+    start('#/money/spend');
+    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    await click(within(settings()).getByRole('button', { name: 'Change' }));
+    expect(settings().textContent).not.toMatch(/millionth/i);
+    expect(within(settings()).getByText('In US dollars, like 20 or 12.50. Your AI bills in US dollars. Leave it empty for no limit.')).toBeTruthy();
+    for (const label of ['Monthly limit', 'Ask me first above', 'Input, per million tokens', 'Output, per million tokens']) {
+      expect((within(settings()).getByLabelText(label) as HTMLInputElement).inputMode).toBe('decimal');
+    }
+  });
+
   it('sends the figures exactly as typed, an empty one as null and the held rate as it came, only after a second ask', async () => {
     const { calls } = start('#/money/spend');
     await within(await waitFor(settings)).findByText('USD 20.0000 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const cap = within(settings()).getByLabelText('Monthly limit') as HTMLInputElement;
-    expect(cap.value).toBe('20000000');
-    expect((within(settings()).getByLabelText('Ask me first above') as HTMLInputElement).value).toBe('2000000');
-    await type(cap, '30000000');
+    expect(cap.value).toBe('20.00');
+    expect((within(settings()).getByLabelText('Ask me first above') as HTMLInputElement).value).toBe('2.00');
+    expect((within(settings()).getByLabelText('Input, per million tokens') as HTMLInputElement).value).toBe('3.00');
+    await type(cap, '30');
     await type(within(settings()).getByLabelText('Ask me first above'), '');
     await click(within(settings()).getByRole('button', { name: 'Save' }));
     expect(within(settings()).getByText('Save these limits and rates? Paid calls follow them from now on.')).toBeTruthy();
@@ -156,8 +208,8 @@ describe('Money: spend settings', () => {
     expect(calls.filter(([m]) => m === 'venture.spend.policy.set')).toEqual([]);
     await click(confirm);
     expect(calls.filter(([m]) => m === 'venture.spend.policy.set')).toEqual([['venture.spend.policy.set', {
-      cap: '30000000', askFirst: null,
-      rates: [{ item: 'model:anthropic-api', unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000', source: 'Anthropic pricing page', checkedOn: '2026-10-14' }],
+      capUsd: '30', askFirstUsd: null, inrPerUsd: null,
+      rates: [{ item: 'model:anthropic-api', unit: 'per-million-tokens', inputUsdPerMillion: '3.00', outputUsdPerMillion: '15.00', source: 'Anthropic pricing page', checkedOn: '2026-10-14' }],
     }]]);
     expect(await within(settings()).findByText('USD 30.0000 a month')).toBeTruthy();
     expect(within(settings()).getByText('Never asks first')).toBeTruthy();
@@ -172,13 +224,14 @@ describe('Money: spend settings', () => {
     const line = within(settings()).getByRole('group', { name: 'New rate' });
     await type(within(line).getByLabelText('What it prices'), 'connector:instagram');
     await act(async () => { fireEvent.change(within(line).getByLabelText('Priced'), { target: { value: 'per-call' } }); });
-    await type(within(line).getByLabelText('Price per call'), '250000');
+    await type(within(line).getByLabelText('Price per call'), '0.25');
     await type(within(line).getByLabelText('Where the rate comes from'), 'Meta ads price list');
     await click(within(settings()).getByRole('button', { name: 'Save' }));
     await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
     const sent = calls.find(([m]) => m === 'venture.spend.policy.set')![1] as { rates: unknown[] };
-    expect(sent.rates[1]).toMatchObject({ item: 'connector:instagram', unit: 'per-call', microsPerCall: '250000', source: 'Meta ads price list' });
-    expect(sent.rates[1]).not.toHaveProperty('inputMicrosPerMillion');
+    expect(sent.rates[1]).toMatchObject({ item: 'connector:instagram', unit: 'per-call', usdPerCall: '0.25', source: 'Meta ads price list' });
+    expect(sent.rates[1]).not.toHaveProperty('inputUsdPerMillion');
+    expect(sent.rates[1]).not.toHaveProperty('microsPerCall');
     expect(await within(settings()).findByText('USD 0.2500 per call')).toBeTruthy();
   });
 
@@ -186,12 +239,12 @@ describe('Money: spend settings', () => {
     start('#/money/spend');
     await within(await waitFor(settings)).findByText('USD 20.0000 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
-    await type(within(settings()).getByLabelText('Monthly limit'), '5.00');
+    await type(within(settings()).getByLabelText('Monthly limit'), '5.001');
     await click(within(settings()).getByRole('button', { name: 'Save' }));
     await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
     expect(await within(settings()).findByRole('alert')).toBeTruthy();
-    expect(within(settings()).getByRole('alert').textContent).toBe("Couldn't save: The monthly limit must be whole micro-dollars, like 5000000 for five US dollars.");
-    expect((within(settings()).getByLabelText('Monthly limit') as HTMLInputElement).value).toBe('5.00');
+    expect(within(settings()).getByRole('alert').textContent).toBe("Couldn't save: The monthly limit must be an amount in US dollars with at most two decimals, like 20 or 12.50.");
+    expect((within(settings()).getByLabelText('Monthly limit') as HTMLInputElement).value).toBe('5.001');
   });
 });
 
@@ -223,5 +276,49 @@ describe('Money: journal', () => {
   it('says plainly when the engine cannot give the journal', async () => {
     start('#/money/journal', { 'venture.journal.list': () => Promise.reject(new EngineError('METHOD_NOT_ALLOWED', 'This engine has no journal yet.')) });
     expect(await screen.findByText("Couldn't load this: This engine has no journal yet.")).toBeTruthy();
+  });
+
+  it('only an unknown outcome offers Resolve; It went out records sent and the row shows what the engine recorded', async () => {
+    const { calls } = start('#/money/journal');
+    const unknown = (await screen.findByText('Send email · Iyer & Co')).closest('li')!;
+    expect(screen.getAllByRole('button', { name: 'Resolve' })).toHaveLength(1);
+    expect(within(unknown).queryByRole('button', { name: 'It went out' })).toBeNull();
+    await click(within(unknown).getByRole('button', { name: 'Resolve' }));
+    expect(unknown.textContent).toContain('Check the other side first. Chausar will not send it again on its own.');
+    await click(within(unknown).getByRole('button', { name: 'It went out' }));
+    expect(calls).toContainEqual(['venture.journal.resolve', { entryId: 'j5', outcome: 'sent' }]);
+    const settled = await waitFor(() => {
+      const row = screen.getByText('Send email · Iyer & Co').closest('li')!;
+      expect(row.textContent).toContain('Applied');
+      return row;
+    });
+    expect(settled.textContent).toContain('You checked: it happened.');
+    expect(settled.textContent).not.toContain('Outcome unknown');
+    expect(settled.textContent).not.toContain('Check before retrying.');
+    expect(screen.queryAllByRole('button', { name: 'Resolve' })).toHaveLength(0);
+  });
+
+  it('It did not go out records not-sent; Not now closes the question and sends nothing', async () => {
+    const { calls } = start('#/money/journal');
+    const unknown = (await screen.findByText('Send email · Iyer & Co')).closest('li')!;
+    await click(within(unknown).getByRole('button', { name: 'Resolve' }));
+    await click(within(unknown).getByRole('button', { name: 'Not now' }));
+    expect(within(unknown).queryByRole('button', { name: 'It did not go out' })).toBeNull();
+    expect(calls.filter(([m]) => m === 'venture.journal.resolve')).toEqual([]);
+    await click(within(unknown).getByRole('button', { name: 'Resolve' }));
+    await click(within(unknown).getByRole('button', { name: 'It did not go out' }));
+    expect(calls).toContainEqual(['venture.journal.resolve', { entryId: 'j5', outcome: 'not-sent' }]);
+    await waitFor(() => expect(screen.getByText('Send email · Iyer & Co').closest('li')!.textContent).toContain('Rejected'));
+    expect(screen.getByText('Send email · Iyer & Co').closest('li')!.textContent).toContain('You checked: it did not happen. Propose it again to do it.');
+  });
+
+  it('an engine refusal shows in its words and the row keeps Resolve', async () => {
+    start('#/money/journal', { 'venture.journal.resolve': () => Promise.reject(new EngineError('JOURNAL_NOT_UNKNOWN', 'This one already has an outcome.')) });
+    const unknown = (await screen.findByText('Send email · Iyer & Co')).closest('li')!;
+    await click(within(unknown).getByRole('button', { name: 'Resolve' }));
+    await click(within(unknown).getByRole('button', { name: 'It went out' }));
+    expect(await within(unknown).findByText("Couldn't record it: This one already has an outcome.")).toBeTruthy();
+    expect(unknown.textContent).toContain('Outcome unknown');
+    expect(within(unknown).getByRole('button', { name: 'Resolve' })).toBeTruthy();
   });
 });

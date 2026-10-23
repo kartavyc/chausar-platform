@@ -20,6 +20,8 @@ export interface QueueRow {
   title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
   actions: QueueAction[]; // one or two; exactly one primary
   viewRef?: { kind: 'draft' | 'file' | 'run' | 'plan'; id: string };
+  /** Only on rows that propose an outside action (W1 H21): false when part of what it will send is not shown. */
+  descriptionComplete?: boolean;
 }
 export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
 export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string }
@@ -32,7 +34,8 @@ export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
 }
-export interface RunDetail extends RunSummary { steps: RunStep[]; question?: { id: string; text: string; choices?: string[] }; error?: string }
+/** screen: one engine line saying what the untrusted screen noted in the run's outside content, never the words. */
+export interface RunDetail extends RunSummary { steps: RunStep[]; question?: { id: string; text: string; choices?: string[] }; error?: string; screen?: Display }
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
@@ -42,18 +45,36 @@ export interface AgentView {
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed';
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string }
 // phase 2 views
-/** `reason`: the engine's words for why a call was refused (no price, over the monthly limit, waiting for approval). */
-export interface SpendRow { id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display }
-/** venture.spend.policy.get/set. Micro figures are whole micro-USD strings, sent back as they came; the UI shows the Display fields. */
+/**
+ * `reason`: the engine's words for why a call was refused (no price, over the monthly limit, waiting for approval).
+ * `reservedRupees`, `settledRupees`: the same figures in rupees at the owner's own rate, with that rate; absent without one.
+ */
+export interface SpendRow {
+  id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display;
+  reservedRupees?: Display; settledRupees?: Display;
+}
+/**
+ * venture.spend.policy.get/set. The Usd fields are figures in US dollars as the owner types them ('20.00', '0.000075');
+ * the form shows those and sends what the owner typed, and the engine converts. The UI shows the Display fields.
+ */
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export interface SpendRateLine {
   item: string; unit: SpendRateUnit; inputMicrosPerMillion: string | null; outputMicrosPerMillion: string | null; microsPerCall: string | null;
+  inputUsdPerMillion: string | null; outputUsdPerMillion: string | null; usdPerCall: string | null;
   source: string; checkedOn: string; confirmed: boolean; by: 'list' | 'owner'; price: Display;
 }
 export interface SpendRateInput {
-  item: string; unit: SpendRateUnit; inputMicrosPerMillion?: string | null; outputMicrosPerMillion?: string | null; microsPerCall?: string | null; source: string; checkedOn: string;
+  item: string; unit: SpendRateUnit; inputUsdPerMillion?: string | null; outputUsdPerMillion?: string | null; usdPerCall?: string | null; source: string; checkedOn: string;
 }
-export interface SpendPolicyView { capMicros: string | null; askFirstMicros: string | null; cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null }
+/**
+ * `inrPerUsd`: the owner's own rupee rate as typed back ('83.50'); `rupeeRate`: that rate in words with the day it was
+ * set; `capRupees`, `askFirstRupees`: the limits in rupees at that rate. All null or absent without a rate.
+ */
+export interface SpendPolicyView {
+  capMicros: string | null; askFirstMicros: string | null; capUsd: string | null; askFirstUsd: string | null;
+  cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null;
+  inrPerUsd: string | null; rupeeRate: Display | null; capRupees?: Display; askFirstRupees?: Display;
+}
 export interface JournalEntry { id: string; action: string; target: string; state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; at: string; line: Display; receiptId?: string }
 /** `dismissed`: the owner said no to this suggestion (venture.evidence.dismiss); it stays in the ledger, off the screen. */
 export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean; dismissed?: boolean }
@@ -64,7 +85,8 @@ export interface EvidenceItem { id: string; subject: string; field: string; valu
 // ---------------------------------------------------------------------------------------------------------------
 
 /** `venture.money.overview`: Money at a glance, three lines the engine adds up (owed, received, spent). */
-export interface MoneyOverviewLine { id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean }
+/** `rupees`: the AI spend line in rupees at the owner's own rate, with that rate; absent without one. */
+export interface MoneyOverviewLine { id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display }
 export interface MoneyOverview { lines: MoneyOverviewLine[] }
 
 /** `venture.tax.working`: the tax working for a period, worked by the calculator, each figure with its receipt. */
@@ -85,9 +107,13 @@ export interface OutreachDraftView {
   footer: { businessName: string; postalAddress: string; unsubscribe: string }; sourceUrl: string; by: 'agent' | 'owner'; at: string; digest: string;
 }
 export interface LeadSendView { draftId: string; sentAt: string; recordedBy: string; recordedAt: string; channel: 'own-mailbox' }
+export type LeadStage = 'new' | 'drafted' | 'contacted' | 'replied' | 'won' | 'lost' | 'blocked';
+/** One stage move with what it rests on: the draft, the owner's send, the reply, the outcome or the opt-out. */
+export interface LeadMoveView { from: LeadStage; to: LeadStage; at: string; by: string; evidence: { kind: 'draft' | 'send' | 'reply' | 'outcome' | 'opt-out'; id: string } }
 export interface LeadView {
   id: string; name: string; company: string | null; email: string | null; emailDomain: string | null; sourceUrl: string; emailCheck: LeadEmailCheck;
-  status: 'new' | 'drafted' | 'contacted' | 'replied' | 'lost' | 'blocked'; drafts: OutreachDraftView[]; sends: LeadSendView[]; addedBy: string; addedAt: string;
+  /** Forward only: new, drafted, contacted, replied, then won or lost; blocked is never left. */
+  status: LeadStage; drafts: OutreachDraftView[]; sends: LeadSendView[]; moves: LeadMoveView[]; addedBy: string; addedAt: string;
 }
 
 /** Bank statements (contracts.ts BankImportResult, BankConsentView). No bank provider is wired: imports are CSV files. */
@@ -405,10 +431,13 @@ export interface EngineMethods {
   'venture.runs.get': { params: { runId: string }; result: RunDetail };
   'venture.team.list': { params: Record<string, never>; result: { agents: AgentView[] } };
   'venture.team.gate': { params: { agentId: string; stepId: string; gate: 'auto' | 'hold' }; result: { agent: AgentView } };
-  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display } };
+  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
-  'venture.spend.policy.set': { params: { cap?: string | null; askFirst?: string | null; rates?: SpendRateInput[] }; result: SpendPolicyView };
+  'venture.spend.policy.set': { params: { capUsd?: string | null; askFirstUsd?: string | null; rates?: SpendRateInput[]; inrPerUsd?: string | null }; result: SpendPolicyView };
   'venture.journal.list': { params: { limit?: number }; result: { entries: JournalEntry[] } };
+  'venture.journal.resolve': { params: { entryId: string; outcome: 'sent' | 'not-sent'; note?: string }; result: { entry: JournalEntry } };
+  'venture.untrusted.mode': { params: { mode: 'observe' | 'enforce' }; result: { mode: 'observe' | 'enforce' } };
+  'venture.untrusted.release': { params: { digest: string }; result: { digest: string; released: true } };
   'venture.evidence.list': { params: { subject?: string }; result: { items: EvidenceItem[] } };
   'venture.evidence.apply': { params: { id: string }; result: { item: EvidenceItem } };
   'venture.evidence.dismiss': { params: { id: string }; result: { item: EvidenceItem } };

@@ -5,13 +5,25 @@
 // counted by code, into a result. The judge is asked only behind the code checks (judgeDraftRules), and only in
 // rehearsal: on a real order its call would carry the client's words, which needs the owner's approval of each call.
 // preferDraft is the pairwise comparison the improvement gate uses when two versions tie on every score.
+// The receipts check (judge/claim-check.ts checkReceipts) runs on every draft: a number with no receipt is labelled a
+// model estimate (or fails, where the playbook allows none: estimateRule), a file or link must be in the run's
+// evidence, and a figure the calculator refutes fails; correctDraft puts the calculator's figure in its place first,
+// and summaryReceipts does the same for a run summary.
 import { assertNoMoney, doneClaimMatches, houseStyleFindings, modelNumbers } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
-import type { CheckId, CheckResult, ClaimProof, DateOrder, Deliverable, GatePreference, HarnessState, MockEffect, ServiceType } from '../contracts.ts';
+import type {
+  CheckId, CheckResult, ClaimProof, DateOrder, Deliverable, GatePreference, HarnessState, MockEffect, ServiceType, TextPart, WorkReceiptRecord,
+} from '../contracts.ts';
+import { CA_FIRM_ID } from '../playbooks/ca-firm/registration.ts';
+import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
 import { draftWords, type AnyReceipt } from './deliverable.ts';
 import { claimBacked } from './harness/claims.ts';
 import type { FileLike } from './harness/files.ts';
-import { checkClaims, deliverableWords, sourcesFromFiles, sourcesFromRun } from './judge/claim-check.ts';
+import {
+  checkClaims, checkReceipts, deliverableWords, receiptsVerdict, sourcesFromFiles, sourcesFromRun,
+  prepareEvidence, type CalculatorFigure, type DraftNumber, type DraftReference, type EstimateMode, type EvidenceFile, type EvidenceLink,
+  type PreparedEvidence, type ReceiptCorrection, type ReceiptOptions, type ReceiptsCheck, type SourceText,
+} from './judge/claim-check.ts';
 import { comparePair, type PairAsk } from './judge/pairwise.ts';
 import { DRAFT_RULES, judgeByRules, notRuled, type JudgeRule, type RulesAsk, type RulesVerdict } from './judge/rules.ts';
 import { traceFromHarness } from './judge/trace.ts';
@@ -45,6 +57,15 @@ export type CheckInput = {
   grounding?: Grounding;
   /** The rules judge's verdict on this draft (judgeDraftRules). Absent: no judge ruled, so rules-judge is left out, never passed. */
   rules?: RulesVerdict | null;
+  /** 'forbid': money, a rate or tax with no receipt fails receipts (estimateRule). Absent: the flagship's rule, else 'label'. */
+  estimates?: EstimateMode;
+  /**
+   * The flagship playbook of the draft's playbook (PlaybookRecord.flagship), or null. Its own checks lint the draft for
+   * prompt leaks (playbooks/draft-checks.ts), so prompt-leak is left out here; it also picks estimates when absent.
+   */
+  flagship?: string | null;
+  /** Figures the calculator put in place of refuted numbers before these checks (correctDraft); receipts notes each one. */
+  corrections?: readonly ReceiptCorrection[];
 };
 
 /** The sources of a draft's claims. Each field left out adds nothing. */
@@ -59,6 +80,8 @@ export type Grounding = {
   /** Names that are never claims: the business, its offers, the client. */
   known?: readonly string[];
   dateOrder?: DateOrder;
+  /** The owner's own words that may hold the business's links (the idea, the client's record, the plan): a link there is held. */
+  ownerWords?: readonly string[];
 };
 
 /** Chausar's own name is never a claim a draft has to back. */
@@ -125,6 +148,16 @@ function houseStyle(input: CheckInput): CheckResult {
   return { check: 'house-style', passed: false, detail: first.rule === 'em-dash' ? 'The draft uses a long dash.' : `The draft uses a word on the avoid list: ${first.match}.` };
 }
 
+/**
+ * Words meant for the AI, not the reader (playbooks/prompt-leak.ts), in every piece the agent wrote: the title, the
+ * text and the questions. A flagship playbook's own checks run the same lint on its drafts, so it is left out there.
+ */
+function promptLeak(input: CheckInput): CheckResult | null {
+  if (input.flagship) return null;
+  const line = promptLeakLine(draftWords(input.deliverable).flatMap(words => promptLeaks(words)));
+  return line ? { check: 'prompt-leak', passed: false, detail: line } : { check: 'prompt-leak', passed: true, detail: 'The draft has no words meant for the AI.' };
+}
+
 function lengthBounds(input: CheckInput): CheckResult {
   const size = input.renderedText.length;
   if (size < MIN_DRAFT_CHARS) return { check: 'length-bounds', passed: false, detail: 'The draft is too short to send.' };
@@ -165,20 +198,197 @@ function noDoneClaims(input: CheckInput): CheckResult {
  */
 function claimsGrounded(input: CheckInput): CheckResult {
   const grounding = input.grounding;
-  const sources = sourcesFromRun({
+  const result = checkClaims(deliverableWords(input.deliverable), groundingSources(input.receipts, input.ventureId, grounding), {
+    known: [...ALWAYS_KNOWN, ...(grounding?.known ?? [])],
+    dateOrder: grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
+  });
+  return { check: 'claims-grounded', passed: result.passed, detail: result.detail };
+}
+
+/** The sources of a draft's claims and numbers: the client's words and files, the tool results and this business's receipts. */
+function groundingSources(receipts: readonly AnyReceipt[], ventureId: string, grounding: Partial<Grounding> | undefined): SourceText[] {
+  return sourcesFromRun({
     clientRequest: grounding?.clientRequest,
     harness: grounding?.harness ?? null,
-    receipts: input.receipts.filter(receipt => receipt.ventureId === input.ventureId),
+    receipts: receipts.filter(receipt => receipt.ventureId === ventureId),
     extra: [
       ...(grounding?.answers ?? []).map((answer, index) => ({ id: `answer.${index + 1}`, text: answer })),
       ...sourcesFromFiles(grounding?.files ?? []),
     ],
   });
-  const result = checkClaims(deliverableWords(input.deliverable), sources, {
-    known: [...ALWAYS_KNOWN, ...(grounding?.known ?? [])],
-    dateOrder: grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
-  });
-  return { check: 'claims-grounded', passed: result.passed, detail: result.detail };
+}
+
+// ---------------------------------------------------------------------------
+// Receipts (catalogue Q3)
+// ---------------------------------------------------------------------------
+
+/** Flagship playbooks whose papers carry no model estimate: every number needs a receipt. The CA firm's tax papers do. */
+const NO_ESTIMATES: ReadonlySet<string> = new Set([CA_FIRM_ID]);
+
+/** How a playbook treats a number with no receipt: the CA firm forbids it; every other playbook labels it a model estimate. */
+export function estimateRule(flagship: string | null | undefined): EstimateMode {
+  return flagship && NO_ESTIMATES.has(flagship) ? 'forbid' : 'label';
+}
+
+const isWorkReceipt = (receipt: AnyReceipt): receipt is WorkReceiptRecord => receipt.operation.startsWith('work.');
+
+/** The checks every draft runs, whatever its stored playbook says: a playbook stored before them never lists them. */
+export const ALWAYS_DRAFT_CHECKS: readonly CheckId[] = ['receipts', 'prompt-leak'];
+
+/** A playbook step's or practice case's checks with the always-on ones added after them. */
+export function withDraftChecks(checks: readonly CheckId[]): CheckId[] {
+  return [...checks, ...ALWAYS_DRAFT_CHECKS.filter(id => !checks.includes(id))];
+}
+
+/**
+ * The calculator's figures a number may be compared with: the receipts in cited (the ones a draft's figure parts
+ * open) and the run's work receipts; every receipt of this business when cited is null (a run summary, whose caller
+ * passes the run's own receipts). Prices of other offers stay out, so "the total" means this order's total.
+ */
+function calculatorFigures(receipts: readonly AnyReceipt[], cited: ReadonlySet<string> | null): CalculatorFigure[] {
+  return receipts.filter(receipt => !cited || cited.has(receipt.id) || isWorkReceipt(receipt)).flatMap(receipt =>
+    (receipt.figures as readonly { key: string; label: string; display: string; unit?: string }[]).map(figure => ({
+      receiptId: receipt.id, figureKey: figure.key, label: figure.label, display: figure.display, unit: figure.unit === 'count' ? 'count' as const : 'money' as const,
+      kind: isWorkReceipt(receipt) ? 'work' as const : 'price' as const,
+    })));
+}
+
+/** The files a run holds: the client's files and the tables the calculator read for its work receipts. */
+function evidenceFiles(receipts: readonly AnyReceipt[], files: readonly FileLike[]): EvidenceFile[] {
+  const tables = receipts.flatMap(receipt => isWorkReceipt(receipt) ? receipt.inputs.tables : []);
+  return [...files.map(file => ({ id: file.id, name: file.name, digest: file.digest })), ...tables.map(table => ({ id: table.id, name: table.name, digest: table.digest }))];
+}
+
+type EvidenceInput = { receipts: readonly AnyReceipt[]; ventureId: string; grounding?: Partial<Grounding>; cited: ReadonlySet<string> | null };
+
+/** The client's own sources: the message, the answers and the files. Their figures stand; the calculator never refutes them. */
+function clientSourceIds(grounding: Partial<Grounding> | undefined): string[] {
+  return [
+    ...(grounding?.clientRequest ? ['client-message'] : []), ...(grounding?.answers ?? []).map((_, index) => `answer.${index + 1}`),
+    ...sourcesFromFiles(grounding?.files ?? []).map(source => source.id),
+  ];
+}
+
+/** The owner's own links (the idea, the client's record, the plan) are held, with no digest. */
+function ownerLinks(grounding: Partial<Grounding> | undefined): EvidenceLink[] {
+  return (grounding?.ownerWords ?? []).flatMap(words => [...words.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"'`]+/giu)].map(match => ({
+    url: match[0].replace(/[.,;:!?)\]]+$/, ''), digest: null, sourceId: 'owner',
+  })));
+}
+
+/** The run's evidence, read and indexed once for every piece of words checked against it. */
+function receiptEvidence(input: EvidenceInput): PreparedEvidence {
+  const ours = input.receipts.filter(receipt => receipt.ventureId === input.ventureId);
+  return prepareEvidence({
+    sources: groundingSources(ours, input.ventureId, input.grounding), clientIds: clientSourceIds(input.grounding),
+    figures: calculatorFigures(ours, input.cited), files: evidenceFiles(ours, input.grounding?.files ?? []), links: ownerLinks(input.grounding),
+  }, input.grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year');
+}
+
+function citedReceipts(deliverable: Deliverable): Set<string> {
+  return new Set(deliverable.sections.flatMap(section => section.parts.flatMap(part => part.kind === 'figure' ? [part.receiptId] : [])));
+}
+
+function receiptOptions(input: { allowed?: readonly string[]; estimates?: EstimateMode; flagship?: string | null; grounding?: Partial<Grounding> }, subject: string): ReceiptOptions {
+  return {
+    known: [...ALWAYS_KNOWN, ...(input.grounding?.known ?? [])], allowed: input.allowed ?? [], estimates: input.estimates ?? estimateRule(input.flagship), subject,
+    dateOrder: input.grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
+  };
+}
+
+/**
+ * Every number, file and link in the draft's words against the run's receipts and evidence. A question for the client
+ * may name a file it asks for, so questions are checked for numbers only. Corrections made before the checks keep the
+ * check failed, each with its note, until the owner checks them: the owner's edit settles the draft.
+ */
+function receiptsCheck(input: CheckInput): CheckResult {
+  const evidence = receiptEvidence({ receipts: input.receipts, ventureId: input.ventureId, grounding: input.grounding, cited: citedReceipts(input.deliverable) });
+  const options = receiptOptions(input, 'draft');
+  const numbers: DraftNumber[] = [];
+  const references: DraftReference[] = [];
+  const pieces = draftWords(input.deliverable);
+  const questions = new Set(input.deliverable.questionsForClient);
+  for (const piece of pieces) {
+    const result = checkReceipts(piece, evidence, { ...options, references: !questions.has(piece) });
+    numbers.push(...result.numbers);
+    references.push(...result.references);
+  }
+  const verdict = receiptsVerdict(numbers, references, options);
+  const corrections = input.corrections ?? [];
+  if (!corrections.length) return { check: 'receipts', passed: verdict.passed, detail: verdict.detail };
+  const count = corrections.length === 1 ? 'one figure' : `${corrections.length} figures`;
+  return { check: 'receipts', passed: false, detail: `Chausar corrected ${count}; check them. ${corrections.map(item => item.note).join(' ')} ${verdict.detail}` };
+}
+
+/** What correctDraft reads: the draft and its checks, this business's receipts with the run's work receipts, and the run's sources. */
+export type DraftEvidence = Pick<CheckInput, 'checks' | 'deliverable' | 'receipts' | 'ventureId' | 'allowed' | 'grounding'>;
+
+/** Text around a replaced number; a punctuation tail is kept, so the figure reads "INR 449.82." when rendered. */
+function keepText(parts: TextPart[], value: string) {
+  const text = value.trim();
+  if (text) parts.push({ kind: 'text', text });
+}
+
+/**
+ * The calculator's figure in place of each number it refutes in the draft's text parts: the text is split around the
+ * number and a figure part opens the receipt, so the owner sees the receipt's label and display. Each correction
+ * carries a note; pass them to the checks (CheckInput.corrections). The estimate mark is worked out again, since the
+ * refuted number may have been the only number the model wrote. A draft with nothing to correct, or whose checks do
+ * not include receipts, comes back as it was.
+ */
+export function correctDraft(input: DraftEvidence): { deliverable: Deliverable; corrections: ReceiptCorrection[] } {
+  // A draft whose checks leave out receipts is never changed: nothing would show the owner what changed.
+  if (!input.checks.includes('receipts')) return { deliverable: input.deliverable, corrections: [] };
+  const evidence = receiptEvidence({ receipts: input.receipts, ventureId: input.ventureId, grounding: input.grounding, cited: citedReceipts(input.deliverable) });
+  const options = { ...receiptOptions(input, 'draft'), references: false };
+  const corrections: ReceiptCorrection[] = [];
+  const sections = input.deliverable.sections.map(section => ({
+    heading: section.heading,
+    parts: section.parts.flatMap((part): TextPart[] => {
+      if (part.kind !== 'text') return [part];
+      const refuted = checkReceipts(part.text, evidence, options).corrections;
+      if (!refuted.length) return [part];
+      const parts: TextPart[] = [];
+      let from = 0;
+      for (const correction of refuted) {
+        keepText(parts, part.text.slice(from, correction.at));
+        parts.push({ kind: 'figure', receiptId: correction.receiptId, figureKey: correction.figureKey });
+        from = correction.at + correction.said.length;
+      }
+      keepText(parts, part.text.slice(from));
+      corrections.push(...refuted);
+      return parts;
+    }),
+  }));
+  if (!corrections.length) return { deliverable: input.deliverable, corrections };
+  const next: Deliverable = { ...input.deliverable, sections };
+  delete next.estimate;
+  return { deliverable: draftWords(next).some(words => modelNumbers(words, input.allowed)) ? { ...next, estimate: true } : next, corrections };
+}
+
+/** What a run summary is checked against: the run's own receipts, the client's words and files, and the tool results. */
+export type SummaryInput = Partial<Grounding> & {
+  receipts: readonly AnyReceipt[];
+  ventureId: string;
+  allowed?: readonly string[];
+  estimates?: EstimateMode;
+};
+
+/**
+ * The receipts check on a run summary or any other words an agent writes about a run. labelled is the summary as the
+ * owner sees it: each number with no receipt labelled "model estimate", each refuted number replaced by the
+ * calculator's figure with its receipt.
+ */
+export function summaryReceipts(text: string, input: SummaryInput): ReceiptsCheck {
+  return summaryChecker(input)(text);
+}
+
+/** summaryReceipts for many pieces of words about one run: the run's evidence is read and indexed once. */
+export function summaryChecker(input: SummaryInput): (text: string) => ReceiptsCheck {
+  const { receipts, ventureId, allowed, estimates, ...grounding } = input;
+  const evidence = receiptEvidence({ receipts, ventureId, grounding, cited: null });
+  const options = receiptOptions({ allowed, estimates, grounding }, 'summary');
+  return text => checkReceipts(text, evidence, options);
 }
 
 /**
@@ -205,11 +415,13 @@ const RUNNERS: Readonly<Record<CheckId, (input: CheckInput) => CheckResult | nul
   'required-sections': requiredSections,
   'no-outside-writes': noOutsideWrites,
   'house-style': houseStyle,
+  'prompt-leak': promptLeak,
   'length-bounds': lengthBounds,
   'turn-limit': turnLimit,
   'questions-raised': questionsRaised,
   'no-done-claims': noDoneClaims,
   'claims-grounded': claimsGrounded,
+  receipts: receiptsCheck,
   'rules-judge': rulesJudge,
 };
 

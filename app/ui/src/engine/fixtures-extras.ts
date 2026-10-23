@@ -47,15 +47,17 @@ export const TAX_WORKINGS: Record<string, TaxWorking> = {
 /** The owner's spend settings. Lumen has a monthly limit and an ask-first figure; Ledgerline has neither. */
 export const SPEND_POLICIES: Record<string, SpendPolicyView> = {
   lumen: {
-    capMicros: '20000000', askFirstMicros: '2000000', cap: 'USD 20.0000 a month', askFirst: 'Asks you first above USD 2.0000', setAt: '2026-10-14T10:00:00.000Z',
+    capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: 'USD 20.0000 a month', askFirst: 'Asks you first above USD 2.0000', setAt: '2026-10-14T10:00:00.000Z',
+    inrPerUsd: null, rupeeRate: null,
     rates: [
       {
         item: 'model:anthropic-api', unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000', microsPerCall: null,
+        inputUsdPerMillion: '3.00', outputUsdPerMillion: '15.00', usdPerCall: null,
         source: 'Anthropic pricing page', checkedOn: '2026-10-14', confirmed: true, by: 'owner', price: 'USD 3.0000 in and USD 15.0000 out, per million tokens',
       },
     ],
   },
-  ledgerline: { capMicros: null, askFirstMicros: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null },
+  ledgerline: { capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null },
 };
 
 /** The CA firm page for Ledgerline. Requests appear here once sent to the CA (from Today's sign-off row). */
@@ -89,12 +91,12 @@ export const LEADS: Record<string, LeadView[]> = {
     {
       id: 'lead-kite', name: 'Kabir Shah', company: 'Studio Kite', email: 'kabir@studiokite.co', emailDomain: 'studiokite.co', sourceUrl: 'https://studiokite.co/team',
       emailCheck: { status: 'unverified', at: null, line: 'Not checked yet: no mail server answered for studiokite.co.' },
-      status: 'new', drafts: [], sends: [], addedBy: 'owner', addedAt: '2026-10-20T15:00:00.000Z',
+      status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: '2026-10-20T15:00:00.000Z',
     },
     {
       id: 'lead-pocket', name: 'Asha Rao', company: 'Pocket Audio', email: 'asha@pocketaudio.in', emailDomain: 'pocketaudio.in', sourceUrl: 'https://pocketaudio.in/about',
       emailCheck: { status: 'verified', at: '2026-10-19T10:00:00.000Z', line: 'A mail server answers for pocketaudio.in.' },
-      status: 'new', drafts: [], sends: [], addedBy: 'owner', addedAt: '2026-10-19T10:00:00.000Z',
+      status: 'new', drafts: [], sends: [], moves: [], addedBy: 'owner', addedAt: '2026-10-19T10:00:00.000Z',
     },
   ],
   ledgerline: [],

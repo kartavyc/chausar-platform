@@ -190,7 +190,11 @@ function SendRule({ now, onSaved }: { now: ModelStatusLite['sendPolicy']; onSave
   );
 }
 
-/** The consent words exactly as the engine wrote them, I agree, then Connect. The key never outlives the click. */
+/**
+ * The consent words exactly as the engine wrote them, I agree, then Connect. The key never outlives the click: its
+ * password field sits outside any form (so no browser offers to save it), autocomplete off, sent from a button and
+ * cleared in a finally, whether Connect worked or not.
+ */
 function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draft: boolean; onCancel: () => void; onDone: (text: string) => void }) {
   const t = useT();
   const client = useEngine();
@@ -204,8 +208,8 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
   const needsKey = choice.presets.some(({ preset }) => preset.needsKey);
   const consents = [...new Set(choice.presets.map(({ preset }) => preset.consentText))];
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function connect() {
+    if (busy) return;
     if (needsKey && !key.trim()) { setProblem(t('connections.ai.keyFirst')); return; }
     const typed = key.trim();
     setKey('');
@@ -226,17 +230,19 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
     } catch (error) {
       const message = t('connections.ai.connectFailed', { message: error instanceof Error ? error.message : String(error) });
       setProblem(connectedOne ? `${t('connections.ai.half')} ${message}` : message);
+    } finally {
+      setKey('');
       setBusy(false);
     }
   }
 
   return (
-    <form className={s.form} onSubmit={(event) => void submit(event)}>
+    <div className={s.form}>
       {needsKey && (
         <Field
           label={t('connections.ai.key', { name: choice.keyName })}
           hint={[lead.keyHint, t('connections.ai.keyHint')].filter(Boolean).join('. ')}
-          type="password" autoComplete="off" spellCheck={false} value={key}
+          type="password" autoComplete="off" spellCheck={false} value={key} disabled={busy}
           onChange={(event) => setKey(event.currentTarget.value)}
         />
       )}
@@ -255,8 +261,8 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <div className={s.buttons}>
         <Button onClick={onCancel}>{t('connections.ai.cancel')}</Button>
-        <Button variant="primary" type="submit" disabled={busy || !agree}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
+        <Button variant="primary" disabled={busy || !agree} onClick={() => void connect()}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
       </div>
-    </form>
+    </div>
   );
 }

@@ -16,6 +16,14 @@ export function Figure({ children }: { children: string }) {
   return <span className={phrase ? `${s.figure} ${s.phrase}` : `${s.figure} mono`} data-figure="">{children}</span>;
 }
 
+/**
+ * The engine's rupee figure beside a dollar one, as it wrote it with the owner's own rate ("₹20.88 at ₹83.50 per $1
+ * (your rate, set 23 Oct 2026)"). Nothing when the owner set no rate: then spend is in dollars only.
+ */
+export function Rupees({ text }: { text?: string }) {
+  return text ? <> · <span className={s.note}>{text}</span></> : null;
+}
+
 /** An invoice number that opens the invoice beside the list, where each of its figures sits with its receipt. */
 export function InvoiceRef({ id, number }: { id: string; number: string }) {
   const t = useT();

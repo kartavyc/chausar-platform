@@ -6,11 +6,14 @@
 // - Agents only draft. Nothing here sends: the owner sends from their own mailbox and records each real send in the app.
 // - Every outreach draft ends with an unsubscribe line and the business postal address; without an address there is no
 //   draft (LEADS_ADDRESS_MISSING). Cold email rules in many places ask for both.
+// - A lead's stage moves forward only: new (found), drafted, contacted, replied, then won or lost. Won and lost are
+//   terminal; blocked (an opt-out) can follow any stage and is never left. Every move keeps the evidence it rests on.
 // The evidence-or-refuse, MX and blocklist rules follow naidx0/revenue-squad (MIT, Copyright (c) 2026 naidx0); rewritten here.
 import { resolveMx } from 'node:dns/promises';
 import { check, newId, type Context } from '../../contracts.ts';
 import type { IsoTime } from '../contracts.ts';
 import { digest, isAppChannel } from '../records.ts';
+import { redactUrl } from '../core/secrets.ts';
 
 export type MxRecord = { exchange: string; priority: number };
 export type MxResolver = (domain: string) => Promise<MxRecord[]>;
@@ -31,6 +34,10 @@ export type OutreachDraft = {
   digest: string;
 };
 export type SendRecord = { draftId: string; sentAt: IsoTime; recordedBy: string; recordedAt: IsoTime; channel: 'own-mailbox' };
+export type LeadStage = 'new' | 'drafted' | 'contacted' | 'replied' | 'won' | 'lost' | 'blocked';
+/** What a move rests on: the draft, the owner's send, the reply, the outcome (an invoice, a note) or the opt-out. */
+export type StageEvidence = { kind: 'draft' | 'send' | 'reply' | 'outcome' | 'opt-out'; id: string };
+export type LeadMove = { from: LeadStage; to: LeadStage; at: IsoTime; by: string; evidence: StageEvidence };
 export type Lead = {
   id: string;
   name: string;
@@ -39,9 +46,10 @@ export type Lead = {
   emailDomain: string | null;
   sourceUrl: string;
   emailCheck: EmailCheck;
-  status: 'new' | 'drafted' | 'contacted' | 'replied' | 'lost' | 'blocked';
+  status: LeadStage;
   drafts: OutreachDraft[];
   sends: SendRecord[];
+  moves: LeadMove[];
   addedBy: string;
   addedAt: IsoTime;
 };
@@ -58,7 +66,8 @@ function sourceUrlOf(value: unknown): string {
   let url: URL | null = null;
   try { url = typeof value === 'string' && value.trim() ? new URL(value.trim()) : null; } catch { url = null; }
   check(url && (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.length > 0, 'LEADS_SOURCE_REQUIRED', 'Add the web page where this lead was found.');
-  return url.href;
+  // Stored without user info or secret-looking query, fragment and path parts (core/secrets.ts, W1 H17).
+  return redactUrl(url.href);
 }
 
 /** A new lead. The email is optional, but no outreach is drafted without a verified one. */
@@ -77,8 +86,41 @@ export function createLead(input: { id?: string; name: unknown; company?: unknow
   return {
     id: input.id ?? newId('lead'), name, company, email, emailDomain, sourceUrl,
     emailCheck: { status: 'unverified', at: null, line: email ? 'Not checked yet.' : 'No email yet.' },
-    status: 'new', drafts: [], sends: [], addedBy: meta.by, addedAt: meta.at,
+    status: 'new', drafts: [], sends: [], moves: [], addedBy: meta.by, addedAt: meta.at,
   };
+}
+
+/** The stage table. Open stages move up the ranks only; won and lost close a lead; blocked comes from anywhere. */
+const STAGE_RANK: Readonly<Record<Exclude<LeadStage, 'blocked'>, number>> = { new: 0, drafted: 1, contacted: 2, replied: 3, won: 4, lost: 4 };
+const CLOSED: ReadonlySet<LeadStage> = new Set(['won', 'lost']);
+const EVIDENCE_KINDS: ReadonlySet<string> = new Set(['draft', 'send', 'reply', 'outcome', 'opt-out']);
+type MoveMeta = { evidence: StageEvidence; by: string; at: IsoTime };
+
+/**
+ * Moves a lead to a later stage and keeps the move with its evidence. Refuses a move back or to the same stage
+ * (LEADS_STAGE_BACKWARD), any move out of won or lost except an opt-out (LEADS_STAGE_CLOSED), and any move out of
+ * blocked (LEADS_BLOCKED). Returns a new lead; the one passed in is left as it was.
+ */
+export function moveLead(lead: Lead, to: LeadStage, meta: MoveMeta): Lead {
+  check(to === 'blocked' || Object.hasOwn(STAGE_RANK, to), 'INVALID_VENTURE_REQUEST', 'Choose one of the lead stages.');
+  const evidence = meta.evidence as Partial<StageEvidence> | null | undefined;
+  check(evidence && typeof evidence.kind === 'string' && EVIDENCE_KINDS.has(evidence.kind) && typeof evidence.id === 'string' && evidence.id.length > 0 && evidence.id.length <= 200,
+    'INVALID_VENTURE_REQUEST', 'A stage change needs its evidence: the draft, the send, the reply, the outcome or the opt-out.');
+  const from = lead.status;
+  check(from !== 'blocked', 'LEADS_BLOCKED', 'This person asked not to be contacted.');
+  if (to !== 'blocked') {
+    check(!CLOSED.has(from), 'LEADS_STAGE_CLOSED', `This lead is ${from === 'won' ? 'won' : 'lost'}, so its stage stays as it is.`);
+    check(STAGE_RANK[to] > STAGE_RANK[from], 'LEADS_STAGE_BACKWARD', 'A lead only moves forward through its stages.');
+  }
+  const move: LeadMove = { from, to, at: meta.at, by: meta.by, evidence: { kind: evidence.kind, id: evidence.id } };
+  return { ...lead, status: to, moves: [...(lead.moves ?? []), move] };
+}
+
+/** An event that implies a stage (a draft, a send): moves forward when it is one, else leaves the stage as it is. */
+function advance(lead: Lead, to: Exclude<LeadStage, 'blocked'>, meta: MoveMeta): Lead {
+  const from = lead.status;
+  if (from === 'blocked' || CLOSED.has(from) || STAGE_RANK[to] <= STAGE_RANK[from]) return lead;
+  return moveLead(lead, to, meta);
 }
 
 /** Looks up the email domain's mail servers. Verified only when at least one real server comes back in time. */
@@ -132,11 +174,15 @@ export function addToBlocklist(blocklist: Blocklist, value: string): Blocklist {
   return { emails, domains };
 }
 
-function blocked(lead: Lead, blocklist: Blocklist): boolean {
-  if (lead.status === 'blocked') return true;
+/** Whether the blocklist covers this lead: its email, its email's domain or the site it was found on. */
+export function onBlocklist(lead: Pick<Lead, 'email' | 'emailDomain' | 'sourceUrl'>, blocklist: Blocklist): boolean {
   let sourceHost: string | null = null;
   try { sourceHost = new URL(lead.sourceUrl).hostname.toLowerCase(); } catch { sourceHost = null; }
   return isBlocked(blocklist, lead.email) || isBlocked(blocklist, lead.emailDomain) || isBlocked(blocklist, sourceHost);
+}
+
+function blocked(lead: Lead, blocklist: Blocklist): boolean {
+  return lead.status === 'blocked' || onBlocklist(lead, blocklist);
 }
 
 export type DraftInput = {
@@ -165,10 +211,14 @@ export function draftOutreach(lead: Lead, input: DraftInput): { lead: Lead; draf
     id, leadId: lead.id, to: lead.email, subject, text, footer: { businessName, postalAddress, unsubscribe }, sourceUrl: lead.sourceUrl,
     by: input.by, at: input.at, digest: digest({ id, to: lead.email, subject, text }),
   };
-  return { lead: { ...lead, status: lead.status === 'new' ? 'drafted' : lead.status, drafts: [...lead.drafts, draft] }, draft };
+  const withDraft = { ...lead, drafts: [...lead.drafts, draft] };
+  return { lead: advance(withDraft, 'drafted', { evidence: { kind: 'draft', id }, by: input.by, at: input.at }), draft };
 }
 
-/** The owner says, inside the app, that they sent one draft from their own mailbox. Chausar never sends it. */
+/**
+ * The owner says, inside the app, that they sent one draft from their own mailbox. Chausar never sends it. The lead
+ * moves to contacted only from an earlier stage: a lead that replied, won or lost keeps its stage.
+ */
 export function recordSend(lead: Lead, input: { draftId: string; sentAt: IsoTime }, ctx: Context, now: IsoTime): Lead {
   check(isAppChannel(ctx) && (ctx.role === 'owner' || ctx.role === 'cofounder'), 'APP_APPROVAL_REQUIRED', 'Only you record a send, inside the Chausar app.');
   check(lead.status !== 'blocked', 'LEADS_BLOCKED', 'This person asked not to be contacted.');
@@ -177,10 +227,13 @@ export function recordSend(lead: Lead, input: { draftId: string; sentAt: IsoTime
   const sentAt = Date.parse(input.sentAt);
   check(Number.isFinite(sentAt) && sentAt <= Date.parse(now) && sentAt >= Date.parse(draft.at), 'INVALID_VENTURE_REQUEST', 'The send time must be after the draft and not in the future.');
   const send: SendRecord = { draftId: draft.id, sentAt: new Date(sentAt).toISOString(), recordedBy: ctx.memberId, recordedAt: now, channel: 'own-mailbox' };
-  return { ...lead, status: 'contacted', sends: [...lead.sends, send] };
+  const withSend = { ...lead, sends: [...lead.sends, send] };
+  return advance(withSend, 'contacted', { evidence: { kind: 'send', id: draft.id }, by: ctx.memberId, at: now });
 }
 
-/** An opt-out or a hard bounce: the email goes on the blocklist for good and the lead is blocked. */
-export function optOut(lead: Lead, blocklist: Blocklist): { lead: Lead; blocklist: Blocklist } {
-  return { lead: { ...lead, status: 'blocked' }, blocklist: lead.email ? addToBlocklist(blocklist, lead.email) : blocklist };
+/** An opt-out or a hard bounce: the email goes on the blocklist for good and the lead is blocked, from any stage. */
+export function optOut(lead: Lead, blocklist: Blocklist, meta: { by: string; at: IsoTime }): { lead: Lead; blocklist: Blocklist } {
+  const blocked = lead.status === 'blocked' ? lead
+    : moveLead(lead, 'blocked', { evidence: { kind: 'opt-out', id: lead.email ?? lead.emailDomain ?? lead.id }, by: meta.by, at: meta.at });
+  return { lead: blocked, blocklist: lead.email ? addToBlocklist(blocklist, lead.email) : blocklist };
 }

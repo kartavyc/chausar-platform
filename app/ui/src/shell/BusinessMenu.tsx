@@ -1,4 +1,5 @@
-import { useContext, useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { SERVICE_TYPES, type BusinessOnComputer } from '../engine/types';
@@ -9,13 +10,18 @@ import s from './BusinessMenu.module.css';
 /**
  * The top of the rail: the open business (name, kind, "switch"). It opens a small menu beside it, not a dialog:
  * the businesses on this computer, then plan and playbook, prices, website build, your CA (only for a business on the
- * CA firm playbook), keep this business and new business.
+ * CA firm playbook), keep this business and new business. The menu is a popover over the page (a portal on the body,
+ * placed under the button), so the 220 px rail and the phone top bar never clip it.
  * The engine keeps one business open, so switching closes this one first (workspace.lock), then opens the other and
  * reads the app again. This menu never asks for a passphrase or a code itself: a business that needs one says so, and
  * Continue closes this business and asks for it on Welcome back, under that business's own row.
  */
 /** The kind under the business name, unless it only repeats the name (a business named after its playbook). */
 export const kindPrefix = (kind: string | null | undefined, name: string | null | undefined) => (kind && kind !== name ? `${kind} · ` : '');
+
+/** Pixels between the button and the popover, and the least space it keeps from the window's edge. */
+const GAP = 4;
+const EDGE = 8;
 
 export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
   const t = useT();
@@ -30,6 +36,7 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
   const [busy, setBusy] = useState(false);
   const holder = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const list = useResource('workspace.list', {}, { skip: !open });
 
@@ -45,12 +52,49 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
 
   useEffect(() => {
     if (!open) return;
-    const away = (event: MouseEvent) => { if (!holder.current?.contains(event.target as Node)) setOpen(false); };
+    const away = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!holder.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
+    };
     document.addEventListener('mousedown', away);
     return () => document.removeEventListener('mousedown', away);
   }, [open]);
 
+  // Place the popover under its button before it paints, and again when the window moves under it. Layout only, no
+  // figure. It goes through the element's style object (CSSOM), which the strict CSP allows; there is no style
+  // attribute or style prop, and position: fixed comes from the CSS module.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const at = () => {
+      const rect = button.current?.getBoundingClientRect();
+      const popover = menu.current;
+      if (!rect || !popover) return;
+      const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - popover.offsetWidth - EDGE));
+      popover.style.top = `${rect.bottom + GAP}px`;
+      popover.style.left = `${left}px`;
+    };
+    at();
+    window.addEventListener('resize', at);
+    window.addEventListener('scroll', at, true);
+    return () => { window.removeEventListener('resize', at); window.removeEventListener('scroll', at, true); };
+  }, [open]);
+
+  // The popover is not next to the button in the page, so it takes the focus when it opens; Tab then walks its items.
+  useEffect(() => { if (open) menu.current?.focus(); }, [open]);
+
   function close() { setOpen(false); setProblem(null); setNotice(null); button.current?.focus(); }
+
+  /**
+   * Focus left the popover. Inside it or back on the button it stays open. Tab past its last item leaves the page (the
+   * popover is the last thing on it), so it closes and the focus goes back to the button; focus that moved to
+   * something else on the page closes it and stays there. Never while a switch is on its way.
+   */
+  function focusLeft(next: EventTarget | null) {
+    if (busy) return;
+    if (next instanceof Node && (menu.current?.contains(next) || holder.current?.contains(next))) return;
+    if (next instanceof Node) { setOpen(false); setProblem(null); setNotice(null); return; }
+    close();
+  }
 
   async function switchTo(business: BusinessOnComputer) {
     setProblem(null);
@@ -108,8 +152,11 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
         <span className={s.name}>{name}</span>
         <span className={s.kind}>{kindPrefix(kind, name)}{t('business.switch')}</span>
       </button>
-      {open && (
-        <div id={menuId} className={s.menu} role="group" aria-label={t('business.menu', { name })}>
+      {open && createPortal(
+        <div
+          ref={menu} id={menuId} className={s.menu} role="group" aria-label={t('business.menu', { name })} tabIndex={-1}
+          onBlur={(event) => focusLeft(event.relatedTarget)}
+        >
           <p className={s.heading}>{t('business.switchTo')}</p>
           <ul className={s.list}>
             {(list.data?.businesses ?? []).map((business) => {
@@ -142,7 +189,8 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
               </li>
             ))}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

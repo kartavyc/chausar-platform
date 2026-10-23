@@ -1587,6 +1587,9 @@ export class Engine {
       case 'venture.evidence.list':
       case 'venture.evidence.apply':
       case 'venture.journal.list':
+      case 'venture.journal.resolve':
+      case 'venture.untrusted.mode':
+      case 'venture.untrusted.release':
       case 'venture.bank.import':
       case 'venture.bank.consent':
       case 'venture.site.stage':

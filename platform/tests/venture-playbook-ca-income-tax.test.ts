@@ -122,7 +122,7 @@ test('small business: presumptive income under 44AD and 44ADA, refused above the
 test('refusals: incomes this engine does not model go to the CA, and bad inputs are refused', () => {
   assert.throws(() => computeIncomeTax(base({ salaryMinor: R(10_00_000), alsoHas: ['capital-gains'] })), code('NOT_MODELLED'));
   assert.throws(() => computeIncomeTax(base({ deductions: [{ code: '80CCD(2)', claimedMinor: R(10_000) }] })), code('NOT_MODELLED'));
-  assert.throws(() => computeIncomeTax(base({ assessmentYear: '2027-28' as '2026-27', salaryMinor: R(1) })), code('RATE_TABLE_MISSING'));
+  assert.throws(() => computeIncomeTax(base({ assessmentYear: '2028-29' as '2026-27', salaryMinor: R(1) })), code('RATE_TABLE_STALE'));
   assert.throws(() => computeIncomeTax(base({ salaryMinor: '12.5' })), code('TAX_INPUT_INVALID'));
   assert.throws(() => computeIncomeTax(base({ salaryMinor: R(10_00_000) }), { mode: 'client', confirmations: [] }), code('RATE_UNCONFIRMED'));
 });
