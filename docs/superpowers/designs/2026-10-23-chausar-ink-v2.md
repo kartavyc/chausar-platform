@@ -28,7 +28,9 @@ This build does four things:
 |---|---|
 | Look | Mockups A (ledger), B (bento) and C (feed) were shown; the founder chose **C + B, made cohesive** (direction D). Desktop grammar from B (bento tiles, tinted department panels, stats), friendly touches from C (greeting, dark goal card, stories row of agents, big preview cards, swipe on phone) |
 | Brand | Logo and accent only: the two-square mark and lowercase "chausar" wordmark; keep Ink's fonts (Instrument Sans, DM Mono, Noto Sans Devanagari) and greys; the theme follows the computer |
-| Accent | The neon #46F09B is too loud. A calmer green, chosen by the founder on the direction D canvas (swatches #2FB67C, #22A06B, #4CAF86, #1F8F63); it fills the logo's second square too. Green text on light stays #0B7A45 for contrast |
+| Accent | The neon #46F09B is too loud. The founder picked **Jade #2FB67C** from four calmer greens shown on the real Today screen; it fills the logo's second square too, with #0b0d0e text on it. Green text on light stays #0B7A45 for contrast |
+| Quality judge | Runs automatically on every draft that goes to a client or the public (a few model calls per order on the owner's key), switchable off per business; internal notes skip it |
+| Rupees | Spend limits stay in US dollars (what providers bill); the owner can set a rupees-per-dollar rate with its date, and spend then also shows in rupees, labelled with that rate |
 | Today | Above the fold: goal progress (money invoiced this month toward a goal the owner sets), needs-you as visual cards, team at work. Not a money summary |
 | Team | Five fixed departments as tinted tiles: Sales and clients, Marketing, Production, Money, Operations. A toggle shows one department at a time |
 | Agent chat | Read every run as a conversation and talk to an agent. A "from now on" request becomes a proposed instruction change the owner accepts or rejects, versioned and undoable. The chat is not in your face: a quiet Chat button beside each agent on Team opens it |
@@ -201,8 +203,8 @@ W1 and W2 touch the engine; W3 the UI; W4 and W5 both. Inside a wave, agents wor
 
 ## 10. Open questions
 
-- The accent green: the founder picks one of the four swatches on the direction D canvas.
 - Current-year TDS and income-tax rate tables need a CA's confirmation before they leave rehearsal.
 - Hindi strings need a native reviewer.
 - Platform API rows (marketplaces, social) in the catalogue were written from memory; each is checked before its connector is built.
+- Spend limits: wave 1 takes them in US dollars, the currency the AI providers bill and the spend ledger counts, because Chausar has no exchange rate it could honestly use. A rupee view needs a rupees-per-dollar rate the owner enters and confirms (founder to decide; wave 4 if wanted).
 - Reverse engineering: two products need it (Player-1, whose code is not released yet, and the hosted Nexscope app). The REA tool did not connect in this session; the Nexscope pass runs when it does, and its findings join wave 5.
