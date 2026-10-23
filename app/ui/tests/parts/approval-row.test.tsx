@@ -175,4 +175,36 @@ describe('ApprovalRow', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send answer' })); });
     expect(onDecide).toHaveBeenCalledWith(question, question.actions[1], { viewed: false, answer: 'Option B' });
   });
+
+  it('while a post is going out, its row asks the owner not to type in the browser window (Ink v2 wave 2, K1)', async () => {
+    const post: QueueRow = {
+      id: 'post:p1', businessId: 'lumen', businessName: 'Lumen Studio', kind: 'connector', createdAt: '2026-10-23T08:00:00Z', digest: 'dp',
+      title: 'Post to LinkedIn', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done.",
+      actions: [{ id: 'deny', label: 'Do not post', primary: false }, { id: 'approve', label: 'Approve and post', primary: true, secondAsk: true }],
+    };
+    const POSTING = "Chausar is posting. Please don't type in that window until it is done.";
+    let finish: (decision: QueueDecision) => void = () => {};
+    const onDecide = vi.fn(() => new Promise<QueueDecision>((resolve) => { finish = resolve; }));
+    const first = list(<ApprovalRow row={post} onDecide={onDecide} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Approve and post' }));
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Approve and post' }).at(-1)!); });
+    expect(screen.getByText(POSTING)).toBeTruthy();
+    await act(async () => { finish(done('Posted to LinkedIn.')); });
+    expect(screen.queryByText(POSTING)).toBeNull();
+    first.unmount();
+
+    // Do not post sends nothing to a browser: no such line while it is recorded.
+    const denying = vi.fn(() => new Promise<QueueDecision>(() => {}));
+    const second = list(<ApprovalRow row={post} onDecide={denying} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Do not post' })); });
+    expect(denying).toHaveBeenCalled();
+    expect(screen.queryByText(POSTING)).toBeNull();
+    second.unmount();
+
+    // Another kind of row says nothing of the kind while it sends.
+    const pending = vi.fn(() => new Promise<QueueDecision>(() => {}));
+    list(<ApprovalRow row={signoff} onDecide={pending} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
+    expect(screen.queryByText(POSTING)).toBeNull();
+  });
 });

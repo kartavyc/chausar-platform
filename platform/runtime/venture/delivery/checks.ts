@@ -2,8 +2,9 @@
 // Code checks run before any judge. Each returns a plain sentence the owner can read.
 // Two checks come from the judge package (judge/): claims-grounded matches every figure, date, name and certification
 // in the draft's own words against the run's sources with no model, and rules-judge turns the rules judge's votes,
-// counted by code, into a result. The judge is asked only behind the code checks (judgeDraftRules), and only in
-// rehearsal: on a real order its call would carry the client's words, which needs the owner's approval of each call.
+// counted by code, into a result. The judge is asked only behind the code checks (judgeDraftRules in rehearsal). On a
+// real order its call carries the client's words, so it goes through the action journal with the owner's approval or
+// the business's standing consent (judge-run.ts), never from here.
 // preferDraft is the pairwise comparison the improvement gate uses when two versions tie on every score.
 // The receipts check (judge/claim-check.ts checkReceipts) runs on every draft: a number with no receipt is labelled a
 // model estimate (or fails, where the playbook allows none: estimateRule), a file or link must be in the run's
@@ -16,7 +17,7 @@ import type {
 } from '../contracts.ts';
 import { CA_FIRM_ID } from '../playbooks/ca-firm/registration.ts';
 import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
-import { draftWords, type AnyReceipt } from './deliverable.ts';
+import { draftWords, modelWordsOf, type AnyReceipt, type DraftTimes } from './deliverable.ts';
 import { claimBacked } from './harness/claims.ts';
 import type { FileLike } from './harness/files.ts';
 import {
@@ -25,7 +26,7 @@ import {
   type PreparedEvidence, type ReceiptCorrection, type ReceiptOptions, type ReceiptsCheck, type SourceText,
 } from './judge/claim-check.ts';
 import { comparePair, type PairAsk } from './judge/pairwise.ts';
-import { DRAFT_RULES, judgeByRules, notRuled, type JudgeRule, type RulesAsk, type RulesVerdict } from './judge/rules.ts';
+import { DRAFT_RULES, judgeByRules, notRuled, type JudgeRule, type RulesAsk, type RulesInput, type RulesVerdict } from './judge/rules.ts';
 import { traceFromHarness } from './judge/trace.ts';
 import { errorCode, quote } from './shared.ts';
 
@@ -66,6 +67,8 @@ export type CheckInput = {
   flagship?: string | null;
   /** Figures the calculator put in place of refuted numbers before these checks (correctDraft); receipts notes each one. */
   corrections?: readonly ReceiptCorrection[];
+  /** The chapter time codes code worked out in the run and their heading (youtube.chapters); no-numeric-prose leaves them out. */
+  times?: DraftTimes | null;
 };
 
 /** The sources of a draft's claims. Each field left out adds nothing. */
@@ -98,10 +101,11 @@ const wordPieces = draftWords;
 
 /**
  * Model numbers pass as model estimates (no receipt); an amount of money in the words fails, because a price, tax or
- * invoice figure comes only from a receipt.
+ * invoice figure comes only from a receipt. A chapter time code the run worked out, at the start of a part under its
+ * heading, is code's and not counted (modelWordsOf).
  */
 function noNumericProse(input: CheckInput): CheckResult {
-  const pieces = wordPieces(input.deliverable);
+  const pieces = modelWordsOf(input.deliverable, input.times);
   for (const piece of pieces) {
     try { assertNoMoney(piece, 'draft', input.allowed); } catch {
       return { check: 'no-numeric-prose', passed: false, detail: `This line states an amount of money the calculator did not make: "${quote(piece)}"` };
@@ -396,8 +400,11 @@ export function summaryChecker(input: SummaryInput): (text: string) => ReceiptsC
  * A rule settled by no checked vote is not a pass, so an unsettled verdict does not pass.
  */
 function rulesJudge(input: CheckInput): CheckResult | null {
-  const verdict = input.rules;
-  if (!verdict) return null;
+  return input.rules ? rulesJudgeResult(input.rules) : null;
+}
+
+/** The rules judge's verdict as a check result; a real order's judge (judge-run.ts) stores it beside the code checks. */
+export function rulesJudgeResult(verdict: RulesVerdict): CheckResult {
   if (verdict.outcome === 'pass') return { check: 'rules-judge', passed: true, detail: `${verdict.detail} Each yes cited something code found in the run.` };
   const first = verdict.rules.find(rule => rule.outcome === verdict.outcome);
   const said = verdict.outcome === 'fail' ? first?.votes.find(vote => vote.verified && vote.answer === 'no')?.reason : undefined;
@@ -452,18 +459,36 @@ export type DraftRulesInput = {
  * every rule unsettled; any other error (a spend limit, no AI) stops the caller as any model call would.
  */
 export async function judgeDraftRules(ask: RulesAsk, input: DraftRulesInput): Promise<RulesVerdict & { callIds: (string | null)[] }> {
+  const asked = draftRulesInput(input);
+  try {
+    return await judgeByRules(ask, asked);
+  } catch (error) {
+    if (!judgeAnswerRefused(error)) throw error;
+    return { ...refusedVerdict(asked.rules, error), callIds: [] };
+  }
+}
+
+/**
+ * What the rules judge reads on a draft: the rules to ask (the playbook's own, else the draft rules) and the run's
+ * trace, each tool call, file, table and receipt, then the client's message and the draft, which a vote may cite.
+ */
+export function draftRulesInput(input: DraftRulesInput): RulesInput {
   const trace = traceFromHarness(input.harness ?? null, {
     receipts: input.receipts,
     extra: [{ id: 'client-message', kind: 'client', summary: input.clientRequest }, { id: 'draft', kind: 'draft', summary: input.draft }],
   });
-  const rules = input.rules ?? DRAFT_RULES;
-  try {
-    return await judgeByRules(ask, { rules, trace, draft: input.draft, containsClientData: input.containsClientData, ...(input.context ? { context: input.context } : {}) });
-  } catch (error) {
-    if (!JUDGE_BEHAVIOUR.has(errorCode(error))) throw error;
-    const reason = `The judge's answer was refused, so no rule is settled: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
-    return { ...notRuled(rules, reason), detail: reason, callIds: [] };
-  }
+  return { rules: input.rules ?? DRAFT_RULES, trace, draft: input.draft, containsClientData: input.containsClientData, ...(input.context ? { context: input.context } : {}) };
+}
+
+/** True for a judge answer refused for how the model behaved (its shape, a refusal, a cut-off answer). */
+export function judgeAnswerRefused(error: unknown): boolean {
+  return JUDGE_BEHAVIOUR.has(errorCode(error));
+}
+
+/** A refused judge answer as a verdict: every rule unsettled, with why. Never a pass. */
+export function refusedVerdict(rules: readonly JudgeRule[], error: unknown): RulesVerdict {
+  const reason = `The judge's answer was refused, so no rule is settled: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
+  return { ...notRuled(rules, reason), detail: reason };
 }
 
 /** The question the improvement gate asks when the old and the new version tie on every score. */

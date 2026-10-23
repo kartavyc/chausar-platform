@@ -1,0 +1,158 @@
+/* The bank account sheet: accounts, alerts and the ledger as plain lists, hairlines between rows, no boxes. */
+
+.section {
+  margin-top: var(--sp-6);
+}
+
+.heading {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.account {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.minor {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.line {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.note {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.problem {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: end;
+  margin-top: var(--sp-2);
+}
+
+.days {
+  width: 96px;
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  max-width: 520px;
+}
+
+.field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.label {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--control);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+}
+
+.select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+.rules,
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruleItem {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.row {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.date,
+.amount {
+  font-family: var(--font-mono);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.what {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.pick {
+  margin-top: var(--sp-2);
+  max-width: 520px;
+}
+
+/* The engine's words when a row needs a second look: waiting colour, words first. */
+.flag {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--wait);
+}

@@ -36,6 +36,19 @@ export function localDayAt(instant: Date | string, country: Pick<CountryProfile,
   return calendarRules().localAt(ms, ventureTimeZone(country)).slice(0, 10);
 }
 
+/**
+ * The owner's clock at an instant, to the minute, with its offset from UTC: '2026-10-16T01:30+05:30' for a business in
+ * India at 20:00 UTC on 15 October. A moment written for the owner (a calendar file's approval times) reads in the
+ * business's own time and still names one instant.
+ */
+export function localTimeAt(instant: Date | string, country: Pick<CountryProfile, 'code'>): string {
+  const ms = typeof instant === 'string' ? Date.parse(instant) : instant.getTime();
+  const local = calendarRules().localAt(ms, ventureTimeZone(country));
+  const offset = Math.round((Date.parse(`${local}:00.000Z`) - Math.floor(ms / 60000) * 60000) / 60000);
+  const size = Math.abs(offset);
+  return `${local}${offset < 0 ? '-' : '+'}${String(Math.floor(size / 60)).padStart(2, '0')}:${String(size % 60).padStart(2, '0')}`;
+}
+
 /** Today on the owner's calendar, from the injected clock. */
 export function ownerToday(clock: () => Date, country: Pick<CountryProfile, 'code'>): IsoDate {
   return localDayAt(clock(), country);

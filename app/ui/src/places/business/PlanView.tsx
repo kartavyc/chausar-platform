@@ -8,6 +8,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite } from '../../engine/types';
 import { LabelTag, PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
+import { RulesSection } from './RulesSection';
 import s from './Business.module.css';
 
 /**
@@ -77,6 +78,7 @@ export function PlanView() {
           </>
         )}
       </section>
+      <RulesSection />
       <section className={s.section} aria-label={t('business.approvals')}>
         <h2 className={s.heading}>{t('business.approvals')}</h2>
         <ul className={s.plain}>

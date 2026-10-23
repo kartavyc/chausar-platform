@@ -14,6 +14,7 @@ import { openSpendQuotes } from '../money/spend.ts';
 import { postingName } from '../build/posting.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
+import { judgeStateLine } from '../delivery/judge-run.ts';
 import { VIEW_MAX_LINES } from '../delivery/shared.ts';
 import { holdOfHandoff } from '../policy/holds.ts';
 import type { RateTable } from '../playbooks/ca-firm/rates.ts';
@@ -75,10 +76,12 @@ function filesSection(state: State, venture: VentureRecord, run: DeliveryRunReco
   return [{ heading: 'Files the agent works from', lines: ids.map(id => uploads.get(id)?.name ?? 'A file that is no longer here') }];
 }
 
+/** A judge that settled no rule was not checked (notChecked): it is neither a pass nor a failure, so it is not counted. */
 function checksLine(run: DeliveryRunRecord): Display | undefined {
   if (!run.checks.length) return undefined;
-  const passed = run.checks.filter(item => item.passed).length;
-  return `${passed} of ${run.checks.length} checks passed.`;
+  const counted = run.checks.filter(item => !item.notChecked);
+  const passed = counted.filter(item => item.passed).length;
+  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The judge settled no rule, so its check is not counted.' : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,14 +117,15 @@ function planView(head: Head, blueprint: BlueprintRecord): QueueItemView {
 }
 
 /** A delivery run: the draft when there is one, else what the run waits on (the AI's exact text, a brief, a question). */
-function runItem(state: State, venture: VentureRecord, head: Head, run: DeliveryRunRecord, prefer: 'draft' | 'run'): QueueItemView {
+function runItem(state: State, venture: VentureRecord, head: Head, run: DeliveryRunRecord, prefer: 'draft' | 'run', nowMs: number): QueueItemView {
   const client = clientNameFor(state, venture.id, run.orderId);
   const files = filesSection(state, venture, run);
   const text = run.editedText ?? run.renderedText;
   if (text && (prefer === 'draft' || run.status !== 'waiting-for-you')) {
     // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
     const title = run.deliverable?.title ? agentWordsLabeller(state, venture, run)(run.deliverable.title) : `Draft reply for ${client}`;
-    const notes = [checksLine(run), run.deliverable?.estimate ? 'Numbers the agent wrote in its own words are model estimates; figures from receipts are not.' : undefined]
+    // Where the judge stands, so a verdict that is not in never reads like a pass (delivery/judge-run.ts).
+    const notes = [checksLine(run), judgeStateLine(state, venture, run, nowMs) ?? undefined, run.deliverable?.estimate ? 'Numbers the agent wrote in its own words are model estimates; figures from receipts are not.' : undefined]
       .filter((line): line is string => !!line);
     return {
       kind: 'draft', id: run.id, ...head, title, line: `For ${client}. You send it yourself.`,
@@ -226,7 +230,7 @@ function byRef(deps: VentureDeps, state: State, venture: VentureRecord, head: He
   }
   if (kind === 'draft' || kind === 'run') {
     const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === id);
-    if (run) return runItem(state, venture, { ...head, agent: agentName(state, venture) }, run, kind === 'draft' ? 'draft' : 'run');
+    if (run) return runItem(state, venture, { ...head, agent: agentName(state, venture) }, run, kind === 'draft' ? 'draft' : 'run', deps.clock().getTime());
     const post = listRecords(state, 'venture-connector-post', venture.id).find(item => item.id === id);
     if (post) {
       return {

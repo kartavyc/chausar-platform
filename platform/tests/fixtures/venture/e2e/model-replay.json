@@ -196,7 +196,9 @@
       "kind": "anthropic-messages",
       "model": "claude-haiku-5-5",
       "status": 200,
-      "mustInclude": [],
+      "mustInclude": [
+        "You check a practice reply"
+      ],
       "body": {
         "id": "msg_synthetic_judge",
         "type": "message",
@@ -213,6 +215,33 @@
         "usage": {
           "input_tokens": 940,
           "output_tokens": 118
+        }
+      }
+    },
+    {
+      "purpose": "judge",
+      "kind": "anthropic-messages",
+      "model": "claude-haiku-5-5",
+      "status": 200,
+      "mustInclude": [
+        "against a list of rules"
+      ],
+      "body": {
+        "id": "msg_synthetic_judge_rules",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"votes\":[{\"rule\":\"goal-met\",\"answer\":\"yes\",\"cites\":[\"client-message\",\"draft\"],\"quote\":\"\",\"reason\":\"The draft serves what the client asked for and asks for what is missing.\"},{\"rule\":\"tone-fits\",\"answer\":\"yes\",\"cites\":[\"client-message\",\"draft\"],\"quote\":\"\",\"reason\":\"Plain and friendly for a busy cafe owner.\"},{\"rule\":\"policy-followed\",\"answer\":\"yes\",\"cites\":[\"draft\"],\"quote\":\"\",\"reason\":\"No price was invented and nothing was promised outside the plan.\"},{\"rule\":\"no-unbacked-claims\",\"answer\":\"yes\",\"cites\":[\"draft\"],\"quote\":\"\",\"reason\":\"It claims only work the trace shows and describes the rest as work ahead.\"}]}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 1240,
+          "output_tokens": 164
         }
       }
     },

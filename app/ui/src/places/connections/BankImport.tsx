@@ -28,6 +28,16 @@ function textOf(file: File): Promise<string> {
  */
 export function BankImportSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
+  return (
+    <Sheet label={t('connections.bank.label')} title={t('connections.bank.title')} line={t('connections.bank.line')} onClose={onClose} returnFocus={returnFocus}>
+      <BankImportForm />
+    </Sheet>
+  );
+}
+
+/** The import form on its own, so the bank account sheet holds it too (BankSheet.tsx). onImported runs after each import. */
+export function BankImportForm({ onImported }: { onImported?: () => void }) {
+  const t = useT();
   const client = useEngine();
   const [account, setAccount] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -44,6 +54,7 @@ export function BankImportSheet({ onClose, returnFocus }: SheetComponentProps) {
     try {
       const csv = await textOf(file);
       setResult(await client.request('venture.bank.import', { csv, account: account.trim() }));
+      onImported?.();
     } catch (error) {
       setProblem(messageOf(error));
     } finally {
@@ -52,7 +63,7 @@ export function BankImportSheet({ onClose, returnFocus }: SheetComponentProps) {
   }
 
   return (
-    <Sheet label={t('connections.bank.label')} title={t('connections.bank.title')} line={t('connections.bank.line')} onClose={onClose} returnFocus={returnFocus}>
+    <>
       <form className={s.form} onSubmit={(event) => void submit(event)}>
         <Field label={t('connections.bank.account')} hint={t('connections.bank.accountHint')} value={account} maxLength={60} autoComplete="off" onChange={(event) => setAccount(event.currentTarget.value)} />
         <Field label={t('connections.bank.file')} type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
@@ -69,6 +80,6 @@ export function BankImportSheet({ onClose, returnFocus }: SheetComponentProps) {
           )}
         </div>
       )}
-    </Sheet>
+    </>
   );
 }

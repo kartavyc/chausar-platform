@@ -34,11 +34,18 @@ const TOOL_PURPOSE: Readonly<Record<string, string>> = {
   'sandbox.transform': 'Reshaped a table in the sandbox', 'sandbox.python': 'Ran a small program in a container',
   'handoff.client': 'Asked a question for the client', 'handoff.owner': 'Asked you a question',
   'outbox.propose': 'Proposed an outside action, held for you', 'agent.delegate': 'Asked for heavy work by your own tool',
+  'tax.income': 'Worked out income tax with the calculator', 'tax.interest': 'Worked out interest on late tax with the calculator',
+  'tax.gst': 'Worked out the GST working with the calculator', 'tax.tds': 'Worked out the TDS working with the calculator',
+  'tax.statements': 'Matched the tax statements to the books', 'tax.portal': "Compared the portal's figures with the receipts",
+  'youtube.hooks': 'Scored the hooks', 'youtube.editList': 'Built the edit list',
+  'youtube.chapters': 'Drafted chapters from the pauses', 'youtube.retention': 'Read the retention export',
+  'social.report': 'Worked out the report figures from the exports', 'evidence.record': 'Noted where a client fact came from',
 };
 /** The playbook step kind each tool serves. The agent loop moves between these three in any order. */
 const TOOL_KIND: Readonly<Record<string, StepKind>> = {
   'files.list': 'gather', 'files.read': 'gather', 'dictionary.browse': 'gather', 'dictionary.resolve': 'gather',
   'handoff.client': 'question', 'handoff.owner': 'question', 'outbox.propose': 'operator',
+  'youtube.retention': 'gather', 'social.report': 'gather', 'evidence.record': 'gather',
 };
 const LOOP_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {

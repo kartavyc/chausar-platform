@@ -10,7 +10,27 @@ import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, typ
 import { redactSecrets } from '../core/secrets.ts';
 
 const SUBJECT = /^(?:business|client:[A-Za-z0-9_-]{1,80})$/;
-const FIELD = /^[A-Za-z][A-Za-z0-9_.-]{0,59}$/;
+/** A field name evidence may be kept under: one short name with no spaces that starts with a letter, such as offer_1.name. */
+export const EVIDENCE_FIELD = /^[A-Za-z][A-Za-z0-9_.-]{0,59}$/;
+
+/**
+ * Whether evidence may be kept under this field name: the shape above, and no part between dots that every object
+ * already has (toString, constructor, __proto__ and the rest), which a lookup by name would find on any record.
+ */
+export function evidenceFieldOk(field: unknown): field is string {
+  return typeof field === 'string' && EVIDENCE_FIELD.test(field)
+    && field.split('.').every(part => part !== '__proto__' && !(part in Object.prototype));
+}
+
+/** A value as the ledger keeps it: tidied, any secret replaced (W1 H17), at most 500 characters. */
+export function evidenceValue(value: string): string {
+  return redactSecrets(tidyWords(value)).slice(0, MAX_VALUE);
+}
+/**
+ * The line on a value two sources verified but that an agent noted in a run which read a client's file: the run is
+ * latched (policy/taint.ts), so it waits for the owner instead of being applied on its own.
+ */
+export const HELD_SUGGESTION = 'From a client file: waits for you.';
 const MAX_VALUE = 500;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,6 +45,11 @@ export type EvidenceInput = {
   runId?: string | null; // the delivery run whose trace must back a tool-backed type
   toolCallId?: string | null;
   source?: string; // a few plain words: the file name, or where the value was written
+  /**
+   * true for what an agent notes with evidence.record: its run read a client's file, so even a verified value waits
+   * for the owner to apply it and says why (HELD_SUGGESTION). The weights and the strength are unchanged.
+   */
+  noAutoApply?: boolean;
 };
 
 /** The shared contract's view of a record: exactly the EvidenceItem fields. */
@@ -70,7 +95,8 @@ const CLIENT_FIELDS: Readonly<Record<string, (value: string) => boolean>> = Obje
 
 function writeThrough(tx: VentureTx, record: EvidenceRecord) {
   if (!record.subject.startsWith('client:')) return;
-  const valid = CLIENT_FIELDS[record.field];
+  // Only the ledger's own client fields: a name every object has (toString) is never looked up or written.
+  const valid = Object.hasOwn(CLIENT_FIELDS, record.field) ? CLIENT_FIELDS[record.field] : undefined;
   const client = tx.find('venture-client', record.subject.slice('client:'.length));
   if (!valid || !client) return;
   check(valid(record.value), 'INVALID_VENTURE_REQUEST', `This ${record.field} is not one Chausar can keep for a client.`);
@@ -90,30 +116,37 @@ function applyRecord(tx: VentureTx, record: EvidenceRecord): EvidenceRecord {
 
 /**
  * Records one piece of evidence inside a venture action. Earlier evidence for the same value adds its weight (each
- * source once). Verified evidence is applied at once and overwrites the stored value; strong and weak evidence waits.
+ * source once). Verified evidence is applied at once and overwrites the stored value; strong and weak evidence waits,
+ * and so does verified evidence recorded with noAutoApply, whose source line then starts with HELD_SUGGESTION.
  */
 export function recordEvidence(tx: VentureTx, input: EvidenceInput): EvidenceRecord {
   const venture = tx.venture;
   check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
-  check(SUBJECT.test(input.subject) && FIELD.test(input.field) && typeof input.value === 'string' && EVIDENCE_TYPE_IDS.includes(input.type),
+  check(SUBJECT.test(input.subject) && evidenceFieldOk(input.field) && typeof input.value === 'string' && EVIDENCE_TYPE_IDS.includes(input.type),
     'INVALID_VENTURE_REQUEST', 'This evidence is not in a shape Chausar keeps.');
   const { type, flag } = acceptedType(tx.state, venture.id, input);
   const needsData = input.claim === 'needs-your-data';
   const claim: EvidenceClaim = needsData ? 'needs-your-data' : EVIDENCE_TYPES[type].claim;
   // The secret screen (W1 H17): a key or token pasted as a value is never kept.
-  const value = needsData ? '' : redactSecrets(tidyWords(input.value)).slice(0, MAX_VALUE);
+  const value = needsData ? '' : evidenceValue(input.value);
   const source = sourceLine(type, input, flag);
   const ref = input.toolCallId ?? source;
   const peers = needsData ? [] : fieldRecords(tx.state, venture.id, input.subject, input.field).filter(record => record.claim !== 'needs-your-data' && record.value === value);
   const scored = needsData
     ? { scoreBp: 0, strength: 'weak' as const }
     : scoreEvidence([...peers.map(record => ({ type: record.type as EvidenceType, ref: record.toolCallId ?? record.source })), { type, ref }]);
+  const held = scored.strength === 'verified' && input.noAutoApply === true;
   const stored = tx.put<EvidenceRecord>({
     ...tx.base('venture-evidence'), subject: input.subject, field: input.field, value, type, claimedType: input.type,
-    strength: scored.strength, scoreBp: scored.scoreBp, claim, source, by: input.by, runId: input.runId ?? null,
+    strength: scored.strength, scoreBp: scored.scoreBp, claim, source: held ? `${HELD_SUGGESTION} ${source}` : source, by: input.by, runId: input.runId ?? null,
     toolCallId: input.toolCallId ?? null, flag, applied: false, appliedAt: null,
   });
-  return scored.strength === 'verified' ? applyRecord(tx, stored) : stored;
+  return scored.strength === 'verified' && !held ? applyRecord(tx, stored) : stored;
+}
+
+/** Whether a client field Chausar writes back on apply (name, email, note) would take this value; other fields always do. */
+export function fitsClientField(field: string, value: string): boolean {
+  return !Object.hasOwn(CLIENT_FIELDS, field) || CLIENT_FIELDS[field](value);
 }
 
 /** The owner's own typing on a client: owner-entered, verified and applied (the record already holds these values). */

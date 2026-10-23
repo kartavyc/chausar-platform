@@ -64,6 +64,20 @@ export function paymentFact(paymentId: string, invoice: InvoiceRecord, amountMin
   };
 }
 
+/**
+ * Cost fact from a bank statement row the owner added as a cost (venture.bank.apply): costs count amountMinor, always
+ * positive, by the row's date. bankReference keeps the row's stable id, so the fact says where it came from.
+ */
+export function costFact(entityId: string, amountMinor: MinorString, currency: string, paidOn: IsoDate, description: string, transactionId: string): BooksFactInput {
+  check(/^\d+$/.test(amountMinor) && BigInt(amountMinor) > 0n, 'INVALID_AMOUNT', 'A cost is a positive amount.');
+  return {
+    entityId,
+    kind: 'cost',
+    validFrom: paidOn,
+    fields: { amountMinor, currency, description, bankReference: transactionId },
+  };
+}
+
 /** Sale fact: earned counts amountMinor, the order's amount before tax, by delivery date. */
 export function saleFact(order: OrderRecord, client: ClientRecord, taxableMinor: MinorString, currency: string, deliveredOn: IsoDate, description: string): BooksFactInput {
   return {

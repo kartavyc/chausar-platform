@@ -59,6 +59,20 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'handoff.owner': { effects: ['read'], ...OWN },
   'outbox.propose': { effects: ['send'], ...OWN, refine: input => input.connector === 'payment-link' ? ['money'] : [] },
   'agent.delegate': { effects: ['write', 'egress'], ...OWN },
+  // Ink v2 wave 2: the flagship tools read the order's files and work numbers out with code; they write and send nothing.
+  'tax.income': { effects: ['read'], ...OF_FILES },
+  'tax.interest': { effects: ['read'], ...OF_FILES },
+  'tax.gst': { effects: ['read'], ...OF_FILES },
+  'tax.tds': { effects: ['read'], ...OF_FILES },
+  'tax.statements': { effects: ['read'], ...OF_FILES },
+  'tax.portal': { effects: ['read'], ...OF_FILES },
+  'youtube.hooks': { effects: ['read'], ...OF_FILES },
+  'youtube.editList': { effects: ['read'], ...OF_FILES },
+  'youtube.chapters': { effects: ['read'], ...OF_FILES },
+  'youtube.retention': { effects: ['read'], ...OF_FILES },
+  'social.report': { effects: ['read'], ...OF_FILES },
+  // It writes Chausar's own evidence ledger, as a suggestion the owner applies; never a client record on its own.
+  'evidence.record': { effects: ['write'], ...OWN },
 });
 
 /** A Chausar tool's declaration, or null for a name Chausar does not ship. */

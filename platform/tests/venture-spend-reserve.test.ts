@@ -232,9 +232,11 @@ test('rehearsal: the turns, the practice client, the reply and the judge each ho
   const run = await rehearse(env);
   // The practice client's opening request comes before the agent's run starts, so it is not the run's spend.
   assert.deepEqual(env.models.generated.map(task => [task.purpose, task.capLeftMicros]), [
-    ['client-sim', undefined], ['agent-turn', '250000'], ['client-sim', '249800'], ['agent-turn', '249600'], ['delivery', '249400'], ['judge', '249200'],
+    ['client-sim', undefined], ['agent-turn', '250000'], ['client-sim', '249800'], ['agent-turn', '249600'], ['delivery', '249400'],
+    // The rules judge every practice client asks (Ink v2 wave 2, Q1), then the practice judge.
+    ['judge', '249200'], ['judge', '249000'],
   ]);
-  assert.equal(run.episodes[0].harness!.used.costMicros, '1000', 'five calls at 200 each, the practice client and the judge included');
+  assert.equal(run.episodes[0].harness!.used.costMicros, '1200', 'six calls at 200 each, the practice client and both judges included');
 });
 
 test('rehearsal: a turn that would cross the cap is not sent; the reply is written if it fits, else the episode fails and says why', async () => {

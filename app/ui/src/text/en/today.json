@@ -1,6 +1,7 @@
 {
   "today.failed": "Couldn't load what needs you: {message}",
   "today.opened": "Opened",
+  "today.posting.inProgress": "Chausar is posting. Please don't type in that window until it is done.",
   "today.toRow": ", go to its row",
   "today.view.draft": "Draft",
   "today.view.file": "File",

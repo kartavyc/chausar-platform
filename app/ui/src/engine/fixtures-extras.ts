@@ -3,7 +3,7 @@
  * website edits and preview links. Every figure is written as the engine would format it; the UI never computes one.
  */
 
-import type { CaView, LeadView, MoneyOverviewLine, SpendPolicyView, TaxWorking } from './types';
+import type { CaReceiptView, CaView, LeadView, MoneyOverviewLine, SpendPolicyView, TaxWorking } from './types';
 
 /** Money at a glance per business, except "Clients owe you", which the money desk reads from its open invoices. */
 export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
@@ -77,6 +77,29 @@ export const CA_VIEWS: Record<string, CaView> = {
     requests: [
       { id: 'ca-req-tds-q2', deliveryId: 'd-mehta-sep', title: 'TDS working, July to September', state: 'signed', at: '2026-10-18T11:00:00.000Z' },
     ],
+    latestPapers: { deliveryId: 'd-mehta-sep', title: 'GST working papers for Mehta Traders', receiptIds: ['w-gst-sep', 'w-portal-sep'] },
+  },
+};
+
+/** Stored CA receipts (venture.ca.receipt), as the engine works each one again: one the same, one that differs. */
+export const CA_RECEIPTS: Record<string, Record<string, CaReceiptView>> = {
+  ledgerline: {
+    'w-gst-sep': {
+      id: 'w-gst-sep', runId: 'd-mehta-sep', engine: 'gst-working',
+      figures: [{ key: 'output-igst', label: 'Output IGST', display: 'INR 900.00' }, { key: 'net-payable', label: 'Net payable', display: 'INR 2,825.00' }],
+      steps: [{ key: 'net-payable', label: 'Net payable', display: 'INR 2,825.00', section: '49' }],
+      tables: [{ id: 'in-gst-rates', version: 2, title: 'GST rates and the GSTR-1 large invoice threshold', validFrom: '2025-09-22', validTo: null, confirmed: true, confirmedBy: 'Meera Joshi (ICAI 412345)' }],
+      assumptions: [], openQuestions: [], rederived: 'same', differs: null, explanations: [],
+    },
+    'w-portal-sep': {
+      id: 'w-portal-sep', runId: 'd-mehta-sep', engine: 'portal-diff',
+      figures: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: 'INR 80.00' }],
+      steps: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: 'INR 80.00', section: null }],
+      tables: [], assumptions: ['Figures are compared by key, to the paisa.'], openQuestions: [], rederived: 'differs',
+      // Worked again from its inputs, the stored difference was changed after it was made: the engine's own line.
+      differs: { key: 'net-payable', line: 'Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.' }, explanations: [],
+      portalDifferences: [{ key: 'net-payable', label: 'Net payable', state: 'differs', ours: 'INR 2,825.00', portal: 'INR 2,900.00', explanation: null }],
+    },
   },
 };
 

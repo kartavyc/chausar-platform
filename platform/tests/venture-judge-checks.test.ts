@@ -43,14 +43,14 @@ function signal(reason: SignalRecord['reason']): SignalRecord {
 // Where each check runs
 // ---------------------------------------------------------------------------
 
-test('check lists: the claim check runs on every draft; the rules judge only where a practice case asks for it', () => {
+test('check lists: the claim check runs on every draft; the rules judge on every practice client, never in the verify step', () => {
   assert.ok(CHECK_IDS.includes('claims-grounded'));
   assert.ok(CHECK_IDS.includes('rules-judge'));
   assert.ok(VERIFY_CHECKS.includes('claims-grounded'), 'the verify step of a real order runs the claim check');
-  assert.ok(!VERIFY_CHECKS.includes('rules-judge'), 'a real order never sends its draft to a judge without the owner approving the call');
+  assert.ok(!VERIFY_CHECKS.includes('rules-judge'), "a real order's judge call goes through the action journal (judge-run.ts), never the verify step");
   for (const scenario of scenariosFor('bookkeeping')) {
     assert.ok(scenario.checks.includes('claims-grounded'), scenario.id);
-    assert.ok(!scenario.checks.includes('rules-judge'), scenario.id);
+    assert.ok(scenario.checks.includes('rules-judge'), scenario.id);
   }
   // An owner's own feedback that code cannot check (tone, off the brief, claimed work) brings the rules judge in.
   assert.ok(signalScenario(signal('tone'), 'bookkeeping').checks.includes('rules-judge'));

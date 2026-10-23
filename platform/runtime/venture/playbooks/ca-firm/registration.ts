@@ -14,4 +14,7 @@ export const CA_FIRM_REGISTRATION: PlaybookRegistration = Object.freeze({
     'bookkeeping practice', 'gst filing service', 'gst filing', 'gst return', 'itr filing', 'income tax return', 'tds return', 'tds filing',
   ]),
   summary: 'Agents prepare books, GST, TDS and income tax working papers; a chartered accountant of record signs off anything regulated.',
+  // Regulated tax papers: a mistake reaches a tax return. Chausar's build audit of 23 October 2026 last reviewed its rules; no person has yet.
+  riskLevel: 'high',
+  lastReviewed: '2026-10-23',
 });
