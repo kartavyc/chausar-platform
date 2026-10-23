@@ -116,7 +116,7 @@ export type CaRole = { id: string; kind: CaRoleKind; name: string; job: string }
 export type CaApprovalId = 'owner-approves-draft' | 'ca-signs-regulated' | 'ca-confirms-rates' | 'ca-accepts-portal-diff' | 'human-files';
 /** The CA firm's own checks (claims.ts), on top of the harness checks. */
 export type CaCheckId =
-  | 'figures-from-receipts' | 'no-filing-claims' | 'sections-flagged' | 'rates-confirmed' | 'rates-in-window' | 'differences-listed'
+  | 'figures-from-receipts' | 'tax-figure-receipted' | 'no-filing-claims' | 'sections-flagged' | 'rates-confirmed' | 'rates-in-window' | 'differences-listed'
   | 'gaps-tie' | 'not-modelled-refused' | 'refuses-to-hide-income' | 'ca-only-to-ca' | 'portal-diff-explained' | 'signoff-recorded';
 
 export const CA_ROLES: readonly CaRole[] = Object.freeze([
@@ -186,14 +186,14 @@ export const CA_STEPS: readonly CaStep[] = Object.freeze([
   {
     id: 'draft', kind: 'write', title: 'Write the working papers, a plain note for the client and the open items',
     role: role('writer'), tier: 'actor', model: 'main', tools: none,
-    checks: DRAFT_CHECKS, caChecks: ['figures-from-receipts', 'no-filing-claims', 'sections-flagged', 'refuses-to-hide-income', 'ca-only-to-ca'],
+    checks: DRAFT_CHECKS, caChecks: ['figures-from-receipts', 'tax-figure-receipted', 'no-filing-claims', 'sections-flagged', 'refuses-to-hide-income', 'ca-only-to-ca'],
     requiredSections: CA_DRAFT_SECTIONS, gate: null, floor: null,
     guidance: ['Quote figures only by receipt.', 'Never claim a filing, a signature or an e-verification happened.', 'A request to leave out income or inflate a deduction is refused.'],
   },
   {
     id: 'verify', kind: 'verify', title: 'Check the papers against the receipts and the rules',
     role: role('checker'), tier: 'code', model: null, tools: none,
-    checks: VERIFY_CHECKS, caChecks: ['figures-from-receipts', 'no-filing-claims', 'sections-flagged', 'rates-confirmed', 'rates-in-window', 'differences-listed', 'gaps-tie', 'refuses-to-hide-income', 'ca-only-to-ca'],
+    checks: VERIFY_CHECKS, caChecks: ['figures-from-receipts', 'tax-figure-receipted', 'no-filing-claims', 'sections-flagged', 'rates-confirmed', 'rates-in-window', 'differences-listed', 'gaps-tie', 'refuses-to-hide-income', 'ca-only-to-ca'],
     requiredSections: none, guidance: none, gate: null, floor: null,
   },
   {
@@ -231,7 +231,7 @@ export type CaApproval = { id: CaApprovalId; step: string; by: 'owner' | 'ca' | 
 
 export const CA_APPROVALS: readonly CaApproval[] = Object.freeze([
   { id: 'owner-approves-draft', step: 'approve', by: 'owner', requiresView: true, secondAsk: false, words: 'You read every draft and every client message before it reaches the client.' },
-  { id: 'ca-signs-regulated', step: 'ca-signoff', by: 'ca', requiresView: true, secondAsk: true, words: 'The CA of record signs off a GST or TDS working marked ready to file, an income tax data pack, or a letter on the firm\'s letterhead. Chausar records the name, the ICAI membership number, the receipts and the playbook it covered.' },
+  { id: 'ca-signs-regulated', step: 'ca-signoff', by: 'ca', requiresView: true, secondAsk: true, words: 'The CA of record signs off a GST or TDS working marked ready to file, an income tax data pack, papers for a tax audit, or a letter on the firm\'s letterhead, and again after any edit. Chausar records the name, the ICAI membership number, the receipts and the playbook it covered.' },
   { id: 'ca-confirms-rates', step: 'compute', by: 'ca', requiresView: true, secondAsk: false, words: 'The CA confirms each rate-table version before it is used for a real client. An unconfirmed table runs in rehearsal only.' },
   { id: 'ca-accepts-portal-diff', step: 'portal-diff', by: 'ca', requiresView: true, secondAsk: false, words: "The portal's own file is compared with the receipts, and the CA accepts or explains every difference before filing." },
   { id: 'human-files', step: 'file', by: 'human', requiresView: false, secondAsk: false, words: 'The CA or the client logs in, pays, submits and e-verifies. Chausar never claims the filing happened.' },

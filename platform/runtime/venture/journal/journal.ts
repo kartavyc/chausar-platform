@@ -19,6 +19,7 @@ import type { ApprovalSeal, ConnectorPostRecord, IsoTime, JournalActionId, Journ
 import { isAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { checkQuoteBinding, QUOTE_TTL_MS } from '../money/quote.ts';
 import { businessOf, mintApprovalToken, readApprovalToken, sessionOf, tokenHash } from './tokens.ts';
+import { redactSecrets, redactUrl } from '../core/secrets.ts';
 
 /** An agent proposal waits this long for the owner. A proposal with a quote waits an hour, like a spend quote. */
 export const AGENT_WINDOW_MS = 15 * 60_000;
@@ -31,7 +32,7 @@ export const CHECK_BEFORE_RETRYING = 'Check before retrying: it may or may not h
 export type JournalActionSpec = { label: string; effect: 'atomic' | 'irreversible'; unknownCodes: readonly string[] };
 export const JOURNAL_ACTIONS: Readonly<Record<JournalActionId, JournalActionSpec>> = Object.freeze({
   'invoice.issue': { label: 'Issue invoice', effect: 'atomic', unknownCodes: [] },
-  'delivery.send': { label: 'Send to your AI', effect: 'irreversible', unknownCodes: ['MODEL_TIMEOUT'] },
+  'delivery.send': { label: 'Send to your AI', effect: 'irreversible', unknownCodes: ['MODEL_TIMEOUT', 'MODEL_OUTCOME_UNKNOWN'] },
   'connector.post': { label: 'Post', effect: 'irreversible', unknownCodes: [] },
   'site.apply': { label: 'Edit website', effect: 'irreversible', unknownCodes: [] },
   'bank.alert': { label: 'Send bank alert', effect: 'irreversible', unknownCodes: [] },
@@ -53,6 +54,8 @@ export type ProposeInput = {
   notAfter?: IsoTime | null;
   quote?: { figure: string; payer: string } | null;
   shadow?: boolean;
+  /** True only when line shows everything the action will send. Left out, the approver is told part of it is not shown. */
+  descriptionComplete?: boolean;
 };
 
 /** What the effect reports. 'not-sent': known to have done nothing. 'unknown': it may have happened. */
@@ -91,9 +94,14 @@ function requireEntry(record: Journalled | undefined): Journalled {
   return record;
 }
 
-/** The next step of a journalled record: its state, one more line in its journal, and any fields that go with it. */
+/**
+ * The next step of a journalled record: its state, one more line in its journal, and any fields that go with it. The
+ * line and any outcome pass the secret screen (W1 H17): an effect's own words or address never keep a key or token.
+ */
 export function stepTo<R extends Journalled>(record: R, state: JournalState, at: IsoTime, by: string, line: string, patch: Record<string, unknown> = {}): R {
-  return { ...record, ...patch, state, journal: [...record.journal, { state, at, by, line }] } as R;
+  const outcome = patch.outcome as { line: string; url: string | null; by: string } | null | undefined;
+  const screened = outcome ? { ...patch, outcome: { ...outcome, line: redactSecrets(outcome.line), url: outcome.url ? redactUrl(outcome.url) : outcome.url } } : patch;
+  return { ...record, ...screened, state, journal: [...record.journal, { state, at, by, line: redactSecrets(line) }] } as R;
 }
 
 const ended = (record: Journalled, settled: JournalState, by: OutcomeBy, line: string, at: IsoTime, patch: Record<string, unknown> = {}) =>
@@ -126,11 +134,14 @@ export function normalizeProposal(input: ProposeInput): Required<ProposeInput> {
   if (quote) check(/^\d{1,30}$/.test(String(quote.figure)) && typeof quote.payer === 'string' && quote.payer.length > 0 && quote.payer.length <= 120, 'INVALID_VENTURE_REQUEST', 'A quote needs its figure and who pays.');
   const notAfter = input.notAfter ?? null;
   if (notAfter !== null) check(typeof notAfter === 'string' && Number.isFinite(Date.parse(notAfter)), 'INVALID_VENTURE_REQUEST', 'notAfter must be a time.');
+  check(input.descriptionComplete === undefined || typeof input.descriptionComplete === 'boolean', 'INVALID_VENTURE_REQUEST', 'descriptionComplete must be true or false.');
   return {
-    action: input.action, subject: text(input.subject, 'The subject', 400), target: text(input.target, 'The target', 120),
-    actionDigest: input.actionDigest, line: text(input.line, 'The description', 300),
+    // The secret screen (W1 H17) on the words people read; the subject is an identifier and stays as given.
+    action: input.action, subject: text(input.subject, 'The subject', 400), target: redactSecrets(text(input.target, 'The target', 120)),
+    actionDigest: input.actionDigest, line: redactSecrets(text(input.line, 'The description', 300)),
     agent: input.agent === undefined || input.agent === null ? null : text(input.agent, 'The agent', 80),
     notAfter, quote: quote ? { figure: String(quote.figure), payer: quote.payer } : null, shadow: input.shadow === true,
+    descriptionComplete: input.descriptionComplete === true,
   };
 }
 
@@ -147,7 +158,7 @@ function describeIn(tx: VentureTx, input: Required<ProposeInput>): JournalRecord
     ...tx.base('venture-journal-entry'), action: input.action, subject: input.subject, target: input.target, actionDigest: input.actionDigest,
     describe: input.line, agent: input.agent, shadow: input.shadow, quote: input.quote, state: 'described', claimedAt: null, decidedBy: null,
     outcome: null, receiptId: null, journal: [{ state: 'described', at: tx.now, by: input.agent ?? tx.ctx.memberId, line: input.line }],
-    approval: null, expiresAt: new Date(ends).toISOString(),
+    approval: null, expiresAt: new Date(ends).toISOString(), descriptionComplete: input.descriptionComplete,
   });
 }
 
@@ -364,18 +375,31 @@ export async function journalled<T>(
   return applyAction(deps, ctx, { entryId: approved.id, token: approved.token, idempotencyKey: `${approved.id}.once`, ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) }, run);
 }
 
-/** After an unknown outcome the owner looks and records what they found. Nothing is sent or run. */
+/**
+ * After an unknown outcome the owner looks and records what they found. Nothing is sent or run. A thin wrapper over
+ * resolveIn, so settling has one rule and one refusal (JOURNAL_NOT_UNKNOWN) wherever it is called from.
+ */
 export async function resolveUnknown(deps: VentureDeps, ctx: Context, input: { entryId: string; found: 'applied' | 'not-applied'; line?: string }): Promise<Journalled> {
   requireApp(ctx);
   requireId(input?.entryId, 'entryId');
   check(input.found === 'applied' || input.found === 'not-applied', 'INVALID_VENTURE_REQUEST', 'Say whether it happened.');
   return ventureAction(deps, ctx, 'approve', 'journal.resolve', tx => {
-    const record = requireEntry(findIn(tx, input.entryId));
-    check(record.state === 'outcome_unknown', 'JOURNAL_ALREADY_DECIDED', 'This already has an outcome.');
     const happened = input.found === 'applied';
-    const line = input.line ?? (happened ? 'You checked: it happened.' : 'You checked: it did not happen. Propose it again to do it.');
-    return tx.replace(ended(record, happened ? 'applied' : 'rejected', 'owner', line, tx.now));
+    return resolveIn(tx, requireEntry(findIn(tx, input.entryId)), happened, input.line ?? resolvedLine(happened));
   });
+}
+
+/** The owner's words for what they found, unless a kind of record has its own (a post names its platform). */
+export const resolvedLine = (happened: boolean) => (happened ? 'You checked: it happened.' : 'You checked: it did not happen. Propose it again to do it.');
+
+/**
+ * Inside a transaction: the owner's finding on one record whose outcome was unknown. It happened: applied, so the same
+ * action is refused from now on. It did not: rejected, so it may be proposed again. Nothing is sent or run. Any other
+ * state is refused, so a finding is recorded once.
+ */
+export function resolveIn<R extends Journalled>(tx: VentureTx, record: R, happened: boolean, line: string): R {
+  check(record.state === 'outcome_unknown', 'JOURNAL_NOT_UNKNOWN', 'Only an action whose outcome is unknown can be settled. This one already has an outcome.');
+  return tx.replace(ended(record, happened ? 'applied' : 'rejected', 'owner', line, tx.now) as R);
 }
 
 /**

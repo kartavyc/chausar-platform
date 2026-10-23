@@ -30,12 +30,18 @@
   color: var(--mute);
 }
 
+/* A popover on the body, above the page and its sheet, so the 220 px rail and the phone top bar never clip it.
+   BusinessMenu.tsx sets top and left under the button. It stays inside a narrow window. */
 .menu {
-  position: absolute;
-  top: calc(100% - var(--sp-3));
+  position: fixed;
+  top: 0;
   left: 0;
-  z-index: 3;
+  z-index: 20;
+  box-sizing: border-box;
   width: 260px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
   padding: var(--sp-2);
   border: var(--hair) solid var(--line);
   border-radius: var(--radius);

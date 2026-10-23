@@ -11,16 +11,20 @@
 // The design follows Floe-Labs/floe-guard (MIT: reserve then settle, unpriced means refused, an owner rate card over
 // list prices) and veedstudio/open-edit (Apache-2.0: the charge record before the call, the hashed one-hour quote).
 // Their float arithmetic is not taken: every amount here is whole micro units in BigInt.
-import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { ESTIMATE_WORDS } from '../models/cost.ts';
+// Spend is counted and capped in US dollars. With the owner's own rupee rate set, every figure also shows in rupees
+// beside the dollars (paise worked out in BigInt, to the nearest paisa, a half paisa up), labelled with that rate.
+import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
+import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
+import { localDayAt } from '../local-day.ts';
 import {
-  currentVenture, exactPayload, formatMicros, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
+  currentVenture, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
 } from '../records.ts';
 import { QUOTE_TTL_MS, checkQuoteBinding } from './quote.ts';
 import { newestFirst } from './shared.ts';
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
 import type {
-  Display, MicroString, ModelPriceTable, SpendPolicyRecord, SpendPolicyView, SpendQuoteRecord, SpendRate, SpendRateUnit, SpendRecord, SpendRow, VentureDeps,
+  DateOrder, Display, MicroString, ModelPriceTable, RupeeRate, SpendPolicyRecord, SpendPolicyView, SpendQuoteRecord, SpendRate, SpendRateUnit, SpendRecord, SpendRow,
+  VentureDeps, VentureRecord,
 } from '../contracts.ts';
 
 const MICROS = /^(0|[1-9][0-9]{0,14})$/;
@@ -173,6 +177,15 @@ function monthTotal(records: readonly SpendRecord[], month: string): bigint {
   return records.reduce((total, record) => (monthOf(record.at) === month ? total + counted(record) : total), 0n);
 }
 
+/**
+ * The monthly limit as set now and what this month (UTC) has spent or holds, read from a state snapshot. The gate
+ * reads it again just before an approved action applies (delivery/harness/recheck.ts), so a lowered limit counts.
+ */
+export function monthSpendNow(state: State, ventureId: string, nowIso: string): { capMicros: MicroString | null; spentMicros: MicroString } {
+  const policy = latestPolicy(listRecords(state, 'venture-spend-policy', ventureId));
+  return { capMicros: policy?.capMicros ?? null, spentMicros: String(monthTotal(listRecords(state, 'venture-spend', ventureId), monthOf(nowIso))) };
+}
+
 /** Finds the owner's approved quote for this draft and spends it, or refuses with the quote code that applies. */
 function spendQuote(tx: VentureTx, request: SpendReservation, askAboveMicros: MicroString, spendId: string): string {
   const ask = `This may cost ${formatMicros(request.estimateMicros)}, more than the ${formatMicros(askAboveMicros)} you asked to see first. It waits for your approval.`;
@@ -305,6 +318,11 @@ export async function paidCall<T>(deps: VentureDeps, ctx: Context, request: Paid
   return answer.value;
 }
 
+/** What one charge counts: its settled figure, the estimate while it is held, else nothing. A run adds it to its spend. */
+export function countedMicros(record: SpendRecord): MicroString {
+  return String(counted(record));
+}
+
 // ---------------------------------------------------------------------------
 // The owner's side: rate card, cap and ask-first figure; quotes
 // ---------------------------------------------------------------------------
@@ -313,6 +331,19 @@ function microsOrNull(value: unknown, field: string): MicroString | null {
   if (value === null) return null;
   check(micro(value), 'INVALID_AMOUNT', `${field} must be whole micro-dollars, like 5000000 for five US dollars.`);
   return value;
+}
+
+/** The dollar fields of a rate card line and the micro fields they fill. */
+const USD_RATE_FIELDS = [['inputUsdPerMillion', 'inputMicrosPerMillion'], ['outputUsdPerMillion', 'outputMicrosPerMillion'], ['usdPerCall', 'microsPerCall']] as const;
+
+/**
+ * A figure given once: in US dollars, through the one parser (models/cost.ts), or in micro units. Undefined when
+ * neither was given. Limits take two decimals and rates six.
+ */
+function usdOrMicros(body: Record<string, unknown>, usd: string, micros: string, field: string, decimals: 2 | 6): unknown {
+  if (body[usd] === undefined) return body[micros];
+  check(body[micros] === undefined, 'INVALID_VENTURE_REQUEST', `Give ${field.toLowerCase()} once, in US dollars.`);
+  return body[usd] === null ? null : usdToMicros(body[usd], { field, decimals });
 }
 
 function rateLine(value: unknown): SpendRate {
@@ -332,14 +363,17 @@ function rateLine(value: unknown): SpendRate {
 }
 
 /**
- * Sets the monthly cap, the ask-first figure and the rate card. Fields left out keep their value; null clears a
- * figure. An owner action inside the app. Each change is a new record, so earlier rates stay on file.
+ * Sets the monthly cap, the ask-first figure, the rate card and the owner's rupee rate (inrPerUsd, rupees per US
+ * dollar as typed). Fields left out keep their value; null clears a figure. A rupee rate is dated the day it is set
+ * (the business's own calendar); the same rate sent again keeps its day. An owner action inside the app. Each change
+ * is a new record, so earlier rates stay on file.
  */
 export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyRecord> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates']);
+  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates', 'inrPerUsd']);
   const cap = body.capMicros === undefined ? undefined : microsOrNull(body.capMicros, 'The monthly limit');
   const askAbove = body.askAboveMicros === undefined ? undefined : microsOrNull(body.askAboveMicros, 'The ask-first figure');
+  const perUsd = body.inrPerUsd === undefined ? undefined : body.inrPerUsd === null ? null : rupeeRateOf(body.inrPerUsd);
   let rates: SpendRate[] | undefined;
   if (body.rates !== undefined) {
     check(Array.isArray(body.rates) && body.rates.length <= MAX_RATES, 'INVALID_VENTURE_REQUEST', `A rate card holds up to ${MAX_RATES} lines.`);
@@ -348,13 +382,72 @@ export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: u
   }
   return ventureAction(deps, ctx, 'admin', 'spend.policy', tx => {
     const current = latestPolicy(tx.list('venture-spend-policy'));
+    const held = current?.rupeeRate ?? null;
+    const rupeeRate = perUsd === undefined ? held
+      : perUsd === null ? null
+        : { perUsd, setOn: held && held.perUsd === perUsd ? held.setOn : localDayAt(tx.now, tx.venture!.country) };
     return tx.put({
       ...tx.base('venture-spend-policy'),
       capMicros: cap !== undefined ? cap : current?.capMicros ?? null,
       askAboveMicros: askAbove !== undefined ? askAbove : current?.askAboveMicros ?? null,
       rates: rates ?? current?.rates ?? [],
+      rupeeRate,
     } satisfies SpendPolicyRecord);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Rupees beside dollars, at the owner's own rate
+// ---------------------------------------------------------------------------
+
+/** The owner's rupee rate and how the business writes dates: what puts a rupee figure beside a dollar one. */
+export type Rupees = { rate: RupeeRate; dateOrder: DateOrder };
+
+/** Rupees per US dollar as the owner types it ('83.50', up to four places) as ten-thousandths of a rupee. Above zero. */
+export function rupeeRateOf(value: unknown): string {
+  const message = 'Rupees per US dollar must be a number with at most four decimals, like 83.50.';
+  check(typeof value === 'string', 'INVALID_AMOUNT', message);
+  const match = /^(\d{1,4})(?:\.(\d{1,4}))?$/.exec(value.trim());
+  check(match, 'INVALID_AMOUNT', message);
+  const perUsd = BigInt(match[1]) * 10_000n + BigInt((match[2] ?? '').padEnd(4, '0'));
+  check(perUsd > 0n, 'INVALID_AMOUNT', message);
+  return String(perUsd);
+}
+
+/**
+ * Micro-dollars as paise at the owner's rate, in BigInt: micros x perUsd / 10^8 (a million micros to the dollar, the
+ * rate in ten-thousandths of a rupee, a hundred paise to the rupee), rounded to the nearest paisa, a half paisa up.
+ */
+export function microsToPaise(micros: MicroString, perUsd: string): bigint {
+  return (BigInt(micros) * BigInt(perUsd) + 50_000_000n) / 100_000_000n;
+}
+
+/** The rate's whole rupees and its decimals, two places at least and more only when it has them. */
+function rateParts(perUsd: string): { whole: bigint; decimals: string } {
+  const value = BigInt(perUsd);
+  return { whole: value / 10_000n, decimals: String(value % 10_000n).padStart(4, '0').replace(/0+$/, '').padEnd(2, '0') };
+}
+
+/** '₹83.50 per $1 (your rate, set 23 Oct 2026)': the owner's rate in words, with the day it was set. */
+export function rupeeRateWords(rupees: Rupees): Display {
+  const { whole, decimals } = rateParts(rupees.rate.perUsd);
+  return `₹${whole.toLocaleString('en-IN')}.${decimals} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
+}
+
+/** '₹20.88', a dollar figure in rupees at the owner's rate. */
+export function rupeeFigure(micros: MicroString, rupees: Rupees): Display {
+  return money(microsToPaise(micros, rupees.rate.perUsd), 'INR');
+}
+
+/** '₹20.88 at ₹83.50 per $1 (your rate, set 23 Oct 2026)', to show beside a dollar figure; null without a rate. */
+export function rupeesBeside(micros: MicroString, rupees: Rupees | null): Display | null {
+  return rupees ? `${rupeeFigure(micros, rupees)} at ${rupeeRateWords(rupees)}` : null;
+}
+
+/** The owner's rupee rate for a business, read from a state snapshot; null when none is set. */
+export function rupeesOf(state: State, venture: Pick<VentureRecord, 'id' | 'country'>): Rupees | null {
+  const rate = latestPolicy(listRecords(state, 'venture-spend-policy', venture.id))?.rupeeRate ?? null;
+  return rate ? { rate, dateOrder: venture.country.dateOrder } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,13 +468,22 @@ export function ratePrice(rate: SpendRate): Display {
   return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a run`;
 }
 
-function policyView(policy: SpendPolicyRecord | null): SpendPolicyView {
+function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder): SpendPolicyView {
   const cap = policy?.capMicros ?? null, askFirst = policy?.askAboveMicros ?? null;
+  const usd = (micros: MicroString | null) => (micros === null ? null : microsAsUsd(micros));
+  const rupees: Rupees | null = policy?.rupeeRate ? { rate: policy.rupeeRate, dateOrder } : null;
+  const typed = rupees ? rateParts(rupees.rate.perUsd) : null;
   return {
-    capMicros: cap, askFirstMicros: askFirst,
+    inrPerUsd: typed ? `${typed.whole}.${typed.decimals}` : null, rupeeRate: rupees ? rupeeRateWords(rupees) : null,
+    ...(rupees && cap !== null ? { capRupees: rupeesBeside(cap, rupees)! } : {}),
+    ...(rupees && askFirst !== null ? { askFirstRupees: rupeesBeside(askFirst, rupees)! } : {}),
+    capMicros: cap, askFirstMicros: askFirst, capUsd: usd(cap), askFirstUsd: usd(askFirst),
     cap: cap === null ? POLICY_WORDS.noCap : formatMicros(cap) + POLICY_WORDS.perMonth,
     askFirst: askFirst === null ? POLICY_WORDS.neverAsks : POLICY_WORDS.asksAbove + formatMicros(askFirst),
-    rates: (policy?.rates ?? []).map(rate => ({ ...structuredClone(rate), price: ratePrice(rate) })),
+    rates: (policy?.rates ?? []).map(rate => ({
+      ...structuredClone(rate), price: ratePrice(rate),
+      inputUsdPerMillion: usd(rate.inputMicrosPerMillion), outputUsdPerMillion: usd(rate.outputMicrosPerMillion), usdPerCall: usd(rate.microsPerCall),
+    })),
     setAt: policy?.at ?? null,
   };
 }
@@ -390,31 +492,44 @@ function policyView(policy: SpendPolicyRecord | null): SpendPolicyView {
 export async function spendPolicyGet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  return policyView(latestPolicy(listRecords(state, 'venture-spend-policy', venture.id)));
+  return policyView(latestPolicy(listRecords(state, 'venture-spend-policy', venture.id)), venture.country.dateOrder);
 }
 
 /**
- * venture.spend.policy.set { cap?, askFirst?, rates? } (admin, inside the app): through setSpendPolicy. A field left out
- * keeps its value and null clears a figure. Every rate line the owner sets is theirs and confirmed by them.
+ * venture.spend.policy.set { capUsd?, askFirstUsd?, cap?, askFirst?, rates?, inrPerUsd? } (admin, inside the app):
+ * through setSpendPolicy. The owner types the limits in US dollars (capUsd, askFirstUsd, up to two decimals) and rates
+ * in US dollars too (inputUsdPerMillion, outputUsdPerMillion, usdPerCall, up to six); the engine converts each to micro
+ * units. The micro fields (cap, askFirst and the rate's micro figures) still work for callers that have micro units;
+ * a figure given both ways is refused. inrPerUsd is the owner's own rupee rate (up to four decimals): spend then shows
+ * in rupees beside dollars. A field left out keeps its value and null clears a figure. Every rate line the owner sets
+ * is theirs and confirmed by them.
  */
 export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['cap', 'askFirst', 'rates']);
+  const body = exactPayload(payload, ['cap', 'askFirst', 'capUsd', 'askFirstUsd', 'rates', 'inrPerUsd']);
+  const cap = usdOrMicros(body, 'capUsd', 'cap', 'The monthly limit', 2);
+  const askFirst = usdOrMicros(body, 'askFirstUsd', 'askFirst', 'The ask-first figure', 2);
   let rates: unknown[] | undefined;
   if (body.rates !== undefined) {
     check(Array.isArray(body.rates), 'INVALID_VENTURE_REQUEST', 'rates is a list of rate card lines.');
     rates = body.rates.map(line => {
-      const value = line && typeof line === 'object' && !Array.isArray(line) ? line as Record<string, unknown> : {};
+      const value: Record<string, unknown> = line && typeof line === 'object' && !Array.isArray(line) ? { ...line as Record<string, unknown> } : {};
       check(value.confirmed === undefined || value.confirmed === true, 'INVALID_VENTURE_REQUEST', POLICY_WORDS.ownRates);
+      for (const [usd, micros] of USD_RATE_FIELDS) {
+        if (value[usd] === undefined) continue;
+        value[micros] = usdOrMicros(value, usd, micros, 'A rate', 6);
+        delete value[usd];
+      }
       return { ...value, confirmed: true, by: 'owner' };
     });
   }
   const record = await setSpendPolicy(deps, ctx, {
-    ...(body.cap !== undefined ? { capMicros: body.cap } : {}),
-    ...(body.askFirst !== undefined ? { askAboveMicros: body.askFirst } : {}),
+    ...(cap !== undefined ? { capMicros: cap } : {}),
+    ...(askFirst !== undefined ? { askAboveMicros: askFirst } : {}),
     ...(rates !== undefined ? { rates } : {}),
+    ...(body.inrPerUsd !== undefined ? { inrPerUsd: body.inrPerUsd } : {}),
   });
-  return policyView(record);
+  return policyView(record, readVenture(deps, ctx).venture.country.dateOrder);
 }
 
 /**
@@ -480,18 +595,24 @@ function settledDisplay(record: SpendRecord, unconfirmed: string): Display | und
   return amount + unconfirmed;
 }
 
-/** One row as the Money place shows it. Every figure is formatted here; the UI never computes one. */
-export function spendRow(record: SpendRecord, agent: string | null = record.agent): SpendRow {
+/**
+ * One row as the Money place shows it. Every figure is formatted here; the UI never computes one. With the owner's
+ * rupee rate, the reserved and settled figures come in rupees too, beside the dollars, with that rate.
+ */
+export function spendRow(record: SpendRecord, agent: string | null = record.agent, rupees: Rupees | null = null): SpendRow {
   const unconfirmed = record.rate !== null && !record.rate.confirmed ? ESTIMATE_WORDS : '';
   const unpriced = record.phase === 'refused' && record.refusal?.code === 'SPEND_UNPRICED';
   const settled = settledDisplay(record, unconfirmed);
+  const settledMicros = record.phase === 'settled' ? record.settledMicros : null;
   return {
     id: record.id,
     ...(agent ? { agent } : {}),
     ...(record.connector ? { connector: record.connector } : {}),
     label: record.phase === 'unknown' ? record.label + SPEND_WORDS.unknown : record.label,
     reserved: unpriced ? SPEND_WORDS.noPrice : formatMicros(record.reservedMicros) + unconfirmed,
+    ...(rupees && !unpriced ? { reservedRupees: rupeesBeside(record.reservedMicros, rupees)! } : {}),
     ...(settled !== undefined ? { settled } : {}),
+    ...(rupees && settledMicros !== null ? { settledRupees: rupeesBeside(settledMicros, rupees)! } : {}),
     kind: rowKind(record),
     ...(record.phase === 'refused' ? { reason: refusalReason(record) } : {}),
   };
@@ -506,9 +627,10 @@ function refusalReason(record: SpendRecord): Display {
 
 /**
  * venture.spend.list {} (level read): every paid call newest first, with what it reserved and what it settled at,
- * and this month's total (UTC months, as the model limits count them), which includes what is still held.
+ * and this month's total (UTC months, as the model limits count them), which includes what is still held. With the
+ * owner's rupee rate, every figure and the total come in rupees too, beside the dollars.
  */
-export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display }> {
+export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ rows: SpendRow[]; total: Display; totalRupees?: Display }> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
   const records = newestFirst(listRecords(state, 'venture-spend', venture.id));
@@ -521,8 +643,10 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
     total += amount;
     if (amount > 0n && rowKind(record) === 'estimate') estimated = true;
   }
+  const rupees = rupeesOf(state, venture);
   return {
-    rows: records.slice(0, MAX_ROWS).map(record => spendRow(record, spendAgentOf(state, record))),
+    rows: records.slice(0, MAX_ROWS).map(record => spendRow(record, spendAgentOf(state, record), rupees)),
     total: formatMicros(String(total)) + SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : ''),
+    ...(rupees ? { totalRupees: rupeesBeside(String(total), rupees)! } : {}),
   };
 }

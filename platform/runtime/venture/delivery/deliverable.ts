@@ -287,8 +287,12 @@ function findFigure(receipts: readonly AnyReceipt[], part: { receiptId: string; 
   return (receipt?.figures as readonly { key: string; label: string; display: string }[] | undefined)?.find(figure => figure.key === part.figureKey) ?? null;
 }
 
+/** Parts joined by a space; a text part that starts with punctuation (a figure's corrected sentence end) sits right after the part before it. */
 function renderParts(parts: readonly TextPart[], figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string): string {
-  return parts.map(part => part.kind === 'text' ? part.text : part.kind === 'figure' ? figure(part) : date(part)).join(' ');
+  return parts.reduce((out, part, index) => {
+    const piece = part.kind === 'text' ? part.text : part.kind === 'figure' ? figure(part) : date(part);
+    return index === 0 ? piece : `${out}${part.kind === 'text' && /^[.,;:!?)]/.test(piece) ? '' : ' '}${piece}`;
+  }, '');
 }
 
 function renderWith(d: Deliverable, figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string, attachment: ((receiptId: string) => string) | null): string {

@@ -20,6 +20,7 @@ import { AGENT_WINDOW_MS, CHECK_BEFORE_RETRYING, approveAction, proposeAction } 
 import { containsApprovalToken } from '../runtime/venture/journal/tokens.ts';
 import { CLIENT_NAME, call as viewCall, owner as viewOwner, seedBlueprint, seedOrder as seedViewOrder, setup as viewSetup } from './venture-views-env.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { seedPostDraft } from './venture-post-drafts.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const agentCtx: Context = { ...owner, channel: 'mcp' };
@@ -292,7 +293,8 @@ test('posting: a post is a journalled record; approve mints a bound token, the c
     ...tx.base('venture-record'), idea: 'Social media for cafes in Pune', ideaDigest: 'synthetic', workingName: 'Lumen Social', country: null,
     serviceType: 'agency', status: 'live', launchStage: 'approve-each', blueprintId: null, acceptedBlueprintId: null, playbookId: null, invoiceSequence: 0, updatedAt: tx.now,
   } as any), { create: true });
-  const post = await proposePost(deps, agentCtx, { connectorId: 'x', text: 'Fresh pastries at 8.', agent: 'Social writer' });
+  const draft = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'X: Too late.']);
+  const post = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1, agent: 'Social writer' });
   assert.equal(post.expiresAt, new Date(Date.parse(post.at) + AGENT_WINDOW_MS).toISOString());
   const decision = await decidePost(deps, owner, { postId: post.id, digest: post.digest, action: 'approve' });
   assert.equal(decision.post.state, 'applied');
@@ -307,7 +309,7 @@ test('posting: a post is a journalled record; approve mints a bound token, the c
   assert.deepEqual(entries.map(entry => [entry.action, entry.target, entry.state]), [['Post', 'X', 'applied']]);
 
   // An agent proposal waits fifteen minutes; after that it is refused, the browser never starts, and the sweep closes it.
-  const late = await proposePost(deps, agentCtx, { connectorId: 'x', text: 'Too late.' });
+  const late = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 });
   advance(AGENT_WINDOW_MS + 1000);
   const refused = await decideConnectorRow(deps, owner, { id: late.id, digest: late.digest, action: 'approve' });
   assert.deepEqual([refused.outcome, refused.reason], ['refused', 'JOURNAL_EXPIRED']);

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
-import type { EngineClient, QueueDecision, QueueKind, QueueRow } from '../../src/engine/types';
+import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
@@ -236,6 +236,30 @@ describe('Today: deciding', () => {
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     expect(row.textContent).toContain('Mehta Traders has no GSTIN yet. Add it under Clients, then send it.');
     expect(within(row).getByRole('button', { name: 'Send to CA' })).toBeTruthy();
+  });
+
+  it('a decision that times out after the engine took it reads the list back and shows that, not "Couldn\'t send"', async () => {
+    const engine = new FakeEngine();
+    const fake = quiet(engine);
+    const timedOut = { left: 1 };
+    const methods: string[] = [];
+    const client: EngineClient = {
+      ...fake,
+      request: (async (method: string, params?: unknown) => {
+        methods.push(method);
+        const answer = await fake.request(method as never, params as never);
+        if (method === 'venture.queue.decide' && timedOut.left-- > 0) throw new EngineError('REQUEST_TIMEOUT', 'The engine did not answer in time.');
+        return answer;
+      }) as EngineClient['request'],
+    };
+    start({ engine, client });
+    const row = await rowOf('GST working for September');
+    await readFirst(row);
+    await click(within(row).getByRole('button', { name: 'Send to CA' }));
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')?.textContent)
+      .toBe('GST working for September · Went through after a delay, or was settled elsewhere'));
+    expect(needsYou().textContent).not.toContain("Couldn't send");
+    expect(methods.filter((method) => method === 'venture.queue.decide')).toHaveLength(1);
   });
 
   it('a decided line stays for the rest of the session, after leaving Today and coming back', async () => {

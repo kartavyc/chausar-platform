@@ -7,6 +7,7 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import type { ClientRecord, EvidenceItem, EvidenceRecord, Labelled, ToolCallRecord, VentureDeps } from '../contracts.ts';
 import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, type EvidenceClaim, type EvidenceType } from './types.ts';
+import { redactSecrets } from '../core/secrets.ts';
 
 const SUBJECT = /^(?:business|client:[A-Za-z0-9_-]{1,80})$/;
 const FIELD = /^[A-Za-z][A-Za-z0-9_.-]{0,59}$/;
@@ -55,7 +56,7 @@ function acceptedType(state: State, ventureId: string, input: EvidenceInput): { 
 
 function sourceLine(type: EvidenceType, input: EvidenceInput, flag: string | null): string {
   if (flag) return `Unchecked: ${flag}`;
-  const detail = input.source ? tidyWords(input.source).slice(0, 120) : '';
+  const detail = input.source ? redactSecrets(tidyWords(input.source)).slice(0, 120) : ''; // secret screen (W1 H17)
   const call = input.toolCallId && type !== 'model-inferred' && type !== 'owner-entered' ? ` (${input.toolCallId})` : '';
   return detail ? `${EVIDENCE_TYPES[type].label}${call}: ${detail}` : `${EVIDENCE_TYPES[type].label}${call}.`;
 }
@@ -99,7 +100,8 @@ export function recordEvidence(tx: VentureTx, input: EvidenceInput): EvidenceRec
   const { type, flag } = acceptedType(tx.state, venture.id, input);
   const needsData = input.claim === 'needs-your-data';
   const claim: EvidenceClaim = needsData ? 'needs-your-data' : EVIDENCE_TYPES[type].claim;
-  const value = needsData ? '' : tidyWords(input.value).slice(0, MAX_VALUE);
+  // The secret screen (W1 H17): a key or token pasted as a value is never kept.
+  const value = needsData ? '' : redactSecrets(tidyWords(input.value)).slice(0, MAX_VALUE);
   const source = sourceLine(type, input, flag);
   const ref = input.toolCallId ?? source;
   const peers = needsData ? [] : fieldRecords(tx.state, venture.id, input.subject, input.field).filter(record => record.claim !== 'needs-your-data' && record.value === value);

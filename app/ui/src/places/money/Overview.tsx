@@ -1,7 +1,8 @@
 /**
  * Money at a glance: what clients owe, what came in this month, and what AI and tools cost. The engine sends the
  * three lines (venture.money.overview) with their words and figures; each figure sits beside what explains it: the
- * open invoices, a receipt, or the list of paid calls. Nothing is added up here.
+ * open invoices, a receipt, or the list of paid calls. With the owner's own rupee rate, the AI spend line also comes in
+ * rupees, with that rate, beside the dollars. Nothing is added up here.
  */
 
 import { useT } from '../../text';
@@ -9,7 +10,7 @@ import { useResource } from '../../engine/context';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Receipt } from '../../parts/Receipt';
 import type { MoneyOverviewLine, VentureRunEvent } from '../../engine/types';
-import { Failed, Figure } from './parts';
+import { Failed, Figure, Rupees } from './parts';
 import { onMoney, onRuns } from './words';
 import s from './Money.module.css';
 
@@ -45,7 +46,7 @@ function OverviewLine({ line }: { line: MoneyOverviewLine }) {
     <li className={s.line} data-row="" data-row-id={`overview-${line.id}`} tabIndex={-1}>
       <span className={s.label}>{line.label}</span>
       <span className={s.value}>
-        <Figure>{line.value}</Figure>
+        <Figure>{line.value}</Figure><Rupees text={line.rupees} />
         {modelWrote ? <ModelEstimate /> : line.receiptId && !line.estimate && <Receipt id={line.receiptId} />}
         {line.id === 'owed' && <a className={s.more} href="#/money/invoices" data-ref="">{t('money.owedAll')}</a>}
         {line.id === 'spent' && <a className={s.more} href="#/money/spend" data-ref="">{t('money.spentEach')}</a>}

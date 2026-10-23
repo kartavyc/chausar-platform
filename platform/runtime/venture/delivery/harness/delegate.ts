@@ -18,6 +18,7 @@ import { parseMoneyCell } from './cells.ts';
 import { createDelegatePorts } from './delegate-process.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
 import { sumRows, type WorkReceiptDraft } from './work.ts';
+import { TELEMETRY_OFF_ENV } from '../../core/telemetry.ts';
 
 export const DELEGATE_LABELS: Readonly<Record<DelegateCli, string>> = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const PROVIDERS: Readonly<Record<DelegateCli, string>> = { 'claude-code': 'Anthropic', codex: 'OpenAI' };
@@ -69,6 +70,7 @@ export function delegateEnv(cli: DelegateCli, tempFolder: string, source: NodeJS
   }
   Object.assign(env, { TEMP: tempFolder, TMP: tempFolder, TMPDIR: tempFolder });
   if (cli === 'claude-code') Object.assign(env, { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '1' });
+  Object.assign(env, TELEMETRY_OFF_ENV[cli]); // telemetry off for the tool (W1 H18)
   return env;
 }
 

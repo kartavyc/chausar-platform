@@ -1,9 +1,15 @@
 // Chausar venture launcher, policy (P2-posture): Chausar's own policy, the ladder, the gates and the floor as one check.
 //
 // Before a harness tool call:
-// - a tool outside the run's grant is denied;
+// - a draft that carries a flag to issue it for real is denied (policy/floor.ts);
+// - a tool outside the run's grant is denied, and so is a tool that does not say what it does (policy/effects.ts);
 // - the two tools that only record a request (outbox.propose, agent.delegate) run: nothing leaves Chausar until the
-//   owner approves what they recorded, and that approval is checked again before the effect;
+//   owner approves the exact request they recorded, and that approval is checked again before the effect, so the
+//   taint latch is met by that approval rather than asked twice;
+// - once outside content entered the run (the taint latch, policy/taint.ts; a real order is latched from its first
+//   turn), any other call that writes, sends, reaches outside, moves money or reads private data asks at every posture,
+//   and only the owner's approval of that exact call (an approved hold, or an approval bound to its digest) opens it;
+//   a turn approval or standing consent never does;
 // - a tool whose call would itself touch the floor asks, and only the owner's approval of that exact action opens it;
 // - otherwise the strictest gate of the steps that grant the tool decides. A step on hold (the default) asks. An auto
 //   step runs alone only at auto with spot checks; below that the posture asks.
@@ -13,9 +19,11 @@
 //
 // Before an outside effect: the floor asks at every posture, and so does any other effect; only the owner's approval
 // bound to that action's digest lets it through.
-import type { PolicyHold, Posture, WorkRunRef } from '../contracts.ts';
-import { FLOOR_WORDS, floorOf, type PolicyAction } from './floor.ts';
+import type { PolicyHold, Posture, TaintMark, WorkRunRef } from '../contracts.ts';
+import { declaresEffects } from './effects.ts';
+import { draftIssueFlag, floorOf, floorWords, type PolicyAction } from './floor.ts';
 import { POSTURE_WORDS, runPosture } from './posture.ts';
+import { latchedBy, TAINT_WORDS } from './taint.ts';
 import type { Policy, PolicyAnswer } from './verdict.ts';
 
 /** Who approved the action, if anyone. owner-action binds to one action's digest. */
@@ -34,11 +42,13 @@ export type PolicyContext = {
   grant?: readonly string[];
   holds?: readonly PolicyHold[];
   turn?: number; // the act turn being run
+  taint?: TaintMark | null; // when outside content first entered the run; absent or null while it is clean
 };
 
 /** Tools whose call only records a request for the owner; the effect is asked about when it is applied. */
 export const RECORDS_ONLY: readonly string[] = Object.freeze(['outbox.propose', 'agent.delegate']);
 const OUTSIDE = 'This acts outside Chausar, so it waits for you.';
+const NO_EFFECTS = 'This tool does not say what it does, so it was blocked.';
 
 const answer = (verdict: PolicyAnswer['verdict'], code: string, reason: string, extra: Partial<PolicyAnswer> = {}): PolicyAnswer => ({ verdict, code, reason, ...extra });
 
@@ -52,17 +62,30 @@ function approvedHold(action: PolicyAction, ctx: PolicyContext): PolicyHold | un
 }
 
 function decide(action: PolicyAction, ctx: PolicyContext): PolicyAnswer {
+  const stale = draftIssueFlag(action);
+  if (stale) return answer('deny', 'draft_issue_flag', stale);
   const floor = floorOf(action);
   if (action.phase === 'outside-effect') {
     if (ownerApproved(action, ctx)) return answer('allow', 'owner_approved', 'You approved this.', { floor });
-    return floor.length ? answer('ask', 'floor', FLOOR_WORDS[floor[0]], { floor }) : answer('ask', 'outside', OUTSIDE, { floor });
+    return floor.length ? answer('ask', 'floor', floorWords(floor), { floor }) : answer('ask', 'outside', OUTSIDE, { floor });
   }
   if (ctx.grant && !ctx.grant.includes(action.name)) return answer('deny', 'not_granted', `${action.name} is not granted to this agent.`);
+  if (!declaresEffects(action)) return answer('deny', 'no_effects', NO_EFFECTS);
+  // A recorded request reaches nothing until the owner approves that exact request, which also meets the taint latch:
+  // asking first for the call too would ask twice, and would need the agent to write the same words again.
   if (RECORDS_ONLY.includes(action.name)) {
-    return answer('allow', 'records_only', 'It only records a request. Nothing leaves Chausar until you approve it.', { floor });
+    return answer('allow', 'records_only', 'It only records a request. Nothing leaves Chausar until you approve that exact request.', { floor });
   }
+  // The taint latch: only the owner's approval of this exact call opens a latched effect.
+  const latched = latchedBy(action, ctx.taint).length > 0;
+  const latchHold = latched ? approvedHold(action, ctx) : undefined;
+  if (latched && !latchHold && !ownerApproved(action, ctx)) return answer('ask', 'tainted', TAINT_WORDS, { floor });
   if (floor.length) {
-    return ownerApproved(action, ctx) ? answer('allow', 'owner_approved', 'You approved this.', { floor }) : answer('ask', 'floor', FLOOR_WORDS[floor[0]], { floor });
+    return ownerApproved(action, ctx) ? answer('allow', 'owner_approved', 'You approved this.', { floor }) : answer('ask', 'floor', floorWords(floor), { floor });
+  }
+  if (latched) {
+    const step = ctx.stepsByTool[action.name]?.[0] ?? null;
+    return latchHold ? answer('allow', 'hold_approved', 'You let this call run once.', { step, holdId: latchHold.id }) : answer('allow', 'owner_approved', 'You approved this.', { step });
   }
   const steps = ctx.stepsByTool[action.name] ?? [];
   const held = steps.find(id => (ctx.gates[id] ?? 'hold') === 'hold');

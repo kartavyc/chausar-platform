@@ -88,7 +88,7 @@ export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
   },
   {
     id: 'check', kind: 'verify', role: 'checker', title: 'Run the code checks, then the yes or no judge',
-    tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['required-sections', 'house-style', 'length-bounds', 'no-done-claims', 'no-outside-writes'],
+    tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['required-sections', 'house-style', 'length-bounds', 'no-done-claims', 'no-outside-writes', 'receipts'],
     tools: [], guidance: [], socialChecks: ALL_SOCIAL_CHECKS,
     produces: 'Each draft marked ready, or blocked with the reason and the rule it rests on.',
   },

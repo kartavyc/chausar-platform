@@ -3,7 +3,8 @@
 // regulated papers and unconfirmed rate tables first make a 'signoff' row with Send to CA; once sent, a second row
 // asks the CA to sign by typing their ICAI membership number, which must match the CA it was sent to. Nothing here
 // files, signs on a portal or sends anything outside Chausar: "send to CA" marks the papers for the CA of record,
-// who signs inside Chausar.
+// who signs inside Chausar. A request covers one digest of a run's papers: the owner's edit is new papers with a
+// request of its own. Naming a CA of record puts ready papers that have none in front of them (delivery-signoff.ts).
 import { ChausarError, check, type Context, type State } from '../../../contracts.ts';
 import { digest, exactPayload, listRecords, singleLine, ventureAction } from '../../records.ts';
 import type { CaFirmRecord, QueueAction, QueueActionId, VentureDeps, VentureRecord } from '../../contracts.ts';
@@ -14,7 +15,7 @@ type EntryName = CaFirmRecord['entry'];
 type Entry<E extends EntryName> = Extract<CaFirmRecord, { entry: E }>;
 export type SignoffRequest = Entry<'signoff-request'>;
 export type SignoffRecord = Entry<'signoff'>;
-export const SIGNOFF_SUBJECTS = ['gst-working', 'tds-working', 'itr-data-pack', 'letter'] as const;
+export const SIGNOFF_SUBJECTS = ['gst-working', 'tds-working', 'itr-data-pack', 'letter', 'audit-papers'] as const;
 export type SignoffSubject = typeof SIGNOFF_SUBJECTS[number];
 
 function entries<E extends EntryName>(state: State, ventureId: string, entry: E): Entry<E>[] {
@@ -81,23 +82,27 @@ function membership(value: unknown, sent: { name: string; membershipNumber: stri
 export async function setCaOfRecord(deps: VentureDeps, ctx: Context, payload: unknown): Promise<CaOfRecord> {
   const ca = validateCaOfRecord(payload);
   exactPayload(payload, ['name', 'membershipNumber', 'firmName', 'firmRegistrationNumber'], ['name', 'membershipNumber']);
-  return ventureAction(deps, ctx, 'approve', 'ca-firm.ca-of-record', tx => {
+  const named = await ventureAction(deps, ctx, 'approve', 'ca-firm.ca-of-record', tx => {
     tx.put<CaFirmRecord>({ ...tx.base('venture-ca-firm'), entry: 'ca-of-record', ...ca });
     tx.emit('queue.changed', { caFirm: 'ca-of-record' });
     return ca;
   });
+  // Ready papers that waited with no CA to ask now go in front of this one. It never undoes naming the CA.
+  await import('./delivery-signoff.ts').then(module => module.sweepSignoffRequests(deps, ctx)).catch(() => null);
+  return named;
 }
 
 /**
- * Puts regulated papers in front of the CA (prepare): a GST or TDS working ready to file, an income tax data pack, or a
- * letter on the firm's letterhead. Refused until a CA of record is named. deliveryId names the delivery run whose draft
- * the papers are; a second request for the same run returns the first one, so a run asks its CA once.
+ * Puts regulated papers in front of the CA (prepare): a GST or TDS working ready to file, an income tax data pack, a
+ * letter on the firm's letterhead, or papers for a tax audit. Refused until a CA of record is named. deliveryId names
+ * the delivery run whose draft the papers are; a second request for the same run and the same papers' digest returns
+ * the first one, so a run asks its CA once for each version of its papers.
  */
 export async function requestCaSignoff(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SignoffRequest> {
   const body = exactPayload(payload, ['subjectKind', 'title', 'clientName', 'workingDigest', 'receiptIds', 'playbookHash', 'deliveryId'], ['subjectKind', 'title', 'workingDigest', 'receiptIds']);
   check(body.deliveryId === undefined || body.deliveryId === null || (typeof body.deliveryId === 'string' && /^[A-Za-z0-9_.:-]{3,80}$/.test(body.deliveryId)), 'INVALID_VENTURE_REQUEST', 'The delivery run id is not one Chausar made.');
   const deliveryId = typeof body.deliveryId === 'string' ? body.deliveryId : null;
-  check((SIGNOFF_SUBJECTS as readonly unknown[]).includes(body.subjectKind), 'INVALID_VENTURE_REQUEST', 'Say what the papers are: a GST working, a TDS working, an income tax data pack or a letter.');
+  check((SIGNOFF_SUBJECTS as readonly unknown[]).includes(body.subjectKind), 'INVALID_VENTURE_REQUEST', 'Say what the papers are: a GST working, a TDS working, an income tax data pack, a letter or papers for a tax audit.');
   const title = singleLine(body.title, 'Title', { min: 3, max: 140 });
   const clientName = body.clientName === undefined || body.clientName === null ? null : singleLine(body.clientName, 'Client name', { min: 1, max: 120 });
   check(typeof body.workingDigest === 'string' && /^[a-f0-9]{64}$/.test(body.workingDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the papers.');
@@ -106,7 +111,9 @@ export async function requestCaSignoff(deps: VentureDeps, ctx: Context, payload:
   check(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The playbook hash is a digest.');
   return ventureAction(deps, ctx, 'prepare', 'ca-firm.signoff-request', tx => {
     requireCa(tx.state, tx.venture!.id);
-    const asked = deliveryId ? entries(tx.state, tx.venture!.id, 'signoff-request').find(item => item.deliveryId === deliveryId) : undefined;
+    const asked = deliveryId
+      ? entries(tx.state, tx.venture!.id, 'signoff-request').find(item => item.deliveryId === deliveryId && item.workingDigest === body.workingDigest)
+      : undefined;
     if (asked) return asked;
     const record = tx.put<CaFirmRecord>({
       ...tx.base('venture-ca-firm'), entry: 'signoff-request', subjectKind: body.subjectKind as SignoffSubject, title, clientName,

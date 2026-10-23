@@ -151,6 +151,9 @@ test('CA firm: no GST registration means no GST working; a year shows each month
   assert.deepEqual(income.lines, [{ label: 'Billed in the year, without tax', value: 'INR 4,998.00' }]);
   assert.match(income.note!, /^The computation needs your whole income for the year/);
   assert.ok(income.note!.includes('Your CA has not confirmed "Income tax slabs, rebate, surcharge and cess for assessment year 2026-27" (version 1) yet.'));
-  const later = await working(env, { period: 'AY 2027-28' });
+  // The tax year 2026-27 has its own table now, waiting for the CA; a year past every table says no table covers it.
+  const current = await working(env, { period: 'AY 2027-28' });
+  assert.ok(section(current, 'income-tax').note!.includes('Your CA has not confirmed "Income tax slabs, rebate, surcharge and cess for the tax year 2026-27 (assessment year 2027-28)" (version 1) yet.'));
+  const later = await working(env, { period: 'AY 2028-29' });
   assert.ok(section(later, 'income-tax').note!.includes('No income-tax rate table'));
 });

@@ -7,8 +7,10 @@ import type { DelegateAvailability } from './delegate.ts';
 import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { tablesOfFile, type FileLike } from './files.ts';
 import type { ToolEnv } from './tools.ts';
+import { recheckRun } from './recheck.ts';
 import { harnessPolicyContext } from '../../policy/context.ts';
 import type { Approval } from '../../policy/ladder.ts';
+import { screenSettingOf } from '../../policy/untrusted-methods.ts';
 
 /** The order's files, oldest first. */
 export function orderUploads(state: State, ventureId: string, orderId: string): UploadRecord[] {
@@ -51,14 +53,19 @@ export type EnvInput = {
 
 export function buildToolEnv(input: EnvInput): ToolEnv {
   const { deps, ctx, state, venture } = input;
+  const runRef = input.runRef;
   return {
     deps, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, currency: venture.country.currency, dateOrder: venture.country.dateOrder,
     runRef: input.runRef, files: input.files, tables: [...(input.tables ?? [])], receipts: [...(input.receipts ?? [])],
     dictionary: dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
     sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed], delegateOffer: [...(input.delegateOffer ?? [])],
     policy: { context: harnessPolicyContext({ state, venture, playbook: input.playbook, runRef: input.runRef, ...(input.approval ? { approval: input.approval } : {}) }) },
+    // The business's untrusted screen: its mode (observe until the owner turns on enforce) and what the owner released.
+    screen: screenSettingOf(state, venture.id),
     // Only a real order journals anything (shadow entries at shadow), as the person who approved the turn.
     ...(input.runRef.kind === 'delivery' ? { ctx } : {}),
+    // A real order's approved calls read the order, the client, the stage and the run's cap again just before they run.
+    ...(runRef.kind === 'delivery' ? { recheck: () => recheckRun(deps, venture.id, runRef.runId) } : {}),
   };
 }
 

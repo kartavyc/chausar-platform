@@ -1,8 +1,9 @@
 /**
  * What paid calls cost: each one reserved before it ran and settled after, by agent or connector, with the engine's
  * word for the figure (estimate, billed) and its receipt when there is one. A call with no price is refused, never
- * treated as free; a refused row says why in the engine's words. Under the calls, the owner's limits and rate card
- * (SpendPolicy.tsx).
+ * treated as free; a refused row says why in the engine's words. With the owner's own rupee rate, the engine also gives
+ * each figure in rupees, with that rate, and it sits beside the dollars. Under the calls, the owner's limits and rate
+ * card (SpendPolicy.tsx).
  */
 
 import { useT } from '../../text';
@@ -11,7 +12,7 @@ import { EmptyState } from '../../parts/EmptyState';
 import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import type { SpendRow } from '../../engine/types';
-import { Failed, Figure } from './parts';
+import { Failed, Figure, Rupees } from './parts';
 import { SpendPolicy } from './SpendPolicy';
 import { onRuns } from './words';
 import s from './Money.module.css';
@@ -24,7 +25,7 @@ export function Spend() {
   return (
     <>
       {spend.error && <Failed error={spend.error} />}
-      {spend.data && <p className={s.total}><Figure>{spend.data.total}</Figure></p>}
+      {spend.data && <p className={s.total}><Figure>{spend.data.total}</Figure><Rupees text={spend.data.totalRupees} /></p>}
       {spend.data && rows.length === 0 && <EmptyState title={t('money.spend.none')} />}
       {rows.length > 0 && (
         <ul className={s.list}>
@@ -47,14 +48,14 @@ function SpendFigures({ row }: { row: SpendRow }) {
   const kind = <span className={s.kind}>{t(`money.spend.kind.${row.kind}`)}</span>;
   const dot = <span className={s.dot} aria-hidden="true">·</span>;
   if (row.kind === 'refused') {
-    return <p className={s.figures}><Figure>{row.reserved}</Figure>{dot}{kind}</p>;
+    return <p className={s.figures}><Figure>{row.reserved}</Figure><Rupees text={row.reservedRupees} />{dot}{kind}</p>;
   }
   return (
     <p className={s.figures}>
-      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}<Figure>{row.reserved}</Figure>
+      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}<Figure>{row.reserved}</Figure><Rupees text={row.reservedRupees} />
       {dot}
       {row.settled !== undefined
-        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}<Figure>{row.settled}</Figure></>
+        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}<Figure>{row.settled}</Figure><Rupees text={row.settledRupees} /></>
         : <span className={s.figureLabel}>{t('money.spend.notSettled')}</span>}
       {dot}
       {kind}

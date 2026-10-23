@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { EngineClient, ModelStatusLite, Transport } from '../../src/engine/types';
@@ -31,8 +31,10 @@ describe('Your AI: what may leave this computer', () => {
     const { engine, calls } = start();
     const group = await screen.findByRole('group', { name: 'What may leave this computer' });
     expect((within(group).getByRole('radio', { name: 'The shape of each question' }) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(within(group).getByRole('radio', { name: 'Nothing leaves this computer' }));
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Nothing leaves this computer' })); });
     expect(calls.some(([m]) => m === 'trust.update')).toBe(false);
+    // Save is enabled only once the new choice has rendered; under load the click could land on the disabled button.
+    await waitFor(() => expect((within(group).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false));
     await act(async () => { fireEvent.click(within(group).getByRole('button', { name: 'Save' })); });
     expect(calls.filter(([m]) => m === 'trust.update').map(([, p]) => p)).toEqual([{ send: 'nothing' }]);
     expect(await screen.findByText('Your privacy setting sends nothing to AI, so every call is stopped.')).toBeTruthy();
