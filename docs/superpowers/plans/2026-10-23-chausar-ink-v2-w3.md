@@ -19,6 +19,8 @@ Self-employed people and retail owners must not find business, share or tax deta
 3. Add `lucide-react` (MIT) to the root `package.json` devDependencies beside `react`, pinned to the exact version current at wave start (the repo pins every version), and commit `package-lock.json`. Read its licence file; the PR says why it is the one new dependency.
 4. Commit 1 to 3 as `docs(w3): direction D boards and the icon dependency`.
 
+Done 23 Oct: `lucide-react` 1.54.0 (published 9 Oct, the newest release at least two weeks old; licence ISC, not MIT as first written; no dependencies of its own, React as a peer). The root `package-lock.json` is not tracked on this branch (CI runs `npm install`), so it is not committed here either; the desktop preview build that needs a reviewed lockfile is unchanged.
+
 ## The rules that hold, and the test that holds each
 
 Everything in "How every wave runs" applies (test first, packages in one checkout, no worktrees, agents never commit, stash, switch branches or run the full suite, shared files by small Edit calls only, every new string in `src/text/en/*.json` and `hi/*.json` in the same change, no em dashes).

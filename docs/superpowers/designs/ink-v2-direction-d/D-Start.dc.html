@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Start</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;family=Noto+Sans+Devanagari:wght@400;500&amp;display=swap">
+<style>
+/* ===== D base: paste verbatim on every D board (D-STYLE.md) ===== */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+h1,h2,h3,h4,p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+a{color:#2f5bd3;text-decoration:none}
+a:hover{color:#1f45b0}
+:focus-visible{outline:2px solid #2f5bd3;outline-offset:2px}
+.mono{font-family:'DM Mono','Noto Sans Devanagari',ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.i12{width:12px;height:12px}.i14{width:14px;height:14px}.i16{width:16px;height:16px}.i20{width:20px;height:20px}.i22{width:22px;height:22px}
+.fill{fill:currentColor;stroke:none}
+/* Departments: d- tint ground with ink, t- ink only, s- solid (badges, dots) */
+.d-sales{background:#E8EEFC;color:#2F5BD3}.d-mkt{background:#F1EAFE;color:#7C3AED}.d-prod{background:#E3F4F2;color:#0F766E}.d-money{background:#E6F6EC;color:#0B7A45}.d-ops{background:#EEF0F3;color:#475467}
+.t-sales{color:#2F5BD3}.t-mkt{color:#7C3AED}.t-prod{color:#0F766E}.t-money{color:#0B7A45}.t-ops{color:#475467}
+.s-sales{background:#2F5BD3}.s-mkt{background:#7C3AED}.s-prod{background:#0F766E}.s-money{background:#0B7A45}.s-ops{background:#475467}
+/* Rail */
+.rail{flex:0 0 232px;display:flex;flex-direction:column;padding:20px 14px 24px;background:#ffffff;border-right:1px solid #e3e5e8}
+.brand{display:flex;align-items:center;gap:9px;height:28px;padding:0 8px;margin-bottom:18px;color:#16181b}
+.brand:hover{color:#16181b}
+.word{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.biz{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px 8px 8px;margin-bottom:20px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);text-align:left}
+.biz:hover{background:#fbfbfa}
+.biz-sq{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#16181b;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:.03em}
+.biz-txt{display:flex;flex-direction:column;flex:1;min-width:0}
+.biz-name{font-size:14px;line-height:18px;font-weight:600;color:#16181b}
+.biz-kind{font-size:12px;line-height:16px;color:#5c6168}
+.biz .i{color:#5c6168}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;height:40px;padding:0 10px;border-radius:10px;font-size:14px;font-weight:500;color:#3d4146}
+.nav a:hover{background:#f3f4f5;color:#16181b}
+.nav a .i{color:#5c6168}
+.nav a.on{background:#16181b;color:#ffffff}
+.nav a.on .i{color:#ffffff}
+.nav .ct{margin-left:auto;min-width:24px;height:20px;padding:0 7px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:11.5px;line-height:20px;text-align:center}
+.nav a.on .ct{background:rgba(255,255,255,.16);color:#ffffff}
+.nav .new{margin-left:auto;height:20px;padding:0 8px;border-radius:999px;color:#0B7A45;font-size:11px;font-weight:600;line-height:20px}
+/* Page */
+.main{flex:999 1 560px;min-width:0;padding:28px 32px 48px}
+.wrap{max-width:984px;margin:0 auto}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.eyebrow{font-size:13px;line-height:18px;font-weight:500;color:#5c6168}
+.h1{font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em}
+.eyebrow+.h1{margin-top:4px}
+.sub{margin-top:4px;font-size:14px;line-height:20px;color:#3d4146}
+.sub b{font-weight:600;color:#16181b}
+.tools{display:flex;align-items:center;gap:8px;flex:none}
+.ask{display:flex;align-items:center;gap:10px;width:300px;height:44px;padding:0 8px 0 14px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);color:#5c6168;font-size:13.5px;text-align:left}
+.ask:hover{border-color:#c9cdd2}
+.ask .i{color:#16181b}
+.kbd{margin-left:auto;padding:3px 7px;border:1px solid #e3e5e8;border-radius:6px;background:#fbfbfa;font-size:11px;color:#5c6168}
+.ib{position:relative;display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;color:#3d4146}
+.ib:hover{background:#f3f4f5}
+.ib .dot{position:absolute;top:10px;right:11px;width:8px;height:8px;border-radius:999px;background:#F04438;box-shadow:0 0 0 2px #ffffff}
+.me{display:grid;place-items:center;flex:none;width:44px;height:44px;border:0;border-radius:999px;background:#E8EBEE;color:#16181b;font-size:15px;font-weight:600}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-bottom:16px}
+/* Bento grid, tiles, inner cards */
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.tile{background:#ffffff;border:1px solid #e3e5e8;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.inner{border-radius:12px;background:#f6f7f8;min-width:0}
+.lift{border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.07),0 0 0 1px rgba(16,24,40,.04);min-width:0}
+/* Heads */
+.shead{display:flex;align-items:center;gap:10px;min-height:32px}
+.h2{font-size:19px;line-height:26px;font-weight:600;letter-spacing:-0.01em}
+.th{display:flex;align-items:center;gap:10px;min-height:24px}
+.h3{font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.meta{font-size:13px;line-height:18px;color:#5c6168}
+.more{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:13.5px;font-weight:500;color:#16181b;white-space:nowrap}
+.more:hover{color:#16181b;text-decoration:underline;text-underline-offset:3px}
+.count{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 8px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:500}
+/* Avatars: rounded square, department tint, status ring (working ring is inline: accent) */
+.av{position:relative;display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;font-size:12.5px;font-weight:600;letter-spacing:.03em;line-height:1}
+.av24{width:24px;height:24px;border-radius:7px;font-size:9.5px}
+.av28{width:28px;height:28px;border-radius:8px;font-size:10.5px}
+.av32{width:32px;height:32px;border-radius:10px;font-size:11.5px}
+.av40{width:40px;height:40px;border-radius:12px;font-size:13.5px}
+.av52{width:52px;height:52px;border-radius:16px;font-size:16px}
+.ring-wait{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F2A93B}
+.ring-fail{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F04438}
+.av-cz{background:#16181b;color:#ffffff}
+.av-n{background:#EEF0F3;color:#3d4146}
+.stack{display:flex}
+.stack .av{box-shadow:0 0 0 2px #ffffff}
+.stack .av+.av{margin-left:-8px}
+/* Stories row */
+.stories{display:flex;gap:18px}
+.story{display:flex;flex-direction:column;align-items:center;width:76px;padding:6px 0 0;border:0;background:none;text-align:center}
+.st-av{position:relative;display:grid;place-items:center;width:60px;height:60px;border-radius:18px;font-size:18px;font-weight:600;letter-spacing:.02em}
+.st-ring-wait{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F2A93B}
+.st-ring-fail{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F04438}
+.st-add{border:1.5px dashed #b9bec4;background:#ffffff;color:#5c6168}
+.st-badge{position:absolute;right:-6px;bottom:-6px;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;border:2.5px solid #ffffff;color:#ffffff}
+.st-badge .i{width:12px;height:12px}
+.st-name{margin-top:10px;font-size:13px;line-height:18px;font-weight:500;color:#16181b;white-space:nowrap}
+.st-st{font-size:12px;line-height:16px;color:#5c6168;white-space:nowrap}
+.st-st.w{color:#B45309;font-weight:500}
+.st-st.g{color:#0B7A45;font-weight:500}
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.chip .dot{flex:none;width:6px;height:6px;border-radius:999px;background:currentColor}
+.chip.work{color:#0B7A45}
+.chip.wait{background:#FDF1E3;color:#B45309}
+.chip.fail{background:#FEECEA;color:#B42318}
+.chip.idle{background:#f1f2f3;color:#5c6168}
+.chip.line{background:#ffffff;border:1px solid #e3e5e8;color:#3d4146}
+.dchip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.kchip{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;padding:0 11px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:12.5px;font-weight:500;white-space:nowrap}
+.kchip.wait{background:#FDF1E3;color:#B45309}
+.kchip.fail{background:#FEECEA;color:#B42318}
+.pos{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pos .i{color:#5c6168}
+.rc{display:inline-flex;align-items:center;gap:5px;flex:none;height:24px;padding:0 8px;border:1px solid #dbe2f3;border-radius:8px;background:#ffffff;color:#2f5bd3;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;line-height:1;white-space:nowrap}
+.rc:hover{border-color:#2f5bd3;color:#2f5bd3}
+.rc-d{color:#8fb4ff;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.rc-d:hover{color:#b5ccff}
+.est{display:inline-flex;align-items:center;flex:none;height:24px;padding:0 9px;border:1px dashed #b9bec4;border-radius:999px;font-size:12px;font-style:italic;color:#5c6168;white-space:nowrap}
+.fchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fchip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;font-size:13px;font-weight:500;color:#3d4146;white-space:nowrap}
+.fchip:hover{border-color:#c9cdd2}
+.fchip .mono{font-size:12px;color:#6e737a}
+.fchip.on{background:#16181b;border-color:#16181b;color:#ffffff}
+.fchip.on .mono{color:#c4c8cc}
+.fsep{width:1px;height:20px;margin:0 4px;background:#e3e5e8}
+.bsq{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600;letter-spacing:.02em}
+/* Buttons (primary fill is inline: background {{accent}}, text {{accentInk}}) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 14px;border:1px solid #d5d8dc;border-radius:10px;background:#ffffff;color:#16181b;font-size:13.5px;font-weight:500;line-height:1;white-space:nowrap}
+.btn:hover{background:#f3f4f5}
+.btn.sm{height:30px;padding:0 11px;border-radius:9px;font-size:12.5px}
+.btn.lg{height:44px;padding:0 18px;border-radius:12px;font-size:14.5px;font-weight:600}
+.btn.xl{height:48px;padding:0 20px;border-radius:14px;font-size:15px;font-weight:600}
+.btn.pri{font-weight:600}
+.btn.pri:hover{filter:brightness(.95)}
+.btn.pri:disabled{filter:none}
+.btn.ink{background:#16181b;border-color:#16181b;color:#ffffff}
+.btn.ink:hover{background:#2a2d31}
+.btn.wide{width:100%}
+.chat{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff;color:#3d4146;font-size:13px;font-weight:500;white-space:nowrap}
+.chat:hover{border-color:#c9cdd2;color:#16181b}
+.hint{display:flex;align-items:center;gap:6px;font-size:12.5px;line-height:18px;color:#5c6168}
+/* Progress */
+.pbar{position:relative;display:block;flex:1;height:6px;border-radius:999px;background:#e3e5e8;overflow:hidden}
+.pbar>span{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.pring{position:relative;flex:none;width:40px;height:40px}
+.pring svg{display:block}
+.pring b{position:absolute;inset:0;display:grid;place-items:center;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:10.5px;font-weight:500;color:#16181b}
+/* Goal card (dark, banking style) */
+.goal{position:relative;padding:24px;border-radius:16px;background:#111214;color:#eceef0;box-shadow:0 1px 2px rgba(16,24,40,.10),0 12px 28px -12px rgba(16,24,40,.45);min-width:0}
+.g-top{display:flex;align-items:center;gap:10px;height:28px}
+.g-ic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.08)}
+.g-lbl{font-size:14px;line-height:20px;font-weight:600;color:#ffffff}
+.g-sub{font-size:13px;color:#9aa0a6}
+.g-pill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,.08);color:#d6d9dc;font-size:12.5px;font-weight:500}
+.g-edit{display:grid;place-items:center;flex:none;width:28px;height:28px;border:0;border-radius:999px;background:none;color:#9aa0a6}
+.g-edit:hover{background:rgba(255,255,255,.08);color:#ffffff}
+.g-fig{display:flex;align-items:baseline;gap:10px;height:48px;margin-top:18px}
+.g-amt{font-size:40px;line-height:48px;font-weight:500;color:#ffffff;letter-spacing:-0.035em}
+.g-of{font-size:16px;color:#9aa0a6}
+.g-pct{margin-left:auto;font-size:32px;line-height:48px;font-weight:500;letter-spacing:-0.03em}
+.g-bar{position:relative;height:14px;margin-top:16px;border-radius:999px;background:#2a2d31}
+.g-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px 0 0 999px}
+.g-ready{position:absolute;top:0;bottom:0;border-radius:0 999px 999px 0}
+.g-pace{position:absolute;top:-5px;width:3px;height:24px;margin-left:-1.5px;border-radius:2px;background:#ffffff;box-shadow:0 0 0 2px #111214}
+.g-legend{display:flex;align-items:center;gap:16px;height:18px;margin-top:12px;font-size:12.5px;color:#9aa0a6;white-space:nowrap}
+.lg{display:inline-flex;align-items:center;gap:6px}
+.lg .mono{color:#d6d9dc}
+.sw{flex:none;width:10px;height:10px;border-radius:3px}
+.sw.pace{width:3px;height:12px;border-radius:1px;background:#ffffff}
+.g-foot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)}
+.gf-k{font-size:12px;line-height:16px;color:#9aa0a6}
+.gf-v{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:15px;line-height:22px;font-weight:500;color:#ffffff;white-space:nowrap}
+/* Big preview card (Needs you) */
+.qcard{display:flex;flex-direction:column;padding:20px}
+.qc-head{display:flex;align-items:center;gap:12px;height:40px}
+.qc-who{flex:1;min-width:0}
+.qc-name{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}
+.qc-meta{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap}
+.qc-title{margin-top:16px;font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.qc-line{height:40px;margin-top:4px;font-size:14px;line-height:20px;color:#3d4146;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pv{position:relative;flex:none;height:188px;margin-top:14px;border-radius:12px;overflow:hidden}
+.pv-desk{background:#f3f4f2}
+.qc-note{display:flex;align-items:center;gap:8px;height:28px;margin-top:12px;font-size:13px;line-height:18px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.qc-note>.i{color:#5c6168}
+.qc-note .end{margin-left:auto}
+.qc-acts{display:flex;gap:10px;margin-top:14px}
+.qc-acts .btn{flex:1}
+/* Previews: video frame, paper sheet, before and after pill */
+.pv-video{color:#ffffff;background:radial-gradient(120% 95% at 78% 25%,#25433f 0%,#132523 48%,#0a1213 100%)}
+.v-tag{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:rgba(0,0,0,.45);color:#ffffff;font-size:11.5px;font-weight:500}
+.v-title{position:absolute;left:18px;top:50px;font-size:24px;line-height:28px;font-weight:600;letter-spacing:-0.02em;color:#ffffff}
+.v-title span{display:block;color:rgba(255,255,255,.6)}
+.v-art{position:absolute;right:20px;bottom:30px}
+.v-play{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:56px;height:56px;margin:-28px 0 0 -28px;border:0;border-radius:999px;background:rgba(255,255,255,.95);color:#0b0d0e;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.v-play .i{width:22px;height:22px;margin-left:3px}
+.v-ch{position:absolute;left:12px;bottom:18px;height:22px;padding:0 8px;border-radius:6px;background:rgba(0,0,0,.55);font-size:11.5px;line-height:22px}
+.v-dur{position:absolute;right:12px;bottom:18px;height:22px;padding:0 7px;border-radius:6px;background:rgba(0,0,0,.72);font-size:11.5px;line-height:22px}
+.v-scrub{position:absolute;left:12px;right:12px;bottom:8px;display:flex;gap:3px;height:3px}
+.v-scrub span{border-radius:2px;background:rgba(255,255,255,.34)}
+.paper{position:absolute;padding:12px 14px;border-radius:8px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08),0 10px 24px -8px rgba(16,24,40,.22)}
+.pp-top{display:flex;align-items:center;gap:7px;height:18px}
+.pp-logo{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600}
+.pp-biz{font-size:11.5px;font-weight:600}
+.pp-no{margin-left:auto;font-size:11px;color:#16181b}
+.pp-k{display:block;font-size:9.5px;line-height:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6e737a}
+.pp-t{font-size:12px;line-height:16px;font-weight:600}
+.pp-s{font-size:10.5px;line-height:14px;color:#5c6168}
+.pp-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:17px;color:#3d4146}
+.pp-row .mono{font-size:10.5px;color:#16181b}
+.pp-tot{display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:1px solid #e3e5e8;font-size:12px;line-height:17px;font-weight:600}
+.pp-chk{display:flex;align-items:center;gap:5px;font-size:10.5px;line-height:16px;color:#3d4146}
+.chg{display:inline-flex;align-items:center;gap:12px;height:52px;padding:0 20px;border:1px solid #dbe3f7;border-radius:999px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.05),0 6px 16px -8px rgba(16,24,40,.18)}
+.chg .old{font-size:18px;color:#6e737a;text-decoration:line-through;text-decoration-thickness:1.5px}
+.chg .arr{display:grid;place-items:center;width:28px;height:28px;border-radius:999px}
+.chg .now{font-size:26px;font-weight:500;letter-spacing:-0.03em;color:#16181b}
+.bx{display:flex;flex-direction:column;justify-content:center;height:50px;padding:0 12px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff}
+.bx-k{font-size:11.5px;line-height:15px;color:#5c6168}
+.bx .mono{font-size:14px;line-height:20px;color:#16181b}
+.op{font-size:15px;color:#6e737a}
+/* Department panels and agent cards */
+.dp{display:flex;flex-direction:column;padding:18px;border:1px solid transparent;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.p-sales{background:#E8EEFC;border-color:#D5E0FA}.p-mkt{background:#F1EAFE;border-color:#E4D6FC}.p-prod{background:#E3F4F2;border-color:#CBE8E4}.p-money{background:#E6F6EC;border-color:#CDEBD8}.p-ops{background:#EEF0F3;border-color:#DDE1E7}
+.dp-head{display:flex;align-items:center;gap:12px;height:44px}
+.dp-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.dp-ic .i{width:20px;height:20px}
+.dp-t{min-width:0}
+.dp-name{font-size:16px;line-height:22px;font-weight:600;white-space:nowrap}
+.dp-line{font-size:12.5px;line-height:18px;color:#3d4146;white-space:nowrap}
+.dp-line .w{color:#B45309;font-weight:500}
+.dp-line .f{color:#B42318;font-weight:500}
+.dp-stats{display:flex;gap:18px;margin-left:auto}
+.dp-s{display:flex;flex-direction:column;align-items:flex-end}
+.dp-s b{font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:17px;line-height:22px;font-weight:500;letter-spacing:-0.02em}
+.dp-s span{font-size:11px;line-height:16px;color:#3d4146;white-space:nowrap}
+.agents{display:grid;gap:12px;flex:1;margin-top:16px;min-height:0}
+.agents.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.acard{display:flex;flex-direction:column;padding:14px}
+.a-top{display:flex;align-items:center;gap:12px;height:40px}
+.a-id{flex:1;min-width:0}
+.a-name{font-size:15px;line-height:20px;font-weight:600}
+.a-role{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-now{margin-top:12px;font-size:13.5px;line-height:19px;font-weight:500;color:#16181b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.a-now .w{color:#B45309}
+.a-prog{display:flex;align-items:center;gap:8px;height:22px;margin-top:8px;font-size:12px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.a-prog .pbar{flex:0 0 88px}
+.a-prog .muted{color:#5c6168}
+.a-prog .w{color:#B45309;font-weight:500}
+.a-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px}
+/* Segmented toggle and step gates */
+.seg{display:inline-flex;align-items:center;gap:2px;padding:4px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.seg button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:0;border-radius:9px;background:none;font-size:13.5px;font-weight:500;color:#3d4146;white-space:nowrap}
+.seg button:hover{background:#f3f4f5;color:#16181b}
+.seg button.on{background:#16181b;color:#ffffff}
+.sdot{flex:none;width:8px;height:8px;border-radius:999px}
+.gate{display:inline-flex;gap:2px;padding:3px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff}
+.gate button{height:26px;padding:0 10px;border:0;border-radius:7px;background:none;font-size:12.5px;font-weight:500;color:#5c6168}
+.gate button.on{background:#16181b;color:#ffffff}
+.floor{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:10px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:600;white-space:nowrap}
+/* List rows (runs, decisions) */
+.lrow{display:flex;align-items:center;gap:12px;height:60px;border-top:1px solid #eceef0}
+.lrow:first-child{border-top:0}
+.lrow.ev{height:52px}
+.lr-b{flex:1;min-width:0}
+.lr-t{font-size:13.5px;line-height:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s{font-size:12px;line-height:17px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s .w{color:#B45309}
+.lr-p{display:flex;align-items:center;gap:8px;flex:none;width:170px;font-size:12px;color:#3d4146;white-space:nowrap}
+.lr-p .w{color:#B45309;font-weight:500}
+.lr-p .f{color:#B42318;font-weight:500}
+.lr-e{flex:none;width:36px;text-align:right;font-size:12px;color:#5c6168}
+.sic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:999px}
+.sic.ok{color:#0B7A45}
+.sic.no{background:#eceef0;color:#5c6168}
+.sic.q{background:#FDF1E3;color:#B45309}
+.sic.est{background:#F1EAFE;color:#7C3AED}
+.sic.fail{background:#FEECEA;color:#B42318}
+.k{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px}
+.k-n{background:#EEF0F3;color:#3d4146}
+.k-fail{background:#FEECEA;color:#B42318}
+.k-wait{background:#FDF1E3;color:#B45309}
+/* ===== end of D base ===== */
+
+/* ---- D-Start ---- */
+.row1{height:300px}
+.how{display:flex;flex-direction:column;padding:20px}
+.hsteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;flex:1;margin-top:16px;min-height:0}
+.hstep{display:flex;flex-direction:column;padding:14px}
+.hs-pv{position:relative;flex:none;height:88px;border:1px solid #eceef0;border-radius:10px;background:#ffffff;overflow:hidden}
+.hs-n{position:absolute;left:8px;top:8px;display:grid;place-items:center;width:22px;height:22px;border-radius:999px;background:#16181b;color:#ffffff;font-size:11.5px;font-weight:500}
+.hs-t{margin-top:12px;font-size:14px;line-height:19px;font-weight:600;white-space:nowrap}
+.hs-l{margin-top:4px;font-size:12.5px;line-height:17px;color:#3d4146}
+.minis{position:absolute;left:38px;top:12px;display:grid;grid-template-columns:repeat(3,28px);gap:6px}
+.minis span{display:grid;place-items:center;width:28px;height:28px;border-radius:8px}
+.minis .pick{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #16181b}
+.hs-card{position:absolute;left:36px;right:10px;top:12px;bottom:12px;display:flex;flex-direction:column;justify-content:space-between}
+.hs-who{display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:500;color:#16181b}
+.hs-btn{display:flex;align-items:center;justify-content:center;gap:4px;height:26px;border-radius:8px;font-size:12px;font-weight:600}
+.next{display:flex;flex-direction:column;padding:20px}
+.n-top{display:flex;align-items:center;justify-content:space-between;height:24px}
+.n-eye{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border:1px solid rgba(11,122,69,.2);border-radius:999px;background:#ffffff;color:#0B7A45;font-size:12px;font-weight:600}
+.n-who{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:#3d4146}
+.n-title{margin-top:14px;font-size:18px;line-height:24px;font-weight:600;letter-spacing:-0.01em}
+.n-line{margin-top:2px;font-size:13px;line-height:18px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n-figs{display:flex;align-items:center;gap:14px;height:64px;margin-top:14px;padding:0 14px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff}
+.n-fig{display:flex;flex-direction:column;min-width:0}
+.n-lab{font-size:11.5px;line-height:16px;color:#5c6168;white-space:nowrap}
+.n-val{font-size:20px;line-height:26px;font-weight:500;letter-spacing:-0.02em;white-space:nowrap}
+.n-div{flex:none;width:1px;height:36px;background:#e3e5e8}
+.n-note{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap}
+.n-act{display:flex;gap:10px;margin-top:auto}
+.n-act .pri{flex:1}
+.gall{margin-top:32px}
+.sort{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#5c6168}
+.sort select{height:34px;padding:0 10px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff;color:#16181b;font-size:13px}
+.gal{grid-auto-rows:416px}
+.way{display:flex;flex-direction:column;padding:20px}
+.w-head{display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px}
+.w-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:12px}
+.w-name{margin-top:14px;font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em;white-space:nowrap}
+.w-line{height:36px;margin-top:4px;font-size:13px;line-height:18px;color:#3d4146;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.facts{margin-top:12px}
+.fact{margin-top:10px;padding-top:10px;border-top:1px solid #eceef0}
+.fact:first-child{margin-top:0}
+.f-k{display:flex;align-items:center;gap:6px;height:24px;font-size:12.5px;line-height:16px;font-weight:500;color:#5c6168;white-space:nowrap}
+.f-k>.i{color:#6e737a}
+.f-k .hrs,.f-k .stack,.f-k .est{margin-left:auto}
+.hrs{display:inline-flex;align-items:center;flex:none;height:24px;padding:0 9px;border-radius:999px;background:#f3f4f5;color:#16181b;font-size:12px;font-weight:500}
+.f-v{margin-top:4px;font-size:13px;line-height:18px;color:#16181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-pay{margin-top:4px;font-size:13px;line-height:22px;color:#3d4146;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-pay .mono{margin-right:4px;font-size:15px;font-weight:500;color:#16181b}
+.w-foot{display:flex;margin-top:auto}
+.row3{height:272px;margin-top:32px}
+.desc{display:flex;flex-direction:column;padding:20px}
+.d-sub{margin-top:4px;font-size:13px;line-height:18px;color:#5c6168}
+.d-box{margin-top:14px;padding:12px 14px;border:1px solid #d5d8dc;border-radius:14px;background:#ffffff}
+.d-box:focus-within{border-color:#2f5bd3}
+.d-in{display:block;width:100%;height:44px;padding:0;border:0;background:none;resize:none;font-size:15px;line-height:22px}
+.d-in::placeholder{color:#6e737a}
+.d-in:focus{outline:none}
+.d-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:44px;margin-top:8px}
+.ex{display:flex;align-items:center;gap:8px;margin-top:12px}
+.ex-k{font-size:12.5px;font-weight:500;color:#5c6168}
+.unsure{display:flex;flex-direction:column;padding:20px}
+.u-top{display:flex;align-items:center;gap:10px;height:32px}
+.u-sub{margin-top:10px;font-size:13px;line-height:18px;color:#3d4146}
+.qs{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.qb{display:flex;align-items:center;gap:8px;width:100%;height:40px;padding:0 12px;border:0;border-radius:12px;background:#f6f7f8;font-size:13px;font-weight:500;color:#16181b;text-align:left}
+.qb:hover{background:#eceef0}
+.qb .i{color:#5c6168}
+.u-foot{margin-top:auto}
+a.btn:hover{color:#16181b}
+</style>
+</helmet>
+<div style="width:100%;min-height:2672px;display:flex;flex-wrap:wrap;background:#fbfbfa;color:#16181b;font-family:'Instrument Sans','Noto Sans Devanagari',system-ui,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased">
+
+  <nav class="rail" aria-label="Places">
+    <a class="brand" href="#/today"><svg width="22" height="22" viewBox="0 0 37 37" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#16181b"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg><span class="word">chausar</span></a>
+    <button type="button" class="biz" aria-haspopup="menu" aria-expanded="false"><span class="biz-sq" aria-hidden="true">LS</span><span class="biz-txt"><span class="biz-name">Lumen Studio</span><span class="biz-kind">YouTube channel</span></span><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg><span class="sr-only">Switch business</span></button>
+    <ul class="nav">
+      <li><a href="#/today"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg><span>Today</span><span class="ct mono" aria-hidden="true">12</span><span class="sr-only">, 12 need you</span></a></li>
+      <li><a href="#/chats"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg><span>Chats</span><span class="new" style="background:{{accentSoft}}">New</span></a></li>
+      <li><a href="#/team"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span>Team</span></a></li>
+      <li><a href="#/work"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg><span>Work</span></a></li>
+      <li><a href="#/clients"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 2v2"></path><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"></path><path d="M8 2v2"></path><circle cx="12" cy="11" r="3"></circle><rect x="3" y="4" width="18" height="18" rx="2"></rect></svg><span>Clients</span></a></li>
+      <li><a href="#/money"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg><span>Money</span></a></li>
+      <li><a href="#/connections"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg><span>Connections</span></a></li>
+    </ul>
+  </nav>
+
+  <main class="main">
+    <div class="wrap">
+
+      <header class="phead">
+        <div>
+          <p class="eyebrow">Start a new business</p>
+          <h1 class="h1">Pick a way to earn</h1>
+          <p class="sub"><b>12 ways</b> your AI team can run with you. You set every price.</p>
+        </div>
+        <div class="tools">
+          <button type="button" class="ask"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path></svg><span>Ask Chausar anything</span><span class="kbd mono">Ctrl K</span></button>
+          <button type="button" class="ib" aria-label="Notifications, 2 new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><span class="dot"></span></button>
+          <button type="button" class="me" aria-label="Your account">K</button>
+        </div>
+      </header>
+
+      <!-- Row 1: how starting works, and the best fit -->
+      <div class="bento row1">
+        <section class="tile how c7" aria-labelledby="how-h">
+          <div class="th"><h2 id="how-h" class="h3">How starting works</h2><span class="meta">Nothing goes out until you approve it</span></div>
+          <ol class="hsteps">
+            <li class="inner hstep">
+              <div class="hs-pv" aria-hidden="true">
+                <span class="hs-n mono">1</span>
+                <div class="minis">
+                  <span class="d-prod"><svg class="i i14" viewBox="0 0 24 24"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path><path d="m10 15 5-3-5-3z"></path></svg></span>
+                  <span class="d-mkt"><svg class="i i14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"></path></svg></span>
+                  <span class="d-sales"><svg class="i i14" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg></span>
+                  <span class="d-money"><svg class="i i14" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><path d="M8 6h8"></path><path d="M16 14v4"></path><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg></span>
+                  <span class="d-mkt"><svg class="i i14" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></span>
+                  <span class="d-prod pick"><svg class="i i14" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg></span>
+                </div>
+              </div>
+              <p class="hs-t">Pick a way to earn</p>
+              <p class="hs-l">Choose one, or describe your own. Chausar drafts the plan.</p>
+            </li>
+            <li class="inner hstep">
+              <div class="hs-pv" aria-hidden="true">
+                <span class="hs-n mono">2</span>
+                <div class="paper" style="left:36px;top:10px;right:10px;bottom:-8px;padding:8px 10px">
+                  <p class="pp-t">Your plan</p>
+                  <div class="pp-row"><span>Offers</span><span class="mono">4</span></div>
+                  <div class="pp-row"><span>Agents</span><span class="mono">4</span></div>
+                  <div class="pp-row"><span>Prices</span><span>yours</span></div>
+                </div>
+              </div>
+              <p class="hs-t">Read your plan</p>
+              <p class="hs-l">Accept it. Agents practise first; nothing reaches a client.</p>
+            </li>
+            <li class="inner hstep">
+              <div class="hs-pv" aria-hidden="true">
+                <span class="hs-n mono">3</span>
+                <div class="hs-card">
+                  <p class="hs-who"><span class="av av24 d-prod">ED</span>First draft is ready</p>
+                  <span class="hs-btn" style="background:{{accent}};color:{{accentInk}}"><svg class="i i12" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></svg>Approve</span>
+                </div>
+              </div>
+              <p class="hs-t">Approve real work</p>
+              <p class="hs-l">Your agents do the work. You approve what matters on Today.</p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="tile next c5" aria-labelledby="fit-h" style="background:linear-gradient(180deg,{{accentSoft}} 0%,rgba(255,255,255,0) 52%),#ffffff">
+          <div class="n-top">
+            <span class="n-eye"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>Good fit for you</span>
+            <span class="n-who"><span class="av av24 d-prod" aria-hidden="true">ED</span>From Lumen Studio</span>
+          </div>
+          <h2 id="fit-h" class="n-title">Podcast to articles</h2>
+          <p class="n-line">Practise on your 13 episodes, then sell it to others.</p>
+          <div class="n-figs">
+            <div class="n-fig"><span class="n-lab">Your time, a week</span><span class="n-val mono">2 to 3 h</span></div>
+            <span class="n-div" aria-hidden="true"></span>
+            <div class="n-fig"><span class="n-lab">Clients usually pay, per episode</span><span class="n-val mono">₹2,500 to ₹8,000</span></div>
+          </div>
+          <p class="n-note"><span class="est">model estimate</span>Reuses your Editor's transcripts</p>
+          <div class="n-act">
+            <button type="button" class="btn xl">See the plan</button>
+            <button type="button" class="btn xl pri" aria-label="Start podcast to articles" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button>
+          </div>
+        </section>
+      </div>
+
+      <!-- The gallery -->
+      <section class="gall" aria-labelledby="gal-h">
+        <div class="shead"><h2 id="gal-h" class="h2">All ways to earn</h2><span class="meta">Hours and prices are for a typical start</span></div>
+        <div class="toolbar" style="margin-top:12px">
+          <div class="fchips" role="group" aria-label="Show">
+            <button type="button" class="fchip on" aria-pressed="true">All <span class="mono">12</span></button>
+            <button type="button" class="fchip" aria-pressed="false">Content <span class="mono">4</span></button>
+            <button type="button" class="fchip" aria-pressed="false">Marketing <span class="mono">3</span></button>
+            <button type="button" class="fchip" aria-pressed="false">Money and tax <span class="mono">2</span></button>
+            <button type="button" class="fchip" aria-pressed="false">Shops and firms <span class="mono">3</span></button>
+            <span class="fsep" aria-hidden="true"></span>
+            <button type="button" class="fchip" aria-pressed="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Up to 5 h a week <span class="mono">4</span></button>
+          </div>
+          <label class="sort">Sort<select><option>Best fit</option><option>Fewest hours</option><option>Name</option></select></label>
+        </div>
+
+        <div class="bento gal">
+
+          <!-- 1 YouTube channel -->
+          <article class="tile way c4" aria-labelledby="w1">
+            <div class="w-head">
+              <span class="w-ic d-prod"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path><path d="m10 15 5-3-5-3z"></path></svg></span>
+              <span class="kchip"><span class="bsq" aria-hidden="true">LS</span>You run this</span>
+            </div>
+            <h3 id="w1" class="w-name">YouTube channel</h3>
+            <p class="w-line">Episodes and shorts for your own channel, paid by sponsors and ads.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">4 to 8 h a week</span></p>
+                <p class="f-v">Record, watch each cut, meet sponsors.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Editor, Researcher, Producer and Publisher"><span class="av av24 d-prod">ED</span><span class="av av24 d-mkt">RE</span><span class="av av24 d-sales">PR</span><span class="av av24 d-mkt">PU</span></span></p>
+                <p class="f-v">Edits, shorts, titles and sponsor quotes.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹5,000 to ₹30,000</span>per mention</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start another YouTube channel">Start another<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 2 Social media agency -->
+          <article class="tile way c4" aria-labelledby="w2">
+            <div class="w-head">
+              <span class="w-ic d-mkt"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"></path></svg></span>
+              <span class="kchip">Marketing</span>
+            </div>
+            <h3 id="w2" class="w-name">Social media agency</h3>
+            <p class="w-line">Posts, replies and monthly reports for local shops, clinics and coaches.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">4 to 6 h a week</span></p>
+                <p class="f-v">For 3 clients: set voices, approve posts.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Planner, Writer, Publisher and Billing"><span class="av av24 d-mkt">PL</span><span class="av av24 d-mkt">WR</span><span class="av av24 d-mkt">PU</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Calendars, posts, replies and reports.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹8,000 to ₹25,000</span>a client a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start a social media agency">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 3 Online seller -->
+          <article class="tile way c4" aria-labelledby="w3">
+            <div class="w-head">
+              <span class="w-ic d-sales"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg></span>
+              <span class="kchip">Shops and firms</span>
+            </div>
+            <h3 id="w3" class="w-name">Online seller</h3>
+            <p class="w-line">Sell your own products on Amazon, Flipkart and Meesho, or run the back office for other sellers.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">6 to 10 h a week</span></p>
+                <p class="f-v">Pick products, set prices, approve changes.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Lister, Auditor, Bookkeeper and Keeper"><span class="av av24 d-sales">LI</span><span class="av av24 d-money">AU</span><span class="av av24 d-money">BK</span><span class="av av24 d-ops">KE</span></span></p>
+                <p class="f-v">Listings, stock alerts and fee checks.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹5,000 to ₹20,000</span>a seller a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start an online seller business">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 4 Bookkeeping and CFO help -->
+          <article class="tile way c4" aria-labelledby="w4">
+            <div class="w-head">
+              <span class="w-ic d-money"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><rect width="16" height="20" x="4" y="2" rx="2"></rect><path d="M8 6h8"></path><path d="M16 14v4"></path><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg></span>
+              <span class="kchip">Money and tax</span>
+            </div>
+            <h3 id="w4" class="w-name">Bookkeeping and CFO help</h3>
+            <p class="w-line">Monthly books, reminders and a cash view for small firms. Tax filing stays with a CA.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">3 to 5 h a week</span></p>
+                <p class="f-v">For 5 clients: check packs, take calls.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Bookkeeper, Billing, Analyst and Keeper"><span class="av av24 d-money">BK</span><span class="av av24 d-money">BI</span><span class="av av24 d-money">AN</span><span class="av av24 d-ops">KE</span></span></p>
+                <p class="f-v">Books, invoices, reminders, a cash view.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹4,000 to ₹15,000</span>a client a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start bookkeeping and CFO help">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 5 Search and AI-visibility -->
+          <article class="tile way c4" aria-labelledby="w5">
+            <div class="w-head">
+              <span class="w-ic d-mkt"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></span>
+              <span class="kchip">Marketing</span>
+            </div>
+            <h3 id="w5" class="w-name">Search and AI-visibility (SEO)</h3>
+            <p class="w-line">Help local firms show up on Google, Maps and AI answers. No promised rankings.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">3 to 5 h a week</span></p>
+                <p class="f-v">For 3 clients: approve articles and fixes.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Researcher, Writer, Checker and Billing"><span class="av av24 d-mkt">RE</span><span class="av av24 d-mkt">WR</span><span class="av av24 d-ops">CH</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Visibility checks, articles and reports.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹10,000 to ₹35,000</span>a client a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start search and AI-visibility">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 6 Support desk for shops -->
+          <article class="tile way c4" aria-labelledby="w6">
+            <div class="w-head">
+              <span class="w-ic d-sales"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 1 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"></path><path d="M21 16v2a4 4 0 0 1-4 4h-5"></path></svg></span>
+              <span class="kchip">Shops and firms</span>
+            </div>
+            <h3 id="w6" class="w-name">Support desk for shops</h3>
+            <p class="w-line">Answer a shop's customer mail. Every reply is drafted, and you approve it.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">5 to 7 h a week</span></p>
+                <p class="f-v">Approve each reply, send from their inbox.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Sorter, Replier, Writer and Billing"><span class="av av24 d-ops">SO</span><span class="av av24 d-sales">RP</span><span class="av av24 d-prod">WR</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Sorts mail, drafts replies, help pages.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹6,000 to ₹20,000</span>a shop a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start a support desk for shops">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 7 Recruiting desk -->
+          <article class="tile way c4" aria-labelledby="w7">
+            <div class="w-head">
+              <span class="w-ic d-sales"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="7" r="4"></circle><path d="M10.3 15H7a4 4 0 0 0-4 4v2"></path><circle cx="17" cy="17" r="3"></circle><path d="m21 21-1.9-1.9"></path></svg></span>
+              <span class="kchip">Shops and firms</span>
+            </div>
+            <h3 id="w7" class="w-name">Recruiting desk</h3>
+            <p class="w-line">Hiring help for small companies: job posts, shortlists with proof, interviews.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">5 to 8 h a week</span></p>
+                <p class="f-v">Approve every message and every rejection.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Sourcer, Screener, Scheduler and Billing"><span class="av av24 d-sales">SR</span><span class="av av24 d-prod">SC</span><span class="av av24 d-ops">SH</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Job posts, shortlists and scheduling.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹25,000 to ₹80,000</span>per hire</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start a recruiting desk">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 8 Translation and subtitles -->
+          <article class="tile way c4" aria-labelledby="w8">
+            <div class="w-head">
+              <span class="w-ic d-prod"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg></span>
+              <span class="kchip">Content</span>
+            </div>
+            <h3 id="w8" class="w-name">Translation and subtitles</h3>
+            <p class="w-line">Subtitles and documents in Hindi, English and regional languages.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">3 to 6 h a week</span></p>
+                <p class="f-v">Check the final file, keep each glossary.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="3 agents: Translator, Checker and Billing"><span class="av av24 d-prod">TR</span><span class="av av24 d-prod">CH</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Subtitles, timing checks, glossary terms.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹100 to ₹400</span>per video minute</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start translation and subtitles">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 9 Podcast to articles (the good fit) -->
+          <article class="tile way c4" aria-labelledby="w9">
+            <div class="w-head">
+              <span class="w-ic d-prod"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg></span>
+              <span class="kchip" style="background:{{accentSoft}};color:#0B7A45"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>Good fit for you</span>
+            </div>
+            <h3 id="w9" class="w-name">Podcast to articles</h3>
+            <p class="w-line">Turn each episode into an article, show notes and a newsletter blurb.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">2 to 3 h a week</span></p>
+                <p class="f-v">Approve the outline and the final article.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="3 agents: Writer, Editor and Publisher"><span class="av av24 d-prod">WR</span><span class="av av24 d-prod">ED</span><span class="av av24 d-mkt">PU</span></span></p>
+                <p class="f-v">Articles, show notes, newsletter blurbs.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹2,500 to ₹8,000</span>per episode</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide pri" aria-label="Start podcast to articles" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 10 Lead generation -->
+          <article class="tile way c4" aria-labelledby="w10">
+            <div class="w-head">
+              <span class="w-ic d-sales"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"></path><path d="m5 8 4 4"></path><path d="m12 15 4 4"></path></svg></span>
+              <span class="kchip">Marketing</span>
+            </div>
+            <h3 id="w10" class="w-name">Lead generation</h3>
+            <p class="w-line">Find local firms that need a service, then book meetings. You send every message.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">4 to 6 h a week</span></p>
+                <p class="f-v">Approve and send every first message.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Researcher, Writer, Producer and Billing"><span class="av av24 d-mkt">RE</span><span class="av av24 d-mkt">WR</span><span class="av av24 d-sales">PR</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Lead lists, drafts and follow-ups.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹15,000 to ₹40,000</span>a client a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start lead generation">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 11 Website builder -->
+          <article class="tile way c4" aria-labelledby="w11">
+            <div class="w-head">
+              <span class="w-ic d-prod"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M10 4v4"></path><path d="M2 8h20"></path><path d="M6 4v4"></path></svg></span>
+              <span class="kchip">Content</span>
+            </div>
+            <h3 id="w11" class="w-name">Website builder</h3>
+            <p class="w-line">Fast sites for shops and professionals, checked on phone and desktop.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">3 to 5 h a week</span></p>
+                <p class="f-v">For 2 sites a month: approve each page.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Builder, Writer, Checker and Billing"><span class="av av24 d-prod">BU</span><span class="av av24 d-mkt">WR</span><span class="av av24 d-ops">CH</span><span class="av av24 d-money">BI</span></span></p>
+                <p class="f-v">Builds pages, writes copy, checks screens.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹15,000 to ₹60,000</span>per site</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start a website builder business">Start<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+
+          <!-- 12 CA practice -->
+          <article class="tile way c4" aria-labelledby="w12">
+            <div class="w-head">
+              <span class="w-ic d-money"><svg class="i i20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 22h14"></path><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z"></path><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-3-3c-1.69 0-3 1-3 3s1 2 1 3.5V13"></path></svg></span>
+              <span class="kchip"><span class="bsq" aria-hidden="true">LL</span>You run this</span>
+            </div>
+            <h3 id="w12" class="w-name">CA practice (for CAs)</h3>
+            <p class="w-line">For chartered accountants: books, GST, ITR and TDS work prepared for your sign-off.</p>
+            <ul class="facts">
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>What you do<span class="hrs mono">6 to 10 h a week</span></p>
+                <p class="f-v">Review and sign every return and working.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>What your AI team does<span class="stack" role="img" aria-label="4 agents: Bookkeeper, Billing, Tax preparer and Keeper"><span class="av av24 d-money">BK</span><span class="av av24 d-money">BI</span><span class="av av24 d-money">TP</span><span class="av av24 d-ops">KE</span></span></p>
+                <p class="f-v">Books, GST working, ITR and TDS drafts.</p>
+              </li>
+              <li class="fact">
+                <p class="f-k"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>Clients usually pay<span class="est">model estimate</span></p>
+                <p class="f-pay"><span class="mono">₹5,000 to ₹20,000</span>a client a month</p>
+              </li>
+            </ul>
+            <div class="w-foot"><button type="button" class="btn wide" aria-label="Start another CA practice">Start another<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Or describe it -->
+      <div class="bento row3">
+        <section class="tile desc c8" aria-labelledby="desc-h">
+          <h2 id="desc-h" class="h2">Or describe it in one sentence</h2>
+          <p class="d-sub">Chausar matches it to the closest way to earn, or drafts a new plan with you.</p>
+          <form class="d-box" aria-labelledby="desc-h">
+            <label for="desc-in" class="sr-only">Describe your business in one sentence</label>
+            <textarea id="desc-in" class="d-in" rows="2" placeholder="For example: I make wedding invitation videos for families in Pune"></textarea>
+            <div class="d-bar">
+              <span class="hint"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg>Write in English or <span lang="hi">हिन्दी</span></span>
+              <button type="submit" class="btn lg pri" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}">Make my plan<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button>
+            </div>
+          </form>
+          <div class="ex" role="group" aria-label="Examples">
+            <span class="ex-k">Try</span>
+            <button type="button" class="fchip">Wedding invitation videos</button>
+            <button type="button" class="fchip">GST filing for kirana shops</button>
+            <button type="button" class="fchip" lang="hi">बच्चों को ऑनलाइन गणित</button>
+          </div>
+        </section>
+
+        <section class="tile unsure c4" aria-labelledby="unsure-h">
+          <div class="u-top">
+            <span class="av av32 av-cz" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 37 37"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#E8EBEE"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg></span>
+            <h2 id="unsure-h" class="h3">Not sure which fits?</h2>
+          </div>
+          <p class="u-sub">Ask Chausar. It looks at the businesses you have open and answers with receipts.</p>
+          <div class="qs">
+            <button type="button" class="qb"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Which fits 5 hours a week?</button>
+            <button type="button" class="qb"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>What can I add to Lumen Studio?</button>
+          </div>
+          <div class="u-foot"><a class="btn wide" href="#/chats">Open Chats<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a></div>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2FB67C","options":["#2FB67C","#22A06B","#4CAF86","#1F8F63"]},"$preview":{"width":1280,"height":2672}}'>
+class Component extends DCLogic {
+renderVals() {
+const accent = this.props.accent ?? '#2FB67C';
+const hex = String(accent).replace('#', '');
+const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+const n = parseInt(full, 16);
+const rgb = isNaN(n) ? [47, 182, 124] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+const accentSoft = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.12)';
+return { accent: accent, accentInk: '#0b0d0e', accentSoft: accentSoft };
+}
+}
+</script>
+</body>
+</html>

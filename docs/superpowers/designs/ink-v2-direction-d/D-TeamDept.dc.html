@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Team, Production</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;family=Noto+Sans+Devanagari:wght@400;500&amp;display=swap">
+<style>
+/* ===== D base: paste verbatim on every D board (D-STYLE.md) ===== */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+h1,h2,h3,h4,p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+a{color:#2f5bd3;text-decoration:none}
+a:hover{color:#1f45b0}
+:focus-visible{outline:2px solid #2f5bd3;outline-offset:2px}
+.mono{font-family:'DM Mono','Noto Sans Devanagari',ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.i12{width:12px;height:12px}.i14{width:14px;height:14px}.i16{width:16px;height:16px}.i20{width:20px;height:20px}.i22{width:22px;height:22px}
+.fill{fill:currentColor;stroke:none}
+/* Departments: d- tint ground with ink, t- ink only, s- solid (badges, dots) */
+.d-sales{background:#E8EEFC;color:#2F5BD3}.d-mkt{background:#F1EAFE;color:#7C3AED}.d-prod{background:#E3F4F2;color:#0F766E}.d-money{background:#E6F6EC;color:#0B7A45}.d-ops{background:#EEF0F3;color:#475467}
+.t-sales{color:#2F5BD3}.t-mkt{color:#7C3AED}.t-prod{color:#0F766E}.t-money{color:#0B7A45}.t-ops{color:#475467}
+.s-sales{background:#2F5BD3}.s-mkt{background:#7C3AED}.s-prod{background:#0F766E}.s-money{background:#0B7A45}.s-ops{background:#475467}
+/* Rail */
+.rail{flex:0 0 232px;display:flex;flex-direction:column;padding:20px 14px 24px;background:#ffffff;border-right:1px solid #e3e5e8}
+.brand{display:flex;align-items:center;gap:9px;height:28px;padding:0 8px;margin-bottom:18px;color:#16181b}
+.brand:hover{color:#16181b}
+.word{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.biz{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px 8px 8px;margin-bottom:20px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);text-align:left}
+.biz:hover{background:#fbfbfa}
+.biz-sq{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#16181b;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:.03em}
+.biz-txt{display:flex;flex-direction:column;flex:1;min-width:0}
+.biz-name{font-size:14px;line-height:18px;font-weight:600;color:#16181b}
+.biz-kind{font-size:12px;line-height:16px;color:#5c6168}
+.biz .i{color:#5c6168}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;height:40px;padding:0 10px;border-radius:10px;font-size:14px;font-weight:500;color:#3d4146}
+.nav a:hover{background:#f3f4f5;color:#16181b}
+.nav a .i{color:#5c6168}
+.nav a.on{background:#16181b;color:#ffffff}
+.nav a.on .i{color:#ffffff}
+.nav .ct{margin-left:auto;min-width:24px;height:20px;padding:0 7px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:11.5px;line-height:20px;text-align:center}
+.nav a.on .ct{background:rgba(255,255,255,.16);color:#ffffff}
+.nav .new{margin-left:auto;height:20px;padding:0 8px;border-radius:999px;color:#0B7A45;font-size:11px;font-weight:600;line-height:20px}
+/* Page */
+.main{flex:999 1 560px;min-width:0;padding:28px 32px 48px}
+.wrap{max-width:984px;margin:0 auto}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.eyebrow{font-size:13px;line-height:18px;font-weight:500;color:#5c6168}
+.h1{font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em}
+.eyebrow+.h1{margin-top:4px}
+.sub{margin-top:4px;font-size:14px;line-height:20px;color:#3d4146}
+.sub b{font-weight:600;color:#16181b}
+.tools{display:flex;align-items:center;gap:8px;flex:none}
+.ask{display:flex;align-items:center;gap:10px;width:300px;height:44px;padding:0 8px 0 14px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);color:#5c6168;font-size:13.5px;text-align:left}
+.ask:hover{border-color:#c9cdd2}
+.ask .i{color:#16181b}
+.kbd{margin-left:auto;padding:3px 7px;border:1px solid #e3e5e8;border-radius:6px;background:#fbfbfa;font-size:11px;color:#5c6168}
+.ib{position:relative;display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;color:#3d4146}
+.ib:hover{background:#f3f4f5}
+.ib .dot{position:absolute;top:10px;right:11px;width:8px;height:8px;border-radius:999px;background:#F04438;box-shadow:0 0 0 2px #ffffff}
+.me{display:grid;place-items:center;flex:none;width:44px;height:44px;border:0;border-radius:999px;background:#E8EBEE;color:#16181b;font-size:15px;font-weight:600}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-bottom:16px}
+/* Bento grid, tiles, inner cards */
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.tile{background:#ffffff;border:1px solid #e3e5e8;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.inner{border-radius:12px;background:#f6f7f8;min-width:0}
+.lift{border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.07),0 0 0 1px rgba(16,24,40,.04);min-width:0}
+/* Heads */
+.shead{display:flex;align-items:center;gap:10px;min-height:32px}
+.h2{font-size:19px;line-height:26px;font-weight:600;letter-spacing:-0.01em}
+.th{display:flex;align-items:center;gap:10px;min-height:24px}
+.h3{font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.meta{font-size:13px;line-height:18px;color:#5c6168}
+.more{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:13.5px;font-weight:500;color:#16181b;white-space:nowrap}
+.more:hover{color:#16181b;text-decoration:underline;text-underline-offset:3px}
+.count{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 8px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:500}
+/* Avatars: rounded square, department tint, status ring (working ring is inline: accent) */
+.av{position:relative;display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;font-size:12.5px;font-weight:600;letter-spacing:.03em;line-height:1}
+.av24{width:24px;height:24px;border-radius:7px;font-size:9.5px}
+.av28{width:28px;height:28px;border-radius:8px;font-size:10.5px}
+.av32{width:32px;height:32px;border-radius:10px;font-size:11.5px}
+.av40{width:40px;height:40px;border-radius:12px;font-size:13.5px}
+.av52{width:52px;height:52px;border-radius:16px;font-size:16px}
+.ring-wait{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F2A93B}
+.ring-fail{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F04438}
+.av-cz{background:#16181b;color:#ffffff}
+.av-n{background:#EEF0F3;color:#3d4146}
+.stack{display:flex}
+.stack .av{box-shadow:0 0 0 2px #ffffff}
+.stack .av+.av{margin-left:-8px}
+/* Stories row */
+.stories{display:flex;gap:18px}
+.story{display:flex;flex-direction:column;align-items:center;width:76px;padding:6px 0 0;border:0;background:none;text-align:center}
+.st-av{position:relative;display:grid;place-items:center;width:60px;height:60px;border-radius:18px;font-size:18px;font-weight:600;letter-spacing:.02em}
+.st-ring-wait{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F2A93B}
+.st-ring-fail{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F04438}
+.st-add{border:1.5px dashed #b9bec4;background:#ffffff;color:#5c6168}
+.st-badge{position:absolute;right:-6px;bottom:-6px;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;border:2.5px solid #ffffff;color:#ffffff}
+.st-badge .i{width:12px;height:12px}
+.st-name{margin-top:10px;font-size:13px;line-height:18px;font-weight:500;color:#16181b;white-space:nowrap}
+.st-st{font-size:12px;line-height:16px;color:#5c6168;white-space:nowrap}
+.st-st.w{color:#B45309;font-weight:500}
+.st-st.g{color:#0B7A45;font-weight:500}
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.chip .dot{flex:none;width:6px;height:6px;border-radius:999px;background:currentColor}
+.chip.work{color:#0B7A45}
+.chip.wait{background:#FDF1E3;color:#B45309}
+.chip.fail{background:#FEECEA;color:#B42318}
+.chip.idle{background:#f1f2f3;color:#5c6168}
+.chip.line{background:#ffffff;border:1px solid #e3e5e8;color:#3d4146}
+.dchip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.kchip{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;padding:0 11px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:12.5px;font-weight:500;white-space:nowrap}
+.kchip.wait{background:#FDF1E3;color:#B45309}
+.kchip.fail{background:#FEECEA;color:#B42318}
+.pos{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pos .i{color:#5c6168}
+.rc{display:inline-flex;align-items:center;gap:5px;flex:none;height:24px;padding:0 8px;border:1px solid #dbe2f3;border-radius:8px;background:#ffffff;color:#2f5bd3;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;line-height:1;white-space:nowrap}
+.rc:hover{border-color:#2f5bd3;color:#2f5bd3}
+.rc-d{color:#8fb4ff;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.rc-d:hover{color:#b5ccff}
+.est{display:inline-flex;align-items:center;flex:none;height:24px;padding:0 9px;border:1px dashed #b9bec4;border-radius:999px;font-size:12px;font-style:italic;color:#5c6168;white-space:nowrap}
+.fchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fchip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;font-size:13px;font-weight:500;color:#3d4146;white-space:nowrap}
+.fchip:hover{border-color:#c9cdd2}
+.fchip .mono{font-size:12px;color:#6e737a}
+.fchip.on{background:#16181b;border-color:#16181b;color:#ffffff}
+.fchip.on .mono{color:#c4c8cc}
+.fsep{width:1px;height:20px;margin:0 4px;background:#e3e5e8}
+.bsq{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600;letter-spacing:.02em}
+/* Buttons (primary fill is inline: background {{accent}}, text {{accentInk}}) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 14px;border:1px solid #d5d8dc;border-radius:10px;background:#ffffff;color:#16181b;font-size:13.5px;font-weight:500;line-height:1;white-space:nowrap}
+.btn:hover{background:#f3f4f5}
+.btn.sm{height:30px;padding:0 11px;border-radius:9px;font-size:12.5px}
+.btn.lg{height:44px;padding:0 18px;border-radius:12px;font-size:14.5px;font-weight:600}
+.btn.xl{height:48px;padding:0 20px;border-radius:14px;font-size:15px;font-weight:600}
+.btn.pri{font-weight:600}
+.btn.pri:hover{filter:brightness(.95)}
+.btn.pri:disabled{filter:none}
+.btn.ink{background:#16181b;border-color:#16181b;color:#ffffff}
+.btn.ink:hover{background:#2a2d31}
+.btn.wide{width:100%}
+.chat{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff;color:#3d4146;font-size:13px;font-weight:500;white-space:nowrap}
+.chat:hover{border-color:#c9cdd2;color:#16181b}
+.hint{display:flex;align-items:center;gap:6px;font-size:12.5px;line-height:18px;color:#5c6168}
+/* Progress */
+.pbar{position:relative;display:block;flex:1;height:6px;border-radius:999px;background:#e3e5e8;overflow:hidden}
+.pbar>span{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.pring{position:relative;flex:none;width:40px;height:40px}
+.pring svg{display:block}
+.pring b{position:absolute;inset:0;display:grid;place-items:center;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:10.5px;font-weight:500;color:#16181b}
+/* Goal card (dark, banking style) */
+.goal{position:relative;padding:24px;border-radius:16px;background:#111214;color:#eceef0;box-shadow:0 1px 2px rgba(16,24,40,.10),0 12px 28px -12px rgba(16,24,40,.45);min-width:0}
+.g-top{display:flex;align-items:center;gap:10px;height:28px}
+.g-ic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.08)}
+.g-lbl{font-size:14px;line-height:20px;font-weight:600;color:#ffffff}
+.g-sub{font-size:13px;color:#9aa0a6}
+.g-pill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,.08);color:#d6d9dc;font-size:12.5px;font-weight:500}
+.g-edit{display:grid;place-items:center;flex:none;width:28px;height:28px;border:0;border-radius:999px;background:none;color:#9aa0a6}
+.g-edit:hover{background:rgba(255,255,255,.08);color:#ffffff}
+.g-fig{display:flex;align-items:baseline;gap:10px;height:48px;margin-top:18px}
+.g-amt{font-size:40px;line-height:48px;font-weight:500;color:#ffffff;letter-spacing:-0.035em}
+.g-of{font-size:16px;color:#9aa0a6}
+.g-pct{margin-left:auto;font-size:32px;line-height:48px;font-weight:500;letter-spacing:-0.03em}
+.g-bar{position:relative;height:14px;margin-top:16px;border-radius:999px;background:#2a2d31}
+.g-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px 0 0 999px}
+.g-ready{position:absolute;top:0;bottom:0;border-radius:0 999px 999px 0}
+.g-pace{position:absolute;top:-5px;width:3px;height:24px;margin-left:-1.5px;border-radius:2px;background:#ffffff;box-shadow:0 0 0 2px #111214}
+.g-legend{display:flex;align-items:center;gap:16px;height:18px;margin-top:12px;font-size:12.5px;color:#9aa0a6;white-space:nowrap}
+.lg{display:inline-flex;align-items:center;gap:6px}
+.lg .mono{color:#d6d9dc}
+.sw{flex:none;width:10px;height:10px;border-radius:3px}
+.sw.pace{width:3px;height:12px;border-radius:1px;background:#ffffff}
+.g-foot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)}
+.gf-k{font-size:12px;line-height:16px;color:#9aa0a6}
+.gf-v{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:15px;line-height:22px;font-weight:500;color:#ffffff;white-space:nowrap}
+/* Big preview card (Needs you) */
+.qcard{display:flex;flex-direction:column;padding:20px}
+.qc-head{display:flex;align-items:center;gap:12px;height:40px}
+.qc-who{flex:1;min-width:0}
+.qc-name{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}
+.qc-meta{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap}
+.qc-title{margin-top:16px;font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.qc-line{height:40px;margin-top:4px;font-size:14px;line-height:20px;color:#3d4146;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pv{position:relative;flex:none;height:188px;margin-top:14px;border-radius:12px;overflow:hidden}
+.pv-desk{background:#f3f4f2}
+.qc-note{display:flex;align-items:center;gap:8px;height:28px;margin-top:12px;font-size:13px;line-height:18px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.qc-note>.i{color:#5c6168}
+.qc-note .end{margin-left:auto}
+.qc-acts{display:flex;gap:10px;margin-top:14px}
+.qc-acts .btn{flex:1}
+/* Previews: video frame, paper sheet, before and after pill */
+.pv-video{color:#ffffff;background:radial-gradient(120% 95% at 78% 25%,#25433f 0%,#132523 48%,#0a1213 100%)}
+.v-tag{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:rgba(0,0,0,.45);color:#ffffff;font-size:11.5px;font-weight:500}
+.v-title{position:absolute;left:18px;top:50px;font-size:24px;line-height:28px;font-weight:600;letter-spacing:-0.02em;color:#ffffff}
+.v-title span{display:block;color:rgba(255,255,255,.6)}
+.v-art{position:absolute;right:20px;bottom:30px}
+.v-play{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:56px;height:56px;margin:-28px 0 0 -28px;border:0;border-radius:999px;background:rgba(255,255,255,.95);color:#0b0d0e;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.v-play .i{width:22px;height:22px;margin-left:3px}
+.v-ch{position:absolute;left:12px;bottom:18px;height:22px;padding:0 8px;border-radius:6px;background:rgba(0,0,0,.55);font-size:11.5px;line-height:22px}
+.v-dur{position:absolute;right:12px;bottom:18px;height:22px;padding:0 7px;border-radius:6px;background:rgba(0,0,0,.72);font-size:11.5px;line-height:22px}
+.v-scrub{position:absolute;left:12px;right:12px;bottom:8px;display:flex;gap:3px;height:3px}
+.v-scrub span{border-radius:2px;background:rgba(255,255,255,.34)}
+.paper{position:absolute;padding:12px 14px;border-radius:8px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08),0 10px 24px -8px rgba(16,24,40,.22)}
+.pp-top{display:flex;align-items:center;gap:7px;height:18px}
+.pp-logo{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600}
+.pp-biz{font-size:11.5px;font-weight:600}
+.pp-no{margin-left:auto;font-size:11px;color:#16181b}
+.pp-k{display:block;font-size:9.5px;line-height:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6e737a}
+.pp-t{font-size:12px;line-height:16px;font-weight:600}
+.pp-s{font-size:10.5px;line-height:14px;color:#5c6168}
+.pp-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:17px;color:#3d4146}
+.pp-row .mono{font-size:10.5px;color:#16181b}
+.pp-tot{display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:1px solid #e3e5e8;font-size:12px;line-height:17px;font-weight:600}
+.pp-chk{display:flex;align-items:center;gap:5px;font-size:10.5px;line-height:16px;color:#3d4146}
+.chg{display:inline-flex;align-items:center;gap:12px;height:52px;padding:0 20px;border:1px solid #dbe3f7;border-radius:999px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.05),0 6px 16px -8px rgba(16,24,40,.18)}
+.chg .old{font-size:18px;color:#6e737a;text-decoration:line-through;text-decoration-thickness:1.5px}
+.chg .arr{display:grid;place-items:center;width:28px;height:28px;border-radius:999px}
+.chg .now{font-size:26px;font-weight:500;letter-spacing:-0.03em;color:#16181b}
+.bx{display:flex;flex-direction:column;justify-content:center;height:50px;padding:0 12px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff}
+.bx-k{font-size:11.5px;line-height:15px;color:#5c6168}
+.bx .mono{font-size:14px;line-height:20px;color:#16181b}
+.op{font-size:15px;color:#6e737a}
+/* Department panels and agent cards */
+.dp{display:flex;flex-direction:column;padding:18px;border:1px solid transparent;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.p-sales{background:#E8EEFC;border-color:#D5E0FA}.p-mkt{background:#F1EAFE;border-color:#E4D6FC}.p-prod{background:#E3F4F2;border-color:#CBE8E4}.p-money{background:#E6F6EC;border-color:#CDEBD8}.p-ops{background:#EEF0F3;border-color:#DDE1E7}
+.dp-head{display:flex;align-items:center;gap:12px;height:44px}
+.dp-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.dp-ic .i{width:20px;height:20px}
+.dp-t{min-width:0}
+.dp-name{font-size:16px;line-height:22px;font-weight:600;white-space:nowrap}
+.dp-line{font-size:12.5px;line-height:18px;color:#3d4146;white-space:nowrap}
+.dp-line .w{color:#B45309;font-weight:500}
+.dp-line .f{color:#B42318;font-weight:500}
+.dp-stats{display:flex;gap:18px;margin-left:auto}
+.dp-s{display:flex;flex-direction:column;align-items:flex-end}
+.dp-s b{font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:17px;line-height:22px;font-weight:500;letter-spacing:-0.02em}
+.dp-s span{font-size:11px;line-height:16px;color:#3d4146;white-space:nowrap}
+.agents{display:grid;gap:12px;flex:1;margin-top:16px;min-height:0}
+.agents.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.acard{display:flex;flex-direction:column;padding:14px}
+.a-top{display:flex;align-items:center;gap:12px;height:40px}
+.a-id{flex:1;min-width:0}
+.a-name{font-size:15px;line-height:20px;font-weight:600}
+.a-role{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-now{margin-top:12px;font-size:13.5px;line-height:19px;font-weight:500;color:#16181b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.a-now .w{color:#B45309}
+.a-prog{display:flex;align-items:center;gap:8px;height:22px;margin-top:8px;font-size:12px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.a-prog .pbar{flex:0 0 88px}
+.a-prog .muted{color:#5c6168}
+.a-prog .w{color:#B45309;font-weight:500}
+.a-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px}
+/* Segmented toggle and step gates */
+.seg{display:inline-flex;align-items:center;gap:2px;padding:4px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.seg button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:0;border-radius:9px;background:none;font-size:13.5px;font-weight:500;color:#3d4146;white-space:nowrap}
+.seg button:hover{background:#f3f4f5;color:#16181b}
+.seg button.on{background:#16181b;color:#ffffff}
+.sdot{flex:none;width:8px;height:8px;border-radius:999px}
+.gate{display:inline-flex;gap:2px;padding:3px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff}
+.gate button{height:26px;padding:0 10px;border:0;border-radius:7px;background:none;font-size:12.5px;font-weight:500;color:#5c6168}
+.gate button.on{background:#16181b;color:#ffffff}
+.floor{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:10px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:600;white-space:nowrap}
+/* List rows (runs, decisions) */
+.lrow{display:flex;align-items:center;gap:12px;height:60px;border-top:1px solid #eceef0}
+.lrow:first-child{border-top:0}
+.lrow.ev{height:52px}
+.lr-b{flex:1;min-width:0}
+.lr-t{font-size:13.5px;line-height:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s{font-size:12px;line-height:17px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s .w{color:#B45309}
+.lr-p{display:flex;align-items:center;gap:8px;flex:none;width:170px;font-size:12px;color:#3d4146;white-space:nowrap}
+.lr-p .w{color:#B45309;font-weight:500}
+.lr-p .f{color:#B42318;font-weight:500}
+.lr-e{flex:none;width:36px;text-align:right;font-size:12px;color:#5c6168}
+.sic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:999px}
+.sic.ok{color:#0B7A45}
+.sic.no{background:#eceef0;color:#5c6168}
+.sic.q{background:#FDF1E3;color:#B45309}
+.sic.est{background:#F1EAFE;color:#7C3AED}
+.sic.fail{background:#FEECEA;color:#B42318}
+.k{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px}
+.k-n{background:#EEF0F3;color:#3d4146}
+.k-fail{background:#FEECEA;color:#B42318}
+.k-wait{background:#FDF1E3;color:#B45309}
+/* ===== end of D base ===== */
+
+/* ---- D-TeamDept ---- */
+.hero{flex-direction:row;align-items:center;gap:18px;height:132px;padding:22px 24px}
+.hero-ic{width:56px;height:56px;border-radius:16px}
+.hero-ic .i{width:26px;height:26px}
+.hero-t{flex:1;min-width:0}
+.hero-name{font-size:22px;line-height:28px;font-weight:600;letter-spacing:-0.015em}
+.hero-line{margin-top:2px;font-size:14px;line-height:20px;color:#3d4146}
+.hero-chips{display:flex;gap:8px;margin-top:10px}
+.hero-stats{display:flex;gap:10px;flex:none}
+.hs{display:flex;flex-direction:column;justify-content:center;width:132px;height:76px;padding:0 16px}
+.hs b{font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:24px;line-height:30px;font-weight:500;letter-spacing:-0.03em}
+.hs span{font-size:12px;line-height:16px;color:#5c6168;white-space:nowrap}
+.rowB{height:470px;margin-top:16px}
+.big{display:flex;flex-direction:column;padding:20px}
+.big-top{display:flex;align-items:center;gap:14px;height:52px}
+.big-id{flex:1;min-width:0}
+.big-name{font-size:19px;line-height:26px;font-weight:600;letter-spacing:-0.01em}
+.big-role{font-size:13px;line-height:18px;color:#5c6168}
+.big-k{margin-top:16px;font-size:12px;line-height:16px;font-weight:600;color:#5c6168}
+.big-now{margin-top:2px;font-size:15px;line-height:22px;font-weight:500}
+.run{margin-top:14px;padding:14px}
+.run-h{display:flex;align-items:center;gap:8px;height:20px;font-size:13px;color:#3d4146;white-space:nowrap}
+.run-h b{font-weight:600;color:#16181b}
+.run-h .mono{margin-left:auto;font-size:12px}
+.run>.pbar{flex:none;margin-top:10px}
+.srs{margin-top:10px}
+.sr{display:flex;align-items:center;gap:10px;height:28px;font-size:13px;color:#3d4146}
+.sr .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr .e{flex:none;font-size:11.5px;color:#6e737a}
+.sr.cur{color:#16181b;font-weight:600}
+.sr.pend{color:#6e737a}
+.tick{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:999px;color:#0B7A45}
+.tick .i{width:12px;height:12px;stroke-width:2.5}
+.spin{flex:none;width:20px;height:20px}
+.pend-dot{flex:none;width:20px;height:20px;border:1.5px dashed #b9bec4;border-radius:999px}
+.shorts{display:flex;align-items:center;gap:6px;height:40px;margin:6px 0 0 30px}
+.sh{flex:none;width:24px;height:40px;border-radius:5px;background:linear-gradient(180deg,#2a4542 0%,#0b1314 100%)}
+.sh.todo{background:none;border:1.5px dashed #c9cdd2}
+.sh-l{margin-left:6px;font-size:11px;color:#5c6168;white-space:nowrap}
+.big-foot{display:flex;align-items:center;gap:10px;margin-top:auto}
+.spend{font-size:12.5px;color:#5c6168;white-space:nowrap}
+.spend .mono{color:#16181b}
+.big-foot .chat{margin-left:auto}
+.flow{display:flex;flex-direction:column;padding:20px}
+.flow-sub{margin-top:8px;font-size:13px;line-height:18px;color:#5c6168}
+.steps{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.step{position:relative;display:flex;align-items:center;gap:12px;height:68px;padding:0 14px}
+.step+.step::before{content:"";position:absolute;left:27px;top:-13px;width:2px;height:14px;background:#d5d8dc}
+.sn{display:grid;place-items:center;flex:none;width:28px;height:28px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;font-size:12.5px;font-weight:500;color:#3d4146}
+.s-ic{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:10px}
+.s-x{flex:1;min-width:0}
+.s-t{font-size:14px;line-height:19px;font-weight:600}
+.s-d{font-size:12.5px;line-height:17px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flow-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:14px;border-top:1px solid #eceef0;font-size:13px;line-height:18px;color:#5c6168}
+.rowC{height:310px;margin-top:16px}
+.recent{display:flex;flex-direction:column;padding:20px}
+.wgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.wcard{display:flex;flex-direction:column;height:218px;border:1px solid #eceef0;border-radius:12px;background:#ffffff;overflow:hidden}
+.w-pv{position:relative;flex:none;height:104px;overflow:hidden}
+.w-b{display:flex;flex-direction:column;flex:1;padding:12px}
+.w-k{display:flex;align-items:center;gap:6px;height:16px;font-size:12px;font-weight:500;color:#5c6168}
+.w-k.w{color:#B45309}.w-k.f{color:#B42318}.w-k.g{color:#0B7A45}
+.w-t{height:38px;margin-top:4px;font-size:13.5px;line-height:19px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.w-m{display:flex;align-items:center;gap:8px;height:30px;margin-top:auto;font-size:12px;color:#5c6168;white-space:nowrap}
+.w-m .pbar{flex:0 0 56px}
+.mini-play{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:999px;background:rgba(255,255,255,.94);color:#0b0d0e}
+.mini-play .i{width:14px;height:14px;margin-left:2px}
+.reel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;background:#101615}
+.reel .sh{height:44px}
+.reel .sh.todo{border-color:rgba(255,255,255,.22)}
+.frames{position:absolute;inset:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.fr{position:relative;border-radius:7px;overflow:hidden}
+.fr-veil{position:absolute;inset:0;background:rgba(10,12,13,.45)}
+.fr-x{position:absolute;left:5px;bottom:5px;display:grid;place-items:center;width:18px;height:18px;border-radius:999px;background:#B42318;color:#ffffff}
+.fr-x .i{width:10px;height:10px;stroke-width:3}
+.spendt{display:flex;flex-direction:column;padding:20px}
+.chartsvg{display:block;margin-top:14px}
+.sp-box{margin-top:14px;padding:12px}
+.sp-t{font-size:12.5px;line-height:18px;color:#3d4146}
+.sp-v{display:flex;align-items:baseline;gap:6px;margin-top:4px;font-size:13px;color:#5c6168;white-space:nowrap}
+.sp-v .mono{font-size:18px;line-height:22px;font-weight:500;color:#16181b}
+.sp-meter{display:flex;align-items:center;gap:8px;margin-top:8px}
+</style>
+</helmet>
+<div style="width:100%;min-height:1210px;display:flex;flex-wrap:wrap;background:#fbfbfa;color:#16181b;font-family:'Instrument Sans','Noto Sans Devanagari',system-ui,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased">
+
+  <nav class="rail" aria-label="Places">
+    <a class="brand" href="#/today"><svg width="22" height="22" viewBox="0 0 37 37" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#16181b"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg><span class="word">chausar</span></a>
+    <button type="button" class="biz" aria-haspopup="menu" aria-expanded="false"><span class="biz-sq" aria-hidden="true">LS</span><span class="biz-txt"><span class="biz-name">Lumen Studio</span><span class="biz-kind">YouTube channel</span></span><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg><span class="sr-only">Switch business</span></button>
+    <ul class="nav">
+      <li><a href="#/today"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg><span>Today</span><span class="ct mono" aria-hidden="true">12</span><span class="sr-only">, 12 need you</span></a></li>
+      <li><a href="#/chats"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg><span>Chats</span><span class="new" style="background:{{accentSoft}}">New</span></a></li>
+      <li><a class="on" href="#/team" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span>Team</span></a></li>
+      <li><a href="#/work"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg><span>Work</span></a></li>
+      <li><a href="#/clients"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 2v2"></path><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"></path><path d="M8 2v2"></path><circle cx="12" cy="11" r="3"></circle><rect x="3" y="4" width="18" height="18" rx="2"></rect></svg><span>Clients</span></a></li>
+      <li><a href="#/money"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg><span>Money</span></a></li>
+      <li><a href="#/connections"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg><span>Connections</span></a></li>
+    </ul>
+  </nav>
+
+  <main class="main">
+    <div class="wrap">
+
+      <header class="phead">
+        <div>
+          <h1 class="h1">Team</h1>
+          <p class="sub">7 agents in 5 departments. They do the work, you approve what matters.</p>
+        </div>
+        <div class="tools">
+          <button type="button" class="ask"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path></svg><span>Ask Chausar anything</span><span class="kbd mono">Ctrl K</span></button>
+          <button type="button" class="ib" aria-label="Notifications, 2 new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><span class="dot"></span></button>
+          <button type="button" class="me" aria-label="Your account">K</button>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Show departments">
+          <button type="button" aria-pressed="false"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg>All departments</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-sales" aria-hidden="true"></span>Sales and clients</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-mkt" aria-hidden="true"></span>Marketing</button>
+          <button type="button" class="on" aria-pressed="true"><span class="sdot s-prod" aria-hidden="true"></span>Production</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-money" aria-hidden="true"></span>Money</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-ops" aria-hidden="true"></span>Operations</button>
+        </div>
+        <button type="button" class="btn"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Add an agent</button>
+      </div>
+
+      <!-- The department -->
+      <section class="dp p-prod hero" aria-labelledby="hero-h">
+        <span class="dp-ic hero-ic t-prod"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"></path><path d="m7.5 4.27 9 5.15"></path></svg></span>
+        <div class="hero-t">
+          <h2 id="hero-h" class="hero-name">Production</h2>
+          <p class="hero-line">Cuts episodes, shorts and thumbnails for Lumen Studio.</p>
+          <div class="hero-chips">
+            <span class="chip work" style="background:{{accentSoft}}"><span class="dot" style="background:{{accent}}"></span>1 working</span>
+            <span class="chip fail"><span class="dot"></span>1 run stopped</span>
+            <span class="chip wait"><span class="dot"></span>2 cards on Today</span>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="lift hs"><b>6</b><span>jobs this week</span></div>
+          <div class="lift hs"><b>₹42.10</b><span>spent this month</span></div>
+          <div class="lift hs"><b>4</b><span>playbook steps</span></div>
+        </div>
+      </section>
+
+      <div class="bento rowB">
+
+        <!-- Editor, as a big card -->
+        <article class="tile big c5" aria-labelledby="ed-h">
+          <div class="big-top">
+            <span class="av av52 d-prod" style="box-shadow:0 0 0 2.5px #ffffff,0 0 0 5px {{accent}}" aria-hidden="true">ED</span>
+            <div class="big-id"><h3 id="ed-h" class="big-name">Editor</h3><p class="big-role">Cuts episodes and shorts</p></div>
+            <span class="chip work" style="background:{{accentSoft}}"><span class="dot" style="background:{{accent}}"></span>Working</span>
+          </div>
+          <p class="big-k">Now</p>
+          <p class="big-now">Cutting shorts from episode 13</p>
+          <div class="inner run">
+            <p class="run-h"><b>Run 31</b>Started 4 min ago<span class="mono">3 of 5</span></p>
+            <span class="pbar"><span style="width:60%;background:{{accent}}"></span></span>
+            <ul class="srs" aria-label="Steps in run 31">
+              <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Read the transcript</span><span class="e mono">12s</span></li>
+              <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Picked 6 moments, each with a timestamp</span><span class="e mono">48s</span></li>
+              <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Checked: no black, silent or frozen frames</span><span class="e mono">20s</span></li>
+              <li class="sr cur"><svg class="spin" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="#e3e5e8" stroke-width="2.5"></circle><path d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" fill="none" stroke="{{accent}}" stroke-width="2.5" stroke-linecap="round"></path></svg><span class="t">Rendering 3 of 6</span><span class="e mono">now</span></li>
+              <li aria-label="Shorts: 2 rendered, 1 rendering, 3 to go"><div class="shorts"><span class="sh"></span><span class="sh"></span><span class="sh" style="box-shadow:0 0 0 2px {{accent}}"></span><span class="sh todo"></span><span class="sh todo"></span><span class="sh todo"></span><span class="sh-l mono">short-3.mp4</span></div></li>
+              <li class="sr pend"><span class="pend-dot"></span><span class="t">Send drafts to you</span></li>
+            </ul>
+          </div>
+          <div class="big-foot">
+            <span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span>
+            <span class="spend"><span class="mono">₹42.10</span> this month</span>
+            <button type="button" class="chat" aria-label="Chat with Editor" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button>
+          </div>
+        </article>
+
+        <!-- Playbook as a flow with gates -->
+        <section class="tile flow c7" aria-labelledby="pb-h">
+          <div class="th"><h2 id="pb-h" class="h3">How Production runs</h2><span class="meta">Episode to shorts · version 4</span><a class="more" href="#/team/production/playbook">Edit steps<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+          <p class="flow-sub">Auto steps run on their own. Hold steps wait for you on Today. Locked steps always ask you, whatever you set.</p>
+          <ol class="steps">
+            <li class="inner step">
+              <span class="sn mono">1</span>
+              <span class="s-ic d-prod"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"></path><path d="m6.2 5.3 3.1 3.9"></path><path d="m12.4 3.4 3.1 4"></path><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path></svg></span>
+              <div class="s-x"><p class="s-t">Cut the episode</p><p class="s-d">Turns the recording into an edited episode</p></div>
+              <div class="gate" role="group" aria-label="Gate for Cut the episode"><button type="button" class="on" aria-pressed="true">Auto</button><button type="button" aria-pressed="false">Hold</button></div>
+            </li>
+            <li class="inner step">
+              <span class="sn mono">2</span>
+              <span class="s-ic d-prod"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"></circle><path d="M8.12 8.12 12 12"></path><path d="M20 4 8.12 15.88"></path><circle cx="6" cy="18" r="3"></circle><path d="M14.8 14.8 20 20"></path></svg></span>
+              <div class="s-x"><p class="s-t">Cut shorts from the episode</p><p class="s-d">Picks moments under 60 s and renders them</p></div>
+              <div class="gate" role="group" aria-label="Gate for Cut shorts from the episode"><button type="button" class="on" aria-pressed="true">Auto</button><button type="button" aria-pressed="false">Hold</button></div>
+            </li>
+            <li class="inner step">
+              <span class="sn mono">3</span>
+              <span class="s-ic d-prod"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span>
+              <div class="s-x"><p class="s-t">Finishing check</p><p class="s-d">No black, silent or frozen frames</p></div>
+              <div class="gate" role="group" aria-label="Gate for Finishing check"><button type="button" aria-pressed="false">Auto</button><button type="button" class="on" aria-pressed="true">Hold</button></div>
+            </li>
+            <li class="inner step">
+              <span class="sn mono">4</span>
+              <span class="s-ic d-prod"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path><path d="m10 15 5-3-5-3z"></path></svg></span>
+              <div class="s-x"><p class="s-t">Publish to YouTube</p><p class="s-d">Never runs on its own</p></div>
+              <span class="floor"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Always asks you</span>
+            </li>
+          </ol>
+          <p class="flow-foot"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>A change here makes version 5. You can undo it.</p>
+        </section>
+      </div>
+
+      <div class="bento rowC">
+
+        <!-- Recent work -->
+        <section class="tile recent c8" aria-labelledby="rw-h">
+          <div class="th"><h2 id="rw-h" class="h3">Recent work</h2><span class="meta">Production · this week</span><a class="more" href="#/work">Open Work<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+          <div class="wgrid">
+            <article class="wcard" aria-labelledby="w1">
+              <div class="w-pv pv-video">
+                <span class="v-tag" style="left:8px;top:8px;height:20px;font-size:10.5px">Draft</span>
+                <span class="mini-play" aria-hidden="true"><svg class="i fill" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.52.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"></path></svg></span>
+                <span class="v-dur mono" style="right:8px;bottom:8px;height:20px;line-height:20px;font-size:10.5px">11:42</span>
+              </div>
+              <div class="w-b">
+                <p class="w-k w"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Draft · waits on you</p>
+                <h3 id="w1" class="w-t">Episode 14, cut to 11 min 42 s</h3>
+                <p class="w-m"><a class="chip wait" href="#/today">On Today</a><span class="mono">08:40</span></p>
+              </div>
+            </article>
+            <article class="wcard" aria-labelledby="w2">
+              <div class="w-pv">
+                <div class="reel" aria-hidden="true"><span class="sh"></span><span class="sh"></span><span class="sh" style="box-shadow:0 0 0 2px {{accent}}"></span><span class="sh todo"></span><span class="sh todo"></span><span class="sh todo"></span></div>
+              </div>
+              <div class="w-b">
+                <p class="w-k g"><span class="sdot" style="background:{{accent}}"></span>Running · step 4 of 5</p>
+                <h3 id="w2" class="w-t">Shorts from episode 13</h3>
+                <p class="w-m"><span class="pbar"><span style="width:33%;background:{{accent}}"></span></span>Short 3 of 6</p>
+              </div>
+            </article>
+            <article class="wcard" aria-labelledby="w3">
+              <div class="w-pv" style="background:#f3f4f2">
+                <div class="frames" aria-hidden="true">
+                  <span class="fr" style="background:linear-gradient(135deg,#2a403e,#0e1717)"><span class="fr-veil"></span><span class="fr-x"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span></span>
+                  <span class="fr" style="background:linear-gradient(135deg,#123a33,#07130f)"><span class="fr-veil"></span><span class="fr-x"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span></span>
+                  <span class="fr" style="background:linear-gradient(135deg,#33275a,#140e26)"><span class="fr-veil"></span><span class="fr-x"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span></span>
+                </div>
+              </div>
+              <div class="w-b">
+                <p class="w-k f"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>Stopped at step 2 of 3</p>
+                <h3 id="w3" class="w-t">Thumbnail set: ffmpeg was not found</h3>
+                <p class="w-m"><button type="button" class="btn sm pri" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>Run again</button><span class="mono">40s</span></p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Spend and jobs -->
+        <section class="tile spendt c4" aria-labelledby="sp-h">
+          <div class="th"><h2 id="sp-h" class="h3">Spend and jobs</h2><span class="meta">Last 6 weeks</span></div>
+          <svg class="chartsvg" width="100%" height="112" viewBox="0 0 278 112" role="img" aria-label="Jobs per week for the last 6 weeks: 3, 4, 5, 4, 7, and 6 so far this week">
+            <path d="M0 90.5h278" stroke="#e3e5e8" stroke-width="1"></path>
+            <rect x="10" y="59.1" width="26" height="30.9" rx="5" fill="#CBE8E4"></rect>
+            <rect x="56.3" y="48.9" width="26" height="41.1" rx="5" fill="#CBE8E4"></rect>
+            <rect x="102.7" y="38.6" width="26" height="51.4" rx="5" fill="#CBE8E4"></rect>
+            <rect x="149" y="48.9" width="26" height="41.1" rx="5" fill="#CBE8E4"></rect>
+            <rect x="195.3" y="18" width="26" height="72" rx="5" fill="#CBE8E4"></rect>
+            <rect x="241.7" y="28.3" width="26" height="61.7" rx="5" fill="#0F766E"></rect>
+            <text x="23" y="53.1" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#5c6168">3</text>
+            <text x="69.3" y="42.9" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#5c6168">4</text>
+            <text x="115.7" y="32.6" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#5c6168">5</text>
+            <text x="162" y="42.9" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#5c6168">4</text>
+            <text x="208.3" y="12" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#5c6168">7</text>
+            <text x="254.7" y="22.3" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" font-weight="500" fill="#16181b">6</text>
+            <text x="23" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" fill="#6e737a">14 Sep</text>
+            <text x="69.3" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" fill="#6e737a">21 Sep</text>
+            <text x="115.7" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" fill="#6e737a">28 Sep</text>
+            <text x="162" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" fill="#6e737a">5 Oct</text>
+            <text x="208.3" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" fill="#6e737a">12 Oct</text>
+            <text x="254.7" y="106" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-size="10.5" font-weight="600" fill="#16181b">19 Oct</text>
+          </svg>
+          <div class="inner sp-box">
+            <p class="sp-t">Model calls for episode 14</p>
+            <p class="sp-v"><span class="mono">₹42.10</span>settled of <span class="mono" style="font-size:13px;font-weight:400;color:#3d4146">₹45.00</span> reserved</p>
+            <div class="sp-meter"><span class="pbar"><span class="s-prod" style="width:93.6%"></span></span><a class="rc" href="#/receipt/R-0412">R-0412</a></div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2FB67C","options":["#2FB67C","#22A06B","#4CAF86","#1F8F63"]},"$preview":{"width":1280,"height":1210}}'>
+class Component extends DCLogic {
+renderVals() {
+const accent = this.props.accent ?? '#2FB67C';
+const hex = String(accent).replace('#', '');
+const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+const n = parseInt(full, 16);
+const rgb = isNaN(n) ? [47, 182, 124] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+const accentSoft = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.12)';
+return { accent: accent, accentInk: '#0b0d0e', accentSoft: accentSoft };
+}
+}
+</script>
+</body>
+</html>
