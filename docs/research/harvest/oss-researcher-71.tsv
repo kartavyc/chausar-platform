@@ -1,0 +1,76 @@
+﻿Name	Category	Launch or release month	GitHub URL	Licence	Approx stars	What it does	Computer-only business that could use it
+grok-build	Agents	Jul 2026 (created)	https://github.com/xai-org/grok-build	Apache-2.0	~27.5k	Coding-agent harness with an interactive TUI	Solo software dev shop / micro-SaaS builder
+qm	Agents	Jul 2026 (created)	https://github.com/yc-software/qm	MIT	~15.5k	Multiplayer agent harness for team work	Remote ops agency running client tasks with agents
+omnigent	Agents	Jun 2026 (created)	https://github.com/omnigent-ai/omnigent	Apache-2.0	~10.9k	Meta-harness that orchestrates Claude Code, Codex and other agents	One-person dev agency juggling many client repos
+ZCode	Agents	Sep 2026 (created)	https://github.com/zai-org/ZCode	Apache-2.0	~8.1k	Z.ai's extensible coding-agent harness	Freelance app/website builder
+trueforge	Agents	Jul 2026 (created)	https://github.com/truefoundry/trueforge	MIT	~6.3k	Runtime layer that turns an LLM into a working agent	AI automation agency building client agents
+eve	Agents	Jun 2026 (created)	https://github.com/vercel/eve	Apache-2.0	~5.6k	Open framework for building agents	Micro-SaaS founder shipping agent features
+LongHorizon-Harness	Agents	Aug 2026 (created)	https://github.com/AMAP-ML/LongHorizon-Harness	MIT	~1.8k	Long-horizon computer-use harness across desktop apps and CLI	Back-office data-entry / VA service
+OpenGCUA	Agents	Oct 2026 (created)	https://github.com/Tongyi-MAI/OpenGCUA	Apache-2.0	~380	Open stack for generalist computer-use agents (code + GUI)	RPA automation service for small firms
+open-computer-use	Agents	Jun 2026 (created)	https://github.com/QwenLM/open-computer-use	MIT	~300	MCP computer-use service controlling macOS/Linux/Windows	Virtual-assistant business automating admin work
+Qwen-CUA	Agents	Jul 2026 (created)	https://github.com/xlang-ai/Qwen-CUA	Apache-2.0	~220	Screenshot-driven native computer-use agent	Web form-filling / data-entry service
+phone-harness	Agents	Aug 2026 (created)	https://github.com/ShawnPana/phone-harness	MIT	~3.9k	Lets an agent control your phone	Mobile app QA-testing service
+docker	Agents	Aug 2026 (created)	https://github.com/decionis/docker	Apache-2.0	~160	Policy + human approval gate for consequential agent actions in Docker	Agency needing sign-off before agents act for clients
+pi-plans	Agents	Aug 2026 (created)	https://github.com/MaxInGaussian/pi-plans	MIT	~240	Human-in-the-loop planning extension for Pi coding agent	Solo dev reviewing agent plans before code
+SkillEvaluator	Agents	Jun 2026 (created)	https://github.com/NVIDIA/SkillEvaluator	Apache-2.0	~590	Multi-tier framework for evaluating agent skills with quality gates	Agent-building consultancy QA'ing deliverables
+agentbehavior	Agents	Jun 2026 (created)	https://github.com/braintrustdata/agentbehavior	Apache-2.0	~360	Standards for defining and evaluating agent behaviour	AI QA/eval consulting service
+llm-space	Agents	Jun 2026 (created)	https://github.com/deer-flow/llm-space	MIT	~2.0k	Desktop app to prototype agents, inspect harness steps, replay failures	AI automation agency debugging client agents
+cogsend	Marketing	Sep 2026 (created)	https://github.com/cogsend/cogsend	MIT	~230	Self-hosted social media scheduler: write once, post everywhere	Social media management agency
+yominpost	Marketing	Oct 2026 (created)	https://github.com/mrlong0129/yominpost	MIT	~100	Self-hosted AI studio turning one input into platform-native posts	Content repurposing agency
+beyondseo	Marketing	Sep 2026 (created)	https://github.com/beyondtahir/beyondseo	MIT	~190	All-in-one SEO: crawling, SEO/AEO/GEO, content, competitors	SEO agency for local businesses
+GEOHub	Marketing	Aug 2026 (created)	https://github.com/yaojingang/GEOHub	AGPL-3.0	~160	GEO/SEO agent skills for AI-search visibility	AI-search (GEO) optimisation consultancy
+loamwright-SEO-Skill	Marketing	Aug 2026 (created)	https://github.com/XuanRanL/loamwright-SEO-Skill	Apache-2.0	~49	SEO+GEO content factory for Claude Code: research, write, fact-check	Niche affiliate/content site network
+seo-agent	Marketing	Jul 2026 (created)	https://github.com/citeworthyio/seo-agent	MIT	~54	Cloudflare-based SEO agent for large content sites	Programmatic-SEO site operator
+google-maps-scraper-kit	Marketing	Jun 2026 (created)	https://github.com/Mahanaicoach/google-maps-scraper-kit	MIT	~1.6k	Google Maps scraper exporting phones, emails, sites, socials for leads	Lead-gen list seller / cold outreach agency
+meta-automation	Marketing	Sep 2026 (created)	https://github.com/sunmughan/meta-automation	MIT	~90	AI lead-gen and conversational growth agent for Meta platforms	Instagram/Facebook growth agency
+UGC-Factory	Marketing	Jun 2026 (created)	https://github.com/charlesdove977/UGC-Factory	MIT	~89	AI UGC video-ad factory for Claude Code	UGC ad agency for D2C brands
+silent-ugc	Marketing	Aug 2026 (created)	https://github.com/jasonlee-breadcrumb/silent-ugc	MIT	~74	Clones silent TikTok UGC videos with your own AI actor	TikTok Shop affiliate creator business
+superCMO-skills	Marketing	Jul 2026 (created)	https://github.com/SupercmoHQ/superCMO-skills	Apache-2.0	~91	Agent skills generating marketing assets and campaigns	Fractional-CMO service for startups
+marketing-skill	Marketing	Sep 2026 (created)	https://github.com/marcosmodly/marketing-skill	MIT	~49	12 composable marketing skills: competitor research, content calendar, etc.	Freelance content marketer
+youtube-agent-skill	Creator	Sep 2026 (created)	https://github.com/Jakeschincariol/youtube-agent-skill	MIT	~2.1k	Eleven Claude skills that run a YouTube channel (scripts, hooks, titles)	Faceless YouTube channel
+youtubepro	Creator	Aug 2026 (created)	https://github.com/AgriciDaniel/youtubepro	Apache-2.0	~420	Local-first YouTube research, script writing and thumbnail creation	YouTube channel management agency
+youtube-skills	Creator	Jul 2026 (created)	https://github.com/sergebulaev/youtube-skills	MIT	~64	YouTube/Shorts skills: high-CTR titles, SEO, descriptions	Shorts-only faceless channel
+content-skills	Creator	Jun 2026 (created)	https://github.com/vyralcontent/content-skills	MIT	~160	Skill for short-form hooks, scripts and carousels	Short-form ghostwriting service
+bridgeclip	Creator	Sep 2026 (created)	https://github.com/bridge-mind/bridgeclip	MIT	~380	Desktop AI video clipping app	Clipping agency for streamers/podcasters
+podcast-shorts-factory	Creator	Jul 2026 (created)	https://github.com/krakonjac300-pixel/podcast-shorts-factory	MIT	~130	Ten agents turning long podcasts into short-form videos	Podcast clip-repurposing service
+baocut	Creator	Jul 2026 (created)	https://github.com/JimLiu/baocut	NOASSERTION	~1.2k	AI video agent with editable timeline: transcribe, subtitle, translate, dub	Video editing / dubbing freelance studio
+LocalText2Voice	Creator	Jun 2026 (created)	https://github.com/estebanstifli/LocalText2Voice	MIT	~400	Desktop AI voice app for audiobooks, podcasts, documentaries	Audiobook narration business
+podcast-to-article	Creator	Oct 2026 (created)	https://github.com/orange2ai/podcast-to-article	MIT	~190	Skill turning podcast transcripts into publishable long-form articles	Podcast show-notes/newsletter service
+b-roll-finder	Creator	Jun 2026 (created)	https://github.com/louisedesadeleer/b-roll-finder	MIT	~130	Finds on-brand b-roll for talking-head videos	Video editing agency
+tern	Creator	Sep 2026 (created)	https://github.com/B0yko/tern	NOASSERTION	~220	Local AI search over podcast and video archives	Podcast production house
+instagram-agent-skill	Creator	Sep 2026 (created)	https://github.com/Jakeschincariol/instagram-agent-skill	MIT	~2.3k	Thirteen skills that run an Instagram account (Reels, hooks, captions)	Instagram theme-page business
+opentax-engine	Finance	Jul 2026 (created)	https://github.com/Invaro/opentax-engine	AGPL-3.0	~160	Deterministic tax engine for AI agents	Online tax-prep service
+itr-prep-skill	Finance	Jul 2026 (created)	https://github.com/NidheeshJain/itr-prep-skill	MIT	~32	Prepares Indian ITR-1/2/3/4 from Form 16/AIS	ITR filing service for salaried people
+finance-skills	Finance	Jun 2026 (created)	https://github.com/vivy-yi/finance-skills	MIT	~41	131 agent skills covering CFO work domains	Fractional CFO service
+cfo	Finance	Sep 2026 (created)	https://github.com/rohasnagpal/cfo	MIT	~23	Turns ChatGPT/Claude into a CFO assistant	Virtual CFO for small businesses
+bankmcp	Finance	Sep 2026 (created)	https://github.com/noskillish/bankmcp	MIT	~290	Self-hosted read-only MCP server for your bank data	Remote bookkeeping/reconciliation service
+floe-guard	Finance	Jun 2026 (created)	https://github.com/Floe-Labs/floe-guard	MIT	~360	Local spend meter and budget gate for AI tasks	AI agency tracking per-client AI costs
+einvoice	Finance	Jun 2026 (created)	https://github.com/paid-tw/einvoice	MIT	~160	Unified Taiwan e-invoice SDK across providers	E-invoicing integration service
+Onchain-Accounting	Finance	Sep 2026 (created)	https://github.com/Gemma41/Onchain-Accounting	MIT	~78	Self-hosted crypto accounting app	Crypto tax/bookkeeping service
+Lexware-MCP-Server	Finance	Jun 2026 (created)	https://github.com/marselsel/Lexware-MCP-Server	MIT	~42	MCP server connecting AI assistants to Lexware accounting	Bookkeeping service for German SMEs
+py-idp	Finance	Aug 2026 (created)	https://github.com/rollroyces/py-idp	NOASSERTION	~290	LLM document processing with Pydantic schemas	Invoice/receipt data-extraction service
+korean-tax-agent	Finance	Aug 2026 (created)	https://github.com/minsooparkk/korean-tax-agent	MIT	~19	Korean tax-law review skill with live law search	Remote tax advisory practice
+akaunting	Finance	Jul 2026 (v3.2.0)	https://github.com/akaunting/akaunting	NOASSERTION	~10.2k	Open-source online accounting software	Bookkeeping service for small shops
+sealeap-amazon-skills	Commerce	Aug 2026 (created)	https://github.com/xjli360/sealeap-amazon-skills	MIT	~300	Agent skills for Amazon research, listings, ads, inventory	Amazon FBA seller
+sealeap-ecommerce-skills	Commerce	Sep 2026 (created)	https://github.com/xjli360/sealeap-ecommerce-skills	MIT	~93	195 skills for Shopify, Etsy, eBay, TikTok Shop, Walmart etc.	Multi-marketplace reseller
+amazon-listing-doctor	Commerce	Jul 2026 (created)	https://github.com/buluslan/amazon-listing-doctor	MIT	~91	Amazon listing health-check and scoring	Amazon listing-optimisation agency
+product-shots	Commerce	Jun 2026 (created)	https://github.com/motiful/product-shots	MIT	~110	Turns one product photo into a full e-commerce visual set	Product-photography-as-a-service
+claude-for-commerce-examples	Commerce	Sep 2026 (created)	https://github.com/Shopify/claude-for-commerce-examples	Apache-2.0	~140	Shopify storefront shopping and support agent examples	Shopify store operator / Shopify dev agency
+marketplaces-mcp-ru	Commerce	Jun 2026 (created)	https://github.com/ilyautov/marketplaces-mcp-ru	MIT	~52	MCP for Wildberries, Ozon, Yandex Market, Avito seller cabinets	Marketplace account-management agency
+sorftime-seller-agent	Commerce	Jul 2026 (created)	https://github.com/DannylydST/sorftime-seller-agent	MIT	~38	AI product research across 6 marketplaces	Product-research consultancy for sellers
+mobazha-unified	Commerce	Jul 2026 (created)	https://github.com/mobazha/mobazha-unified	MPL-2.0	~120	Open commerce frontend: storefront, marketplace, checkout, seller mgmt	Niche online marketplace operator
+atlas-marketing-studio	Commerce	Jul 2026 (created)	https://github.com/AtlasCloudAI/atlas-marketing-studio	None	~44	Self-hostable AI video-ad studio for e-commerce products	D2C ad creative agency
+shopee-mcp	Commerce	Jul 2026 (created)	https://github.com/bintangtimurlangit/shopee-mcp	MIT	~21	MCP server for Shopee listings and prices	Shopee price-monitoring / reseller
+ecommerce-ai-tools	Commerce	Sep 2026 (created)	https://github.com/nexscope-ai/ecommerce-ai-tools	None	~120	Ecommerce AI tools: review analysis, listing optimisation, keywords	Amazon seller consultant
+Countersign-RFP-RFI-RFQ-Studio-for-AI-assisted-Workflows	Research/Ops	Jul 2026 (created)	https://github.com/dboudreau00/Countersign-RFP-RFI-RFQ-Studio-for-AI-assisted-Workflows	AGPL-3.0	~93	AI-assisted RFP/RFI/RFQ response studio	Bid/tender writing service
+JobFinderOS	Research/Ops	Sep 2026 (created)	https://github.com/matthewprice/JobFinderOS	MIT	~180	Agentic job search on Claude Code: recruiter, crawler, analyst	Job-application concierge service
+recruitops-agent	Research/Ops	Sep 2026 (created)	https://github.com/849879772/recruitops-agent	MIT	~140	Local-first recruitment intelligence and application ops agent	Remote recruiting agency
+recruiting-copilot	Research/Ops	Jul 2026 (created)	https://github.com/Viy1204/recruiting-copilot	MIT	~93	AI recruiting workflow: sourcing, screening, scheduling, reports	Headhunting / RPO service
+jev-recruiter	Research/Ops	Sep 2026 (created)	https://github.com/skeptrunedev/jev-recruiter	MIT	~52	LinkedIn recruiting agent that browses and saves profiles	Sourcing-as-a-service
+opendesk	Research/Ops	Oct 2026 (created)	https://github.com/useopendesk/opendesk	Apache-2.0	~430	Open-source support inbox and live chat	Outsourced customer-support desk
+ResolveHQ	Research/Ops	Sep 2026 (created)	https://github.com/mirza-rizvi/ResolveHQ	NOASSERTION	~210	Self-hosted helpdesk on Cloudflare Workers	Support desk for SaaS clients
+nexusdesk	Research/Ops	Sep 2026 (created)	https://github.com/GroundedCoreAI/nexusdesk	Apache-2.0	~94	Self-hosted AI customer-service platform on ReAct agents	AI chat-support agency
+Index-Translate	Research/Ops	Sep 2026 (created)	https://github.com/bilibili/Index-Translate	Apache-2.0	~1.8k	Multilingual, multimodal translation model family	Translation/localisation agency
+Mimi	Research/Ops	Jul 2026 (created)	https://github.com/yuxino/Mimi	MIT	~730	Live translated subtitles from computer or mic audio	Live captioning/interpreting service
+hayamimi	Research/Ops	Aug 2026 (created)	https://github.com/oboroge0/hayamimi	NOASSERTION	~450	Real-time multilingual speech-to-text on CPU	Transcription service
+easyread	Research/Ops	Sep 2026 (created)	https://github.com/Edwardxlai/easyread	MIT	~1.0k	Local PDF paper translation with side-by-side and AI Q&A	Academic translation/research assistant service
