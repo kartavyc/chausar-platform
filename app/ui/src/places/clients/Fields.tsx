@@ -7,10 +7,11 @@
  * Dismiss goes to the engine (venture.evidence.dismiss): a dismissed item stays in the ledger and off the screen.
  */
 
-import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Icon } from '../../parts/Icon';
 import { Provenance } from '../../parts/Provenance';
 import { EngineError, type ClientLite, type EvidenceItem } from '../../engine/types';
 import { clientsChanged } from './signals';
@@ -60,6 +61,9 @@ export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], 
   return [...shown, ...others];
 }
 
+/** The tax fields: a business not registered for GST keeps them one step away (founder decision "simple first"). */
+const TAX_FIELDS: ReadonlySet<string> = new Set(['taxId', 'stateCode']);
+
 interface FieldsProps {
   client: ClientLite;
   items: readonly EvidenceItem[];
@@ -68,16 +72,38 @@ interface FieldsProps {
   /** The engine's refusal of a dismiss, by item id. */
   problems: ReadonlyMap<string, string>;
   onDismiss: (id: string) => void;
+  /** Put the tax number and state code behind "More details" (a business not registered for GST). Left out, every
+   *  field shows in line, as before. */
+  foldTax?: boolean | undefined;
 }
 
-export function Fields({ client, items, hidden, problems, onDismiss }: FieldsProps) {
+export function Fields({ client, items, hidden, problems, onDismiss, foldTax = false }: FieldsProps) {
   const t = useT();
+  const view = (m: FieldModel) => (
+    <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} problems={problems} onDismiss={onDismiss} />
+  );
+  const models = fieldModels(client, items, hidden);
+  const folded = foldTax ? models.filter((m) => TAX_FIELDS.has(m.field)) : [];
   return (
     <div className={s.fields}>
-      {fieldModels(client, items, hidden).map((m) => (
-        <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} problems={problems} onDismiss={onDismiss} />
-      ))}
+      {models.filter((m) => !folded.includes(m)).map(view)}
+      {folded.length > 0 && <MoreDetails>{folded.map(view)}</MoreDetails>}
     </div>
+  );
+}
+
+/** "More details": what a simple business need not see at first, one step away. Closed until the owner opens it,
+ *  or until the place opens it to show something the owner must see (an engine refusal of a field inside). */
+export function MoreDetails({ open, onOpenChange, children }: { open?: boolean | undefined; onOpenChange?: ((open: boolean) => void) | undefined; children: ReactNode }) {
+  const t = useT();
+  return (
+    <details className={s.more} open={open} onToggle={(event) => onOpenChange?.(event.currentTarget.open)}>
+      <summary className={s.moreSummary}>
+        <Icon name="chevron-right" size={16} />
+        {t('clients.more')}
+      </summary>
+      <div className={s.moreBody}>{children}</div>
+    </details>
   );
 }
 

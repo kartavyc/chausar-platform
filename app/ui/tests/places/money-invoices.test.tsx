@@ -32,54 +32,56 @@ const called = (calls: Call[], method: string) => calls.filter(([m]) => m === me
 const figuresOf = (sheet: HTMLElement) => [...sheet.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]);
 
 describe('Money: invoices', () => {
-  it('lists open and closed invoices and the orders still to invoice; each total shows with the receipt that priced it', async () => {
+  it('lists every invoice in one table and the orders still to invoice; each total shows with the receipt that priced it', async () => {
     start('#/money/invoices');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Open' })).toBeTruthy();
-    const open = (await screen.findByText('INV-0039 · Boat Audio')).closest('li')!;
-    expect(open.textContent).toContain('Issued 14 Oct 2026, due 28 Oct 2026');
-    await waitFor(() => expect(open.textContent).toContain('Owed ₹26,200.00'));
-    expect(open.textContent).toContain('Total ₹26,200.00');
+    const table = await screen.findByRole('table', { name: /invoices/i });
+    const open = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
+    expect(open.textContent).toContain('Boat Audio');
+    expect(open.textContent).toContain('Sent');
+    expect(open.textContent).toContain('28 Oct 2026');
+    await waitFor(() => expect(open.textContent).toContain('₹26,200.00'));
     expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
-    expect(within(open).getByRole('button', { name: 'Record payment' }).dataset.variant).toBe('primary');
+    expect(within(open).getByRole('button', { name: 'Record payment' })).toBeTruthy();
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Closed' })).toBeTruthy();
-    const paid = (await screen.findByText('INV-0038 · Boat Audio')).closest('li')!;
+    const paid = within(table).getByRole('button', { name: 'Invoice INV-0038' }).closest('tr')!;
     expect(paid.textContent).toContain('Paid');
-    await waitFor(() => expect(paid.textContent).toContain('Total ₹86,200.00'));
+    await waitFor(() => expect(paid.textContent).toContain('₹86,200.00'));
     expect(paid.querySelector('[data-variant="primary"]')).toBeNull();
+    // Open invoices come before closed ones.
+    const rows = within(table).getAllByRole('row');
+    expect(rows.indexOf(open)).toBeLessThan(rows.indexOf(paid));
 
-    expect(screen.getByRole('heading', { level: 2, name: 'To invoice' })).toBeTruthy();
-    const order = (await screen.findByText('Boat Audio · Two mentions in episode 14')).closest('li')!;
+    const toInvoice = screen.getByRole('region', { name: 'To invoice' });
+    const order = (await within(toInvoice).findByText('Boat Audio · Two mentions in episode 14')).closest('li')!;
     expect(order.textContent).toContain('Not delivered yet');
     expect(within(order).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
     expect(within(order).getByRole('button', { name: 'Prepare invoice' })).toBeTruthy();
     // An order with an invoice is not offered again.
-    expect(screen.queryByText(/Two mentions in episode 12/)).toBeNull();
-    expect(screen.queryByRole('heading', { level: 2, name: 'Drafts' })).toBeNull();
+    expect(within(toInvoice).queryByText(/Two mentions in episode 12/)).toBeNull();
+    expect(within(table).queryByRole('button', { name: /^Draft/ })).toBeNull();
 
     for (const row of main().querySelectorAll('[data-row]')) expect(row.querySelectorAll('[data-variant="primary"]').length).toBeLessThanOrEqual(1);
   });
 
   it('reads each total and receipt from the list itself, with no call per row', async () => {
     const { calls } = start('#/money/invoices');
-    const open = (await screen.findByText('INV-0039 · Boat Audio')).closest('li')!;
-    await waitFor(() => expect(open.textContent).toContain('Owed ₹26,200.00'));
+    const open = (await screen.findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
+    await waitFor(() => expect(open.textContent).toContain('₹26,200.00'));
     expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
     expect(called(calls, 'venture.invoice.get')).toEqual([]);
-    expect(called(calls, 'venture.books.summary')).toEqual([['venture.books.summary', { period: 'all' }]]);
   });
 
   it('an engine whose list rows carry no total is read once per invoice instead', async () => {
     const strip = async (_params: unknown, request: (method: string, params?: unknown) => Promise<unknown>) =>
       ((await request('venture.invoice.list', {})) as Record<string, unknown>[]).map(({ total: _t, receiptId: _r, ...row }) => row);
     const { calls } = start('#/money/invoices', undefined, { 'venture.invoice.list': strip });
-    const open = (await screen.findByText('INV-0039 · Boat Audio')).closest('li')!;
-    await waitFor(() => expect(open.textContent).toContain('Total ₹26,200.00'));
+    const open = (await screen.findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
+    await waitFor(() => expect(open.textContent).toContain('₹26,200.00'));
     expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
     expect(called(calls, 'venture.invoice.get')).toContainEqual(['venture.invoice.get', { invoiceId: 'inv-0039' }]);
   });
 
-  it('prepares an invoice from an order, opens the draft beside the list and moves the order to drafts', async () => {
+  it('prepares an invoice from an order, opens the draft beside the list and moves the order into the table as a draft', async () => {
     const { calls } = start('#/money/invoices');
     const order = (await screen.findByText('Boat Audio · Two mentions in episode 14')).closest('li')!;
     await click(within(order).getByRole('button', { name: 'Prepare invoice' }));
@@ -87,10 +89,9 @@ describe('Money: invoices', () => {
     await waitFor(() => expect(window.location.hash).toMatch(/^#\/money\/invoices\?sheet=invoice%3Ainv-/));
     const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
     await waitFor(() => expect(sheet.textContent).toContain('₹30,000.00'));
-    expect(await screen.findByRole('heading', { level: 2, name: 'Drafts' })).toBeTruthy();
-    const draft = (await within(main()).findByText('Draft · Boat Audio')).closest('li')!;
-    await waitFor(() => expect(draft.textContent).toContain('Total ₹30,000.00'));
-    expect(within(draft).getByRole('button', { name: 'Review' }).dataset.variant).toBe('primary');
+    const draft = (await within(main()).findByRole('button', { name: 'Draft · Boat Audio' })).closest('tr')!;
+    await waitFor(() => expect(draft.textContent).toContain('₹30,000.00'));
+    expect(within(draft).getByRole('button', { name: 'Issue' }).dataset.variant).toBe('primary');
     await waitFor(() => expect(screen.queryByText('Boat Audio · Two mentions in episode 14')).toBeNull());
   });
 
@@ -158,7 +159,7 @@ describe('Money: invoices', () => {
     await click(await within(invoice).findByRole('button', { name: 'Record payment' }));
     expect(window.location.hash).toBe('#/money/invoices?sheet=payment%3Ainv-0039');
     const sheet = await screen.findByRole('complementary', { name: 'Record a payment' });
-    await waitFor(() => expect(sheet.textContent).toContain('Still owed: ₹26,200.00'));
+    await waitFor(() => expect(sheet.querySelector('[data-figure-group]')?.textContent).toMatch(/^Still owed₹26,200.00R-/));
     const date = within(sheet).getByLabelText('Received on') as HTMLInputElement;
     expect(date.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     fireEvent.change(within(sheet).getByLabelText('Amount received'), { target: { value: '26,200' } });
@@ -173,7 +174,7 @@ describe('Money: invoices', () => {
     await click(within(sheet).getByRole('button', { name: 'Record' }));
     expect(called(calls, 'venture.payment.record')).toEqual([['venture.payment.record', { invoiceId: 'inv-0039', amount: '26,200', receivedOn: '2026-10-21', method: 'upi' }]]);
     await waitFor(() => expect(sheet.textContent).toContain('Payment recorded.'));
-    expect(within(sheet).getByRole('button', { name: /^Receipt R-/ })).toBeTruthy();
+    expect(within(within(sheet).getByText('Payment recorded.').closest('p')!).getByRole('button', { name: /^Receipt R-/ })).toBeTruthy();
     await click(within(sheet).getByRole('button', { name: 'Back to the invoice' }));
     const back = await screen.findByRole('complementary', { name: 'INV-0039' });
     await waitFor(() => expect(figuresOf(back)).toContainEqual(['Balance', '₹0.00']));
@@ -183,7 +184,7 @@ describe('Money: invoices', () => {
   it('shows the engine refusal of a payment in its own words and keeps the form', async () => {
     start('#/money/invoices?sheet=payment:inv-0039');
     const sheet = await screen.findByRole('complementary', { name: 'Record a payment' });
-    await waitFor(() => expect(sheet.textContent).toContain('Still owed: ₹26,200.00'));
+    await waitFor(() => expect(sheet.querySelector('[data-figure-group]')?.textContent).toMatch(/^Still owed₹26,200.00R-/));
     fireEvent.change(within(sheet).getByLabelText('Amount received'), { target: { value: '30000' } });
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
     await click(within(sheet).getByRole('button', { name: 'Record' }));

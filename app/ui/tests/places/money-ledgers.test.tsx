@@ -4,13 +4,13 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
 import { TAX_WORKINGS } from '../../src/engine/fixtures-extras';
+import { assertInkRules } from '../helpers/ink-rules';
 
 type Call = [string, unknown];
 type Override = (params: unknown) => unknown;
 
-function start(hash: string, override: Record<string, Override> = {}) {
+function start(hash: string, override: Record<string, Override> = {}, engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' })) {
   window.location.hash = hash;
-  const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
   const client = createFakeClient(engine);
   const calls: Call[] = [];
   const request = client.request.bind(client);
@@ -24,25 +24,34 @@ function start(hash: string, override: Record<string, Override> = {}) {
 }
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const main = () => screen.getByRole('main');
-const lineOf = (text: string) => within(main()).getByText(text).closest('li')!;
 const type = async (element: Element, value: string) => { await act(async () => { fireEvent.change(element, { target: { value } }); }); };
 const settings = () => screen.getByRole('region', { name: 'Limits and rates' });
+
+const tileOf = (name: string) => screen.findByRole('region', { name });
+const ledgerline = async () => {
+  const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
+  await engine.request('workspace.open', { folder: 'ledgerline' });
+  return engine;
+};
 
 describe('Money: books', () => {
   it('shows billed, received and earned for the period, each with its receipt, the engine note and open invoices', async () => {
     const { calls } = start('#/money/books');
-    const billed = await waitFor(() => lineOf('Billed'));
-    expect(billed.textContent).toContain('₹1,12,400.00');
+    const billed = await tileOf('Billed');
+    expect(await within(billed).findByText('₹1,12,400.00')).toBeTruthy();
     expect(within(billed).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy();
-    expect(within(lineOf('Received')).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
-    expect(lineOf('Earned').textContent).toContain('₹95,254.24');
+    expect(within(await tileOf('Received')).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect((await tileOf('Earned')).textContent).toContain('₹95,254.24');
     expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
     expect(screen.getByText('1 Oct 2026 to 31 Oct 2026')).toBeTruthy();
     expect(screen.getByText('Sample data. Clients pay through links on your site, and you record each payment here.')).toBeTruthy();
-    const open = await waitFor(() => lineOf('Boat Audio, due 28 Oct 2026'));
-    expect(open.textContent).toContain('₹26,200.00');
-    expect(within(open).getByRole('button', { name: 'Invoice INV-0039' })).toBeTruthy();
-    for (const figure of main().querySelectorAll('[data-figure]')) expect(figure.closest('li')!.querySelector('[data-receipt], [data-invoice]')).toBeTruthy();
+    // Each open invoice is a step from its own figures: the books send its balance with no receipt, so none shows here.
+    const open = await screen.findByRole('region', { name: 'Open invoices' });
+    const item = within(open).getByRole('button', { name: 'Invoice INV-0039' }).closest('li')!;
+    expect(item.textContent).toContain('Boat Audio');
+    expect(item.textContent).toContain('Due 28 Oct 2026');
+    expect(item.textContent).not.toContain('₹');
+    assertInkRules();
   });
 
   it('chooses the period from the engine list and keeps it in the address', async () => {
@@ -58,23 +67,26 @@ describe('Money: books', () => {
     expect(await screen.findByText('1 Jan 2026 to 31 Dec 2026')).toBeTruthy();
   });
 
-  it('shows the tax working under the books; a business without GST says so in one line', async () => {
+  it('a business without GST sees no tax working and no GST line at all (simple first)', async () => {
     const { calls } = start('#/money/books');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Tax working, October 2026' })).toBeTruthy();
-    expect(screen.getByText('Not registered for GST, so there is no GST to work out.')).toBeTruthy();
-    expect(screen.queryByText('Needs your CA to confirm')).toBeNull();
-    expect(calls).toContainEqual(['venture.tax.working', {}]);
+    await within(await tileOf('Billed')).findByText('₹1,12,400.00');
+    await waitFor(() => expect(calls).toContainEqual(['venture.tax.working', {}]));
+    await waitFor(() => expect(calls.map(([m]) => m)).toContain('venture.blueprint.get'));
+    expect(screen.queryByRole('heading', { name: /Tax working/ })).toBeNull();
+    expect(screen.queryByText('Not registered for GST, so there is no GST to work out.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tax details' })).toBeNull();
   });
 
   it('each tax line shows its figure with its receipt, and a working the CA must confirm says so', async () => {
-    start('#/money/books', { 'venture.tax.working': () => TAX_WORKINGS.ledgerline });
+    start('#/money/books', { 'venture.tax.working': () => TAX_WORKINGS.ledgerline }, await ledgerline());
+    await click(await screen.findByRole('button', { name: 'Tax details' }));
     expect(await screen.findByRole('heading', { level: 2, name: 'Tax working, September 2026' })).toBeTruthy();
     expect(screen.getByText('Needs your CA to confirm')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 3, name: 'GST on your sales' })).toBeTruthy();
     const cgst = screen.getAllByText('CGST at 9%')[0]!.closest('li')!;
     expect(cgst.textContent).toContain('₹1,440.00');
     expect(within(cgst).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
-    const credit = lineOf('Input credit');
+    const credit = screen.getByText('Input credit').closest('li')!;
     expect(credit.textContent).toContain('₹0.00');
     expect(credit.querySelector('[data-receipt]')).toBeNull();
     expect(screen.getByText('No purchase bills were uploaded for September.')).toBeTruthy();
@@ -87,8 +99,7 @@ describe('Money: books', () => {
         figures: [{ operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400.00', stale: true }],
       }),
     });
-    const billed = await waitFor(() => lineOf('Billed'));
-    expect(billed.textContent).toContain('changed since');
+    expect(await within(await tileOf('Billed')).findByText('changed since')).toBeTruthy();
   });
 });
 
@@ -133,11 +144,12 @@ describe('Money: spend', () => {
     expect(main().textContent).toContain(`USD 0.2500 this month · ₹20.88 ${at}`);
   });
 
-  it('the AI spend line at a glance shows rupees beside the dollars when the engine gives them', async () => {
+  it('the AI spend tile at a glance shows rupees beside the dollars when the engine gives them', async () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
     start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: 'USD 0.2500', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) });
-    const line = await waitFor(() => lineOf('AI and tools this month'));
-    expect(line.textContent).toContain(`USD 0.2500 · ₹20.88 ${at}`);
+    const spend = await tileOf('AI spend this month');
+    expect(await within(spend).findByText(`₹20.88 ${at}`)).toBeTruthy();
+    expect(within(spend).getByText('USD 0.2500')).toBeTruthy();
   });
 
   it('says so when there are no paid calls', async () => {

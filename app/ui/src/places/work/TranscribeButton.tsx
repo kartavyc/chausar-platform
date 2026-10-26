@@ -44,7 +44,7 @@ export function TranscribeButton({ order }: { order: OrderLite }) {
   const canMake = files.data !== undefined && !files.loading && transcripts.length === 0;
 
   return (
-    <div>
+    <div className={s.transcribe}>
       {transcripts.length > 0 && (
         <ul className={s.files} aria-label={t('work.transcribe.files')}>
           {transcripts.map((f) => (

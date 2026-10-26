@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { assertFiguresProved, assertInkRules } from '../helpers/ink-rules';
 
 type Call = [string, unknown];
 type Override = (params: unknown) => unknown;
@@ -24,60 +25,59 @@ function start(hash: string, options: { language?: 'en' | 'hi'; override?: Recor
 }
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
-const main = () => screen.getByRole('main');
-const lineOf = (text: string) => within(main()).getByText(text).closest('li')!;
 
-/** The words a reader sees, one per run of text, so "Money" and "Overview" in two elements count as two. */
-function words(root: Element): string[] {
-  const out: string[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if ((node.parentElement?.closest('.sr-only'))) continue;
-    out.push(...(node.textContent ?? '').split(/\s+/).filter(Boolean));
-  }
-  return out;
-}
+/** Money at a glance as the real engine sends it: every line with its receipt (platform/runtime/venture/money/overview.ts). */
+const RECEIPTED = {
+  lines: [
+    { id: 'owed', label: 'Clients owe you', value: '₹26,200.00', receiptId: 'R-0430' },
+    { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
+    { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', receiptId: 'R-0431', estimate: true },
+  ],
+};
+const receipted: Override = () => structuredClone(RECEIPTED);
+const tileOf = (name: string) => screen.findByRole('region', { name });
 
 describe('Money overview', () => {
-  it('shows what clients owe, what came in this month and what AI and tools cost, in the engine words and figures', async () => {
-    start('#/money');
+  it('shows what was invoiced, what came in, what AI cost and what clients owe, each in the engine words with its receipt', async () => {
+    start('#/money', { override: { 'venture.money.overview': receipted } });
     expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeTruthy();
-    const owed = await waitFor(() => lineOf('Clients owe you'));
-    expect(owed.textContent).toContain('₹26,200.00');
-    expect(within(owed).getByRole('link', { name: 'All open invoices' }).getAttribute('href')).toBe('#/money/invoices');
-    const received = await waitFor(() => lineOf('Came in this month'));
-    expect(received.textContent).toContain('₹86,200.00');
+    const owed = await tileOf('Owed to you');
+    await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200.00'));
+    expect(within(owed).getByRole('button', { name: 'Receipt R-0430' })).toBeTruthy();
+    const received = await tileOf('Received');
+    expect(await within(received).findByText('₹86,200.00')).toBeTruthy();
     expect(within(received).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
-    const spent = await waitFor(() => lineOf('AI and tools this month'));
-    expect(spent.textContent).toContain('₹60.10, includes estimates');
+    const spent = await tileOf('AI spend this month');
+    expect(await within(spent).findByText('₹60.10')).toBeTruthy();
     expect(within(spent).getByRole('link', { name: 'Each call' }).getAttribute('href')).toBe('#/money/spend');
-    // A cost estimate is not a number a model wrote, and it has no receipt until it settles.
-    expect(spent.querySelector('[data-receipt]')).toBeNull();
+    // A cost estimate is not a number a model wrote: it opens its receipt, never "model estimate".
     expect(spent.textContent).not.toContain('model estimate');
+    expect(within(await tileOf('Invoiced this month')).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy();
   });
 
-  it('reads one engine view and adds nothing up; every figure on it carries its reference', async () => {
-    const { calls } = start('#/money');
+  it('reads two engine views and adds nothing up; every figure on it carries its proof', async () => {
+    const { calls } = start('#/money', { override: { 'venture.money.overview': receipted } });
     await screen.findByText('₹86,200.00');
-    await screen.findByText('₹60.10, includes estimates');
+    await screen.findByText('₹60.10');
+    await screen.findByText('₹1,12,400.00');
     expect(calls.map(([m]) => m)).toContain('venture.money.overview');
-    expect(calls.map(([m]) => m)).not.toContain('venture.books.summary');
+    expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
     expect(calls.map(([m]) => m)).not.toContain('venture.spend.list');
-    const figures = main().querySelectorAll('[data-figure]');
-    expect(figures.length).toBe(3);
-    for (const figure of figures) expect(figure.closest('li')!.querySelector('[data-receipt], [data-invoice], [data-ref]'), figure.textContent ?? '').toBeTruthy();
+    expect(assertFiguresProved().length).toBe(4);
+    assertInkRules();
   });
 
   it('a figure a model wrote says so and never carries a receipt', async () => {
     start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000.00', receiptId: 'R-0402', estimate: true }] }) } });
-    const received = await waitFor(() => lineOf('Came in this month'));
+    const received = await tileOf('Received');
+    await within(received).findByText('₹40,000.00');
     expect(received.textContent).toContain('model estimate');
     expect(received.querySelector('[data-receipt]')).toBeNull();
   });
 
   it('shows what the engine says when nothing is owed', async () => {
-    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'owed', label: 'Clients owe you', value: '₹0.00' }] }) } });
-    expect((await waitFor(() => lineOf('Clients owe you'))).textContent).toContain('₹0.00');
+    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'owed', label: 'Clients owe you', value: '₹0.00', receiptId: 'R-0430' }] }) } });
+    expect(await within(await tileOf('Owed to you')).findByText('₹0.00')).toBeTruthy();
   });
 
   it('a receipt opens the receipt sheet', async () => {
@@ -100,20 +100,16 @@ describe('Money overview', () => {
     expect(links[0]!.getAttribute('aria-current')).toBeNull();
     expect(await screen.findByText('Send invoice · Mehta Traders')).toBeTruthy();
     await go('#/money/nowhere');
-    expect(await screen.findByText('Clients owe you')).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Owed to you' })).toBeTruthy();
   });
 
-  it('stays near forty words at rest', async () => {
-    start('#/money');
-    await screen.findByText('₹86,200.00');
-    await screen.findByText('₹60.10, includes estimates');
-    expect(words(main()).length).toBeLessThanOrEqual(45);
-  });
+  // The overview's word budget (Ink v1's 45, raised to 79 by 3F for the D tiles) moved to tests/budgets.test.tsx (w3
+  // 3I), with every place's, measured the same way: the overview as the real engine sends it, with its receipts.
 
   it('speaks Hindi', async () => {
     start('#/money', { language: 'hi' });
     expect(await screen.findByRole('heading', { level: 1, name: 'पैसा' })).toBeTruthy();
-    expect(await screen.findByText('सभी खुले बिल')).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'आपको मिलना बाकी' })).toBeTruthy();
   });
 });
 

@@ -1,7 +1,8 @@
 {
-  "connections.line": "What each tool really does today, and the AI that does your work.",
+  "connections.line": "What each tool does today, and the AI that does your work.",
   "connections.failed": "Couldn't load your connections: {message}",
-  "connections.posting": "Posting:",
+  "connections.posting": "Posting",
+  "connections.posting.api": "API",
   "connections.posting.signIn": "Sign in",
   "connections.posting.signInName": "Sign in to {name}",
   "connections.posting.opening": "Opening",
@@ -99,7 +100,6 @@
   "connections.bank.fileFirst": "Choose the statement file first.",
   "connections.bank.import": "Import",
   "connections.bank.rejected": "Line {line}: {reason}",
-  "connections.bankSheet.label": "Bank account",
   "connections.bankSheet.title": "Bank account",
   "connections.bankSheet.loading": "Loading",
   "connections.bankSheet.failed": "Couldn't load your bank account: {message}",
@@ -155,4 +155,23 @@
   "connections.transcribe.remove": "Remove",
   "connections.transcribe.failed": "Couldn't save this: {message}",
   "connections.transcribe.loadFailed": "Couldn't read the setup: {message}"
+,
+  "connections.groupMeta": {
+    "zero": "All planned",
+    "one": "{live} of {total} works today",
+    "other": "{live} of {total} work today"
+  },
+  "connections.bank.works": "Statement files you import work today.",
+  "connections.bank.direct": "Reading your bank directly",
+  "connections.canDo.title": "What Chausar can do on this computer",
+  "connections.canDo.titleHosted": "What Chausar can do on the server",
+  "connections.canDo.meta": "Everything that writes or sends for you",
+  "connections.canDo.none": "Nothing here writes or sends for you yet.",
+  "connections.canDo.stop": "Stopping a connection does not undo what already happened.",
+  "connections.sheet.setup": "To set it up",
+  "connections.sheet.needsFirst": "What it needs first",
+  "connections.ai.meta": "Your own key, or your own AI app",
+  "connections.ai.group.provider-api": "With your own key",
+  "connections.ai.group.this-computer": "With an AI app on this computer",
+  "connections.ai.group.chausar-engine": "Without AI"
 }

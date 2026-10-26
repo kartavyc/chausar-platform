@@ -1,31 +1,50 @@
-/* The bank account sheet: accounts, alerts and the ledger as plain lists, hairlines between rows, no boxes. */
+/* The bank account sheet in the D look: the import, each account on an inner grey card, and the statement as list
+   rows (D's `.lrow`) with the bank file's own amount at the end of each. */
 
+.sheetIcon {
+  display: grid;
+  place-items: center;
+  width: var(--av-40);
+  height: var(--av-40);
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+/* The sheet's body spaces the sections. */
 .section {
-  margin-top: var(--sp-6);
+  margin: 0;
 }
 
 .heading {
-  margin: 0 0 var(--sp-1);
+  margin: 0 0 var(--sp-2);
   font-size: var(--text-read);
   font-weight: var(--weight-medium);
   color: var(--fg2);
 }
 
+.accounts {
+  display: grid;
+  gap: var(--gap-cards);
+}
+
+/* D's inner card: one account with its bank access and its alerts. */
 .account {
-  margin-top: var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
+  --ring-ground: var(--inner);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
 }
 
 .name {
   margin: 0;
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
   color: var(--fg);
 }
 
 .minor {
-  margin: var(--sp-3) 0 var(--sp-1);
+  margin: var(--sp-4) 0 var(--sp-1);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   color: var(--mute);
@@ -64,8 +83,7 @@
 .form {
   display: grid;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
-  max-width: 520px;
+  margin-top: var(--sp-3);
 }
 
 .field {
@@ -75,15 +93,16 @@
 
 .label {
   font-size: var(--text-label);
-  color: var(--mute);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
 }
 
 .select {
   width: 100%;
   min-height: var(--control);
   padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--edge);
-  border-radius: var(--radius);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
   background: var(--surface);
   color: var(--fg);
   font-size: var(--text-body);
@@ -111,26 +130,24 @@
   color: var(--fg2);
 }
 
+/* A statement row: what it was and the bank's amount, then how the engine reads it and the decisions it allows. */
 .row {
-  margin-top: var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.row:first-child {
+  border-top: 0;
 }
 
 .head {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2);
+  gap: var(--sp-1) var(--sp-3);
   align-items: baseline;
   font-size: var(--text-body);
+  font-weight: var(--weight-medium);
   color: var(--fg);
-}
-
-.date,
-.amount {
-  font-family: var(--font-mono);
-  font-size: var(--text-read);
-  color: var(--fg2);
 }
 
 .what {
@@ -138,16 +155,39 @@
   overflow-wrap: anywhere;
 }
 
+.amount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.date {
+  font-family: var(--font-mono);
+}
+
 .buttons {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+  justify-content: flex-end;
   margin-top: var(--sp-2);
 }
 
 .pick {
   margin-top: var(--sp-2);
-  max-width: 520px;
 }
 
 /* The engine's words when a row needs a second look: waiting colour, words first. */

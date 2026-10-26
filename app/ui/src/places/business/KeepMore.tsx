@@ -118,7 +118,7 @@ export function MoveAway({ locked }: { locked: boolean }) {
   }
 
   return (
-    <details className={`${s.fold} ${s.section}`}>
+    <details className={s.fold}>
       <summary>{t('business.move')}</summary>
       {made ? (
         <div>
@@ -171,7 +171,7 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
   }
 
   return (
-    <section className={s.section} aria-label={t(locked ? 'business.lock' : 'business.close')}>
+    <section className={s.moreRow} aria-label={t(locked ? 'business.lock' : 'business.close')}>
       <div className={s.buttons}><Button disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
       {unlock && <p className={s.note}>{t(locked ? 'business.lockLine' : 'business.closeLine')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -208,7 +208,7 @@ export function ExportCopy() {
   }
 
   return (
-    <details className={`${s.fold} ${s.section}`}>
+    <details className={s.fold}>
       <summary>{t('business.export')}</summary>
       <form className={s.form} onSubmit={(event) => void go(event)}>
         <fieldset className={s.choices}>
@@ -272,7 +272,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
   }
 
   return (
-    <details className={`${s.fold} ${s.section}`}>
+    <details className={s.fold}>
       <summary>{t('business.delete')}</summary>
       {name === null ? (
         status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
@@ -296,7 +296,7 @@ export function DeletedNote({ result }: { result: Deleted }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
-    <section className={s.section} aria-label={t('business.deleted')}>
+    <section className={s.deletedNote} aria-label={t('business.deleted')}>
       <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.deleted')}</h2>
       <p className={s.line}>{result.externalCopies}</p>
       <div className={s.buttons}><Button variant="primary" onClick={() => left({ autoOpen: false })}>{t('business.continue')}</Button></div>

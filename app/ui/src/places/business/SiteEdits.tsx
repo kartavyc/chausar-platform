@@ -4,7 +4,7 @@ import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { SiteEditLite } from '../../engine/types';
-import { messageOf } from './shared';
+import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 
 export type DiffLine = { kind: 'same' | 'removed' | 'added'; text: string };
@@ -49,7 +49,6 @@ export function lineDiff(before: string, after: string): DiffLine[] {
 export function SiteEdits() {
   const t = useT();
   const client = useEngine();
-  const headingId = useId();
   const [edits, setEdits] = useState<SiteEditLite[]>([]);
   const [staging, setStaging] = useState(false);
   const [path, setPath] = useState('');
@@ -77,8 +76,7 @@ export function SiteEdits() {
   const replace = (edit: SiteEditLite) => setEdits((now) => now.map((e) => (e.id === edit.id ? edit : e)));
 
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.site.title')}</h2>
+    <TileSection title={t('business.site.title')}>
       <p className={s.line}>{t('business.site.line')}</p>
       {edits.length > 0 && (
         <ul className={s.steps}>
@@ -97,9 +95,9 @@ export function SiteEdits() {
           </div>
         </form>
       ) : (
-        <div className={s.buttons}><Button onClick={() => setStaging(true)}>{t('business.site.stage')}</Button></div>
+        <div className={s.buttons}><Button size="sm" onClick={() => setStaging(true)}>{t('business.site.stage')}</Button></div>
       )}
-    </section>
+    </TileSection>
   );
 }
 

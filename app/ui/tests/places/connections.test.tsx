@@ -19,7 +19,9 @@ function desktop() {
   (window as Bridged).chausar = { request: vi.fn(), openExternal };
   return openExternal;
 }
-const row = async (name: string) => (await screen.findByRole('button', { name })).closest('li')!;
+// A connector's tile, by the button that names it. A text query with a selector: a role query over the whole page is
+// slow in jsdom (each one walks every element), and the page holds many tiles.
+const row = async (name: string) => (await screen.findByText(name, { selector: 'button' })).closest('li')!;
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 
 afterEach(() => { delete (window as Bridged).chausar; });
@@ -66,8 +68,10 @@ describe('Connections', () => {
     const instagram = await row('Instagram');
     const posting = instagram.querySelector('[data-posting]')!;
     expect(posting.querySelector('[data-label]')!.getAttribute('data-label')).toBe('planned');
-    expect(posting.textContent).toContain('Through your own browser session');
-    expect(posting.textContent).toContain('The platform may restrict this account.');
+    // Ink v2 (3B5b review): a planned connector says only "Planned" and the engine's reason, never how it would post
+    // or what that risks, so it cannot read like a live channel.
+    expect(posting.textContent).not.toContain('Through your own browser session');
+    expect(posting.textContent).not.toContain('The platform may restrict this account.');
     expect(posting.textContent).toContain('Posting a picture or video through the browser is not built yet.');
     const linkedin = (await row('LinkedIn')).querySelector('[data-posting]')!;
     expect(linkedin.querySelector('[data-label]')!.getAttribute('data-label')).toBe('write');
@@ -78,7 +82,9 @@ describe('Connections', () => {
   it("imports a bank statement file: the engine's own words for what it added, skipped as already there, or could not read", async () => {
     const { engine } = start();
     const bank = await row('Bank account (read only)');
-    expect(bank.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('planned');
+    // The import works today, so the chip says Reads (w3 3G1 review); only reading the bank directly is Planned.
+    expect(bank.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('read');
+    expect(bank.querySelector('[data-bank-direct] [data-label]')?.getAttribute('data-label')).toBe('planned');
     fireEvent.click(within(bank).getByRole('button', { name: 'Import a statement' }));
     await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     // The one import path opens the bank account sheet, with the import form inside it (Ink v2 wave 2, 2D).

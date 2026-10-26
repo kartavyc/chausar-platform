@@ -1,33 +1,260 @@
-/* Money: quiet lines under hairlines, figures in mono beside their receipts. No boxes, no tiles, no colour blocks. */
+/* Money: D-Money in tiles. The figure tiles (`.mt`, `.m-lab`, `.s-row`, `.s-sub`), who owes you (`.owe`, `.ow-*`,
+   `.ag-l`), due next (`.lt`), the invoices table (`.itile`, `.itab`, `.cl*`, `.amt`, `.due`), and the books, spend,
+   journal and sheets on the same tiles. Figures are DM Mono through the Figure part; receipts sit at the top right of a
+   figure tile, as on the board. D's 12.5 and 13.5 px sizes snap to the Ink scale (13 and 14). */
 
-.subnav {
+/* The sub-pages, as a segmented row above the page. */
+.toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-5);
-  margin: -12px 0 var(--sp-7);
-  font-size: var(--text-read);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: var(--target);
+  margin-bottom: var(--sp-4);
 }
 
-.subnav a {
-  padding: 6px 0;
-  border-bottom: var(--hair) solid transparent;
+.overview {
+  display: grid;
+  gap: var(--gap-grid);
+}
+
+.section {
+  margin-top: var(--gap-section);
+}
+
+.toolbar + .section {
+  margin-top: 0;
+}
+
+.section > :first-child {
+  margin-bottom: var(--sp-3);
+}
+
+.sectionTile {
+  padding-block: var(--sp-1);
+}
+
+/* Figure tiles. */
+
+.moneyTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.tileLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 24px;
+  padding-right: calc(var(--sp-12) * 2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
   color: var(--mute);
+}
+
+.tileValue {
+  margin-top: var(--sp-2);
+}
+
+/* The figure's receipt, at the tile's top right (D's `.m-lab .rc`): inside the compact figure tiles, and inside the
+   owed tile's own padding. */
+.tileValue [data-receipt] {
+  position: absolute;
+  top: var(--pad-tile-compact);
+  right: var(--pad-tile-compact);
+}
+
+.owedFigure [data-receipt] {
+  position: absolute;
+  top: var(--pad-tile);
+  right: var(--pad-tile);
+}
+
+/* Engine words around an amount ("₹60.10, includes estimates"): the body face, free to wrap inside the tile. */
+.tileValue[data-phrase] [data-ui-number] {
+  font-family: var(--font);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.withRupees {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.rupees {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.tileSub {
+  margin-top: calc(var(--sp-1) / 2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.tileChart {
+  margin-top: var(--sp-3);
+}
+
+.tileFoot {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  font-size: var(--text-label);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.more {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.more {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
   text-decoration: none;
 }
 
-.subnav a:hover {
+.more:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Who owes you, and due next. */
+
+.owed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.owed > :first-child {
+  padding-right: calc(var(--sp-12) * 2);
+}
+
+.owedBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.owedFigure {
+  margin-top: var(--sp-3);
+}
+
+.openList,
+.nextList {
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nextList {
+  margin-top: var(--sp-2);
+}
+
+.openItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.openList .openItem:first-child,
+.nextList .openItem:first-child {
+  border-top: 0;
+}
+
+.openText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.openClient {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 19px;
   color: var(--fg);
 }
 
-.subnav a[aria-current='page'] {
-  color: var(--fg);
-  border-bottom-color: var(--fg);
+.openSub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
 }
 
-.subnav a:focus-visible,
-.period:focus-visible,
+.openAmount {
+  flex: none;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.dueNext {
+  display: flex;
+  flex-direction: column;
+}
+
+.dueBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.quietLine {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.ref {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+/* References and plain lines. */
+
+.ref {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-label);
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.ref:hover {
+  color: var(--link-hover);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.invoiceNo {
+  composes: hit from '../../parts/touch.module.css';
+}
+
 .ref:focus-visible,
-.more:focus-visible {
+.more:focus-visible,
+.invoiceNo:focus-visible,
+.line:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: 2px;
   border-radius: 2px;
@@ -45,21 +272,19 @@
   display: flex;
   gap: var(--sp-4);
   align-items: baseline;
-  padding: 12px 0;
-  border-top: var(--hair) solid var(--line);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
   font-size: var(--text-read);
   color: var(--fg2);
 }
 
-.line:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 4px;
-  border-radius: 2px;
+.lines .line:first-child {
+  border-top: 0;
 }
 
 .label {
   flex: none;
-  width: 180px;
+  width: 200px;
   color: var(--mute);
 }
 
@@ -68,53 +293,21 @@
   flex: 1;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-3);
-  align-items: baseline;
+  align-items: center;
   min-width: 0;
 }
 
-.figure {
-  font-size: var(--text-body);
-  color: var(--fg);
-}
-
-.phrase {
-  font-variant-numeric: tabular-nums;
-}
-
-.ref,
-.more {
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: var(--text-read);
-  color: var(--link);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.ref:hover,
-.more:hover {
-  text-decoration-thickness: 2px;
-}
-
-.note {
+.note,
+.figureLabel,
+.kind {
   color: var(--mute);
 }
 
-.section {
-  margin-top: var(--sp-8);
+.kind[data-kind='refused'] {
+  color: var(--fail);
 }
 
-.section:first-child {
-  margin-top: 0;
-}
-
-.heading {
-  margin: 0 0 6px;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
+.dot {
   color: var(--mute);
 }
 
@@ -122,19 +315,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
-  margin: var(--sp-2) 0 0;
+  align-items: center;
+  margin-top: var(--sp-1);
   font-size: var(--text-read);
   color: var(--fg2);
-}
-
-.figureLabel,
-.kind {
-  color: var(--mute);
-}
-
-.dot {
-  color: var(--dim);
 }
 
 .stale {
@@ -142,92 +326,204 @@
   color: var(--wait);
 }
 
-.quiet {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-read);
-  color: var(--mute);
+/* On the inner grey of a sheet, amber words use the stronger amber (plain --wait reads under 4.5:1 there). */
+.sheetCard .stale {
+  color: var(--wait-strong);
 }
 
 .failed,
 .refusal {
-  margin: var(--sp-2) 0 0;
+  margin-top: var(--sp-2);
   font-size: var(--text-read);
   color: var(--fail);
 }
 
-.state {
-  font-size: var(--text-read);
-  color: var(--fg2);
-  white-space: nowrap;
-}
-
-.wait,
 .check {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
   color: var(--wait);
 }
 
-.check {
-  margin: var(--sp-1) 0 0;
-  font-size: var(--text-read);
+/* The invoices table. */
+
+/* The Tile part's `pad="none"` sets its padding to 0; the table keeps D's own (`.itile`). */
+.section .tableTile[data-pad='none'] {
+  padding: var(--sp-1) var(--pad-tile) var(--sp-2);
 }
 
-/* Spend settings */
-
-.rateCard {
-  display: grid;
-  gap: var(--sp-3);
+/* Positioned, so the table's visually hidden words scroll inside the tile too (unpositioned, Chrome let them widen
+   the place: w3 3I's walk, with a sheet open at 1280). */
+.tableTile {
+  position: relative;
+  overflow-x: auto;
+  container-type: inline-size;
+  container-name: invoices;
 }
 
-.rateCard > .fieldLabel {
-  margin: 0;
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.rateLine {
-  display: grid;
-  gap: var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
+.table th {
+  height: 40px;
+  padding: 0 var(--sp-3) 0 0;
+  border-bottom: var(--hair) solid var(--line);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--mute);
+  text-align: left;
+  white-space: nowrap;
 }
 
-/* Books */
-
-.periods {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-4);
+.table td {
+  height: 60px;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+  font-size: var(--text-body);
+  color: var(--fg);
+  vertical-align: middle;
 }
 
-.period {
-  min-height: 28px;
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+  text-align: right;
+}
+
+.colNumber { width: 96px; }
+.colAmount { width: 128px; text-align: right; }
+.colStatus { width: 120px; }
+.colDue { width: 120px; }
+.colReceipt { width: 100px; }
+.colAction { width: 148px; }
+
+.table th.colAmount,
+.cellAmount {
+  text-align: right;
+}
+
+.tr:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: -2px;
+}
+
+.invoiceNo {
   padding: 0;
   border: 0;
   background: none;
   font-size: var(--text-read);
-  color: var(--mute);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
   cursor: pointer;
+  text-align: left;
 }
 
-.period:hover {
-  color: var(--fg);
-}
-
-.period[aria-pressed='true'] {
-  color: var(--fg);
+.invoiceNo:hover {
   text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
+  text-underline-offset: 3px;
 }
 
-.range,
-.total {
-  margin: var(--sp-1) 0 var(--sp-6);
+.client {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.clientText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.clientName {
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clientSub {
+  overflow: hidden;
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.cellDue {
   font-size: var(--text-read);
   color: var(--mute);
 }
 
-.total {
-  font-size: var(--text-body);
+.cellDue :global(.mono) {
   color: var(--fg);
+}
+
+/* Words only a phone shows, where the table's column heads are hidden: the amount's label, the due date as a sentence. */
+.phoneOnly {
+  display: none;
+}
+
+.cellLabel {
+  margin-right: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.quietSmall {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--fail);
+}
+
+.priced {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+/* Books. */
+
+.periodRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.range {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.glance > * {
+  min-height: 124px;
+}
+
+.notes {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
 }
 
 .fold {
@@ -243,14 +539,108 @@
 }
 
 .fold p {
-  margin: var(--sp-2) 0 0;
+  margin-top: var(--sp-2);
+}
+
+.details {
+  margin-top: var(--gap-section);
+}
+
+.details > div > .section {
+  margin-top: var(--sp-4);
+}
+
+.caLine {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-chip);
+  background: var(--wait-soft);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
 }
 
 .taxPart {
   margin-top: var(--sp-4);
 }
 
-/* Sheets */
+.taxPart:first-child {
+  margin-top: 0;
+}
+
+.blockTitle {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+/* Spend and its settings. */
+
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.policyLines {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-1) 0 0;
+  list-style: none;
+}
+
+.policyLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.policyLine > svg {
+  flex: none;
+  color: var(--mute);
+}
+
+.policyText {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.rateCard {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.rateCard > .fieldLabel {
+  margin: 0;
+}
+
+.rateLine {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+/* Sheets and forms. */
+
+.sheetCard {
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
 
 .sheetFigures {
   display: grid;
@@ -266,6 +656,15 @@
   font-size: var(--text-read);
 }
 
+.sheetFigure:first-child {
+  border-top: 0;
+}
+
+.sheetFigure[data-key='total'],
+.sheetFigure[data-key='balance'] {
+  font-weight: var(--weight-strong);
+}
+
 .sheetFigure dt {
   color: var(--fg2);
 }
@@ -279,28 +678,37 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
-  margin: var(--sp-3) 0 0;
+  align-items: center;
+  margin-top: var(--sp-3);
   font-size: var(--text-read);
   color: var(--fg2);
+}
+
+/* The payment sheet's "Still owed" with the balance and the receipts that explain it. */
+.owedLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+}
+
+.owedLine :global(.mono) {
+  color: var(--fg);
 }
 
 .block {
   margin-top: var(--sp-6);
 }
 
-.blockTitle {
-  margin: 0 0 var(--sp-1);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
+.sheetCard .block {
+  margin-top: var(--sp-4);
 }
 
 .payment {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
+  align-items: center;
   padding: var(--sp-2) 0;
   border-top: var(--hair) solid var(--line);
   font-size: var(--text-read);
@@ -308,7 +716,7 @@
 }
 
 .pre {
-  margin: var(--sp-2) 0 0;
+  margin-top: var(--sp-2);
   font-family: var(--font-mono);
   font-size: var(--text-read);
   white-space: pre-wrap;
@@ -319,8 +727,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
-  margin: var(--sp-4) 0 0;
+  align-items: center;
+  margin-top: var(--sp-4);
   font-size: var(--text-read);
   color: var(--fg);
 }
@@ -332,16 +740,20 @@
 .ask {
   display: grid;
   gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
 }
 
 .ask p {
-  margin: 0;
   font-size: var(--text-read);
   color: var(--fg);
 }
 
 .buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
 }
@@ -365,8 +777,8 @@
   width: 100%;
   min-height: var(--control);
   padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--edge);
-  border-radius: var(--radius);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
   background: var(--surface);
   color: var(--fg);
   font: inherit;
@@ -378,6 +790,7 @@
   outline-offset: 0;
 }
 
+/* A phone: tiles stack (Bento), lines stack, and each invoice becomes a small card of its own. */
 @media (max-width: 759px) {
   .line {
     flex-direction: column;
@@ -387,4 +800,75 @@
   .label {
     width: auto;
   }
+
+  .section .tableTile[data-pad='none'] {
+    padding: 0 var(--pad-tile-compact);
+  }
+
+  .glance > * {
+    min-height: 0;
+  }
+}
+
+/* Too narrow for the table's columns (a phone, or a sheet open beside the page at 1280): each invoice becomes a small
+   card of its own, so Action never scrolls out of view (w3 3I). The column heads stay for screen readers. */
+@container invoices (max-width: 839px) {
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .tr {
+    display: grid;
+    grid-template-areas:
+      'client client'
+      'number status'
+      'amount receipt'
+      'due action';
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-4) 0;
+    border-bottom: var(--hair) solid var(--line-soft);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    display: block;
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .table td:last-child {
+    text-align: right;
+  }
+
+  .phoneOnly {
+    display: inline;
+  }
+
+  .wideOnly {
+    display: none;
+  }
+
+  .cellClient { grid-area: client; }
+  .cellNumber { grid-area: number; }
+  .cellStatus { grid-area: status; justify-self: end; }
+  .cellAmount { grid-area: amount; text-align: left; }
+  .cellReceipt { grid-area: receipt; justify-self: end; }
+  .cellDue { grid-area: due; }
+  .cellAction { grid-area: action; }
 }

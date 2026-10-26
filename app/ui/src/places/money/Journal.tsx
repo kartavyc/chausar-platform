@@ -10,14 +10,20 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { JournalEntry } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { Chip, type ChipTone } from '../../parts/Chip';
 import { EmptyState } from '../../parts/EmptyState';
 import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
-import { Failed } from './parts';
+import { EngineWords, Failed, Section } from './parts';
 import { useMoment } from './words';
 import s from './Money.module.css';
 
 const LIMIT = 50;
+
+/** Each state's tone: an unknown outcome waits on the owner (amber), an applied one is done, a rejected one is grey. */
+const TONES: Readonly<Record<JournalEntry['state'], ChipTone>> = {
+  described: 'neutral', approved: 'neutral', applied: 'done', rejected: 'idle', outcome_unknown: 'wait',
+};
 
 export function Journal() {
   const t = useT();
@@ -35,12 +41,14 @@ export function Journal() {
   return (
     <>
       {journal.error && <Failed error={journal.error} />}
-      {journal.data && entries.length === 0 && <EmptyState title={t('money.journal.none')} />}
-      {entries.length > 0 && (
-        <ul className={s.list}>
-          {entries.map((entry) => <JournalRow key={entry.id} entry={entry} onSettled={onSettled} />)}
-        </ul>
-      )}
+      <Section title={t('money.journal.heading')}>
+        {journal.data && entries.length === 0 && <EmptyState title={t('money.journal.none')} />}
+        {entries.length > 0 && (
+          <ul className={s.list}>
+            {entries.map((entry) => <JournalRow key={entry.id} entry={entry} onSettled={onSettled} />)}
+          </ul>
+        )}
+      </Section>
     </>
   );
 }
@@ -76,13 +84,12 @@ function JournalRow({ entry, onSettled }: { entry: JournalEntry; onSettled: (ent
       id={entry.id}
       eyebrow={moment(entry.at)}
       title={t('money.journal.title', { action: entry.action, target: entry.target })}
-      line={entry.receiptId ? <span className={s.value}><span>{entry.line}</span><Receipt id={entry.receiptId} /></span> : entry.line}
-      actions={(
-        <>
-          <span className={unknown ? `${s.state} ${s.wait}` : s.state}>{t(`money.journal.state.${entry.state}`)}</span>
-          {unknown && phase === 'idle' && <Button onClick={() => setPhase('ask')}>{t('money.journal.resolve')}</Button>}
-        </>
-      )}
+      line={entry.receiptId
+        // An amount the journal recorded sits with its receipt; any other line is the engine's words as written.
+        ? <span className={s.value} data-figure-group=""><span>{entry.line}</span><Receipt id={entry.receiptId} /></span>
+        : <EngineWords>{entry.line}</EngineWords>}
+      aside={<Chip tone={TONES[entry.state] ?? 'neutral'}>{t(`money.journal.state.${entry.state}`)}</Chip>}
+      actions={unknown && phase === 'idle' ? <Button size="sm" onClick={() => setPhase('ask')}>{t('money.journal.resolve')}</Button> : undefined}
     >
       {unknown && <p className={s.check}>{t('money.journal.check')}</p>}
       {unknown && phase !== 'idle' && (
@@ -95,7 +102,7 @@ function JournalRow({ entry, onSettled }: { entry: JournalEntry; onSettled: (ent
           </div>
         </div>
       )}
-      {failed && <p className={s.failed} role="status">{failed}</p>}
+      {failed && <p className={s.failed} role="status" data-engine-line="">{failed}</p>}
     </Row>
   );
 }

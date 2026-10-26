@@ -1,29 +1,44 @@
 /**
- * Today: the approval queue. Everything that needs the owner across every business on this computer, oldest first,
- * each row with its business tag and two actions; decided rows shrink to one receipt line for the rest of the
- * session; under them, what the team is working on now. Keys (J, K, Enter, A, D) come from the shell.
+ * Today (Ink v2, D-Today): the greeting, the goal card, the team at work, then everything that needs the owner across
+ * every business on this computer as cards (six big, four compact, the rest folded), with filter chips held in the
+ * address; under them Working now and Earlier. Decided cards shrink to one receipt line for the rest of the session.
+ * Keys (J, K, Enter, A, D) come from the shell and move through the cards as through rows.
  */
 
-import { useContext, useEffect, useRef, useState } from 'react';
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { goTo, openSheet } from '../../shell/navigation';
+import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
+import { StorageNotice } from '../../shell/StorageNotice';
+import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords } from '../../parts/custody';
 import { LeftContext } from '../onboarding/started';
-import { ApprovalRow, readBack, type DecideExtra } from '../../parts/ApprovalRow';
-import { EmptyState } from '../../parts/EmptyState';
-import { PageTitle } from '../../parts/PageTitle';
+import { ApprovalRow, readBack, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
+import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
+import { SwipeCard } from '../../parts/SwipeCard';
 import { cx } from '../../parts/cx';
 import { EngineError, type QueueAction, type QueueDecision, type QueueRow, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { seenKey, useTodaySession, type DecidedLine } from './session';
 import { ViewSheet, viewSheetId } from './ViewSheet';
+import { Greeting } from './Greeting';
+import { TodayGoal } from './GoalCard';
+import { TeamAtWork } from './TeamAtWork';
+import { BIG_CARDS, COMPACT_CARDS, NeedsYou, SwipeTip, knownFilter, matchesFilter, type CardLayout, type NeedsItem } from './NeedsYou';
+import { useCardPreview } from './CardPreview';
 import { WorkingNow, focusRow } from './WorkingNow';
+import { Earlier } from './Earlier';
+import { RUN_EVENTS, agentStateOf, runStateOf, useRunDetails } from './runs';
 import s from './Today.module.css';
 
 /** A run waiting on the owner adds a row; a failed run adds "Run again". */
 const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
+/** The team list changes with a posture or gate change, which the engine says with a queue change; the agents' states
+ *  come from the runs, read on their own. */
+const TEAM_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+/** The open business's plan changes when it is accepted or edited, or another business opens: a queue change. */
+const PLAN_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
 
 /**
  * The engine's order: plan, prices and setup rows lead, then oldest first, locked businesses last. A row keeps the
@@ -32,6 +47,13 @@ const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' 
 const order = (place: (id: string) => number) => (a: QueueRow, b: QueueRow) =>
   (a.kind === 'locked' ? 1 : 0) - (b.kind === 'locked' ? 1 : 0) || place(a.id) - place(b.id);
 
+/** Cards swiped to the end on a phone (session.defer) come after every other card, in the order they were swiped. */
+const deferredLast = (rank: (id: string) => number) => (a: QueueRow, b: QueueRow) => {
+  const ra = rank(a.id);
+  const rb = rank(b.id);
+  return (ra > 0 ? 1 : 0) - (rb > 0 ? 1 : 0) || ra - rb;
+};
+
 /** Actions that take the owner where the thing is done. The engine refuses them as decisions (NOT_A_DECISION). */
 const PLACES_FOR: Partial<Record<QueueAction['id'], () => void>> = {
   connect: () => goTo('connections'),
@@ -39,24 +61,50 @@ const PLACES_FOR: Partial<Record<QueueAction['id'], () => void>> = {
   keep: () => goTo('business', 'keep'),
 };
 
+/**
+ * Primaries that are not a queue decision: opening a locked business (it closes the one open now), the ones that take
+ * the owner to another place, and opening the thing to look at. A swipe right never presses them (3H1 review): on a
+ * phone those cards swipe left only.
+ */
+const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>(['open', 'watch', 'read', ...(Object.keys(PLACES_FOR) as QueueAction['id'][])]);
+
 const focusedRowId = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null;
+
+/** Two sentences on one line: the engine's summary and the working count, with a full stop between them. */
+function sentences(first: string | undefined, second: string | undefined): string | undefined {
+  if (!first) return second;
+  if (!second) return first;
+  return /[.!?।]$/.test(first.trim()) ? `${first} ${second}` : `${first}. ${second}`;
+}
 
 export function Place() {
   const t = useT();
   const client = useEngine();
   const left = useContext(LeftContext);
   const session = useTodaySession();
+  const route = useRoute();
+  const narrow = useNarrow();
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
+  const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
+  const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
   // A stale decision hands back the new version; it shows until the list itself catches up.
   const [newer, setNewer] = useState<ReadonlyMap<string, { from: string; latest: QueueRow }>>(new Map());
   const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
   const [focusAfter, setFocusAfter] = useState<string | null>(null);
+  // The rows past the compact cards are shown; and a card the page was asked to bring into view and focus.
+  const [expanded, setExpanded] = useState(false);
+  const [reveal, setReveal] = useState<string | null>(null);
   const listed = useRef<Map<string, QueueRow> | null>(null);
 
   const live = (queue.data?.rows ?? []).filter((row) => !session.isHidden(row.id)).map((row) => {
     const swap = newer.get(row.id);
     return swap && swap.from === row.digest ? swap.latest : row;
   });
+  const runs = runList.data?.runs ?? [];
+  // Whether the open business charges tax, from its plan: a file's card shows tax figures only then. The engine lists
+  // only the open business's rows (another business comes as a locked row), so its plan speaks for every card.
+  const plan = useResource('venture.blueprint.get', {}, { refreshOn: PLAN_EVENTS, skip: !live.some((row) => row.viewRef?.kind === 'file') });
+  const taxRegistered = plan.data?.blueprint.backOffice.taxRegistered.value === true;
 
   // A row that leaves the list without being decided here was resolved somewhere else (the run sheet, another
   // window). Rows of a business that just became locked (the owner switched business) leave quietly.
@@ -78,6 +126,13 @@ export function Place() {
     const active = document.activeElement;
     if (!active || active === document.body || !active.isConnected || focusedRowId() === focusAfter) focusRow(focusAfter);
   }, [focusAfter]);
+
+  // A card asked for from elsewhere on the page ("Answer below", "Show 2 more") takes focus once it is drawn, after a
+  // filter or the fold has let it show. One that is no longer listed is given up.
+  useEffect(() => {
+    if (!reveal) return;
+    if (focusRow(reveal) || !live.some((row) => row.id === reveal)) setReveal(null);
+  });
 
   function look(row: QueueRow, origin?: HTMLElement) {
     const ref = row.viewRef;
@@ -168,41 +223,41 @@ export function Place() {
 
   session.placeRows(live);
   const liveIds = new Set(live.map((row) => row.id));
-  const items: { row: QueueRow; done?: DecidedLine | undefined }[] = [
+  const items: NeedsItem[] = [
     ...live.map((row) => ({ row, done: session.line(row.id) })),
     ...session.lines().filter((line) => !liveIds.has(line.row.id)).map((line) => ({ row: line.row, done: line })),
-  ].sort((a, b) => order((id) => session.place(id))(a.row, b.row));
+  ].sort((a, b) => deferredLast((id) => session.deferredRank(id))(a.row, b.row) || order((id) => session.place(id))(a.row, b.row));
   const waiting = items.filter((item) => !item.done).length;
+  const filter = knownFilter(route.query.show, live);
+  const showBusiness = new Set(live.map((r) => r.businessId)).size > 1;
 
-  return (
-    <>
-      <PageTitle title={t('place.today')} line={waiting > 0 ? queue.data?.summary : undefined} />
-      <section aria-label={t('queue.title')}>
-        {queue.error && !queue.data && <p className={s.failed}>{t('today.failed', { message: queue.error.message })}</p>}
-        {items.length > 0 && (
-          <ul className={s.list}>
-            {items.map(({ row, done }) => (done ? (
-              <Decided key={row.id} line={done} settle={settled.has(row.id)} />
-            ) : (
-              <ApprovalRow
-                key={row.id}
-                row={row}
-                viewed={session.isViewed(seenKey(row))}
-                onDecide={decide}
-                onReread={reread}
-                onAction={navigate}
-                showBusiness={new Set(live.map((r) => r.businessId)).size > 1}
-                onView={(r) => look(r)}
-                onOpen={opener(row)}
-              />
-            )))}
-          </ul>
-        )}
-        {queue.data && waiting === 0 && <EmptyState title={t('queue.empty')} />}
-      </section>
-      <WorkingNow rowForRun={(runId) => live.find((row) => row.viewRef?.kind === 'run' && row.viewRef.id === runId && !session.line(row.id))?.id} />
-    </>
-  );
+  /** The card that answers a run waiting on the owner, while it waits. */
+  const rowForRun = (runId: string) => live.find((row) => row.viewRef?.kind === 'run' && row.viewRef.id === runId && !session.line(row.id))?.id;
+
+  /** Bring a card into view and focus it: clear a filter that hides it and open the fold it sits behind. */
+  function goToRow(id: string) {
+    const row = live.find((r) => r.id === id);
+    if (!row) return;
+    const shown = matchesFilter(row, filter) ? filter : 'all';
+    if (shown !== filter) chooseFilter('all');
+    const place = items.filter((item) => matchesFilter(item.row, shown)).findIndex((item) => item.row.id === id);
+    if (place >= BIG_CARDS + COMPACT_CARDS) setExpanded(true);
+    setReveal(id);
+  }
+
+  function chooseFilter(next: string) {
+    const { show: _show, ...rest } = route.query;
+    setQuery(next === 'all' ? rest : { ...rest, show: next });
+  }
+
+  /** The state of the agent a card is from: its run's own state for a row about a run, else the agent's. */
+  function stateFor(row: QueueRow): AvatarState | undefined {
+    if (row.viewRef?.kind === 'run') {
+      const run = runs.find((r) => r.runId === row.viewRef!.id);
+      if (run) return runStateOf(run);
+    }
+    return row.agent ? agentStateOf(row.agent, runs.filter((run) => run.businessId === row.businessId)) : undefined;
+  }
 
   /** Enter or the title opens what the row is about; a row about a figure opens its receipt. */
   function opener(row: QueueRow): ((row: QueueRow, origin: HTMLElement) => void) | undefined {
@@ -211,20 +266,185 @@ export function Place() {
     if (receiptId && !row.change?.estimate) return (_r, origin) => openSheet('receipt', receiptId, origin);
     return undefined;
   }
+
+  // The cards' handlers stay the same from render to render (each reads the latest state through a ref), so a card is
+  // drawn again only when what it shows changes: the page re-renders on every queue, run or session change.
+  const latest = useRef({ decide, reread, navigate, look, opener, session });
+  latest.current = { decide, reread, navigate, look, opener, session };
+  const handlers = useMemo(() => ({
+    decide: (row: QueueRow, action: QueueAction, extra: DecideExtra) => latest.current.decide(row, action, extra),
+    reread: (row: QueueRow) => latest.current.reread(row),
+    navigate: (row: QueueRow, action: QueueAction) => latest.current.navigate(row, action),
+    view: (row: QueueRow) => latest.current.look(row),
+    open: (row: QueueRow, origin: HTMLElement) => latest.current.opener(row)?.(row, origin),
+    defer: (row: QueueRow) => latest.current.session.defer(row.id),
+  }), []);
+
+  /** Hide the swipe tip for the session; focus goes to the first card, not lost to the page. */
+  function hideTip() {
+    const first = items.find((item) => !item.done && matchesFilter(item.row, filter))?.row.id;
+    session.hideTip();
+    if (first) setReveal(first);
+  }
+
+  const card = (item: NeedsItem, layout: CardLayout) => (item.done ? (
+    <Decided line={item.done} settle={settled.has(item.row.id)} layout={layout} />
+  ) : (
+    <TodayCard
+      row={item.row}
+      layout={layout}
+      agentState={stateFor(item.row)}
+      viewed={session.isViewed(seenKey(item.row))}
+      taxRegistered={taxRegistered}
+      showBusiness={showBusiness}
+      onDecide={handlers.decide}
+      onReread={handlers.reread}
+      onAction={handlers.navigate}
+      onView={handlers.view}
+      onOpen={opener(item.row) ? handlers.open : undefined}
+      phone={narrow}
+      onDefer={handlers.defer}
+    />
+  ));
+
+  const activeRuns = runs.filter((run) => run.state === 'active').length;
+  const summary = waiting > 0 ? queue.data?.summary : undefined;
+  const workingRuns = runs.filter((run) => run.state === 'active' || run.state === 'waiting'
+    || (run.state === 'failed' && live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'run-again') && !session.line(row.id))));
+  // Each listed run's steps, read once and shared by the team's live tiles (a subset of these runs) and Working now.
+  const details = useRunDetails(workingRuns.map((run) => run.runId));
+
+  return (
+    <>
+      <Greeting
+        line={sentences(summary, activeRuns > 0 ? t('today.sub.working', { count: activeRuns }) : undefined)}
+        count={summary ? String(queue.data?.needsYou ?? waiting) : undefined}
+      />
+      <StorageNotice />
+      {/* One container, so the grids below follow the page's own width (a sheet open beside it narrows it). */}
+      <div className={s.today}>
+        <div className={s.page}>
+          <TodayGoal />
+          <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} />
+        </div>
+        <NeedsYou
+          items={items}
+          loaded={Boolean(queue.data)}
+          failed={queue.error?.message}
+          filter={filter}
+          onFilter={(next) => chooseFilter(next)}
+          expanded={expanded}
+          onExpand={(first) => { setExpanded(true); if (first) setReveal(first); }}
+          card={card}
+          phone={narrow}
+          tip={narrow && session.showsTip() ? <SwipeTip onHide={hideTip} /> : undefined}
+        />
+        <div className={s.bottom}>
+          <WorkingNow runs={workingRuns} details={details} rowForRun={rowForRun} goToRow={goToRow} />
+          <Earlier />
+        </div>
+      </div>
+    </>
+  );
 }
 
-/** A decided row, shrunk to one line: title, what was done, and its receipt. It stays until the session ends. */
-function Decided({ line: { row, line, receiptId }, settle }: { line: DecidedLine; settle: boolean }) {
+interface TodayCardProps {
+  row: QueueRow;
+  layout: CardLayout;
+  agentState: AvatarState | undefined;
+  /** The owner opened this version of it in this session (the session keys it by the row's digest). */
+  viewed: boolean;
+  /** The open business charges tax: a file's card may show its tax figures. */
+  taxRegistered: boolean;
+  showBusiness: boolean;
+  onDecide: (row: QueueRow, action: QueueAction, extra: DecideExtra) => Promise<QueueDecision>;
+  onReread: (row: QueueRow) => Promise<QueueDecision>;
+  onAction: (row: QueueRow, action: QueueAction) => boolean;
+  onView: (row: QueueRow) => void;
+  onOpen: ((row: QueueRow, origin: HTMLElement) => void) | undefined;
+  /** A phone: the card can be swiped (right for its primary, left for Later) and its buttons are xl. */
+  phone: boolean;
+  /** Move the card to the end of the list for the session (a left swipe on a card with no Later). */
+  onDefer: (row: QueueRow) => void;
+}
+
+/**
+ * One row as a card, with its preview on a big card. It draws again only when one of its props changes. On a phone
+ * it is wrapped in a SwipeCard that presses the card's own buttons through its handle (3B5a's ApprovalHandle), so a
+ * swipe can never do what a tap could not: a locked primary stays locked and says why, a second ask opens in the card
+ * and decides nothing, and a press while one is on its way sends nothing (spec 8: a swipe never decides money alone).
+ * Left presses Later where the row has it; a row without Later moves to the end of the list, with no engine call.
+ * Only a card whose primary is a queue decision swipes right (NOT_DECISIONS). A swipe acts only on the version that
+ * was on screen when the finger came down: a new version that arrives mid-swipe (its digest changed) is never pressed
+ * by that swipe; the card shows it as changed, and the owner swipes again if they want to.
+ */
+const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer }: TodayCardProps) {
+  const t = useT();
+  const handle = useRef<ApprovalHandle>(null);
+  // The row now, and its digest when the finger last came down on the card (a swipe acts only on that version).
+  const latest = useRef(row);
+  latest.current = row;
+  const started = useRef<string | null>(null);
+  const preview = useCardPreview(row, { unseen: !viewed, enabled: layout === 'card', taxRegistered });
+  const card = (
+    <ApprovalRow
+      row={row}
+      layout={layout}
+      agentState={agentState}
+      preview={preview}
+      viewed={viewed}
+      onDecide={onDecide}
+      onReread={onReread}
+      onAction={onAction}
+      showBusiness={showBusiness}
+      onView={onView}
+      onOpen={onOpen}
+      handle={phone ? handle : undefined}
+      buttonSize={phone ? 'xl' : undefined}
+    />
+  );
+  if (!phone) return card;
+  // Until the card has drawn once its handle is not set; the row's own primary says the same words meanwhile.
+  const fromRow = row.actions.find((action) => action.primary) ?? row.actions[0];
+  const later = row.actions.find((action) => action.id === 'later');
+  const decides = fromRow !== undefined && !NOT_DECISIONS.has(fromRow.id);
+  /** The version on screen when the finger came down is still the one on screen. */
+  const same = () => started.current === latest.current.digest;
+  return (
+    <div className={s.swipe} onPointerDownCapture={() => { started.current = latest.current.digest; }}>
+      <SwipeCard
+        rightLabel={() => handle.current?.primary().label ?? fromRow?.label ?? ''}
+        asksAgain={() => handle.current?.primary().asksAgain ?? Boolean(fromRow?.secondAsk)}
+        rightLocked={() => handle.current?.primary().locked ?? false}
+        // The card's own note line already says why it is locked; the swipe adds nothing under it.
+        lockedNote=""
+        leftLabel={later ? later.label : t('today.swipe.skip')}
+        onRight={decides ? () => (same() ? handle.current?.pressPrimary() : 'none') : undefined}
+        onLeft={() => {
+          if (!same()) return 'none';
+          const result = handle.current?.pressLater();
+          if (result === 'none' && !later) onDefer(row);
+          return result;
+        }}
+      >
+        {card}
+      </SwipeCard>
+    </div>
+  );
+});
+
+/** A decided card, shrunk to one line: title, what was done, and its receipt. It stays until the session ends. */
+function Decided({ line: { row, line, receiptId }, settle, layout }: { line: DecidedLine; settle: boolean; layout: CardLayout }) {
   const said = receiptId ? (line.endsWith(receiptId) ? line.slice(0, -receiptId.length) : `${line} · `) : line;
   return (
-    <li className={cx(s.decided, settle && s.settle)} data-row="" data-row-id={row.id} data-decided="" tabIndex={-1}>
+    <article className={cx(s.decided, settle && s.settle)} data-row="" data-row-id={row.id} data-decided="" data-layout={layout} tabIndex={-1}>
       <span role="status">
         <span className={s.decidedTitle}>{row.title}</span>
         {' · '}
         {said}
         {receiptId && <Receipt id={receiptId} />}
       </span>
-    </li>
+    </article>
   );
 }
 

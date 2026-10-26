@@ -29,7 +29,18 @@ function start(engine = new FakeEngine(), transport?: Transport) {
 describe('Your AI: what may leave this computer', () => {
   it("shows the engine's setting; a new one is sent only on Save, and then the engine's setting shows", async () => {
     const { engine, calls } = start();
-    const group = await screen.findByRole('group', { name: 'What may leave this computer' });
+    // The known load flake: wait for each step of the page in turn (the tile, the engine's AI status, then the rule)
+    // with cheap text queries; a role query over the whole page is slow in jsdom. The rule is the group its legend
+    // names: the legend is found by its words, and checked to be the fieldset's own, which gives the group that name.
+    await screen.findByText('Your AI', { selector: 'h2' });
+    await screen.findByText(/^This month:/);
+    const rule = async () => {
+      const legend = await screen.findByText('What may leave this computer', { selector: 'legend' });
+      const group = legend.closest('fieldset') as HTMLElement;
+      expect(group.querySelector('legend')).toBe(legend);
+      return group;
+    };
+    const group = await rule();
     expect((within(group).getByRole('radio', { name: 'The shape of each question' }) as HTMLInputElement).checked).toBe(true);
     await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Nothing leaves this computer' })); });
     expect(calls.some(([m]) => m === 'trust.update')).toBe(false);
@@ -39,12 +50,12 @@ describe('Your AI: what may leave this computer', () => {
     expect(calls.filter(([m]) => m === 'trust.update').map(([, p]) => p)).toEqual([{ send: 'nothing' }]);
     expect(await screen.findByText('Your privacy setting sends nothing to AI, so every call is stopped.')).toBeTruthy();
     expect(((await engine.request('venture.models.status', {})) as ModelStatusLite).sendPolicy).toBe('nothing');
-    expect((within(screen.getByRole('group', { name: 'What may leave this computer' })).getByRole('radio', { name: 'Nothing leaves this computer' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(await rule()).getByRole('radio', { name: 'Nothing leaves this computer' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('is not offered on hosted, where the server keeps the rule', async () => {
     start(new FakeEngine({ hosted: true }), 'hosted');
-    await screen.findByRole('heading', { name: 'Your AI' });
+    await screen.findByText('Your AI', { selector: 'h2' });
     expect(screen.queryByRole('group', { name: 'What may leave this computer' })).toBeNull();
   });
 });

@@ -24,7 +24,8 @@ function start(options: { engine?: FakeEngine; language?: 'en' | 'hi'; intercept
   render(<App client={client} language={options.language ?? 'en'} />);
   return { calls };
 }
-const card = async (name: string) => (await screen.findByRole('button', { name })).closest('li')!;
+// A connector's tile, by the button that names it (a text query: role queries over the whole page are slow in jsdom).
+const card = async (name: string) => (await screen.findByText(name, { selector: 'button' })).closest('li')!;
 
 describe('Connections: sign in for posting', () => {
   it('LinkedIn offers Sign in while its browser posting is available; the line after says the window opened', async () => {

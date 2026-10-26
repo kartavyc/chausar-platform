@@ -1,0 +1,190 @@
+/* Needs you: D-Today's `.needs`, `.needs .fchips`, `.cards` (rows take their own height, since previews differ),
+   `.quick` and the fold `.stackbar`, `.sb-2`, `.sb-1`, `.sb-f`, `.sb-x`, `.sb-t`, `.sb-s` with the avatar `.stack`.
+   The cards themselves are ApprovalRow's. */
+
+.needs {
+  margin-top: var(--gap-section);
+}
+
+.failed {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.chips {
+  margin-top: var(--sp-3);
+}
+
+/* Every card in one grid of twelve columns, each spanning by its layout (ApprovalRow's data-layout): two big cards
+   across the 984 px page and four compact ones (D's `.cards` and `.quick`). Fewer across when the page is narrower,
+   which the today container (Today.module.css) measures, so an open sheet beside the page counts too. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap-grid);
+  /* Each card takes its own height: one with no preview never stretches to its neighbour's (w3 3I). */
+  align-items: start;
+  margin-top: var(--sp-4);
+}
+
+.cards > [data-layout='card'] {
+  grid-column: span 6;
+}
+
+.cards > [data-layout='compact'] {
+  grid-column: span 3;
+}
+
+@container today (max-width: 899px) {
+  .cards > [data-layout='compact'] {
+    grid-column: span 4;
+  }
+}
+
+@container today (max-width: 659px) {
+  .cards > [data-layout='card'] {
+    grid-column: span 12;
+  }
+
+  .cards > [data-layout='compact'] {
+    grid-column: span 6;
+  }
+}
+
+@container today (max-width: 419px) {
+  .cards > [data-layout='compact'] {
+    grid-column: span 12;
+  }
+}
+
+/* The fold: the front tile with two sheets peeking out under it, so it reads as a short stack of cards. */
+.more {
+  position: relative;
+  margin-top: var(--sp-4);
+  padding-bottom: var(--sp-3);
+}
+
+.sheet {
+  position: absolute;
+  bottom: 0;
+  left: var(--sp-7);
+  right: var(--sp-7);
+  height: 40px;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--inner);
+}
+
+.sheet + .sheet {
+  bottom: var(--sp-1);
+  left: var(--sp-4);
+  right: var(--sp-4);
+  background: var(--surface);
+}
+
+.front {
+  --ring-ground: var(--surface);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 72px;
+  padding: var(--sp-3) var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+/* Who the folded cards are from, side by side (D's `.stack` overlaps them; at 32 px that hides the initials). */
+.stack {
+  display: flex;
+  flex: none;
+  gap: var(--sp-1);
+}
+
+.moreText {
+  flex: 1;
+  min-width: 0;
+}
+
+.moreTitle {
+  font-size: var(--text-row);
+  line-height: 20px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.moreLine {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+  overflow-wrap: break-word;
+}
+
+/* On a phone (or a narrow page) the words take the whole width under the faces, and the button sits under them. */
+@container today (max-width: 559px) {
+  .front {
+    flex-wrap: wrap;
+  }
+
+  .moreText {
+    flex-basis: 100%;
+  }
+
+  .front > button {
+    flex-basis: 100%;
+  }
+}
+
+/* The phone's swipe tip: D-Phone-Today's `.tip`, `.tip-ic` and its close `.tib` (a 44 px target). */
+.tip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-1) var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.tipIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-chip);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.tipText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.tipHide {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.tipHide:hover {
+  background: var(--wash);
+  color: var(--fg);
+}

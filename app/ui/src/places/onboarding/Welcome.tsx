@@ -6,6 +6,7 @@ import { Field } from '../../parts/Field';
 import { refusalWords } from '../../parts/custody';
 import type { Openable, WelcomeFound } from './boot';
 import type { Leaving } from './started';
+import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
 import s from './Onboarding.module.css';
 
@@ -95,15 +96,14 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   );
 }
 
-/** The window around Welcome back and its ways in: the status line, the name, one column in the middle. */
+/** The window around Welcome back and its ways in: the status line, the logo, one tile in the middle. */
 function Shell({ status, children }: { status: ReactNode; children: ReactNode }) {
-  const t = useT();
   return (
     <div className={s.first}>
       <div>{status}</div>
       <main id="main" tabIndex={-1} className={s.firstMain}>
         <div className={s.alone}>
-          <p className={s.name}>{t('app.name')}</p>
+          <Brand />
           {children}
         </div>
       </main>

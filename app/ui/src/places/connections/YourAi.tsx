@@ -2,24 +2,35 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Inner } from '../../parts/Card';
+import { Chip, type ChipTone } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
+import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
-import { TranscriptionSetup } from './TranscriptionSetup';
-import type { ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
+import { Tile } from '../../parts/Tile';
+import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
 import s from './Connections.module.css';
 
 const TEMPLATES = 'built-in-templates';
 const HAIKU = 'anthropic-haiku-5-5';
 const SONNET = 'anthropic-sonnet-5-5';
 const CONNECTABLE = new Set(['ready', 'unverified']);
+/** How the owner pays for each choice: their own key with the AI company, their own AI app on this computer, or no AI. */
+const RUNS_ON: readonly ModelPresetLite['runsOn'][] = ['provider-api', 'this-computer', 'chausar-engine'];
+/** The availability chip's tone: words always say it; colour only repeats it. */
+const AVAILABILITY_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'line', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
 
 interface Choice { id: string; title: string; presets: { preset: ModelPresetLite; tiers?: ModelTier[] }[]; keyName: string }
 
 /**
- * Your AI: which AI does each job, what this month cost (as the engine writes it), the connections with Disconnect,
- * and the AI that can be added. Inside a business this is venture.models.*; before any business exists it is the
- * draft desk, venture.ai.*. A key is typed into a password field, sent once with Connect, cleared at once, and never
- * shown again: the engine only ever says whether one is loaded.
+ * Your AI, the first tile on Connections: which AI does each job, what this month cost (as the engine writes it), the
+ * connections with Disconnect, and the AI that can be added. The owner pays for AI directly, with their own key or
+ * their own AI app on this computer (founder, 23 Oct); "Every choice" groups the choices that way, each with whether
+ * it can connect and the engine's one fix line. Inside a business this is venture.models.*; before any business exists
+ * it is the draft desk, venture.ai.*. A key is typed into a password field, sent once with Connect, cleared at once,
+ * and never shown again: the engine only ever says whether one is loaded. On the desktop the privacy rule sits beside
+ * it as a tile of its own (transcription sits beside What Chausar can do, index.tsx). Whether a CLI is found and
+ * signed in arrives with W4 4H.
  */
 export function YourAi({ focus }: { focus: boolean }) {
   const t = useT();
@@ -55,25 +66,29 @@ export function YourAi({ focus }: { focus: boolean }) {
 
   const haiku = presets.find((p) => p.id === HAIKU);
   const sonnet = presets.find((p) => p.id === SONNET);
-  const choices: Choice[] = [
-    ...(haiku && sonnet ? [{ id: 'recommended', title: t('connections.ai.recommended'), presets: [{ preset: haiku, tiers: ['fast'] as ModelTier[] }, { preset: sonnet, tiers: ['main'] as ModelTier[] }], keyName: 'Anthropic' }] : []),
-    ...presets.map((preset) => ({ id: preset.id, title: preset.label, presets: [{ preset }], keyName: preset.label })),
-  ];
+  const recommended: Choice | null = haiku && sonnet
+    ? { id: 'recommended', title: t('connections.ai.recommended'), presets: [{ preset: haiku, tiers: ['fast'] }, { preset: sonnet, tiers: ['main'] }], keyName: 'Anthropic' }
+    : null;
+  const singles: Choice[] = presets.map((preset) => ({ id: preset.id, title: preset.label, presets: [{ preset }], keyName: preset.label }));
+
   function choiceRow(choice: Choice) {
     const lead = choice.presets[0]!.preset;
     const canConnect = choice.presets.every(({ preset }) => CONNECTABLE.has(preset.availability));
-    const note = lead.verificationNote && !lead.availabilityReason.includes(lead.verificationNote) ? ` ${lead.verificationNote}` : '';
+    const note = lead.verificationNote && !lead.availabilityReason.includes(lead.verificationNote) ? lead.verificationNote : null;
     const line = choice.id === 'recommended'
       ? `${t('connections.ai.recommendedLine')} ${lead.availabilityReason}`
-      : `${t(`connections.ai.availability.${lead.availability}`)} · ${lead.availabilityReason}${note}`;
+      : <><span className={s.fixLine} data-fix-line="">{lead.availabilityReason}</span>{note && <span className={s.quiet}> {note}</span>}</>;
     return (
       <Row
         key={choice.id}
         id={`ai-add-${choice.id}`}
         title={choice.title}
         line={line}
+        aside={choice.id === 'recommended' ? undefined : (
+          <span data-availability={lead.availability}><Chip tone={AVAILABILITY_TONE[lead.availability] ?? 'neutral'}>{t(`connections.ai.availability.${lead.availability}`)}</Chip></span>
+        )}
         actions={canConnect && open !== choice.id ? (
-          <Button onClick={() => { setOpen(choice.id); setSaid(null); }}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
+          <Button size="sm" onClick={() => { setOpen(choice.id); setSaid(null); }}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
         ) : undefined}
       >
         {open === choice.id && (
@@ -91,66 +106,91 @@ export function YourAi({ focus }: { focus: boolean }) {
   const data: ModelStatusLite | undefined = status.data;
   const connected = data?.connections.filter((c) => c.status === 'connected') ?? [];
   const bothTemplates = data && data.tiers.fast.presetId === TEMPLATES && data.tiers.main.presetId === TEMPLATES;
+  // The privacy rule is this computer's, so only the desktop app inside a business shows it.
+  const side = Boolean(data) && !draft && client.transport !== 'hosted';
 
   return (
-    <section className={s.group} aria-labelledby={headingId}>
-      <h2 id={headingId} ref={heading} tabIndex={-1} className={s.heading}>{t('connections.ai.title')}</h2>
-      {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
-      {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
-      {!data && !status.error && <p className={s.note}>{t('connections.ai.loading')}</p>}
-      {data && (
-        <>
-          {bothTemplates ? (
-            <p className={s.line}>{data.tiers.main.reason}</p>
-          ) : (
-            <ul className={s.tiers}>
-              {(['fast', 'main'] as const).map((tier) => (
-                <li key={tier}>{t('connections.ai.tier', { job: t(`connections.ai.job.${tier}`), name: tierName(data.tiers[tier]) })}</li>
-              ))}
-            </ul>
-          )}
-          <p className={s.line}>{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</p>
-          <p className={s.note}>{t('connections.ai.spendNote')}</p>
-          {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
-          {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
-          {connected.length > 0 && (
-            <ul className={s.list} aria-label={t('connections.ai.connected')}>
-              {connected.map((connection) => (
-                <Row
-                  key={connection.id}
-                  id={`ai-${connection.id}`}
-                  title={label(connection.presetId)}
-                  line={[connection.tiers.map((tier) => t(`connections.ai.job.${tier}`)).join(', '), connection.model, connection.usable ? connection.verificationNote : connection.reason].filter(Boolean).join(' · ')}
-                  actions={<Button onClick={() => void disconnect(connection.id)}>{t('connections.ai.disconnect')}</Button>}
-                />
-              ))}
-            </ul>
-          )}
-        </>
+    <div className={s.top} data-side={side ? undefined : 'none'}>
+      <Tile as="section" labelledBy={headingId}>
+        <div className={s.head}>
+          <h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
+          <span className={s.meta}>{t('connections.ai.meta')}</span>
+        </div>
+        {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
+        {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
+        {!data && !status.error && <p className={s.note}>{t('connections.ai.loading')}</p>}
+        {data && (
+          <>
+            <div className={s.jobs} data-one={bothTemplates ? '' : undefined}>
+              {bothTemplates ? (
+                <Inner card={false} className={s.job}><span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span><span>{data.tiers.main.reason}</span></Inner>
+              ) : (
+                (['fast', 'main'] as const).map((tier) => (
+                  <Inner key={tier} card={false} className={s.job}>
+                    <span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span>
+                    <span>{t('connections.ai.tier', { job: t(`connections.ai.job.${tier}`), name: tierName(data.tiers[tier]) })}</span>
+                  </Inner>
+                ))
+              )}
+            </div>
+            {/* The month's spend as the engine writes it, with no receipt until W4 4J1: its words, marked so. */}
+            <p className={s.spend}><span data-engine-line="">{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</span></p>
+            <p className={s.note}>{t('connections.ai.spendNote')}</p>
+            {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
+            {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
+            {connected.length > 0 && (
+              <ul className={s.rows} aria-label={t('connections.ai.connected')}>
+                {connected.map((connection) => (
+                  <Row
+                    key={connection.id}
+                    id={`ai-${connection.id}`}
+                    mark={<span className={s.mini} aria-hidden="true"><Icon name="bot" size={16} /></span>}
+                    title={label(connection.presetId)}
+                    line={[connection.tiers.map((tier) => t(`connections.ai.job.${tier}`)).join(', '), connection.model, connection.usable ? connection.verificationNote : connection.reason].filter(Boolean).join(' · ')}
+                    actions={<Button size="sm" onClick={() => void disconnect(connection.id)}>{t('connections.ai.disconnect')}</Button>}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
+        {presets.length > 0 && (
+          <>
+            <h3 className={s.subheading}>{t('connections.ai.add')}</h3>
+            {/* The recommended pair at rest; every single choice, grouped by how it is paid for, one fold away. */}
+            {recommended && <ul className={s.rows}>{choiceRow(recommended)}</ul>}
+            <details className={s.fold}>
+              <summary>{t('connections.ai.every')}</summary>
+              {RUNS_ON.map((runsOn) => {
+                const here = singles.filter((choice) => choice.presets[0]!.preset.runsOn === runsOn);
+                return here.length === 0 ? null : (
+                  <div key={runsOn} className={s.choiceGroup} data-runs-on={runsOn}>
+                    {/* Under "Add an AI" (a level 3 heading), each group is a level 4 heading. */}
+                    <h4 className={s.groupLabel}>{t(`connections.ai.group.${runsOn}`)}</h4>
+                    <ul className={s.rows}>{here.map(choiceRow)}</ul>
+                  </div>
+                );
+              })}
+            </details>
+          </>
+        )}
+      </Tile>
+      {side && data && (
+        <div className={s.side}>
+          <SendRule now={data.sendPolicy} onSaved={() => status.reload()} />
+        </div>
       )}
-      {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
-      {presets.length > 0 && (
-        <>
-          <h3 className={s.subheading}>{t('connections.ai.add')}</h3>
-          {/* The recommended pair at rest; every single choice, with each one's own availability, one fold away. */}
-          <ul className={s.list}>{choices.filter((c) => c.id === 'recommended').map(choiceRow)}</ul>
-          <details className={s.fold}>
-            <summary>{t('connections.ai.every')}</summary>
-            <ul className={s.list}>{choices.filter((c) => c.id !== 'recommended').map(choiceRow)}</ul>
-          </details>
-        </>
-      )}
-      {data && !draft && client.transport !== 'hosted' && <SendRule now={data.sendPolicy} onSaved={() => status.reload()} />}
-      {data && !draft && client.transport !== 'hosted' && <TranscriptionSetup />}
-    </section>
+    </div>
   );
 }
 
 const SEND_RULES = ['nothing', 'shape', 'samples'] as const;
 
 /**
- * What may leave this computer for an AI (trust.update { send }), the old Trust & access page's disclosure rule. The
- * engine checks it before every AI call. A choice is sent only on Save; afterwards the page shows the engine's setting.
+ * What may leave this computer for an AI (trust.update { send }), the old Trust & access page's disclosure rule, as a
+ * tile of radio cards beside Your AI. The engine checks it before every AI call. A choice is sent only on Save;
+ * afterwards the tile shows the engine's setting.
  */
 function SendRule({ now, onSaved }: { now: ModelStatusLite['sendPolicy']; onSaved: () => void }) {
   const t = useT();
@@ -176,19 +216,21 @@ function SendRule({ now, onSaved }: { now: ModelStatusLite['sendPolicy']; onSave
   }
 
   return (
-    <form className={s.form} onSubmit={(event) => void save(event)}>
-      <fieldset className={s.rule}>
-        <legend className={s.subheading}>{t('connections.ai.sendTitle')}</legend>
-        {SEND_RULES.map((rule) => (
-          <label key={rule} className={s.agree}>
-            <input type="radio" name={name} checked={chosen === rule} onChange={() => setChosen(rule)} />
-            {t(`connections.ai.send.${rule}`)}
-          </label>
-        ))}
-        {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button type="submit" disabled={busy || chosen === now}>{t('connections.ai.sendSave')}</Button></div>
-      </fieldset>
-    </form>
+    <Tile pad="compact">
+      <form className={s.form} onSubmit={(event) => void save(event)}>
+        <fieldset className={s.rule}>
+          <legend className={s.title}>{t('connections.ai.sendTitle')}</legend>
+          {SEND_RULES.map((rule) => (
+            <label key={rule} className={s.choice}>
+              <input type="radio" name={name} checked={chosen === rule} onChange={() => setChosen(rule)} />
+              {t(`connections.ai.send.${rule}`)}
+            </label>
+          ))}
+          {problem && <p className={s.problem} role="alert">{problem}</p>}
+          <div className={s.buttons}><Button size="sm" type="submit" disabled={busy || chosen === now}>{t('connections.ai.sendSave')}</Button></div>
+        </fieldset>
+      </form>
+    </Tile>
   );
 }
 
@@ -239,7 +281,7 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
   }
 
   return (
-    <div className={s.form}>
+    <Inner card={false} className={s.connect}>
       {needsKey && (
         <Field
           label={t('connections.ai.key', { name: choice.keyName })}
@@ -253,7 +295,7 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
         <Field label={t('connections.ai.cap')} hint={t('connections.ai.capHint')} inputMode="decimal" value={cap} onChange={(event) => setCap(event.currentTarget.value)} />
       )}
       <div>
-        <h4 className={s.subheading}>{t('connections.ai.consent')}</h4>
+        <h4 className={s.groupLabel}>{t('connections.ai.consent')}</h4>
         {consents.map((text) => <p key={text} className={s.consent}>{text}</p>)}
       </div>
       <label className={s.agree}>
@@ -265,6 +307,6 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
         <Button onClick={onCancel}>{t('connections.ai.cancel')}</Button>
         <Button variant="primary" disabled={busy || !agree} onClick={() => void connect()}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
       </div>
-    </div>
+    </Inner>
   );
 }

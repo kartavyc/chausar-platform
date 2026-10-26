@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Tile, TileHead } from '../../parts/Tile';
 import type { ConnectorCardLite, DeliveryLite, DraftPostLite, PostingProposal } from '../../engine/types';
 import { answerOf } from './ShareLinks';
 import s from './Work.module.css';
@@ -47,12 +48,12 @@ function DraftPosts({ draft, cards, headingId, heading, version }: { draft: Deli
   const clientFirst = shared.data?.clientApproval !== false;
   if ((clientFirst && answer?.decision !== 'approved') || posts.length === 0) return null;
   return (
-    <section aria-labelledby={`${headingId}-${draft.id}`}>
-      <h2 id={`${headingId}-${draft.id}`} className={s.heading}>{heading}</h2>
+    <Tile as="section" labelledBy={`${headingId}-${draft.id}`}>
+      <TileHead id={`${headingId}-${draft.id}`} title={heading} />
       <ul className={s.list}>
         {posts.map((post) => <PostLine key={post.draftId} post={post} />)}
       </ul>
-    </section>
+    </Tile>
   );
 }
 

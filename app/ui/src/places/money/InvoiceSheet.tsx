@@ -39,7 +39,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   if (!current) {
     return (
       <Sheet label={t('money.invoice.label')} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
-        {view.error && <p className={s.failed} role="status">{t('money.failed', { message: view.error.message })}</p>}
+        {view.error && <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p>}
       </Sheet>
     );
   }
@@ -98,45 +98,56 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       returnFocus={returnFocus}
       footer={footer}
     >
-      <dl className={s.sheetFigures}>
-        {current.figures.map((figure) => (
-          <div key={figure.key} className={s.sheetFigure}>
-            <dt>{figure.label}</dt>
-            <dd className="mono" data-figure="">{figure.display}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className={s.sheetLine}>
-        <span className={s.figureLabel}>{t('money.invoice.priced')}</span>
-        <Receipt id={invoice.priceReceiptId} />
-        {current.receipt.stale && <span className={s.stale}>{t('money.changed')}</span>}
-      </p>
-      {invoice.booksReceiptId ? (
+      {/* The figures, the receipt that priced them and each payment's books receipt: every amount here is explained by
+          the receipts beside it (one data-figure-group). */}
+      <div className={s.sheetCard} data-figure-group="">
+        <dl className={s.sheetFigures}>
+          {current.figures.map((figure) => (
+            <div key={figure.key} className={s.sheetFigure} data-key={figure.key}>
+              <dt>{figure.label}</dt>
+              <dd className="mono">{figure.display}</dd>
+            </div>
+          ))}
+        </dl>
         <p className={s.sheetLine}>
-          <span className={s.figureLabel}>{t('money.invoice.books')}</span>
-          <Receipt id={invoice.booksReceiptId} />
+          <span className={s.figureLabel}>{t('money.invoice.priced')}</span>
+          <Receipt id={invoice.priceReceiptId} />
+          {current.receipt.stale && <span className={s.stale}>{t('money.changed')}</span>}
         </p>
-      ) : invoice.booksNote ? <p className={s.quiet}>{invoice.booksNote}</p> : null}
-      {current.payments.length > 0 && (
-        <section className={s.block} aria-labelledby={paymentsId}>
-          <h3 id={paymentsId} className={s.blockTitle}>{t('money.invoice.payments')}</h3>
-          <ul className={s.plain}>
-            {current.payments.map((payment) => (
-              <li key={payment.id} className={s.payment}>
-                <span>{t('money.invoice.payment', { date: day(payment.receivedOn), method: t(`money.method.${payment.method}`) })}</span>
-                {payment.booksReceiptId ? <Receipt id={payment.booksReceiptId} /> : payment.booksNote ? <span className={s.note}>{payment.booksNote}</span> : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {current.notes.map((note) => <p key={note} className={s.quiet}>{note}</p>)}
+        {invoice.booksReceiptId ? (
+          <p className={s.sheetLine}>
+            <span className={s.figureLabel}>{t('money.invoice.books')}</span>
+            <Receipt id={invoice.booksReceiptId} />
+          </p>
+        ) : invoice.booksNote ? <p className={s.quietLine} data-engine-line="">{invoice.booksNote}</p> : null}
+        {current.payments.length > 0 && (
+          <section className={s.block} aria-labelledby={paymentsId}>
+            <h3 id={paymentsId} className={s.blockTitle}>{t('money.invoice.payments')}</h3>
+            <ul className={s.plain}>
+              {current.payments.map((payment) => (
+                <li key={payment.id} className={s.payment}>
+                  <span>{t('money.invoice.payment', { date: day(payment.receivedOn), method: t(`money.method.${payment.method}`) })}</span>
+                  {payment.booksReceiptId ? <Receipt id={payment.booksReceiptId} /> : payment.booksNote ? <span className={s.note} data-engine-line="">{payment.booksNote}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
       <details className={`${s.fold} ${s.block}`}>
         <summary>{t('money.invoice.document')}</summary>
-        <pre className={s.pre}>{current.documentText}</pre>
+        {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
+        <pre className={s.pre} data-content="">{current.documentText}</pre>
       </details>
+      {/* Issued and changed-since are this screen's own words; only a refusal carries the engine's, which may name an
+          amount. */}
       {notice && (
-        <p className={notice.kind === 'done' ? s.notice : notice.kind === 'stale' ? `${s.notice} ${s.noticeStale}` : s.refusal} role="status">
+        <p
+          className={notice.kind === 'done' ? s.notice : notice.kind === 'stale' ? `${s.notice} ${s.noticeStale}` : s.refusal}
+          role="status"
+          data-engine-line={notice.kind === 'refused' ? '' : undefined}
+        >
           <span>{notice.text}</span>
           {notice.receiptId && <Receipt id={notice.receiptId} />}
         </p>

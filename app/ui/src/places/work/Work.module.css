@@ -1,85 +1,592 @@
-/* Work: lines, not boxes. Rows match the foundation's JobList so active and previous read as one list. */
+/* Work in the direction D look (D-Work.dc.html): the toolbar of filter chips, Running now (`.runs`, `.rt*`), the
+   stopped run (`.stopped`, `.sd-*`, `.why`) beside Finished (`.fin`), and orders grouped by client (`.cg*`, `.oc*`,
+   without `.osteps`, which wait for the engine's order steps). D's 11.5 and 12.5 px words become 12 and 13 px. */
 
-.bar {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-3);
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--sp-8);
+  min-height: var(--target);
+  margin-bottom: var(--sp-4);
 }
 
-.filters {
+/* The kinds, then the businesses as their own group, a wider gap apart (D's thin separator would start a line of its
+   own when the row wraps beside an open sheet). */
+.chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-1);
+  gap: var(--sp-2) var(--sp-5);
+  align-items: center;
+  min-width: 0;
+}
+
+/* On a phone the kinds and the businesses are one row that scrolls sideways (D's phone `.hscroll`), with room for the
+   focus ring that a scrolling box would clip. */
+@media (max-width: 759px) {
+  .chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: var(--sp-1);
+    margin: calc(var(--sp-1) * -1);
+    scrollbar-width: none;
+  }
+
+  .chips > .chipGroup {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+}
+
+.sections {
+  display: grid;
+  gap: var(--gap-section);
+  container-type: inline-size;
+}
+
+.block {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.problem {
+  color: var(--fail);
+  font-size: var(--text-read);
+  overflow-wrap: anywhere;
+}
+
+.wait {
+  color: var(--wait);
+}
+
+.failure {
+  color: var(--fail);
+}
+
+.quiet {
+  color: var(--mute);
+  font-size: var(--text-read);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.titleButton {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+/* A title that opens something: plain words that underline on hover. */
+.titleButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.titleButton:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* Running now: four tiles across at full width, fewer as the page narrows, one on a phone. */
+.runs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 216px), 1fr));
+  gap: var(--gap-grid);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.filter {
-  display: inline-flex;
-  gap: 6px;
-  align-items: baseline;
-  min-height: var(--control);
-  padding: var(--sp-2) 10px;
-  border-radius: var(--radius);
-  font-size: var(--text-read);
+.runTile {
+  display: flex;
+  flex-direction: column;
+}
+
+.runTop {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: var(--av-40);
+}
+
+.runWho {
+  flex: 1;
+  min-width: 0;
+}
+
+.runAgent {
+  font-size: var(--text-body);
+  line-height: 19px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.runBusiness {
+  font-size: var(--text-label);
+  line-height: 16px;
   color: var(--mute);
-  text-decoration: none;
 }
 
-.filter:hover {
+.runTitle {
+  margin-top: var(--sp-3);
+  font-size: var(--text-body);
+  line-height: 19px;
+  font-weight: var(--weight-strong);
   color: var(--fg);
-  background: var(--hover);
 }
 
-.filter[aria-current='true'] {
-  color: var(--fg);
-  background: var(--hover);
+.runStep {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
 }
 
-.count {
-  font-family: var(--font-mono);
+.runStep.wait {
+  color: var(--wait);
+  font-weight: var(--weight-medium);
+}
+
+.runStep > svg {
+  flex: none;
+}
+
+.arcTrack {
+  stroke: var(--line);
+  stroke-width: 2.5;
+}
+
+.arcPart {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* The run's question on the waiting ground (D's `.rt-q`). */
+.question {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--wait-soft);
+  color: var(--wait);
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-medium);
+}
+
+.question > svg {
+  flex: none;
+  margin-top: calc(var(--sp-1) / 4);
+}
+
+.runFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: var(--sp-4);
   font-size: var(--text-label);
   color: var(--mute);
+  overflow-wrap: anywhere;
 }
 
-.sections {
+/* The stopped runs (left, D's `c7`) beside Finished (right, `c5`); one alone takes the row; narrow pages stack. */
+.pair {
   display: grid;
-  gap: var(--sp-9);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--gap-grid);
+  align-items: start;
 }
 
-.heading {
-  margin: 0 0 6px;
+.pair > :only-child {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 760px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.stoppedList {
+  display: grid;
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopTile {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.stopHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.stopMark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-button);
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+.stopWho {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.stopTitle {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.stopMeta {
   font-size: var(--text-read);
-  font-weight: var(--weight-medium);
+  line-height: 18px;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.stopChip {
+  flex: none;
+}
+
+/* What went wrong, on the soft red ground (D's `.why`). */
+.why {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--fail-soft);
+}
+
+.whyLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-strong);
+  color: var(--fail);
+}
+
+.whyText {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.stopActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* The second ask takes the row the button had, its words on the left. */
+.stopActs > .confirm {
+  flex: 1 1 auto;
+}
+
+.finished {
+  min-width: 0;
+}
+
+/* Runs as D's list rows (Finished, and an order's runs). */
+.rows {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Orders grouped by client: a client with two or more orders takes the row, one with a single order half of it. */
+.clientTiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-grid);
+}
+
+.clientTileWide,
+.clientTilesFull > * {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 760px) {
+  .clientTiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.clientTile {
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+}
+
+.clientHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.clientWho {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.clientName {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.clientSub {
+  font-size: var(--text-read);
+  line-height: 18px;
   color: var(--mute);
 }
 
-.list {
+.owes {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  margin-left: auto;
+}
+
+.owesLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.owesFigure {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+}
+
+.orderCards {
+  display: grid;
+  gap: var(--gap-cards);
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orderCardsTwo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container (max-width: 760px) {
+  .orderCardsTwo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One order: D's `.inner.oc`, a grey inner card on the white tile. */
+.order {
+  --ring-ground: var(--inner);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--pad-card) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  list-style: none;
+}
+
+.order:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.orderTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.orderTitle {
+  flex: 1 1 10em;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-row);
+  line-height: 20px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.orderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.orderFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.say {
+  flex: 1 1 14em;
+  min-width: 0;
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+/* --wait reads 4.5:1 on the page and white grounds; on the inner grey the sentence keeps its ink and the chip says it. */
+.say.wait {
+  color: var(--fg2);
+  font-weight: var(--weight-medium);
+}
+
+.orderActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* "Open on Today": a link that looks like D's secondary `.btn`. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.linkButton:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.linkButton:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: var(--sp-2);
+}
+
+.ask {
+  margin-right: auto;
+  color: var(--fg);
+  font-size: var(--text-read);
+}
+
+/* One order, focused: the back link and the transcript lines under the order. */
+.back {
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.back:hover {
+  color: var(--link-hover);
+}
+
+.transcribe {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--pad-card) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.transcribe:empty {
+  display: none;
+}
+
+/* Lines inside an order's tiles (the judge, the preview link, posting, the calendar file): who, what, then where it
+   stands with its action at the end, on D's soft row dividers. Under 560 px of list they stack. */
+.list {
+  margin: var(--sp-2) 0 0;
   padding: 0;
   list-style: none;
   container-type: inline-size;
 }
 
-/* Three columns every row shares, so the state lines up down the list: who, what, then where it stands with its
-   one action at the end. Under 560 px of list they stack. */
 .item {
   display: grid;
-  grid-template-columns: 110px minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-columns: minmax(0, 8em) minmax(0, 2fr) minmax(0, 3fr);
   column-gap: var(--sp-3);
   row-gap: var(--sp-1);
   align-items: baseline;
-  padding: 10px 0;
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
   font-size: var(--text-read);
   color: var(--fg2);
 }
 
+.item:first-child {
+  border-top: 0;
+}
+
+/* A line with no "who" (a draft's judge or preview line) gives its title the first column. */
+.item:has(> .who:empty) {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+}
+
+.item:has(> .who:empty) > .who {
+  display: none;
+}
+
 @container (max-width: 560px) {
-  .item {
+  .item,
+  .item:has(> .who:empty) {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -96,12 +603,14 @@
 
 .who {
   min-width: 0;
+  color: var(--mute);
   overflow-wrap: anywhere;
 }
 
 .what {
   min-width: 0;
   color: var(--fg);
+  font-weight: var(--weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -113,41 +622,20 @@
   min-width: 0;
 }
 
-.open {
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  font-size: var(--text-read);
-  cursor: pointer;
-}
-
-.open:hover {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.outcome,
-.state,
-.failure {
+.state {
   flex: 1 1 14em;
   min-width: 0;
   color: var(--fg2);
   overflow-wrap: anywhere;
 }
 
-.wait {
-  color: var(--wait);
-}
-
-.failure {
+/* A failed verdict keeps its fail colour over the line's own grey. */
+.state.failure {
   color: var(--fail);
 }
 
-.quiet {
+.tail > .quiet {
   flex: 1 1 14em;
-  color: var(--mute);
 }
 
 .act {
@@ -158,23 +646,20 @@
   margin-left: auto;
 }
 
-.problem {
+.item > .problem,
+.item > .confirm {
   grid-column: 2 / -1;
-  color: var(--fail);
 }
 
-.confirm {
-  grid-column: 2 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-  justify-content: flex-end;
+.item:has(> .who:empty) > .problem,
+.item:has(> .who:empty) > .confirm,
+.item:has(> .who:empty) > .links {
+  grid-column: 1 / -1;
 }
 
-.ask {
-  margin-right: auto;
-  color: var(--fg);
+.note {
+  font-size: var(--text-read);
+  color: var(--fg2);
 }
 
 /* The new-order sheet. */
@@ -219,7 +704,7 @@
 .file::file-selector-button {
   min-height: var(--control);
   margin-right: var(--sp-3);
-  padding: var(--sp-2) 14px;
+  padding: var(--sp-2) var(--sp-4);
   border: var(--hair) solid var(--edge);
   border-radius: var(--radius);
   background: var(--surface);
@@ -281,7 +766,7 @@
 
 .files {
   display: grid;
-  gap: 2px;
+  gap: calc(var(--sp-1) / 2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -294,8 +779,9 @@
 }
 
 @container (max-width: 560px) {
-  .problem,
-  .confirm {
+  .item > .problem,
+  .item > .confirm,
+  .links {
     grid-column: 1 / -1;
   }
 }
@@ -303,11 +789,6 @@
 .submit {
   display: flex;
   justify-content: flex-end;
-}
-
-.note {
-  font-size: var(--text-read);
-  color: var(--fg2);
 }
 
 /* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */
@@ -318,6 +799,11 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from '../../parts/touch.module.css';
 }
 
 .link {
@@ -338,8 +824,9 @@
   color: var(--mute);
 }
 
-@container (max-width: 560px) {
-  .links {
-    grid-column: 1 / -1;
+/* A phone (3H1): a link drawn as a button is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .linkButton {
+    min-height: var(--target);
   }
 }

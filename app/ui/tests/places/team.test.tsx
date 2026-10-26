@@ -92,7 +92,8 @@ describe('Team: the agent sheet', () => {
     const editor = await openAgent('Editor');
     expect(within(editor).getByText('Approve each')).toBeTruthy();
     expect(within(editor).getByText('Asks you to approve each piece of work before it goes out.')).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'Close' }));
+    // Ink v2 (3D): the agent panel's close button says whose panel it closes.
+    await click(screen.getByRole('button', { name: 'Close Editor' }));
     const researcher = await openAgent('Researcher');
     expect(within(researcher).getByText('Shadow')).toBeTruthy();
     expect(within(researcher).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
@@ -152,11 +153,13 @@ describe('Team: the agent sheet', () => {
     start();
     const sheet = await openAgent('Editor');
     const steps = within(sheet).getByRole('list', { name: 'Steps' });
+    // Ink v2 (3B5b): a gate draws both words, Auto and Hold, with the one in force marked data-on.
     expect(within(steps).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Cut the episodeAuto', 'Cut shorts from the episodeAuto', 'Finishing checkHold', 'Publish to YouTubeAlways asks you',
+      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold', 'Publish to YouTubeAlways asks you',
     ]);
-    expect(within(steps).getByRole('switch', { name: 'Cut the episode: runs without asking' }).getAttribute('aria-checked')).toBe('true');
-    expect(within(steps).getByRole('switch', { name: 'Finishing check: runs without asking' }).getAttribute('aria-checked')).toBe('false');
+    expect(within(steps).getAllByRole('listitem').map((li) => li.querySelector('[data-on]')?.textContent ?? null)).toEqual(['Auto', 'Auto', 'Hold', null]);
+    expect(within(steps).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
+    expect(within(steps).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
     expect(within(steps).queryByRole('switch', { name: /Publish to YouTube/ })).toBeNull();
     expect(within(steps).getAllByRole('switch')).toHaveLength(3);
   });
@@ -165,10 +168,10 @@ describe('Team: the agent sheet', () => {
     const { base } = start();
     const spy = vi.spyOn(base.engine, 'request');
     const sheet = await openAgent('Editor');
-    const finish = within(sheet).getByRole('switch', { name: 'Finishing check: runs without asking' });
+    const finish = within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' });
     await act(async () => { fireEvent.click(finish); });
     expect(spy).toHaveBeenCalledWith('venture.team.gate', { agentId: 'editor', stepId: 'finish', gate: 'auto' });
-    await waitFor(() => expect(within(sheet).getByRole('switch', { name: 'Finishing check: runs without asking' }).getAttribute('aria-checked')).toBe('true'));
+    await waitFor(() => expect(within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true'));
     const stored = (await base.request('venture.team.list', {})).agents.find((a) => a.id === 'editor')!;
     expect(stored.steps.find((s) => s.id === 'finish')!.gate).toBe('auto');
   });
@@ -180,7 +183,7 @@ describe('Team: the agent sheet', () => {
         ? new Promise((_resolve, reject) => { refuse = reject; }) : undefined,
     });
     const sheet = await openAgent('Editor');
-    const finish = () => within(sheet).getByRole('switch', { name: 'Finishing check: runs without asking' });
+    const finish = () => within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' });
     await act(async () => { fireEvent.click(finish()); });
     expect(finish().getAttribute('aria-checked')).toBe('true');
     await act(async () => { refuse(new EngineError('GATE_FLOOR', 'GATE_FLOOR: floor')); });
@@ -195,21 +198,26 @@ describe('Team: the agent sheet', () => {
       intercept: (method) => method === 'venture.team.gate' ? Promise.reject(new EngineError('OFFLINE', 'The engine is not answering.')) : undefined,
     });
     const sheet = await openAgent('Editor');
-    await act(async () => { fireEvent.click(within(sheet).getByRole('switch', { name: 'Cut the episode: runs without asking' })); });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' })); });
     await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change this: The engine is not answering."));
-    expect(within(sheet).getByRole('switch', { name: 'Cut the episode: runs without asking' }).getAttribute('aria-checked')).toBe('true');
+    expect(within(sheet).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
   });
 
-  it('shows spend so far as the engine wrote it', async () => {
+  // Ink v2 (3D): the engine sends an agent's spend with no receipt, and a money figure always carries one (or "model
+  // estimate"), so the panel no longer prints it; the spend, call by call with receipts, is one link away in Money.
+  it('says where its spend is, without an amount that has no receipt', async () => {
     start();
     const sheet = await openAgent('Editor');
     const spend = within(sheet).getByRole('heading', { level: 3, name: 'Spend so far' }).closest('section')!;
-    expect(spend.textContent).toContain('₹42.10 this month');
+    expect(spend.textContent).not.toContain('₹42.10 this month');
+    expect(within(spend as HTMLElement).getByRole('link', { name: 'See spend in Money' }).getAttribute('href')).toBe('#/money/spend');
   });
 
   it('lists only its own runs, and a run opens in the shell run sheet with focus going back to the agent row', async () => {
     start();
     const sheet = await openAgent('Editor');
+    // Ink v2 (3D): runs sit on the panel's Runs tab.
+    await click(within(sheet).getByRole('tab', { name: 'Runs' }));
     const runs = await within(sheet).findByRole('list', { name: 'Runs' });
     expect(within(runs).getAllByRole('listitem')).toHaveLength(2);
     expect(runs.textContent).toContain('Cutting shorts from episode 13');
@@ -227,12 +235,14 @@ describe('Team: the agent sheet', () => {
   it('a waiting run says so, and a finished run shows its result with its receipt', async () => {
     const { base } = start();
     const producer = await openAgent('Producer');
+    await click(within(producer).getByRole('tab', { name: 'Runs' }));
     const waiting = await within(producer).findByRole('list', { name: 'Runs' });
     expect(waiting.textContent).toContain('Pricing the sponsor slot');
     expect(within(waiting).getByText('Waiting on you')).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'Close' }));
+    await click(screen.getByRole('button', { name: 'Close Producer' }));
     await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
     const bookkeeper = await openAgent('Bookkeeper');
+    await click(within(bookkeeper).getByRole('tab', { name: 'Runs' }));
     const done = await within(bookkeeper).findByRole('list', { name: 'Runs' });
     expect(done.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(done).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
