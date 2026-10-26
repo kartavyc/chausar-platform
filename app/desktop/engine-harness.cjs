@@ -54,6 +54,12 @@ class EngineHarness extends EventEmitter {
     try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
     return this.#send(input, this.options.requestTimeoutMs);
   }
+  // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert
+  // rules (Ink v2 wave 4, 4G1). A plain notice with no reply: the next change corrects a lost one. False when not sent.
+  reportWatching(watching) {
+    if (typeof watching !== 'boolean' || this.state !== 'ready' || !this.worker?.connected) return false;
+    try { this.worker.send({ kind: 'host-watching', watching }, () => {}); return true; } catch { return false; }
+  }
   // This host hook bypasses the renderer method contract and requires a correlated ACK.
   updateJobLifecycle(state) {
     if (!state || typeof state !== 'object' || Array.isArray(state) || Object.keys(state).length !== 3 || !['awake', 'windowOpen', 'backgroundEnabled'].every(key => typeof state[key] === 'boolean')) return Promise.reject(failure('INVALID_JOB_LIFECYCLE', 'Report explicit host awake, window and background state.'));

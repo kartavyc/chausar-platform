@@ -14,6 +14,7 @@ import { csvRows } from './cells.ts';
 import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { parseTranscript, type Cue } from '../../playbooks/youtube/transcript.ts';
 import { HOSTED_NO_TRANSCRIBE, makeLocalTranscript, transcriptName, transcriptPrompt } from '../../playbooks/youtube/transcribe.ts';
+import type { ToolCallRecord } from '../../contracts.ts';
 
 /** Fits one desktop request (two million bytes) once encoded. */
 export const MAX_UPLOAD_BYTES = 1_450_000;
@@ -145,13 +146,16 @@ export async function filesTranscribeHandler(deps: VentureDeps, ctx: Context, pa
   });
 }
 
-/** venture.files.list { orderId? }: files without their content, oldest first. */
+/**
+ * venture.files.list { orderId? }: files without their content, oldest first. An order's poster (4J3, delivery/poster.ts)
+ * is not a file the client sent: the card's preview shows it, so it is never listed here.
+ */
 export async function filesListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<UploadView[]> {
   const body = exactPayload(payload, ['orderId']);
   const orderId = body.orderId === undefined ? null : identifier(body.orderId, 'Order');
   const { state, venture } = readAs(deps, ctx, 'read');
   return listRecords(state, 'venture-upload', venture.id)
-    .filter(upload => orderId === null || (upload.scope.kind === 'order' && upload.scope.orderId === orderId))
+    .filter(upload => upload.scope.kind !== 'poster' && (orderId === null || (upload.scope.kind === 'order' && upload.scope.orderId === orderId)))
     .map(uploadView);
 }
 
@@ -251,4 +255,69 @@ export async function pdfPages(deps: VentureDeps, file: FileLike): Promise<PdfPa
   if (pdfCache.size > 16) pdfCache.delete(pdfCache.keys().next().value!);
   pdfCache.set(file.digest, result);
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Ink v2 wave 4 (4J14, Q6): the worklist of a run's client files, and what files.read marked read
+// ---------------------------------------------------------------------------
+
+/**
+ * One table, transcript or PDF a run may read, and the ids of its items: a table's rows (one entry per sheet), a
+ * transcript's timed lines, a PDF's pages. ids is null where code does not know the count: a PDF's pages are counted
+ * only once it is read whole, and a table code could not read has no known size.
+ */
+export type WorkItem = { target: string; name: string; unit: 'rows' | 'lines' | 'pages'; ids: string[] | null };
+/** What one files.read call handed over: item ids of one target, and for a PDF the page count it read whole. */
+export type ReadMark = { target: string; ids: string[]; total?: number };
+
+/** The worklist of a run's client files, in the run's order (f1, f2, ...). Tables a tool made are not client items. */
+export function worklistOf(files: readonly FileLike[]): WorkItem[] {
+  return files.flatMap((file): WorkItem[] => {
+    if (file.format === 'pdf') return [{ target: file.id, name: file.name, unit: 'pages', ids: null }];
+    if (file.format === 'transcript') {
+      try { return [{ target: file.id, name: file.name, unit: 'lines', ids: transcriptCues(file).map(cue => cue.id) }]; }
+      catch { return [{ target: file.id, name: file.name, unit: 'lines', ids: null }]; }
+    }
+    try { return tablesOfFile(file).map(table => ({ target: table.id, name: table.name, unit: 'rows' as const, ids: table.rows.map(row => row.id) })); }
+    catch { return [{ target: file.id, name: file.name, unit: 'rows', ids: null }]; }
+  });
+}
+
+/**
+ * How much of a PDF page's text files.read hands over (tools.ts cuts each page there). A page whose text reached this
+ * length may have been cut, so it is never marked read: coverage may count too little, never too much.
+ */
+export const PDF_PAGE_SHOWN_CHARS = 6000;
+
+const idsIn = (value: unknown, key: 'id' | 'page'): string[] =>
+  Array.isArray(value) ? value.flatMap(item => {
+    const entry = item as Record<string, unknown> | null;
+    const id = entry?.[key];
+    if (key === 'id') return typeof id === 'string' ? [id] : [];
+    return Number.isInteger(id) && typeof entry?.text === 'string' && entry.text.length < PDF_PAGE_SHOWN_CHARS ? [`p${id}`] : [];
+  }) : [];
+const pageCount = (value: unknown): number => (Array.isArray(value) ? value.filter(item => Number.isInteger((item as { page?: unknown } | null)?.page)).length : 0);
+
+/**
+ * What one files.read call marked read, from code's own stored answer and never from the agent's input: the row ids of
+ * a page of rows or a sample, the segment ids of a transcript page, every page of a PDF whose text was not cut (a PDF
+ * is read whole, so its page count is known). Reading only the column names marks nothing; a failed call marks
+ * nothing; a table a tool made (t1) is not a client file. Whether the agent saw the answer whole is the caller's
+ * question (coverage.ts leaves out the calls the history showed only as a preview).
+ */
+export function readMarks(call: ToolCallRecord, files: readonly FileLike[]): ReadMark[] {
+  if (call.tool !== 'files.read' || !call.envelope.ok) return [];
+  const result = call.envelope.result as Record<string, unknown> | null;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return [];
+  const alias = typeof result.table === 'string' ? result.table : typeof result.file === 'string' ? result.file : null;
+  const match = alias ? /^f(\d{1,2})(\.s\d{1,2})?$/.exec(alias) : null;
+  const file = match ? files[parseInt(match[1], 10) - 1] : undefined;
+  if (!match || !file) return [];
+  if (typeof result.table === 'string') {
+    const ids = [...idsIn(result.rows, 'id'), ...idsIn(result.sample, 'id')];
+    return ids.length ? [{ target: `${file.id}${match[2] ?? ''}`, ids }] : [];
+  }
+  if (file.format === 'transcript') { const ids = idsIn(result.segments, 'id'); return ids.length ? [{ target: file.id, ids }] : []; }
+  if (file.format === 'pdf') { const total = pageCount(result.pages); return total ? [{ target: file.id, ids: idsIn(result.pages, 'page'), total }] : []; }
+  return [];
 }

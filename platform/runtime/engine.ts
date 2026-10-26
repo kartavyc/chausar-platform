@@ -65,12 +65,13 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
+import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
 import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
 type DraftDeskHandle = {
@@ -108,6 +109,11 @@ const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32
 const defaultBackupFilesystemBudgets: WorkspaceBackupV2FilesystemBudgets = { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 };
 /** How often the scheduler tick sweeps the venture action journal (venture/build/journal-sweep.ts). */
 const JOURNAL_SWEEP_EVERY_MS = 5 * 60_000;
+/**
+ * How often the scheduler tick lets the notification centre look at Today (venture/notify/centre.ts, Ink v2 wave 4 4G1):
+ * a little under a minute, so the hosted app's 60 s housekeeping tick looks every time, never every other minute (4G3).
+ */
+export const NOTIFY_EVERY_MS = 55_000;
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
@@ -162,8 +168,9 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
-  #venture: { request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void } | null = null;
-  #venturePromise: Promise<{ request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void; shareLink(ctx: Context, op: 'page' | 'decide', token: string, input?: unknown): Promise<unknown> }> | null = null;
+  // Ink v2 wave 4 (4G3): settle and outsideWork wait for phone alerts under way; endPushSessions ends a hosted session's subscriptions.
+  #venture: { request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void; settle(timeoutMs?: number): Promise<void>; outsideWork(): Promise<void> | null } | null = null;
+  #venturePromise: Promise<{ request(ctx: Context, method: string, payload: unknown): Promise<unknown>; close(): void; shareLink(ctx: Context, op: 'page' | 'decide' | 'comment' | 'upload', token: string, input?: unknown): Promise<unknown>; endPushSessions(ctx: Context, hashes: readonly string[]): Promise<number>; settle(timeoutMs?: number): Promise<void>; outsideWork(): Promise<void> | null }> | null = null;
   #ventureModule() {
     return import('./venture/host.ts').catch(() => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); });
   }
@@ -203,6 +210,28 @@ export class Engine {
       try { listener(Object.freeze({ ...event })); } catch { /* A listener's failure is its own. */ }
     }
   }
+  // Whether the owner is looking at Chausar (Ink v2 wave 4, 4G1): the desktop window shown, not minimised and focused,
+  // or the owner's own event stream (the local server's /api/events). Alerts outside the app wait while they are and
+  // for 2 minutes after (venture/notify).
+  #watchers = 0;
+  #windowWatched = false;
+  #watchedAt = 0;
+  /** Trusted host hook: the owner's event stream opened. Returns its release, which the host calls when it closes. */
+  watchEvents(): () => void {
+    this.#watchers += 1;
+    let open = true;
+    return () => { if (!open) return; open = false; this.#watchers -= 1; this.#watchedAt = Date.now(); };
+  }
+  /** Trusted host hook (the desktop main process, through the worker): the window is shown, not minimised and focused. */
+  updateOwnerWatching(watching: boolean): void {
+    if (this.#windowWatched && watching !== true) this.#watchedAt = Date.now();
+    this.#windowWatched = watching === true;
+  }
+  /** Now while the owner is looking; else when they last were; null when not since this process started. */
+  #watchingAt(): string | null {
+    if (this.#watchers > 0 || this.#windowWatched) return new Date().toISOString();
+    return this.#watchedAt ? new Date(this.#watchedAt).toISOString() : null;
+  }
   /** What Today's queue may know about the businesses on this computer. The id is the workspace folder, as in workspace.list. */
   #ventureWorkspace: VentureWorkspacePort = Object.freeze({
     current: () => {
@@ -212,6 +241,23 @@ export class Engine {
     businesses: async () => this.options.venture?.host === 'hosted-web' ? []
       : (await this.custodyFiles().listBusinesses(this.storageKind())).businesses.map(item => ({ id: item.folder, name: item.name, opens: item.opens, openedAt: item.openedAt })),
     recovery: async () => this.options.venture?.host === 'hosted-web' || !this.custodyHost() ? null : (await this.custodyView()).business?.recovery ?? null,
+    // Keeper's backups job (Ink v2 wave 4, 4A1): whether automatic backups are on and the automatic ones only (a copy
+    // made by hand or a safety copy is not Keeper's run), with the schedule's last error; none on the hosted app.
+    backups: async () => {
+      const custody = this.custodyHost(), vault = this.vault;
+      if (this.options.venture?.host === 'hosted-web' || !custody || !vault) return null;
+      const automatic = (await this.custodyFiles().backupFiles(vault.read().workspace.id)).filter(file => file.kind === 'auto');
+      const view = (await this.custodyView()).business?.backups;
+      return { auto: !!custody.autoBackups, count: automatic.length, newestAt: automatic[0] ? new Date(automatic[0].at).toISOString() : null, nextDueAt: view?.nextDueAt ?? null, lastError: view?.lastError ?? null };
+    },
+    // Business snapshots (Ink v2 wave 4, 4J6): the other businesses as Chausar saved them when each was last open; a
+    // passphrase one is locked and never read; none on the hosted app.
+    snapshots: async () => this.snapshotReads(),
+    // The never-contact list the businesses on this computer share (C10), as keyed checks; nothing on the hosted app.
+    neverContact: Object.freeze({
+      has: async (values: readonly string[]) => this.snapshotStore()?.neverContactHas(values) ?? false,
+      add: async (values: readonly string[]) => { await this.snapshotStore()?.neverContactAdd(values); },
+    }),
   });
   #ventureHost() {
     const vault = this.store();
@@ -223,6 +269,9 @@ export class Engine {
           ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
           notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
+          watching: venture.watching ?? (() => this.#watchingAt()),
+          // Phone alerts run as the owner inside the app, whoever's request started the look (4G3).
+          ownerContext: venture.ownerContext ?? (() => ({ ...this.#baseContext })),
           closing: this.#closingPort });
       this.#venture = host;
       return host;
@@ -488,8 +537,16 @@ export class Engine {
   }
   async requestAs(context: Context, method: string, payload: any = {}): Promise<any> { return this.withContext(context, () => this.request(method, payload)); }
   /** The hosted /share/<token> page (VentureHost.shareLink). Trusted host only: request() never routes here. */
-  async ventureShareLink(context: Context, op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+  async ventureShareLink(context: Context, op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown = {}): Promise<unknown> {
     return this.withContext(context, async () => (await this.#ventureHost()).shareLink(context, op, token, input));
+  }
+  /** Trusted host hook (the hosted server, 4G3): sessions that signed out or were revoked end their phone alert subscriptions. */
+  async ventureEndPushSessions(context: Context, hashes: readonly string[]): Promise<number> {
+    return this.withContext(context, async () => (await this.#ventureHost()).endPushSessions(context, hashes));
+  }
+  /** Trusted host hook (4G3): work the notification centre started outside its looks, or null; the hosted runtime waits on it. */
+  ventureOutsideWork(): Promise<void> | null {
+    return this.#venture?.outsideWork() ?? null;
   }
   bootstrapContext(): Context {
     if (!this.vault) return { ...this.#baseContext };
@@ -539,7 +596,14 @@ export class Engine {
     });
   }
   private async adapter(folder = 'main') {
-    if (this.options.storage === 'experimental-file' && this.options.demo) return 'experimental-file' as const;
+    if (this.options.storage === 'experimental-file' && this.options.demo) {
+      if (!this.options.vaultStorage) return 'experimental-file' as const;
+      // A trusted host's own file store (the hosted server's capped one, 4J23); the same folder-name check first.
+      this.workspacePath(folder);
+      const adapter = await this.options.vaultStorage(folder);
+      if (adapter.kind !== 'experimental-file') { await adapter.close?.(); throw new ChausarError('STORAGE_REQUIRED', 'Experimental file storage needs a file vault adapter.'); }
+      return adapter;
+    }
     if (this.options.storage === 'postgres' && this.options.vaultStorage) {
       this.workspacePath(folder); // the same folder-name check as the other storage paths
       const adapter = await this.options.vaultStorage(folder);
@@ -782,6 +846,10 @@ export class Engine {
     await this.closeVault();
   }
   private async closeVault() {
+    // The business's summary for the others on this computer, written again on lock (4J6). Never throws.
+    await this.writeSnapshot(true);
+    // Phone alerts under way finish first, for 12 s at most (4G3).
+    await this.#venture?.settle().catch(() => {});
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
     this.#draft?.clear();
     this.services.connectorRuntime?.close();
@@ -827,6 +895,7 @@ export class Engine {
     });
     await this.closingBackup();
     await this.closeVault();
+    this.#snapshots?.forgetKey(); // the summary key leaves memory with the engine (4J6)
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
   private async attachSafely(vault: Vault) { try {
@@ -862,6 +931,23 @@ export class Engine {
     this.#journalSweptAt = Date.now();
     this.#activeRequests++;
     try { await this.sweepVentureJournal(); } finally { this.#activeRequests--; this.notifyIdle(); }
+  }
+  /** When the tick last let the notification centre look (wall clock, ms). */
+  #notifiedAt = 0;
+  /**
+   * At a tick, once a minute: the notification centre looks at Today, so time alone can bring an alert (quiet hours
+   * that ended, the wait between alerts, the digest's hour). Only for a vault with a business. Never throws.
+   */
+  private async notifyTick() {
+    const vault = this.vault;
+    if (this.#closing || this.#transition || !vault || Date.now() - this.#notifiedAt < NOTIFY_EVERY_MS) return;
+    if (!vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return;
+    this.#notifiedAt = Date.now();
+    this.#activeRequests++;
+    try {
+      const host = await this.#ventureHost() as unknown as { notifyTick?: (ctx: Context) => Promise<boolean | null> };
+      if (this.vault === vault && typeof host.notifyTick === 'function') await host.notifyTick({ ...this.#baseContext });
+    } catch { /* The next tick looks again. */ } finally { this.#activeRequests--; this.notifyIdle(); }
   }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
@@ -902,6 +988,10 @@ export class Engine {
       ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    // The ways to earn (4J8); while a vault is open its state is read (never written) so its business says "You run this".
+    // The other businesses here say it from what Chausar saved when each was last open (4J6), never their vaults.
+    if (method === 'venture.playbooks.list') return (await this.#ventureModule()).venturePlaybooks(payload, this.vault ? { state: this.vault.read(), businessId: (this.options.venture?.workspace ?? this.#ventureWorkspace).current().id } : null,
+      (await this.snapshotReads()).flatMap(read => (read.snapshot ? [{ businessId: read.id, name: read.snapshot.name, playbook: read.snapshot.playbook }] : [])));
     // The draft desk answers these before the vault check: connect an AI and compose a plan before any vault exists.
     switch (method) {
       case 'venture.ai.options':
@@ -1086,6 +1176,7 @@ export class Engine {
       case 'workspace.custody.passphraseOn': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOn(payload));
       case 'workspace.custody.passphraseOff': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOff(payload));
       case 'workspace.custody.recoveryCode': this.requireAppOwner(ctx); return this.custodySerial(() => this.makeRecoveryCode(payload));
+      case 'workspace.custody.neverContactReset': this.requireAppOwner(ctx); return this.custodySerial(() => this.neverContactReset(payload));
       case 'workspace.backups.create': this.requireAppOwner(ctx); return this.custodySerial(() => this.writeBackup('manual'));
       case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.custodySerial(() => this.restoreManagedBackup(payload));
       case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
@@ -1676,6 +1767,148 @@ export class Engine {
       case 'venture.posting.limits.set':
       case 'venture.transcription.get':
       case 'venture.transcription.set':
+      // Ink v2 wave 4 (venture/contracts.ts W4_METHODS; venture.playbooks.list is answered before the vault check)
+      case 'venture.team.keeper':
+      case 'venture.team.clearQuarantine':
+      case 'venture.agents.thread.list':
+      case 'venture.agents.thread.send':
+      case 'venture.agents.proposal.decide':
+      case 'venture.agents.version.undo':
+      case 'venture.agents.orders.list':
+      case 'venture.chats.consent':
+      case 'venture.agents.notes.list':
+      case 'venture.agents.notes.edit':
+      case 'venture.agents.notes.forget':
+      case 'venture.agents.notes.undo':
+      case 'venture.chief.threads':
+      case 'venture.chief.thread.list':
+      case 'venture.chief.thread.send':
+      case 'venture.chief.thread.pin':
+      case 'venture.chief.fit':
+      case 'venture.proposals.raise':
+      case 'venture.proposals.dismiss':
+      case 'venture.network.import':
+      case 'venture.network.importUndo':
+      case 'venture.network.merge':
+      case 'venture.network.split':
+      case 'venture.network.forget':
+      case 'venture.network.hide':
+      case 'venture.network.people':
+      case 'venture.network.person':
+      case 'venture.network.sources':
+      case 'venture.network.recompute':
+      case 'venture.network.know':
+      case 'venture.network.link':
+      case 'venture.network.search':
+      case 'venture.network.searchMore':
+      case 'venture.network.saveSearch':
+      case 'venture.network.research':
+      case 'venture.pipeline.list':
+      case 'venture.pipeline.followups':
+      case 'venture.pipeline.add':
+      case 'venture.pipeline.setNext':
+      case 'venture.pipeline.move':
+      case 'venture.pipeline.settings':
+      case 'venture.outreach.draft':
+      case 'venture.outreach.open':
+      case 'venture.outreach.sent':
+      case 'venture.outreach.restricted':
+      case 'venture.mailbox.connect':
+      case 'venture.mailbox.disconnect':
+      case 'venture.mailbox.sync':
+      case 'venture.inbound.list':
+      case 'venture.inbound.confirm':
+      case 'venture.network.calendar':
+      case 'venture.meeting.digest':
+      case 'venture.runs.stop':
+      case 'venture.runs.resume':
+      case 'venture.runs.roundGate':
+      case 'venture.runs.steer':
+      case 'venture.business.pause':
+      case 'venture.away.set':
+      case 'venture.away.get':
+      case 'venture.runs.allowWrites':
+      case 'venture.notify.list':
+      case 'venture.notify.read':
+      case 'venture.notify.settings':
+      case 'venture.notify.push.key':
+      case 'venture.notify.push.subscribe':
+      case 'venture.notify.push.unsubscribe':
+      case 'venture.notify.relay':
+      case 'venture.models.cli.status':
+      case 'venture.models.roles':
+      case 'venture.goals.get':
+      case 'venture.goals.set':
+      case 'venture.goals.suggest':
+      case 'venture.decisions.list':
+      case 'venture.policy.allowSession':
+      case 'venture.queue.sendBack':
+      case 'venture.queue.edit':
+      case 'venture.queue.undo':
+      case 'venture.queue.set':
+      case 'venture.triage.set':
+      case 'venture.triage.preview':
+      case 'venture.delivery.fix':
+      case 'venture.delivery.decideChange':
+      case 'venture.delivery.changes':
+      case 'venture.settings.draft':
+      case 'venture.settings.drafts':
+      case 'venture.queue.setPreview':
+      case 'venture.delivery.copy':
+      case 'venture.files.poster':
+      case 'venture.money.aging':
+      case 'venture.money.flow':
+      case 'venture.money.cash':
+      case 'venture.money.margins':
+      case 'venture.money.export':
+      case 'venture.bills.add':
+      case 'venture.bills.pay':
+      case 'venture.bills.list':
+      case 'venture.credit.issue':
+      case 'venture.invoice.recurring':
+      case 'venture.invoice.recurringList':
+      case 'venture.invoice.remind':
+      case 'venture.payment.clear':
+      case 'venture.bills.stop':
+      case 'venture.money.across':
+      case 'venture.runs.across':
+      case 'venture.connectors.check':
+      case 'venture.share.request':
+      case 'venture.blueprint.suggest':
+      case 'venture.owner.get':
+      case 'venture.owner.set':
+      case 'venture.receipt.verify':
+      case 'venture.journal.chain':
+      case 'venture.journal.acceptBreak':
+      case 'venture.order.contract':
+      case 'venture.order.contract.propose':
+      case 'venture.order.contract.sign':
+      case 'venture.routines.list':
+      case 'venture.routines.runs':
+      case 'venture.routines.set':
+      case 'venture.routines.remove':
+      case 'venture.options.rerank':
+      case 'venture.drills.run':
+      case 'venture.drills.list':
+      case 'venture.auto.readiness':
+      case 'venture.shadow.summary':
+      case 'venture.playbook.guidance':
+      case 'venture.voice.get':
+      case 'venture.voice.set':
+      case 'venture.voice.learn':
+      case 'venture.persona.get':
+      case 'venture.persona.set':
+      case 'venture.persona.test':
+      case 'venture.agents.export':
+      case 'venture.agents.import':
+      case 'venture.knowledge.list':
+      case 'venture.knowledge.add':
+      case 'venture.knowledge.remove':
+      case 'venture.knowledge.test':
+      case 'venture.ideas.list':
+      case 'venture.ideas.start':
+      case 'venture.ideas.dismiss':
+      case 'venture.agents.capabilities':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }
@@ -2093,6 +2326,75 @@ export class Engine {
   private resetCustodySession() {
     this.#openFolder = null; this.#openUnlock = null;
     this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
+    this.#snapshotMark = { at: null, revision: null };
+  }
+  // ------------------------------------------------------------ business snapshots (Ink v2 wave 4, 4J6)
+  // What the other businesses on this computer may know about one that is closed (workspace-snapshots.ts): written at
+  // most once a minute while it changes and again on lock, only for a business that opens with this computer.
+  #snapshots: WorkspaceSnapshots | null = null;
+  #snapshotMark: { at: number | null; revision: number | null } = { at: null, revision: null };
+  /** The summaries and the never-contact list on this computer; null on the hosted app or without custody. */
+  private snapshotStore(): WorkspaceSnapshots | null {
+    if (this.options.venture?.host === 'hosted-web') return null;
+    const custody = this.custodyHost(); if (!custody) return null;
+    return this.#snapshots ??= new WorkspaceSnapshots(this.options.directory, () => custody.keys);
+  }
+  /** The other businesses as their summaries read, the open one left out; a passphrase one is never read. Never throws. */
+  private async snapshotReads(): Promise<BusinessSnapshotRead[]> {
+    const store = this.snapshotStore(); if (!store) return [];
+    try {
+      const files = this.custodyFiles();
+      const listed = (await files.listBusinesses(this.storageKind())).businesses;
+      const vaults = new Map((await files.listCards()).map(card => [card.folder, card.vaultId]));
+      return await store.list(listed.map(item => ({ id: item.folder, name: item.name, opens: item.opens, openedAt: item.openedAt })), vaults, this.vault ? this.#openFolder : null);
+    } catch { return []; }
+  }
+  /**
+   * workspace.custody.neverContactReset { confirmation } (4J6): the owner's explicit step to start a new never-contact
+   * list, only while the old one can no longer be checked (NEVER_CONTACT_LOST; one that still checks is NEVER_CONTACT_OK).
+   * The caller has passed requireAppOwner, so a business is open; confirmation is its name. Refused on the hosted app.
+   * The open business adds its own blocklist again at once, the others when next opened; people forgotten elsewhere
+   * can't be put back. Journalled in the audit.
+   */
+  private async neverContactReset(payload: any): Promise<{ line: string }> {
+    const store = this.snapshotStore(), vault = this.store();
+    check(store, 'TIER_UNAVAILABLE', 'This computer keeps no never-contact list.');
+    check(typeof payload?.confirmation === 'string' && payload.confirmation === vault.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to start a new never-contact list.');
+    let lost = false;
+    try { await store.neverContactHas([]); } catch (error) { if ((error as ChausarError)?.code !== 'NEVER_CONTACT_LOST') throw error; lost = true; }
+    check(lost, 'NEVER_CONTACT_OK', 'Your never-contact list on this computer still checks, so there is nothing to start again.');
+    const line = await store.neverContactReset();
+    await vault.update(state => audit(state, 'custody.never-contact-reset', {}));
+    this.#snapshotMark = { at: null, revision: null };
+    await this.writeSnapshot(false);
+    return { line };
+  }
+  /** At a tick: the open business's summary, when one is due. Never throws. */
+  private async snapshotTick() {
+    if (this.#closing || this.#transition || !this.vault) return;
+    this.#activeRequests++;
+    try { await this.writeSnapshot(false); } finally { this.#activeRequests--; this.notifyIdle(); }
+  }
+  /**
+   * The open business's summary when due, or on lock: written only for a business that opens with this computer; one
+   * that needs a passphrase has its summary taken away. Either way the addresses its own blocklist keeps out join the
+   * never-contact list, as keyed checks. Never throws: the next tick or lock tries again.
+   */
+  private async writeSnapshot(lock: boolean) {
+    const store = this.snapshotStore(), vault = this.vault, folder = this.#openFolder;
+    if (!store || !vault || !folder) return;
+    try {
+      if (!vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return;
+      if (!snapshotDue(this.#snapshotMark, vault.read().revision, this.custodyNow(), lock)) return;
+      const host = await this.#ventureHost() as unknown as { snapshot?: (ctx: Context) => Promise<{ snapshot: Record<string, unknown>; neverContact: string[] } | null> };
+      if (this.vault !== vault || typeof host.snapshot !== 'function') return;
+      const made = await host.snapshot({ ...this.#baseContext });
+      if (!made) return;
+      this.#snapshotMark = { at: this.custodyNow(), revision: vault.read().revision };
+      if (made.neverContact.length) await store.neverContactAdd(made.neverContact).catch(() => {});
+      if (this.#openUnlock !== 'this-computer') { await store.remove(folder); return; }
+      await store.write(folder, { format: SNAPSHOT_FORMAT, businessId: folder, vaultId: vault.vaultId, ...made.snapshot } as BusinessSnapshot);
+    } catch { /* The next tick or lock tries again. */ }
   }
   private requireAppOwner(ctx: Context) {
     this.requireWorkspaceOwner(ctx);
@@ -2153,6 +2455,7 @@ export class Engine {
     await custody.files.writeCard(card);
     if (reseal) await this.resealManaged();
     if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
+    if (how === 'typed') await this.snapshotStore()?.remove(folder); // a passphrase business keeps no summary (4J6)
     if (reseal) await custody.files.writeCard({ ...card, pending: null });
   }
   private async loadSchedule() {
@@ -2276,6 +2579,7 @@ export class Engine {
       throw error;
     }
     this.#openUnlock = 'passphrase';
+    await this.snapshotStore()?.remove(card.folder); // its summary goes at once: a passphrase business keeps none (4J6)
     await this.resealManaged();
     await this.forgetKeyIfUnused(vault.vaultId, card.folder);
     await files.writeCard({ ...next, pending: null });
@@ -2404,6 +2708,7 @@ export class Engine {
   private async forgetBusiness(folder: string | null, vaultId: string) {
     const custody = this.custodyHost(); if (!custody || !folder) return;
     await custody.files.removeCard(folder);
+    await this.snapshotStore()?.remove(folder); // its summary goes with it (4J6)
     if (!(await custody.files.listCards()).some(card => card.vaultId === vaultId)) {
       const record = await custody.files.readKey(vaultId);
       if (record) { await custody.keys.forget(record).catch(() => {}); await custody.files.removeKey(vaultId); }
@@ -2439,9 +2744,12 @@ export class Engine {
     this.#jobLifecycle = { ...host };
   }
   async tick() {
-    // Automatic backups run before the autonomy check: they don't depend on scheduled jobs. So does the journal sweep.
+    // Automatic backups run before the autonomy check: they don't depend on scheduled jobs. So do the journal sweep and
+    // the notification centre's look at Today.
     await this.backupTick();
     await this.journalTick();
+    await this.notifyTick();
+    await this.snapshotTick();
     const host = { ...this.#jobLifecycle };
     if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;

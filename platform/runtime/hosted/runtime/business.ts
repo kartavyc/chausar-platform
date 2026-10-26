@@ -8,6 +8,8 @@ import { join, relative, resolve, isAbsolute } from 'node:path';
 import { check, type Context } from '../../contracts.ts';
 import { Engine, type EngineOptions } from '../../engine.ts';
 import { PostgresSnapshotAdapter, type PostgresPool } from '../../postgres.ts';
+import { ExperimentalFileSnapshotAdapter, type EncryptedSnapshotAdapter, type VaultEnvelope } from '../../vault.ts';
+import { TRIAL_FULL_LINE } from '../../venture/records.ts';
 import { checkKey, type ActorCreateInput, type ActorCreated, type ActorEvent, type ActorKey } from './contract.ts';
 
 export type EngineFactoryOptions = Omit<EngineOptions, 'directory'>;
@@ -18,6 +20,11 @@ export type BusinessEngineOptions = {
   engineOptions: (key: ActorKey) => EngineFactoryOptions;
   /** The server's PostgreSQL pool. With it, every business vault is a row in it (engine storage 'postgres'). */
   postgres?: PostgresPool;
+  /**
+   * Ink v2 wave 4 (4J23): the most a business's vault may hold as stored, in bytes, asked at each write; null for no
+   * cap. The hosted app answers a temporary business's cap (limits.trialVaultBytes).
+   */
+  vaultCap?: (key: ActorKey) => number | null;
 };
 
 /**
@@ -54,15 +61,20 @@ export class BusinessEngine {
   static #engineFor(options: BusinessEngineOptions, key: ActorKey, directory: string): Engine {
     const extra = options.engineOptions(key);
     const pool = options.postgres;
+    // Every write of the vault, whoever makes it, passes the size cap of a temporary business (4J23) in its store.
+    const cap = () => options.vaultCap?.(key) ?? null;
     if (!pool) {
-      check(extra.storage === 'experimental-file' && extra.demo === true, 'HOSTED_STORAGE_INVALID', 'Hosted businesses use experimental file storage in demo mode, or PostgreSQL through the server pool.');
-      return new Engine({ ...extra, directory });
+      check(extra.storage === 'experimental-file' && extra.demo === true && extra.vaultStorage === undefined, 'HOSTED_STORAGE_INVALID', 'Hosted businesses use experimental file storage in demo mode, or PostgreSQL through the server pool.');
+      return new Engine({ ...extra, directory, vaultStorage: async folder => {
+        check(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
+        return cappedSnapshotAdapter(new ExperimentalFileSnapshotAdapter(join(directory, folder)), cap);
+      } });
     }
     check(extra.storage === 'postgres' && extra.postgresUrl === undefined && extra.vaultStorage === undefined, 'HOSTED_STORAGE_INVALID', 'With the server pool, every hosted business vault is in PostgreSQL.');
     const slot = hostedVaultSlot(key);
     return new Engine({ ...extra, directory, vaultStorage: async folder => {
       check(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
-      return PostgresSnapshotAdapter.fromPool(pool, slot);
+      return cappedSnapshotAdapter(await PostgresSnapshotAdapter.fromPool(pool, slot), cap);
     } });
   }
 
@@ -111,9 +123,26 @@ export class BusinessEngine {
   }
 
   /** The client share page (Engine.ventureShareLink): reads a link by its token, or records the client's answer. */
-  shareLink(op: 'page' | 'decide', token: string, input: unknown = {}): Promise<unknown> {
+  shareLink(op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown = {}): Promise<unknown> {
     check(!this.#closed, 'ACTOR_ASLEEP', 'This business is asleep. Try again.');
     return this.#engine.ventureShareLink(this.#ctx, op, token, input);
+  }
+
+  /** Hosted sessions that signed out or were revoked (Ink v2 wave 4, 4G3): their phone alert subscriptions end. */
+  endPushSessions(hashes: readonly string[]): Promise<number> {
+    check(!this.#closed, 'ACTOR_ASLEEP', 'This business is asleep. Try again.');
+    return this.#engine.ventureEndPushSessions(this.#ctx, hashes);
+  }
+
+  /** Work the engine started outside its requests, a phone alert under way (4G3): ends with it; null when there is none. */
+  outsideWork(): Promise<void> | null {
+    return this.#closed ? null : this.#engine.ventureOutsideWork();
+  }
+
+  /** The engine's tick (Ink v2 wave 4, 4G1 and 4G3): the journal sweep and the notification centre's look at Today. */
+  async tick(): Promise<void> {
+    if (this.#closed) return;
+    await this.#engine.tick();
   }
 
   /** Events after lastSeq, oldest first, and lastSeq moved past them. Nothing before the business has a venture. */
@@ -142,4 +171,27 @@ export class BusinessEngine {
     this.#closed = true;
     await this.#engine.close();
   }
+}
+
+/**
+ * The vault store with a size cap (Ink v2 wave 4, 4J23): every commit of the vault's encrypted envelope, from any writer
+ * (a venture action, the model port's call records, the engine's own writes), is measured as stored. One that would
+ * grow the vault past the cap is refused (TRIAL_LIMIT) and nothing is written; one that keeps it the same size or
+ * shrinks it always passes, so a full vault can still be tidied. The cap is asked at each commit; null means none.
+ */
+export function cappedSnapshotAdapter(inner: EncryptedSnapshotAdapter, cap: () => number | null): EncryptedSnapshotAdapter {
+  let stored = 0;
+  const sizeOf = (envelope: VaultEnvelope | null) => envelope ? Buffer.byteLength(JSON.stringify(envelope), 'utf8') : 0;
+  return {
+    kind: inner.kind,
+    async load() { const envelope = await inner.load(); stored = sizeOf(envelope); return envelope; },
+    async commit(envelope, expectedRevision) {
+      const bytes = sizeOf(envelope), limit = cap();
+      if (limit !== null) check(bytes <= limit || bytes <= stored, 'TRIAL_LIMIT', TRIAL_FULL_LINE);
+      await inner.commit(envelope, expectedRevision);
+      stored = bytes;
+    },
+    async delete() { await inner.delete(); stored = 0; },
+    ...(inner.close ? { close: () => inner.close!() } : {}),
+  };
 }

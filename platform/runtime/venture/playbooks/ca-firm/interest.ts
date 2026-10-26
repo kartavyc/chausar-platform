@@ -7,6 +7,7 @@ import { applyBps, floorToMultiple, invalid, isoDate, maxBig, monthsOrPart, next
 import { previousYearStart } from './income-tax.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type InterestPayload, type RateTable, type RateUse } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
+import { absent, requireFacts } from './needs-facts.ts';
 
 export type InterestInput = {
   /** The years the income-tax tables cover; each has an interest table of its own (2027-28 from Ink v2 2A2). */
@@ -46,6 +47,8 @@ export function interestTable(assessmentYear: string): RateTable<InterestPayload
 
 export function computeInterest234(input: InterestInput, use: RateUse = REHEARSAL): CaReceipt<InterestWorking> {
   if (!input || typeof input !== 'object') invalid('Send the interest inputs.');
+  // Ink v2 4J16 (CA8): the filing date is the client's fact; it is asked, never guessed (needs-facts.ts).
+  requireFacts('interest working', absent(input.filedOn) ? [{ field: 'filedOn' }] : []);
   const table = interestTable(input.assessmentYear);
   const stamp = useRateTable(table, use);
   const rates = table.payload;

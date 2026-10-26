@@ -569,11 +569,13 @@ test('loop: older tool results shrink to stubs so each turn stays about the same
   const env = toolEnv(practice('clean'));
   let state = newHarnessState(ALL, { ...DEFAULT_LIMITS, keepOutputs: 1, stubChars: 80 }, []);
   state = await applyTurn(env, state, turn([['files.read', { target: 'f1', part: 'rows' }], ['files.read', { target: 'f2', part: 'rows' }]]), meta);
-  const history = compactHistory(state) as any[];
+  // 4J11 (H29): the history is { summary, turns }, and a stub never says to call the tool again.
+  const history = (compactHistory(state) as any).turns;
   const [older, newer] = history[0].calls;
   assert.equal(typeof older.result, 'string');
-  assert.match(older.result, /shortened; call the tool again/);
-  assert.ok(older.result.length < 160);
+  assert.match(older.result, /shortened by Chausar/);
+  assert.doesNotMatch(older.result, /call the tool again/);
+  assert.ok(older.result.length < 220);
   assert.equal(typeof newer.result, 'object');
 });
 
@@ -726,7 +728,9 @@ test('static: harness files use listed error codes, never float money arithmetic
   // Codes other components report (the WebAssembly worker, the Python helper, the container runner), passed through or read.
   const passThrough = new Set(['MEMORY_LIMIT', 'CELL_LIMIT', 'OUTPUT_LIMIT', 'TABLE_LIMIT', 'UNAPPROVED_IMPORT', 'ROW_PROGRAM_FAILED', 'OUTPUT_BOUNDS', 'NOT_A_DICT', 'NO_TRANSFORM', 'PYTHON_UNAVAILABLE', 'PDF_DEPENDENCY_UNAVAILABLE', 'PDF_PAGE_LIMIT',
     // An environment name heavy work passes on to Codex so it finds its own sign-in; not an error code.
-    'CODEX_HOME']);
+    'CODEX_HOME',
+    // 4J11 (H31): settings a project .env may set for heavy work (delegate-process.ts DOTENV_ALLOWLIST); not error codes.
+    'LC_ALL', 'NO_COLOR']);
   for (const name of files) {
     const source = await readFile(new URL(name, folder), 'utf8');
     for (const match of source.matchAll(/'([A-Z]+(?:_[A-Z]+)+)'/g)) assert.ok((VENTURE_ERRORS as readonly string[]).includes(match[1]) || passThrough.has(match[1]), `${name}: ${match[1]}`);

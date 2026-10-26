@@ -6,9 +6,14 @@ import { currencyMinorDigits, formatMinor } from '../../currency.ts';
 import { digest, exactPayload, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
 import { computePrice, type PriceAmounts } from './price.ts';
 import { halfRatePercent, ratePercent, taxDecision, type TaxDecision } from './tax.ts';
+import { computeInclusivePrice, splitsInclusive } from './tax-kinds.ts';
 import { latestBlueprint, oneLine, quantityText, recordId, requireLatestBlueprint, requireOffer, requirePrice } from './shared.ts';
 import type { BlueprintRecord, ClientRecord, MinorString, Offer, PriceFigure, PriceReceiptRecord, SumReceiptRecord, VentureDeps } from '../contracts.ts';
 import { servedSumReceipt } from './sums.ts';
+import { TIE_SUPERSEDED, tieReceipt } from '../network/strength.ts';
+import { ownerToday } from '../local-day.ts';
+import type { RowFigureReceipt, TieReceipt } from '../contracts.ts';
+import { receiptSignature } from '../journal/signing.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -38,11 +43,14 @@ export function taxFigures(amounts: PriceAmounts, decision: TaxDecision, taxLabe
   }
 }
 
-/** Every figure of a price receipt: unit, subtotal, discount, amount before tax, the tax figures, then the total. */
-export function priceFigures(amounts: PriceAmounts, decision: TaxDecision, taxLabel: string, quantityUnit: string, currency: string): PriceFigure[] {
+/**
+ * Every figure of a price receipt: unit, subtotal, discount, amount before tax, the tax figures, then the total. A
+ * tax-included price (4J5) says so on its unit, and its subtotal is the amount before tax.
+ */
+export function priceFigures(amounts: PriceAmounts, decision: TaxDecision, taxLabel: string, quantityUnit: string, currency: string, inclusive = false): PriceFigure[] {
   return [
-    figure('unit', `Price per ${quantityUnit}`, amounts.unit, currency),
-    figure('subtotal', 'Subtotal', amounts.subtotal, currency),
+    figure('unit', inclusive ? `Price per ${quantityUnit}, ${taxLabel} included` : `Price per ${quantityUnit}`, amounts.unit, currency),
+    figure('subtotal', inclusive ? 'Subtotal before tax' : 'Subtotal', amounts.subtotal, currency),
     figure('discount', 'Discount', amounts.discount, currency),
     figure('taxable', 'Amount before tax', amounts.taxable, currency),
     ...taxFigures(amounts, decision, taxLabel, currency),
@@ -69,6 +77,17 @@ export function priceExplanation(figures: PriceFigure[], decision: TaxDecision, 
   return `${base}, plus CGST at ${halfRate}% (${display(figures, 'cgst')}) and SGST at ${halfRate}% (${display(figures, 'sgst')}) = ${total}.${place}`;
 }
 
+/** The explanation of a tax-included price (4J5): what the price holds before tax, then its tax, then the same total. */
+export function inclusiveExplanation(figures: PriceFigure[], decision: TaxDecision, taxLabel: string, quantity: string, quantityUnit: string): string {
+  const head = `${quantity} x ${quantityUnit} at ${display(figures, 'unit')} with ${taxLabel} included: ${display(figures, 'taxable')} before tax`;
+  const total = display(figures, 'total');
+  if (decision.treatment === 'igst') return `${head}, IGST at ${ratePercent(decision.rateBps)}% (${display(figures, 'igst')}) = ${total}.`;
+  if (decision.treatment === 'single') return `${head}, ${taxLabel} at ${ratePercent(decision.rateBps)}% (${display(figures, 'tax')}) = ${total}.`;
+  const halfRate = halfRatePercent(decision.rateBps);
+  const place = decision.stateAssumed ? ' Place of supply taken as your own state.' : '';
+  return `${head}, CGST at ${halfRate}% (${display(figures, 'cgst')}) and SGST at ${halfRate}% (${display(figures, 'sgst')}) = ${total}.${place}`;
+}
+
 /**
  * Plain numbers a later sentence may cite, for numberGuard: each figure's minor text, each display number without
  * its currency code and thousands commas ('2948.82'), the quantity, and every rate as percent text ('18', '9').
@@ -93,10 +112,11 @@ export function receiptDigest(record: PriceReceiptRecord): string {
 /**
  * Creates a venture-price-receipt inside a transaction. Pure arithmetic only: no store, calculator or model call.
  * The unit price is the owner's own; the tax rate and its source come from the blueprint; the treatment from
- * taxDecision. The receipt records the blueprint version priced by its digest.
+ * taxDecision. The receipt records the blueprint version priced by its digest. taxInclusive (4J5, M15): the price holds
+ * the tax, so tax-kinds.ts splits it; a treatment with no rate (not registered, an export under LUT) has nothing to split.
  */
 export function buildPriceReceipt(
-  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string },
+  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string; taxInclusive?: boolean },
   blueprint: BlueprintRecord, offer: Offer, client: ClientRecord | null,
 ): PriceReceiptRecord {
   check(tx.venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
@@ -105,11 +125,15 @@ export function buildPriceReceipt(
   check(currency === tx.venture.country.currency, 'CURRENCY_CONFLICT', `This business keeps its books in ${tx.venture.country.currency}.`);
   const unitPriceMinor = requirePrice(offer);
   const decision = taxDecision(backOffice, client, tx.venture.country);
-  const priced = computePrice({ unitPriceMinor, quantity: inputs.quantity, discountBps: '0', taxRateBps: decision.rateBps, currency, taxTreatment: decision.treatment });
+  const inclusive = inputs.taxInclusive === true && splitsInclusive(decision.treatment);
+  const priceInput = { unitPriceMinor, quantity: inputs.quantity, discountBps: '0', taxRateBps: decision.rateBps, currency, taxTreatment: decision.treatment };
+  const priced = inclusive ? computeInclusivePrice(priceInput) : computePrice(priceInput);
   const taxLabel = oneLine(backOffice.taxLabel);
   const quantityUnit = offer.pricing.quantityUnit;
-  const figures = priceFigures(priced.amounts, decision, taxLabel, quantityUnit, currency);
-  const explanation = priceExplanation(figures, decision, taxLabel, inputs.quantity, quantityUnit, priced.amounts.tax);
+  const figures = priceFigures(priced.amounts, decision, taxLabel, quantityUnit, currency, inclusive);
+  const explanation = inclusive
+    ? inclusiveExplanation(figures, decision, taxLabel, inputs.quantity, quantityUnit)
+    : priceExplanation(figures, decision, taxLabel, inputs.quantity, quantityUnit, priced.amounts.tax);
   const record: PriceReceiptRecord = {
     ...tx.base('venture-price-receipt'),
     subject: { ...subject },
@@ -126,6 +150,7 @@ export function buildPriceReceipt(
       unitPriceBy: 'told-by-you',
       taxRateBy: backOffice.taxRateBy,
       blueprintDigest: blueprint.digest,
+      ...(inclusive ? { taxInclusive: true as const } : {}),
     },
     steps: priced.steps,
     figures,
@@ -173,19 +198,33 @@ export async function quotePrice(deps: VentureDeps, ctx: Context, payload: unkno
 /**
  * venture.receipt.get (level read). An offer receipt reads stale once the latest blueprint version has a different
  * digest from the one it priced. A sum receipt (sums.ts: owed, received, spent) reads stale once its subject adds up
- * to something else.
+ * to something else. A tie's receipt (network/strength.ts, 4D2) reads stale once the person's files and records give
+ * a different tie.
  */
-export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord | SumReceiptRecord> {
+export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PriceReceiptRecord | SumReceiptRecord | TieReceipt | RowFigureReceipt> {
   const body = exactPayload(payload, ['id'], ['id']);
   const id = recordId(body.id, 'Receipt');
   const { state, venture } = readVenture(deps, ctx);
+  // 4J1: a figure a Today row states, worked out again from the record it names (views/row-receipts.ts), loaded on use.
+  if (id.startsWith('fig:')) return (await import('../views/row-receipts.ts')).rowFigureReceipt(deps, ctx, state, venture, id)!;
+  // 4J5: a waiting credit note's card, its balance worked out again from the records (money/credits.ts), loaded on use.
+  if (id.startsWith('credit-balance:')) return (await import('./credits.ts')).creditBalanceReceipt(state, venture, id);
+  if (id.startsWith('credit-note:')) return (await import('./credits.ts')).creditNoteReceipt(state, venture, id); // 4J20
+  // 4J10 (H26): a stored receipt comes with the business's signature on it and the public half that checks it.
+  const signed = <R extends object>(served: R): R => {
+    const signature = receiptSignature(state, venture.id, id);
+    return signature ? { ...served, signature } : served;
+  };
   const sum = listRecords(state, 'venture-sum-receipt', venture.id).find(r => r.id === id);
-  if (sum) return servedSumReceipt(state, venture, sum);
+  if (sum) return signed(servedSumReceipt(state, venture, sum));
+  const tie = listRecords(state, 'venture-tie', venture.id).find(r => r.id === id);
+  if (tie) return signed(tieReceipt(state, venture, tie, ownerToday(deps.clock, venture.country)));
+  check(!id.startsWith('tie_'), 'RECEIPT_NOT_FOUND', TIE_SUPERSEDED);
   const receipt = listRecords(state, 'venture-price-receipt', venture.id).find(r => r.id === id);
   check(receipt, 'RECEIPT_NOT_FOUND', 'This price receipt was not found.');
-  if (receipt.subject.type !== 'offer') return receipt;
+  if (receipt.subject.type !== 'offer') return signed(receipt);
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
-  return { ...receipt, stale: receipt.stale || latest === null || latest.digest !== receipt.inputs.blueprintDigest };
+  return signed({ ...receipt, stale: receipt.stale || latest === null || latest.digest !== receipt.inputs.blueprintDigest });
 }
 
 // ---------------------------------------------------------------------------

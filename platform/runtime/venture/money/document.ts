@@ -28,6 +28,8 @@ export type InvoiceDocumentInput = {
   country: CountryProfile;
   /** Practice wording while storage is experimental (experimentalStorage in contracts.ts). */
   experimental: boolean;
+  /** 4J5: what issued credit notes took off; a Credited line shows when it is above zero, so the lines add up. */
+  creditedMinor?: string;
 };
 
 /** The invoice as plain text, in the fixed layout of the build spec. */
@@ -49,11 +51,15 @@ export function documentText(input: InvoiceDocumentInput): string {
     if (invoice.sacCode !== null) parts.push(`SAC ${invoice.sacCode}`);
     parts.push(`${line.quantity} x ${money(line.unitMinor)}`, money(line.amountMinor));
     lines.push(parts.join('  '));
+    // A tax-included split whose rounding difference is on the line (money/tax-kinds.ts). The client reads this, so it
+    // says it plainly; the receipt keeps the working.
+    if (BigInt(line.amountMinor) !== BigInt(line.quantity) * BigInt(line.unitMinor)) lines.push('Unit price shown rounded; the line total is exact.');
   }
   lines.push(`Subtotal  ${money(invoice.subtotalMinor)}`);
   for (const taxLine of invoice.taxLines) lines.push(`${taxLine.label}  ${money(taxLine.minor)}`);
   lines.push(`Total  ${money(invoice.totalMinor)}`);
   lines.push(`Paid  ${money(invoice.paidMinor)}`);
+  if (BigInt(input.creditedMinor ?? '0') > 0n) lines.push(`Credited  ${money(input.creditedMinor as string)}`);
   lines.push(`Balance  ${money(invoice.balanceMinor)}`);
   lines.push(RULE_LINE);
   lines.push(`Every number on this invoice has a receipt in Chausar: ${invoice.priceReceiptId}`);

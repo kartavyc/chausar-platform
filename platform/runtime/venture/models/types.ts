@@ -12,8 +12,15 @@ export type CallRecord = ModelCallRecord;
 
 export type Usage = { inputTokens: number; outputTokens: number };
 
-/** What a route parser makes of one provider answer. Usage is kept even on failure, so spend is counted. */
-export type Parsed = { ok: true; value: unknown; usage: Usage | null } | { ok: false; code: string; message: string; usage: Usage | null };
+/**
+ * What a route parser makes of one provider answer. Usage is kept even on failure, so spend is counted. answeredBy
+ * (4H1, H36): the model the answer named, when it named one Chausar can read as a model id.
+ */
+/** cause (Ink v2 wave 4, 4F2): the transport's class of a failure, such as 'not-connected', when it named one. */
+export type Parsed = ({ ok: true; value: unknown; usage: Usage | null } | { ok: false; code: string; message: string; usage: Usage | null; cause?: string }) & { answeredBy?: string | null };
+
+/** What a call record says when the provider's answer named no model (4H1, H36). Never a guess. */
+export const NOT_REPORTED = 'not reported';
 
 export const HTTP_TIMEOUT_MS = 90_000;
 export const PROCESS_TIMEOUT_MS = 150_000;

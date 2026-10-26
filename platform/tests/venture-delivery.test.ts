@@ -66,7 +66,7 @@ class StubPort implements ModelPort {
   /** 'judge-rules': the rules judge's ballots. It shares the judge's purpose and tier, so it gets its own queue. */
   outputs: Partial<Record<ModelPurpose | 'judge-rules', unknown[]>> = {};
   used: Partial<Record<ModelPurpose | 'judge-rules', number>> = {};
-  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500', decide: '0', compose: '0' };
+  costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500', decide: '0', compose: '0', 'agent-chat': '0', 'goal-suggest': '0', 'chief-chat': '0', 'chief-fit': '0', 'network-search': '0', 'meeting-digest': '0', 'outreach-draft': '0', 'plan-suggest': '0', 'persona-test': '0', 'triage-rule': '0' };
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
   /** queue: which outputs answer the call once approved; the rules judge on a real order has its own (judge-run.ts). */
@@ -705,7 +705,8 @@ test('launch ladder: template rehearsal cannot unlock shadow; judged model runs 
     ['bookkeeping-clean', null, null, false], ['bookkeeping-messy', null, null, false], ['bookkeeping-pushback', null, null, false],
   ]);
   assert.deepEqual([stage(status, 'approve-sample'), stage(status, 'auto-spot-check')].map(item => [item.allowed, item.status, item.reason]), [
-    [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'planned', 'Planned. Not in this build.'],
+    // 4J15: auto with spot checks is built but locked (the founder's decision), not planned.
+    [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'available', "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes."],
   ]);
   assert.equal(status.improvement.status, 'available');
   assert.equal(status.improvement.due, false);
@@ -733,7 +734,7 @@ test('launch ladder: template rehearsal cannot unlock shadow; judged model runs 
 
   await assert.rejects(call(env, 'venture.launch.advance', { to: 'approve-each' }), code('LAUNCH_STAGE_BLOCKED'));
   await assert.rejects(call(env, 'venture.launch.advance', { to: 'approve-sample' }), code('STAGE_PLANNED'));
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'auto-spot-check' }), code('STAGE_PLANNED'));
+  await assert.rejects(call(env, 'venture.launch.advance', { to: 'auto-spot-check' }), code('AUTO_LOCKED'));
   await assert.rejects(call(env, 'venture.launch.advance', { to: 'shadow' }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(call(env, 'venture.launch.advance', { to: 'live' }), code('INVALID_VENTURE_REQUEST'));
 
@@ -1250,9 +1251,9 @@ test('capabilities on the hosted server: nothing checks for Docker, and the sand
 // 9. Handler table and schemas
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the thirty delivery methods', () => {
+test('handlers: exactly the delivery methods: thirty, and the nine Ink v2 wave 4 added', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'delivery');
-  assert.equal(owned.length, 30);
+  assert.equal(owned.length, 39); // 4J2's review added venture.delivery.copy
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
 });
@@ -1425,4 +1426,21 @@ test('rehearsal: a case made from a tone edit asks the rules judge behind the co
   assert.ok(templated.episodes[0].checks.some(result => result.check === 'claims-grounded' && result.passed));
   assert.ok(templated.episodes[0].judge.every(answer => answer.answer === 'not-judged'));
   assert.equal(env.models.generated.filter(task => task.schemaName === 'venture-judge-rules').length, before);
+});
+
+// Ink v2 wave 4 (4J15, Q14): code scans a rehearsal episode's trace before any judge reads it.
+test('rehearsal: a trace the scan finds a secret in is judged by no judge, and the episode fails with the scan\'s words', async () => {
+  const env = await setup();
+  await queueModel(env, {});
+  // The agent's own note names a key-shaped string (built at runtime); the loop stores it redacted.
+  const key = ['sk', 'ant', 'aBcDeFgHiJkLmNoP'].join('-');
+  env.models.outputs['agent-turn'] = [{ ...FINISHED_TURN, note: `The client pasted ${key} into the brief.` }];
+  const before = env.models.generated.filter(task => task.schemaName === 'venture-judge-rules' || task.purpose === 'judge').length;
+  const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
+  const [episode] = run.episodes;
+  assert.equal(episode.passed, false);
+  assert.match(episode.firstFailure ?? '', /^Before any judge reads this run, code scanned it and found something that looks like a key or a password/);
+  assert.ok(episode.judge.every(answer => answer.answer === 'not-judged'));
+  assert.equal(env.models.generated.filter(task => task.schemaName === 'venture-judge-rules' || task.purpose === 'judge').length, before, 'no judge was asked');
+  assert.ok(!JSON.stringify(run).includes(key));
 });

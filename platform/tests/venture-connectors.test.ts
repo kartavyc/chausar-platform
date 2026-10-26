@@ -72,7 +72,8 @@ test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_OR
 
 test('3. available modes are exactly what this build does; everything else is planned and unqualified', () => {
   assert.deepEqual(availableIds('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
-  assert.deepEqual(availableIds('read'), ['bank-account', 'chausar-books', 'chausar-crm', 'github', 'tally']);
+  // 4E3's mailbox (IMAP with an app password) and calendar address, labelled by 4J7: read, on the desktop app.
+  assert.deepEqual(availableIds('read'), ['bank-account', 'chausar-books', 'chausar-crm', 'github', 'google-calendar', 'google-workspace', 'tally', 'zoho-mail']);
   assert.deepEqual(availableIds('write'), ['chausar-books', 'chausar-crm']);
 
   const byId = new Map(cards().map(card => [card.id, card]));
@@ -114,6 +115,11 @@ test('3. available modes are exactly what this build does; everything else is pl
   assert.deepEqual(byId.get('mail-app')!.chips, ['handoff']);
   assert.deepEqual(byId.get('zoho-books')!.chips, ['planned: handoff', 'planned: read', 'planned: write']);
   assert.deepEqual(byId.get('gst-registration')!.chips, ['planned: handoff']);
+  assert.deepEqual(byId.get('zoho-mail')!.chips, ['read', 'planned: handoff']);
+  assert.deepEqual(byId.get('google-workspace')!.chips, ['read', 'planned: handoff', 'planned: write']);
+  assert.deepEqual(byId.get('google-calendar')!.chips, ['read', 'planned: handoff', 'planned: write']);
+  assert.match(mode('google-workspace', 'write')!.what, /Google review/);
+  assert.match(mode('zoho-mail', 'read')!.what, /app-specific password, read only, in the desktop app/);
 });
 
 test('4. every payment rail in the country table exists in the catalogue as a payments card', () => {
@@ -178,13 +184,15 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the thirty-one owned methods', () => {
+test('7. handlers keys equal the thirty-three owned methods', () => {
+  // Thirty-one, and the two Ink v2 wave 4 added (connectors.check and share.request, 4J7).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
-    'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
+    'venture.connectors.check', 'venture.connectors.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
-    'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.revoke',
+    'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
     'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar',
   ]);
 });
@@ -195,8 +203,9 @@ test('the architecture Connectors table names cards whose available modes it cla
     ['Lovable, Replit, Bolt, v0, GitHub', 'handoff (brief link or copy); GitHub read'],
     ['Vercel, Netlify, Cloudflare, Porkbun', 'planned: handoff'],
     ['Razorpay, Cashfree, Stripe, PayPal, Paddle', 'planned: handoff, read, write'],
-    ['Your own mail app, Google Workspace, Resend', 'Your own mail app: handoff (you send a draft); others planned'],
-    ['Cal.com, Calendly, Google Calendar', 'planned: handoff, read'],
+    // 4J7: the rows as docs/venture/architecture.md now has them, with 4E3's mailbox and calendar reads.
+    ['Your own mail app, Google Workspace, Zoho Mail, Resend', 'Your own mail app: handoff (you send a draft); Google Workspace and Zoho Mail: read (your inbox over IMAP with an app password, desktop app only); others planned'],
+    ['Cal.com, Calendly, Google Calendar', 'Google Calendar: read (the private address you paste, desktop app only); planned: handoff, read'],
     ['Chausar CRM, HubSpot, Zoho CRM, Attio', 'Chausar CRM read and write; others planned'],
     ['WhatsApp, Telegram, Slack, Discord', 'planned: handoff, write'],
     ['Notion, Google Drive, Linear, Airtable', 'planned'],

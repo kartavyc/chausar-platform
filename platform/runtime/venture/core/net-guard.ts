@@ -38,6 +38,7 @@ export const NET_WORDS = Object.freeze({
   address: 'This address points inside your computer or your network, so Chausar will not open it.',
   lookup: 'Chausar could not find this address.',
   redirect: 'The site tried to send this request somewhere else. Chausar does not follow that for this request.',
+  signedIn: 'The site tried to send this request somewhere else. It carries a sign-in, so Chausar never follows that. Nothing more was sent.',
   hops: 'The site sent Chausar on too many hops. Nothing more was opened.',
   large: 'The site sent back more than Chausar reads.',
   timeout: 'The site did not answer in time. Chausar did not retry it.',
@@ -260,6 +261,22 @@ export function pinnedSend(target: PinnedTarget): Promise<PinnedAnswer> {
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization']);
+/** A header name that carries a sign-in: the credential headers, or one naming a key, a token, a secret, a session or auth. */
+const SIGN_IN_HEADER = /(?:api[-_]?key|key$|token|secret|session|auth|signature|password)/i;
+
+/** A query parameter that carries a sign-in: a key, a token, a signature, a secret, a session, auth, a password or a code. */
+const SIGN_IN_PARAM = /(?:key|token|sig|secret|session|auth|password|passwd|credential|code$)/i;
+
+/**
+ * 4J11 (H31): whether a request carries a sign-in (fail closed: a name that may hold one counts): a credential header
+ * or a header naming a key, a token and the like, a name or password in the address, or such a query parameter
+ * (?api_key=, ?access_token=, ?sig=, X-Amz-Signature and the like).
+ */
+export function signedIn(headers: Readonly<Record<string, string>>, url?: URL): boolean {
+  if (Object.keys(headers).some(name => CREDENTIAL_HEADERS.has(name.toLowerCase()) || SIGN_IN_HEADER.test(name))) return true;
+  if (!url) return false;
+  return url.username !== '' || url.password !== '' || [...url.searchParams.keys()].some(name => SIGN_IN_PARAM.test(name));
+}
 
 function cleanHeaders(headers: Record<string, string> | undefined): Record<string, string> {
   const clean: Record<string, string> = {};
@@ -275,6 +292,8 @@ function cleanHeaders(headers: Record<string, string> | undefined): Record<strin
  * Fetches a web address through the guard: the address is checked, its name looked up and every answer checked, and
  * the request sent to the checked address. A redirect is followed only for GET and HEAD, at most maxRedirects times,
  * each hop checked and looked up again; credentials never follow a hop to another origin. One deadline covers it all.
+ * Ink v2 wave 4 (4J11, H31): a request that carries a sign-in (signedIn) never follows a redirect at all, not even to
+ * the same site: the redirect is refused and nothing more is sent.
  */
 export async function guardedFetch(request: GuardedRequest, deps: { resolve?: NetResolver; send?: PinnedSender } = {}): Promise<GuardedResponse> {
   const resolve = deps.resolve ?? systemResolver;
@@ -295,6 +314,7 @@ export async function guardedFetch(request: GuardedRequest, deps: { resolve?: Ne
     if (!REDIRECTS.has(answer.status)) return { status: answer.status, url: url.href, headers: answer.headers, body: answer.body, address: checked.address, hops };
     const location = answer.headers.location;
     if (!location || (method !== 'GET' && method !== 'HEAD')) throw refuse('NET_REDIRECT_REFUSED', NET_WORDS.redirect);
+    if (signedIn(headers, url)) throw refuse('NET_REDIRECT_REFUSED', NET_WORDS.signedIn);
     if (redirects >= maxRedirects) throw refuse('NET_TOO_MANY_REDIRECTS', NET_WORDS.hops);
     let next: URL;
     try { next = new URL(location, url); } catch { throw refuse('NET_URL_REFUSED', NET_WORDS.url); }

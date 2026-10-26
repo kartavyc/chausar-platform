@@ -9,6 +9,7 @@ import { ChausarError } from '../../../contracts.ts';
 import { bpsText, divRound, invalid, isoDate, maxBig, notModelled, paise, sumBig, type IsoDate } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type RateTable, type RateUse, type TdsPayload, type TdsSectionRate } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
+import { absent, requireFacts, type MissingFact } from './needs-facts.ts';
 
 export type PayeeKind = 'individual' | 'huf' | 'company' | 'firm' | 'other';
 export type TdsSectionCode = '194A' | '194C' | '194H' | '194I-building' | '194I-plant' | '194J-professional' | '194J-technical' | '194T';
@@ -73,6 +74,20 @@ function applyThreshold(items: Item[], threshold: TdsSectionRate['threshold']): 
 export function tdsWorking(input: TdsWorkingInput, use: RateUse = REHEARSAL): CaReceipt<TdsWorking> {
   if (!input || typeof input !== 'object' || !Array.isArray(input.payments)) invalid('Send the payments as a list.');
   const table = tdsTable(input.financialYear);
+  // Ink v2 4J16 (CA8): a section the working does not have is the CA's (NOT_MODELLED) before any fact is asked; then a
+  // payee's kind and a payment's date are the client's facts, every one missing asked at once, never guessed
+  // (needs-facts.ts, which screens the payee's name before it goes in a question).
+  for (const payment of input.payments) {
+    if (payment && typeof payment === 'object' && !table.payload.sections.some(item => item.code === payment.section)) notModelled(`Section ${String(payment.section)} is not in this TDS working. Your CA works it.`);
+  }
+  requireFacts('TDS working', input.payments.flatMap((payment): MissingFact[] => {
+    if (!payment || typeof payment !== 'object') return [];
+    const about = typeof payment.payee === 'string' && payment.payee.trim() ? { about: payment.payee.trim().slice(0, 60) } : {};
+    return [
+      ...(absent(payment.payeeKind) ? [{ field: 'payeeKind' as const, ...about }] : []),
+      ...(absent(payment.date) ? [{ field: 'paymentDate' as const, ...about }] : []),
+    ];
+  }));
   const stamp = useRateTable(table, use);
   const rates = table.payload;
   const builder = new ReceiptBuilder('tds-working');

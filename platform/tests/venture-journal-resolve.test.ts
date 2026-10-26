@@ -44,7 +44,7 @@ async function seed(deps: VentureDeps) {
 }
 
 const write = (subject: string, over: Partial<ProposeInput> = {}): ProposeInput => ({
-  action: 'connector.write', subject, target: 'Mail app', actionDigest: createHash('sha256').update(subject).digest('hex'), line: 'Send the reminder email.', ...over,
+  action: 'connector.write', subject, target: 'Mail app', actionDigest: createHash('sha256').update(subject).digest('hex'), line: 'Send the reminder email.', operation: 'send-deliverable', ...over,
 });
 const resolve = (deps: VentureDeps, ctx: Context, payload: unknown) => views['venture.journal.resolve']!(deps, ctx, payload) as Promise<{ entry: JournalEntry }>;
 const journalList = async (deps: VentureDeps) => (await views['venture.journal.list']!(deps, owner, {}) as { entries: JournalEntry[] }).entries;

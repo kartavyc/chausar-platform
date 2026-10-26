@@ -26,7 +26,22 @@ export const VENTURE_RETENTION_DAYS = 3650;
 export function buildView(state: State): VentureView | null {
   const venture = currentVenture(state);
   if (!venture) return null;
-  return { venture, ...checklistFor(state, venture), terms: listRecords(state, 'venture-term', venture.id), ...playbookField(venture.idea) };
+  return { venture, ...checklistFor(state, venture), terms: listRecords(state, 'venture-term', venture.id), ...playbookField(venture.idea), ...pausedField(state, venture.id) };
+}
+
+/** The line the business menu shows while the owner has paused the business (4F3). */
+export const PAUSED_VIEW_LINE = 'Paused by you. No new work starts until you unpause.';
+
+/**
+ * 4F3: while the business is paused (its newest Pause all record says paused), since when: the first of the paused
+ * records after the last unpause, so pausing again keeps the first moment. Absent when it is not paused.
+ */
+function pausedField(state: State, ventureId: string): Pick<VentureView, 'paused'> {
+  const records = listRecords(state, 'venture-pause', ventureId).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  if (!records.length || !records[records.length - 1]!.paused) return {};
+  let since = records.length - 1;
+  while (since > 0 && records[since - 1]!.paused) since -= 1;
+  return { paused: { since: records[since]!.at, line: PAUSED_VIEW_LINE } };
 }
 
 /** The services starter pack in the venture's currency. The GST mode is only a label; nothing here computes tax. */

@@ -7,6 +7,7 @@ import { audit, authorize, check, newId, type Context, type State, type StateSto
 import { digest } from '../actions.ts';
 import { validDate } from '../memory.ts';
 import { APP_ONLY_METHODS, VENTURE_EVENTS, VENTURE_RECORD_KINDS } from './contracts.ts';
+import { confirmSeal, noteSealKeys, noteWrite, sealWrites } from './journal/chain.ts';
 import type {
   AnyVentureRecord, DateOrder, IsoTime, Json, RecordBase, RecordOf, TermRecord, VentureDeps, VentureEventName, VentureEventRecord,
   VentureMethod, VentureRecord, VentureRecordKind,
@@ -42,6 +43,34 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-posting-steps': 'postingsteps', 'venture-bank-match': 'bankmatch', 'venture-posting-limits': 'postinglimits',
   'venture-judge-setting': 'judgesetting',
   'venture-transcription-setup': 'transcribesetup',
+  // Ink v2 wave 4 (contracts.ts section 9e)
+  'venture-keeper-run': 'keeperrun', 'venture-health-clear': 'healthclear',
+  'venture-agent-message': 'agentmsg', 'venture-agent-proposal': 'agentprop', 'venture-chat-consent': 'chatconsent',
+  'venture-agent-note': 'note', 'venture-agent-note-change': 'notechange',
+  'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
+  'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',
+  'venture-tie': 'tie', 'venture-network-search': 'netsearch',
+  'venture-opportunity': 'opp', 'venture-pipeline-settings': 'pipesettings',
+  'venture-outreach': 'outreach',
+  'venture-mailbox': 'mailbox', 'venture-inbound': 'inbound', 'venture-calendar-feed': 'calfeed',
+  'venture-away': 'away', 'venture-pause': 'pause', 'venture-write-allowance': 'writeallow',
+  'venture-notification': 'notif', 'venture-notify-settings': 'notifysettings', 'venture-notify-digest': 'digest',
+  'venture-push-subscription': 'pushsub',
+  'venture-cli-check': 'clicheck',
+  'venture-goal': 'goal',
+  'venture-decision': 'decision',
+  'venture-draft-edit': 'draftedit', 'venture-triage-rule': 'triagerule', 'venture-settings-draft': 'settingsdraft', 'venture-queue-view': 'queueview',
+  'venture-bill': 'bill', 'venture-credit-note': 'creditnote', 'venture-recurring-invoice': 'recurring',
+  'venture-connector-check': 'conncheck', 'venture-file-request': 'filerequest',
+  'venture-owner-profile': 'owner',
+  'venture-signing-key': 'signkey',
+  'venture-journal-chain': 'jchain', 'venture-receipt-signature': 'receiptsig',
+  'venture-order-contract': 'contract', 'venture-agent-relay': 'relay',
+  'venture-routine': 'routine', 'venture-routine-run': 'routinerun',
+  'venture-drill-run': 'drillrun',
+  'venture-voice': 'voice', 'venture-persona': 'persona',
+  'venture-knowledge': 'knowledge', 'venture-idea': 'idea',
+  'venture-owner-offer': 'owneroffer',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -94,6 +123,39 @@ export type VentureTx = {
   touch(patch: Partial<Omit<VentureRecord, 'id' | 'kind' | 'ventureId'>>): VentureRecord;
 };
 
+/** What a temporary business is told when it would issue an invoice or record a payment for real (4J23). */
+export const TRIAL_MONEY_LINE = "A temporary business can't issue invoices or record payments for real. Add your email to keep this business, then you can.";
+/** What it is told when it would publish or send from the server: a client share link, a file request, an alert address. */
+export const TRIAL_SEND_LINE = "A temporary business can't share links or send alerts from this server. Add your email to keep this business, then you can.";
+/** What it is told when a write would grow its vault past the trial's cap (held in the hosted vault store, runtime/business.ts). */
+export const TRIAL_FULL_LINE = 'This temporary business is full. Add your email to keep it, then add more.';
+
+/**
+ * Ink v2 wave 4 (4J23): the records a temporary business on the hosted app never stores while it is one, with what it
+ * is told. Real money: an issued invoice (numbered, or issued, part paid or paid), a payment, an issued credit note, a
+ * bill with a payment on it. Publishing or sending from the server: a client share link, a client file request, a
+ * bank account with an alert address. Drafts, bills to pay later, recurring schedules (which only make drafts), alert
+ * rules that only show on Today and everything else are fine: null.
+ */
+export function trialRefusal(record: AnyVentureRecord): string | null {
+  const value = record as { kind: string; status?: unknown; number?: unknown; payments?: unknown; paidMinor?: unknown; alertAddress?: unknown };
+  switch (value.kind) {
+    case 'venture-invoice': return (value.number !== null && value.number !== undefined) || ['issued', 'part-paid', 'paid'].includes(String(value.status)) ? TRIAL_MONEY_LINE : null;
+    case 'venture-payment': return TRIAL_MONEY_LINE;
+    case 'venture-credit-note': return value.status === 'issued' ? TRIAL_MONEY_LINE : null;
+    case 'venture-bill': return (Array.isArray(value.payments) && value.payments.length > 0) || (value.paidMinor !== undefined && value.paidMinor !== '0') ? TRIAL_MONEY_LINE : null;
+    case 'venture-share-link': case 'venture-file-request': return TRIAL_SEND_LINE;
+    case 'venture-bank-account': return value.alertAddress ? TRIAL_SEND_LINE : null;
+    default: return null;
+  }
+}
+
+/** Refuses such a record while the business is temporary, whichever path writes it (deps.trial, asked only then). */
+function refuseTrialRecord(deps: VentureDeps, record: AnyVentureRecord) {
+  const line = trialRefusal(record);
+  if (deps.trial && line) check(!deps.trial(), 'TRIAL_LIMIT', line);
+}
+
 /**
  * The venture actor's only write path. Authorizes, runs work() on the draft state, appends declared
  * events, audits, and commits once. A throw discards the whole draft.
@@ -104,6 +166,7 @@ export async function ventureAction<T>(
 ): Promise<T> {
   authorize(deps.store, ctx, level);
   let committed: VentureEventRecord[] = [];
+  let sealed = null as State | null;
   const outcome = await deps.store.update(async state => {
     authorize(stateView(state, deps.store), ctx, level);
     const now = deps.clock().toISOString();
@@ -120,16 +183,21 @@ export async function ventureAction<T>(
       },
       put<R extends AnyVentureRecord>(record: R): R {
         check(isVentureRecord(record) && !state.conversations.some(r => r?.id === record.id), 'INVALID_VENTURE_REQUEST', 'This record already exists.');
+        refuseTrialRecord(deps, record);
         const copy = structuredClone(record);
         state.conversations.push(copy);
+        noteWrite(state, copy.id);
         if (copy.kind === 'venture-record') tx.venture = copy as VentureRecord;
         return structuredClone(copy);
       },
       replace<R extends AnyVentureRecord>(record: R): R {
         const index = state.conversations.findIndex(r => r?.id === record.id && r?.kind === record.kind);
         check(index >= 0, 'INVALID_VENTURE_REQUEST', 'This record no longer exists.');
+        refuseTrialRecord(deps, record);
         const copy = structuredClone(record);
+        const before = state.conversations[index];
         state.conversations[index] = copy;
+        noteWrite(state, copy.id, before);
         if (copy.kind === 'venture-record') tx.venture = copy as VentureRecord;
         return structuredClone(copy);
       },
@@ -144,13 +212,21 @@ export async function ventureAction<T>(
         return tx.replace({ ...tx.venture, ...patch, updatedAt: now });
       },
     };
+    const opened = { list: state.conversations as unknown[], length: state.conversations.length };
+    // 4J10: the keys the host derived from the vault's own key, for this transaction's checks and seals.
+    noteSealKeys(state, deps);
+    sealed = state;
     const result = await work(tx);
+    // 4J10: the receipts written are signed and the journal items written are chained, in this same commit.
+    sealWrites(state, tx.venture, ctx, now, opened);
     // Today's rows are read from these records, so the screens read the queue again: one queue.changed, after the rest.
     if (events.some(event => QUEUE_EVENTS.has(event.name)) && !events.some(event => event.name === 'queue.changed')) events.push({ name: 'queue.changed', data: {} });
     committed = tx.venture && events.length ? appendEvents(state, tx.venture.id, ctx, now, events) : [];
     audit(state, `venture.${name}`, { ventureId: tx.venture?.id ?? null, memberId: ctx.memberId });
     return structuredClone(result);
   });
+  // 4J10: the commit landed, so a sound chain it sealed is remembered for the revision it made.
+  if (sealed) confirmSeal(sealed);
   // Only after the commit: the desktop push and /api/events never announce a change that was rolled back.
   if (committed.length && deps.publish) {
     try { deps.publish(committed); } catch { /* The commit stands; a listener's failure is its own. */ }

@@ -84,7 +84,7 @@ async function desktop(args: string[], env: Record<string, string>, distFiles: R
       return [...names].map(([name, dir]) => dirent(name, dir));
     },
   };
-  const electron = { app, BrowserWindow: Window, Tray: class {}, shell: {}, powerMonitor: new EventEmitter(), Menu: { buildFromTemplate: (x: any) => x }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) },
+  const electron = { app, BrowserWindow: Window, Tray: class extends EventEmitter { setToolTip() {} setContextMenu() {} }, shell: {}, powerMonitor: new EventEmitter(), Menu: { buildFromTemplate: (x: any) => x }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) },
     protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, h: any) => { handler = h; } },
     session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } },
     dialog: { showErrorBox: (_t: string, message: string) => errors.push(message) }, ipcMain: { handle() {} } };
@@ -103,7 +103,7 @@ async function desktop(args: string[], env: Record<string, string>, distFiles: R
 test('Electron serves Ink from app/ui/dist, from the folder listing, and refuses other files', async () => {
   const built = { 'index.html': '', 'theme.js': '', 'assets/index-abc.js': '', 'assets/notes.exe': '' };
   const ink = await desktop(['--demo'], {}, built);
-  assert.equal(ink.errors.length, 0);
+  assert.equal(ink.errors.length, 0, ink.errors.join(' | '));
   assert.equal((await ink.handler!({ url: 'chausar://app/index.html' })).status, 200);
   assert.equal((await ink.handler!({ url: 'chausar://app/assets/index-abc.js' })).headers.get('Content-Type'), 'text/javascript; charset=utf-8');
   assert.equal((await ink.handler!({ url: 'chausar://app/app.js' })).status, 404);

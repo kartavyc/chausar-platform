@@ -862,10 +862,12 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the twelve core methods; the pre-vault answers are functions', () => {
+test('13. the handler table holds exactly the seventeen core methods; the pre-vault answers are functions', () => {
+  // Twelve, and the five Ink v2 wave 4 added (the owner profile, 4J9; settings drafts, 4J2; the plan suggestion, 4J8).
   assert.deepEqual(Object.keys(handlers).sort(), [
-    'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update',
+    'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.suggest', 'venture.blueprint.update',
     'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
+    'venture.owner.get', 'venture.owner.set', 'venture.settings.draft', 'venture.settings.drafts',
   ]);
   assert.equal(typeof listCountries, 'function');
   assert.equal(typeof previewPlan, 'function');

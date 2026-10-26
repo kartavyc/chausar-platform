@@ -13,9 +13,11 @@ import { join, resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
 import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
-import { HostedApp, SHARE_TOKEN_PATTERN, type SharePageView } from './app.ts';
+import { HostedApp, SHARE_TOKEN_PATTERN, type FileRequestPageView, type SharePageView } from './app.ts';
 import { hostedConfig, type HostedConfig } from './config.ts';
 import { HostedCustody } from './custody.ts';
+import { hostedPushPort } from './notify.ts';
+import { NOT_A_TRIAL_LINE, TRIAL_OFF_LINE } from './trial.ts';
 import { FileDirectory, PostgresDirectory, type HostedDirectory } from './directory.ts';
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
 import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
@@ -39,9 +41,16 @@ const SHARE_STYLE = ':root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--m
   + '.mute{color:var(--mute);font-size:13px;margin:0}.text{white-space:pre-wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:1.25rem 0;margin:1.5rem 0}'
   + 'form{display:grid;gap:.5rem}label{font-size:13px;color:var(--mute)}textarea{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:6px;padding:.5rem}'
   + '.actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem}button{font:inherit;border-radius:6px;padding:.45rem .9rem;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}'
-  + 'button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}.said{font-weight:500}';
+  + 'button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}.said{font-weight:500}'
+  + '.item{border-top:1px solid var(--line);padding:1rem 0}.item p{white-space:pre-wrap;margin:.25rem 0 .75rem}input[type=file]{font:inherit}';
 const SHARE_CSP = `default-src 'none'; style-src 'sha256-${createHash('sha256').update(SHARE_STYLE).digest('base64')}'; img-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`;
-const SHARE_MAX_FORM_BYTES = 4096;
+/** A share page form: room for a 1,000-character comment in Hindi, every character percent-encoded (4J7). */
+const SHARE_MAX_FORM_BYTES = 12_288;
+/**
+ * The most a file request's upload body may be (4J7, K9): an order file's own limit (MAX_UPLOAD_BYTES in
+ * venture/delivery/harness/files.ts, 1,450,000 bytes, which the vault checks again) and room for the form's own lines.
+ */
+export const UPLOAD_MAX_BODY_BYTES = 1_450_000 + 16_384;
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 const SHARE_GONE = 'This link does not open. It may have ended or been taken back. Ask whoever sent it for a new one.';
 
@@ -50,19 +59,132 @@ function shareDocument(title: string, body: string): string {
     + `<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(title)}</title><style>${SHARE_STYLE}</style></head><body><main>${body}</main></body></html>`;
 }
 
-/** The page for an open link: the draft, read only, and either the client's answer or the form to give it. */
+/** What each kind of link says it shares (4J7). */
+const SHARED_WORDS: Readonly<Record<NonNullable<SharePageView['kind']>, string>> = Object.freeze({
+  draft: 'shared a draft with you. Read only.', 'order-status': 'shared where your order stands. Read only.',
+  statement: 'shared what you owe them. Read only.', books: 'shared a month of its books with you. Read only.',
+});
+
+/**
+ * The page for an open link: what it shares, read only. A draft link also has the client's answer or the form to give
+ * it, and while it may answer, a comment form for each post (4J7, O20). Other kinds have no form at all.
+ */
 function sharePageHtml(page: SharePageView, said: string | null): string {
-  const decision = page.decision
-    ? `<p class="said">${page.decision.decision === 'approved' ? 'You approved this draft.' : 'You asked for changes.'}</p>`
-      + (page.decision.comment ? `<p>${escapeHtml(page.decision.comment)}</p>` : '')
-    : `<form method="post"><input type="hidden" name="digest" value="${escapeHtml(page.digest)}">`
-      + `<label for="comment">Anything to change? (optional)</label><textarea id="comment" name="comment" rows="3" maxlength="1000"></textarea>`
-      + `<div class="actions"><button type="submit" name="decision" value="changes">Ask for changes</button>`
-      + `<button class="primary" type="submit" name="decision" value="approved">Approve</button></div></form>`;
+  const kind = page.kind ?? 'draft';
+  const canAnswer = page.canAnswer ?? !page.decision;
+  let decision = '';
+  if (kind === 'draft') {
+    decision = page.decision
+      ? `<p class="said">${page.decision.decision === 'approved' ? 'You approved this draft.' : 'You asked for changes.'}</p>`
+        + (page.decision.comment ? `<p>${escapeHtml(page.decision.comment)}</p>` : '')
+      : !canAnswer ? '<p class="mute">This link can\'t answer for the draft. Ask whoever sent it for a new one.</p>'
+        : `<form method="post"><input type="hidden" name="digest" value="${escapeHtml(page.digest)}">`
+          + `<label for="comment">Anything to change? (optional)</label><textarea id="comment" name="comment" rows="3" maxlength="1000"></textarea>`
+          + `<div class="actions"><button type="submit" name="decision" value="changes">Ask for changes</button>`
+          + `<button class="primary" type="submit" name="decision" value="approved">Approve</button></div></form>`;
+  }
+  const items = kind === 'draft' && canAnswer && !page.decision ? (page.items ?? []).map((item, index) => `<div class="item"><p class="mute">${escapeHtml(item.name)}</p><p>${escapeHtml(item.text)}</p>`
+    + `<form method="post"><input type="hidden" name="item" value="${escapeHtml(item.id)}"><label for="note-${index + 1}">A comment on this post (optional)</label>`
+    + `<textarea id="note-${index + 1}" name="text" rows="2" maxlength="1000"></textarea><div class="actions"><button type="submit">Send the comment</button></div></form></div>`).join('') : '';
+  const comments = (page.comments ?? []).length
+    ? `<div class="item"><p class="mute">Your comments</p>${(page.comments ?? []).map(item => `<p>${escapeHtml(item.text)}</p>`).join('')}</div>` : '';
   return shareDocument(`${page.title} from ${page.businessName}`,
-    `<p class="mute">${escapeHtml(page.businessName)} shared a draft with you. Read only.</p><h1>${escapeHtml(page.title)}</h1>`
+    `<p class="mute">${escapeHtml(page.businessName)} ${SHARED_WORDS[kind]}</p><h1>${escapeHtml(page.title)}</h1>`
     + `<p class="mute">This link ends on ${escapeHtml(page.expires)}.</p>${said ? `<p class="said">${escapeHtml(said)}</p>` : ''}`
-    + `<div class="text">${escapeHtml(page.text)}</div>${decision}`);
+    + `<div class="text">${escapeHtml(page.text)}</div>${decision}${items}${comments}`);
+}
+
+/** The client's file request page (4J7, K9): the note, the line about where the file goes, and one file field. */
+function uploadPageHtml(page: FileRequestPageView, said: string | null): string {
+  if (!page.open) return shareDocument(`A file for ${page.businessName}`, `<h1>Nothing to send here</h1><p>${escapeHtml(page.reason)}</p>${said ? `<p class="said">${escapeHtml(said)}</p>` : ''}`);
+  const megabytes = (page.maxBytes / 1_000_000).toFixed(2).replace(/0$/, '');
+  return shareDocument(`A file for ${page.businessName}`,
+    `<p class="mute">${escapeHtml(page.businessName)} asked you for a file.</p><h1>Send a file</h1>`
+    + (page.note ? `<div class="text">${escapeHtml(page.note)}</div>` : '')
+    + `<p>${escapeHtml(page.line)}</p><p class="mute">One file, at most ${megabytes} MB: CSV or XLSX, or a transcript as SRT or VTT. This link works once and ends at ${escapeHtml(page.expires)}.</p>`
+    + `${said ? `<p class="said">${escapeHtml(said)}</p>` : ''}`
+    + `<form method="post" enctype="multipart/form-data"><label for="file">Your file</label><input id="file" type="file" name="file" required>`
+    + `<div class="actions"><button class="primary" type="submit">Send the file</button></div></form>`);
+}
+
+/**
+ * One file from a multipart/form-data body: exactly one part, named "file", with a file name. Anything else is refused.
+ * The name's bytes are read as UTF-8, and only its last path part is kept.
+ */
+export function multipartFile(body: Buffer, contentType: string): { name: string; bytes: Buffer } {
+  const boundary = /boundary=(?:"([^"]{1,70})"|([^;\s]{1,70}))/i.exec(contentType);
+  check(boundary, 'INVALID_REQUEST', 'Send the file from the page itself.');
+  const mark = Buffer.from(`--${boundary[1] ?? boundary[2]}`, 'latin1');
+  const parts: Buffer[] = [];
+  let at = body.indexOf(mark);
+  check(at === 0, 'INVALID_REQUEST', 'Send the file from the page itself.');
+  while (at >= 0) {
+    const start = at + mark.length;
+    if (body.subarray(start, start + 2).toString('latin1') === '--') break;
+    const next = body.indexOf(mark, start);
+    check(next > start, 'INVALID_REQUEST', 'Send the file from the page itself.');
+    // Each part sits between "\r\n" after the boundary and "\r\n" before the next one.
+    parts.push(body.subarray(start + 2, next - 2));
+    at = next;
+  }
+  check(parts.length === 1, 'INVALID_REQUEST', 'Send one file.');
+  const part = parts[0];
+  const split = part.indexOf('\r\n\r\n');
+  check(split > 0, 'INVALID_REQUEST', 'Send the file from the page itself.');
+  const headers = part.subarray(0, split).toString('latin1');
+  const disposition = /^content-disposition:\s*form-data;([^\r\n]*)$/im.exec(headers);
+  check(disposition && /\bname="file"/.test(disposition[1]), 'INVALID_REQUEST', 'Send the file from the page itself.');
+  const filename = /\bfilename="([^"]*)"/.exec(disposition[1]);
+  check(filename && filename[1].length > 0, 'INVALID_REQUEST', 'Choose a file first.');
+  const name = Buffer.from(filename[1], 'latin1').toString('utf8').split(/[\\/]/).pop()!.trim();
+  check(name.length > 0, 'INVALID_REQUEST', 'Choose a file first.');
+  return { name, bytes: part.subarray(split + 4) };
+}
+
+// The hosted app's manifest (4J9): the Ink build's own manifest.webmanifest with one change, its name, "Chausar: {the
+// open business}" for a signed-in owner. The name comes from the session's own business list in the directory: no
+// vault is opened, and nothing about the owner (email, first name) is ever in it. That is the name the business got
+// when it was made on this server, which can differ from the working name inside the app after a rename; accepted, as
+// reading the working name would mean opening the vault for every manifest fetch. The desktop and the local web keep
+// the build's static file.
+const MANIFEST_PATH = '/app/manifest.webmanifest';
+const MANIFEST_NAME_MAX = 45;
+/** Used when the build has no manifest of its own (or one that is not a JSON object). */
+const PLAIN_MANIFEST = Object.freeze({
+  name: 'Chausar', short_name: 'Chausar', start_url: './', scope: './', display: 'standalone',
+  icons: [
+    { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+});
+/** Bidirectional controls, which can make a name read backwards on the home screen. */
+const DIRECTION_CONTROLS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+
+/** "Chausar: {business}" when the business has a name and the whole fits 45 characters; otherwise "Chausar". */
+function manifestName(business: string | null): string {
+  const clean = (business ?? '').replace(DIRECTION_CONTROLS, '').replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim();
+  const name = `Chausar: ${clean}`;
+  return clean && [...name].length <= MANIFEST_NAME_MAX ? name : 'Chausar';
+}
+
+/** JSON with <, >, & and the two line separators written as escapes, so no reader can take the name for markup. */
+const manifestJson = (manifest: Record<string, unknown>) =>
+  JSON.stringify(manifest, null, 2).replace(/[<>&\u2028\u2029]/g, ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+/** A link tag whose rel holds the manifest token, quoted or not. */
+const MANIFEST_REL = /\srel\s*=\s*(?:"[^"]*\bmanifest\b[^"]*"|'[^']*\bmanifest\b[^']*'|manifest(?=[\s/>]))/i;
+/** A crossorigin attribute in any form: bare, or with a quoted or plain value. */
+const CROSSORIGIN_ATTRIBUTE = /\s+crossorigin(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?(?=[\s/>])/gi;
+
+/**
+ * The page's manifest link asks with credentials: without crossorigin="use-credentials" a browser fetches the manifest
+ * without the session cookie, and the name would always be "Chausar". Idempotent: whatever crossorigin the build wrote
+ * is replaced, never doubled; a page with no manifest link is left as it is.
+ */
+function manifestLinkWithCookie(html: string): string {
+  return html.replace(/<link\b[^>]*>/gi, tag => !MANIFEST_REL.test(tag) ? tag : tag.replace(CROSSORIGIN_ATTRIBUTE, '')
+    .replace(/\s*(\/?)>$/, (_end, slash: string) => (slash ? ' crossorigin="use-credentials" />' : ' crossorigin="use-credentials">')));
 }
 const MAX_STREAMS_PER_USER = 3;
 
@@ -70,6 +192,8 @@ export type HostedServerOptions = {
   origin: string;
   tls: HostedConfig['tls'];
   trustProxy: boolean;
+  /** With trustProxy: how many proxies stand in front (config.proxyHops); the address is that many entries from the right. Default 1. */
+  proxyHops?: number;
   maxBodyBytes: number;
   /** Loaded certificate files when tls.kind is 'files'. */
   certificate?: { cert: Buffer; key: Buffer };
@@ -160,7 +284,12 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       // With more than one server process, sessions and sign-ins made by the others are in the shared store.
       if (url.pathname.startsWith('/api/') && url.pathname !== '/api/health') await app.options.directory.refresh?.();
       const cookies = parseCookies(req.headers.cookie);
-      const forwarded = typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : '';
+      // Behind trusted proxies, each appends the address it saw: the browser's is the entry as many from the right as
+      // there are proxies (1: the last). Every entry before it came from the browser, which can write anything there.
+      // A header shorter than that did not come through all of them, so the connection's own address is used.
+      const hops = options.proxyHops ?? 1;
+      const entries = typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',').map(part => part.trim()).filter(Boolean) : [];
+      const forwarded = hops >= 1 && entries.length >= hops ? entries[entries.length - hops] : '';
       const address = (options.trustProxy && forwarded) || req.socket.remoteAddress || 'unknown';
       const binding = (create: boolean): string => {
         const current = cookies.get(names.browser);
@@ -171,21 +300,26 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
         return fresh;
       };
       const browser = (create: boolean): Browser => ({ binding: binding(create), address });
-      if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res);
+      // 4J7: /share/<token>/upload is the client's file request page; a share page knows its owner's own session (a preview).
+      if (/^\/share\/[A-Za-z0-9_-]{32}\/upload$/.test(url.pathname)) return await upload(url.pathname.slice('/share/'.length, -'/upload'.length), address, req, res);
+      if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res, cookies.get(names.session));
       const auth = (): Authenticated => app.accounts.authenticate(cookies.get(names.session));
       const signIn = (signed: SignedIn) => {
         setCookies.push(cookie(names.session, signed.token, Math.floor(SESSION_TTL_MS / 1000)));
-        return { user: signed.user, session: signed.session, created: signed.created };
+        return { user: signed.user, session: signed.session, created: signed.created, ...(signed.claimed ? { claimed: true } : {}) };
       };
+      /** A temporary business's cookie lasts as long as it does: 7 days from this use (4J23). */
+      const trialCookie = (token: string) => setCookies.push(cookie(names.session, token, Math.floor(app.options.limits.trialIdleMs / 1000)));
 
       if (req.method === 'GET' || req.method === 'HEAD') {
         if (url.pathname === '/app') { res.writeHead(308, { Location: '/app/' }); res.end(); return; }
+        if (ink && url.pathname === MANIFEST_PATH) return await manifest(ink.folder, cookies.get(names.session), req, res);
         const found = staticFile(url.pathname);
         if (found) {
           const [base, file] = found;
           let data: Buffer | string = await readFile(join(base, file));
           if (url.pathname === '/app/' || url.pathname === '/app/index.html') {
-            data = data.toString('utf8').replace('<head>', `<head>\n  ${HOSTED_META}`);
+            data = manifestLinkWithCookie(data.toString('utf8').replace('<head>', `<head>\n  ${HOSTED_META}`));
           }
           if (file.endsWith('.html')) binding(true);
           if (setCookies.length) res.setHeader('Set-Cookie', setCookies);
@@ -193,9 +327,16 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
           res.end(req.method === 'HEAD' ? undefined : data);
           return;
         }
-        if (url.pathname === '/api/health') return send(200, { status: 'ok', mode: 'hosted-experimental' });
+        // 4J21: whether this server lets people start without an account, so the sign-in page offers it only then.
+        if (url.pathname === '/api/health') {
+          // With trials on, how long a temporary business lasts after its last use (trial.ts), so the page says it truly.
+          const limits = app.options.limits;
+          const trial = app.options.trials === true ? { trialIdleDays: Math.max(1, Math.round(limits.trialIdleMs / 86_400_000)), trialEmptyMinutes: Math.round(limits.trialEmptyMs / 60_000) } : {};
+          return send(200, { status: 'ok', mode: 'hosted-experimental', trials: app.options.trials === true, ...trial });
+        }
         if (url.pathname === '/api/hosted/session') {
           const session = auth();
+          if (session.session.method === 'trial') trialCookie(cookies.get(names.session) as string);
           return send(200, { token: app.options.custody.rendererKey(session.session.id), me: app.me(session) });
         }
         if (url.pathname === '/api/hosted/events') return stream(auth(), req, res);
@@ -241,6 +382,23 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
           return send(200, result);
         }
         case '/api/hosted/select': return send(200, await app.select(auth(), body));
+        // Ink v2 wave 4 (4J23): start without an account, then keep the business with an email link or an account's
+        // passkey. The email travels only in the body; the link is the sign-in link's own #signin= pattern.
+        case '/api/hosted/trial': {
+          // Off unless the server was started with trials on (CHAUSAR_HOSTED_TRIALS). Claiming stays open either way.
+          check(app.options.trials === true, 'HOSTED_NOT_AVAILABLE', TRIAL_OFF_LINE);
+          check(Object.keys(body).length === 0, 'INVALID_REQUEST', 'Send an empty request.');
+          const started = await app.accounts.startTrial(browser(true), cookies.get(names.session));
+          trialCookie(started.token);
+          return send(200, { user: started.user, session: started.session, created: started.created, trial: app.trialView(app.accounts.authenticate(started.token)) });
+        }
+        case '/api/hosted/trial/claim': return send(200, await app.accounts.requestClaimLink(auth(), body, browser(true)));
+        case '/api/hosted/trial/claim/passkey': {
+          const session = auth();
+          check(session.session.method === 'trial' && session.user.trial, 'NOT_A_TRIAL', NOT_A_TRIAL_LINE);
+          check(Object.keys(body).every(key => key === 'credential'), 'INVALID_REQUEST', 'Send the passkey answer.');
+          return send(200, signIn(await app.accounts.passkeyLoginVerify(body.credential, browser(false), session.user.id)));
+        }
         case '/api/rpc': {
           const session = auth();
           const bearer = req.headers.authorization ?? '';
@@ -266,31 +424,55 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
   };
 
   /**
-   * /share/<token>: the client share page. GET shows the draft read only; POST (a same-origin form) records Approve or
-   * Ask for changes through the business's vault. No session and no cookie: the token is the key. Every miss answers the
-   * same plain 404 page, and nothing about the request is logged.
+   * The share and upload pages' own answer: their content policy, and Referrer-Policy same-origin (4J7) in place of the
+   * server's no-referrer, so a browser posting the page's own form sends the page's origin rather than "null".
    */
-  const share = async (token: string, address: string, req: IncomingMessage, res: ServerResponse) => {
-    const page = (status: number, html: string) => {
-      res.setHeader('Content-Security-Policy', SHARE_CSP);
-      res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end(req.method === 'HEAD' ? undefined : html);
-    };
+  const sharePageWriter = (req: IncomingMessage, res: ServerResponse) => (status: number, html: string) => {
+    res.setHeader('Content-Security-Policy', SHARE_CSP);
+    res.setHeader('Referrer-Policy', 'same-origin');
+    res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(req.method === 'HEAD' ? undefined : html);
+  };
+
+  /**
+   * A POST from the share or upload page itself: its own origin, or "null" (what a browser sends for a page served with
+   * no-referrer, an older copy of the page) only when the browser also says the request is same-origin. Any other
+   * Sec-Fetch-Site is refused; a client without it (an old browser) must name the origin.
+   */
+  const fromThisPage = (req: IncomingMessage): boolean => {
+    const site = req.headers['sec-fetch-site'];
+    if (site !== undefined && site !== 'same-origin') return false;
+    return req.headers.origin === origin.origin || (req.headers.origin === 'null' && site === 'same-origin');
+  };
+
+  /**
+   * /share/<token>: the client share page. GET shows the draft read only; POST (a same-origin form) records Approve or
+   * Ask for changes through the business's vault, or (4J7) a comment on one post. No session and no cookie: the token
+   * is the key; a session cookie that is the business owner's own makes the GET a preview, which never counts as viewed.
+   * Every miss answers the same plain 404 page, and nothing about the request is logged.
+   */
+  const share = async (token: string, address: string, req: IncomingMessage, res: ServerResponse, viewer?: string) => {
+    const page = sharePageWriter(req, res);
     const gone = () => page(404, shareDocument('Nothing is here', `<h1>Nothing is here</h1><p>${escapeHtml(SHARE_GONE)}</p>`));
     try {
       if (!SHARE_TOKEN_PATTERN.test(token)) return gone();
       if (req.method === 'GET' || req.method === 'HEAD') {
-        const found = await app.sharePage(token, address);
+        // 4J7: a HEAD (a link checker, a chat app peeking) never counts as the client opening the page.
+        const found = await app.sharePage(token, address, undefined, viewer, undefined, req.method === 'HEAD');
         return found ? page(200, sharePageHtml(found, null)) : gone();
       }
       check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use the buttons on the page.');
-      check(req.headers.origin === origin.origin, 'INVALID_ORIGIN', 'Answer from the page itself.');
-      const site = req.headers['sec-fetch-site'];
-      check(site === undefined || site === 'same-origin', 'INVALID_ORIGIN', 'Answer from the page itself.');
+      check(fromThisPage(req), 'INVALID_ORIGIN', 'Answer from the page itself.');
       check((req.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded'), 'INVALID_CONTENT_TYPE', 'Answer from the page itself.');
       let size = 0; const chunks: Buffer[] = [];
       for await (const chunk of req) { size += chunk.length; check(size <= SHARE_MAX_FORM_BYTES, 'REQUEST_TOO_LARGE', 'That comment is too long.'); chunks.push(chunk); }
       const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+      if (form.has('item')) {
+        // 4J7 (O20): a comment on one post, without an account.
+        check([...form.keys()].every(key => key === 'item' || key === 'text') && form.getAll('item').length === 1 && form.getAll('text').length === 1, 'INVALID_REQUEST', 'Write the comment in the box under the post.');
+        const commented = await app.sharePage(token, address, undefined, undefined, { item: form.get('item'), text: form.get('text') });
+        return commented ? page(200, sharePageHtml(commented, 'Thank you. Your comment is recorded.')) : gone();
+      }
       check([...form.keys()].every(key => key === 'decision' || key === 'comment' || key === 'digest') && form.getAll('decision').length === 1 && form.getAll('digest').length === 1
         && form.getAll('comment').length <= 1, 'INVALID_REQUEST', 'Choose Approve or Ask for changes.');
       const answer = { decision: form.get('decision'), digest: form.get('digest'), comment: form.get('comment') ?? undefined };
@@ -313,6 +495,82 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       if (res.headersSent) { res.end(); return; }
       return page(known ? status : 500, shareDocument('Not done', `<h1>Not done</h1><p>${escapeHtml(known ? (error as Error).message : 'Something went wrong on the server. Nothing was recorded.')}</p>`));
     }
+  };
+
+  /** What a refused upload answers with, by its code; the words are Chausar's own. */
+  const uploadStatus = (code: unknown) => code === 'SHARE_USED' ? 409 : code === 'SHARE_EXPIRED' ? 410 : code === 'TRIAL_LIMIT' ? 403
+    : code === 'UPLOAD_LIMIT' || code === 'REQUEST_TOO_LARGE' ? 413 : code === 'UNSUPPORTED_UPLOAD' || code === 'TIER_UNAVAILABLE' ? 415 : statusOf(typeof code === 'string' ? code : undefined);
+
+  /**
+   * 4J7 (K9) /share/<token>/upload: the client's file request page. GET shows the owner's note, where the file goes and
+   * one file field; POST (a same-origin multipart form) takes the link's in-flight lock first, then reads at most
+   * UPLOAD_MAX_BODY_BYTES, and the vault checks the file's size and type by its bytes and keeps it with the order. A
+   * refused file frees the lock, so the client can try again while the link lasts; a stored one uses the link. No session
+   * and no cookie: the token is the key. A temporary business takes no file. Nothing about the request is logged.
+   */
+  const upload = async (token: string, address: string, req: IncomingMessage, res: ServerResponse) => {
+    const page = sharePageWriter(req, res);
+    const gone = () => page(404, shareDocument('Nothing is here', `<h1>Nothing is here</h1><p>${escapeHtml(SHARE_GONE)}</p>`));
+    let lock: string | null = null;
+    try {
+      if (!SHARE_TOKEN_PATTERN.test(token)) return gone();
+      const shown = await app.fileRequest(token, address, { step: 'page' }) as FileRequestPageView | null;
+      if (!shown) return gone();
+      if (req.method === 'GET' || req.method === 'HEAD') return page(200, uploadPageHtml(shown, null));
+      check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use the button on the page.');
+      check(fromThisPage(req), 'INVALID_ORIGIN', 'Send the file from the page itself.');
+      const type = req.headers['content-type'] ?? '';
+      check(type.startsWith('multipart/form-data'), 'INVALID_CONTENT_TYPE', 'Send the file from the page itself.');
+      check(Number(req.headers['content-length'] ?? 0) <= UPLOAD_MAX_BODY_BYTES, 'REQUEST_TOO_LARGE', 'Send a file smaller than one and a half megabytes.');
+      lock = ((await app.fileRequest(token, address, { step: 'claim' })) as { lock?: string } | null)?.lock ?? null;
+      if (!lock) return gone();
+      let size = 0; const chunks: Buffer[] = [];
+      for await (const chunk of req) { size += chunk.length; check(size <= UPLOAD_MAX_BODY_BYTES, 'REQUEST_TOO_LARGE', 'Send a file smaller than one and a half megabytes.'); chunks.push(chunk); }
+      const file = multipartFile(Buffer.concat(chunks), type);
+      const stored = await app.fileRequest(token, address, { step: 'store', lock, name: file.name, contentBase64: file.bytes.toString('base64') });
+      lock = null;
+      if (!stored) return gone();
+      return page(200, shareDocument('File sent', `<h1>Thank you</h1><p>${escapeHtml(`The file is with ${shown.businessName} now. You can close this page.`)}</p>`));
+    } catch (error) {
+      if (lock) await app.fileRequest(token, address, { step: 'release', lock }).catch(() => {});
+      const code = error instanceof ChausarError ? error.code : (error as { code?: unknown })?.code;
+      if (code === 'RATE_LIMITED') res.setHeader('Retry-After', String((error as any).retryAfterSeconds ?? 60));
+      const known = error instanceof ChausarError;
+      if (!known) console.error('[hosted] upload page failed');
+      if (res.headersSent) { res.end(); return; }
+      // A body left unread is drained, so the browser reads the answer instead of a reset connection.
+      req.resume();
+      return page(known ? uploadStatus(code) : 500, shareDocument('Not sent', `<h1>Not sent</h1><p>${escapeHtml(known ? (error as Error).message : 'Something went wrong on the server. Nothing was kept.')}</p>`));
+    }
+  };
+
+  /** The build's manifest, read once: its own file, or the plain one when it has none or it is not a JSON object. */
+  let inkManifest: Record<string, unknown> | null = null;
+  const baseManifest = async (folder: string): Promise<Record<string, unknown>> => {
+    if (inkManifest) return inkManifest;
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(await readFile(join(folder, 'manifest.webmanifest'), 'utf8')); }
+    catch (error) { if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+    inkManifest = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : { ...PLAIN_MANIFEST };
+    return inkManifest;
+  };
+
+  /** The name of the business the session has open, from the session's own list only; null without a live session. */
+  const openBusinessName = async (secret: string | undefined): Promise<string | null> => {
+    if (!secret) return null;
+    await app.options.directory.refresh?.();
+    let session: Authenticated;
+    try { session = app.accounts.authenticate(secret); }
+    catch (error) { if (error instanceof ChausarError) return null; throw error; }
+    const open = session.session.businessId;
+    return session.user.businesses.find(business => business.id === open)?.name ?? null;
+  };
+
+  /** /app/manifest.webmanifest on the hosted app (4J9): the build's manifest named for the open business, never cached. */
+  const manifest = async (folder: string, secret: string | undefined, req: IncomingMessage, res: ServerResponse) => {
+    const body = manifestJson({ ...(await baseManifest(folder)), name: manifestName(await openBusinessName(secret)) });
+    res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Cookie' });
+    res.end(req.method === 'HEAD' ? undefined : body);
   };
 
   /** runEvents: the Ink app's stream, run events only, each as a VentureRunEvent for the open business (views/events.ts). */
@@ -401,9 +659,12 @@ export async function startHosted(config: HostedConfig, print: (line: string) =>
       githubTransport = (store: any) => build.createFixtureGitHubTransport(fixture, () => ({
         briefId: [...store.read().conversations].reverse().find((r: any) => r.kind === 'venture-brief')?.briefId ?? '' }));
     }
-    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool, publicUrl: config.publicUrl });
+    // Phone alerts (Ink v2 wave 4, 4G3): the web push key is derived from the custody key, never read from or written to a file.
+    const push = config.push ? hostedPushPort(custody, config.push.subject) : null;
+    const app = new HostedApp({ root: config.dataDirectory, rp: config.rp, directory, custody, mailer, limits: config.limits, version: '0.1.0-preview.1', modelTransport, githubTransport, postgres: pool, publicUrl: config.publicUrl, push,
+      trials: config.trials });
     const certificate = config.tls.kind === 'files' ? { cert: await readFile(config.tls.cert), key: await readFile(config.tls.key) } : undefined;
-    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, maxBodyBytes: config.limits.maxBodyBytes, certificate, ink });
+    const http = createHostedServer(app, { origin: config.origin, tls: config.tls, trustProxy: config.trustProxy, proxyHops: config.proxyHops, maxBodyBytes: config.limits.maxBodyBytes, certificate, ink });
     app.startHousekeeping();
     return { app, http, custody };
   } catch (error) { await directory.close().catch(() => {}); throw error; }

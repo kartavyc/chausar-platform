@@ -10,7 +10,7 @@ import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import { TOOL_NAMES } from '../../contracts.ts';
 import type {
-  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, OrderIntake, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
+  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, HandoffChoice, HandoffRequest, Json, MockEffect, OrderIntake, PolicyHold, QuestionCard, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
 import type { RateUse } from '../../playbooks/ca-firm/rates.ts';
@@ -38,6 +38,9 @@ import { CA_CHECK_TOOLS } from './tools-ca-checks.ts';
 import { YOUTUBE_TOOLS } from './tools-youtube.ts';
 import { SOCIAL_TOOLS } from './tools-social.ts';
 import { EVIDENCE_TOOLS } from './tools-evidence.ts';
+import { FIELDS_LATER, toolGroup } from './tool-groups.ts';
+import { mockToolFor, runMockTool, type MockTool } from './mocks.ts';
+import { askCard, heldFacts, type AskInput } from '../../agents/questions.ts';
 
 export const MAX_INPUT_CHARS = 12000;
 /** Long enough for the slowest honest call: Docker checks and a 30 second container run, or a big table in chunks. */
@@ -101,8 +104,29 @@ export type ToolEnv = {
    * tool can find the call that backs a claim (evidence.record). Absent where a test builds the environment by hand.
    */
   calls?: readonly ToolCallRecord[];
+  /**
+   * Ink v2 wave 4 (4J16, CA8): the run's questions so far (applyTurn hands over the run's own list), so a CA tool can
+   * refuse a fact the client was asked for and never really answered. Absent where a test builds the environment by hand.
+   */
+  handoffs?: readonly HandoffRequest[];
   /** Facts the agent noted this turn with evidence.record, in call order. A real order's caller stores them with the run. */
   evidence?: EvidenceNote[];
+  /** Ink v2 wave 4 (4F1): true once the owner asked to stop this run, read from the vault between calls. Real orders only. */
+  stopRequested?: () => boolean;
+  /** Ink v2 wave 4 (4F1): a run.call event as each call starts and ends, ids and state only; it never fails a call. */
+  callProgress?: (callId: string, state: 'start' | 'done' | 'error') => Promise<void>;
+  /**
+   * Ink v2 wave 4 (4F2, write-caps.ts): today's cap on what agents write, read again just before a call that writes
+   * runs, counting this turn's calls and tables; and after it ran (made: true, its tables included), whether its rows
+   * took the count past the cap. A denial cancels the call, and after the run its table is not kept. Real orders only.
+   */
+  writeCap?: (tool: string, turn: { calls: readonly ToolCallRecord[]; tables: readonly WorkTableRecord[]; made?: boolean }) => Denial | null;
+  /**
+   * Ink v2 wave 4 (4J11, H33, mocks.ts): typed mock tools a test or a practice run stands in for real tools with. The
+   * real fields still check each call; a real order (other than at shadow) refuses the call with MOCK_REAL_RUN.
+   * buildToolEnv never sets it.
+   */
+  mockTools?: readonly MockTool[];
 };
 
 /**
@@ -125,6 +149,8 @@ async function shadowOutbox(env: ToolEnv, mock: MockEffect, summary: string): Pr
   const { simulation } = await shadowAction(env.deps, env.ctx, {
     action: 'connector.write', subject: `${env.runRef.runId}:${mock.payloadDigest.slice(0, 16)}`, target, actionDigest: mock.payloadDigest,
     line: `${target}: ${words}`.slice(0, 300), agent: AGENT_ID,
+    // 4J10 (H28): a write to a connected service names its operation, checked against the writes Chausar knows.
+    operation: mock.operation,
   });
   return {
     recorded: true, sent: false, shadow: true, note: SHADOW_NOTE,
@@ -135,7 +161,9 @@ async function shadowOutbox(env: ToolEnv, mock: MockEffect, summary: string): Pr
 // The shapes and helpers below are exported for the tool files (tools-ca.ts, tools-ca-checks.ts, tools-youtube.ts,
 // tools-social.ts, tools-evidence.ts). The helpers are function declarations, so a tool file may use them while it
 // loads, whichever of the files loads first.
-export type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft; evidence?: EvidenceNote[] };
+/** A hand-off a tool asks for; 4J17 (A14): an owner question's choices and card, checked by agents/questions.ts. */
+export type ToolHandoff = { to: 'client' | 'owner'; question: string; choices?: HandoffChoice[]; card?: QuestionCard };
+export type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: ToolHandoff; mock?: MockEffect; delegate?: DelegationDraft; evidence?: EvidenceNote[] };
 export type Field =
   | { type: 'text'; required: boolean; max: number; about: string }
   | { type: 'enum'; required: boolean; values: readonly string[]; about: string }
@@ -421,9 +449,22 @@ const CORE_TOOLS: Readonly<Record<CoreToolName, Spec>> = {
   },
   'handoff.owner': {
     name: 'handoff.owner', effect: 'handoff', tier: 'code', endsTurn: true,
-    summary: 'Asks the business owner for a decision or a fact only they have. Ends your turn; the answer comes back as a message.',
-    input: { question: text('One short question, words only.', 300) },
-    async run(env, input) { return { result: { asked: true, to: 'owner' }, handoff: { to: 'owner', question: question(env, input.question) } }; },
+    summary: 'Asks the business owner for a decision or a fact only they have, never for an approval or a fact Chausar holds. Ask several related questions at once in a round, each with your best guess, so one short reply answers them. Ends your turn; the answer comes back as a message.',
+    // 4J17 (A14): answers to pick from, your pick first, each with what it gains and costs; or a round (agents/questions.ts).
+    input: {
+      question: text('One short question, words only; with a round, one line that says what the questions are for.', 300),
+      guess: text('Your best guess at the answer, in a few words.', 120, false),
+      options: { type: 'list', required: false, max: 4, about: 'Two to four answers to pick from, your pick first.', item: { type: 'object', required: true, about: 'One answer.', fields: answerFields() } },
+      round: { type: 'list', required: false, max: 8, about: 'Two to eight related questions to ask at once, instead of one.', item: { type: 'object', required: true, about: 'One question.', fields: {
+        text: text('The question, words only.', 200), guess: text('Your best guess at its answer.', 120),
+        options: { type: 'list', required: false, max: 4, about: 'Two to four answers to pick from, your pick first.', item: { type: 'object', required: true, about: 'One answer.', fields: answerFields() } },
+      } } },
+    },
+    async run(env, input) {
+      // The business's records, for the facts Chausar holds; none where the tool runs without a store (a test by hand).
+      const asked = askCard(input as AskInput, { allowed: env.allowed, facts: heldFacts(env.deps?.store?.read() ?? null, env.ventureId) });
+      return { result: { asked: true, to: 'owner' }, handoff: { to: 'owner', ...asked } };
+    },
   },
   'outbox.propose': {
     name: 'outbox.propose', effect: 'outside-write', tier: 'code', endsTurn: false,
@@ -478,6 +519,11 @@ function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: s
   return { result: { table: alias, from: tableAlias(env, source), columns, rows: tableRows.length, sample: rowsOut(tableRows.slice(0, SAMPLE_ROWS)), tier: how.tier }, tables: [table], proofs: [{ kind: 'transformed', tableId: table.id }] };
 }
 
+/** 4J17 (A14): one answer the agent offers the owner, with what it gains and what it costs (a declaration, so the tool table can use it as it loads). */
+function answerFields(): Record<string, Field> {
+  return { text: text('The answer, words only.', 120), gains: text('What this answer gains.', 120), costs: text('What it costs.', 120) };
+}
+
 /** A hand-off question reaches a person, so it holds words only: an amount in it would be the model's own number. */
 function question(env: ToolEnv, text: string): string {
   try { return modelWords(text, 'question', 300, { allowed: env.allowed, numbers: 'refuse' }); } catch {
@@ -510,16 +556,23 @@ export function offeredTools(grant: readonly ToolName[], host: VentureHostKind |
   return grant.filter(name => hostRefusal(host, name) === null);
 }
 
-/** The tool list a prompt carries for a grant: names, what each does and its input fields. Deny by default. */
-export function toolManifest(grant: readonly ToolName[]): Json {
-  return TOOL_NAMES.filter(name => grant.includes(name)).map(name => {
+/**
+ * The tool list a prompt carries for a grant: names, what each does and its input fields. Deny by default. loaded
+ * (4J11, tool-groups.ts): the tools whose fields this turn carries; the others say what they do, their group and that
+ * their fields come later. Null or absent: every tool whole.
+ */
+export function toolManifest(grant: readonly ToolName[], loaded: ReadonlySet<ToolName> | null = null): Json {
+  return TOOL_NAMES.filter(name => grant.includes(name)).map((name): Json => {
     const spec = tools()[name];
+    if (loaded && !loaded.has(name)) return { tool: name, group: toolGroup(name), does: spec.summary, endsTurn: spec.endsTurn, input: FIELDS_LATER };
     const describe = (field: Field): Json => field.type === 'object'
       ? { type: 'object', about: field.about, fields: Object.fromEntries(Object.entries(field.fields).map(([key, inner]) => [key, describe(inner)])) }
       : field.type === 'list' ? { type: 'list', about: field.about, max: field.max, item: describe(field.item) }
         : field.type === 'enum' ? { type: 'choice', about: field.about, values: [...field.values], required: field.required }
           : { type: 'text', about: field.about, required: field.required };
-    return { tool: name, does: spec.summary, endsTurn: spec.endsTurn, input: Object.fromEntries(Object.entries(spec.input).map(([key, field]) => [key, describe(field)])) };
+    const input: Json = Object.fromEntries(Object.entries(spec.input).map(([key, field]) => [key, describe(field)]));
+    const whole: Json = loaded ? { tool: name, group: toolGroup(name), does: spec.summary, endsTurn: spec.endsTurn, input } : { tool: name, does: spec.summary, endsTurn: spec.endsTurn, input };
+    return whole;
   });
 }
 
@@ -579,7 +632,7 @@ function repeatOf(earlier: ToolCallRecord, inputDigest: string, inputText: strin
 /** A call the policy held for the owner: it did not run. */
 export type HeldCall = { tool: ToolName; stepId: string | null; inputDigest: string; code: string; reason: string };
 export type ToolOutcome = {
-  record: ToolCallRecord; proofs: ClaimProof[]; handoff: { to: 'client' | 'owner'; question: string } | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null;
+  record: ToolCallRecord; proofs: ClaimProof[]; handoff: ToolHandoff | null; mock: MockEffect | null; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; delegate: DelegationRequest | null;
   verdict?: Verdict | null; hold?: HeldCall | null;
   /** The label on the result and the screen's note on it; both are kept on the record. */
   integrity?: ResultIntegrity | null; screen?: ScreenNote | null;
@@ -628,6 +681,9 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
       effect: spec?.effect ?? null, tier: spec?.tier ?? null, receiptIds: (extra.receipts ?? []).map(item => item.id), tableIds: (extra.tables ?? []).map(item => item.id),
       startedAt, finishedAt: env.now(),
       ...(extra.integrity ? { integrity: extra.integrity } : {}), ...(extra.screen ? { screen: extra.screen } : {}),
+      // 4J1 (O17): a call a saved rule let run without asking keeps which rule, for the decision record (journal/decisions.ts).
+      ...(state !== 'cancelled' && (extra.verdict?.code === 'auto' || extra.verdict?.code === 'session_allowed')
+        ? { allowedBy: { rule: extra.verdict.code === 'auto' ? 'auto' as const : 'session' as const, stepId: extra.verdict.step ?? null } } : {}),
     }),
     proofs: extra.proofs ?? [], handoff: extra.handoff ?? null, mock: extra.mock ?? null, tables: extra.tables ?? [], receipts: extra.receipts ?? [], delegate: extra.delegate ?? null,
     verdict: extra.verdict ?? null, hold: extra.hold ?? null,
@@ -666,16 +722,30 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     try { denial = await env.recheck({ tool: spec.name, inputDigest }); } catch { denial = { code: 'RECHECK_FAILED', reason: RECHECK_FAILED }; }
     if (denial) return outcome(failure(denial.code, `${denial.reason} Nothing ran.`), 'cancelled', input as Json, { verdict });
   }
+  // Ink v2 wave 4 (4F2): a write past today's cap does not run; the agent reads why (write-caps.ts).
+  const capped = env.writeCap?.(spec.name, { calls: env.calls ?? [], tables: env.tables }) ?? null;
+  if (capped) return outcome(failure(capped.code, `${capped.reason} Nothing ran.`), 'cancelled', input as Json, { verdict });
+  // Ink v2 wave 4 (4J11, H33): a typed mock tool answers in place of the real one, in tests and practice only (mocks.ts).
+  let mocked: MockTool | null;
+  try { mocked = mockToolFor(env, spec.name); } catch (error) {
+    return outcome(failure('MOCK_REAL_RUN', error instanceof Error ? error.message : 'No practice result on a real order.'), 'failed', input as Json, { verdict });
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      spec.run(env, input),
+      mocked ? Promise.resolve(runMockTool(mocked)) : spec.run(env, input),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ChausarError('TOOL_TIMEOUT', `${spec.name} ran past its time limit.`)), TOOL_TIMEOUT_MS); }),
     ]);
     // Outside content passes the untrusted screen before the agent reads it; a held result adds nothing to the run.
     const integrity = resultIntegrity(spec.name, env);
     const screened = integrity === 'untrusted' ? screenResult(env, spec.name, result.result as Json) : null;
     if (screened?.status === 'quarantined') return outcome(failure('UNTRUSTED_HELD', screened.held), 'cancelled', input as Json, { verdict, integrity, screen: screened.note });
+    // Ink v2 wave 4 (4F2): rows that take today's books-lines count past the cap are not kept, so one call near the
+    // cap cannot add thousands (write-caps.ts).
+    if (result.tables?.length) {
+      const over = env.writeCap?.(spec.name, { calls: env.calls ?? [], tables: [...env.tables, ...result.tables], made: true }) ?? null;
+      if (over) return outcome(failure(over.code, `${over.reason} The table it made was not kept.`), 'cancelled', input as Json, { verdict, integrity });
+    }
     const proofs: ClaimProof[] = (result.proofs ?? []).map(proof => ({ kind: proof.kind, toolCallId: id, receiptId: proof.receiptId ?? null, tableId: proof.tableId ?? null }));
     // Records join the run only here, after the call finished in time: a call that ran past its limit and finishes
     // later never adds a table or a receipt, so the short names stay stable.

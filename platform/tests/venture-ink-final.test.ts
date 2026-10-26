@@ -231,9 +231,10 @@ test('team.posture: tighter than the business stage is stored, looser is refused
   assert.equal(tightened.agent.posture, 'shadow');
   const same = await call<{ agent: AgentView }>(env, 'venture.team.posture', { agentId: 'delivery', posture: 'approve-each' });
   assert.equal(same.agent.posture, 'approve-each');
+  // 4J15: auto with spot checks is built but locked (the founder's decision), so it answers AUTO_LOCKED at every rung.
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), (error: any) => {
-    assert.equal(error.code, 'POSTURE_ABOVE_STAGE');
-    assert.equal(error.message, 'The business is at approve each, so this agent can work at approve each or tighter. Move the business up first.');
+    assert.equal(error.code, 'AUTO_LOCKED');
+    assert.equal(error.message, "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.");
     return true;
   });
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'someone', posture: 'shadow' }), code('AGENT_NOT_FOUND'));
@@ -258,6 +259,7 @@ test('leads.block: an email or a domain goes on the blocklist, and drafting to i
 test('runs: a rules-judge check nobody settled reads as not checked, never as failed', async () => {
   const unsettled: CheckResult = { check: 'rules-judge', passed: false, detail: 'Not settled: cites-source. A vote without checked evidence never counts as a pass.', notChecked: true };
   assert.equal(checkLabel(unsettled), 'Not checked: Not settled: cites-source. A vote without checked evidence never counts as a pass.');
-  assert.equal(checkLabel({ check: 'rules-judge', passed: false, detail: 'Failed: tone.' }), 'Failed: Failed: tone.');
+  // 4J14 (Q7): the judge's own "Failed:" is not said twice.
+  assert.equal(checkLabel({ check: 'rules-judge', passed: false, detail: 'Failed: tone.' }), 'Failed: tone.');
   assert.equal(checkLabel({ check: 'house-style', passed: true, detail: 'Fine.' }), 'Passed: Fine.');
 });

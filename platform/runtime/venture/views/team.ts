@@ -6,20 +6,47 @@
 // gate; venture/policy checks it before each harness tool call. The posture shown is the one the agent works at: the
 // launch stage tightened by the agent's own posture (policy/context.ts). venture.team.posture stores that own posture:
 // the same rung as the business or a tighter one, never a looser one (POSTURE_ABOVE_STAGE). The floor asks at every rung.
+// Ink v2 wave 4 (4A1, spec 5.1): each agent's department (playbooks/departments.ts), kind, state and health from facts
+// (views/health.ts) and who set its posture; Keeper, the engine's own jobs as code (views/keeper.ts), listed last; the
+// five departments with their counts, jobs, spend and series and the team's totals (views/team-series.ts).
+// venture.team.clearQuarantine lets the owner clear a quarantined agent, or the team ('team'), with the health digest
+// they saw; this file installs the quarantine check delivery runs before work moves on (delivery/quarantine-gate.ts).
+// Keeper has no steps or posture to change. The team's flagship comes from views/team-shape.ts, shared with Money.
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, formatMicros, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
-import type { AgentPostureRecord, AgentView, PlaybookStep, Posture, TeamGateRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
-import { flagshipDelivery, type FlagshipDelivery } from '../playbooks/steps.ts';
-import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import type { AgentHealth, AgentPostureRecord, AgentView, HealthClearRecord, PlaybookStep, Posture, TeamGateRecord, TeamListView, VentureDeps, VentureRecord } from '../contracts.ts';
+import type { FlagshipDelivery } from '../playbooks/steps.ts';
 import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
 import { POSTURES, postureOfStage, postureRank, stepGate } from '../policy/posture.ts';
 import { ESTIMATE_WORDS } from '../models/cost.ts';
+import { departmentOfMember, teamLedger, type TeamLedger } from '../money/department-spend.ts';
+import { installQuarantineCheck } from '../delivery/quarantine-gate.ts';
 import { deliveryRunDetails } from './runs.ts';
-import { AGENT_ID, AGENT_PURPOSES, agentName, clientNameFor, plain } from './shared.ts';
+import { memberHealth, memberState, TEAM_ID, teamFacts, teamHealthOf, type TeamMember } from './health.ts';
+import { withRefusals } from './refusals.ts';
+import { KEEPER_ID, keeperAgent } from './keeper.ts';
+import { departmentViews } from './team-series.ts';
+import { teamFlagship } from './team-shape.ts';
+import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
+import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { AGENT_ID, AGENT_PURPOSES, agentName, clientNameFor, lastEventAt, plain } from './shared.ts';
+import { pausedNow } from '../delivery/run-guards.ts';
+import { aiWaitLine } from '../models/roles.ts';
+import { autoLocked } from '../policy/auto-lock.ts';
+import { nestTeam, roleSpend } from '../agents/relay.ts';
+
+/**
+ * "Connect your AI" while no connected AI that can run now serves a tier (models/roles.ts, spec 8), for an idle agent's
+ * now line; null once one can. A status that cannot be read (the models package not loaded) leaves the plain words.
+ */
+function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
+  try { return aiWaitLine(deps.models.status(ctx)); } catch { return null; }
+}
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
 export const FLOOR_WORDS = STEP_FLOOR_WORDS;
+const KEEPER_IS_CODE = 'Keeper is code, not AI. It has no steps or posture to change; its jobs are on Team.';
+const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 
 /** Why a step is in the always-ask floor, or null. Code decides from the step's kind and its tools' effects. */
 export function floorReason(step: PlaybookStep): string | null {
@@ -33,14 +60,6 @@ function agentSteps(state: State, venture: VentureRecord): PlaybookStep[] | null
   const plan = acceptedBlueprintOrNull(state, venture);
   if (!plan) return null;
   try { return playbookSteps(plan, deliveryFlagship(venture, plan)); } catch { return null; }
-}
-
-/** The flagship playbook the team follows (playbooks/steps.ts): the playbook in use's, else the accepted plan's. */
-function teamFlagship(state: State, venture: VentureRecord): FlagshipDelivery | null {
-  const playbook = currentPlaybook(state, venture);
-  if (playbook) return flagshipDelivery(playbook.flagship);
-  const plan = acceptedBlueprintOrNull(state, venture);
-  return plan ? flagshipDelivery(deliveryFlagship(venture, plan)) : null;
 }
 
 /** Why a step asks at every posture: code's floor from its kind and tools, else the flagship playbook's own floor. */
@@ -65,18 +84,29 @@ function spendOf(state: State, venture: VentureRecord): string {
  * agent or code step (playbooks/steps.ts), each with its own steps. One harness agent runs every role's steps, so
  * the gates, the posture and the spend are the team's: stored and read under AGENT_ID, as the policy reads them.
  */
-function agentViews(deps: VentureDeps, state: State, venture: VentureRecord): AgentView[] {
+function agentViews(deps: VentureDeps, state: State, venture: VentureRecord, ledger: TeamLedger = teamLedger(state, venture), aiWait: string | null = null): AgentView[] {
+  return teamNow(deps, state, venture, ledger, aiWait).agents;
+}
+
+/**
+ * The team as it stands: its agents (Keeper last) and the team's own health; no agents and no team health before a plan.
+ * aiWait: the words an idle agent that needs an AI shows instead of Idle while none can run (aiWaitFor).
+ */
+function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger: TeamLedger, aiWait: string | null = null): { agents: AgentView[]; teamHealth: AgentHealth | null } {
   const steps = agentSteps(state, venture);
-  if (!steps) return [];
-  const flagship = teamFlagship(state, venture);
+  if (!steps) return { agents: [], teamHealth: null };
+  const flagship = ledger.flagship;
   const posture = effectivePosture(state, venture);
   const gates = new Map<string, 'auto' | 'hold'>();
   for (const record of listRecords(state, 'venture-team-gate', venture.id)) if (record.agentId === AGENT_ID) gates.set(record.stepId, record.gate);
   const runs = deliveryRunDetails(deps, state, venture);
   const busy = runs.find(run => run.state === 'waiting' || run.state === 'active');
   const step = busy?.steps.find(item => item.state === 'waiting' || item.state === 'current');
-  const nowFor = (owns: (stepId: string) => boolean): string => {
-    if (!busy || (step && !owns(step.id))) return 'Idle';
+  const nowFor = (owns: (stepId: string) => boolean, needsAi = true): string => {
+    // Ink v2 wave 4 (4F1): while the owner has paused the business, every agent reads Paused.
+    if (pausedNow(state, venture.id)) return 'Paused';
+    // An idle agent that needs an AI waits for one while none can run (spec 8); a code role never does.
+    if (!busy || (step && !owns(step.id))) return (needsAi ? aiWait : null) ?? 'Idle';
     return busy.state === 'active' ? `Working: ${step?.purpose ?? busy.purpose}` : `Waiting on you: ${step?.purpose ?? busy.purpose}`;
   };
   const reviewed = listRecords(state, 'venture-delivery-run', venture.id).filter(run => run.verdict !== null)
@@ -89,35 +119,84 @@ function agentViews(deps: VentureDeps, state: State, venture: VentureRecord): Ag
     const floor = stepFloor(item, flagship) !== null;
     return { id: item.id, purpose: item.title, gate: stepGate(gates.get(item.id), floor), floor };
   };
+  // Ink v2 wave 4 (4A1): department, kind, state and health from facts, who set the posture, and Keeper last.
+  const members: TeamMember[] = flagship
+    ? flagship.roles.filter(role => steps.some(item => flagship.roleOf[item.id] === role.id)).map(role => ({ id: role.id, kind: role.kind, owns: (stepId: string) => flagship.roleOf[stepId] === role.id }))
+    : [{ id: AGENT_ID, kind: 'agent', owns: () => true }];
+  const records = listRecords(state, 'venture-delivery-run', venture.id);
+  // The facts behind health, worked out once for the whole team (views/health.ts).
+  const known = teamFacts(ledger, members, records);
+  const times = lastEventAt(state, venture.id);
+  const postureSetBy = listRecords(state, 'venture-agent-posture', venture.id).some(record => record.agentId === AGENT_ID) ? 'agent' as const : 'business' as const;
+  const facts = (member: TeamMember) => ({
+    department: departmentOfMember(ledger, member.id), kind: member.kind, state: memberState(member.owns, runs),
+    health: withRefusals(memberHealth(deps, state, venture, member, runs, known, times), state, venture, member, deps.clock().toISOString()), postureSetBy, chat: member.kind === 'agent',
+  });
+  const keeper = keeperAgent(state, venture, posture);
+  const teamHealth = teamHealthOf(known);
   if (!flagship) {
-    return [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView) })];
+    return { agents: [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView), ...facts(members[0]) }), keeper], teamHealth };
   }
   const spend = `${spendOf(state, venture)} for the whole team`;
   const drafter = flagship.roleOf[flagship.draftStep(null)];
-  return flagship.roles.flatMap(role => {
-    const own = steps.filter(item => flagship.roleOf[item.id] === role.id);
-    if (!own.length) return [];
-    return [plain({
-      id: role.id, name: role.name, role: role.job, now: nowFor(stepId => flagship.roleOf[stepId] === role.id), posture, spend,
-      ...(role.id === drafter ? last : {}), steps: own.map(stepView),
-    })];
-  });
+  // 4J12 (H25): a helper names the role it reports to among the members shown, with spend rolled up to its parent
+  // (agents/relay.ts nestTeam). No shipped role has a parent in W4, so this leaves the team as it is.
+  const nested = nestTeam(members.map(member => {
+    const role = flagship.roles.find(item => item.id === member.id)!;
+    return plain({
+      id: role.id, name: role.name, role: role.job, now: nowFor(member.owns, member.kind === 'agent'), posture, spend,
+      ...(role.id === drafter ? last : {}), steps: steps.filter(item => member.owns(item.id)).map(stepView), ...facts(member),
+    });
+  }), flagship, () => roleSpend(ledger), spendOf(state, venture).endsWith(ESTIMATE_WORDS) ? ESTIMATE_WORDS : '');
+  return {
+    agents: [...nested, keeper],
+    teamHealth,
+  };
 }
 
-/** venture.team.list (read): the agents of this business. None until a plan is accepted. */
-export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ agents: AgentView[] }> {
+/**
+ * venture.team.list (read): the agents of this business, Keeper last; none, and no Keeper, until a plan is accepted.
+ * With a business, the five departments too (counts, jobs this week, spend this month, the six-week series), the spend
+ * no single role can claim, the team's totals (Money's own spend figure among them) and the team's own health, each
+ * figure with its sum receipt (reading may write a receipt for a sum not seen before). One ledger serves the request.
+ */
+export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<TeamListView> {
   exactPayload(payload, []);
   authorize(deps.store, ctx);
   const state = deps.store.read();
   const venture = currentVenture(state);
-  return { agents: venture ? agentViews(deps, state, venture) : [] };
+  if (!venture) return { agents: [] };
+  const ledger = teamLedger(state, venture);
+  const { agents, teamHealth } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
+  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}) };
 }
 
-/** One agent of the team as it stands now, or AGENT_NOT_FOUND. */
-function agentNow(deps: VentureDeps, agentId: string): AgentView {
+/**
+ * Why work may not move on: the team's own quarantine, else the first quarantined agent, in words, or null. A run
+ * uses every role's steps, so one quarantined agent stops the team's runs (delivery/quarantine-gate.ts).
+ */
+export function quarantineLine(deps: VentureDeps, state: State, venture: VentureRecord): string | null {
+  const { agents, teamHealth } = teamNow(deps, state, venture, teamLedger(state, venture));
+  if (teamHealth?.status === 'quarantined') return `The team is quarantined: ${teamHealth.reason} Clear it on Team first.`;
+  const agent = agents.find(item => item.health?.status === 'quarantined');
+  return agent ? `${agent.name} is quarantined: ${agent.health!.reason} Clear it on Team first.` : null;
+}
+
+/**
+ * The same at a moment, from a state alone (inside a transaction): health reads only the clock from the host, so the
+ * check runs on the commit's own state and time. Installed for delivery when this file loads.
+ */
+export function quarantineIn(state: State, venture: VentureRecord, nowIso: string): string | null {
+  const at = { clock: () => new Date(nowIso) } as Pick<VentureDeps, 'clock'> as VentureDeps;
+  return quarantineLine(at, state, venture);
+}
+installQuarantineCheck(quarantineIn);
+
+/** One agent of the team as it stands now, with the same now line the team list shows, or AGENT_NOT_FOUND. */
+function agentNow(deps: VentureDeps, ctx: Context, agentId: string): AgentView {
   const state = deps.store.read();
   const venture = currentVenture(state);
-  const agent = venture ? agentViews(deps, state, venture).find(item => item.id === agentId) : undefined;
+  const agent = venture ? agentViews(deps, state, venture, teamLedger(state, venture), aiWaitFor(deps, ctx)).find(item => item.id === agentId) : undefined;
   check(agent, 'AGENT_NOT_FOUND', 'That agent was not found.');
   return agent;
 }
@@ -129,6 +208,7 @@ export async function teamGateHandler(deps: VentureDeps, ctx: Context, payload: 
   const agentId = identifier(body.agentId, 'Agent');
   const stepId = identifier(body.stepId, 'Step');
   check(body.gate === 'auto' || body.gate === 'hold', 'INVALID_VENTURE_REQUEST', 'Choose auto or hold.');
+  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
   const gate = body.gate;
   await ventureAction(deps, ctx, 'approve', 'team.gate', tx => {
     const steps = agentSteps(tx.state, tx.venture!);
@@ -142,7 +222,7 @@ export async function teamGateHandler(deps: VentureDeps, ctx: Context, payload: 
     // One harness agent runs every role's steps: the gate is stored where the policy reads it.
     tx.put<TeamGateRecord>({ ...tx.base('venture-team-gate'), agentId: AGENT_ID, stepId, gate });
   });
-  return { agent: agentNow(deps, agentId) };
+  return { agent: agentNow(deps, ctx, agentId) };
 }
 
 const POSTURE_NAMES: Readonly<Record<Posture, string>> = Object.freeze({
@@ -160,7 +240,9 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
   const agentId = identifier(body.agentId, 'Agent');
   check(typeof body.posture === 'string' && (POSTURES as readonly string[]).includes(body.posture), 'INVALID_VENTURE_REQUEST',
     'Choose rehearsal, shadow, approve each or auto with spot checks.');
+  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
   const posture = body.posture as Posture;
+  autoLocked(posture); // 4J15: auto with spot checks is built but locked (policy/auto-lock.ts), whatever readiness says.
   await ventureAction(deps, ctx, 'approve', 'team.posture', tx => {
     const steps = agentSteps(tx.state, tx.venture!);
     check(steps && knownAgent(teamFlagship(tx.state, tx.venture!), steps, agentId), 'AGENT_NOT_FOUND', 'That agent was not found.');
@@ -170,5 +252,36 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
     // A flagship playbook's roles are one harness agent, so a role's posture is the team's, stored where the policy reads it.
     tx.put<AgentPostureRecord>({ ...tx.base('venture-agent-posture'), agentId: AGENT_ID, posture });
   });
-  return { agent: agentNow(deps, agentId) };
+  return { agent: agentNow(deps, ctx, agentId) };
+}
+
+/** One agent's health, or the team's own (TEAM_ID), inside a transaction; AGENT_NOT_FOUND for anyone else. */
+function healthNow(deps: VentureDeps, state: State, venture: VentureRecord, agentId: string): AgentHealth {
+  const { agents, teamHealth } = teamNow(deps, state, venture, teamLedger(state, venture));
+  const health = agentId === TEAM_ID ? teamHealth : agents.find(item => item.id === agentId)?.health;
+  check(health, 'AGENT_NOT_FOUND', 'That agent was not found.');
+  return health;
+}
+
+/**
+ * venture.team.clearQuarantine { agentId, digest } (approve, app only): the owner clears a quarantined agent, or the
+ * team's own quarantine (agentId 'team'), sending back the health digest they saw. Any other digest, or one that is not
+ * quarantined now, is APPROVAL_STALE. Causes before the clear no longer count toward that health.
+ */
+export async function teamClearQuarantineHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ agent: AgentView | null; teamHealth: AgentHealth }> {
+  requireAppChannel(ctx, 'venture.team.clearQuarantine');
+  const body = exactPayload(payload, ['agentId', 'digest'], ['agentId', 'digest']);
+  const agentId = identifier(body.agentId, 'Agent');
+  check(typeof body.digest === 'string' && /^[0-9a-f]{64}$/.test(body.digest), 'APPROVAL_STALE', CLEAR_STALE);
+  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
+  const seen = body.digest;
+  await ventureAction(deps, ctx, 'approve', 'team.clearQuarantine', tx => {
+    const health = healthNow(deps, tx.state, tx.venture!, agentId);
+    check(health.status === 'quarantined' && health.digest === seen, 'APPROVAL_STALE', CLEAR_STALE);
+    tx.put<HealthClearRecord>({ ...tx.base('venture-health-clear'), agentId, digest: health.digest, reason: health.reason ?? '' });
+  });
+  const state = deps.store.read();
+  const venture = currentVenture(state)!;
+  const now = teamNow(deps, state, venture, teamLedger(state, venture));
+  return { agent: agentId === TEAM_ID ? null : agentNow(deps, ctx, agentId), teamHealth: now.teamHealth! };
 }

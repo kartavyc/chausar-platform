@@ -59,7 +59,7 @@ test('auditor: refused and cancelled steps are kept as evidence, never as progre
   assert.match(steps[0].reason, /did not succeed/);
   assert.match(steps[2].reason, /did not run/);
   assert.equal(state.rounds![0].progress, 1);
-  const history = compactHistory(state) as any[];
+  const history = (compactHistory(state) as any).turns; // 4J11: the history is { summary, turns }
   assert.deepEqual(history[0].calls.map((item: any) => item.audited), [false, true, false], 'the manager plans the next round from what was audited');
   assert.match(history[0].calls[0].auditNote, /did not succeed/);
   assert.equal('auditNote' in history[0].calls[1], false);

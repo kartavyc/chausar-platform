@@ -24,6 +24,8 @@ export function runEngineWorker(engine: Engine) {
       catch (error) { reply({ id: message.id, kind: 'host-lifecycle', applied: false, error: { code: (error as any).code ?? 'INVALID_JOB_LIFECYCLE', message: (error as Error).message } }); }
       return;
     }
+    // Whether the owner is looking at the window (shown, not minimised, focused): a plain notice, no reply (4G1).
+    if (message?.kind === 'host-watching') { engine.updateOwnerWatching(message.watching === true); return; }
     if (!message || typeof message.id !== 'string' || typeof message.method !== 'string') return;
     try { reply({ id: message.id, result: await engine.request(message.method, message.payload) }); }
     catch (error) {

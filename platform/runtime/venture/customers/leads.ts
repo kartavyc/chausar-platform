@@ -4,14 +4,17 @@
 //   "not verified", never "probably fine". The resolver is injectable; the real one is node:dns.
 // - The blocklist is checked before any draft, ahead of every other rule. Opt-outs go on it for good.
 // - Agents only draft. Nothing here sends: the owner sends from their own mailbox and records each real send in the app.
-// - Every outreach draft ends with an unsubscribe line and the business postal address; without an address there is no
-//   draft (LEADS_ADDRESS_MISSING). Cold email rules in many places ask for both.
+// - The footer rule (Ink v2 wave 4, 4E2, catalogue C20, the founder's decision): a cold email (kind cold-email, no tie,
+//   or a tie below Know) ends with the business postal address and an unsubscribe line, and without an address there
+//   is no draft (LEADS_ADDRESS_MISSING); cold email rules in many places ask for both. A warm note to a tie of Know or
+//   better carries no footer on any channel, nor does a LinkedIn or WhatsApp note. The lead list drafts cold email only
+//   (a lead is someone found on a web page), so every draft here carries the footer.
 // - A lead's stage moves forward only: new (found), drafted, contacted, replied, then won or lost. Won and lost are
 //   terminal; blocked (an opt-out) can follow any stage and is never left. Every move keeps the evidence it rests on.
 // The evidence-or-refuse, MX and blocklist rules follow naidx0/revenue-squad (MIT, Copyright (c) 2026 naidx0); rewritten here.
 import { resolveMx } from 'node:dns/promises';
 import { check, newId, type Context } from '../../contracts.ts';
-import type { IsoTime } from '../contracts.ts';
+import type { IsoTime, OutreachChannel, OutreachKind, PipelineStage, StageMove, TieBand } from '../contracts.ts';
 import { digest, isAppChannel } from '../records.ts';
 import { redactUrl } from '../core/secrets.ts';
 
@@ -53,7 +56,8 @@ export type Lead = {
   addedBy: string;
   addedAt: IsoTime;
 };
-export type Blocklist = { emails: ReadonlySet<string>; domains: ReadonlySet<string> };
+/** handles (4E2): phones in E.164 and LinkedIn profile addresses; absent is none. */
+export type Blocklist = { emails: ReadonlySet<string>; domains: ReadonlySet<string>; handles?: ReadonlySet<string> };
 
 const EMAIL = /^[^\s@<>()",;:]{1,64}@([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$/;
 const oneLine = (value: unknown, field: string, max: number, required: boolean): string | null => {
@@ -125,10 +129,18 @@ function advance(lead: Lead, to: Exclude<LeadStage, 'blocked'>, meta: MoveMeta):
 
 /** Looks up the email domain's mail servers. Verified only when at least one real server comes back in time. */
 export async function verifyLeadEmail(lead: Lead, options: { resolver?: MxResolver; now: IsoTime; timeoutMs?: number }): Promise<Lead> {
-  const failed = (line: string): Lead => ({ ...lead, emailCheck: { status: 'failed', at: options.now, line } });
-  if (!lead.email || !lead.emailDomain) return failed('No email to check.');
+  return { ...lead, emailCheck: await checkEmail(lead.email, options) };
+}
+
+/**
+ * The mail server check of one address (a lead's, or a person's for a cold email, 4E2): verified only when at least
+ * one real server comes back in time; a failure, a null MX or a timeout is "failed", never "probably fine".
+ */
+export async function checkEmail(email: string | null, options: { resolver?: MxResolver; now: IsoTime; timeoutMs?: number }): Promise<EmailCheck> {
+  const failed = (line: string): EmailCheck => ({ status: 'failed', at: options.now, line });
+  const domain = email && email.includes('@') ? email.split('@').pop()!.toLowerCase() : null;
+  if (!email || !domain) return failed('No email to check.');
   const resolver = options.resolver ?? resolveMx;
-  const domain = lead.emailDomain;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let records: MxRecord[] | 'timeout';
   try {
@@ -145,23 +157,29 @@ export async function verifyLeadEmail(lead: Lead, options: { resolver?: MxResolv
   if (records === 'timeout') return failed(`The mail server check for ${domain} timed out, so the email is not verified.`);
   const real = (Array.isArray(records) ? records : []).filter(r => typeof r?.exchange === 'string' && r.exchange.trim() !== '' && r.exchange.trim() !== '.');
   if (real.length === 0) return failed(`${domain} accepts no email. Not verified.`);
-  return { ...lead, emailCheck: { status: 'verified', at: options.now, line: `Mail servers found for ${domain}.` } };
+  return { status: 'verified', at: options.now, line: `Mail servers found for ${domain}.` };
 }
 
-/** One entry per line: a whole email or a bare domain. # starts a comment. */
+/**
+ * A phone (E.164, '+919900122334') or a LinkedIn profile address ('https://www.linkedin.com/in/<slug>'), in the one
+ * spelling the network keeps them in (4E2): a "stop" on WhatsApp or LinkedIn puts the handle on the blocklist.
+ */
+const isHandle = (entry: string): boolean => /^\+[1-9]\d{6,14}$/.test(entry) || entry.startsWith('https://www.linkedin.com/in/');
+
+/** One entry per line: a whole email, a bare domain, a phone in E.164 or a LinkedIn profile address. # starts a comment. */
 export function parseBlocklist(text: string): Blocklist {
-  const emails = new Set<string>(), domains = new Set<string>();
+  let blocklist: Blocklist = { emails: new Set<string>(), domains: new Set<string>(), handles: new Set<string>() };
   for (const raw of text.split(/\r?\n/)) {
-    const entry = raw.split('#', 1)[0].trim().toLowerCase();
-    if (!entry) continue;
-    (entry.includes('@') ? emails : domains).add(entry);
+    const entry = raw.split('#', 1)[0].trim();
+    if (entry) blocklist = addToBlocklist(blocklist, entry);
   }
-  return { emails, domains };
+  return blocklist;
 }
 
 export function isBlocked(blocklist: Blocklist, value: string | null): boolean {
   const entry = (value ?? '').trim().toLowerCase();
   if (!entry) return false;
+  if (isHandle(entry)) return blocklist.handles?.has(entry) ?? false;
   if (entry.includes('@')) return blocklist.emails.has(entry) || blocklist.domains.has(entry.split('@')[1]);
   return blocklist.domains.has(entry);
 }
@@ -169,9 +187,14 @@ export function isBlocked(blocklist: Blocklist, value: string | null): boolean {
 export function addToBlocklist(blocklist: Blocklist, value: string): Blocklist {
   const entry = value.trim().toLowerCase();
   if (!entry) return blocklist;
-  const emails = new Set(blocklist.emails), domains = new Set(blocklist.domains);
-  (entry.includes('@') ? emails : domains).add(entry);
-  return { emails, domains };
+  const emails = new Set(blocklist.emails), domains = new Set(blocklist.domains), handles = new Set(blocklist.handles ?? []);
+  (isHandle(entry) ? handles : entry.includes('@') ? emails : domains).add(entry);
+  return { emails, domains, handles };
+}
+
+/** Whether the blocklist covers a person: any of their emails (or its domain), phones or their LinkedIn page (4E2). */
+export function personOnBlocklist(blocklist: Blocklist, handles: { emails: readonly string[]; phones: readonly string[]; linkedinUrl: string | null }): boolean {
+  return [...handles.emails, ...handles.phones, ...(handles.linkedinUrl ? [handles.linkedinUrl] : [])].some(value => isBlocked(blocklist, value));
 }
 
 /** Whether the blocklist covers this lead: its email, its email's domain or the site it was found on. */
@@ -194,21 +217,51 @@ export type DraftInput = {
   at: IsoTime;
 };
 
-/** Drafts one outreach email. Order: blocklist, source, verified email, postal address. Nothing is sent. */
+/** The ties the owner knows well enough that a note to them is warm, not cold: Know or better (4D2's bands). */
+export const WARM_BANDS: ReadonlySet<TieBand> = new Set<TieBand>(['close', 'know-well', 'know']);
+export type OutreachFooter = { businessName: string; postalAddress: string; unsubscribe: string };
+
+/**
+ * The footer rule (C20): true for a cold email, which carries the unsubscribe line and the postal address. An email is
+ * cold when its kind is cold-email, or the person has no tie, or a tie below Know. A warm note to a tie of Know or
+ * better is not, and neither is any LinkedIn or WhatsApp note (they never carry the footer).
+ */
+export function coldOutreach(input: { kind: OutreachKind; channel: OutreachChannel; band: TieBand | null }): boolean {
+  return input.channel === 'email' && (input.kind === 'cold-email' || input.band === null || !WARM_BANDS.has(input.band));
+}
+
+/**
+ * The footer a message carries under the footer rule: for a cold email the business name, its postal address (without
+ * one, no draft: LEADS_ADDRESS_MISSING) and the unsubscribe line; for anything else, none.
+ */
+export function outreachFooter(input: { kind: OutreachKind; channel: OutreachChannel; band: TieBand | null; business: DraftInput['business'] }): OutreachFooter | null {
+  if (!coldOutreach(input)) return null;
+  const postalAddress = typeof input.business?.postalAddress === 'string' ? input.business.postalAddress.trim() : '';
+  check(postalAddress.length >= 5, 'LEADS_ADDRESS_MISSING', 'Add your business postal address. Every cold email carries it.');
+  const businessName = oneLine(input.business.name, 'business name', 120, true)!;
+  return { businessName, postalAddress, unsubscribe: input.business.unsubscribeLine?.trim() || DEFAULT_UNSUBSCRIBE_LINE };
+}
+
+/** The body, then the footer below a separator line when there is one. */
+export function withFooter(body: string, footer: OutreachFooter | null): string {
+  return footer ? `${body.trim()}\n\n--\n${footer.businessName}\n${footer.postalAddress}\n${footer.unsubscribe}` : body.trim();
+}
+
+/**
+ * Drafts one outreach email for the lead list: a cold email (kind cold-email), so the footer rule always gives it the
+ * footer. Order: blocklist, source, verified email, postal address. Nothing is sent.
+ */
 export function draftOutreach(lead: Lead, input: DraftInput): { lead: Lead; draft: OutreachDraft } {
   check(!blocked(lead, input.blocklist), 'LEADS_BLOCKED', 'This person or their company asked not to be contacted, or is on your blocklist.');
   sourceUrlOf(lead.sourceUrl);
   check(lead.email && lead.emailCheck.status === 'verified', 'LEADS_EMAIL_UNVERIFIED', 'Check the email first. Only an email with a working mail server gets a draft.');
-  const postalAddress = typeof input.business?.postalAddress === 'string' ? input.business.postalAddress.trim() : '';
-  check(postalAddress.length >= 5, 'LEADS_ADDRESS_MISSING', 'Add your business postal address. Every outreach email carries it.');
-  const businessName = oneLine(input.business.name, 'business name', 120, true)!;
+  const footer = outreachFooter({ kind: 'cold-email', channel: 'email', band: null, business: input.business })!;
   const subject = oneLine(input.subject, 'subject', 160, true)!;
   check(typeof input.body === 'string' && input.body.trim().length > 0 && input.body.length <= 5000, 'INVALID_VENTURE_REQUEST', 'Write the email body.');
-  const unsubscribe = input.business.unsubscribeLine?.trim() || DEFAULT_UNSUBSCRIBE_LINE;
-  const text = `${input.body.trim()}\n\n--\n${businessName}\n${postalAddress}\n${unsubscribe}`;
+  const text = withFooter(input.body, footer);
   const id = newId('outreach');
   const draft: OutreachDraft = {
-    id, leadId: lead.id, to: lead.email, subject, text, footer: { businessName, postalAddress, unsubscribe }, sourceUrl: lead.sourceUrl,
+    id, leadId: lead.id, to: lead.email, subject, text, footer, sourceUrl: lead.sourceUrl,
     by: input.by, at: input.at, digest: digest({ id, to: lead.email, subject, text }),
   };
   const withDraft = { ...lead, drafts: [...lead.drafts, draft] };
@@ -236,4 +289,58 @@ export function optOut(lead: Lead, blocklist: Blocklist, meta: { by: string; at:
   const blocked = lead.status === 'blocked' ? lead
     : moveLead(lead, 'blocked', { evidence: { kind: 'opt-out', id: lead.email ?? lead.emailDomain ?? lead.id }, by: meta.by, at: meta.at });
   return { lead: blocked, blocklist: lead.email ? addToBlocklist(blocklist, lead.email) : blocklist };
+}
+
+// ---------------------------------------------------------------------------
+// Leads on the pipeline (Ink v2 wave 4, package 4E1)
+// ---------------------------------------------------------------------------
+
+/** A lead as a pipeline card reads it: its stage, whether it is blocked (a flag, never a stage), its moves and sends. */
+export type LeadAsCard = { stage: PipelineStage; blocked: boolean; history: StageMove[]; sends: SendRecord[]; unsentDrafts: number };
+const CARD_STAGE: Readonly<Record<Exclude<LeadStage, 'blocked'>, PipelineStage>> = Object.freeze({
+  new: 'found', drafted: 'asked', contacted: 'asked', replied: 'talking', won: 'won', lost: 'lost',
+});
+const MAPPED_EVIDENCE: Readonly<Record<Exclude<StageEvidence['kind'], 'opt-out'>, Pick<StageMove['evidence'], 'kind' | 'line'>>> = Object.freeze({
+  draft: { kind: 'lead', line: 'An email was drafted in your lead list.' },
+  send: { kind: 'send', line: 'You sent the email from your own mailbox.' },
+  reply: { kind: 'reply', line: 'They replied, as your lead list records.' },
+  outcome: { kind: 'owner', line: 'Closed in your lead list.' },
+});
+
+/** Where a lead was found, for a card: the page's host and path ('directory.example/pune/cafes'). */
+export function leadWhere(sourceUrl: string): string {
+  try {
+    const url = new URL(sourceUrl);
+    return `${url.hostname}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return 'a web page';
+  }
+}
+
+/**
+ * Maps a lead onto the pipeline, honestly: new is Found; drafted and contacted are Asked; replied is Talking; won and
+ * lost stay as they are. Blocked stays a flag on the stage the lead had reached. Every lead move that changes the
+ * card's stage keeps its time, its author and what it rested on; a draft followed by its send stays one move to Asked,
+ * with the send kept as a send. A lead stored before moves were kept reads its stage with a line that says so.
+ */
+export function leadToOpportunity(lead: Lead): LeadAsCard {
+  const moves = lead.moves ?? [];
+  const blockMove = moves.find(move => move.to === 'blocked');
+  const reached: LeadStage = lead.status !== 'blocked' ? lead.status : blockMove ? blockMove.from : 'new';
+  const stage = CARD_STAGE[reached === 'blocked' ? 'new' : reached];
+  const history: StageMove[] = [{ from: null, to: 'found', at: lead.addedAt, by: lead.addedBy, evidence: { kind: 'lead', id: lead.id, line: `Found on ${leadWhere(lead.sourceUrl)}` } }];
+  let current: PipelineStage = 'found';
+  for (const move of moves) {
+    if (move.to === 'blocked' || move.from === 'blocked' || move.evidence.kind === 'opt-out') continue;
+    const to = CARD_STAGE[move.to];
+    if (to === current) continue;
+    history.push({ from: current, to, at: move.at, by: move.by, evidence: { ...MAPPED_EVIDENCE[move.evidence.kind], id: move.evidence.id } });
+    current = to;
+  }
+  if (current !== stage) {
+    const at = lead.sends.length ? lead.sends[lead.sends.length - 1].sentAt : lead.addedAt;
+    history.push({ from: current, to: stage, at, by: lead.addedBy, evidence: { kind: 'lead', id: lead.id, line: 'Stage from your lead list; when it changed was not kept.' } });
+  }
+  const sentIds = new Set(lead.sends.map(send => send.draftId));
+  return { stage, blocked: lead.status === 'blocked', history, sends: [...lead.sends], unsentDrafts: lead.drafts.filter(draft => !sentIds.has(draft.id)).length };
 }

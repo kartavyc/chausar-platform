@@ -8,6 +8,7 @@ import type { BuilderId, HandoffPlan, HandoffRecord, VentureDeps } from '../cont
 import { digest, exactPayload, identifier, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { acceptedBlueprint, latestBrief } from './brief.ts';
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from './lz.ts';
+import { checkConnectorFields } from './connector-truth.ts';
 
 /** "ours" is Chausar's own margin; the builder limits come from R5 (docs and shipped code). */
 export const LIMITS = Object.freeze({
@@ -85,6 +86,8 @@ export async function prepareHandoff(deps: VentureDeps, ctx: Context, payload: u
   const brief = latestBrief(state, venture.id);
   check(brief, 'BRIEF_NOT_FOUND', 'Write the build brief first.');
   check(brief.lint.ok, 'BRIEF_LINT_FAILED', `Fix the brief before you open a builder: ${brief.lint.findings[0]?.message ?? 'it did not pass its checks.'}`);
+  // 4J7 (K6): the builder takes the brief and nothing else.
+  checkConnectorFields(builder, builder === 'lovable' || builder === 'replit' ? 'open-with-brief' : 'copy-brief', ['brief']);
   const plan = planHandoff(builder, brief.markdown);
 
   return ventureAction(deps, ctx, 'prepare', 'build.handoff', tx => {

@@ -16,7 +16,8 @@ import { SOCIAL_APPROVALS, SOCIAL_ROLES, SOCIAL_STEPS, socialPlaybookSteps, type
 import { SOCIAL_AGENCY_ID, SOCIAL_AGENCY_LABEL } from './social/registration.ts';
 import { calendarGuidance, calendarSlotsOrNone } from './social/draft-posts.ts';
 
-export type FlagshipRole = { id: string; name: string; job: string; kind: 'agent' | 'code' };
+/** parent (4J12, H25): the role a helper reports to; Team nests the helper under it. No shipped role has one in W4. */
+export type FlagshipRole = { id: string; name: string; job: string; kind: 'agent' | 'code'; parent?: string };
 /**
  * One step as the plan lists it (core/blueprint.ts flagshipStepLines): its title and who does it. doneBy: you, an
  * agent (who is its role), code with no model (who is the code's name), or another person such as the CA of record

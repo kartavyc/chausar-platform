@@ -195,3 +195,105 @@ test('without CHAUSAR_PUBLIC_URL a hosted link gets no address and nothing is in
   assert.deepEqual(directory.read().shareLinks ?? [], []);
   assert.equal((await send(port, 'GET', `/share/${'C'.repeat(32)}`, undefined, {})).status, 404);
 });
+
+/** A browser's multipart body with one file, as a plain upload form sends it. */
+function multipart(name: string, bytes: Buffer): { body: Buffer; type: string } {
+  const boundary = '----chausar-test-boundary';
+  const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`, 'utf8');
+  return { body: Buffer.concat([head, bytes, Buffer.from(`\r\n--${boundary}--\r\n`, 'latin1')]), type: `multipart/form-data; boundary=${boundary}` };
+}
+const sendBytes = (port: number, path: string, body: Buffer, headers: Record<string, string>) => new Promise<Reply>((resolve, reject) => {
+  const req = httpRequest({ host: '127.0.0.1', port, method: 'POST', path, headers: { Host: HOST, 'Content-Length': String(body.length), ...headers } }, res => {
+    let text = ''; res.setEncoding('utf8');
+    res.on('data', chunk => { text += chunk; });
+    res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, text, json: null }));
+  });
+  req.on('error', reject);
+  req.end(body);
+});
+
+test('4J7: a client sends one file through /share/<token>/upload; it is kept with the order, once, and a type the bytes refute is refused', async t => {
+  const { port, owner, directory } = await startServer(t, ORIGIN);
+  await readyDraft(owner);
+  const orderId = (await owner.rpc('venture.order.list'))[0].id;
+  const made = await owner.rpc('venture.share.request', { orderId, note: 'The October statement, please.' });
+  const match = /^http:\/\/localhost:4398\/share\/([A-Za-z0-9_-]{32})\/upload$/.exec(made.url);
+  assert.ok(match, made.url);
+  const path = `/share/${match[1]}/upload`;
+  assert.equal((directory.read().shareLinks ?? []).length, 1, 'the request is noted by its hash');
+  assert.equal(JSON.stringify(directory.read()).includes(match[1]), false);
+
+  const page = await send(port, 'GET', path, undefined, {});
+  assert.equal(page.status, 200, page.text);
+  assert.ok(page.text.includes('The file goes straight to this server and is kept with this order. It never passes through the model&#39;s context.'));
+  assert.ok(page.text.includes('The October statement, please.'));
+  assert.ok(page.text.includes('<form method="post" enctype="multipart/form-data">'));
+  assert.equal(/<script/i.test(page.text), false);
+  assert.match(String(page.headers['content-security-policy']), /^default-src 'none'; style-src 'sha256-/);
+  const headers = (type: string) => ({ Origin: ORIGIN, 'Content-Type': type, 'Sec-Fetch-Site': 'same-origin' });
+
+  const wrong = multipart('bills.pdf', Buffer.from('not a pdf at all'));
+  const refused = await sendBytes(port, path, wrong.body, headers(wrong.type));
+  assert.equal(refused.status, 415, refused.text);
+  const cross = multipart('a.csv', Buffer.from('Date,Amount\n2026-10-01,120\n'));
+  assert.equal((await sendBytes(port, path, cross.body, { ...headers(cross.type), Origin: 'https://evil.example' })).status, 403);
+  const sent = await sendBytes(port, path, cross.body, headers(cross.type));
+  assert.equal(sent.status, 200, sent.text);
+  assert.ok(sent.text.includes('Thank you'));
+  const files = await owner.rpc('venture.files.list', { orderId });
+  assert.deepEqual(files.map((file: any) => [file.name, file.origin, file.clientName]), [['client-upload-1.csv', 'client-link', 'a.csv']]);
+  const again = await sendBytes(port, path, cross.body, headers(cross.type));
+  assert.equal(again.status, 409, 'a second use is refused');
+  assert.ok((await send(port, 'GET', path, undefined, {})).text.includes('already used'));
+  // The plain share page knows nothing of a file request's token.
+  assert.equal((await send(port, 'GET', `/share/${match[1]}`, undefined, {})).status, 404);
+});
+
+test('4J7: a temporary business takes no file through the upload route', async t => {
+  const { port, owner, directory } = await startServer(t, ORIGIN);
+  await readyDraft(owner);
+  const orderId = (await owner.rpc('venture.order.list'))[0].id;
+  const made = await owner.rpc('venture.share.request', { orderId });
+  const path = `/share/${made.url.slice(-39, -7)}/upload`;
+  await directory.update(state => { for (const user of state.users) (user as any).trial = { expiresAt: '2099-01-01T00:00:00.000Z' }; });
+  const reply = await send(port, 'GET', path, undefined, {});
+  assert.equal(reply.status, 403, reply.text);
+  assert.match(reply.text, /temporary/);
+});
+
+test("4J7: the owner's own look at a share link never counts as the client viewing it", async t => {
+  const { port, owner } = await startServer(t, ORIGIN);
+  const deliveryId = await readyDraft(owner);
+  const made = await owner.rpc('venture.share.create', { deliveryId });
+  const path = `/share/${made.url.slice(-32)}`;
+  assert.equal((await owner.go('GET', path)).status, 200);
+  assert.equal((await owner.rpc('venture.share.list', { deliveryId })).links[0].viewedAt, undefined);
+  assert.equal((await send(port, 'GET', path, undefined, {})).status, 200);
+  assert.match((await owner.rpc('venture.share.list', { deliveryId })).links[0].viewedAt, /^\d{4}-/);
+});
+
+test('4J7: what a real browser sends works: Referrer-Policy same-origin on the page, Origin null only with Sec-Fetch-Site same-origin; a HEAD is no view; a long Hindi comment fits', async t => {
+  const { port, owner } = await startServer(t, ORIGIN);
+  const deliveryId = await readyDraft(owner);
+  const made = await owner.rpc('venture.share.create', { deliveryId });
+  const path = `/share/${made.url.slice(-32)}`;
+  assert.equal((await send(port, 'HEAD', path, undefined, {})).status, 200);
+  assert.equal((await owner.rpc('venture.share.list', { deliveryId })).links[0].viewedAt, undefined, 'a HEAD is nobody reading');
+  const page = await send(port, 'GET', path, undefined, {});
+  assert.equal(page.headers['referrer-policy'], 'same-origin');
+  const digest = /name="digest" value="([a-f0-9]{64})"/.exec(page.text)![1];
+  // A browser that sends Origin: null must also say same-origin.
+  const nullOrigin = { Origin: 'null', 'Content-Type': 'application/x-www-form-urlencoded' };
+  assert.equal((await send(port, 'POST', path, `decision=approved&digest=${digest}`, nullOrigin)).status, 403);
+  assert.equal((await send(port, 'POST', path, `decision=approved&digest=${digest}`, { ...nullOrigin, 'Sec-Fetch-Site': 'cross-site' })).status, 403);
+  const hindi = 'कृपया जीएसटी का कुल जोड़ें। '.repeat(40).slice(0, 1000);
+  const answered = await send(port, 'POST', path, `decision=changes&digest=${digest}&comment=${encodeURIComponent(hindi)}`, { ...nullOrigin, 'Sec-Fetch-Site': 'same-origin' });
+  assert.equal(answered.status, 200, answered.text);
+  assert.ok(answered.text.includes('Thank you. Your answer is recorded.'));
+  // The upload page lists only what the hosted server reads: no PDF.
+  await owner.rpc('venture.order.list');
+  const request = await owner.rpc('venture.share.request', { orderId: (await owner.rpc('venture.order.list'))[0].id });
+  const upload = await send(port, 'GET', new URL(request.url).pathname, undefined, {});
+  assert.equal(upload.headers['referrer-policy'], 'same-origin');
+  assert.equal(upload.text.includes('PDF'), false);
+});

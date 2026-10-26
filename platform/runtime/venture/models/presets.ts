@@ -1,7 +1,9 @@
 // Chausar venture launcher, package P2 (models): the six model presets, their price tables and consent texts.
 // Prices are list prices typed in by hand on the checkedOn date. The AI never computes a cost: cost.ts does.
+// Ink v2 wave 4 (4H1): a command-line preset's availability also follows what the last look at the installed tool
+// found (a flag it does not know, signed out), and turns 'ready' only once a real task on it worked.
 import { digest } from '../records.ts';
-import type { ModelAvailability, ModelPreset, ModelPresetId, ModelPriceTable } from '../contracts.ts';
+import type { CliFinding, DelegateCli, ModelAvailability, ModelPreset, ModelPresetId, ModelPriceTable } from '../contracts.ts';
 import { ENDPOINTS } from './types.ts';
 
 export const PRICES_CHECKED_ON = '2026-10-15';
@@ -89,11 +91,13 @@ export const AVAILABILITY_REASONS = Object.freeze({
   luna: 'Not yet tried on a real account, and a past probe failed. Type the model id your account shows. Costs are estimates.',
   claudeMissing: 'Install Claude Code and sign in. Chausar checks for it when you connect.',
   claudeFound: 'Found on this computer. Not yet tried on a real task.',
-  codexMissing: 'Needs the reviewed Codex host profile. See docs/venture/models.md.',
+  codexMissing: "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.",
   codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
   templates: 'Nothing is sent anywhere.',
   hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
   claudeTerms: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.",
+  cliWorked: 'Found on this computer. Its last task worked.',
+  codexNoAnswer: 'Codex did not answer its version check on this computer. Update or reinstall it, then check again.',
 });
 
 /** The Claude Code terms gate (onboarding spec 2.8): open only when the trusted host says 'accepted'. */
@@ -101,13 +105,64 @@ export function claudeTermsOpen(terms: 'accepted' | 'pending' | undefined): bool
   return terms === 'accepted';
 }
 
+// ---------------------------------------------------------------------------
+// The owner's command-line tools in words (4H1), shared by availability and the CLI status
+// ---------------------------------------------------------------------------
+
+export const CLI_LABELS: Readonly<Record<DelegateCli, string>> = Object.freeze({ 'claude-code': 'Claude Code', codex: 'Codex' });
+const CLI_KEYS: Readonly<Record<DelegateCli, string>> = Object.freeze({ 'claude-code': 'an Anthropic key', codex: 'an OpenAI key' });
+const CLI_SIGN_IN: Readonly<Record<DelegateCli, string>> = Object.freeze({
+  'claude-code': 'Open a terminal, run claude and sign in, then check again.',
+  codex: 'Open a terminal, run codex login, then check again.',
+});
+/** One line of what was found and, when something needs doing, one fix. */
+export type CliWords = { line: string; fix: string | null };
+
+/** 'Claude Code 2.3.1', or the name alone when no version number was read. */
+export function cliNamed(cli: DelegateCli, version: string | null): string {
+  return version ? `${CLI_LABELS[cli]} ${version}` : CLI_LABELS[cli];
+}
+
+/** '--a', '--a and --b', '--a, --b and --c'. */
+function listWords(items: readonly string[]): string {
+  return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+
+/** "Your Claude Code 2.3.1 doesn't know --safe-mode." with "Update it, or use an Anthropic key." */
+export function cliFlagsWords(cli: DelegateCli, version: string | null, missing: readonly string[]): CliWords {
+  return { line: `Your ${cliNamed(cli, version)} doesn't know ${listWords(missing)}.`, fix: `Update it, or use ${CLI_KEYS[cli]}.` };
+}
+
+/** Signed out, as the tool's own status command said it. */
+export function cliSignedOutWords(cli: DelegateCli, version: string | null): CliWords {
+  return { line: `${cliNamed(cli, version)} is on this computer but not signed in.`, fix: CLI_SIGN_IN[cli] };
+}
+
+/** The line and its fix as one sentence pair, for an error or an availability reason. */
+export function cliSentence(words: CliWords): string {
+  return words.fix ? `${words.line} ${words.fix}` : words.line;
+}
+
+/** What stops a found tool from serving, from the last look at it: a flag it does not know, or signed out. */
+export function cliProblemWords(finding: CliFinding | null | undefined): CliWords | null {
+  if (!finding || !finding.answered || finding.replay) return null;
+  if (finding.flags === 'mismatch') return cliFlagsWords(finding.cli, finding.version, finding.missingFlags);
+  if (finding.signedIn === 'no') return cliSignedOutWords(finding.cli, finding.version);
+  return null;
+}
+
 /**
  * Availability as of now: the Claude Code check result, the Claude Code terms gate and the Codex host profile all
  * change it. On the hosted web server no command-line tool ever runs, so both are unavailable there whatever the
  * server has installed. Until Chausar accepts Anthropic's terms for running Claude Code (claudeTerms 'accepted'),
- * Claude Code needs setup, before the vault and in it alike.
+ * Claude Code needs setup, before the vault and in it alike. With a look at the installed tool (4H1): a flag it does
+ * not know or a signed-out tool needs setup in those words; a tool that answered turns 'ready' only once a real task
+ * on it worked (worked), and stays 'unverified' until then.
  */
-export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; codexProfile: boolean; hosted?: boolean; claudeTerms?: 'accepted' | 'pending' }): { availability: ModelAvailability; availabilityReason: string } {
+export function availabilityOf(id: ModelPresetId, live: {
+  claudeFound: boolean; codexProfile: boolean; hosted?: boolean; claudeTerms?: 'accepted' | 'pending';
+  claude?: CliFinding | null; codex?: CliFinding | null; worked?: Partial<Record<DelegateCli, boolean>>;
+}): { availability: ModelAvailability; availabilityReason: string } {
   if (live.hosted && (id === 'claude-code-cli' || id === 'codex-cli')) return { availability: 'unavailable', availabilityReason: AVAILABILITY_REASONS.hostedCli };
   if (id === 'claude-code-cli' && !claudeTermsOpen(live.claudeTerms)) return { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.claudeTerms };
   switch (id) {
@@ -116,14 +171,23 @@ export function availabilityOf(id: ModelPresetId, live: { claudeFound: boolean; 
       return { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.anthropic };
     case 'openai-gpt-6-luna':
       return { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.luna };
-    case 'claude-code-cli':
-      return live.claudeFound
-        ? { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.claudeFound }
-        : { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.claudeMissing };
-    case 'codex-cli':
-      return live.codexProfile
-        ? { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.codexReady }
-        : { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.codexMissing };
+    case 'claude-code-cli': {
+      const problem = cliProblemWords(live.claude);
+      if (problem) return { availability: 'needs-setup', availabilityReason: cliSentence(problem) };
+      if (!live.claudeFound) return { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.claudeMissing };
+      return live.worked?.['claude-code']
+        ? { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.cliWorked }
+        : { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.claudeFound };
+    }
+    case 'codex-cli': {
+      if (!live.codexProfile) return { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.codexMissing };
+      if (live.codex && !live.codex.answered) return { availability: 'needs-setup', availabilityReason: AVAILABILITY_REASONS.codexNoAnswer };
+      const problem = cliProblemWords(live.codex);
+      if (problem) return { availability: 'needs-setup', availabilityReason: cliSentence(problem) };
+      return live.codex?.answered && live.worked?.codex
+        ? { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.cliWorked }
+        : { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.codexReady };
+    }
     default:
       return { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.templates };
   }

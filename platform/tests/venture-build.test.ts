@@ -942,13 +942,15 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 66);
 });
 
-test('handlers are exactly the thirty-one owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the thirty-three owned methods, and every code the package throws is a declared venture or engine code', async () => {
+  // Thirty-one, and the two Ink v2 wave 4 added (connectors.check and share.request, 4J7).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
-    'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync', 'venture.connectors.list',
+    'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
+    'venture.connectors.check', 'venture.connectors.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
-    'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.revoke',
+    'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
     'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar',
   ]);
   const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts', 'bank-methods.ts', 'site-methods.ts']

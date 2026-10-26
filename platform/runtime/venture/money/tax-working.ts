@@ -23,10 +23,9 @@ import { CA_FIRM_ID } from '../playbooks/ca-firm/registration.ts';
 import type { GstLine } from '../playbooks/ca-firm/gst.ts';
 import type { CaReceipt } from '../playbooks/ca-firm/receipt.ts';
 import { BOOKS_TAX_NOTE } from './books.ts';
-import { todayLocal } from './dates.ts';
+import { calendarMonth, todayLocal } from './dates.ts';
 import { latestBlueprint } from './shared.ts';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ISSUED: readonly InvoiceRecord['status'][] = ['issued', 'part-paid', 'paid'];
 const PERIOD_WORDS = "Choose a month like 2026-10, or a financial year like FY 2025-26 or AY 2026-27.";
 export const TDS_NOTE = 'Chausar keeps no payments register with TDS sections, so there is no TDS working here. Your CA works it from your payments.';
@@ -37,9 +36,7 @@ type Period =
   | { kind: 'year'; fy: string; ay: string; from: IsoDate; to: IsoDate; display: string };
 
 function monthPeriod(month: string): Period {
-  const [y, m] = month.split('-').map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { kind: 'month', month, from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}`, display: `${MONTHS[m - 1]} ${y}` };
+  return { kind: 'month', ...calendarMonth(month) };
 }
 
 /** 'YYYY-MM' is a month; 'FY 2025-26' and 'AY 2026-27' are the same financial year, 1 April to 31 March. */

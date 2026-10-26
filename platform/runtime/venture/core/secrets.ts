@@ -328,6 +328,8 @@ const OTP = new RegExp(`\\b(${OTP_LABEL}|code is)\\b([^0-9\\n]{0,20}?)(\\d{4,8})
 /** An OTP before its label: "482913 is your OTP", "Use 4829 as your one time password". */
 const OTP_FIRST = new RegExp(`(?<!\\d)(\\d{4,8})(\\s+(?:is|as)\\s+(?:your|the)\\s+${OTP_LABEL})\\b`, 'gi');
 const PAN = /\b[A-Z]{3}[ABCFGHJLPT][A-Z]\d{4}[A-Z]\b/g;
+/** A year: after a bare "code is" it names a promo code or an edition, not a one-time code. */
+const YEAR = /^(?:19|20)\d\d$/;
 /** How close, in characters, an account number must sit to an IFSC to count as a bank account. */
 const ACCOUNT_REACH = 80;
 /**
@@ -373,7 +375,9 @@ export function screenReadback(text: string, options: { keep?: readonly Exclude<
     });
   }
   if (!keep.has('otp')) {
-    out = out.replace(OTP, (_match: string, label: string, between: string) => {
+    out = out.replace(OTP, (match: string, label: string, between: string, code: string) => {
+      // A year after a bare "code is" ("The promo code is 2025") is not a one-time code.
+      if (/^code is$/i.test(label) && YEAR.test(code)) return match;
       found.add('otp');
       return `${label}${between}[redacted OTP]`;
     });
@@ -386,5 +390,169 @@ export function screenReadback(text: string, options: { keep?: readonly Exclude<
     found.add('pan');
     return '[redacted PAN]';
   });
+  out = secondLook(out, keep, found);
   return { text: out, found: [...found] };
+}
+
+// ---------------------------------------------------------------------------
+// The second look: numbers written to slip past the rules above (Ink v2 wave 4 review of 4B1)
+// ---------------------------------------------------------------------------
+
+/** Taken out of the copy the second look reads: format characters (zero-width spaces, joiners, bidi marks, tags) and the soft hyphen. */
+const INVISIBLE = /[\p{Cf}\u00AD]/u;
+const ANY_DIGIT = /\p{Nd}/u;
+const digitValues = new Map<number, string>();
+
+/** A digit of any script as 0 to 9. Every run of decimal digits in Unicode starts at a zero, so its place in the run is its value. */
+function asciiDigit(char: string): string {
+  const code = char.codePointAt(0)!;
+  const known = digitValues.get(code);
+  if (known !== undefined) return known;
+  let start = code;
+  while (start > 0 && ANY_DIGIT.test(String.fromCodePoint(start - 1))) start -= 1;
+  const value = String((code - start) % 10);
+  digitValues.set(code, value);
+  return value;
+}
+
+/**
+ * The text as the second look reads it: format characters and soft hyphens taken out and every digit, in any script,
+ * written 0 to 9. A card number split by zero-width spaces or written in Devanagari digits reads as one here. Used by
+ * the chat's own checks (agents) as well.
+ */
+export function digitCopy(text: string): string {
+  return lookCopy(text).copy;
+}
+
+/** The copy, and for each of its code units the place in the text it came from. */
+function lookCopy(text: string): { copy: string; from: number[] } {
+  let copy = '';
+  const from: number[] = [];
+  let at = 0;
+  for (const char of text) {
+    if (!INVISIBLE.test(char)) {
+      const kept = ANY_DIGIT.test(char) ? asciiDigit(char) : char;
+      copy += kept;
+      for (let unit = 0; unit < kept.length; unit += 1) from.push(at + unit);
+    }
+    at += char.length;
+  }
+  return { copy, from };
+}
+
+/** Up to two spaces (any kind), dots, slashes or dashes between digits. */
+const GAP = '[\\s./-]{0,2}';
+/** A card written in groups with any of those between them: 4-4-4-x, and the 4-6-5 of American Express. */
+const LOOSE_CARDS: readonly RegExp[] = [
+  new RegExp(`(?<!\\d)\\d{4}(?:[\\s./-]{1,2}\\d{4}){2}[\\s./-]{1,2}\\d{1,7}(?!\\d)`, 'g'),
+  new RegExp(`(?<!\\d)\\d{4}[\\s./-]{1,2}\\d{6}[\\s./-]{1,2}\\d{4,5}(?!\\d)`, 'g'),
+  CARD,
+];
+/** A card number after its label ("my card number is ..."): a card even when its check digit fails. */
+const LABELLED_CARD = new RegExp(`(?:\\b(?:my|the|our|your|his|her|their|client'?s?|customer'?s?|debit|credit|atm|visa|master ?card|rupay)\\s+card\\b(?:\\s+(?:number|no\\.?|num|#))?|\\bcard\\s+(?:number|no\\.?|num|#)|कार्ड\\s+(?:नंबर|संख्या))[^\\d\\n]{0,24}?(\\d(?:${GAP}\\d){12,18})(?!\\d)`, 'gi');
+/** Twelve digits in three groups of four, not the tail of a longer number: with an Aadhaar label close by, an Aadhaar number even when its check digit fails. */
+const LOOSE_AADHAAR = new RegExp(`(?<!\\d${GAP})\\d{4}${GAP}\\d{4}${GAP}\\d{4}(?!${GAP}\\d)`, 'g');
+/** How close an Aadhaar label must sit to a number the second look reads, on the same line: before it, or just after. */
+const LOOSE_LABEL_BEFORE = 30;
+const LOOSE_LABEL_AFTER = 15;
+/** What the first pass wrote in place of what it took out: blanked before the second look reads labels, so "[redacted Aadhaar number]" is never a label. */
+const MARKER = /\[redacted [^\]\n]*\]/g;
+/** An IFSC in any case, not inside a longer word. */
+const LOOSE_IFSC = /(?<![A-Za-z0-9])[A-Za-z]{4}0[A-Za-z0-9]{6}(?![A-Za-z0-9])/g;
+/** Nine to eighteen digits with gaps, not running on from letters (so an IFSC's own digits are never taken as one). */
+const LOOSE_ACCOUNT = new RegExp(`(?<![A-Za-z0-9])\\d(?:${GAP}\\d){8,17}(?!\\d)`, 'g');
+const LOOSE_OTP_LABEL = `(?:otp|one[- ]time (?:password|code|pin)|verification code|security code|passcode|login code)`;
+/** A one-time code after its label, with gaps, in Hindi too (ओटीपी), and "the code I got". */
+const LOOSE_OTP = new RegExp(`(?:\\b(${LOOSE_OTP_LABEL}|code is|code (?:i|we) (?:got|received))\\b|(ओटीपी))[^0-9\\n]{0,20}?(\\d(?:${GAP}\\d){3,7})(?!\\d)`, 'gi');
+/** A one-time code before its label: "482913 is my OTP". */
+const LOOSE_OTP_FIRST = new RegExp(`(?<!\\d)(\\d(?:${GAP}\\d){3,7})(?!\\d)\\s+(?:is|as)\\s+(?:your|the|my)\\s+(?:${LOOSE_OTP_LABEL}|ओटीपी)`, 'gi');
+type Hit = { start: number; end: number; kind: Exclude<ReadbackKind, 'secret'> };
+/** Which name an overlapping find takes, strongest evidence first. */
+const STRENGTH: readonly Hit['kind'][] = ['bank-account', 'aadhaar', 'card', 'otp', 'pan'];
+const LABELS: Readonly<Record<Hit['kind'], string>> = {
+  card: '[redacted card number]', aadhaar: '[redacted Aadhaar number]', 'bank-account': '[redacted bank account]', otp: '[redacted OTP]', pan: '[redacted PAN]',
+};
+
+/**
+ * Reads a copy of the screened text (secondLook's copy: nothing invisible, every digit 0 to 9, gaps of up to two
+ * spaces, dots, slashes or dashes allowed) for what the first pass missed: a card number in groups (Luhn), or after its
+ * label (any check digit); an Aadhaar number beside its label (any check digit); an account number beside an IFSC in
+ * any case; a one-time code beside its label, before or after it, except a year after a bare "code is". Each find is
+ * taken out of the text itself, at the place the copy came from. keep: kinds the caller's work needs.
+ */
+function secondLook(text: string, keep: ReadonlySet<ReadbackKind>, found: Set<ReadbackKind>): string {
+  const looked = lookCopy(text);
+  const from = looked.from;
+  // The first pass's markers are blanked, places kept, so they are never read as a label or a number.
+  const copy = looked.copy.replace(MARKER, marker => ' '.repeat(marker.length));
+  const hits: Hit[] = [];
+  const digitsOf = (value: string) => value.replace(/\D/g, '');
+  const sameLine = (a: number, b: number) => !copy.slice(Math.min(a, b), Math.max(a, b)).includes('\n');
+  const lineAround = (start: number, end: number, before: number, after: number) => {
+    const head = copy.slice(Math.max(0, start - before), start);
+    const tail = copy.slice(end, end + after);
+    return `${head.slice(head.lastIndexOf('\n') + 1)} ${tail.split('\n')[0]}`;
+  };
+  if (!keep.has('card')) {
+    for (const pattern of LOOSE_CARDS) {
+      for (const match of copy.matchAll(new RegExp(pattern.source, 'g'))) {
+        const digits = digitsOf(match[0]);
+        if (digits.length >= 13 && digits.length <= 19 && luhnValid(digits)) hits.push({ start: match.index, end: match.index + match[0].length, kind: 'card' });
+      }
+    }
+    for (const match of copy.matchAll(LABELLED_CARD)) {
+      const start = match.index + match[0].length - match[1].length;
+      hits.push({ start, end: start + match[1].length, kind: 'card' });
+    }
+  }
+  if (!keep.has('aadhaar')) {
+    for (const match of copy.matchAll(LOOSE_AADHAAR)) {
+      const end = match.index + match[0].length;
+      if (AADHAAR_LABEL.test(lineAround(match.index, end, LOOSE_LABEL_BEFORE, LOOSE_LABEL_AFTER))) hits.push({ start: match.index, end, kind: 'aadhaar' });
+    }
+  }
+  if (!keep.has('bank-account')) {
+    const branches = [...copy.matchAll(LOOSE_IFSC)].map(match => ({ start: match.index, end: match.index + match[0].length }));
+    if (branches.length) {
+      for (const match of copy.matchAll(LOOSE_ACCOUNT)) {
+        const end = match.index + match[0].length;
+        // Beside an IFSC on the same line (the first pass already took the plain ones within reach across lines).
+        if (branches.some(branch => Math.max(branch.start - end, match.index - branch.end) <= ACCOUNT_REACH && sameLine(branch.start, match.index))) {
+          hits.push({ start: match.index, end, kind: 'bank-account' });
+        }
+      }
+    }
+  }
+  if (!keep.has('otp')) {
+    for (const match of copy.matchAll(LOOSE_OTP)) {
+      const code = match[3];
+      if (match[1] && /^code is$/i.test(match[1]) && YEAR.test(digitsOf(code))) continue;
+      const start = match.index + match[0].length - code.length;
+      hits.push({ start, end: start + code.length, kind: 'otp' });
+    }
+    for (const match of copy.matchAll(LOOSE_OTP_FIRST)) hits.push({ start: match.index, end: match.index + match[1].length, kind: 'otp' });
+  }
+  if (!hits.length) return text;
+  // Back to the text's own places; where two finds overlap they become one, named by the stronger evidence (an IFSC
+  // beside it, then an Aadhaar label, then a card, then a one-time code). Replaced from the end so earlier places hold.
+  const spans = hits.map(hit => {
+    const last = from[hit.end - 1];
+    return { start: from[hit.start], end: last + ((text.codePointAt(last) ?? 0) > 0xFFFF ? 2 : 1), kind: hit.kind };
+  }).sort((a, b) => a.start - b.start || b.end - a.end);
+  const kept: typeof spans = [];
+  for (const span of spans) {
+    const previous = kept.at(-1);
+    if (previous && span.start < previous.end) {
+      previous.end = Math.max(previous.end, span.end);
+      if (STRENGTH.indexOf(span.kind) < STRENGTH.indexOf(previous.kind)) previous.kind = span.kind;
+      continue;
+    }
+    kept.push({ ...span });
+  }
+  let out = text;
+  for (const span of kept.reverse()) {
+    found.add(span.kind);
+    out = `${out.slice(0, span.start)}${LABELS[span.kind]}${out.slice(span.end)}`;
+  }
+  return out;
 }

@@ -1,7 +1,7 @@
 // P1-A: runs (venture.runs.list and venture.runs.get) built from delivery runs, their harness turns and rehearsals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DeliveryRunRecord, RunDetail, RunSummary, SimulationRunRecord } from '../runtime/venture/contracts.ts';
+import type { DeliveryRunRecord, ModelCallRecord, RunDetail, RunSummary, SimulationRunRecord } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as delivery, scenariosFor } from '../runtime/venture/delivery/index.ts';
 import { CLIENT_NAME, START, call, code, harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
@@ -23,7 +23,7 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   const [summary] = await runs(env);
   assert.deepEqual(summary, {
     runId: outline.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: `Draft a reply for ${CLIENT_NAME}`, state: 'waiting',
-    startedAt: START, elapsed: '0s', progress: { done: 3, total: 5 },
+    startedAt: START, elapsed: '0s', progress: { done: 3, total: 5 }, writtenBy: "Written by Chausar's template, not your AI",
   });
   const detail = await get(env, outline.id);
   assert.deepEqual(states(detail), [['price', 'done'], ['draft', 'done'], ['verify', 'done'], ['approve', 'waiting'], ['send', 'pending']]);
@@ -136,4 +136,28 @@ test('runs: a failed run shows the engine error; rehearsals are listed; unknown 
   await assert.rejects(call(env, 'venture.runs.get', {}), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(call(env, 'venture.runs.list', { state: 'paused' }), code('INVALID_VENTURE_REQUEST'));
   assert.equal(listRecords(env.store.read(), 'venture-queue-decision').length, 0, 'reading runs writes nothing');
+});
+
+// Ink v2 wave 4 (4H2, U17): a run in the list names the engine that wrote its draft, from the run's own call record,
+// the same line venture.delivery.list carries; nothing is claimed before an answer came.
+test('runs: each run says who wrote its draft, from its own model call; nothing before the answer', async () => {
+  const env = await setup();
+  const { order } = await ready(env);
+  const seedCall = (fields: Partial<ModelCallRecord>) => ventureAction(env.deps, owner, 'prepare', 'seed.call', tx => tx.put({
+    ...tx.base('venture-model-call'), purpose: 'delivery', tier: 'main', presetId: 'anthropic-sonnet-5-5', connectionId: 'conn_synthetic',
+    routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5', consent: 'approved-preview', endpoint: 'https://api.anthropic.com/v1/messages',
+    payloadText: '{}', payloadDigest: 'payload-digest', payloadTruncated: false, containsClientData: true, status: 'completed', approvedDigest: 'payload-digest',
+    approvedAt: null, approvedBy: 'owner', estimatedMaxCostMicros: '1000', priceConfirmed: true, usage: { inputTokens: 10, outputTokens: 5 }, costMicros: '60',
+    outputDigest: 'output-digest', error: null, replay: false, ...fields,
+  } as ModelCallRecord));
+  const answered = await seedCall({ answeredBy: 'claude-sonnet-5-5-20261001' });
+  const pending = await seedCall({ status: 'dispatching', answeredBy: undefined });
+  const drafted = await seedRun(env, order, { status: 'ready-for-review', servedBy: 'model', callId: answered.id });
+  const waiting = await seedRun(env, order, { status: 'waiting-for-you', servedBy: 'model', callId: pending.id });
+  const byId = new Map((await runs(env, 'all')).map(run => [run.runId, run]));
+  assert.equal(byId.get(drafted.id)!.writtenBy, 'Written by Claude Sonnet 5.5');
+  assert.equal('writtenBy' in byId.get(waiting.id)!, false, 'nothing is claimed before the answer');
+  const listed = await delivery['venture.delivery.list']!(env.deps, owner, {}) as { id: string; writtenBy?: string | null }[];
+  assert.equal(listed.find(run => run.id === drafted.id)!.writtenBy, byId.get(drafted.id)!.writtenBy, 'the same line as the draft list');
+  assert.equal((await get(env, drafted.id)).writtenBy, 'Written by Claude Sonnet 5.5');
 });
