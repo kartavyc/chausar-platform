@@ -12,7 +12,7 @@ import { Count, Figure, proofOf, type FigureProof, type FigureSize } from '../..
 import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
 import { SectionHead, Tile, type TileSpan } from '../../parts/Tile';
-import type { EngineError, MoneyOverviewLine } from '../../engine/types';
+import type { EngineError, MoneyOverviewLine, SpendLead } from '../../engine/types';
 import s from './Money.module.css';
 
 /**
@@ -39,6 +39,16 @@ export function ProvedFigure({ value, proof, size, rupees, className }: { value:
       <span className={s.rupees}>{rupees}</span>
     </span>
   );
+}
+
+/**
+ * 4Z3: a spend figure as the engine says it leads (rupees or dollars first, by the owner's choice in the spend settings):
+ * the lead figure where the figure goes and the other currency, at the owner's rate, beneath it. Without a lead, the
+ * engine's own figure and its rupees. Nothing is worked out here: both are the engine's text.
+ */
+export function spendShown(lead: SpendLead | undefined, value: string, rupees?: string | undefined, rateOnce = false): { value: string; rupees: string | undefined } {
+  // rateOnce: a page that says the owner's rate once elsewhere (Spend, with its settings) shows the other amount alone.
+  return lead ? { value: lead.figure, rupees: rateOnce ? lead.other : lead.beside } : { value, rupees };
 }
 
 /**
@@ -122,13 +132,15 @@ export function Section({ title, end, tile = true, children }: { title: string; 
  * the tile holds. The tile is a region named by its label. The receipt of the figure inside sits at the top right, as
  * on the board.
  */
-export function MoneyTile({ label, icon, span, children, className }: { label: string; icon: IconName; span: TileSpan; children?: ReactNode; className?: string | undefined }) {
+/** aside: a pill at the end of the label line (4I2: the invoiced tile's days left), left of the figure's receipt. */
+export function MoneyTile({ label, icon, span, children, className, aside }: { label: string; icon: IconName; span: TileSpan; children?: ReactNode; className?: string | undefined; aside?: ReactNode }) {
   const id = useId();
   return (
     <Tile as="section" labelledBy={id} span={span} pad="compact" className={cx(s.moneyTile, className)}>
       <p className={s.tileLabel}>
         <Icon name={icon} size={14} />
         <span id={id}>{label}</span>
+        {aside}
       </p>
       {children}
     </Tile>

@@ -93,7 +93,7 @@
   /* Charts: D's single series (ink for the current bar, the rest lighter) and the dashed forecast line. Data never
      uses the accent (D-STYLE "Charts"). */
   --chart-ink: #16181b;
-  --chart-rest: #d5d8dc;
+  --chart-rest: #868c93;
   --chart-forecast: #9aa0a6;
 
   /* Aging buckets (1 to 30, 31 to 60, 61 to 90, over 90 days; the 3B2 charts review): chart-only, the same in both
@@ -286,7 +286,7 @@
     --ops-line: #30363f;
     --dept-on: #111214;
     --chart-ink: #eceef0;
-    --chart-rest: #4a4f56;
+    --chart-rest: #6b7178;
     --chart-forecast: #7d838a;
     --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-lift: 0 0 0 1px #2a2d31;
@@ -356,7 +356,7 @@
   --ops-line: #30363f;
   --dept-on: #111214;
   --chart-ink: #eceef0;
-  --chart-rest: #4a4f56;
+  --chart-rest: #6b7178;
   --chart-forecast: #7d838a;
   --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-lift: 0 0 0 1px #2a2d31;

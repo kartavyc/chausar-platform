@@ -14,13 +14,15 @@ export interface StrengthDotsProps {
   /** Opens the receipt of how the owner knows them: each signal and its source. Left out, the dots are a picture. */
   onOpen?: (() => void) | undefined;
   className?: string | undefined;
+  /** Dots only, for a crowded place such as a board card: the word stays in the name and the hover title. */
+  bare?: boolean | undefined;
 }
 
 /**
  * Relationship strength as five dots and a word (D's `.str` and `.dots`). The dots are hidden from screen readers;
  * the name says the word and the level. With `onOpen` it is a button that opens how you know them.
  */
-export function StrengthDots({ level, onOpen, className }: StrengthDotsProps) {
+export function StrengthDots({ level, onOpen, className, bare = false }: StrengthDotsProps) {
   const t = useT();
   const word = t(`strength.level.${level}`);
   const values = { word: word.toLocaleLowerCase(), level, total: TOTAL };
@@ -29,11 +31,11 @@ export function StrengthDots({ level, onOpen, className }: StrengthDotsProps) {
       <span className={s.dots} aria-hidden="true">
         {DOTS.map((dot) => <span key={dot} className={s.dot} data-dot="" data-filled={dot <= level ? '' : undefined} />)}
       </span>
-      <span aria-hidden={onOpen ? undefined : 'true'}>{word}</span>
+      {!bare && <span aria-hidden={onOpen ? undefined : 'true'}>{word}</span>}
     </>
   );
   if (!onOpen) {
-    return <span className={cx(s.strength, className)} role="img" aria-label={t('strength.label', values)}>{content}</span>;
+    return <span className={cx(s.strength, className)} role="img" aria-label={t('strength.label', values)} title={bare ? word : undefined}>{content}</span>;
   }
   return (
     <button type="button" className={cx(s.strength, s.open, className)} aria-label={t('strength.open', values)} onClick={onOpen}>

@@ -1,0 +1,98 @@
+/* Business > Goals (W4 4I2): the month's goal in use with what was invoiced toward it (D-Money's `.mt` invoiced tile
+   figures, on a business tile), the month picker and the earlier goals as quiet rows. Tokens only. */
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-6);
+  margin: 0;
+}
+
+.pair {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.pair dt {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.pair dd {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+/* A label and its figure on one line, wrapping on a narrow tile. */
+.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.label {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--control);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+/* Earlier goals: one row a month, its figures and how far it got. */
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+}
+
+.item:first-child {
+  border-top: 0;
+}
+
+.itemMonth {
+  flex-basis: 100%;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+@media (max-width: 759px) {
+  .select {
+    min-height: var(--target);
+  }
+}

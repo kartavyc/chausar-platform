@@ -22,6 +22,25 @@ function useUntil(): (iso: string) => string {
   }, [language]);
 }
 
+/** When the client first opened a link (4J7, O20), as "21 Oct, 10:42" on this computer's clock. */
+function useWhen(): (iso: string) => string {
+  const language = useLanguage();
+  return useMemo(() => {
+    const day = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short' });
+    const time = new Intl.DateTimeFormat(LOCALE[language], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return (iso) => {
+      const at = new Date(iso);
+      return Number.isNaN(at.getTime()) ? iso : `${day.format(at)}, ${time.format(at)}`;
+    };
+  }, [language]);
+}
+
+/** Which part of the draft a client's comment is on: the whole draft, or one post ('<run>.post-<n>'). */
+function itemWords(item: string, t: T): string {
+  const post = /\.post-(\d+)$/.exec(item);
+  return post ? t('work.request.post', { n: post[1]! }) : t('work.request.whole');
+}
+
 /** The client's answer in words: "Your client's answer: Approved", with what they said when there is a comment. */
 export function answerWords(answer: ShareAnswer, t: T): string {
   const word = t(answer.decision === 'approved' ? 'work.post.answer.approved' : 'work.post.answer.changes');
@@ -60,6 +79,7 @@ function ShareLine({ draft, onAnswered }: { draft: DeliveryLite; onAnswered?: ((
   const t = useT();
   const client = useEngine();
   const until = useUntil();
+  const when = useWhen();
   const links = useResource('venture.share.list', { deliveryId: draft.id }, { refreshOn: never });
   const [made, setMade] = useState<ShareLink | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -119,8 +139,15 @@ function ShareLine({ draft, onAnswered }: { draft: DeliveryLite; onAnswered?: ((
   }
 
   const listed = links.data?.links ?? links.data?.shares ?? [];
-  const shown = made?.url && !listed.some((link) => link.id === made.id) ? [made, ...listed] : listed;
-  const live = shown.filter((link): link is ShareLink & { url: string } => link.url !== null);
+  // The engine sends a link's address once, when it is made, and lists it later with no address and its reason (4J7):
+  // the address made here stays with its link until the page closes.
+  const withMade = listed.map((link) => (made?.url && link.id === made.id ? { ...link, url: made.url } : link));
+  const shown = made?.url && !listed.some((link) => link.id === made.id) ? [made, ...withMade] : withMade;
+  // A link drawn as a row: one with its address, or one the client opened or commented on (W4 4J21, O20), from every
+  // listed link, whatever its address. A link taken back is not drawn.
+  const live = shown.filter((link) => !link.revoked && (link.url !== null || Boolean(link.viewedAt) || (link.comments?.length ?? 0) > 0));
+  // W4 4J21: what the client wrote on each item, through any of this draft's links, oldest first.
+  const comments = shown.flatMap((link) => link.comments ?? []).sort((a, b) => a.at.localeCompare(b.at));
   const title = draft.deliverable?.title ?? t('work.focus.draft');
   const answer = recorded ?? answerOf(links.data);
   // The owner records an answer only on a link not taken back (the engine refuses SHARE_NOT_FOUND otherwise).
@@ -142,12 +169,24 @@ function ShareLine({ draft, onAnswered }: { draft: DeliveryLite; onAnswered?: ((
         <ul className={s.links} aria-label={t('work.share.links', { title })}>
           {live.map((link) => (
             <li key={link.id} className={s.link}>
-              <span className={`${s.url} mono`}>{link.url}</span>
+              {link.url ? <span className={`${s.url} mono`}>{link.url}</span> : <span className={s.quiet}>{link.reason}</span>}
               <span className={s.until}>{t('work.share.until', { day: until(link.expiresAt) })}</span>
+              {/* W4 4J21: the first time the client opened it (never the owner's own preview), from the engine. */}
+              <span className={s.until} data-viewed="">{link.viewedAt ? t('work.request.viewed', { when: when(link.viewedAt) }) : t('work.request.notViewed')}</span>
               <span className={s.act}>
-                <Button variant="quiet" onClick={() => copy(link)}>{copied === link.id ? t('work.share.copied') : t('work.share.copy')}</Button>
+                {link.url && <Button variant="quiet" onClick={() => copy(link)}>{copied === link.id ? t('work.share.copied') : t('work.share.copy')}</Button>}
                 <Button variant="quiet" disabled={busy !== null} onClick={() => void revoke(link.id)}>{t('work.share.revoke')}</Button>
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {comments.length > 0 && (
+        <ul className={s.links} aria-label={t('work.request.comments')} data-comments="">
+          {comments.map((comment, index) => (
+            <li key={`${comment.at}-${index}`} className={s.link}>
+              <span className={s.until} data-comment-item="">{itemWords(comment.item, t)}</span>
+              <span className={s.what} data-content="">{comment.text}</span>
             </li>
           ))}
         </ul>

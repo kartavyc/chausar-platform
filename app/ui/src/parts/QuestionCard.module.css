@@ -1,0 +1,97 @@
+/* W4 4J19: an agent's question card (4J17), on the inner grey: the lead, numbered questions, answers with what each
+   gains and costs, the recommended one marked by a tick and its word, never by colour alone. */
+
+.card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.lead {
+  color: var(--fg);
+}
+
+.round {
+  margin-right: var(--sp-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--mute);
+}
+
+.items,
+.options {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.options {
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.text {
+  display: flex;
+  gap: var(--sp-2);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.number {
+  font-family: var(--font-mono);
+  color: var(--mute);
+}
+
+.guess {
+  margin-top: var(--sp-1);
+}
+
+.option {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.option[data-recommended] {
+  border-color: var(--accent-line);
+}
+
+.optionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--fg);
+}
+
+.optionLabel {
+  font-weight: var(--weight-strong);
+}
+
+.recommended {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--accent-text);
+}
+
+.mark {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.free {
+  color: var(--mute);
+}

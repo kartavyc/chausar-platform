@@ -16,7 +16,11 @@ export const NEW_PASSPHRASE_MIN = 12;
  * Engine refusals whose own words name the vault or a credential: Ink says them in plain words instead. Every other
  * refusal (the custody ones above all) arrives in the engine's plain words already and is shown as it came.
  */
-const PLAIN = new Set(['UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH']);
+const PLAIN = new Set([
+  'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
+  // W4 4F3: the run controls' refusals, in the screen's words (English and Hindi).
+  'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED',
+]);
 
 /** The refusal in plain words: Ink's own for the codes above, the engine's for the rest. */
 export function refusalWords(error: unknown, t: T): string {

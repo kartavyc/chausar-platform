@@ -2,42 +2,63 @@ import { useEffect, useId, useState, type KeyboardEvent } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { AgentView, RunSummary } from '../../engine/types';
-import { openSheet } from '../../shell/navigation';
+import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
-import { DeptChip, StateChip } from '../../parts/Chip';
+import { Chip, DeptChip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
 import { Sheet } from '../../parts/Sheet';
-import { DEPT_OF, stateOf } from './departments';
-import { GateList } from './GateList';
-import { PostureChoice } from './PostureChoice';
+import { AgentChat } from './AgentChat';
+import { AgentNotes } from './AgentNotes';
+// W4 4J22b: its skills and what it can and cannot do (how it talks sits in Instructions).
+import { AgentCanDo } from './AgentCanDo';
+import { AGENT_TABS, FIRST_TAB, canChat, chatRefresh, type AgentTab } from './chat';
+import { DEPT_OF, isKeeper, stateOf } from './departments';
+import { HealthLine } from './HealthLine';
+import { Instructions } from './Instructions';
+import { KeeperJobs } from './KeeperCard';
 import { RING, Result, agentRow, currentRun, elapsedOf, refreshOn, stateWords, toneOf } from './shared';
 import s from './Team.module.css';
+import c from './AgentChat.module.css';
 
-const TABS = ['steps', 'runs'] as const;
-type Tab = (typeof TABS)[number];
+/** A role whose steps are code has no chat and keeps no notes (engine 4B1 AGENT_IS_CODE): its instructions and runs. */
+const CODE_TABS: readonly AgentTab[] = ['instructions', 'runs'];
 
 /**
  * One agent, in the panel beside Team (D-TeamChat's `.cpanel`, 440 px): its avatar with its ring, name, role and
- * state in the head, then two tabs. Steps: its posture as radio cards, its playbook steps each with an auto or hold
- * gate, and where its spend is. Runs: its runs with their rings and state words, each opening the run sheet. The Chat
- * tab, the instructions and their version arrive with W4 4B.
+ * state in the head, then four tabs (W4 4B3), held in the address as `&tab=`. Chat: every run of the agent as a
+ * conversation, and talking to it (AgentChat); opened from the quiet Chat button on its card, never on its own.
+ * Instructions, with the version in use: how it works in words, its standing orders and going back from a change, its
+ * posture and who set it, when each step asks the owner, its AI and its spend (Instructions). Runs: its runs with their
+ * rings and state words, each opening the run sheet. Notes: what it keeps from the owner's words (AgentNotes). Opened by
+ * its name, the panel shows Instructions. Keeper is code, not AI: its jobs instead. W4 4J22b adds Can do: its skills
+ * (whose "Try this" opens Chat with the question in the box, unsent, once) and its capability page; how it talks
+ * (tried and set as a version, and the agent file) is a section of Instructions.
  */
 export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
+  const route = useRoute();
   const base = useId();
-  const stepsId = useId();
-  const spendId = useId();
   const runsId = useId();
   const team = useResource('venture.team.list', {}, { refreshOn });
   const runs = useResource('venture.runs.list', { state: 'all' }, { refreshOn });
   // The engine's answer to a gate or posture change, shown until the list itself is read again.
   const [saved, setSaved] = useState<AgentView | null>(null);
-  const [tab, setTab] = useState<Tab>('steps');
   useEffect(() => { setSaved(null); }, [team.data]);
+  // The tab pressed here shows at once; the address follows, and an address that names another tab wins.
+  const [picked, setPicked] = useState<AgentTab | null>(null);
+  useEffect(() => { setPicked(null); }, [route.query.tab, id]);
+  // A skill's "Try this" question (W4 4J22b): put in the chat box once, then let go, so the box never fills again
+  // by itself. Each new one gets its own key, so the box opens afresh with it.
+  const [starter, setStarter] = useState<{ text: string; key: number } | null>(null);
+  useEffect(() => { setStarter(null); }, [id]);
 
   const agent = saved ?? team.data?.agents.find((a) => a.id === id);
+  // The version in use, the agent's steps with their guidance and checks, its standing orders and what Undo would do:
+  // read-level, so opening the panel never writes (a role whose steps are code has none of these).
+  const standing = useResource('venture.agents.orders.list', { agent: id }, { refreshOn: chatRefresh, skip: !agent || !canChat(agent) });
+  const version = standing.data?.playbook?.version;
   if (!agent) {
     const title = team.data ? t('team.notFound') : team.error ? t('team.failed', { message: team.error.message }) : t('team.loading');
     return <Sheet label={t('team.sheet')} title={title} onClose={onClose} returnFocus={returnFocus} width="panel" />;
@@ -48,19 +69,65 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const steps = run?.progress ? measuredSteps(run.progress) : null;
   const dept = agent.department ? DEPT_OF[agent.department] : undefined;
   const mine = (runs.data?.runs ?? []).filter((one) => one.agent === agent.name);
-  const tabId = (which: Tab) => `${base}-${which}`;
+  const tabs: readonly AgentTab[] = canChat(agent) ? AGENT_TABS : CODE_TABS;
+  const asked = (picked ?? route.query.tab) as AgentTab | undefined;
+  const tab: AgentTab = asked && tabs.includes(asked) ? asked : FIRST_TAB;
+  const peers = (team.data?.agents ?? []).filter(canChat);
+  const tabId = (which: AgentTab) => `${base}-${which}`;
+
+  function choose(next: AgentTab) {
+    setPicked(next);
+    setQuery({ ...route.query, tab: next });
+  }
 
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const at = TABS.indexOf(tab);
-    const next = event.key === 'ArrowRight' ? TABS[(at + 1) % TABS.length]
-      : event.key === 'ArrowLeft' ? TABS[(at + TABS.length - 1) % TABS.length]
-        : event.key === 'Home' ? TABS[0]
-          : event.key === 'End' ? TABS[TABS.length - 1] : undefined;
+    const at = tabs.indexOf(tab);
+    const next = event.key === 'ArrowRight' ? tabs[(at + 1) % tabs.length]
+      : event.key === 'ArrowLeft' ? tabs[(at + tabs.length - 1) % tabs.length]
+        : event.key === 'Home' ? tabs[0]
+          : event.key === 'End' ? tabs[tabs.length - 1] : undefined;
     if (!next) return;
     event.preventDefault();
-    setTab(next);
+    choose(next);
     document.getElementById(tabId(next))?.focus();
   }
+
+  // Keeper is code, not AI (W4 4A1): no posture to choose, no steps to gate and no runs of its own; its jobs instead.
+  if (isKeeper(agent)) {
+    return (
+      <Sheet
+        label={t('team.sheet')}
+        eyebrow={dept ? <DeptChip dept={dept} /> : undefined}
+        title={agent.name}
+        line={agent.role}
+        avatar={<Avatar name={agent.name} dept={dept} state={RING[state]} size={40} />}
+        width="panel"
+        name={agent.name}
+        onClose={onClose}
+        returnFocus={returnFocus}
+      >
+        <div className={s.tabPanel}>
+          <p><Chip tone="line">{t('team.keeper.code')}</Chip></p>
+          <KeeperJobs name={agent.name} />
+        </div>
+      </Sheet>
+    );
+  }
+
+  const label = (which: AgentTab) => {
+    if (which === 'instructions') {
+      return (
+        <>
+          {t('team.instructions.tab')}
+          {version !== undefined && <>{' '}<span className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
+        </>
+      );
+    }
+    if (which === 'runs') {
+      return <>{t('team.runs')}{runs.data && <span className={cx(c.tabBadge, 'mono')} aria-hidden="true">{` ${mine.length}`}</span>}</>;
+    }
+    return t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`);
+  };
 
   return (
     <Sheet
@@ -83,8 +150,9 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       onClose={onClose}
       returnFocus={returnFocus}
     >
+      <HealthLine health={agent.health} agentId={agent.id} onCleared={team.reload} />
       <div role="tablist" aria-label={agent.name} className={s.tabs} onKeyDown={onTabKey}>
-        {TABS.map((which) => (
+        {tabs.map((which) => (
           <button
             key={which}
             type="button"
@@ -92,33 +160,29 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
             id={tabId(which)}
             className={s.tab}
             aria-selected={tab === which}
-            aria-controls={`${tabId(which)}-panel`}
+            aria-controls={tab === which ? `${tabId(which)}-panel` : undefined}
             tabIndex={tab === which ? 0 : -1}
-            onClick={() => setTab(which)}
+            onClick={() => choose(which)}
           >
-            {t(`team.${which}`)}
+            {label(which)}
           </button>
         ))}
       </div>
 
-      {tab === 'steps' ? (
-        <div role="tabpanel" id={`${tabId('steps')}-panel`} aria-labelledby={tabId('steps')} className={s.tabPanel}>
-          <PostureChoice agent={agent} onSaved={setSaved} />
-          <section className={s.section}>
-            <h3 id={stepsId} className={s.small}>{t('team.steps')}</h3>
-            <GateList agents={[agent]} look="list" labelledBy={stepsId} onSaved={setSaved} onFloor={team.reload} />
-          </section>
-          {/* Per-agent spend with receipt: placeholder until W4 4A. The engine sends an agent's spend as words with no
-              receipt, and a money figure always carries one (or "model estimate"), so it is not printed here; every
-              paid call, by agent and with its receipt, is one step away in Money. */}
-          <section className={s.section} aria-labelledby={spendId}>
-            <h3 id={spendId} className={s.small}>{t('team.spend')}</h3>
-            <p className={s.quiet}>{t('team.spendWhere')}</p>
-            <a className={s.link} href="#/money/spend">{t('team.spendLink')}</a>
-          </section>
-        </div>
-      ) : (
-        <div role="tabpanel" id={`${tabId('runs')}-panel`} aria-labelledby={tabId('runs')} className={s.tabPanel}>
+      <div role="tabpanel" id={`${tabId(tab)}-panel`} aria-labelledby={tabId(tab)} className={s.tabPanel} data-tab={tab}>
+        {tab === 'chat' && (
+          <AgentChat key={agent.id} agent={agent} dept={dept} peers={peers} playbook={standing.data?.playbook ?? undefined} onPlaybookChanged={standing.reload} initial={starter?.text} initialKey={starter?.key} onInitialUsed={() => setStarter((was) => (was ? { ...was, text: '' } : was))} />
+        )}
+        {tab === 'instructions' && (
+          <Instructions
+            agent={agent}
+            standing={standing}
+            onSaved={setSaved}
+            onFloor={team.reload}
+            onPlaybookChanged={standing.reload}
+          />
+        )}
+        {tab === 'runs' && (
           <section className={s.section}>
             <h3 id={runsId} className={s.small}>{t('team.runs')}</h3>
             {runs.error && <p className={s.failed}>{t('team.failed', { message: runs.error.message })}</p>}
@@ -129,8 +193,10 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
               </ul>
             )}
           </section>
-        </div>
-      )}
+        )}
+        {tab === 'notes' && <AgentNotes key={agent.id} agent={agent} />}
+        {tab === 'cando' && <AgentCanDo key={agent.id} agent={agent} onTry={(words) => { setStarter((was) => ({ text: words, key: (was?.key ?? 0) + 1 })); choose('chat'); }} />}
+      </div>
     </Sheet>
   );
 }
@@ -147,12 +213,13 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
         </button>
         <p className={s.runMeta}>
           <StateChip kind="run" value={run.state} />
-          <span className={cx(s.elapsed, 'mono')}>{elapsedOf(t, run)}</span>
+          {elapsedOf(run) && <span className={cx(s.elapsed, 'mono')}>{elapsedOf(run)}</span>}
         </p>
         {run.state === 'failed' && <p className={s.failure}>{run.result ?? t('run.stopped')}</p>}
         {run.state === 'done' && run.result !== undefined && (
           <p className={s.result}><Result line={run.result} receiptId={run.receiptId} estimate={run.estimate} /></p>
         )}
+        {run.writtenBy && <p className={s.quiet} data-written-by="">{run.writtenBy}</p>}
       </div>
     </li>
   );

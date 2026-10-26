@@ -1,0 +1,140 @@
+/* The business picker: two quiet radio chips, the chosen one in the selected ink. And the suggested plan change, in
+   the tile's own type: before struck through in grey, after in ink. */
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.choice[data-on] {
+  border-color: var(--selected);
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.choice:focus-within {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.radio {
+  margin: 0;
+  accent-color: currentColor;
+}
+
+.suggestion {
+  display: grid;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.title {
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+.line {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.left {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.left > svg {
+  flex: none;
+  color: var(--wait);
+}
+
+.changes {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--wash);
+}
+
+.what {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.before {
+  font-size: var(--text-read);
+  color: var(--fg2);
+  text-decoration: line-through;
+}
+
+.after {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.note {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.link {
+  color: var(--link);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 759px) {
+  .choice { min-height: var(--target); }
+}

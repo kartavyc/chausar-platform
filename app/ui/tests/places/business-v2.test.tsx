@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { CustodyViewLite, EngineClient } from '../../src/engine/types';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /**
  * Business in the Ink v2 look (w3 package 3G1; spec 4.3 "Business"; catalogue U6, U18). Built from the D pieces: the
@@ -79,8 +79,16 @@ describe('Business in the Ink v2 look', () => {
     start('#/business/prices');
     const nav = await screen.findByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Website build', '#/business/build'],
-      ['Practice and improve', '#/business/practice'], ['Keep this business', '#/business/keep'],
+      ['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
+      ['Practice and improve', '#/business/practice'],
+      // W4 4J22a: routines on a schedule, after Practice.
+      ['Routines', '#/business/routines'],
+      ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'],
+      // W4 4J21: About you, the owner's first name and the services the business does not sell.
+      // W4 4J19: Decisions, who decided each thing and on what rule.
+      ['Away', '#/business/away'], ['Decisions', '#/business/decisions'], ['About you', '#/business/owner'],
+      // W4 4J22b: the business's voice, and what the AI knows.
+      ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
     ]);
     expect(within(nav).getByRole('link', { name: 'Prices' }).getAttribute('aria-current')).toBe('page');
   });
@@ -91,7 +99,7 @@ describe('Business in the Ink v2 look', () => {
     expect(within(sponsor).getByRole('heading', { level: 3 }).textContent).toContain('Sponsor slot');
     const figure = sponsor.querySelector('[data-figure]')!;
     expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹15,000.00');
-    expect(within(figure as HTMLElement).getByRole('button', { name: 'Receipt R-0408' })).toBeTruthy();
+    expect(within(figure as HTMLElement).getByRole('button', { name: receiptMark('R-0408') })).toBeTruthy();
     const shorts = await offer('Shorts from your long video');
     expect(shorts.querySelector('[data-figure]')).toBeNull();
     expect(within(shorts).getByRole('link', { name: 'Set price' }).getAttribute('href')).toBe('#/business/prices');
@@ -216,12 +224,12 @@ describe('Business in the Ink v2 look', () => {
     const portal = (await within(papers).findByText(/^Recomputed: differs\./)).closest('[data-ca-receipt]') as HTMLElement;
     expect(portal.getAttribute('data-ca-receipt')).toBe('w-portal-sep');
     const recomputed = within(portal).getByText(/^Recomputed: differs\./).closest('[data-figure-group]') as HTMLElement;
-    expect(within(recomputed).getByRole('button', { name: /^Receipt / }).getAttribute('data-receipt')).toBe('w-portal-sep');
+    expect(within(recomputed).getByRole('button', { name: receiptMark(/./) }).getAttribute('data-receipt')).toBe('w-portal-sep');
     const difference = within(portal).getByText(/^Net payable: ours /).closest('[data-figure-group]') as HTMLElement;
-    expect(within(difference).getByRole('button', { name: /^Receipt / }).getAttribute('data-receipt')).toBe('w-portal-sep');
+    expect(within(difference).getByRole('button', { name: receiptMark(/./) }).getAttribute('data-receipt')).toBe('w-portal-sep');
     // A paper worked out the same again carries its receipt too.
     const same = within(papers).getByText('Recomputed: same').closest('[data-figure-group]') as HTMLElement;
-    expect(within(same).getByRole('button', { name: /^Receipt / }).getAttribute('data-receipt')).toBe('w-gst-sep');
+    expect(within(same).getByRole('button', { name: receiptMark(/./) }).getAttribute('data-receipt')).toBe('w-gst-sep');
     assertInkRules(document.body);
   });
 
@@ -230,7 +238,7 @@ describe('Business in the Ink v2 look', () => {
     const papers = await region('Receipts of the latest papers');
     const portal = (await within(papers).findByText(/^Recomputed: differs\./)).closest('[data-ca-receipt]') as HTMLElement;
     assertInkRules(document.body);
-    const chip = within(portal).getAllByRole('button', { name: 'Receipt w-portal-sep' })[0]!;
+    const chip = within(portal).getAllByRole('button', { name: receiptMark('w-portal-sep') })[0]!;
     await act(async () => { fireEvent.click(chip); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const sheet = (await screen.findByText('w-portal-sep', { selector: 'aside h2, aside h2 *' })).closest('aside') as HTMLElement;
     await within(sheet).findByText('Net payable: the portal less ours', { selector: 'dt' });
@@ -245,7 +253,7 @@ describe('Business in the Ink v2 look', () => {
   it('a price receipt chip still opens the receipt from venture.receipt.get', async () => {
     const calls = watched(new FakeEngine(), '#/business/prices');
     const sponsor = await offer('Sponsor slot');
-    const chip = await within(sponsor).findByRole('button', { name: 'Receipt R-0408' });
+    const chip = await within(sponsor).findByRole('button', { name: receiptMark('R-0408') });
     await act(async () => { fireEvent.click(chip); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const sheet = (await screen.findByText('R-0408', { selector: 'aside h2, aside h2 *' })).closest('aside') as HTMLElement;
     await waitFor(() => expect(sheet.querySelector('dl')).not.toBeNull());

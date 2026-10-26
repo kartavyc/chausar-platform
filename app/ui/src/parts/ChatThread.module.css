@@ -2,7 +2,10 @@
    (D-TeamChat). The owner's bubble is on the selected ground; the agent's is white with a line. Few messages sit at
    the bottom, as in a chat; more scroll. */
 
+/* Positioned (4Z walk): the messages' visually hidden words are absolutely placed and must scroll with the thread, never
+   stretch the sheet column around it. */
 .thread {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: calc(var(--sp-7) / 2);
@@ -14,6 +17,13 @@
 
 .thread > :first-child {
   margin-top: auto;
+}
+
+/* Earlier pages the owner asked for (W4 4B3): spaced like the rest of the thread, outside what is read out. */
+.older {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-7) / 2);
 }
 
 .empty {

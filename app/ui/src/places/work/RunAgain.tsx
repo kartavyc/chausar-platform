@@ -32,9 +32,10 @@ export interface RunAgain {
  * again?", Not now first in focus), and a lock until the run was opened here when `requiresView` is set; the decision
  * says whether it was. A new version of the row (a new digest) has to be opened again and closes an open second ask.
  * `prominent` is the failed run's tile (the large primary with its icon, and the lock's reason in words beside it); a
- * list row has the small plain button, its lock's reason read with it.
+ * list row has the small plain button, its lock's reason read with it. `buttonSize`: a stopped run's tile (W4 4F3)
+ * keeps the plain button at the tile's large size, beside Resume, its primary.
  */
-export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, prominent = false): RunAgain {
+export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, prominent = false, buttonSize?: 'sm' | 'lg'): RunAgain {
   const t = useT();
   const client = useEngine();
   const noteId = useId();
@@ -78,7 +79,7 @@ export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, pr
   if (!row || !action) return { action, opened, controls: null, ask: null, problem: shownProblem };
 
   const locked = Boolean(action.requiresView && !viewed);
-  const size = prominent ? 'lg' : 'sm';
+  const size = buttonSize ?? (prominent ? 'lg' : 'sm');
   if (phase === 'confirm') {
     const ask = (
       <div className={s.confirm}>

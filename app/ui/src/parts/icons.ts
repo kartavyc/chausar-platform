@@ -10,7 +10,7 @@ import {
   ArrowLeftRight, ArrowRight, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronRight, ChevronsUpDown,
   CircleHelp, Clock, Contact, Eye, EyeOff, FilePen, FileText, Handshake, History, IndianRupee, LayoutGrid, Lock,
   Megaphone, MessageSquare, MessagesSquare, Mic, Package, Paperclip, Pencil, Play, Plug, Plus, ReceiptText, RotateCcw,
-  Scissors, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, SquarePlay, Stamp, Sun, Tag, Target, TrendingUp,
+  Scissors, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, SquarePlay, Stamp, Sun, Tag, Target, TrendingDown, TrendingUp,
   TriangleAlert, Upload, Users, Wallet, Wrench, X, type LucideIcon,
 } from 'lucide-react';
 
@@ -34,6 +34,8 @@ export const ICONS = {
   calendar: Calendar,
   pencil: Pencil,
   'trending-up': TrendingUp,
+  // 4I2: behind today's pace on the goal card.
+  'trending-down': TrendingDown,
   'receipt-text': ReceiptText,
   check: Check,
   x: X,

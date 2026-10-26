@@ -143,7 +143,9 @@ describe('Board', () => {
     expect(within(first).getByRole('heading', { level: 2, name: 'New' })).toBeTruthy();
     expect(first.querySelector('[data-count]')!.textContent).toBe('2');
     expect(first.querySelector('[data-ui-number]')).toBeNull();
-    expect(within(first).getByText('Not written to yet')).toBeTruthy();
+    // The hint describes its column for a screen reader and is not shown, so a board stays quiet at rest.
+    const hint = document.getElementById(first.getAttribute('aria-describedby')!)!;
+    expect([hint.textContent, hint.classList.contains('sr-only')]).toEqual(['Not written to yet', true]);
     expect(within(within(first).getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
     assertInkRules(document.body);
   });
@@ -215,7 +217,7 @@ describe('Board', () => {
     assertInkRules(document.body);
   });
   it('long engine words wrap instead of running out of a column or card', () => {
-    for (const name of ['title', 'hint', 'cardName', 'cardSub', 'cardBody']) expect(ruleOf('Board', name), name).toMatch(/overflow-wrap:\s*anywhere/);
+    for (const name of ['title', 'cardName', 'cardSub', 'cardBody']) expect(ruleOf('Board', name), name).toMatch(/overflow-wrap:\s*anywhere/);
     for (const name of ['caption', 'nodeName']) expect(ruleOf('PathLine', name), name).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });

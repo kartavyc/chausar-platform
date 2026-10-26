@@ -1,0 +1,118 @@
+/* Business > What the AI knows (W4 4J22b): the sources as hairline rows with their kind and the engine's line, and
+   the tiles to add a source, test a question and see what the agents needed. */
+
+.sources,
+.requests,
+.hits {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.sourceHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.title {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.sourceLine {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.requests > li {
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.hit {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.kind input {
+  accent-color: var(--accent);
+}
+
+.choice {
+  display: grid;
+  gap: calc(var(--sp-1) * 1.5);
+}
+
+.label {
+  composes: label from '../../parts/Field.module.css';
+}
+
+.select {
+  composes: input from '../../parts/Field.module.css';
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--wash);
+}
+
+.askLine {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}

@@ -28,11 +28,18 @@ import { BUILDERS, BUILDER_NAMES, handOff } from '../business/handoff';
 import { BankImportSheet } from './BankImport';
 import { BankSheet } from './BankSheet';
 import { CanDo } from './CanDo';
+import { CliStatus } from './CliStatus';
 import { categoryIcon } from './categories';
 import { ExternalLink, openProblem } from './external';
 import { Posting, signInOffered } from './Posting';
 import { TranscriptionSetup } from './TranscriptionSetup';
 import { YourAi } from './YourAi';
+import { YourNetwork } from './YourNetwork';
+import { Mailbox } from './Mailbox';
+import { CalendarFeed } from './CalendarFeed';
+// W4 4J21: the setup guides, the truth ladder's words and Check connections (from 4J7).
+import { ChecksTile } from './ChecksTile';
+import { Guide, LadderWord } from './Guide';
 import s from './Connections.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
@@ -91,6 +98,8 @@ export function Place() {
       <PageTitle title={t('place.connections')} line={t('connections.line')} />
       <div className={s.place}>
         <YourAi focus={route.sub === 'ai'} />
+        <CliStatus />
+        {venture.data && <ChecksTile />}
         {(cards.data || local) && (
           <div className={s.second} data-side={local ? undefined : 'none'}>
             {cards.data && <CanDo cards={cards.data} />}
@@ -99,6 +108,9 @@ export function Place() {
         )}
         {cards.error && <p className={s.problem} role="alert">{t('connections.failed', { message: cards.error.message })}</p>}
         {groups.length > 0 && <div className={s.groups}>{groups.map((group) => <GroupSection key={group.category} group={group} />)}</div>}
+        {venture.data && <YourNetwork />}
+        {venture.data && <Mailbox />}
+        {venture.data && <CalendarFeed />}
       </div>
     </>
   );
@@ -249,11 +261,13 @@ function SheetBody({ card }: { card: ConnectorCardLite }) {
                 </p>
                 <p className={s.line}>{mode.what}</p>
                 {mode.status === 'available' && <p className={s.fact}>{t(`connections.qualification.${mode.qualification}`)}</p>}
+                <LadderWord ladder={mode.ladder} />
               </Inner>
             </li>
           ))}
         </ul>
       </section>
+      {card.guide && <Guide guide={card.guide} />}
       {card.postingOptions.length > 0 && (
         <section className={s.sheetSection}>
           <h3 className={s.sheetHeading}>{t('connections.sheet.posting')}</h3>
@@ -293,6 +307,7 @@ function PostingOption({ option }: { option: PostingOptionLite }) {
           </>
         )}
         {option.reason && <p className={s.fact}>{option.reason}</p>}
+        <LadderWord ladder={option.ladder} />
       </Inner>
     </li>
   );

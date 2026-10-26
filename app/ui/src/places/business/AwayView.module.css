@@ -1,0 +1,59 @@
+/* Away (W4 4F3): the two days side by side (stacked on a phone), the engine's lists and the reply to paste. */
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+@media (max-width: 759px) {
+  .days {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.when {
+  min-width: 7em;
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+/* The reply as the owner will paste it, its new lines kept, on the inner grey. */
+.reply {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

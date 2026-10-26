@@ -1,12 +1,14 @@
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
-import type { ApprovalPrimary } from '../../parts/ApprovalRow';
+import { primaryOf, type ApprovalHandle, type ApprovalPrimary } from '../../parts/ApprovalRow';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { cx } from '../../parts/cx';
-import type { GoalAmount } from './goal';
+import type { NextBestStep, QueueRow } from '../../engine/types';
+import { goalAmount, type GoalAmount } from './goal';
+import { wordedRow } from './OutreachRows';
 import s from './NextStep.module.css';
 
 /** The one row the engine ranks first for the goal (W4 4I's next best step), as the tile beside the goal card. */
@@ -33,7 +35,7 @@ export interface NextStepProps {
   /** Open the row's card (or the thing it is about). */
   onOpen: () => void;
   /**
-   * Press the row's primary. W4 4I wires this to the card's own ApprovalHandle (`pressPrimary`), so the second ask,
+   * Press the row's primary. TodayNextStep wires this to the card's own ApprovalHandle (`pressPrimary`), so the second ask,
    * view before approve and the digest hold exactly as on the card; this tile never decides anything itself.
    */
   onPrimary: () => void;
@@ -41,8 +43,7 @@ export interface NextStepProps {
 
 /**
  * The next best step (D-Today `.next`): what to do first for the month's goal, its figure and what the goal becomes,
- * then Open and the one primary. Built and tested with props now; it is shown once the engine ranks rows by the goal
- * (placeholder until W4 4I).
+ * then Open and the one primary. Today draws it from the engine's ranking through TodayNextStep, below (W4 4I2).
  */
 export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
   const t = useT();
@@ -103,5 +104,91 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
         </Button>
       </div>
     </section>
+  );
+}
+
+/** What Today lends the next best step: its cards, what the owner has opened, and the cards' own buttons. */
+export interface NextStepHost {
+  /** Today's rows as the cards show them now. */
+  rows: readonly QueueRow[];
+  /** The owner opened this version of the row in this session. */
+  isViewed: (row: QueueRow) => boolean;
+  /** The row was decided on this screen and shows as its receipt line. */
+  isDecided: (id: string) => boolean;
+  /** Bring the row's card into view and focus it (a filter or the fold that hides it opens). */
+  goToRow: (id: string) => void;
+  /** Open the thing the row is about, as its card's Watch or Read does (it counts as viewed). */
+  look: (row: QueueRow) => void;
+  /** The card's own buttons, once its card is drawn. */
+  handleOf: (id: string) => ApprovalHandle | undefined;
+}
+
+/**
+ * The engine's next best step (venture.goals.get `next`) on Today, beside the goal card. Its primary is the row's card
+ * primary, worded and locked as that card is (primaryOf). Pressing it brings the card into view and presses the card's
+ * own button through its handle, so view before approve, the second ask and the digest hold exactly as on the card:
+ * a second ask opens inside the card, and this tile decides nothing itself. Open opens what the row is about, or its card.
+ * The engine ranks only the open business's rows, so the tile names the agent and not the business.
+ */
+export function TodayNextStep({ step, row, host, folded = false }: { step: NextBestStep; row: QueueRow; host: NextStepHost; folded?: boolean }) {
+  const t = useT();
+  const [pending, setPending] = useState<string | null>(null);
+  // Press once the card is on screen: it may sit behind a filter or the fold until goToRow opens them.
+  useEffect(() => {
+    if (!pending) return;
+    const handle = host.handleOf(pending);
+    if (handle) {
+      setPending(null);
+      handle.pressPrimary();
+    } else if (!host.rows.some((r) => r.id === pending)) setPending(null);
+  });
+  const total = goalAmount(step.figure);
+  // 4Z2: the card's own words for its buttons (Hindi included), as the card itself shows them.
+  const primary = primaryOf(wordedRow(row, t), host.isViewed(row), t);
+  const press = () => { setPending(row.id); host.goToRow(row.id); };
+  if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} />;
+  // The row's own line and "asks you once more" are on its card already: the tile says neither again (words).
+  const data: NextStepData = {
+    rowId: row.id, title: row.title, agent: step.agent ?? row.agent,
+    ...(total ? { total } : {}),
+    ...(step.goalAfterPercent !== null ? { goalAfter: `${step.goalAfterPercent}%` } : {}),
+  };
+  return (
+    <NextStep
+      data={data}
+      primary={{ ...primary, asksAgain: false }}
+      onOpen={() => (row.viewRef ? host.look(row) : host.goToRow(row.id))}
+      onPrimary={press}
+    />
+  );
+}
+
+/**
+ * The next best step folded into the goal card on a phone (D-Phone-Today): "Next best step", the row's title and its
+ * figure on one line, and the card's one filled button, the row's own primary (locked and worded as its card).
+ */
+function FoldedStep({ title, total, primary, onPrimary }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void }) {
+  const t = useT();
+  const noteId = useId();
+  return (
+    <div className={s.folded} data-next-folded="">
+      <p className={s.foldedEyebrow}>{t('today.next.eyebrow')}</p>
+      <p className={s.foldedLine}>
+        <span>{title}</span>
+        {total && <Figure {...total} tone="dark" />}
+      </p>
+      {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
+      <Button
+        size="xl"
+        variant="primary"
+        locked={primary.locked}
+        lockedReason={primary.note}
+        lockedNoteId={primary.locked && primary.note ? noteId : undefined}
+        onClick={() => { if (!primary.locked) onPrimary(); }}
+      >
+        {primary.label}
+        {!primary.locked && <Icon name="arrow-right" size={16} />}
+      </Button>
+    </div>
   );
 }

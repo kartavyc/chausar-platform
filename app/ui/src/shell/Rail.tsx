@@ -10,12 +10,10 @@ import s from './Rail.module.css';
 
 type RailPlace = (typeof RAIL_PLACES)[number];
 
-/**
- * Each rail place's icon (D-STYLE.md section 4, "Rail"). The map is keyed by RAIL_PLACES, so the place W4 4C adds
- * (Chats, with messages-square, second in the list) cannot land without its icon; until then nothing is drawn for it.
- */
+/** Each rail place's icon (D-STYLE.md section 4, "Rail"), keyed by RAIL_PLACES. */
 const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
   today: 'sun',
+  chats: 'messages-square',
   team: 'users',
   work: 'briefcase',
   clients: 'contact',
@@ -25,7 +23,7 @@ const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
 
 /**
  * The rail (D's `.rail`, 232 px): the brand, which goes home to Today; the business button and its menu; then the
- * six places with their icons. Today carries the count of what needs the owner across every business on this
+ * seven places with their icons. Today carries the count of what needs the owner across every business on this
  * computer, amber while the owner is elsewhere. A phone never draws it: under 760 px the shell shows the top bar and
  * the bottom tabs instead (TopBar.tsx).
  */
@@ -33,6 +31,9 @@ export function Rail({ route }: { route: Route }) {
   const t = useT();
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: (event) => event.type === 'queue.changed' });
   const needsYou = queue.data?.needsYou ?? 0;
+  // W4 4C2: Chats says "New" until the open business has its first chat; where the engine cannot list chats, nothing.
+  const chats = useResource('venture.chief.threads', {}, { refreshOn: (event) => event.type === 'chief.message' });
+  const firstChat = chats.data?.groups.length === 0;
 
   return (
     <nav className={s.rail} aria-label={t('shell.places')}>
@@ -54,6 +55,12 @@ export function Rail({ route }: { route: Route }) {
                   <>
                     <span className={cx(s.count, 'mono')} aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
                     <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
+                  </>
+                )}
+                {place === 'chats' && firstChat && (
+                  <>
+                    <span className={s.new} aria-hidden="true" data-new="">{t('rail.chats.new')}</span>
+                    <span className="sr-only">{t('rail.chats.newWords')}</span>
                   </>
                 )}
               </a>

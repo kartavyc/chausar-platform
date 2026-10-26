@@ -1,0 +1,109 @@
+/* The notification centre: the sheet the bell opens. A plain list of rows on the sheet's own ground, the unread ones
+   marked by a "New" chip (words, not colour); the digest as a short grey block above them. */
+
+.centre {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.digest {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.digestLine {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.items {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.item:first-child {
+  border-top: none;
+}
+
+.link {
+  display: grid;
+  flex: 1;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: var(--target);
+  padding: var(--sp-3) 0;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.link:hover .title {
+  text-decoration: underline;
+}
+
+.title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  color: var(--fg2);
+}
+
+.item[data-unread] .title {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.fresh {
+  flex: none;
+}
+
+.settings {
+  justify-self: start;
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.settings:hover {
+  color: var(--link-hover);
+}
+
+.quiet {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}

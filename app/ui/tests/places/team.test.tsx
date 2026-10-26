@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type AgentView, type EngineClient } from '../../src/engine/types';
+import { receiptMark } from '../helpers/ink-rules';
 
 type FakeClient = ReturnType<typeof createFakeClient>;
 type Intercept = (method: string, params: Record<string, unknown>) => Promise<unknown> | undefined;
@@ -36,31 +37,47 @@ describe('Team: one row per agent', () => {
   it('shows name, role, what it is doing now and its last result', async () => {
     start();
     expect(screen.getByRole('heading', { level: 1, name: 'Team' })).toBeTruthy();
-    const list = await screen.findByRole('list', { name: 'Agents' });
-    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(4));
+    // The agents sit in their departments (W4 4A2); Editor is Production's one agent.
+    const list = await screen.findByRole('list', { name: 'Production agents' });
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(1));
     const editor = await rowOf('Editor');
     expect(editor.textContent).toContain('Cuts episodes and shorts');
     expect(editor.textContent).toContain('Cutting shorts from episode 13');
-    expect(editor.textContent).toContain('Episode 14 cut, 11 min 42 s');
+    // At work, a card says what it does now; its last result waits in its panel's runs (4A2 review).
+    expect(editor.textContent).not.toContain('Episode 14 cut, 11 min 42 s');
   });
 
-  it('a receipted last result opens its receipt; a model-written one says "model estimate" and has no receipt', async () => {
-    start();
-    const producer = await rowOf('Producer');
-    expect(within(producer).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+  it("an idle agent's receipted last result opens its receipt", async () => {
+    const { base } = start();
+    await rowOf('Editor');
+    await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
+    const bookkeeper = await rowOf('Bookkeeper');
+    await click(within(bookkeeper).getByRole('button', { name: receiptMark('R-0412') }));
+    expect(await screen.findByRole('complementary', { name: 'R-0412' })).toBeTruthy();
+  });
+
+  it("an idle agent's model-written last result says 'model estimate' and has no receipt", async () => {
+    // Researcher with nothing on now, so its card shows its last result (a model's estimate).
+    const other = createFakeClient(new FakeEngine());
+    start('#/team', {
+      intercept: (method) => method === 'venture.runs.list'
+        ? other.request('venture.runs.list', { state: 'all' }).then((view) => ({ runs: view.runs.filter((run) => run.agent !== 'Researcher') }))
+        : method === 'venture.team.list'
+          ? other.request('venture.team.list', {}).then((view) => ({ ...view, agents: view.agents.map((agent) => (agent.id === 'researcher' ? { ...agent, state: 'idle' as const } : agent)) }))
+          : undefined,
+    });
     const researcher = await rowOf('Researcher');
-    expect(researcher.textContent).toContain('About 18,000 views in 30 days');
+    await waitFor(() => expect(researcher.textContent).toContain('About 18,000 views in 30 days'));
     expect(within(researcher).getByText('model estimate')).toBeTruthy();
     expect(researcher.querySelector('[data-receipt]')).toBeNull();
-    await click(within(producer).getByRole('button', { name: 'Receipt R-0415' }));
-    expect(await screen.findByRole('complementary', { name: 'R-0415' })).toBeTruthy();
   });
 
-  it('an idle agent with nothing finished says so', async () => {
+  it('an idle agent with nothing finished shows no last line', async () => {
     start();
     const publisher = await rowOf('Publisher');
-    expect(publisher.textContent).toContain('Idle');
-    expect(publisher.textContent).toContain('Nothing finished yet.');
+    // W4 4H2: Lumen has no AI connected, so its idle agent waits on one in the engine's words (views/team.ts).
+    expect(publisher.textContent).toContain('Connect your AI');
+    expect(publisher.textContent).not.toContain('Nothing finished yet.');
   });
 
   it('what an agent is doing now opens that run in the run sheet; waiting on you is marked', async () => {
@@ -77,12 +94,13 @@ describe('Team: one row per agent', () => {
 
   it('J moves to the first agent and Enter opens it', async () => {
     start();
-    await rowOf('Editor');
+    // The first agent on the page: Producer, in Sales and clients, the first department (W4 4A2).
+    await rowOf('Producer');
     await act(async () => { fireEvent.keyDown(document.body, { key: 'j' }); });
-    expect(document.activeElement).toBe(await rowOf('Editor'));
+    expect(document.activeElement).toBe(await rowOf('Producer'));
     await act(async () => { fireEvent.keyDown(document.activeElement!, { key: 'Enter' }); hashChanged(); });
-    expect(window.location.hash).toBe('#/team?sheet=agent%3Aeditor');
-    expect(await screen.findByRole('complementary', { name: 'Editor' })).toBeTruthy();
+    expect(window.location.hash).toBe('#/team?sheet=agent%3Aproducer');
+    expect(await screen.findByRole('complementary', { name: 'Producer' })).toBeTruthy();
   });
 });
 
@@ -128,15 +146,18 @@ describe('Team: the agent sheet', () => {
   });
 
   it('a posture above what the business has earned is refused in the engine words and the choice goes back', async () => {
-    const { base } = start();
-    const spy = vi.spyOn(base.engine, 'request');
+    // W4 4J22a: auto is built but locked (team-readiness.test.tsx), so the stage refusal is shown on another posture.
+    // Engine-shaped (views/team.ts): a business at rehearsal lets an agent work at rehearsal or tighter, so Shadow is refused.
+    const line = 'The business is at rehearsal, so this agent can work at rehearsal or tighter. Move the business up first.';
+    start('#/team', {
+      intercept: (method) => (method === 'venture.team.posture' ? Promise.reject(new EngineError('POSTURE_ABOVE_STAGE', line)) : undefined),
+    });
     const sheet = await openAgent('Editor');
     const group = within(sheet).getByRole('group', { name: 'Posture' });
-    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Auto with spot checks' })); });
-    expect(spy).toHaveBeenCalledWith('venture.team.posture', { agentId: 'editor', posture: 'auto-spot-check' });
-    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toMatch(/^Auto with spot checks opens once/));
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
+    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe(line));
     expect((within(group).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
-    expect((within(group).getByRole('radio', { name: 'Auto with spot checks' }) as HTMLInputElement).checked).toBe(false);
+    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(false);
   });
 
   it('any other posture refusal says what the engine said', async () => {
@@ -222,7 +243,8 @@ describe('Team: the agent sheet', () => {
     expect(within(runs).getAllByRole('listitem')).toHaveLength(2);
     expect(runs.textContent).toContain('Cutting shorts from episode 13');
     expect(runs.textContent).toContain('Rendering the thumbnail set');
-    expect(runs.textContent).toContain('Stopped: ffmpeg was not found on this computer.');
+    // 4Z2: the engine sends no result line on a failed run; the sheet says it failed (never "Stopped").
+    expect(runs.textContent).toContain('This run failed.');
     expect(runs.textContent).not.toContain('Checking titles');
     await click(within(runs).getByRole('button', { name: 'Rendering the thumbnail set' }));
     expect(window.location.hash).toBe('#/team?sheet=run%3A28');
@@ -245,7 +267,7 @@ describe('Team: the agent sheet', () => {
     await click(within(bookkeeper).getByRole('tab', { name: 'Runs' }));
     const done = await within(bookkeeper).findByRole('list', { name: 'Runs' });
     expect(done.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
-    expect(within(done).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(done).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
   });
 
   it('says so when the agent is not in this business', async () => {

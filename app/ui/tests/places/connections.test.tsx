@@ -44,7 +44,14 @@ describe('fake engine connectors match the engine', () => {
     expect(instagram.posting).toMatchObject({ mode: 'owner-browser-session', status: 'planned', risk: 'The platform may restrict this account.', reason: 'Posting a picture or video through the browser is not built yet.' });
     expect(instagram.modes.every((m) => m.status === 'planned')).toBe(true);
     expect(cards.find((c) => c.id === 'linkedin')!.posting).toMatchObject({ mode: 'owner-browser-session', status: 'available', reason: null });
-    expect(CONNECTORS).toEqual(cards);
+    // W4 4J21: the list adds each connector's truth (4J7): the ladder on every mode, the capability set and the guide.
+    const plain = cards.map(({ guide: _g, capabilities: _c, ...card }) => ({
+      ...card,
+      modes: card.modes.map(({ ladder: _l, ...mode }) => mode),
+      postingOptions: card.postingOptions.map(({ ladder: _l, ...option }) => option),
+      ...(card.posting ? { posting: (({ ladder: _l, ...option }) => option)(card.posting) } : {}),
+    }));
+    expect(CONNECTORS).toEqual(plain);
   });
 });
 

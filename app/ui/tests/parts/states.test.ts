@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CATALOGUES, format } from '../../src/text';
 import { STATE_TONES, STATE_WORDS, stateWord, type StateKind } from '../../src/parts/states';
-import type { DeliveryStatus, InvoiceLite, LeadStage, Posture, QueueKind, RunState, RunStep } from '../../src/engine/types';
+import type { DeliveryStatus, InvoiceLite, LeadStage, Posture, QueueKind, QueueKindW4, RoutineRunState, RunState, RunStep } from '../../src/engine/types';
 
 /**
  * Every literal value of each engine union, written out here. The maps in states.ts are typed Record<Union, ...>,
@@ -13,8 +13,18 @@ const VALUES = {
   posture: ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'] satisfies Posture[],
   invoice: ['draft', 'issued', 'part-paid', 'paid', 'void'] satisfies InvoiceLite['status'][],
   lead: ['new', 'drafted', 'contacted', 'replied', 'won', 'lost', 'blocked'] satisfies LeadStage[],
-  delivery: ['waiting-for-you', 'needs-answer', 'brief-waiting', 'ready-for-review', 'accepted', 'edited', 'rejected', 'failed'] satisfies DeliveryStatus[],
-  queue: ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector', 'bank'] satisfies QueueKind[],
+  delivery: ['waiting-for-you', 'needs-answer', 'brief-waiting', 'ready-for-review', 'accepted', 'edited', 'rejected', 'failed', 'stopped'] satisfies DeliveryStatus[],
+  queue: ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector', 'bank', 'proposal', 'followup', 'reply', 'notice'] satisfies (QueueKind | QueueKindW4)[],
+  // W4 4J22a: the engine's one vocabulary and the other wave 4 states (states-w4.test.ts reads the engine's own lists).
+  check: ['pass', 'fail', 'not-run', 'not-checked'],
+  judgment: ['strong', 'fair', 'weak', 'no'],
+  verdict: ['pass', 'rewrite', 'do-not-send'],
+  fix: ['fixed', 'partially-fixed', 'not-fixed', 'unverified'],
+  outcome: ['success', 'not-checked', 'failed'],
+  finding: ['hard-error', 'content', 'creative'],
+  routine: ['queued', 'running', 'needs-input', 'completed', 'failed', 'missed', 'skipped', 'interrupted'] satisfies RoutineRunState[],
+  guidance: ['measured', 'dark', 'unmeasured'],
+  contractItem: ['open', 'done', 'skipped'],
 } as const satisfies Record<StateKind, readonly string[]>;
 
 const en = (key: string) => format(CATALOGUES.en, 'en', key);
@@ -66,10 +76,14 @@ describe('state words: one module for every state the engine sends', () => {
     expect(stateWord('invoice', 'paid').tone).toBe('done');
     expect(VALUES.lead.map((v) => en(stateWord('lead', v).key))).toEqual(['New', 'Drafted', 'Contacted', 'Replied', 'Won', 'Lost', 'Blocked']);
     expect(VALUES.queue.map((v) => en(stateWord('queue', v).key))).toEqual([
-      'Draft', 'Price change', 'Quote', 'Plan', 'Invoice', 'CA sign-off', 'Question', 'Setup', 'Locked', 'Post', 'Bank',
+      'Draft', 'Price change', 'Quote', 'Plan', 'Invoice', 'CA sign-off', 'Question', 'Setup', 'Locked', 'Post', 'Bank', 'Proposal',
+      'Follow-up', 'Reply', 'Notice',
     ]);
     expect(stateWord('delivery', 'failed').tone).toBe('fail');
     expect(stateWord('delivery', 'ready-for-review').tone).toBe('wait');
+    // W4 4F3: a delivery run the owner (or Chausar) stopped waits for Resume; an engine failure stays Failed.
+    expect(stateWord('delivery', 'stopped').tone).toBe('wait');
+    expect(en(stateWord('delivery', 'stopped').key)).toBe('Stopped, waits for you');
   });
 
   it('a value the engine sends that this build does not know reads "Unknown", in the neutral tone', () => {

@@ -205,6 +205,29 @@
   color: var(--fg);
 }
 
+/* W4 4J21: "What you need", folded: the way's needs and the pay range's source, in the tile's own type. */
+.needs {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.needsHead {
+  min-height: 24px;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 24px;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.source {
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
 .foot {
   display: flex;
   margin-top: auto;
@@ -223,4 +246,5 @@
 @media (max-width: 759px) {
   .gallery { grid-template-columns: minmax(0, 1fr); }
   .start { min-height: var(--target); }
+  .needsHead { min-height: var(--target); line-height: var(--target); }
 }

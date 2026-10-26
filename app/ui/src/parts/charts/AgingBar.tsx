@@ -10,6 +10,12 @@ const AGE_ORDER: readonly AgingBucketId[] = ['not-due', '1-30', '31-60', '61-90'
 export interface AgingBarProps {
   data: AgingData;
   onReceipt?: ((id: string) => void) | undefined;
+  /**
+   * 'all' (the default) lists every age; 'held' (W4 4J20, Money's Owed tile at rest) lists only the ages that hold money,
+   * each in words with its count and amount, so colour is still never the only way to read the bar. The empty ages stay
+   * in the chart's own table one step away.
+   */
+  legend?: 'all' | 'held' | undefined;
 }
 
 /**
@@ -18,7 +24,7 @@ export interface AgingBarProps {
  * count and amount, so colour is never the only way to read it. An empty age draws no segment and a hollow square.
  * One proof (a receipt or "model estimate") covers the tile.
  */
-export function AgingBar({ data, onReceipt }: AgingBarProps) {
+export function AgingBar({ data, onReceipt, legend = 'all' }: AgingBarProps) {
   const t = useT();
   const buckets = AGE_ORDER.flatMap((id) => data.buckets.filter((bucket) => bucket.id === id));
   const { proof } = data;
@@ -34,7 +40,7 @@ export function AgingBar({ data, onReceipt }: AgingBarProps) {
         }))}
       />
       <ul className={s.ageList}>
-        {buckets.map((bucket) => (
+        {buckets.filter((bucket) => legend === 'all' || bucket.permille > 0).map((bucket) => (
           <li key={bucket.id} className={s.ageRow} data-bucket={bucket.id}>
             <span className={s.swatch} data-swatch="" data-bucket={bucket.id} data-zero={bucket.permille > 0 ? undefined : ''} aria-hidden="true" />
             <span className={s.ageName}>{bucket.label}</span>

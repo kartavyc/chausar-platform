@@ -9,6 +9,9 @@ import { Row } from '../../parts/Row';
 import { Tile, TileHead } from '../../parts/Tile';
 import { stateText } from '../../parts/states';
 import { currentStepOf, runStateOf, stopLineOf } from './runs';
+// W4 4F3: Stop on each running row, the same Stop and dialog as Work's tiles.
+import { useStopRun } from '../work/StopDialog';
+import { plainFailure } from '../work/StoppedRun';
 import s from './Today.module.css';
 
 /** Put focus on a row or card of the page by its id, and bring it into view. */
@@ -35,7 +38,9 @@ export interface WorkingNowProps {
  * that still offers Run again, each with the agent's ring, what it is for, the agent and the step it is on, a bar of
  * its measured steps (or the step it is on, when the engine cannot count them) and the time it has run. A run waiting
  * on the owner says so in place of its timer, which stops, and those words take you to the card that answers it. A
- * stopped run says so in the engine's words. The purpose opens the run sheet. Stop waits for W4 4F.
+ * stopped run says so in the engine's words. The purpose opens the run sheet.
+ * W4 4F3: each running row has Stop ("Stop run 31") and its small dialog; a run the engine says is stopping reads
+ * Stopping, and one it stopped (the owner, or Chausar) reads Stopped or Interrupted with its line, never "Failed".
  */
 export function WorkingNow({ runs, details, rowForRun, goToRow }: WorkingNowProps) {
   const t = useT();
@@ -66,10 +71,23 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
   const tone = state === 'waiting' ? 'waiting' : state === 'failed' ? 'failed' : 'working';
   const progress = run.progress ?? 'indeterminate';
   const current = detail ? currentStepOf(detail) : null;
-  const said = state === 'failed' ? (detail ? stopLineOf(detail) : run.result) : current?.purpose;
+  const stop = useStopRun(run, detail);
+  const halted = run.stop?.state;
+  // 4Z2: a known failure in plain words (Work's), the engine's technical line left to the run's own sheet.
+  const said = state === 'failed' ? (detail ? plainFailure(t, detail) ?? stopLineOf(detail) : run.result) : halted === 'stopped' ? run.stop!.line : current?.purpose;
+  const haltWord = halted === 'stopped' ? t(detail?.interrupted ? 'work.stop.interrupted' : 'work.stop.chip') : null;
   const measured = progress !== 'indeterminate' && progress.total > 0;
 
-  const words = state === 'waiting' ? (
+  const words = halted === 'stopping' ? (
+    <span className={s.wait}>{t('work.stop.stopping')}</span>
+  ) : haltWord ? (
+    rowId ? (
+      <button type="button" className={s.wait} onClick={() => goToRow(rowId)}>
+        {haltWord}
+        <span className="sr-only">{t('today.toRow')}</span>
+      </button>
+    ) : <span className={s.wait}>{haltWord}</span>
+  ) : state === 'waiting' ? (
     rowId ? (
       <button type="button" className={s.wait} onClick={() => goToRow(rowId)}>
         {t('run.waiting')}
@@ -96,6 +114,9 @@ function WorkRow({ run, detail, rowId, goToRow }: { run: RunSummary; detail: Run
         </span>
       )}
       end={state === 'waiting' ? undefined : run.elapsed}
-    />
+      actions={stop.button}
+    >
+      {stop.shown ? stop.panel : undefined}
+    </Row>
   );
 }

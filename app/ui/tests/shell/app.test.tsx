@@ -18,16 +18,16 @@ function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 
 describe('shell', () => {
-  it('shows the rail with the business, six places and the needs-you count, and says the data is a sample', async () => {
+  it('shows the rail with the business, seven places (W4 4C2 added Chats) and the needs-you count, and says the data is a sample', async () => {
     start();
     const nav = screen.getByRole('navigation', { name: 'Places' });
     await waitFor(() => expect(within(nav).getByText('Lumen Studio')).toBeTruthy());
     expect(within(nav).getByText('YouTube channel')).toBeTruthy();
     const [brand, ...links] = within(nav).getAllByRole('link');
     expect(brand!.getAttribute('href')).toBe('#/today');
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
-    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today12, 12 need you$/));
+    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today13, 13 need you$/));
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');
   });
 
@@ -78,6 +78,9 @@ describe('shell', () => {
 
   it('decides a row on Today against the engine and shrinks it to its receipt line', async () => {
     start();
+    // The question waits behind the fold of the five most urgent cards (4Z3).
+    const more = await screen.findByRole('button', { name: /^Show [0-9]+ more$/ }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(more); });
     const row = (await screen.findByText('Which title for episode 15?')).closest<HTMLElement>('[data-row]')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Later' })); });
     await waitFor(() => expect(screen.getByText(/Moved to later/)).toBeTruthy());

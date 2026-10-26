@@ -1,0 +1,42 @@
+/* A connector's setup guide in its sheet: the engine's numbered steps as plain lines (the engine numbers them), then one
+   line each for the step people skip, the charges, the access check, what it sends and the agents' limits. */
+
+.steps {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg);
+}
+
+.line {
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.label {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.missing {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.missing > svg {
+  flex: none;
+  color: var(--wait);
+}
+
+.ladder {
+  font-size: var(--text-label);
+  color: var(--fg2);
+}

@@ -16,6 +16,14 @@
   margin-top: var(--sp-3);
 }
 
+/* W4 4J19: Approve several and Sort, quiet, under the chips. */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
 /* Every card in one grid of twelve columns, each spanning by its layout (ApprovalRow's data-layout): two big cards
    across the 984 px page and four compact ones (D's `.cards` and `.quick`). Fewer across when the page is narrower,
    which the today container (Today.module.css) measures, so an open sheet beside the page counts too. */
@@ -58,29 +66,10 @@
   }
 }
 
-/* The fold: the front tile with two sheets peeking out under it, so it reads as a short stack of cards. */
+/* The fold: one plain tile (4Z2: the sheets that peeked out under it read as a stray sliver). */
 .more {
   position: relative;
   margin-top: var(--sp-4);
-  padding-bottom: var(--sp-3);
-}
-
-.sheet {
-  position: absolute;
-  bottom: 0;
-  left: var(--sp-7);
-  right: var(--sp-7);
-  height: 40px;
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-tile);
-  background: var(--inner);
-}
-
-.sheet + .sheet {
-  bottom: var(--sp-1);
-  left: var(--sp-4);
-  right: var(--sp-4);
-  background: var(--surface);
 }
 
 .front {
@@ -95,13 +84,6 @@
   border-radius: var(--r-tile);
   background: var(--surface);
   box-shadow: var(--shadow-tile);
-}
-
-/* Who the folded cards are from, side by side (D's `.stack` overlaps them; at 32 px that hides the initials). */
-.stack {
-  display: flex;
-  flex: none;
-  gap: var(--sp-1);
 }
 
 .moreText {

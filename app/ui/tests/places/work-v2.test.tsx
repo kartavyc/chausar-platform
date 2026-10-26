@@ -7,7 +7,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { DeliveryLite, MethodName, QueueRow, RunDetail, RunSummary } from '../../src/engine/types';
 import s from '../../src/places/work/Work.module.css';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /*
  * Work in the direction D look (w3 package 3E1, docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): filter
@@ -163,7 +163,7 @@ describe('Work v2: running now', () => {
     const producer = await tileOf('Pricing the sponsor slot', running);
     expect(within(producer).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     expect(producer.querySelector('[data-state="waiting"]')?.textContent).toBe('PR');
-    expect((await within(producer).findByText('Step 3 of 3 waits on you')).className).toMatch(/wait/);
+    expect((await within(producer).findByText('2 of 3 done, waits on you')).className).toMatch(/wait/);
     expect(within(producer).getByText('The sponsor wants to see the video before it goes up. Share a private preview link with them?')).toBeTruthy();
     const answer = within(producer).getByRole('button', { name: 'Answer' });
     expect(answer.getAttribute('data-variant')).toBe('primary');
@@ -185,7 +185,7 @@ describe('Work v2: running now', () => {
     });
     const running = await screen.findByRole('region', { name: 'Running now' });
     const producer = await tileOf('Pricing the sponsor slot', running);
-    expect(await within(producer).findByText('Step 3 of 3 waits on you')).toBeTruthy();
+    expect(await within(producer).findByText('2 of 3 done, waits on you')).toBeTruthy();
     expect(within(producer).queryByRole('button', { name: 'Answer' })).toBeNull();
     const open = within(producer).getByRole('button', { name: 'Open' });
     expect(open.getAttribute('data-variant')).not.toBe('primary');
@@ -193,17 +193,21 @@ describe('Work v2: running now', () => {
     expect(window.location.hash).toBe('#/work?sheet=run%3A29');
   });
 
-  it('the section head counts what runs and what failed, as D does', async () => {
+  it('the section head leaves the counts to the sub line, which already says them (W4 4F3 review)', async () => {
     await start();
     const running = await screen.findByRole('region', { name: 'Running now' });
-    await waitFor(() => expect(within(running).getByText('3 running · 1 failed')).toBeTruthy());
+    await settle();
+    expect(within(running).queryByText('3 running · 1 failed')).toBeNull();
+    expect(screen.getByText(/runs going and 1 failed\./)).toBeTruthy();
   });
 
-  it('offers no Stop, Force stop or Resume until the engine has run controls (W4 4F)', async () => {
+  it('offers Stop on each running tile now that the engine has run controls (W4 4F3); Force stop and Resume wait until asked', async () => {
     await start();
-    await screen.findByRole('region', { name: 'Running now' });
+    const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
-    for (const name of [/^Stop( run|$)/, /^Force stop/, /^Resume/]) expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(within(running).getAllByRole('button', { name: /^Stop run \d+$/ }).length).toBe(3);
+    // Force stop sits behind Stop, and Resume only on a stopped run: nothing is stopped at rest.
+    for (const name of [/^Force stop/, /^Resume/]) expect(screen.queryByRole('button', { name })).toBeNull();
   });
 });
 
@@ -216,10 +220,11 @@ describe('Work v2: the failed run', () => {
     expect(await within(stopped).findByText('Failed at step 2 of 3')).toBeTruthy();
     expect(within(stopped).getByText('Editor · Lumen Studio · run 28 · 40s')).toBeTruthy();
     expect(within(stopped).getByText('What went wrong')).toBeTruthy();
-    expect(within(stopped).getByText('The renderer stopped: ffmpeg was not found on this computer. Install ffmpeg, or turn off the finishing check, then run again.')).toBeTruthy();
+    expect(within(stopped).getByText('The renderer stopped: ffmpeg was not found on this computer.')).toBeTruthy();
     const steps = within(stopped).getByRole('list', { name: 'Steps' });
     expect(within(steps).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))).toEqual(['done', 'failed', 'pending']);
-    expect(within(stopped).queryByRole('button', { name: 'How to fix it' })).toBeNull();
+    // W4 4F3: the engine's fix for a missing ffmpeg (fixOf), one step away.
+    expect(within(stopped).getByRole('button', { name: 'How to fix it' }).getAttribute('data-variant')).not.toBe('primary');
     const again = within(stopped).getByRole('button', { name: 'Run again' });
     expect(again.getAttribute('data-variant')).toBe('primary');
     assertInkRules();
@@ -295,7 +300,7 @@ describe('Work v2: finished', () => {
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
-    expect(within(books).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     expect(within(books).getByText('Worked for 4m')).toBeTruthy();
     const reach = await tileOf('Estimated reach for episode 14', finished);
     // The model's words sit inside the estimate itself, so they read as labelled wherever they stand.
@@ -334,7 +339,7 @@ describe('Work v2: orders by client', () => {
     expect(within(boat).getByText(/^Client since 2 Sept? · 2 orders$/)).toBeTruthy();
     const owes = within(boat).getByText('Owes you').parentElement!;
     const owed = within(owes).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
-    expect(within(owed).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(owed).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     await click(within(boat).getByRole('button', { name: 'Boat Audio' }));
     expect(window.location.hash).toBe('#/work?sheet=client%3Ac-boat');
     expect(await screen.findByRole('complementary', { name: 'Boat Audio' })).toBeTruthy();
@@ -348,7 +353,7 @@ describe('Work v2: orders by client', () => {
     await waitFor(() => expect(ep14.textContent).toContain('Draft ready. Read it before it goes to the client.'));
     expect(within(ep14).getByText('Ready for you to read')).toBeTruthy();
     expect(within(ep14).getByText(/^Ordered 20 Oct/)).toBeTruthy();
-    expect(within(ep14).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(ep14).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     expect(within(ep14).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
     const ep12 = await tileOf('Two mentions in episode 12', orders);
     await waitFor(() => expect(ep12.textContent).toContain('Invoiced as INV-0039. Waiting for payment.'));
@@ -357,10 +362,11 @@ describe('Work v2: orders by client', () => {
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).
     const total = within(ep12).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
-    expect(within(total).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
-    expect(within(ep12).getAllByRole('button', { name: 'Receipt R-0416' })).toHaveLength(2);
+    expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
+    expect(within(ep12).getAllByRole('button', { name: receiptMark('R-0416') })).toHaveLength(2);
     expect(within(ep12).queryByRole('link', { name: 'Open on Today' })).toBeNull();
-    expect(within(orders).queryByRole('list', { name: /Steps for/ })).toBeNull();
+    // W4 4J19 flips wave 3's "no steps yet": each order draws the engine's stage steps (4J3).
+    expect(within(ep12).getByRole('list', { name: 'Steps for this order' })).toBeTruthy();
     assertInkRules();
   });
 });

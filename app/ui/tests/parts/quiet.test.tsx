@@ -1,31 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Receipt } from '../../src/parts/Receipt';
 import { ApprovalRow } from '../../src/parts/ApprovalRow';
 import type { QueueRow } from '../../src/engine/types';
 import { kindLine } from '../../src/shell/BusinessMenu';
 
-describe('Receipt reads quietly', () => {
-  it('shows a short reference as itself', () => {
-    render(<Receipt id="R-0412" onOpen={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Receipt R-0412' }).textContent).toBe('R-0412');
-  });
-
-  it('shows a long engine id as the word, keeps the whole id for the screen reader, and opens it', () => {
+describe('Receipt reads quietly (4Z3: a small mark, not the code)', () => {
+  it('shows the receipt mark only, never its code, whether the id is short or long; the code stays for the sheet', () => {
     const onOpen = vi.fn();
     const id = 'sum_1792ea30-606a-4150-91e9-e30c0a428d4c';
-    render(<Receipt id={id} onOpen={onOpen} />);
-    const button = screen.getByRole('button', { name: `Receipt ${id}` });
-    expect(button.textContent).toBe('receipt');
-    fireEvent.click(button);
+    render(<><Receipt id="R-0412" amount="₹1,12,400" onOpen={onOpen} /><Receipt id={id} onOpen={onOpen} /></>);
+    const short = screen.getByRole('button', { name: 'Receipt for ₹1,12,400' });
+    expect(short.textContent).toBe('');
+    expect(short.dataset.receipt).toBe('R-0412');
+    expect(short.querySelector('svg.lucide-receipt-text')!.getAttribute('aria-hidden')).toBe('true');
+    const long = screen.getByRole('button', { name: 'Receipt' });
+    expect(long.textContent).toBe('');
+    fireEvent.click(long);
     expect(onOpen).toHaveBeenCalledWith(id);
   });
 
-  it('keeps the receipt icon on a long id too, and the word is not set in mono', () => {
-    render(<Receipt id="sum_1792ea30-606a-4150-91e9-e30c0a428d4c" onOpen={vi.fn()} />);
-    const button = screen.getByRole('button', { name: /^Receipt sum_/ });
-    expect(button.querySelector('svg.lucide-receipt-text')).not.toBeNull();
-    expect(button.classList.contains('mono')).toBe(false);
+  it('is quiet: no chip edge or ground, the muted ink at rest and the link colour on hover', () => {
+    const css = readFileSync(join(import.meta.dirname, '../../src/parts/Receipt.module.css'), 'utf8');
+    const rest = /\.receipt\s*\{([^}]*)\}/g;
+    const blocks = [...css.matchAll(rest)].map((m) => m[1]).join(' ');
+    expect(blocks).toMatch(/border:\s*0/);
+    expect(blocks).toMatch(/background:\s*none/);
+    expect(blocks).toMatch(/color:\s*var\(--mute\)/);
+    expect(css).toMatch(/\.receipt:hover\s*\{[^}]*color:\s*var\(--link\)/);
   });
 });
 

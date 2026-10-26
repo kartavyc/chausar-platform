@@ -103,6 +103,54 @@
   margin-top: var(--sp-3);
 }
 
+/* W4 4I2: "of" the month's goal and the percent, under the invoiced figure (D-Money's `.mt` with `.of` and `.pct`). */
+.goalOf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.goalPercent {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-tile);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+/* Days left, in a pill at the end of the label line (D-Money's `.m-lab .pill`). */
+.tilePill {
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  border: var(--hair) solid var(--line);
+  font-size: var(--text-label);
+  line-height: 20px;
+  color: var(--fg2);
+  white-space: nowrap;
+}
+
+/* Under the bar: ready to issue, ahead or behind pace, past the goal by (D-Money's `.mt .ft`). */
+.goalFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.goalFootItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}
+
 .tileFoot {
   display: flex;
   align-items: center;
@@ -770,6 +818,13 @@
 
 .fieldLabel {
   font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* 4Z3: a select's hint, as the Field part's (D's `.hint`). */
+.fieldHint {
+  font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--mute);
 }
 

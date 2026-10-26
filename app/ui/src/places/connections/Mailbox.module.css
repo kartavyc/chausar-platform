@@ -1,0 +1,56 @@
+/* Connections, the mailbox and calendar address cards (W4 4E4): the honest Reads label, the engine's line, and the
+   form whose secret field never outlives the click. Colour only for state. Spacing on tokens only. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.quiet,
+.said,
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.said {
+  color: var(--fg);
+}
+
+.problem {
+  color: var(--fail);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ask p {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg);
+}

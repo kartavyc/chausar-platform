@@ -1,0 +1,12 @@
+/* W4 4J19: Business > Decisions. Who decided sits in the row's small grey eyebrow; a saved rule or a timeout reads in
+   the body face like the owner's own, the words saying which. */
+
+.who {
+  color: var(--mute);
+}
+
+.who[data-who='saved-rule'],
+.who[data-who='timeout'] {
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}

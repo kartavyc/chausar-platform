@@ -1,0 +1,19 @@
+/* The business menu's second ask for Pause all and Stop all (W4 4F3): its words, Not now, and the action again. */
+
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+
+.askLine {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.askActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}

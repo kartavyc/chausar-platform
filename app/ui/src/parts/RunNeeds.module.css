@@ -1,0 +1,41 @@
+/* RunNeeds: the run sheet's "3 things need you" banner, on the waiting ground (D's wait tone, the owner's next step),
+   with its words in the strong wait ink for contrast. */
+
+.needs {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.head {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--wait-strong);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.jumps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.decide {
+  margin-left: auto;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+}
+
+.decide:hover {
+  color: var(--link-hover);
+}

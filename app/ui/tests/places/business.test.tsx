@@ -4,6 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList } from '../../src/engine/types';
 import { lineDiff } from '../../src/places/business/SiteEdits';
+import { receiptMark } from '../helpers/ink-rules';
 
 type Bridged = Window & { chausar?: unknown };
 
@@ -47,7 +48,7 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText('Weekly audio gear reviews on YouTube, cut into shorts, with sponsor slots.')).toBeTruthy();
     const sponsor = await offerRow('Sponsor slot');
     expect(sponsor.textContent).toContain('₹15,000.00');
-    expect(within(sponsor).getByRole('button', { name: 'Receipt R-0408' })).toBeTruthy();
+    expect(within(sponsor).getByRole('button', { name: receiptMark('R-0408') })).toBeTruthy();
     const shorts = await offerRow('Shorts from your long video');
     expect(shorts.textContent).toContain('Price not set');
     expect(within(shorts).getByRole('link', { name: 'Set price' }).getAttribute('href')).toBe('#/business/prices');
@@ -117,7 +118,7 @@ describe('Business: plan and playbook', () => {
     const queue = (await engine.request('venture.queue.list', { scope: 'current' })) as QueueList;
     expect(queue.rows.some((r) => r.viewRef?.kind === 'plan' && r.viewRef.id === 'bp-lumen-3')).toBe(true);
     // A new version has no receipts of its own until it is priced, so the page asks the engine again.
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Receipt R-0/ }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: receiptMark(/^R-0/) }).length).toBeGreaterThan(0));
   });
 
   it('refuses an empty change in words, without asking the engine', async () => {
@@ -204,7 +205,7 @@ describe('Business: prices', () => {
     const gst = await offerRow('GST working');
     await act(async () => { fireEvent.click(within(gst).getByRole('button', { name: 'Work out the price' })); });
     await waitFor(() => expect(gst.textContent).toContain('₹5,000.00'));
-    expect(within(gst).getByRole('button', { name: /^Receipt R-0\d{3}$/ })).toBeTruthy();
+    expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
   it('sets a price as typed; the engine prices it with a receipt and the change waits on Today, asking twice', async () => {
@@ -447,12 +448,15 @@ describe('Business menu', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
 
-  it('leads to plan and playbook, prices, website build, practice and a new business', async () => {
+  it('leads to plan and playbook, prices, goals, website build, practice, notifications and a new business', async () => {
     start('#/today');
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
-    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding']]);
+    // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
+    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(hrefs).toHaveLength(10);
+    expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
   it('speaks Hindi on the business pages', async () => {
@@ -604,7 +608,9 @@ describe('Business: your CA (CA firm playbook)', () => {
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
     await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/build', '#/business/practice', '#/business/ca', '#/business/keep', '#/onboarding']);
+    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
+    expect(hrefs).toHaveLength(11);
+    expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 });
 

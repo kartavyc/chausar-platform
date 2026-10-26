@@ -1,0 +1,50 @@
+/* "Ask Chausar anything" (W4 4C2): D's `button.ask` in the page header, drawn as a box to type in. The sparkles mark,
+   the words, then the keys in DM Mono on a small chip. It gives way before the page title does. */
+
+.ask {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-5) / 2);
+  flex: 0 1 300px;
+  min-width: 0;
+  height: var(--target);
+  padding: 0 var(--sp-2) 0 var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button-lg);
+  background: var(--surface);
+  color: var(--fg2);
+}
+
+.ask:focus-within {
+  border-color: var(--fg);
+}
+
+.icon {
+  flex: none;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.input::placeholder {
+  color: var(--mute);
+}
+
+.keys {
+  flex: none;
+  padding: 0 var(--sp-1);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  font-size: var(--text-label);
+  line-height: var(--sp-5);
+  color: var(--mute);
+}

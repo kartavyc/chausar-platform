@@ -17,23 +17,14 @@
     grid-column: 1 / -1;
   }
 
+  /* Two to a row, D-Phone-Team's 2x2: the spend's figure and words wrap inside its half (they never spill). */
   .page .stats > [data-span] {
     grid-column: span 6;
   }
-
-  /* The two counts share a row; the spend, a figure that may be long, takes a row of its own. */
-  .page .stats > .spendTile {
-    grid-column: 1 / -1;
-  }
 }
 
-/* A phone-wide page: every stat tile, and every stat box of one department, on its own row, so a long figure is
-   never cut or spilled (3B1b's rule). */
+/* A phone-wide page: every stat box of one department on its own row, so a long figure is never cut or spilled. */
 @container team (max-width: 439px) {
-  .page .stats > [data-span] {
-    grid-column: 1 / -1;
-  }
-
   .one .heroStat {
     flex: 1 1 100%;
   }
@@ -633,8 +624,15 @@
   color: var(--fg2);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
+  white-space: nowrap; /* W4 4J22b: five tabs in one row (D-TeamChat), each on one line. */
   cursor: pointer;
   transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+
+@media (max-width: 759px) {
+  .tab {
+    padding: 0 var(--sp-2);
+  }
 }
 
 .tab:hover {
@@ -652,8 +650,10 @@
   outline-offset: 2px;
 }
 
+/* One column that may shrink below its content (4Z walk), so a scroll bar in the sheet never pushes it sideways. */
 .tabPanel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-6);
 }
 
@@ -857,4 +857,189 @@
   .tab {
     min-height: var(--target);
   }
+}
+
+/* W4 4A2: a department panel's head is its icon, name and jobs, which fit on one line at any panel width; the spend,
+   with the rupees beside it, takes the line under them. */
+.deptHead > .deptStat {
+  margin-left: auto;
+}
+
+.deptSpend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.deptFigure {
+  min-width: 0;
+}
+
+/* W4 4A2: "Add an agent" beside the department toggle (D-Team's outline button), the held line under a spend, the
+   team's own health above the departments, an agent's health on its card, and Keeper's jobs. Amber words use
+   --wait-strong, which holds on white, the inner grey and a department tint alike. */
+
+.addAgent {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control);
+  padding: 0 var(--sp-4);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* A narrow page: the department chips keep the whole row, and "Add an agent" goes under them. */
+@container team (max-width: 759px) {
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .toolbar > :first-child {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+.addAgent:hover {
+  background: var(--hover);
+}
+
+.addAgent:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.held {
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.heroHeld,
+.statHeld {
+  margin-top: var(--sp-1);
+}
+
+.helps {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.teamHealth {
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--fail-line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.health {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.healthLine {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.healthReason {
+  vertical-align: middle;
+}
+
+.healthAsk {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.healthQuestion {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.healthButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.now[data-tone='wait'] {
+  color: var(--wait-strong);
+}
+
+.keeperFold {
+  margin-top: var(--sp-3);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.keeperSee {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.keeperSee {
+  width: fit-content;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  cursor: pointer;
+}
+
+.keeperSee:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.jobs {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  min-width: 0;
+}
+
+.jobHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.jobName {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.jobLine {
+  margin-top: var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
 }
