@@ -32,22 +32,36 @@ const RECEIPTED = {
 /** Every place and sub-page at rest, by the address an owner opens. */
 const PLACES: { id: string; hash: string; receipted?: boolean }[] = [
   { id: 'today', hash: '#/today' },
+  // W4 4C2: Chats, a new chat beside the list.
+  { id: 'chats', hash: '#/chats' },
   { id: 'team', hash: '#/team' },
   { id: 'work', hash: '#/work' },
   { id: 'clients', hash: '#/clients' },
   { id: 'clients/pipeline', hash: '#/clients/pipeline' },
+  { id: 'clients/network', hash: '#/clients/network' },
   { id: 'money', hash: '#/money', receipted: true },
   { id: 'money/invoices', hash: '#/money/invoices' },
   { id: 'money/books', hash: '#/money/books' },
   { id: 'money/spend', hash: '#/money/spend' },
   { id: 'money/journal', hash: '#/money/journal' },
+  // W4 4J20: Money's new pages (their numbers are set at integration).
+  { id: 'money/bills', hash: '#/money/bills' },
+  { id: 'money/margins', hash: '#/money/margins' },
+  { id: 'money/businesses', hash: '#/money/businesses' },
   { id: 'connections', hash: '#/connections' },
   { id: 'connections/ai', hash: '#/connections/ai' },
   { id: 'business/plan', hash: '#/business/plan' },
   { id: 'business/prices', hash: '#/business/prices' },
+  { id: 'business/goals', hash: '#/business/goals' },
   { id: 'business/build', hash: '#/business/build' },
   { id: 'business/keep', hash: '#/business/keep' },
   { id: 'onboarding', hash: '#/onboarding' },
+  // W4 4G4: the approval page and Business > Notifications (their numbers are set at integration).
+  { id: 'approve', hash: '#/approve/next' },
+  { id: 'business/notifications', hash: '#/business/notifications' },
+  // W4 4J22a: Practice with drills, what the loop tried and the guidance report; Routines (numbers set at integration).
+  { id: 'business/practice', hash: '#/business/practice' },
+  { id: 'business/routines', hash: '#/business/routines' },
 ];
 
 const LOADING = /^Loading$/;
@@ -80,18 +94,32 @@ async function open(place: (typeof PLACES)[number]) {
 }
 
 /** The words a reader sees, one per run of text, so "Money" and "Overview" in two elements count as two. Screen-reader
- *  only text, hidden elements and what a closed fold holds (all but its summary) are not seen, so they do not count. */
+ *  only text, hidden elements, what a closed fold holds (all but its summary), a chart's hover tips and a closed list's
+ *  other choices are not seen, so they do not count. */
 function words(root: Element): string[] {
   const out: string[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
-    if (!parent || parent.closest('.sr-only, [hidden], script, style')) continue;
-    const fold = parent.closest('details');
-    if (fold && !fold.open && !parent.closest('summary')) continue;
+    // 4J20: a chart's hover tip (an SVG title) and a closed list's other choices are not seen at rest either.
+    if (!parent || parent.closest('.sr-only, [hidden], script, style, title')) continue;
+    const option = parent.closest('option');
+    if (option && !option.selected) continue;
+    if (closedAround(parent)) continue;
     out.push(...(node.textContent ?? '').split(/\s+/).filter(Boolean));
   }
   return out;
+}
+
+/** True when a closed fold hides this element. Every fold around it counts, not only the nearest, so a fold's own
+ *  summary inside another closed fold is not seen. */
+function closedAround(element: Element): boolean {
+  const summary = element.closest('summary');
+  for (let fold = element.closest('details'); fold; fold = fold.parentElement?.closest('details') ?? null) {
+    const inOwnSummary = summary !== null && summary.parentElement === fold;
+    if (!fold.open && !inOwnSummary) return true;
+  }
+  return false;
 }
 
 const roundUp = (n: number) => Math.ceil(n / 10) * 10;

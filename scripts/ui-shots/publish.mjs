@@ -6,7 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listedMd } from './accepted.mjs';
-import { BOARDS, FIXED, LISTED } from './boards.mjs';
+import { BOARDS, FIXED, LISTED, WAVE4_FIRST_WALK } from './boards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DESIGNS = join(ROOT, 'docs/superpowers/designs/ink-v2-direction-d');
@@ -114,7 +114,7 @@ export function publish(out, cases, report) {
 function sideBySide(copied) {
   const body = [
     '<h1>Direction D beside the app</h1>',
-    '<p class="lead">Each direction D board on the left, the app on the right, as wave 3 left it: the fake engine of <code>npm run dev:ui</code>, 1280 wide, light theme (the phone boards at 390). Boards are cut at 1100 px tall; the app shots hold the whole page, so scroll inside a frame to see the rest. Where the app shows less than the board, the board drew data the engine does not send yet; each section says what waits for wave 4.</p>',
+    '<p class="lead">Each direction D board on the left, the app on the right, as wave 4 leaves it: the fake engine of <code>npm run dev:ui</code>, 1280 wide, light theme (the phone boards at 390), with the data the engine now sends. Boards are cut at 1100 px tall; the app shots hold the whole page, so scroll inside a frame to see the rest. Each section says what matches, what differs and why, and what is still to come.</p>',
     `<nav class="toc" aria-label="Boards">${BOARDS.map((b) => `<a href="#${esc(b.board)}">${esc(b.title)}</a>`).join('')}</nav>`,
   ];
   for (const b of BOARDS) {
@@ -123,8 +123,8 @@ function sideBySide(copied) {
     const extra = b.cases.slice(1).map((id) => shotName(id, width, 'light')).filter((n) => copied.has(n));
     body.push(`<section class="board" id="${esc(b.board)}">`);
     body.push(`<div class="head"><h2>${esc(b.title)}</h2><code>${esc(b.address)}</code></div>`);
-    body.push(`<div class="notes"><div><h3>Matches</h3>${list(b.matches)}</div><div><h3>Differs, and why</h3>${list(b.differs)}</div><div><h3>Waits for wave 4</h3>${list(b.waits)}</div></div>`);
-    const shot = copied.has(main) ? frame(`walk/${main}`, `${b.title} in the app`, `The app, ${width}, light`) : frame('', 'No screen in the app yet: the parts wait for wave 4 data.', 'The app');
+    body.push(`<div class="notes"><div><h3>Matches</h3>${list(b.matches)}</div><div><h3>Differs, and why</h3>${list(b.differs)}</div><div><h3>Still to come</h3>${list(b.waits.length ? b.waits : ['Nothing on this board.'])}</div></div>`);
+    const shot = copied.has(main) ? frame(`walk/${main}`, `${b.title} in the app`, `The app, ${width}, light`) : frame('', 'No screen in the app for this board.', 'The app');
     body.push(`<div class="pair${b.phone ? ' phone' : ''}">${frame(`shots/${b.board}.png`, `${b.board} board`, `${b.board}, the board`)}${shot}</div>`);
     for (const name of extra) body.push(`<div class="pair${b.phone ? ' phone' : ''}"><div></div>${frame(`walk/${name}`, `${name}`, name.replace('.png', ''))}</div>`);
     const phoneShot = !b.phone && b.cases[0] ? shotName(b.cases[0], 390, 'light') : '';
@@ -132,18 +132,18 @@ function sideBySide(copied) {
     body.push('</section>');
   }
   body.push('<section class="board" id="findings"><div class="head"><h2>What the walk fixed, and what it lists</h2></div>');
-  body.push(`<div class="notes"><div><h3>Fixed</h3>${list(FIXED.map(plain))}</div><div><h3>Listed for you or wave 4</h3>${list(LISTED.map(plain))}</div></div>`);
+  body.push(`<div class="notes"><div><h3>Fixed</h3>${list(FIXED.map(plain))}</div><div><h3>Listed for you or the integrator</h3>${list(LISTED.map(plain))}</div></div>`);
   body.push('<p class="lead">The full table, the checks and the word baselines are in WALK.md beside this page.</p></section>');
   return page('Direction D beside the app', body.join('\n'));
 }
 
 function walkMd(report) {
   const lines = [
-    '# The wave 3 walk, board by board',
+    '# The walk, board by board (waves 3 and 4)',
     '',
-    'Written by `node scripts/ui-shots/walk.mjs --publish` (package 3I) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what waits for wave 4. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes and in Hindi, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts with the data W4 brings, as sample props, never built into the app.',
+    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes and in Hindi, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
     '',
-    '| Board | Address | What matches | What differs, and why | What waits for W4 |',
+    '| Board | Address | What matches | What differs, and why | Still to come |',
     '|---|---|---|---|---|',
   ];
   const cell = (items) => items.map((i) => i.replace(/\|/g, '\\|')).join('<br>');
@@ -163,6 +163,9 @@ function walkMd(report) {
   lines.push(`- No sideways scroll, no text key on screen, no em dash, no console error, and in Hindi every count in the body face: ${shots.filter((r) => !r.problems.length).length} of ${shots.length} shots clean.`);
   if (unsure) lines.push(`- axe could not decide the contrast of ${unsure} text nodes (white text on the video previews, text over gradients, boxes that overlap): they were looked at in the shots; the preview text is white on the theme-invariant preview ground, over 10:1 by the token table.`);
 
+  lines.push('', '## Wave 4', '');
+  lines.push(`Package 4Z walked every wave 4 address and opened state with the rest. The first walk: ${WAVE4_FIRST_WALK.checks} checks, ${WAVE4_FIRST_WALK.failed} failed, ${WAVE4_FIRST_WALK.axe} axe violations:`, '', ...WAVE4_FIRST_WALK.why.map((w) => `- ${w}`), '');
+  lines.push(`The last walk: ${report.jobs} checks over ${report.cases} cases, ${report.failed} failed, ${listed} listed as accepted (${shots.length} shots, ${hindi} of them in Hindi at 390 chosen by the computer's languages, and ${focus.length} focus checks). Every wave 4 flow was also walked by hand in the running fake app; what that found is in "Fixed during the walk" and "Listed, not fixed" below, marked Wave 4.`);
   lines.push('', '## Fixed during the walk', '', ...FIXED.map((f) => `- ${f}`));
   lines.push('', '## Listed, not fixed', '', 'From the shots and an unprimed review of them (catalogue Q24: a fresh reviewer given only the shots and the boards).', '', ...LISTED.map((f) => `- ${f}`));
   const accepted = listedMd(report).filter((l) => l.startsWith('- '));
@@ -178,7 +181,7 @@ function walkMd(report) {
   }
 
   const words = JSON.parse(readFileSync(join(ROOT, 'app/ui/tests/baselines/words.json'), 'utf8'));
-  lines.push('', '## Word baselines, for the founder to confirm', '', 'Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page\'s sub line is at most 20 words and every approval card\'s own copy at most 12.', '', '| Place | Words at rest |', '|---|---|');
+  lines.push('', '## Word baselines, for the founder to confirm', '', 'Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page\'s sub line is at most 20 words and every approval card\'s own copy at most 12. The numbers below are the file as it stands; the integrator settles the wave 4 places from the measures before the wave 4 PR.', '', '| Place | Words at rest |', '|---|---|');
   for (const [place, n] of Object.entries(words.budgets)) lines.push(`| ${place} | ${n} |`);
   return `${lines.join('\n')}\n`;
 }
