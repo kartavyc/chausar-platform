@@ -11,6 +11,7 @@ export const INK_ROOT = fileURLToPath(new URL('../../app/ui/dist/', import.meta.
 export const INK_TYPES: Readonly<Record<string, string>> = Object.freeze({
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json',
+  '.png': 'image/png', '.webmanifest': 'application/manifest+json',
 });
 
 /** The Ink allowlist: every regular file under the dist folder with a known type, listed once when a server starts. */
@@ -20,7 +21,7 @@ export async function listInkFiles(folder = INK_ROOT): Promise<Record<string, st
     for (const entry of await readdir(at, { withFileTypes: true })) {
       const name = prefix + entry.name;
       if (entry.isDirectory()) await walk(join(at, entry.name), `${name}/`);
-      else if (entry.isFile() && /^[A-Za-z0-9._/-]+\.(html|js|css|svg|woff2|txt|json)$/.test(name)) found[`/${name}`] = name;
+      else if (entry.isFile() && /^[A-Za-z0-9._/-]+\.(html|js|css|svg|woff2|txt|json|png|webmanifest)$/.test(name)) found[`/${name}`] = name;
     }
   }
   const notBuilt = 'The Ink app is not built. Run npm run build:ui, then start the server again.';

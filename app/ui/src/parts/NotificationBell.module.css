@@ -1,0 +1,43 @@
+/* NotificationBell: D's `.ib` with `.dot` (page header) and `.tib` (phone top bar). The dot is the failed-ring red
+   with a ring of the ground it sits on; it says only that something is new. */
+
+.bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease);
+}
+
+.bell:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.bell[data-look='bare'] {
+  border-color: transparent;
+  background: none;
+}
+
+.dot {
+  position: absolute;
+  top: calc(var(--sp-5) / 2);
+  right: var(--sp-3);
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--fail-ring);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.bell[data-look='bare'] .dot {
+  box-shadow: 0 0 0 2px var(--bg);
+}

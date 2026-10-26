@@ -20,6 +20,14 @@
     'rail main sheet';
 }
 
+/* The agent panel beside Team (3D, the founder's 440 px): when the open sheet is the panel, its column is the panel's
+   width. Wide windows only; below 1100 px the sheet lies over the page as every sheet does. */
+@media (min-width: 1100px) {
+  .app[data-sheet-open]:has(> .sheet [data-width='panel']) {
+    grid-template-columns: var(--rail) minmax(0, 1fr) var(--panel);
+  }
+}
+
 .skip {
   position: absolute;
   top: var(--sp-2);
@@ -41,8 +49,11 @@
   grid-area: status;
 }
 
-/* While the app checks for a first run, the rail and the place wait out of sight; the status line stays. */
+/* While the app checks for a first run, the rail (or the phone's bars) and the place wait out of sight; the status
+   line stays. */
 .app[data-boot] .rail,
+.app[data-boot] .top,
+.app[data-boot] .tabs,
 .app[data-boot] .main {
   visibility: hidden;
 }
@@ -58,15 +69,17 @@
   grid-area: main;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-10) var(--sp-12);
+  padding: var(--sp-7) var(--gutter) var(--sp-12);
 }
 
 .main:focus {
   outline: none;
 }
 
+/* D's `.wrap`: the page is at most 984 px (twelve columns of the bento grid) and sits in the middle of wider windows. */
 .page {
-  max-width: 880px;
+  max-width: var(--page-max);
+  margin: 0 auto;
 }
 
 .sheet {
@@ -98,26 +111,54 @@
   }
 }
 
-@media (max-width: 759px) {
-  .app,
-  .app[data-sheet-open] {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
-    grid-template-areas:
-      'status'
-      'rail'
-      'main';
-  }
+/* A phone (3H1, D-Phone-Today's frame): the top bar, the page and the bottom tabs, one above the other. The shell
+   sets data-phone from the same 759 px query the stylesheets use (useNarrow) and draws no rail. D's `.pmain` padding:
+   16 px at the sides and top, 24 px at the foot. */
+.app[data-phone],
+.app[data-phone][data-sheet-open] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'status'
+    'top'
+    'main'
+    'tabs';
+}
 
-  .main {
-    padding: var(--sp-6) var(--sp-4);
-  }
+.top {
+  grid-area: top;
+  min-width: 0;
+}
 
-  /* The sheet covers the place on a narrow window; this is the one place a shadow is allowed. */
-  .sheet {
-    grid-area: main;
-    z-index: 2;
-    border-left: 0;
-    box-shadow: 0 -1px 0 var(--line), 0 8px 24px var(--shadow);
-  }
+.tabs {
+  grid-area: tabs;
+  min-width: 0;
+}
+
+.app[data-phone] .main {
+  padding: var(--sp-4) var(--gutter-phone) var(--sp-6);
+}
+
+.app[data-phone] .skip {
+  min-height: var(--target);
+}
+
+/* Every sheet covers the phone under the status line: the top bar, the page and the tabs (the founder's phone
+   layout). The agent panel's 440 px gives way to the whole width. */
+.sheet[data-cover] {
+  grid-row: 2 / -1;
+  grid-column: 1 / -1;
+  z-index: 3;
+  border-left: 0;
+}
+
+.sheet[data-cover] [data-width='panel'] {
+  max-inline-size: none;
+}
+
+/* Native controls no part draws (a fold's summary, a plain select): a full touch target on a phone too. */
+.app[data-phone] summary,
+.app[data-phone] select {
+  min-width: var(--target);
+  min-height: var(--target);
 }

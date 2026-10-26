@@ -1,21 +1,20 @@
-/* The switch and the floor line share one box: same padding, same gap, same least width, words left-aligned. */
-.gate,
-.floor {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: calc(var(--sp-1) * 2 + 28px + var(--sp-2) + 8.5em);
-  min-height: var(--control);
-  padding: 0 var(--sp-1);
-  font-size: var(--text-read);
-}
+/* Gate: D's `.gate` (two words in a bordered pill, the one in force filled with the selected ink) and `.floor` (a
+   lock and "Always asks you" on the waiting ground). D's 12.5 px words become 13. */
 
 .gate {
-  border: 0;
-  background: none;
-  font-size: var(--text-read);
-  color: var(--fg2);
+  display: inline-flex;
+  flex: none;
+  gap: calc(var(--sp-1) / 2);
+  padding: calc(var(--sp-1) * 0.75);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  background: var(--surface);
   cursor: pointer;
+}
+
+.gate:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
 }
 
 .gate:disabled {
@@ -23,47 +22,57 @@
   cursor: default;
 }
 
-.track {
-  position: relative;
-  width: 28px;
-  height: 16px;
-  border-radius: 8px;
-  border: var(--hair) solid var(--edge);
-  background: var(--surface);
-  transition: background-color var(--t-press) var(--ease);
+.option {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 calc(var(--sp-2) + var(--sp-1) / 2);
+  border-radius: calc(var(--r-button) - var(--sp-1) * 0.75);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  color: var(--mute);
+  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
 }
 
-.knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--mute);
-  transition: transform var(--t-press) var(--ease);
+.gate:enabled:hover .option:not([data-on]) {
+  color: var(--fg);
 }
 
-.gate[data-gate='auto'] .track {
-  background: var(--fg);
-  border-color: var(--fg);
-}
-
-.gate[data-gate='auto'] .knob {
-  background: var(--surface);
-  transform: translateX(12px);
-}
-
-.word {
-  min-width: 3em;
-  text-align: left;
+.option[data-on] {
+  background: var(--selected);
+  color: var(--on-selected);
 }
 
 .floor {
-  color: var(--mute);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: calc(var(--sp-1) * 1.5);
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--wait-soft);
+  color: var(--wait);
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.space {
-  flex: none;
-  width: 28px;
+/* Forced colours (Windows contrast themes) drop backgrounds, which would hide which word is in force: keep it as the
+   system highlight. */
+@media (forced-colors: active) {
+  .option[data-on] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+/* A phone (3H1): the switch is a full 44 px touch target; its two words stretch with it. */
+@media (max-width: 759px) {
+  .gate {
+    min-height: var(--target);
+  }
 }

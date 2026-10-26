@@ -1,47 +1,144 @@
+/* Button: D's `.btn` (sizes sm, lg, xl), `.btn.pri` and its locked form, `.btn.ink` and `button.chat`.
+   The accent fills the primary only. D's 12.5, 13.5 and 14.5 px labels snap to the Ink scale (13, 14, 15). */
+
 .button {
-  font: inherit;
-  font-size: var(--text-read);
-  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
   min-height: var(--control);
-  padding: var(--sp-2) 14px;
-  border-radius: var(--radius);
-  border: var(--hair) solid var(--edge);
+  padding: 0 var(--sp-4);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
   background: var(--surface);
   color: var(--fg);
-  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
   white-space: nowrap;
+  cursor: pointer;
   transition: background-color var(--t-press) var(--ease), border-color var(--t-press) var(--ease);
 }
 
-.button:hover:not(:disabled) {
-  background: var(--hover);
+.button[data-size='sm'] {
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button-sm);
+  font-size: var(--text-read);
+}
+
+.button[data-size='lg'] {
+  min-height: var(--target);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-button-lg);
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+.button[data-size='xl'] {
+  min-height: var(--control-xl);
+  padding: 0 var(--sp-5);
+  border-radius: var(--r-button-xl);
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+.button:hover:not(:disabled):not([data-locked]) {
+  background: var(--wash);
 }
 
 .button:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 
+/* The one filled button of a card or row. */
 .primary {
-  background: var(--fg);
-  border-color: var(--fg);
-  color: var(--surface);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: var(--weight-strong);
 }
 
-.primary:hover:not(:disabled) {
+.primary:hover:not(:disabled):not([data-locked]) {
+  background: var(--accent);
+  filter: brightness(0.95);
+}
+
+/* Locked until the owner opens the thing first (aria-disabled, so it stays reachable): at full strength with the
+   lock icon, never changing on hover; the note line beside it says why. The primary keeps its place on the soft
+   accent; any other button goes grey. */
+.button[data-locked] {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.primary[data-locked] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--mute);
+}
+
+.button[data-locked]:not(.primary):not(.quiet) {
+  background: var(--wash);
+  border-color: var(--line);
+  color: var(--mute);
+}
+
+.ink {
+  background: var(--selected);
+  border-color: var(--selected);
+  color: var(--on-selected);
+}
+
+.ink:hover:not(:disabled):not([data-locked]) {
   background: var(--fg2);
   border-color: var(--fg2);
 }
 
-.quiet {
+/* The quiet Chat button beside an agent: D's 32 px, as tall as the 32 px avatar it sits beside. */
+.chat {
+  border-color: var(--line);
+  color: var(--fg2);
+}
+
+.chat[data-size='sm'] {
+  min-height: var(--av-32);
+}
+
+.chat:hover:not(:disabled):not([data-locked]) {
+  background: var(--surface);
+  border-color: var(--edge);
+  color: var(--fg);
+}
+
+/* Reads like a link, at any size. */
+.quiet,
+.quiet[data-size] {
   min-height: auto;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
   color: var(--link);
 }
 
-.quiet:hover:not(:disabled) {
+.quiet:hover:not(:disabled):not([data-locked]) {
   background: none;
+  color: var(--link-hover);
   text-decoration: underline;
+}
+
+/* A phone (3H1): every button is at least the 44 px touch target (founder: big touch targets); sm and md grow to
+   it, lg is it, xl stays 48. A quiet one keeps its link look and takes a tap over the touch area instead. */
+.quiet {
+  composes: hit from './touch.module.css';
+}
+
+@media (max-width: 759px) {
+  .button[data-size='sm']:not(.quiet),
+  .button[data-size='md']:not(.quiet) {
+    min-height: var(--target);
+  }
 }

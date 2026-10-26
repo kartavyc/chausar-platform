@@ -17,3 +17,11 @@
   from { opacity: 0.4; }
   to { opacity: 1; }
 }
+
+/* A swiped card that was not let go far enough returns to rest, once, over --t-settle (SwipeCard.module.css). It
+   starts from --snap-from when something sets it, and without it nothing moves; how the card gets there is 3H1's
+   choice of snap mechanism, and this keyframe may change with it. */
+@keyframes ink-snap {
+  from { transform: translateX(var(--snap-from, 0)); }
+  to { transform: none; }
+}

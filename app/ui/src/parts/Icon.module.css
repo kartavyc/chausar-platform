@@ -1,0 +1,12 @@
+/* Icon: D's `.i`. The stroke and size come from the svg's own attributes; the colour is the text around it. */
+
+.icon {
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+}
+
+.icon[data-filled] {
+  fill: currentColor;
+  stroke: none;
+}

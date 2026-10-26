@@ -68,10 +68,16 @@ describe('ApprovalRow', () => {
     const onDecide = vi.fn(async () => done('Approved'));
     list(<ApprovalRow row={draft} onDecide={onDecide} onView={onView} />);
     const approve = screen.getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
-    expect(approve.disabled).toBe(true);
-    expect(document.getElementById(approve.getAttribute('aria-describedby')!)?.textContent).toBe('Approve unlocks after you open it.');
+    // Ink v2 (3B1a, 3B5a): a locked primary is Button's `locked`, aria-disabled rather than disabled, so it stays in
+    // the Tab order; its description holds the reason among Button's own words.
+    expect(approve.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(approve);
+    expect(onDecide).not.toHaveBeenCalled();
+    const described = approve.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent);
+    expect(described).toContain('Approve unlocks after you open it.');
     fireEvent.click(screen.getByRole('button', { name: 'Watch' }));
     expect(onView).toHaveBeenCalledWith(draft);
+    expect(approve.hasAttribute('aria-disabled')).toBe(false);
     expect(approve.disabled).toBe(false);
     await act(async () => { fireEvent.click(approve); });
     expect(onDecide).toHaveBeenCalledWith(draft, draft.actions[1], { viewed: true });
@@ -79,9 +85,9 @@ describe('ApprovalRow', () => {
 
   it('a controlled viewed flag works the same way', () => {
     const { rerender } = render(<ul><ApprovalRow row={draft} onDecide={vi.fn()} viewed={false} /></ul>);
-    expect((screen.getByRole('button', { name: 'Approve' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Approve' }).getAttribute('aria-disabled')).toBe('true');
     rerender(<ul><ApprovalRow row={draft} onDecide={vi.fn()} viewed /></ul>);
-    expect((screen.getByRole('button', { name: 'Approve' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Approve' }).hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('a stale decision says so, shows the new version and asks again', async () => {

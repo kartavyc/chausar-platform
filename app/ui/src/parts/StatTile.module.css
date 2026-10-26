@@ -1,0 +1,73 @@
+/* StatTile: D-Team's `.stat`, `.s-lab`, `.ldot`, `.s-row`, `.s-val` (`.amber`) and `.s-sub`. D's 12.5 px label snaps
+   to 13. */
+
+.stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+  color: var(--mute);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-chip);
+}
+
+.dot[data-dot='working'] { background: var(--accent); }
+.dot[data-dot='wait'] { background: var(--wait-ring); }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 36px;
+  margin-top: calc(var(--sp-1) * 1.5);
+}
+
+.value {
+  font-size: var(--fig-stat);
+  font-weight: var(--weight-medium);
+  line-height: 36px;
+  letter-spacing: -0.03em;
+}
+
+/* On a phone a stat tile may share a row: the value steps down to the hero size. It never wraps or truncates;
+   the side slot drops under it instead (the row wraps). */
+@media (max-width: 759px) {
+  .value {
+    font-size: var(--fig-hero);
+    line-height: 30px;
+  }
+}
+
+.stat[data-tone='wait'] .value,
+.stat[data-tone='wait'] [data-ui-number] {
+  color: var(--wait);
+}
+
+.side {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/* The sub line wraps (D cut it with an ellipsis): a cut would lose Hindi words or part of a figure. */
+.sub {
+  margin-top: calc(var(--sp-1) / 2);
+  color: var(--mute);
+  font-size: var(--text-label);
+  line-height: 16px;
+}

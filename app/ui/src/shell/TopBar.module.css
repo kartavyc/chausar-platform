@@ -1,0 +1,37 @@
+/* The phone's top bar: D-Phone-Today's `.top` and `.top-mark` (D phone block). D's 32 px mark box becomes the 44 px
+   touch target, so the bar's left padding drops from 16 to 8 px and the mark keeps its place; the bell (`.tib`) and
+   the account button (`.me`) wait for W4. The business button is BusinessMenu's `bar` look (D's `.bizb`). */
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--top-bar);
+  padding: 0 var(--sp-3) 0 var(--sp-2);
+  border-bottom: var(--hair) solid var(--line-soft);
+  background: var(--bg);
+}
+
+.home {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  border-radius: var(--r-button);
+  color: var(--fg);
+}
+
+.home:hover {
+  background: var(--wash);
+}
+
+/* The business button takes what is left and gives way first: a long name is cut, never the bar. */
+.business {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.tabs {
+  display: block;
+}

@@ -1,5 +1,15 @@
+/* RunSheet: the steps on the inner grey (D-TeamDept `.run`), a stopped run's "What went wrong" box (D-Work `.why`,
+   `.why-k`, `.why-t`) with Run again under it, and the run's question on the waiting ground (D-Work `.rt-q`). */
+
 .waiting {
   color: var(--wait);
+}
+
+.run {
+  --ring-ground: var(--inner);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
 }
 
 .fold > summary {
@@ -15,11 +25,37 @@
   color: var(--fg);
 }
 
-.failure {
+.stopped {
   display: grid;
-  gap: var(--sp-3);
-  font-size: var(--text-read);
+  gap: var(--sp-4);
+}
+
+.failure {
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--fail-soft);
+}
+
+.wrongHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-strong);
   color: var(--fail);
+}
+
+.wrongText {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg);
+}
+
+.again {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .failureText {
@@ -30,14 +66,15 @@
 .question {
   display: grid;
   gap: var(--sp-3);
-  padding-top: var(--sp-4);
-  border-top: var(--hair) solid var(--line);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
 }
 
 .small {
   font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
+  font-weight: var(--weight-strong);
+  color: var(--wait);
 }
 
 .ask {
@@ -51,6 +88,11 @@
   gap: var(--sp-2);
 }
 
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.answer {
+  composes: hit from './touch.module.css';
+}
+
 .answer {
   display: grid;
   gap: var(--sp-2);
@@ -59,6 +101,11 @@
 .evidence {
   font-size: var(--text-read);
   color: var(--fg2);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from './touch.module.css';
 }
 
 .link {
