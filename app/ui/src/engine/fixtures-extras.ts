@@ -9,11 +9,12 @@ import type { CaReceiptView, CaView, LeadView, MoneyOverviewLine, SpendPolicyVie
 export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
   lumen: [
     { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
-    { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', receiptId: 'R-0431', estimate: true },
+    // The engine's shape (money/overview.ts): US dollars as providers bill, the rupees beside at the owner's rate (4A2 review).
+    { id: 'spent', label: 'AI and tools this month', value: 'USD 0.7198 (includes estimates)', receiptId: 'R-0431', estimate: true, rupees: '₹60.10 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
   ledgerline: [
     { id: 'received', label: 'Came in this month', value: '₹0.00', receiptId: 'R-0402' },
-    { id: 'spent', label: 'AI and tools this month', value: '₹33.50', receiptId: 'R-0412' },
+    { id: 'spent', label: 'AI and tools this month', value: 'USD 0.4012', receiptId: 'R-0412', rupees: '₹33.50 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
 };
 
@@ -49,11 +50,15 @@ export const TAX_WORKINGS: Record<string, TaxWorking> = {
   },
 };
 
-/** The owner's spend settings. Lumen has a monthly limit and an ask-first figure; Ledgerline has neither. */
+/**
+ * The owner's spend settings. Lumen has a monthly limit and an ask-first figure; Ledgerline has neither. Both have the
+ * owner's own rupee rate, ₹83.50 per $1 set 15 Oct 2026 (4Z3): the rate the sample's spend views show rupees at.
+ */
 export const SPEND_POLICIES: Record<string, SpendPolicyView> = {
   lumen: {
-    capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: 'USD 20.0000 a month', askFirst: 'Asks you first above USD 2.0000', setAt: '2026-10-14T10:00:00.000Z',
-    inrPerUsd: null, rupeeRate: null,
+    capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: 'USD 20.0000 a month', askFirst: 'Asks you first above USD 2.0000', setAt: '2026-10-15T10:00:00.000Z',
+    // USD 20 and USD 2 at 83.50: ₹1,670.00 and ₹167.00.
+    inrPerUsd: '83.50', rupeeRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)', capRupees: '₹1,670.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)', askFirstRupees: '₹167.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)',
     rates: [
       {
         item: 'model:anthropic-api', unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000', microsPerCall: null,
@@ -62,7 +67,7 @@ export const SPEND_POLICIES: Record<string, SpendPolicyView> = {
       },
     ],
   },
-  ledgerline: { capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null },
+  ledgerline: { capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: '2026-10-15T10:00:00.000Z', inrPerUsd: '83.50', rupeeRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)' },
 };
 
 /** The CA firm page for Ledgerline. Requests appear here once sent to the CA (from Today's sign-off row). */

@@ -7,7 +7,8 @@
  */
 
 import { DELIVERIES, ORDERS, UPLOADS } from './fixtures';
-import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
+import { withFakeOrderSteps } from './fake-previews';
+import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 /** The engine's limits (platform/runtime/venture/delivery/harness/files.ts). */
@@ -28,6 +29,8 @@ export interface WorkHost {
   runs(): RunDetail[];
   agentName(): string;
   emit(event: VentureRunEvent): void;
+  /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
+  invoices?(): InvoiceLite[];
 }
 
 const WORK_METHODS = new Set([
@@ -83,6 +86,12 @@ export class FakeWorkDesk {
     return clone(list[index]!);
   }
 
+  /** Another desk keeps a new draft run (fake-4j2.ts: Make a copy); never a public method. */
+  keepRun(biz: string, run: DeliveryLite): DeliveryLite {
+    (this.deliveries[biz] ??= []).unshift(clone(run));
+    return clone(run);
+  }
+
   /** Another desk keeps a transcript made "on this computer" with its origin (fake-wiring.ts); never a public method. */
   keepMade(biz: string, p: Record<string, unknown>): UploadLite {
     return this.addFile(biz, p, 'local-transcription');
@@ -91,7 +100,11 @@ export class FakeWorkDesk {
   request(method: string, p: Record<string, unknown>): unknown {
     const biz = this.host.current();
     switch (method) {
-      case 'venture.order.list': return clone(this.orders[biz] ?? []);
+      // 4J3: each order with its stage steps and what waits on the owner, as the engine reads them (fake-previews.ts).
+      case 'venture.order.list': {
+        const invoices = this.host.invoices?.() ?? [];
+        return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
+      }
       case 'venture.order.create': return this.create(biz, p);
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
