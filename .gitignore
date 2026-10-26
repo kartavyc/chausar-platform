@@ -19,3 +19,5 @@ exports/
 *.zip
 .DS_Store
 Thumbs.db
+# The Ink screenshot walk's output (node scripts/ui-shots/walk.mjs); the board-matched shots are copied into docs.
+app/ui/.shots/

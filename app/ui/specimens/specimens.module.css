@@ -1,0 +1,77 @@
+/* The dev-only parts page (specimens/), laid out like a place: D's `.wrap` at the page width, the bento's gaps. Tokens
+   only, as in src/. */
+
+.page {
+  max-width: calc(var(--page-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: var(--sp-7) var(--gutter) var(--sp-12);
+  background: var(--bg);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border: var(--hair) dashed var(--dash);
+  border-radius: var(--r-chip);
+  color: var(--mute);
+  font-size: var(--text-label);
+}
+
+.title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.02em;
+}
+
+.line {
+  max-width: 72ch;
+  margin: var(--sp-1) 0 var(--sp-6);
+  color: var(--fg2);
+}
+
+.h2 {
+  margin: var(--gap-section) 0 var(--sp-4);
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap-grid);
+  align-items: start;
+}
+
+.c7 { grid-column: span 7; }
+.c5 { grid-column: span 5; }
+
+@media (max-width: 759px) {
+  .page { padding: var(--sp-5) var(--gutter-phone) var(--sp-10); }
+  .c7, .c5 { grid-column: 1 / -1; }
+}
+
+.people {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-4) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.person > :last-child {
+  grid-column: 2 / -1;
+}
+
+.who { min-width: 0; }
+.name { font-weight: var(--weight-strong); }
+.sub { color: var(--mute); font-size: var(--text-read); }
+.why { margin-top: var(--sp-1); color: var(--fg2); font-size: var(--text-read); }
