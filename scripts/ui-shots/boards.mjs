@@ -44,7 +44,7 @@ export const BOARDS = [
       'Five tinted department panels with their icon, jobs this week, spend with its receipt and agent cards (ring, role, now line, step bar, posture chip, Chat); Keeper as code, not AI, with its jobs; Jobs done this week by department.',
     ],
     differs: [
-      'Spend is in US dollars with the rupee line under it, because the engine counts spend in the currency the AI providers bill; D drew rupees. A department with no own spend shows none.',
+      'Spend leads in rupees with the dollar line under it, as D drew: the business is in India and has a rupee rate (chosen by the founder on 27 October; Limits and rates changes it). A department with no own spend shows none.',
       'Money has no agents on the sample, so its panel says so and offers "See ways to earn"; D drew Bookkeeper and Billing there (they are Ledgerline\'s).',
       'The jobs chart is a bar list without the rupee column (the engine sends jobs per department, and spend separately).',
     ],
@@ -66,8 +66,7 @@ export const BOARDS = [
     differs: [
       'Steps carry the agent\'s name and one icon per kind, not D\'s per-step descriptions (the engine\'s steps carry none). No Edit steps link: steps change through the agent\'s chat ("from now on").',
       'No live run checklist with frames on the agent card and no thumbnails in recent work: the run checklist is on the run sheet and Work.',
-      'Spend in the chart and hero is in US dollars with the rupee line (as on Team).',
-      'The failed run in recent work keeps the engine\'s "Stopped: ffmpeg ..." under its Failed chip (engine words).',
+      'Spend in the chart and hero leads in rupees, with dollars beneath (as on Team).',
     ],
     waits: [],
   },
@@ -147,7 +146,7 @@ export const BOARDS = [
     ],
     differs: [
       'In and out by month and the next three weeks are folds below the tiles (a 4J20 ruling), where D drew them open.',
-      'AI spend is in US dollars with the rupee line (as on Team).',
+      'Every amount carries a small receipt mark, not its code (chosen by the founder on 27 October); AI spend leads in rupees (as on Team).',
     ],
     waits: [],
   },
@@ -160,7 +159,7 @@ export const BOARDS = [
     differs: [
       'Three ways, not twelve: the gallery shows only built playbooks (plan choice 10; W5 adds the rest).',
       'No "Good fit for you": the engine suggests a fit only with the owner\'s AI connected, and the sample has none.',
-      'How starting works uses icons and words, not D\'s miniature cards; the country line reads "Based in United States", the fake engine\'s default.',
+      'How starting works uses icons and words, not the miniature cards of D.',
     ],
     waits: ['More ways to earn with W5\'s playbooks'],
   },
@@ -186,7 +185,7 @@ export const FIXED = [
 export const LISTED = [
   'Hindi: some words the engine writes stay English (row lines, some action labels, engine notes in chat), because the fake engine writes English; dates in mono read wide; every Hindi string is machine-drafted and waits for a native reviewer (src/text/hi-review.json, with the engine files that carry their own Hindi).',
   'Connections: a connector with one mode that writes and one planned shows both labels on one card (LinkedIn: browser posting writes, API posting is planned).',
-  'Engine and fixture words: a run\'s "Stopped: ffmpeg ..." result beside a Failed chip (Team departments, recent work); Bookkeeper is "BO" and Ledgerline "LE" by the initials rule, where D drew "BK" and "LL".',
+  'Initials: Bookkeeper is "BO" and Ledgerline "LE" by the initials rule, where D drew "BK" and "LL".',
   'Dark theme: the locked primary (mute on accent soft, 5.2:1) reads quiet by design; the goal card is lifted to #1f2124 with a border, softer than D\'s black card.',
   'The fake engine cannot trip a breaker or make a draft stale between two clicks in one window, so those two flows are held by tests (work-controls.test.tsx: the breaker tile; today-actions.test.tsx: a stale edit) and not walked by hand.',
   'The fake engine\'s network search answers the same people whatever is asked, so a person just imported does not show in a search; the engine searches the owner\'s files (venture-network-search tests).',
