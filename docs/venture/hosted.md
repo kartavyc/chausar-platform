@@ -74,6 +74,53 @@ Sessions are random tokens in an HttpOnly, SameSite=Strict cookie (with Secure a
 
 Each request to `/api/rpc` also carries a bearer the page gets from `/api/hosted/session`. It is an HMAC of the session id, so the server stores nothing extra, and it only works beside its own cookie.
 
+## Starting without an account
+
+Someone can start a business before giving an email (Ink v2 wave 4, package 4J23; `hosted/trial.ts`). It is off unless the server starts with `CHAUSAR_HOSTED_TRIALS=1`; with `--dev` it is on unless set to `0`. When it is off, `POST /api/hosted/trial` answers `HOSTED_NOT_AVAILABLE` and the session view carries `trials: false`. Claiming stays open either way.
+
+| Route | What it does |
+|---|---|
+| `POST /api/hosted/trial` with `{}` | Starts a trial: an account with no email, its own tenant and one session cookie (HttpOnly, like every session). A browser that already holds a live trial gets that same one back. A signed-in account is refused (`ALREADY_SIGNED_IN`): it starts businesses from the account. |
+| `POST /api/hosted/trial/claim` with `{ email }` | "Add your email": sends a link that keeps the business. It is a sign-in link in every way: single use, fifteen minutes, this browser only, and the same answer whether or not the email has an account. Three per trial in all. |
+| `POST /api/hosted/trial/claim/passkey` with `{ credential }` | After `POST /api/auth/passkey/login/options`: signs in with an existing account's passkey and moves the business to that account. |
+
+The email travels only in the request body, and the link uses the sign-in link's own `/#signin=` pattern. The server keeps no email and no network address for a trial.
+
+**How long it lasts.** 7 days from its last use; any request of its session counts, written at most every five minutes. While it has no business, an hour. The session view (`me.trial`, and `hosted.trial` in `workspace.status`) says "This business is temporary until you add your email." In its last day it adds "This business will be deleted within a day unless you add your email." Once it has ended, its cookie answers "This temporary business has ended. Start again."
+
+**What a trial can't do.** Each answers `TRIAL_LIMIT` with plain words:
+
+- **One business, ever.** A second `workspace.create` is refused, also after the first was deleted (the directory keeps `businessStartedAt`).
+- **No invoice issued and no payment recorded for real.** The hosted app refuses `venture.invoice.issue`, `venture.payment.record`, `venture.payment.clear`, `venture.credit.issue` and `venture.bills.pay` before anything is journalled. The engine's own write path (`ventureAction` in `venture/records.ts`) refuses the records themselves on any other way in, such as Issue on Today or a bank row: an issued invoice, a payment, an issued credit note, a bill with a payment on it. Drafts are fine.
+- **Nothing published or sent from the server.** The hosted app refuses `venture.share.create`, `venture.share.request` and `venture.bank.alerts.set`; the engine refuses a client share link, a client file request and a bank alert address.
+- **A small vault.** At most 8 MB as stored (the encrypted vault). The vault store itself checks every write, whoever makes it (a venture action, the record of an AI call, the engine's own writes): one that grows the vault past the cap is refused ("This temporary business is full.") and nothing is written, so an AI call whose record would not fit never leaves; one that keeps the size or makes it smaller always passes, so deleting works.
+- **No passkey** until it has an email.
+
+Plans, orders, the delivery harness and Today work as they do for an account.
+
+**AI.** Only on the owner's own key: a call that does not carry the key the owner connected never leaves the server. A trial gets USD 2 a month and 20 calls a minute, and the same two calls at once as an account. The server holds no AI key and pays for no call.
+
+**Claiming.**
+
+| Case | What happens |
+|---|---|
+| A new email | The trial becomes that account where it stands: same tenant, business and vault, the email set, the end gone. |
+| An existing account (its email link or its passkey) | The business moves to the account. Its vault stays in the trial's tenant folder (or row `hosted.<trial tenant>.<business>`) and opens with the key sealed for that tenant (`vaultTenantId` in the directory), so nothing is copied on disk and one directory change does it all. The trial's AI spend this month joins the account's ledger, so the account's ceiling counts it, and the AI rate and the two-at-once gate count toward the account. The trial's account is removed. |
+| An account with no room | `LIMIT_REACHED`. The link stays unused, so it works once a business is deleted. |
+| A trial that ended or is being deleted | The link signs in and keeps nothing. |
+
+Either way the trial's session ends, and the phone alerts turned on during the trial end with it, as for a revoked session. The page turns them on again from the account's session.
+
+**What expiry deletes.** Housekeeping looks once a minute and deletes at most 20 trials a round. For each one it:
+
+1. marks the trial as ending, so a claim or a use that lands after this can't keep it;
+2. ends its sessions' phone alert subscriptions;
+3. deletes each vault through the runtime, with the business's own name: the vault file or PostgreSQL row, the business folder, and everything inside the vault (its records, alerts and push subscriptions). A vault that won't open for a known reason is removed without opening (its folder, and on PostgreSQL its row by its key); one that fails for no known reason is tried again next round;
+4. removes the trial's account from the directory, with its sealed vault keys, sessions, passkey challenges, claim links, AI usage ledger and share link index;
+5. removes the tenant folder, and in this process the actor and whether its owner was watching.
+
+The tenant key is derived from the custody key and was never stored. The limit on trials per network lives in this process's memory, keyed by the address (an IPv6 address by its /64); housekeeping forgets each bucket once it has filled up again.
+
 ## Who holds the keys
 
 Each business is its own encrypted vault, the same format as the desktop's. On the hosted server nobody types a passphrase. Instead:
@@ -82,6 +129,7 @@ Each business is its own encrypted vault, the same format as the desktop's. On t
 2. HKDF turns it into one key per tenant.
 3. Each business gets a random vault passphrase. Only its sealed form is kept: AES-256-GCM under the tenant's key, bound to the tenant and the business, so a sealed passphrase copied to another tenant or business never opens.
 4. The account directory (emails, passkeys, sessions, sealed passphrases, usage) is sealed under the same master key and written whole on every change, to a file or to one PostgreSQL row.
+5. The web push key pair for phone alerts (VAPID) is derived from the master key too, so every server process has the same one and it is never written anywhere. **Rotating the custody key breaks every phone alert subscription**: each browser has to turn phone alerts on again.
 
 **This is server custody, not end to end encryption.** Whoever holds the master key can open every vault on the server. The page tells the owner the server keeps the key, and shows the vault's recovery code once; the server never stores it.
 
@@ -187,6 +235,17 @@ One more limit comes from the server itself: a request body is at most 256 KB, s
 | Businesses awake per server | 200 | `runtime/local.ts` |
 | Request body | 256 KB | `server.ts` |
 | Open event streams per account | 3 | `server.ts` |
+| New trials per network (an IPv6 address by its /64) | 3, one more every 20 minutes | `accounts.ts` |
+| Trials at once on the server | 500 (`CHAUSAR_HOSTED_TRIALS_LIVE`) | `accounts.ts` |
+| How long a trial lasts | 7 days from its last use (`CHAUSAR_HOSTED_TRIAL_IDLE_DAYS`); an hour with no business | `trial.ts` |
+| Requests per trial session | 60, one more every half second | `app.ts` |
+| AI calls per trial | 20, one more every minute | `models.ts` |
+| AI spend per trial per month | USD 2 (`CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS`) | `models.ts` |
+| A trial's vault | 8 MB as stored (`CHAUSAR_HOSTED_TRIAL_VAULT_BYTES`) | `runtime/business.ts` |
+| Claim links per trial | 3 in all | `accounts.ts` |
+| Trials deleted per housekeeping round | 20 | `app.ts` |
+
+Every limit keyed by a network address takes the address the connection came from or, behind trusted proxies, the `X-Forwarded-For` entry as many from the right as there are proxies: `CHAUSAR_HOSTED_TRUST_PROXY=1` (or `true`) takes the last entry, the one the one proxy appended; `=2` the second from the right, for a load balancer behind a CDN; up to 10. Every entry before it came from the browser, which can write anything there. A header with fewer entries than that did not pass every proxy, and the connection's own address is used. Housekeeping forgets each rate bucket once it has filled up again, so no address is held past its own window.
 
 AI calls are paid on the owner's own key, so the monthly ceiling is a safety stop above each connection's own limit. It is a BigInt sum of the costs the model port already worked out in code; nothing estimates a price. With two calls allowed at once, a month can pass the ceiling by at most those two calls.
 
@@ -199,6 +258,16 @@ The front page signs in and lists businesses. `/api/rpc` accepts only:
 - every other venture method, the delivery harness's included (with the limits in [Delivery agents on the hosted server](#delivery-agents-on-the-hosted-server)), and `receipts.get`.
 
 Everything else answers `HOSTED_NOT_AVAILABLE`: backups and exports to the server's disk, the back office's file imports, plugins, the Python helper, MCP, the conversation views and the rest of the back office. Those stay in the desktop app.
+
+## Phone alerts
+
+An owner can turn on phone alerts in a browser (Business > Notifications). The server's service worker (`/app/sw.js`) shows one notification, "Chausar" with "3 need you", and a tap opens the approval page; nothing is decided from the notification.
+
+- Each push carries `{"count":N}` and nothing else, encrypted for that browser (RFC 8291), with a TTL of one hour. The push service sees the browser's own address, a fixed topic and the server's signed token, never a name or a figure.
+- Only endpoints on the known push services are accepted (Google, Mozilla, Microsoft, Apple), and each push goes through the network guard with no redirects.
+- A subscription belongs to the session that made it. It counts only while that session is live, so signing out or a session ending stops its alerts, and the next look deletes it.
+- Each try is one action journal entry holding the count, the push service's host and the outcome. 404, 410, 401 and 403 remove the browser; three failing deliveries in a row remove it too.
+- Phone alerts come while Chausar is awake for this business: the server looks at each awake business once a minute, and a sleeping one is not woken for it. The pause, quiet hours, the digest and the pacing of the notification centre hold as on the desktop.
 
 ## Honest labels
 
@@ -215,13 +284,15 @@ Everything else answers `HOSTED_NOT_AVAILABLE`: backups and exports to the serve
 | Agent-written code (the light sandbox) | unavailable on hosted | Off until the founder decides; the desktop app runs it |
 | PDF reading (the Python helper) | unavailable on hosted | The helper never runs on a shared server, so PDFs are refused when added |
 | Command-line AI | unavailable on hosted | Desktop only |
+| Phone alerts (web push) | experimental (`unverified`) | The encryption matches RFC 8291's own example; not yet sent to a real push service from a real deploy |
+| Starting without an account | experimental, off by default | The routes and the session view are tested on one computer; no screen offers it yet |
 
 ## What a real deploy needs
 
 Each of these is outside this branch. The labels above change only after the deploy that covers them has been tested.
 
-1. **A domain and TLS.** Either certificate files (`CHAUSAR_HOSTED_TLS_CERT`, `CHAUSAR_HOSTED_TLS_KEY`) or a TLS proxy in front (`CHAUSAR_HOSTED_TLS_PROXY=1`, and `CHAUSAR_HOSTED_TRUST_PROXY=1` if the proxy sets `X-Forwarded-For`). The proxy must pass the original `Host` header. The server sends HSTS on https.
-2. **The custody key in a secret store.** `CHAUSAR_HOSTED_CUSTODY_KEY` opens every vault. It needs a managed secret store or KMS (planned), a backup kept apart from the data, and a rotation plan; rotation is not built.
+1. **A domain and TLS.** Either certificate files (`CHAUSAR_HOSTED_TLS_CERT`, `CHAUSAR_HOSTED_TLS_KEY`) or a TLS proxy in front (`CHAUSAR_HOSTED_TLS_PROXY=1`, and `CHAUSAR_HOSTED_TRUST_PROXY=1` if the proxy sets `X-Forwarded-For`, or the number of proxies in a chain). The proxy must pass the original `Host` header. The server sends HSTS on https.
+2. **The custody key in a secret store.** `CHAUSAR_HOSTED_CUSTODY_KEY` opens every vault. It needs a managed secret store or KMS (planned), a backup kept apart from the data, and a rotation plan; rotation is not built, and rotating it would also break every phone alert subscription.
 3. **A mail sender.** SMTP or a mail API under the operator's account, with SPF, DKIM and DMARC on the sending domain. Not built: `CHAUSAR_HOSTED_MAILER` accepts only `none` outside development. Without it, new people can't sign up; existing people can sign in with passkeys.
 4. **Durable storage.** The PostgreSQL path is written ([PostgreSQL storage](#postgresql-storage)). A deploy still needs: a managed PostgreSQL with backups and a tested restore; the TLS proxy on the server's loopback, with its certificate checks confirmed; and a passing qualification run against a real server: `npm install` (for `pg`), then `CHAUSAR_TEST_POSTGRES_URL=postgres://user:password@127.0.0.1:5432/db node --test platform/tests/qualification/hosted-postgres-real.test.ts` on a disposable database. It runs the two real directory and vault checks and the runtime conformance suite on real rows. After a restore, restart every server process: each one refuses a directory that went back.
 5. **One server process, or shared state.** File storage holds a lock, so one process serves one data folder. On PostgreSQL the directory, sessions and usage ledger are shared, and more than one process can serve them. Still per process: rate limits, the AI concurrency gate and event-stream counts. Each business also needs one process at a time, so a load balancer must send each business to one process (or the Rivet runtime places them). Until a shared rate-limit store and that routing exist, run one process.
@@ -239,12 +310,17 @@ Each of these is outside this branch. The labels above change only after the dep
 | `CHAUSAR_HOSTED_LISTEN`, `CHAUSAR_HOSTED_PORT` | Where the server listens (default `127.0.0.1`, the origin's port or 4320) |
 | `CHAUSAR_HOSTED_DATA` | Data folder (default `data/hosted`) |
 | `CHAUSAR_HOSTED_CUSTODY_KEY` | 32 random bytes as base64url. Required outside development. |
-| `CHAUSAR_HOSTED_TLS_CERT`, `CHAUSAR_HOSTED_TLS_KEY`, `CHAUSAR_HOSTED_TLS_PROXY`, `CHAUSAR_HOSTED_TRUST_PROXY` | TLS, as above |
+| `CHAUSAR_HOSTED_TLS_CERT`, `CHAUSAR_HOSTED_TLS_KEY`, `CHAUSAR_HOSTED_TLS_PROXY` | TLS, as above |
+| `CHAUSAR_HOSTED_TRUST_PROXY` | With a TLS proxy: `0` (default) trusts no `X-Forwarded-For`; `1` or `true` trusts one proxy and takes the last entry; `2` to `10` for a chain of proxies, taking the entry that many from the right |
 | `CHAUSAR_HOSTED_MAILER` | `dev-outbox` (development) or `none` |
 | `CHAUSAR_HOSTED_AI_CEILING_MICROS`, `CHAUSAR_HOSTED_BUSINESSES_PER_ACCOUNT` | Limit overrides |
 | `CHAUSAR_HOSTED_STORAGE` | `experimental-file` (default) or `postgres`. Both are experimental. |
 | `CHAUSAR_HOSTED_POSTGRES_URL` | With `postgres` only: `postgres://user:password@127.0.0.1:port/database` (or `[::1]`). No other host and no query options; a managed database is reached through a TLS proxy on this computer. |
 | `CHAUSAR_VENTURE_RUNTIME` | Only `local` starts; `rivet` is refused as planned |
+| `CHAUSAR_HOSTED_PUSH` | `1` (default) turns phone alerts on; `0` turns them off, and the app then says they are not set up here |
+| `CHAUSAR_HOSTED_PUSH_CONTACT` | The contact the push services see: a `mailto:` or `https:` address. Default: the server's https origin; none over plain http in development |
+| `CHAUSAR_HOSTED_TRIALS` | `1` lets people start a business without an account; `0` turns it off. Off by default; on by default with `--dev` |
+| `CHAUSAR_HOSTED_TRIALS_LIVE`, `CHAUSAR_HOSTED_TRIAL_IDLE_DAYS`, `CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS`, `CHAUSAR_HOSTED_TRIAL_VAULT_BYTES` | Trial limit overrides: trials at once (1 to 100000), days from the last use (1 to 30), whole micro US dollars a month, and vault bytes (1 MB to 256 MB) |
 
 A key can be made with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
 
@@ -260,6 +336,7 @@ On Windows with Node 24.13.1, with no network beyond this computer's loopback an
 - `hosted-postgres.test.ts`, against `hosted-postgres-standin.ts`, which answers the exact statements with PostgreSQL's rules (compare and set, unique slots, advisory locks, revisions as text, JSONB key order): two servers changing the directory at once take turns and lose nothing; two servers sent at one sign-in link sign in once; a session made on one server works on the other after it catches up, and so does signing out; a change that keeps losing to a writer outside the turns gives up and writes nothing; a wrong key, a damaged row and a table put back to an older copy are refused; an unreachable database answers 503; the settings accept loopback only; a business vault is one row that opens from another data folder, and a second writer on the same business is refused rather than lost; and two hosted servers over real sockets share one sign-in, with a business made on the first opened, read and deleted on the second. Removing the turn's lock on purpose fails two of these tests, and removing the per-request catch-up fails the two-server one.
 - The qualification run on a real PostgreSQL server, `platform/tests/qualification/hosted-postgres-real.test.ts`, on 16 October against a throwaway PostgreSQL 17.11 server started from the installed programs with its own data folder, port and generated password (the installed server was not touched). It holds the two "real PostgreSQL" tests (two pools on one directory row; a business vault in its own row) and the six runtime conformance checks on the local runtime with every vault in the real database. It sits outside the open suite on purpose: CI doesn't qualify PostgreSQL, and the benchmark fails any shard with a skipped test. Without `CHAUSAR_TEST_POSTGRES_URL` it fails with one test that says so, and it never skips, so it can't pass by accident. First run: 6 of 8 passed. The two failures were a cleanup that closed its pool before deleting its rows (test code), and a real bug: two pools changing the directory at once ended in "busy", because the faster server kept winning compare and set. Directory changes now take turns under an advisory lock (see [PostgreSQL storage](#postgresql-storage)). After the fix: 8 of 8, three runs in a row; with the old directory code put back, the two-pool test failed three runs out of three.
 - `hosted-server.test.ts`: the server over real sockets: headers, host and origin checks, cookies, the bearer, the allow-list, two tenants that never meet, the event stream, limits, and the venture journey from the idea to an accepted plan with the synthetic recordings, the cost reaching the account ledger.
+- `hosted-trial.test.ts` (4J23), over real sockets: the switch and its settings; a trial and its one business, even after a delete; the session view's line and last-day warning; the end 7 days after the last use and an hour without a business, and everything expiry deletes; a trial being deleted can't be claimed; a vault that won't open is removed only for a known reason; claiming by a new email, into an existing account (asleep and woken again, its share link working) and with a passkey; three claim links; `TRIAL_LIMIT` on the refused methods and, through Today's Issue, in the engine's write path; the size cap; AI on the owner's key only, at the trial's rate and ceiling, keyed by the account at each call; starts per network by /64 and the proxy's own `X-Forwarded-For` entry; the slower request rate; and rate buckets swept.
 - The full typecheck with `typescript@5.9.3` against the repo `tsconfig.json`, and `node scripts/check.mjs` (487 files with the PostgreSQL work): both clean.
 - After the delivery harness was merged in (branch `b2c/integrate`): `node scripts/check.mjs` (504 files) and the full typecheck, both clean; every `venture-*.test.ts` and `hosted-*.test.ts` file run one after another, 315 tests, 307 pass, 0 fail, 8 skipped (the real PostgreSQL tests, which have since moved to the qualification run); and the parity and shell files (`desktop-harness`, `desktop-ipc-methods`, `desktop-renderer`, `desktop-main`, `desktop-packaging`, `server`), 57 of 57. New tests check that on a hosted host nothing checks for Docker, row programs, Python, containers and PDFs are refused with `TIER_UNAVAILABLE` and not offered, the capability rows use the same words, and a real bookkeeping order reconciles from CSV. Removing any one of those guards on purpose fails at least one of them. The whole suite was not run after the merge.
 - One serial full run, `node --test --test-concurrency=1 platform/tests/*.test.ts`, with nothing else running. On `b2c/hosted-web`: 2,777 tests, 2,776 pass, 0 fail, 1 skipped (the DuckDB proof that needs the native module, skipped before this work too), in about 22 minutes. On `b2c/hosted-postgres`: 2,802 tests, 2,793 pass, 0 fail, 9 skipped (that DuckDB proof and the eight real PostgreSQL tests, which have since moved to the qualification run), in about 26 minutes.
@@ -271,3 +348,8 @@ Known limits:
 - An email link opened in a different browser from the one that asked is refused. That stops forwarded links, and it also means asking on a laptop and opening the email on a phone doesn't work.
 - A business sleeps after fifteen idle minutes, and any AI key typed into it goes with it.
 - The front page and the app's business dialog use the existing styles; the dialog is the back office's light modal.
+- Starting without an account has no screen yet: the front page has no button for it and the app no banner (Ink v2 wave 4, 4J21). The routes and the session view are ready for them.
+- A trial can ask for three email links in all. After three mistyped addresses, it can be kept only with an existing account's passkey.
+- Claiming ends the phone alerts turned on during the trial; they have to be turned on again.
+- A business kept by an account that already existed keeps its vault, and its share links, under the trial's tenant id. That is by design, so nothing is copied, but the tenant folder then holds a business of another account.
+- The limits on trials per network and per session, like the other rate limits, are counted in each process's memory.

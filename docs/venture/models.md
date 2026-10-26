@@ -95,7 +95,7 @@ Codex is offered only when the engine starts with a reviewed host profile:
 - `CHAUSAR_CODEX_CLI_EVIDENCE_FILE`: the absolute path to `codex-cli-host.json`.
 - `CHAUSAR_CODEX_CLI_EVIDENCE_SHA256`: the SHA256 of that file.
 
-`loadCodexCliHostGateway` in `codex-cli-host.ts` reads both, checks the recorded help, version and features against the pinned executable, and hands the profile and its process port to the venture host. Without them, Codex shows "Needs the reviewed Codex host profile."
+`loadCodexCliHostGateway` in `codex-cli-host.ts` reads both, checks the recorded help, version and features against the pinned executable, and hands the profile and its process port to the venture host. Without them, Codex shows "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now."
 
 ## Before the vault: the draft desk (onboarding v2)
 
