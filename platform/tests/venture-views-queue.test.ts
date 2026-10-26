@@ -13,8 +13,9 @@ const list = (env: Env, scope?: 'current' | 'all') => call<QueueList>(env, 'vent
 const decide = (env: Env, row: QueueRow, action: string, extra: Record<string, unknown> = {}) =>
   call<QueueDecision>(env, 'venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });
 const byKind = (rows: QueueRow[], kind: QueueRow['kind']) => rows.filter(row => row.kind === kind);
+/** The digest is over the row as its source made it; Ink v2 wave 4's hooks add meta and previews after it (4J1, 4J3). */
 function rowDigest(row: QueueRow): string {
-  const { digest: _digest, ...rest } = row;
+  const { digest: _digest, meta: _meta, sendsTo: _sendsTo, attempt: _attempt, counts: _counts, price: _price, changeCount: _changeCount, preview: _preview, amounts: _amounts, ...rest } = row;
   return digest(rest);
 }
 
@@ -90,7 +91,7 @@ test('queue.decide: a changed row is stale and comes back as the latest version;
   const v3 = await seedBlueprint(env, { status: 'draft', version: 3, price1: '349900', price2: '1500000' });
   const stale = await decide(env, price, 'approve', { viewed: true });
   assert.equal(stale.outcome, 'stale');
-  assert.equal(stale.line, 'This changed since you opened it.');
+  assert.equal(stale.line, 'This click did not run anything. Here is the new version.');
   assert.ok(stale.latest);
   assert.equal(stale.latest.change?.after, 'INR 3,499.00 per month');
   assert.equal(stale.latest.viewRef?.id, v3.id);
@@ -162,7 +163,7 @@ test('queue: a turn waiting to go to the AI is a quote row; a hand-off is a ques
   // marks the spent turn failed, and the decision comes back stale with the new version of the row.
   const stale = await decide(env, quote, 'approve', { viewed: true });
   assert.equal(stale.outcome, 'stale');
-  assert.equal(stale.latest?.title, `The draft for ${CLIENT_NAME} stopped`);
+  assert.equal(stale.latest?.title, `The draft for ${CLIENT_NAME} failed`);
 });
 
 test('queue: an invoice draft is a row with its receipted total; Issue takes the second ask and runs venture.invoice.issue', async () => {
@@ -261,7 +262,7 @@ test('queue: a failed draft for an open order offers Run again', async () => {
   });
   await seedRun(env, order, { status: 'failed', callId: 'call_9' });
   const [failed] = byKind((await list(env)).rows, 'draft');
-  assert.equal(failed.title, `The draft for ${CLIENT_NAME} stopped`);
+  assert.equal(failed.title, `The draft for ${CLIENT_NAME} failed`);
   assert.equal(failed.line, 'The provider did not answer.');
   assert.deepEqual(failed.actions.map(action => [action.id, action.primary]), [['later', false], ['run-again', true]]);
   const again = await decide(env, failed, 'run-again');

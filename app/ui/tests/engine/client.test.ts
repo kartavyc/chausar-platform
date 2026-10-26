@@ -96,4 +96,28 @@ describe('web transport', () => {
     const init = (fetch.mock.calls[1] as unknown as [string, RequestInit])[1];
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${'b'.repeat(43)}`);
   });
+
+  it('W4 4J21: hosted pages read the server `me` with the session: the trials switch and the temporary business', async () => {
+    const trial = { temporary: true, line: 'This business is temporary until you add your email.', expiresAt: '2026-11-02T10:00:00.000Z', endsSoon: false, warning: null };
+    let calls = 0;
+    const fetch = vi.fn(async (url: string) => {
+      calls += 1;
+      return url === '/api/hosted/session' ? json(200, { token: 'b'.repeat(43), me: { user: { id: 'u1' }, trials: true, trial, method: 'trial' } }) : json(200, { result: {} });
+    });
+    const client = createEngineClient({ fetch, hosted: true, location: { hash: '', pathname: '/app/', search: '' }, replaceUrl: vi.fn() });
+    await expect(client.hostedMe!()).resolves.toEqual({ trials: true, trial });
+    // Read again on each call, so a kept business stops being temporary on the page.
+    await client.hostedMe!();
+    expect(calls).toBe(2);
+    // A session view with no `me`, or a broken one, is null; nothing is guessed.
+    const bare = createEngineClient({ fetch: vi.fn(async () => json(200, { token: 'b'.repeat(43) })), hosted: true, location: { hash: '', pathname: '/app/', search: '' }, replaceUrl: vi.fn() });
+    await expect(bare.hostedMe!()).resolves.toBeNull();
+    const off = createEngineClient({ fetch: vi.fn(async () => json(200, { token: 'b'.repeat(43), me: { trials: false, trial: null } })), hosted: true, location: { hash: '', pathname: '/app/', search: '' }, replaceUrl: vi.fn() });
+    await expect(off.hostedMe!()).resolves.toEqual({ trials: false, trial: null });
+  });
+
+  it('W4 4J21: only the hosted page has hostedMe', () => {
+    expect(createEngineClient({ bridge: { request: vi.fn() } }).hostedMe).toBeUndefined();
+    expect(createEngineClient({ fetch: vi.fn(), location: { hash: '', pathname: '/', search: '' }, replaceUrl: vi.fn() }).hostedMe).toBeUndefined();
+  });
 });

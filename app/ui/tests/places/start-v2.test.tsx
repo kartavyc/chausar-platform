@@ -22,7 +22,10 @@ const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 /** A text key ("onboarding.how.title") shown as text means a missing string. */
 const KEY_LIKE = /^[a-z]+(\.[a-zA-Z0-9-]+)+$/;
 
-/** The App on the fake engine, with every request written down. */
+/** The engine listing no way to earn (W3's case; W4 4J21's start-gallery.test.tsx covers the engine's ways). */
+const NO_WAYS = { ways: [], categories: [], upTo: { maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: 0 } };
+
+/** The App on the fake engine, with every request written down. The engine lists no ways to earn here. */
 function start(options: FakeOptions = {}, { hash = '#/onboarding', language = 'en', venture }: { hash?: string; language?: Language; venture?: { done: number; total: number } } = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(new FakeEngine(options));
@@ -31,6 +34,7 @@ function start(options: FakeOptions = {}, { hash = '#/onboarding', language = 'e
     ...fake,
     request: (async (method: string, params?: Record<string, unknown>) => {
       calls.push(method);
+      if (method === 'venture.playbooks.list') return structuredClone(NO_WAYS);
       const answer = await fake.request(method as never, params as never);
       return method === 'venture.get' && venture && answer ? { ...(answer as object), ...venture } : answer;
     }) as EngineClient['request'],

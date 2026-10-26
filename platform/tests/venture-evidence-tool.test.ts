@@ -457,16 +457,21 @@ const PROTOTYPE_NAMES = ['toString', 'constructor', 'valueOf', 'hasOwnProperty',
 test('field names: a member of every object (toString, constructor, __proto__, ...) is refused by the tool and by the ledger', async () => {
   const env = await setup();
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
-  const chunks = [PROTOTYPE_NAMES.slice(0, 4), PROTOTYPE_NAMES.slice(4)];
-  scriptTurns(env, chunks.map(names => () => turnOf('Note odd fields', names.map(field => note({ subject: 'client', field, value: 'Asha Rao', type: 'model-inferred' })))));
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  run = await approve(env, run);
-  const calls = run.harness!.toolCalls.filter(item => item.tool === 'evidence.record');
+  // Two names a run: the repeat-failure breaker (Ink v2 wave 4, 4F2) stops a run whose agent meets the same refusal
+  // three times, so each run tries two and every name is still tried through the tool.
+  const calls: NonNullable<DeliveryRunView['harness']>['toolCalls'] = [];
+  for (let start = 0; start < PROTOTYPE_NAMES.length; start += 2) {
+    const names = PROTOTYPE_NAMES.slice(start, start + 2);
+    const each = start === 0 ? order : await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
+    scriptTurns(env, [() => turnOf('Note odd fields', names.map(field => note({ subject: 'client', field, value: 'Asha Rao', type: 'model-inferred' })))]);
+    let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: each.id });
+    run = await approve(env, run);
+    calls.push(...run.harness!.toolCalls.filter(item => item.tool === 'evidence.record'));
+    assert.equal(recordedAnswers(run), 0);
+  }
   assert.equal(calls.length, PROTOTYPE_NAMES.length);
   for (const item of calls) assert.equal(item.envelope.ok ? null : item.envelope.error.code, 'TOOL_FAILED', JSON.stringify(item.input));
   assert.equal(evidence(env).length, 0);
-  assert.equal(recordedAnswers(run), 0);
   for (const field of PROTOTYPE_NAMES) {
     await assert.rejects(ventureAction(env.deps, owner, 'prepare', 'test.evidence', tx => recordEvidence(tx, { subject: `client:${order.clientId}`, field, value: 'Asha Rao', type: 'owner-entered', by: 'owner' })), code('INVALID_VENTURE_REQUEST'), field);
   }

@@ -492,6 +492,17 @@ export class Vault implements StateStore {
   #artifactKey(purpose: PrivateArtifactPurpose, id: string): Buffer {
     return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.private-artifact.v1:${purpose}:${id}`), 32));
   }
+  /**
+   * A key for one named purpose, derived from the vault's own key (HKDF). It is never stored: a plaintext export of the
+   * records does not hold it, while a backup or a move of this vault opens with the same key and derives it again.
+   * 'network-forget': the forgotten list's one-way check (venture network, 4D1). 'receipt-signing': the seed of the
+   * business's Ed25519 receipt signing key (venture journal, 4J10), so its private half is never stored. 'journal-head':
+   * the HMAC key on the journal's pinned head and first signing time (4J10), so a forged pin shows.
+   */
+  derivedKey(purpose: 'network-forget' | 'receipt-signing' | 'journal-head'): Buffer {
+    if (purpose !== 'network-forget' && purpose !== 'receipt-signing' && purpose !== 'journal-head') throw new ChausarError('INVALID_REQUEST', 'Unknown key purpose.');
+    return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.derived-key.v1:${purpose}`), 32));
+  }
   async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
     artifactIdentity(input.id, input.purpose);
     const directory = await this.#artifactDirectory(input.purpose);

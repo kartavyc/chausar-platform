@@ -34,6 +34,11 @@
   color: var(--mute);
 }
 
+/* Words that open with a comma ("₹60.10, includes estimates") close the gap the figure keeps between its parts. */
+.words[data-lead='punct'] {
+  margin-left: calc(var(--sp-2) * -1);
+}
+
 .figure[data-tone='dark'] .words {
   color: var(--goal-fg2);
 }

@@ -8,7 +8,7 @@ import { JobList } from '../../src/parts/JobList';
 import { runKey } from '../../src/shell/keys';
 import { RUNS } from '../../src/engine/fixtures';
 import type { RunSummary } from '../../src/engine/types';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 const css = (file: string) => readFileSync(join(import.meta.dirname, '../../src/parts', file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 /** The body of the first rule whose selector is exactly `selector`. */
@@ -175,13 +175,14 @@ describe('JobList in the D look', () => {
     const rowOf = (purpose: string) => screen.getByRole('button', { name: purpose }).closest('li')!;
     const books = rowOf('Matched September bank lines to invoices');
     expect(books.hasAttribute('data-dense')).toBe(true);
-    expect(within(books).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     const reach = rowOf('Estimated reach for episode 14');
     expect(reach.textContent).toContain('About 18,000 views in 30 days');
     expect(reach.querySelector('[data-estimate]')!.textContent).toBe('model estimate');
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
     const failed = rowOf('Rendering the thumbnail set');
-    expect(within(failed).getByText('Stopped: ffmpeg was not found on this computer.').className).toMatch(/fail/);
+    // 4Z2: a failed run carries no result line from the engine; the row says it failed.
+    expect(within(failed).getByText('This run failed.').className).toMatch(/fail/);
     fireEvent.click(within(failed).getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     assertInkRules(document.body);

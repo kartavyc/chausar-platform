@@ -74,6 +74,11 @@ export const KIND_ICONS: Readonly<Record<QueueKind, IconName>> = {
   locked: 'lock',
   connector: 'send',
   bank: 'wallet',
+  proposal: 'sparkles',
+  // W4 4E4: a follow-up due, a reply waiting, a notice (notes after a call).
+  followup: 'clock',
+  reply: 'message-square',
+  notice: 'bell',
 };
 
 export interface KindChipProps {

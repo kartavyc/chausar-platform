@@ -43,6 +43,9 @@ export type PolicyContext = {
   holds?: readonly PolicyHold[];
   turn?: number; // the act turn being run
   taint?: TaintMark | null; // when outside content first entered the run; absent or null while it is clean
+  // Ink v2 wave 4 (4J1): steps the owner allowed for this engine session (policy/allow-session.ts), step id to the
+  // decision that allowed it. Like Auto for that step, in memory only; never the floor or the taint latch.
+  session?: Readonly<Record<string, string>>;
 };
 
 /** Tools whose call only records a request for the owner; the effect is asked about when it is applied. */
@@ -88,12 +91,16 @@ function decide(action: PolicyAction, ctx: PolicyContext): PolicyAnswer {
     return latchHold ? answer('allow', 'hold_approved', 'You let this call run once.', { step, holdId: latchHold.id }) : answer('allow', 'owner_approved', 'You approved this.', { step });
   }
   const steps = ctx.stepsByTool[action.name] ?? [];
-  const held = steps.find(id => (ctx.gates[id] ?? 'hold') === 'hold');
+  // 4J1: a step the owner allowed for this session counts as Auto here (the floor and the latch asked above already).
+  const onHold = (id: string) => (ctx.gates[id] ?? 'hold') === 'hold';
+  const held = steps.find(id => onHold(id) && !Object.hasOwn(ctx.session ?? {}, id));
   let ask: PolicyAnswer;
   if (!steps.length || held !== undefined) {
     const title = held !== undefined ? ctx.stepTitles?.[held] : undefined;
     ask = answer('ask', 'step_on_hold', title ? `${title} is on hold, so it waits for you.` : 'This step is on hold, so it waits for you.', { step: held ?? null });
   } else if (ctx.posture === 'auto-spot-check') {
+    const allowedForSession = steps.find(onHold);
+    if (allowedForSession !== undefined) return answer('allow', 'session_allowed', 'You allowed this step for this session.', { step: allowedForSession });
     return answer('allow', 'auto', 'This step runs on its own, with spot checks.', { step: steps[0] });
   } else {
     ask = answer('ask', 'posture', `${POSTURE_WORDS[ctx.posture]}, each step waits for you.`, { step: steps[0] });

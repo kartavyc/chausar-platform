@@ -12,7 +12,7 @@ import { Button } from '../../src/parts/Button';
 import { ApprovalRow, type ApprovalHandle } from '../../src/parts/ApprovalRow';
 import type { QueueRow } from '../../src/engine/types';
 import { TextProvider } from '../../src/text';
-import { assertFiguresProved, assertInkRules, assertNoInlineStyles, assertOnePrimary } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, assertNoInlineStyles, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /** A text key ("story.status.idle") shown as text means a missing string. */
 const KEY_LIKE = /^[a-z]+(\.[a-zA-Z0-9-]+)+$/;
@@ -183,7 +183,7 @@ describe('PreviewFrame', () => {
     expect(sheet.textContent).toContain('Paid by bank transfer');
     // The receipt stays a reachable button: nothing interactive sits inside the image.
     expect(sheet.querySelector('button')).toBeNull();
-    const receipt = screen.getByRole('button', { name: 'Receipt R-77' });
+    const receipt = screen.getByRole('button', { name: receiptMark('R-77') });
     expect(receipt.closest('[data-figure]')!.querySelector('[data-ui-number]')!.textContent).toBe('₹1,180.00');
     fireEvent.click(receipt);
     expect(onReceipt).toHaveBeenCalledWith('R-77');
@@ -205,7 +205,7 @@ describe('PreviewFrame', () => {
     expect(container.querySelector('[data-preview]')!.getAttribute('data-preview')).toBe('change');
     expect(container.textContent).toContain('₹100');
     expect(container.textContent).toContain('₹120');
-    expect(screen.getByRole('button', { name: 'Receipt R-9' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: receiptMark('R-9') })).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'How it is worked out' })).toBeNull();
     rerender(
       <PreviewFrame
@@ -245,7 +245,7 @@ describe('PreviewFrame', () => {
     const onReceipt = vi.fn();
     const { unmount } = render(<PreviewFrame variant="text" view={view} proof={{ receiptId: 'R-5' }} onReceipt={onReceipt} />);
     expect(document.body.querySelector('[data-figure-group]')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt R-5' }));
+    fireEvent.click(screen.getByRole('button', { name: receiptMark('R-5') }));
     expect(onReceipt).toHaveBeenCalledWith('R-5');
     assertFiguresProved(document.body);
     unmount();
@@ -729,16 +729,21 @@ describe('GalleryTile', () => {
     expect(within(tile).getByRole('button', { name: 'Start another Wedding videos' })).toBeTruthy();
   });
 
-  it('says what you do with the engine\'s hours, and what the AI team does with an avatar stack', () => {
-    render(<GalleryTile way={WAY} onStart={() => {}} />);
+  it("at rest: the hours with what you do; the rest, what you do and what the AI team does, one fold away (W4 4J21)", () => {
+    render(<GalleryTile way={{ ...WAY, needs: ['Your own AI, paid by you directly.'], pay: { ...WAY.pay, source: 'Model estimate, not a promise.' } }} onStart={() => {}} />);
     const tile = screen.getByRole('article', { name: 'Wedding videos' });
-    expect(within(tile).getByText('What you do')).toBeTruthy();
-    expect(within(tile).getByText('3 to 5 h a week').classList.contains('mono')).toBe(true);
-    expect(within(tile).getByText('Meet families, approve each cut.')).toBeTruthy();
-    expect(within(tile).getByText('What your AI team does')).toBeTruthy();
-    const stack = within(tile).getByRole('img', { name: '3 agents: Editor, Researcher and Producer' });
+    expect(within(tile).getByText('Your time')).toBeTruthy();
+    // The hours read as words, not as code (4Z2 cold review): body text, never the figure face.
+    expect(within(tile).getByText('3 to 5 h a week').classList.contains('mono')).toBe(false);
+    const fold = tile.querySelector('details') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(fold.querySelector('summary')!.textContent).toBe('What it takes');
+    // Words a closed fold holds are one step away: what you do, the team with its avatar stack, the needs, the source.
+    for (const words of ['What you do', 'Meet families, approve each cut.', 'What your AI team does', 'Edits, music and quotes.', 'Your own AI, paid by you directly.', 'Model estimate, not a promise.']) {
+      expect(within(fold).getByText(words)).toBeTruthy();
+    }
+    const stack = within(fold).getByRole('img', { name: '3 agents: Editor, Researcher and Producer' });
     expect(stack.querySelectorAll('[data-size="24"]')).toHaveLength(3);
-    expect(within(tile).getByText('Edits, music and quotes.')).toBeTruthy();
   });
 
   it('shows what clients usually pay as a model estimate, the label on the line above the range, never with a receipt', () => {

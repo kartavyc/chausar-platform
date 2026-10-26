@@ -1,0 +1,34 @@
+/* W4 4J19: the small lines under a card's preview (D-Today `.qc-note` end words): the run's check counts, who signs a
+   working paper, a post's short, an option's model estimate and the engine that wrote the draft. */
+
+.checks,
+.signer,
+.short,
+.estimate,
+.written,
+.small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.checks[data-tone='done'] svg {
+  color: var(--accent-text);
+}
+
+.checks[data-tone='wait'] {
+  color: var(--wait);
+}
+
+.written {
+  color: var(--mute);
+}
+
+.choice {
+  display: grid;
+}

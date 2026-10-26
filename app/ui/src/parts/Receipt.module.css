@@ -1,5 +1,6 @@
-/* Receipt: D's `.rc` chip on light grounds and `.rc-d` underlined link on the dark goal card. On a phone either keeps
-   its look and takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+/* Receipt (4Z3): a small, quiet receipt mark beside the amount it proves; no chip and no code (the code is inside the
+   sheet it opens). On the dark goal card it takes the card's light link colour. On a phone it keeps its look and takes
+   a tap over the 44 px touch area (touch.module.css, 3H1). */
 
 .receipt {
   composes: hit from './touch.module.css';
@@ -8,39 +9,31 @@
 .receipt {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-1);
+  justify-content: center;
   flex: none;
+  min-width: 24px;
   min-height: 24px;
-  padding: 0 var(--sp-2);
-  border: var(--hair) solid var(--receipt-line);
+  padding: 0;
+  border: 0;
   border-radius: var(--r-button-sm);
-  background: var(--surface);
-  color: var(--link);
-  font-size: var(--text-label);
+  background: none;
+  color: var(--mute);
   line-height: 1;
-  white-space: nowrap;
   vertical-align: middle;
   cursor: pointer;
-  transition: border-color var(--t-press) var(--ease);
+  transition: color var(--t-press) var(--ease), background-color var(--t-press) var(--ease);
 }
 
 .receipt:hover {
-  border-color: var(--link);
+  color: var(--link);
+  background: var(--hover);
 }
 
 .receipt[data-tone='dark'] {
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
   color: var(--goal-link);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
 }
 
 .receipt[data-tone='dark']:hover {
   color: var(--goal-link-hover);
-  text-decoration-thickness: 2px;
+  background: none;
 }

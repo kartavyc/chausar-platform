@@ -49,15 +49,20 @@ describe('Clients: leads', () => {
   it('lists leads with their email check in words, where they stand and the page they were found on', async () => {
     await start();
     const board = await screen.findByRole('group', { name: 'Pipeline board' });
-    const cards = await within(board).findAllByRole('article');
+    // W4 4E4: the board is the pipeline, Found to Not now; the leads are two of its cards, each with its email check.
+    await within(board).findByRole('heading', { level: 3, name: 'Asha Rao' });
+    const cards = within(board).getAllByRole('article').filter((card) => card.querySelector('[data-check]'));
     expect(cards).toHaveLength(2);
     const asha = cards.find((r) => r.textContent?.includes('Asha Rao'))!;
     expect(asha.textContent).toContain('Pocket Audio');
-    expect(asha.textContent).toContain('A mail server answers for pocketaudio.in.');
-    expect(asha.closest('section')?.querySelector('h2')?.textContent).toBe('New');
+    // The card says the check in two words; the engine's whole line is its title and in the lead sheet.
+    expect(asha.textContent).toContain('Email works');
+    expect(asha.querySelector('[data-check] [title]')?.getAttribute('title')).toBe('A mail server answers for pocketaudio.in.');
+    expect(asha.closest('section')?.querySelector('h2')?.textContent).toBe('Found');
     expect(within(asha).queryByRole('link')).toBeNull();
     const kabir = cards.find((r) => r.textContent?.includes('Kabir Shah'))!;
-    expect(kabir.textContent).toContain('Not checked yet: no mail server answered for studiokite.co.');
+    expect(kabir.textContent).toContain('Email not checked');
+    expect(kabir.querySelector('[data-check] [title]')?.getAttribute('title')).toBe('Not checked yet: no mail server answered for studiokite.co.');
     // The page they were found on is in their sheet, one step from the card.
     const sheet = await openLead('Asha Rao');
     expect(sheet.textContent).toContain('https://pocketaudio.in/about');
@@ -83,7 +88,7 @@ describe('Clients: leads', () => {
     const lead = await screen.findByRole('complementary', { name: 'Ravi Menon' });
     expect(lead.textContent).toContain('https://example.in/team');
     expect(lead.textContent).toContain('A mail server answers for example.in.');
-    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Pipeline board' })).getAllByRole('article')).toHaveLength(3));
+    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Pipeline board' })).getByRole('heading', { level: 3, name: 'Ravi Menon' })).toBeTruthy());
   });
 
   it('drafts an email with the lines the engine adds, and says plainly the owner sends it', async () => {
@@ -214,9 +219,8 @@ describe('Clients: leads', () => {
     expect(spy).toHaveBeenCalledWith('venture.leads.block', { value: 'pocketaudio.in' });
     await waitFor(() => expect(sheet.textContent).toContain('Blocked'));
     expect(within(sheet).queryByRole('button', { name: 'Draft it' })).toBeNull();
-    // On the board she has moved to Blocked, which stays folded until the owner opens it.
+    // W4 4E4: on the board a block is a flag, never a stage: her card stays where it was and says she is blocked.
     const board = screen.getByRole('group', { name: 'Pipeline board' });
-    expect(await within(board).findByRole('button', { name: 'Show Blocked, 1 person' })).toBeTruthy();
-    expect(within(board).queryByRole('heading', { level: 3, name: 'Asha Rao' })).toBeNull();
+    await waitFor(() => expect(within(board).getByRole('heading', { level: 3, name: 'Asha Rao' }).closest('article')?.querySelector('[data-blocked]')).not.toBeNull());
   });
 });

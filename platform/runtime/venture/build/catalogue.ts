@@ -80,10 +80,10 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   // Email and inbox
   entry('email', 'mail-app', 'Your own mail app', null, [], GI, 'None',
     'Chausar drafts the message and you send it from your own mailbox.'),
-  entry('email', 'google-workspace', 'Google Workspace (Gmail)', 'https://workspace.google.com/', ['write'], GI, 'Google sign-in',
-    'Business email on your own domain. Sending from Chausar would need a Google review first.'),
-  entry('email', 'zoho-mail', 'Zoho Mail', 'https://www.zoho.com/mail/', [], GI, 'Zoho sign-in',
-    'Business email on your own domain, with a data centre in India.'),
+  entry('email', 'google-workspace', 'Google Workspace (Gmail)', 'https://workspace.google.com/', ['read', 'write'], GI, 'An app password for IMAP',
+    'Business email on your own domain. Chausar reads your inbox over IMAP with an app password in the desktop app. Sending from Chausar would need a Google review first.'),
+  entry('email', 'zoho-mail', 'Zoho Mail', 'https://www.zoho.com/mail/', ['read'], GI, 'An app-specific password for IMAP',
+    'Business email on your own domain, with a data centre in India. Chausar reads your inbox over IMAP with an app-specific password in the desktop app.'),
   entry('email', 'resend', 'Resend', 'https://resend.com/', ['write'], GI, 'API key',
     'Sends invoices and booking emails from your own domain. Not for cold outreach.'),
   entry('email', 'postmark', 'Postmark', 'https://postmarkapp.com/', ['write'], GI, 'Server token',
@@ -95,7 +95,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('booking', 'calendly', 'Calendly', 'https://calendly.com/', ['read'], GI, 'Personal access token',
     'A booking page for calls. You can put its link on your site yourself; adding it through the brief is planned.'),
   entry('booking', 'google-calendar', 'Google Calendar', 'https://calendar.google.com/', ['read', 'write'], GI, 'A private calendar address you paste',
-    'Reading your calendar from a private address you paste is planned.'),
+    'Chausar reads your calendar from the private address you paste, in the desktop app, to see the calls that ended.'),
 
   // Customers and CRM
   entry('customers', 'chausar-crm', 'Chausar CRM (built-in)', null, ['read', 'write'], GI, 'None, it is inside Chausar',

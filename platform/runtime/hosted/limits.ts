@@ -50,6 +50,41 @@ export class RateLimiter {
   }
 
   remaining(key: string): number { return this.#bucket(key).tokens; }
+
+  /** How many keys (addresses, emails, sessions, tenants) this family holds now. */
+  get size(): number { return this.#buckets.size; }
+
+  /**
+   * Forgets every key whose bucket has filled up again: it is the same as one never seen. Housekeeping calls it each
+   * minute (app.ts), so an address is held no longer than its own window. Answers how many went.
+   */
+  sweep(): number {
+    const now = this.#clock(), before = this.#buckets.size;
+    for (const [key, bucket] of this.#buckets) if (bucket.tokens + Math.floor((now - bucket.at) / this.rule.refillEveryMs) >= this.rule.capacity) this.#buckets.delete(key);
+    return before - this.#buckets.size;
+  }
+}
+
+/**
+ * The key a network address is limited by (Ink v2 wave 4, 4J23): an IPv4 address as it is (also when written as IPv6,
+ * ::ffff:a.b.c.d), and an IPv6 address by its /64, the block one household or machine usually holds, so changing the
+ * last 64 bits does not make a new network. Anything else is used as it came.
+ */
+export function addressKey(address: string): string {
+  const text = address.trim().toLowerCase().replace(/%.*$/, '');
+  const mapped = /^(?:::|(?:0{1,4}:){5})ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(text);
+  if (mapped) return mapped[1];
+  if (!text.includes(':') || !/^[0-9a-f:.]+$/.test(text)) return text;
+  const [head, tail = null, extra] = text.split('::');
+  if (extra !== undefined) return text;
+  const left = head ? head.split(':') : [];
+  const right = tail === null ? [] : tail ? tail.split(':') : [];
+  if (right.some(part => part.includes('.')) || left.some(part => part.includes('.'))) return text;
+  const fill = tail === null ? 0 : 8 - left.length - right.length;
+  if (fill < 0 || (tail === null && left.length !== 8)) return text;
+  const groups = [...left, ...Array(fill).fill('0'), ...right];
+  if (groups.length !== 8 || groups.some(group => !/^[0-9a-f]{1,4}$/.test(group))) return text;
+  return `${groups.slice(0, 4).map(group => parseInt(group, 16).toString(16)).join(':')}::/64`;
 }
 
 /** At most `limit` jobs at once per key, for model calls that hold a provider connection open. */
@@ -87,12 +122,16 @@ export function monthSpendMicros(entries: readonly UsageEntry[], month: string):
   return total;
 }
 
-/** Refuses a new AI call once this month's recorded spend has reached the account ceiling. */
-export function checkMonthlyCeiling(entries: readonly UsageEntry[], month: string, ceilingMicros: string, display: (micros: string) => string) {
+/**
+ * Refuses a new AI call once this month's recorded spend has reached the account ceiling. A temporary business (Ink v2
+ * wave 4, 4J23) has its own, lower one, and its words say how to leave it behind.
+ */
+export function checkMonthlyCeiling(entries: readonly UsageEntry[], month: string, ceilingMicros: string, display: (micros: string) => string, whose: 'account' | 'trial' = 'account') {
   check(/^\d{1,18}$/.test(ceilingMicros), 'INVALID_LIMIT', 'The monthly ceiling must be whole micro units.');
   const spent = monthSpendMicros(entries, month);
-  check(spent < BigInt(ceilingMicros), 'BUDGET_REACHED',
-    `Your account reached this server's monthly AI ceiling of ${display(ceilingMicros)} (spent ${display(String(spent))}). It resets on the first of the month, UTC.`);
+  check(spent < BigInt(ceilingMicros), 'BUDGET_REACHED', whose === 'trial'
+    ? `This temporary business reached its monthly AI limit of ${display(ceilingMicros)} (spent ${display(String(spent))}). Add your email to keep it and use your account's limit.`
+    : `Your account reached this server's monthly AI ceiling of ${display(ceilingMicros)} (spent ${display(String(spent))}). It resets on the first of the month, UTC.`);
 }
 
 /** The limits a hosted server applies. Every value is a plain number or micro string from config. */
@@ -111,9 +150,31 @@ export type HostedLimits = {
   awakeActors: number;
   actorIdleMs: number;
   maxBodyBytes: number;
+  // Ink v2 wave 4 (4J23): businesses started without an account (trial.ts).
+  /** New trials from one network address. */
+  trialStartsPerAddress: RateRule;
+  /** Trials alive on this server at once; past it, people sign in with an email to start. */
+  trialsLive: number;
+  /** A trial is deleted with its vault this long after its last use, unless claimed. */
+  trialIdleMs: number;
+  /** AI calls per trial, on the owner's own key. */
+  trialModelCallsPerTenant: RateRule;
+  /** A trial's monthly AI ceiling on the owner's own key, below the account one. */
+  trialModelCeilingMicros: string;
+  /** A trial with no business is deleted this long after its last use. */
+  trialEmptyMs: number;
+  /** Requests per trial session, slower than an account's. */
+  trialRpcPerSession: RateRule;
+  /** The most a trial's vault may hold, in bytes of its records; a write that grows it past this is refused. */
+  trialVaultBytes: number;
+  /** "Add your email" links one trial may ask for, in all. */
+  trialClaimLinks: number;
+  /** Trials ended in one housekeeping round, at most; the rest wait for the next minute. */
+  trialEndsPerRound: number;
 };
 
 const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
 export const DEFAULT_LIMITS: Readonly<HostedLimits> = Object.freeze({
   magicLinkPerEmail: { capacity: 5, refillEveryMs: 12 * MINUTE },
   magicLinkPerAddress: { capacity: 20, refillEveryMs: 3 * MINUTE },
@@ -129,4 +190,14 @@ export const DEFAULT_LIMITS: Readonly<HostedLimits> = Object.freeze({
   awakeActors: 200,
   actorIdleMs: 15 * MINUTE,
   maxBodyBytes: 262144,
+  trialStartsPerAddress: { capacity: 3, refillEveryMs: 20 * MINUTE },
+  trialsLive: 500,
+  trialIdleMs: 7 * DAY,
+  trialModelCallsPerTenant: { capacity: 20, refillEveryMs: MINUTE },
+  trialModelCeilingMicros: '2000000',
+  trialEmptyMs: 60 * MINUTE,
+  trialRpcPerSession: { capacity: 60, refillEveryMs: 500 },
+  trialVaultBytes: 8 * 1024 * 1024,
+  trialClaimLinks: 3,
+  trialEndsPerRound: 20,
 });

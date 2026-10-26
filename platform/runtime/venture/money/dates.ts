@@ -19,6 +19,15 @@ export function addDaysUtc(iso: IsoDate, days: number): IsoDate {
   return date.toISOString().slice(0, 10);
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** One calendar month ('YYYY-MM'): its first and last day and its name ('October 2026'). The tax working and goals use it. */
+export function calendarMonth(month: string): { month: string; from: IsoDate; to: IsoDate; display: string } {
+  const [y, m] = month.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { month, from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}`, display: `${MONTHS[m - 1]} ${y}` };
+}
+
 /** The first and last day of the month that holds `iso`, moved back by `monthsBack` whole months. */
 function monthOf(iso: IsoDate, monthsBack: number): { from: IsoDate; to: IsoDate } {
   const first = new Date(`${iso.slice(0, 7)}-01T00:00:00.000Z`);

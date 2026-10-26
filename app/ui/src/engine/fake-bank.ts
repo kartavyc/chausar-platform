@@ -150,7 +150,7 @@ export class FakeBankDesk {
     const as = p.as;
     if (as !== 'payment' && as !== 'cost' && as !== 'skip') throw new EngineError('INVALID_VENTURE_REQUEST', 'Record it as a payment or a cost, or skip it.');
     if (as !== 'skip' && row.classification === 'own-transfer') throw new EngineError('BANK_OWN_TRANSFER', 'This moved between your own accounts, so it is neither income nor a cost.');
-    let line = 'Skipped. It stays in your bank ledger and is not counted in the books.';
+    let line = 'Line skipped. It stays in your bank ledger and is not counted in the books.';
     let receiptId: string | undefined;
     if (as === 'payment') {
       if (row.minor <= 0) throw new EngineError('BANK_NOT_MONEY_IN', 'Only money that came in can pay an invoice.');

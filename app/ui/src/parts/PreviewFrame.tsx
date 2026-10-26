@@ -32,6 +32,8 @@ interface VideoPreview {
   /** The engine's length ("11:42"). */
   duration?: string | undefined;
   chapters?: number | undefined;
+  /** W4 4J19: a still the engine took from the cut (a small JPEG data address), only when it sent one; never a stand-in. */
+  poster?: string | undefined;
   /** Watch: opens the draft. This is the only thing that counts as viewing it; drawing the preview does not. */
   onOpen: () => void;
 }
@@ -52,6 +54,9 @@ interface PaperPreview {
   /** Lay the sheet slightly askew, as a paper on a desk. */
   tilt?: boolean | undefined;
   onReceipt?: ((id: string) => void) | undefined;
+  /** W4 4J19: the receipts that prove the sheet's lines when it has no total (a CA working paper's calculator receipt),
+   *  shown under the sheet; `ca` opens it through venture.ca.receipt. */
+  proofs?: readonly { receiptId: string; source?: 'ca' | 'work' | undefined }[] | undefined;
 }
 
 /** A price or value changing, as the before and after pill. */
@@ -123,10 +128,11 @@ function body(props: PreviewFrameProps) {
   }
 }
 
-function Video({ title, unseen, duration, chapters, onOpen }: VideoPreview) {
+function Video({ title, unseen, duration, chapters, poster, onOpen }: VideoPreview) {
   const t = useT();
   return (
     <>
+      {poster !== undefined && <img className={s.poster} src={poster} alt="" data-poster="" />}
       {unseen && <span className={s.tag}><Icon name="eye-off" size={12} />{t('preview.notWatched')}</span>}
       {/* The card's heading says the title; here it is part of the picture. */}
       <p className={s.videoTitle} aria-hidden="true" data-content="">{title}</p>
@@ -144,10 +150,11 @@ function Video({ title, unseen, duration, chapters, onOpen }: VideoPreview) {
   );
 }
 
-function Paper({ label, business, docRef, title, sub, lines, total, tilt, onReceipt }: PaperPreview) {
+function Paper({ label, business, docRef, title, sub, lines, total, tilt, onReceipt, proofs }: PaperPreview) {
   const t = useT();
+  const proved = Boolean(total) || Boolean(proofs?.length);
   return (
-    <div className={s.paper} data-tilt={tilt ? '' : undefined} data-figure-group={total ? '' : undefined}>
+    <div className={s.paper} data-tilt={tilt ? '' : undefined} data-figure-group={proved ? '' : undefined}>
       {/* The sheet is a picture of the document; the total's receipt sits under it, outside the picture, so it stays
           a button a screen reader can reach (nothing inside an image is). The total's proof covers the lines too: the
           sheet is one figure group. Without a total nothing proves the lines, so the Ink rules flag any amount. */}
@@ -178,6 +185,11 @@ function Paper({ label, business, docRef, title, sub, lines, total, tilt, onRece
           {total.estimate
             ? <Figure value={total.value} estimate />
             : <Figure value={total.value} receiptId={total.receiptId} onReceipt={onReceipt} />}
+        </p>
+      )}
+      {!total && proofs && proofs.length > 0 && (
+        <p className={s.paperProof} data-proof="">
+          {proofs.map((proof) => <Receipt key={proof.receiptId} id={proof.receiptId} source={proof.source} onOpen={onReceipt} />)}
         </p>
       )}
     </div>

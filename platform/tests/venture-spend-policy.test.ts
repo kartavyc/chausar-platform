@@ -13,6 +13,12 @@ const get = (env: Env) => money['venture.spend.policy.get']!(env.deps, owner, {}
 const set = (env: Env, payload: unknown, ctx = owner) => money['venture.spend.policy.set']!(env.deps, ctx, payload) as Promise<SpendPolicyView>;
 const FAL_LINE = { item: 'connector:fal', unit: 'per-call', microsPerCall: '150000', source: 'fal pricing page', checkedOn: '2026-10-15' };
 const run = async () => ({ value: 'done', billedMicros: null });
+/** The settings this file covers, without the Ink v2 wave 4 (4F2) meters and limits, which venture-spend-meter.test.ts covers,
+ *  nor which currency leads (4Z3), which venture-spend-lead.test.ts covers. */
+const base = (view: SpendPolicyView) => {
+  const { dailyCapMicros, dailyCapUsd, dailyCap, dailyCapRupees, alertPermille, alert, meter, limitReached, keyLimits, agentCaps, writeCaps, card, currencyLead, leads, capLead, askFirstLead, ...rest } = view;
+  return rest;
+};
 const call = (key: string, item: string, list: SpendRate | null = null) => ({ key, item, label: `Call ${key}`, payer: 'connector:fal', draftDigest: 'c'.repeat(64), list });
 
 test('spend policy methods: listed, owned by money, and set is an owner action inside the app', () => {
@@ -26,12 +32,12 @@ test('spend policy methods: listed, owned by money, and set is an owner action i
 
 test('spend policy: nothing set reads as no limit and no ask-first; set keeps what it leaves out and marks rates confirmed', async () => {
   const env = await setup();
-  assert.deepEqual(await get(env), {
+  assert.deepEqual(base(await get(env)), {
     capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
   });
 
   const view = await set(env, { cap: '5000000', askFirst: '1000000', rates: [FAL_LINE] });
-  assert.deepEqual({ ...view, rates: undefined }, {
+  assert.deepEqual({ ...base(view), rates: undefined }, {
     capMicros: '5000000', askFirstMicros: '1000000', capUsd: '5.00', askFirstUsd: '1.00', cap: 'USD 5.0000 a month', askFirst: 'Asks you first above USD 1.0000', rates: undefined, setAt: env.now(),
     inrPerUsd: null, rupeeRate: null,
   });

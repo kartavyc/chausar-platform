@@ -1,0 +1,140 @@
+/* Business > Your voice (W4 4J22b): a tile per voice with its six sections, the tile that adds one, and Learn from
+   your writing. Two columns on a wide page, one on a phone or beside an open sheet. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: var(--gap-grid);
+  align-items: start;
+}
+
+.learn {
+  grid-column: 1 / -1;
+}
+
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.checked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.sections,
+.texts {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.texts {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--wash);
+}
+
+.askLine {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.pickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+  gap: var(--sp-3);
+}
+
+.picker {
+  display: grid;
+  gap: calc(var(--sp-1) * 1.5);
+}
+
+.label {
+  composes: label from '../../parts/Field.module.css';
+}
+
+.select {
+  composes: input from '../../parts/Field.module.css';
+}
+
+.draft {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.draftHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.learned {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.learnedRow {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.learnedRow dt {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.learnedRow dd {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

@@ -15,11 +15,14 @@
 // apps/api/src/routes/ontology.ts). These are rewrites in TypeScript, not copies.
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
 import { JOURNAL_ACTION_IDS } from '../contracts.ts';
-import type { ApprovalSeal, ConnectorPostRecord, IsoTime, JournalActionId, JournalRecord, JournalState, VentureDeps } from '../contracts.ts';
+import type { ApprovalSeal, ConnectorPostRecord, IsoTime, JournalActionId, JournalRecord, JournalState, JournalTargetOutcome, VentureDeps } from '../contracts.ts';
 import { isAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { checkQuoteBinding, QUOTE_TTL_MS } from '../money/quote.ts';
 import { businessOf, mintApprovalToken, readApprovalToken, sessionOf, tokenHash } from './tokens.ts';
 import { redactSecrets, redactUrl } from '../core/secrets.ts';
+import { refuseCorrupt } from './chain.ts';
+import { checkDependenciesIn, cleanUpRejected, fenceAccount, normalizeKeys, refuseDenylisted, rejectDependentsIn } from './action-extras.ts';
+import { checkRetryIn, normalizeCovers, normalizeTargets, stateOfTargets } from './end-states.ts';
 
 /** An agent proposal waits this long for the owner. A proposal with a quote waits an hour, like a spend quote. */
 export const AGENT_WINDOW_MS = 15 * 60_000;
@@ -37,6 +40,11 @@ export const JOURNAL_ACTIONS: Readonly<Record<JournalActionId, JournalActionSpec
   'site.apply': { label: 'Edit website', effect: 'irreversible', unknownCodes: [] },
   'bank.alert': { label: 'Send bank alert', effect: 'irreversible', unknownCodes: [] },
   'connector.write': { label: 'Write to a connected service', effect: 'irreversible', unknownCodes: [] },
+  // Ink v2 wave 4 (4G3): a phone alert, the count alone, to one of the owner's browsers or to the owner's relay.
+  'notify.push': { label: 'Send phone alert', effect: 'irreversible', unknownCodes: [] },
+  'notify.relay': { label: 'Send relay alert', effect: 'irreversible', unknownCodes: [] },
+  // Ink v2 wave 4 (4J5): a credit note issued for real, in the same commit that takes it off its invoice.
+  'credit.issue': { label: 'Issue credit note', effect: 'atomic', unknownCodes: [] },
 });
 
 /** A record the journal moves: a journal entry, or a connector post, which carries the same fields. */
@@ -56,11 +64,24 @@ export type ProposeInput = {
   shadow?: boolean;
   /** True only when line shows everything the action will send. Left out, the approver is told part of it is not shown. */
   descriptionComplete?: boolean;
+  /** 4J10 (H28): the account it is approved for; it never runs under another (ACCOUNT_FENCE). */
+  account?: string | null;
+  /** 4J10 (H28): keys it provides, and keys it waits for (it runs after their providers apply, and ends if one is rejected). */
+  provides?: string[];
+  dependsOn?: string[];
+  /** 4J10 (H28): the connected service's operation it runs (contacts.update); one that outlives the session is refused. */
+  operation?: string | null;
+  /** 4J10 (H27): a retry of an entry on several targets, and the failed targets it covers (end-states.ts retryProposal). */
+  retryOf?: string | null;
+  covers?: string[];
 };
 
-/** What the effect reports. 'not-sent': known to have done nothing. 'unknown': it may have happened. */
+/**
+ * What the effect reports. 'not-sent': known to have done nothing. 'unknown': it may have happened. targets (4J10,
+ * H27): an action on several targets says how each ended; the entry's state then follows them (end-states.ts).
+ */
 export type ApplyResult<T> =
-  | { outcome: 'applied'; line: string; value: T; receiptId?: string | null; url?: string | null; by?: 'platform' | 'engine' }
+  | { outcome: 'applied'; line: string; value: T; receiptId?: string | null; url?: string | null; by?: 'platform' | 'engine'; targets?: JournalTargetOutcome[] }
   | { outcome: 'not-sent'; line: string; value: T; by?: 'platform' | 'engine' }
   | { outcome: 'unknown'; line: string; value: T };
 export type ApplyHandle = {
@@ -68,6 +89,8 @@ export type ApplyHandle = {
   idempotencyKey: string;
   /** Marks the entry applied inside the effect's own commit, so the effect and its journal step land together. */
   settleIn(tx: VentureTx, line: string, receiptId?: string | null): void;
+  /** 4J10 (H28): the account the effect is about to use; refused ACCOUNT_FENCE when it is not the approved one. */
+  fence(account: string | null): void;
 };
 export type ApplyDone<T> = { entry: Journalled; value: T | undefined; replayed: boolean };
 
@@ -113,6 +136,11 @@ function decidedRefusal(record: Journalled): ChausarError {
   return new ChausarError('JOURNAL_ALREADY_DECIDED', 'This was already decided. Chausar never does the same thing twice.');
 }
 
+/** Phone alerts (4G3): sent under the owner's standing setting, and never left as an unknown to resolve. */
+const STANDING_ALERTS: ReadonlySet<JournalActionId> = new Set<JournalActionId>(['notify.push', 'notify.relay']);
+/** What a phone alert that may or may not have arrived says: the next one carries the count as it is then. */
+export const ALERT_MAY_NOT_HAVE_ARRIVED = 'It may not have arrived. The next alert carries the current count.';
+
 const SHADOW_LINE = 'This was a rehearsal: it was only simulated, so there is nothing to approve.';
 const expired = (expiresAt: IsoTime | null | undefined, nowMs: number) => !!expiresAt && Date.parse(expiresAt) <= nowMs;
 
@@ -128,6 +156,8 @@ function text(value: unknown, field: string, max: number): string {
 
 export function normalizeProposal(input: ProposeInput): Required<ProposeInput> {
   check(input && typeof input === 'object', 'INVALID_VENTURE_REQUEST', 'Describe the action.');
+  // 4J10 (H28): an action that would keep working after the session is refused before anything is recorded.
+  refuseDenylisted(input.action, input.operation);
   check((JOURNAL_ACTION_IDS as readonly string[]).includes(input.action), 'INVALID_VENTURE_REQUEST', 'This is not an action the journal knows.');
   check(typeof input.actionDigest === 'string' && /^[A-Za-z0-9]{1,200}$/.test(input.actionDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of what is approved.');
   const quote = input.quote ?? null;
@@ -142,6 +172,12 @@ export function normalizeProposal(input: ProposeInput): Required<ProposeInput> {
     agent: input.agent === undefined || input.agent === null ? null : text(input.agent, 'The agent', 80),
     notAfter, quote: quote ? { figure: String(quote.figure), payer: quote.payer } : null, shadow: input.shadow === true,
     descriptionComplete: input.descriptionComplete === true,
+    // 4J10 (H27, H28): the account fence, the dependencies and a retry's targets.
+    account: input.account === undefined || input.account === null ? null : text(input.account, 'The account', 120),
+    provides: normalizeKeys(input.provides, 'provides'), dependsOn: normalizeKeys(input.dependsOn, 'dependsOn'),
+    operation: input.operation ?? null,
+    retryOf: input.retryOf === undefined || input.retryOf === null ? null : text(input.retryOf, 'retryOf', 200),
+    covers: normalizeCovers(input.covers),
   };
 }
 
@@ -159,6 +195,9 @@ function describeIn(tx: VentureTx, input: Required<ProposeInput>): JournalRecord
     describe: input.line, agent: input.agent, shadow: input.shadow, quote: input.quote, state: 'described', claimedAt: null, decidedBy: null,
     outcome: null, receiptId: null, journal: [{ state: 'described', at: tx.now, by: input.agent ?? tx.ctx.memberId, line: input.line }],
     approval: null, expiresAt: new Date(ends).toISOString(), descriptionComplete: input.descriptionComplete,
+    // 4J10: kept only when given, so an entry without them reads as it always did.
+    ...(input.account ? { account: input.account } : {}), ...(input.operation ? { operation: input.operation } : {}), ...(input.provides.length ? { provides: input.provides } : {}),
+    ...(input.dependsOn.length ? { dependsOn: input.dependsOn } : {}), ...(input.retryOf ? { retryOf: input.retryOf, covers: input.covers } : {}),
   });
 }
 
@@ -169,6 +208,10 @@ function describeIn(tx: VentureTx, input: Required<ProposeInput>): JournalRecord
  */
 export function proposeIn(tx: VentureTx, input: Required<ProposeInput>): JournalRecord {
   if (input.shadow) return describeIn(tx, input);
+  // 4J10 (H26): while Chausar's record of outside actions does not add up, nothing more is proposed.
+  refuseCorrupt(tx.state, tx.venture?.id);
+  // 4J10 (H27): a retry names the entry it tries again and covers only that entry's targets that failed.
+  checkRetryIn(tx, input);
   const same = tx.list('venture-journal-entry').filter(entry => !entry.shadow && entry.action === input.action && entry.subject === input.subject);
   const latest = same[same.length - 1];
   if (latest) {
@@ -177,7 +220,9 @@ export function proposeIn(tx: VentureTx, input: Required<ProposeInput>): Journal
     if (latest.state === 'described') {
       const stale = expired(latest.expiresAt, Date.parse(tx.now));
       if (!stale && latest.actionDigest === input.actionDigest) return latest;
-      tx.replace(ended(latest, 'rejected', 'engine', stale ? 'Nobody decided in time.' : 'A newer version replaced this.', tx.now));
+      const closed = tx.replace(ended(latest, 'rejected', 'engine', stale ? 'Nobody decided in time.' : 'A newer version replaced this.', tx.now));
+      // A newer version provides what this did, so only an entry that ran out ends what waited on it.
+      if (stale) rejectDependentsIn(tx, closed);
     }
   }
   return describeIn(tx, input);
@@ -185,7 +230,8 @@ export function proposeIn(tx: VentureTx, input: Required<ProposeInput>): Journal
 
 /**
  * standing: no person approved this send; it goes under a standing setting the owner gave earlier (the rules judge on
- * its own, delivery/judge-run.ts). Its journal says so in line, the engine is the actor, and no approver is recorded.
+ * its own, delivery/judge-run.ts; a phone alert of the count alone, notify/, 4G3). Its journal says so in line, the
+ * engine is the actor, and no approver is recorded.
  */
 export type ApproveInput = { entryId: string; digest: string; offered?: { figure: string; payer: string }; line?: string; standing?: boolean };
 
@@ -193,13 +239,18 @@ export type ApproveInput = { entryId: string; digest: string; offered?: { figure
 export function approveIn(tx: VentureTx, ctx: Context, store: object, input: ApproveInput): { record: Journalled; token: string } {
   const record = requireEntry(findIn(tx, input.entryId));
   check(!isShadow(record), 'JOURNAL_SHADOW', SHADOW_LINE);
-  // Only the rules judge's own send goes under a standing setting (delivery/judge-run.ts); everything else has a person.
-  check(!input.standing || (record.kind === 'venture-journal-entry' && record.action === 'delivery.send' && record.subject.includes(':judge:')),
-    'INVALID_VENTURE_REQUEST', 'Only the judge goes under a standing setting; a person approves everything else.');
+  refuseCorrupt(tx.state, tx.venture?.id);
+  // Only the rules judge's own send (delivery/judge-run.ts) and a phone alert of the count alone (notify/, 4G3) go under a
+  // standing setting; everything else has a person.
+  check(!input.standing || (record.kind === 'venture-journal-entry' && ((record.action === 'delivery.send' && record.subject.includes(':judge:'))
+    || (STANDING_ALERTS.has(record.action) && record.subject.startsWith(record.action === 'notify.push' ? 'notify-push:' : 'notify-relay:')))),
+    'INVALID_VENTURE_REQUEST', 'Only the judge and phone alerts go under a standing setting; a person approves everything else.');
   if (record.state !== 'described') throw decidedRefusal(record);
   check(digestOf(record) === input.digest, 'APPROVAL_STALE', 'This changed since you opened it.');
   const nowMs = Date.parse(tx.now);
   check(!expired(record.expiresAt, nowMs), 'JOURNAL_EXPIRED', 'This waited too long for a decision. Ask for it again.');
+  // 4J10 (H28): an action that depends on others waits until each of them has applied.
+  checkDependenciesIn(tx, record);
   if (record.kind === 'venture-journal-entry' && record.quote) {
     const offered = input.offered ?? record.quote;
     checkQuoteBinding({ draftDigest: record.actionDigest, figure: record.quote.figure, payer: record.quote.payer, quotedAt: record.at },
@@ -256,7 +307,11 @@ export async function rejectAction(deps: VentureDeps, ctx: Context, input: { ent
     check(!isShadow(record), 'JOURNAL_SHADOW', SHADOW_LINE);
     if (record.state !== 'described') throw decidedRefusal(record);
     check(digestOf(record) === input.digest, 'APPROVAL_STALE', 'This changed since you opened it.');
-    return tx.replace(ended(record, 'rejected', 'owner', input.line ?? 'You chose not to do this.', tx.now, { decidedBy: ctx.memberId }));
+    const rejected = tx.replace(ended(record, 'rejected', 'owner', input.line ?? 'You chose not to do this.', tx.now, { decidedBy: ctx.memberId }));
+    // 4J10 (H28): the kind's own cleanup, then what waited on this ends too, all in this commit.
+    cleanUpRejected(tx, rejected);
+    rejectDependentsIn(tx, rejected);
+    return rejected;
   });
 }
 
@@ -272,13 +327,38 @@ async function withTimeout<T>(work: Promise<T>, timeoutMs: number | undefined): 
 }
 
 /** Moves an approved record to how it ended. A record that already moved on (settled in the effect's commit) stays. */
-async function settle(deps: VentureDeps, ctx: Context, entryId: string, state: JournalState, by: OutcomeBy, line: string, extra: { receiptId?: string | null; url?: string | null } = {}): Promise<Journalled> {
+async function settle(
+  deps: VentureDeps, ctx: Context, entryId: string, state: JournalState, by: OutcomeBy, line: string,
+  extra: { receiptId?: string | null; url?: string | null; targets?: JournalTargetOutcome[] } = {},
+): Promise<Journalled> {
   return ventureAction(deps, ctx, 'approve', 'journal.settle', tx => {
     const current = requireEntry(findIn(tx, entryId));
     if (current.state !== 'approved') return current;
     const receipt = current.kind === 'venture-journal-entry' && extra.receiptId !== undefined ? { receiptId: extra.receiptId } : {};
-    return tx.replace(stepTo(current, state, tx.now, by, line, { outcome: { line, url: extra.url ?? null, by }, ...receipt }));
+    const targets = extra.targets ? { targets: extra.targets } : {};
+    const settled = tx.replace(stepTo(current, state, tx.now, by, line, { outcome: { line, url: extra.url ?? null, by }, ...receipt, ...targets }));
+    // 4J10 (H28): known not to have happened, so what waited on it ends too.
+    rejectDependentsIn(tx, settled);
+    return settled;
   });
+}
+
+/**
+ * 4J10 (H27): an effect on several targets. Each target's outcome is kept and the entry's state follows them: unknown
+ * while any may have gone, applied when any went, rejected when none did. Targets Chausar cannot read leave it unknown.
+ */
+async function settleTargets<T>(deps: VentureDeps, ctx: Context, entryId: string, by: OutcomeBy, result: Extract<ApplyResult<T>, { outcome: 'applied' }>): Promise<Journalled> {
+  let targets: JournalTargetOutcome[];
+  try {
+    targets = normalizeTargets(result.targets);
+  } catch (error) {
+    await settle(deps, ctx, entryId, 'outcome_unknown', 'engine', withCheck(result.line));
+    throw error;
+  }
+  const state = stateOfTargets(targets);
+  const unknown = state === 'outcome_unknown';
+  return settle(deps, ctx, entryId, state, unknown ? 'engine' : by, unknown ? withCheck(result.line) : result.line,
+    { receiptId: state === 'applied' ? result.receiptId ?? null : null, url: state === 'applied' ? result.url ?? null : null, targets });
 }
 
 function unknownError(error: unknown, spec: JournalActionSpec): boolean {
@@ -293,10 +373,11 @@ function unknownError(error: unknown, spec: JournalActionSpec): boolean {
  * with another key, a key used for another action, or a token bound to anything else is refused.
  */
 export async function applyAction<T>(
-  deps: VentureDeps, ctx: Context, input: { entryId: string; token: string; idempotencyKey: string; timeoutMs?: number },
+  deps: VentureDeps, ctx: Context, input: { entryId: string; token: string; idempotencyKey: string; timeoutMs?: number; account?: string | null },
   run: (handle: ApplyHandle) => Promise<ApplyResult<T>>,
 ): Promise<ApplyDone<T>> {
   requireApp(ctx);
+  check(input?.account === undefined || input.account === null || (typeof input.account === 'string' && input.account.length <= 120), 'INVALID_VENTURE_REQUEST', 'The account must be one short line.');
   const entryId = requireId(input?.entryId, 'entryId');
   check(typeof input.token === 'string' && input.token.length > 0 && input.token.length <= 4096, 'INVALID_VENTURE_REQUEST', 'Send the approval.');
   const key = requireId(input.idempotencyKey, 'The idempotency key');
@@ -312,6 +393,8 @@ export async function applyAction<T>(
       if (record.state === 'applied') return { replayed: true, record };
       throw decidedRefusal(record);
     }
+    // 4J10 (H26): the last look before anything goes out. A replay above sends nothing, so it is still answered.
+    refuseCorrupt(tx.state, tx.venture?.id);
     const claims = readApprovalToken(deps.store, input.token);
     const bound = !!claims && !!seal && seal.tokenHash === hash && claims.entryId === record.id && claims.actionDigest === digestOf(record)
       && claims.memberId === ctx.memberId && claims.epoch === ctx.epoch && claims.session === sessionOf(deps.store, ctx) && claims.businessId === businessOf(tx.state);
@@ -322,6 +405,9 @@ export async function applyAction<T>(
     check(!expired(claims!.expiresAt, Date.parse(tx.now)), 'JOURNAL_EXPIRED', 'This approval ran out before it was used. Approve it again.');
     const elsewhere = [...tx.list('venture-journal-entry'), ...tx.list('venture-connector-post')].some(item => item.id !== record.id && item.approval?.key === key);
     check(!elsewhere, 'JOURNAL_KEY_REUSED', 'This idempotency key belongs to another action.');
+    // 4J10 (H28): the account it was approved for, and everything it depends on applied, or nothing is claimed.
+    fenceAccount(record, input.account);
+    checkDependenciesIn(tx, record);
     const claimed = tx.replace({ ...record, claimedAt: tx.now, approval: { ...seal!, usedAt: tx.now, key } } as Journalled);
     return { replayed: false, record: claimed };
   });
@@ -336,6 +422,9 @@ export async function applyAction<T>(
       if (current.state !== 'approved') return;
       const receipt = current.kind === 'venture-journal-entry' ? { receiptId } : {};
       tx.replace(stepTo(current, 'applied', tx.now, 'engine', line, { outcome: { line, url: null, by: 'engine' }, ...receipt }));
+    },
+    fence(account) {
+      fenceAccount(claim.record, account);
     },
   };
 
@@ -358,6 +447,7 @@ export async function applyAction<T>(
     throw new ChausarError('JOURNAL_OUTCOME_UNKNOWN', line);
   }
   const by: OutcomeBy = result.outcome === 'unknown' ? 'engine' : result.by ?? 'engine';
+  if (result.outcome === 'applied' && result.targets !== undefined) return { entry: await settleTargets(deps, ctx, entryId, by, result), value: result.value, replayed: false };
   const entry = result.outcome === 'applied'
     ? await settle(deps, ctx, entryId, 'applied', by, result.line, { receiptId: result.receiptId ?? null, url: result.url ?? null })
     : result.outcome === 'not-sent'
@@ -372,11 +462,13 @@ export async function applyAction<T>(
  */
 export async function journalled<T>(
   deps: VentureDeps, ctx: Context, input: ProposeInput, run: (handle: ApplyHandle) => Promise<ApplyResult<T>>,
-  options: { timeoutMs?: number; offered?: { figure: string; payer: string }; standing?: { line: string } } = {},
+  options: { timeoutMs?: number; offered?: { figure: string; payer: string }; standing?: { line: string }; account?: string | null } = {},
 ): Promise<ApplyDone<T>> {
   requireApp(ctx);
   const normalized = normalizeProposal(input);
   check(!normalized.shadow, 'JOURNAL_SHADOW', SHADOW_LINE);
+  // 4J10 (H28): an action for a named account runs only when the caller says it runs under that one; else nothing is recorded.
+  fenceAccount({ kind: 'venture-journal-entry', account: normalized.account }, options.account);
   const approved = await ventureAction(deps, ctx, 'approve', 'journal.approve', tx => {
     const proposed = proposeIn(tx, normalized);
     const { record, token } = approveIn(tx, ctx, deps.store, {
@@ -386,7 +478,11 @@ export async function journalled<T>(
     });
     return { id: record.id, token };
   });
-  return applyAction(deps, ctx, { entryId: approved.id, token: approved.token, idempotencyKey: `${approved.id}.once`, ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) }, run);
+  return applyAction(deps, ctx, {
+    entryId: approved.id, token: approved.token, idempotencyKey: `${approved.id}.once`, ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+    // 4J10 (H28): the account the effect will run under, when the caller knows it (the fence).
+    ...(options.account !== undefined ? { account: options.account } : {}),
+  }, run);
 }
 
 /**
@@ -413,7 +509,10 @@ export const resolvedLine = (happened: boolean) => (happened ? 'You checked: it 
  */
 export function resolveIn<R extends Journalled>(tx: VentureTx, record: R, happened: boolean, line: string): R {
   check(record.state === 'outcome_unknown', 'JOURNAL_NOT_UNKNOWN', 'Only an action whose outcome is unknown can be settled. This one already has an outcome.');
-  return tx.replace(ended(record, happened ? 'applied' : 'rejected', 'owner', line, tx.now) as R);
+  const settled = tx.replace(ended(record, happened ? 'applied' : 'rejected', 'owner', line, tx.now) as R);
+  // 4J10 (H28): it did not happen, so what waited on it ends too.
+  rejectDependentsIn(tx, settled);
+  return settled;
 }
 
 /**
@@ -433,6 +532,11 @@ export async function sweepJournal(
       if (isShadow(record) || (input.action && actionOf(record) !== input.action)) continue;
       const label = JOURNAL_ACTIONS[actionOf(record)].label;
       if (record.state === 'approved' && record.claimedAt && nowMs - Date.parse(record.claimedAt) >= input.claimLimitMs) {
+        // A phone alert (4G3) is never left for the owner to resolve: the next alert carries the current count.
+        if (record.kind === 'venture-journal-entry' && STANDING_ALERTS.has(record.action)) {
+          swept.push(tx.replace(ended(record, 'rejected', 'engine', `${label} was under way when Chausar stopped. ${ALERT_MAY_NOT_HAVE_ARRIVED}`, tx.now)));
+          continue;
+        }
         const line = input.unknownLine ? input.unknownLine(record) : withCheck(`${label} was under way when Chausar stopped.`);
         swept.push(tx.replace(ended(record, 'outcome_unknown', 'engine', line, tx.now)));
       } else if (record.state === 'approved' && !record.claimedAt && expired(record.approval?.expiresAt, nowMs)) {
@@ -441,6 +545,8 @@ export async function sweepJournal(
         swept.push(tx.replace(ended(record, 'rejected', 'engine', 'Nobody decided in time. Ask for it again.', tx.now)));
       }
     }
+    // 4J10 (H28): what waited on an action that ended without happening ends too.
+    for (const record of swept) if (record.state === 'rejected') rejectDependentsIn(tx, record);
     return swept;
   });
 }

@@ -13,7 +13,7 @@ import { ChartData } from '../../src/parts/charts/ChartData';
 import type { AgingData, BarSeries, CashData, GoalBarData, SplitData } from '../../src/parts/charts/types';
 import { Figure } from '../../src/parts/Figure';
 import { TextProvider } from '../../src/text';
-import { assertFiguresProved, assertInkRules, assertNoInlineStyles } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, assertNoInlineStyles, receiptMark } from '../helpers/ink-rules';
 
 /* Every value here is written for this test: engine-scaled integers (per mille) and engine-formatted strings. The UI
    never divides, sums money or formats a number; it only draws what it is given. */
@@ -108,6 +108,11 @@ describe('MiniBars', () => {
     expect(screen.getByRole('img', { name: 'Jobs per day: 3, then 10 so far today' })).toBeTruthy();
   });
 
+  it('marks no bar current when the bars are not a time line (one per department, W4 4A2)', () => {
+    const { container } = render(<MiniBars heights={[250, 1000, 0]} current={false} />);
+    expect([...container.querySelectorAll('rect')].map((bar) => bar.hasAttribute('data-current'))).toEqual([false, false, false]);
+  });
+
   it('renders nothing for no heights, so there is never a negative width', () => {
     const { container } = render(<MiniBars heights={[]} />);
     expect(container.innerHTML).toBe('');
@@ -152,6 +157,21 @@ const yearIn: BarSeries = { label: 'In', points: MONTHS.map((m, i) => ({ key: m,
 const yearOut: BarSeries = { label: 'Out', points: MONTHS.map((m) => ({ key: m, label: m, valuePermille: 250, value: '₹25,000' })) };
 
 describe('BarChart', () => {
+  it('counts with a money note under each, each note proved by its own receipt (proof "each", W4 4A2)', () => {
+    const weeks: BarSeries = { label: 'Jobs', points: [
+      { key: 'w1', label: '5 Oct', valuePermille: 500, value: '4', note: 'USD 0.0400', receiptId: 'R-0601' },
+      { key: 'w2', label: '12 Oct', valuePermille: 1000, value: '8', note: 'USD 0.0800', receiptId: 'R-0602' },
+    ] };
+    const { container } = render(<BarChart kind="count" proof="each" noteLabel="Spend" series={[weeks]} label="Jobs and spend by week" />);
+    const root = container.querySelector('[data-chart]')!;
+    expect(root.hasAttribute('data-figure-group')).toBe(true);
+    expect([...container.querySelectorAll('[data-note]')].map((note) => note.textContent)).toEqual(['USD 0.0400', 'USD 0.0800']);
+    // No one receipt in the foot: each week's own is in the table.
+    expect(within(container.querySelector('table')!).getAllByRole('button').map((button) => button.getAttribute('data-receipt'))).toEqual(['R-0601', 'R-0602']);
+    expect(container.querySelectorAll('[data-receipt]')).toHaveLength(2);
+    assertInkRules();
+  });
+
   it('draws each bar at its per mille height and writes the engine strings above the bars', () => {
     render(<BarChart kind="money" series={[months]} label="Money in by month" proof={{ receiptId: 'R-0101' }} />);
     const plot = screen.getByRole('img', { name: 'Money in by month' });
@@ -168,11 +188,11 @@ describe('BarChart', () => {
     const { container } = render(<BarChart kind="money" series={[months]} label="Money in by month" proof={{ receiptId: 'R-0101' }} onReceipt={onReceipt} />);
     const groups = container.querySelectorAll('[data-figure-group]');
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.contains(screen.getByRole('button', { name: 'Receipt R-0101' }))).toBe(true);
+    expect(groups[0]!.contains(screen.getByRole('button', { name: receiptMark('R-0101') }))).toBe(true);
     expect(groups[0]!.querySelector('text[data-cap]')!.textContent).toBe('₹61,000');
     expect(container.querySelector('[data-ui-number]')).toBeNull();
     assertFiguresProved();
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt R-0101' }));
+    fireEvent.click(screen.getByRole('button', { name: receiptMark('R-0101') }));
     expect(onReceipt).toHaveBeenCalledWith('R-0101');
   });
 
@@ -241,7 +261,8 @@ describe('BarChart', () => {
 
   it('on a narrow tile, writes only the current amount over the bars; counts all stay', () => {
     const narrow = containerBlock('(max-width: 440px)');
-    expect(narrow).toMatch(/\.chart\[data-figure-group\] \.cap:not\(\[data-current\]\)\s*\{\s*display:\s*none/);
+    // 4Z2: counts over a figure group's bars stay too; only amounts are left to the table.
+    expect(narrow).toMatch(/\.chart\[data-figure-group\] \.cap:not\(\[data-current\]\):not\(\[data-count\]\)\s*\{\s*display:\s*none/);
     expect(narrow).toMatch(/\.chart\[data-figure-group\] \.column:not\(\[data-current\]\) \.note\s*\{\s*visibility:\s*hidden/);
     // Twelve months keep every other label, counted back from the current month, rather than breaking words.
     expect(narrow).toMatch(/\.columns:has\(> :nth-child\(9\)\) > \.column:nth-last-child\(even\) \.xLabel\s*\{\s*visibility:\s*hidden/);
@@ -319,7 +340,7 @@ describe('BarChart', () => {
     expect(row.querySelector('[data-count]')!.textContent).toBe('6');
     expect(row.querySelector('[data-note]')!.textContent).toBe('₹42.00');
     const group = container.querySelector('[data-figure-group]')!;
-    expect(group.contains(screen.getByRole('button', { name: 'Receipt R-0601' }))).toBe(true);
+    expect(group.contains(screen.getByRole('button', { name: receiptMark('R-0601') }))).toBe(true);
     expect(within(container.querySelector('table')!).getByRole('columnheader', { name: 'Spend this month' })).toBeTruthy();
     assertInkRules();
   });
@@ -358,7 +379,7 @@ describe('BarChart', () => {
     const receipted: BarSeries = { ...months, points: months.points.map((p, i) => ({ ...p, receiptId: `R-020${i}` })) };
     const { container } = render(<BarChart kind="money" series={[receipted]} label="Money in by month" proof={{ receiptId: 'R-0101' }} />);
     const table = container.querySelector('table')!;
-    expect(within(table).getByRole('button', { name: 'Receipt R-0201' })).toBeTruthy();
+    expect(within(table).getByRole('button', { name: receiptMark('R-0201') })).toBeTruthy();
     assertFiguresProved();
   });
 
@@ -417,11 +438,20 @@ describe('AgingBar', () => {
     expect(rulesFor('[data-zero]')).toMatch(/background:\s*transparent/);
   });
 
+  it('legend "held" (a tile at rest) lists only the ages that hold money, each in words with its count and amount', () => {
+    const { container } = render(<AgingBar data={aging} legend="held" />);
+    const rows = [...container.querySelectorAll('li[data-bucket]')];
+    expect(rows.map((row) => row.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90']);
+    expect(rows[1]!.textContent).toBe('1 to 30 days late1 invoice₹12,000');
+    // The empty age still has its row in the chart's table.
+    expect([...container.querySelectorAll('tbody tr')]).toHaveLength(5);
+  });
+
   it('carries one receipt for the tile, which proves every amount', () => {
     const { container } = render(<AgingBar data={aging} />);
     expect(container.querySelectorAll('[data-receipt]')).toHaveLength(1);
     const group = container.querySelector('[data-figure-group]')!;
-    expect(group.contains(screen.getByRole('button', { name: 'Receipt R-0301' }))).toBe(true);
+    expect(group.contains(screen.getByRole('button', { name: receiptMark('R-0301') }))).toBe(true);
     expect(group.textContent).toContain('₹40,000');
     assertInkRules();
   });
@@ -459,10 +489,21 @@ describe('SplitBar', () => {
   it('names each department with its amount in the same order, empty ones last, proved by one receipt', () => {
     const { container } = render(<SplitBar data={split} />);
     const rows = [...container.querySelectorAll('li[data-dept]')];
-    expect(rows.map((row) => row.textContent)).toEqual(['Sales and clients₹25.00', 'Money₹30.00', 'Operations₹5.00', 'Production₹40.00', 'Marketing₹0.00']);
+    // A part with no share is left out of the legend (W4 4A2) and listed last in the table.
+    expect(rows.map((row) => row.textContent)).toEqual(['Sales and clients₹25.00', 'Money₹30.00', 'Operations₹5.00', 'Production₹40.00']);
     const tableRows = within(container.querySelector('table')!).getAllByRole('rowheader').map((cell) => cell.textContent);
     expect(tableRows).toEqual(['Sales and clients', 'Money', 'Operations', 'Production', 'Marketing']);
     expect(container.querySelectorAll('[data-receipt]')).toHaveLength(1);
+    assertInkRules();
+  });
+
+  it('draws the part no single department can claim last, as "Shared by the team", in grey (W4 4A2)', () => {
+    const { container } = render(<SplitBar data={{ ...split, parts: [{ dept: 'shared', amount: '₹10.00', permille: 100 }, ...split.parts] }} />);
+    const bar = screen.getByRole('img', { name: split.label });
+    expect([...bar.querySelectorAll('rect[data-dept]')].map((s) => s.getAttribute('data-dept'))).toEqual(['sales', 'money', 'ops', 'prod', 'shared']);
+    const rows = [...container.querySelectorAll('li[data-dept]')];
+    expect(rows.map((row) => row.textContent)).toEqual(['Sales and clients₹25.00', 'Money₹30.00', 'Operations₹5.00', 'Production₹40.00', 'Shared by the team₹10.00']);
+    expect(rulesFor(".seg[data-dept='shared']")).toContain('var(--chart-rest)');
     assertInkRules();
   });
 

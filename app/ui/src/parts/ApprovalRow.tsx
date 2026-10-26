@@ -1,4 +1,4 @@
-import { useEffect, useId, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { useLanguage, useT, type Language, type T } from '../text';
 import { Avatar, ChausarAvatar, type AvatarState, type DeptId } from './Avatar';
 import { Button, type ButtonSize } from './Button';
@@ -8,6 +8,8 @@ import { Field } from './Field';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
 import { Receipt } from './Receipt';
+// W4 4J19: the row's meta line, facts, the price beside Approve and amounts at their places.
+import { BesideApprove, changeProof, MetaLine, provedText, RowFacts } from './ApprovalMeta';
 import { Row } from './Row';
 import { stateText } from './states';
 import type { QueueAction, QueueDecision, QueueKind, QueueList, QueueRow } from '../engine/types';
@@ -37,6 +39,11 @@ const KIND_ICON: Record<QueueKind, IconName> = {
   locked: 'lock',
   connector: 'send',
   bank: 'wallet',
+  proposal: 'sparkles',
+  // W4 4E4: the same icons as Chip.tsx's KIND_ICONS.
+  followup: 'clock',
+  reply: 'message-square',
+  notice: 'bell',
 };
 
 /** The icon a primary carries on a card when it is not locked (D's Approve check, Run again arrow). */
@@ -50,6 +57,25 @@ export function timeOf(at: string, language: Language): string {
 }
 
 export interface DecideExtra { viewed: boolean; answer?: string }
+
+/**
+ * W4 4J19: what a card's own tools (Today's Send back and Edit) can do with the card. finish shows a decision taken
+ * outside onDecide (venture.queue.sendBack, venture.queue.edit) exactly as a decision is shown: done shrinks the card
+ * to its line (with Undo when `undo` is given), stale shows the new version, refused says why. open tells the card a
+ * tool's box is open: its own buttons step aside (one primary per card) and Ctrl+Enter does nothing.
+ */
+export interface ApprovalToolsApi {
+  row: QueueRow;
+  busy: boolean;
+  open: boolean;
+  /** The tools' button size: small beside the card's own, xl on a phone like every other button there. */
+  size: ButtonSize;
+  setOpen: (open: boolean) => void;
+  finish: (decision: QueueDecision, undo?: (() => Promise<string>) | undefined) => void;
+}
+
+/** W4 4J19: what a preview drawn by a function may do besides opening the thing: prefill the card's answer box. */
+export interface PreviewExtra { answer: (text: string) => void }
 
 /** The primary as the owner sees it now: its words, whether it is locked and why, and whether it asks once more. */
 export interface ApprovalPrimary { label: string; locked: boolean; note: string | undefined; asksAgain: boolean }
@@ -108,12 +134,16 @@ export interface ApprovalRowProps {
   nameTag?: ReactNode;
   /** What a card shows to look at: a video frame, a paper, quoted text. Given as a function it receives `view`, which
    *  opens the thing exactly as Watch or Read does and counts as viewed. Drawing a preview never counts as viewed. */
-  preview?: ReactNode | ((view: () => void) => ReactNode);
+  preview?: ReactNode | ((view: () => void, extra: PreviewExtra) => ReactNode);
+  /** W4 4J19: the card's own tools under its buttons (Today's Send back and Edit on a draft). */
+  tools?: ((api: ApprovalToolsApi) => ReactNode) | undefined;
   /** For the phone's swipe: press the card's own buttons (see ApprovalHandle). */
   handle?: Ref<ApprovalHandle> | undefined;
   /** The cards' button size. Left out: lg on a card, sm on a compact card. The phone asks for xl (3H1), so every
    *  button on a phone card is a full touch target. */
   buttonSize?: ButtonSize | undefined;
+  /** W4 4J22b: the answer box's send words for what is typed (an agent's question card says the answer back). */
+  answerLabel?: ((answer: string) => string) | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
@@ -134,6 +164,24 @@ export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
 }
 
 /**
+ * A row's primary as its card shows it, for the version the owner has (or has not) opened: its words, whether it is
+ * locked until the thing is looked at, the note that says so, and whether it asks once more. The card and Today's next
+ * best step (W4 4I2) both read it here, so the two never say different things.
+ */
+export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary {
+  const primary = row.actions.find((a) => a.primary) ?? row.actions[0]!;
+  const locked = Boolean(primary.requiresView && !viewed);
+  const viewAction = row.actions.find((a) => VIEW_ACTIONS.has(a.id))?.id;
+  // The note names a one-word action, as D does ("Approve unlocks after you watch it"); a longer one ("Send to CA") is
+  // on the button beside it, so the note just says when it unlocks and the card keeps to 12 words of its own (w3 3I).
+  const viewWord = viewAction === 'watch' ? 'Watch' : viewAction === 'read' ? 'Read' : 'Open';
+  const note = locked
+    ? (primary.label.trim().split(/\s+/).length > 1 ? t(`approval.unlocksAfter${viewWord}`) : t(`approval.unlock${viewWord}`, { action: primary.label }))
+    : undefined;
+  return { label: primary.label, locked, note, asksAgain: Boolean(primary.secondAsk) };
+}
+
+/**
  * One thing that needs the owner: business · agent, title, one line, an optional change, and its actions with the
  * primary filled and on the right. Money and other irreversible primaries ask a second time inside the row, and
  * keyboard A never runs them. An approval that needs a look first stays locked until the owner opens it. A new
@@ -148,7 +196,7 @@ export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
  */
 export function ApprovalRow({
   row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread,
-  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize,
+  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel,
 }: ApprovalRowProps) {
   const t = useT();
   const language = useLanguage();
@@ -156,7 +204,8 @@ export function ApprovalRow({
   const [phase, setPhase] = useState<Phase>('idle');
   const [pending, setPending] = useState<QueueAction | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined } | null>(null);
+  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [viewedHere, setViewedHere] = useState(false);
   const [answer, setAnswer] = useState('');
   const [sending, setSending] = useState<QueueAction['id'] | null>(null);
@@ -206,14 +255,9 @@ export function ApprovalRow({
   const isViewed = current.digest === row.digest ? (viewed ?? viewedHere) : viewedHere;
   const primary = current.actions.find((a) => a.primary) ?? current.actions[0]!;
   const others = current.actions.filter((a) => a !== primary);
-  const locked = Boolean(primary.requiresView && !isViewed);
-  const viewAction = current.actions.find((a) => VIEW_ACTIONS.has(a.id))?.id;
-  // The note names a one-word action, as D does ("Approve unlocks after you watch it"); a longer one ("Send to CA") is
-  // on the button beside it, so the note just says when it unlocks and the card keeps to 12 words of its own (w3 3I).
-  const viewWord = viewAction === 'watch' ? 'Watch' : viewAction === 'read' ? 'Read' : 'Open';
-  const lockNote = locked
-    ? (primary.label.trim().split(/\s+/).length > 1 ? t(`approval.unlocksAfter${viewWord}`) : t(`approval.unlock${viewWord}`, { action: primary.label }))
-    : undefined;
+  const { locked, note: lockNote } = primaryOf(current, isViewed, t);
+  /** W4 4E4: the answer box asks for a day (a next step from call notes with no day written). */
+  const asksDay = current.needs?.answer === 'day';
   const eyebrow = showBusiness ? (current.agent ? `${current.businessName} · ${current.agent}` : current.businessName) : (current.agent ?? '');
   const focusInside = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') === current.id;
 
@@ -236,25 +280,7 @@ export function ApprovalRow({
         if (!read) throw error;
         decision = read;
       }
-      if (decision.outcome === 'done') {
-        finished = true;
-        setDecided({ line: decision.line, receiptId: decision.receiptId });
-        setPhase('decided');
-      } else if (decision.outcome === 'stale') {
-        if (decision.latest) setCurrent(decision.latest);
-        setViewedHere(false);
-        // A card shows the new version in place; a row shows it below the words.
-        setNotice({ kind: 'stale', text: staleWords });
-        setPhase('idle');
-      } else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') {
-        finished = true;
-        setDecided({ line: t('approval.elsewhere') });
-        setPhase('decided');
-      } else {
-        if (decision.reason === 'VIEW_FIRST') setViewedHere(false);
-        setNotice({ kind: 'refused', text: decision.line });
-        setPhase('idle');
-      }
+      finished = apply(decision);
     } catch (error) {
       setNotice({ kind: 'failed', text: t('approval.failed', { message: error instanceof Error ? error.message : String(error) }) });
       setPhase('idle');
@@ -265,6 +291,35 @@ export function ApprovalRow({
         focusDecided.current = false;
       }
     }
+  }
+
+  /** Show a decision: done or settled elsewhere shrinks the card (true), stale shows the new version, refused says why. */
+  function apply(decision: QueueDecision, undo?: () => Promise<string>): boolean {
+    if (decision.outcome === 'done') {
+      setDecided({ line: decision.line, receiptId: decision.receiptId, undo });
+      setToolsOpen(false);
+      setPhase('decided');
+      return true;
+    }
+    if (decision.outcome === 'stale') {
+      if (decision.latest) setCurrent(decision.latest);
+      setViewedHere(false);
+      setToolsOpen(false);
+      // A card shows the new version in place, saying the click ran nothing (W4 4J1's words); a row shows it below.
+      setNotice({ kind: 'stale', text: layout === 'row' ? staleWords : t('approval.staleClick') });
+      setPhase('idle');
+      return false;
+    }
+    if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') {
+      setDecided({ line: t('approval.elsewhere') });
+      setToolsOpen(false);
+      setPhase('decided');
+      return true;
+    }
+    if (decision.reason === 'VIEW_FIRST') setViewedHere(false);
+    setNotice({ kind: 'refused', text: decision.line });
+    setPhase('idle');
+    return false;
   }
 
   /** Open the thing to look at. It counts as viewed, the same from Watch, Read or a preview's own button. */
@@ -278,6 +333,8 @@ export function ApprovalRow({
     if (inFlight.current) return 'busy';
     if (onAction?.(current, action)) return 'opened';
     if (action.id === 'answer') { setPhase('answer'); return 'asking'; }
+    // W4 4E4: a next step drafted from call notes that wrote no day takes the day as Approve's answer (row.needs).
+    if (action.id === 'approve' && current.needs?.answer === 'day') { setPending(action); setPhase('answer'); return 'asking'; }
     if (action.secondAsk) { setPending(action); setPhase('confirm'); return 'asking'; }
     void decide(action);
     return 'pressed';
@@ -294,6 +351,8 @@ export function ApprovalRow({
     if (phase === 'decided') return 'none';
     if (inFlight.current || phase === 'sending') return 'busy';
     if (phase === 'confirm' || phase === 'answer') return 'asking';
+    // W4 4J19: a tool's box (Send back) is open: a swipe or the next step decides nothing until it is closed.
+    if (toolsOpen) return 'asking';
     if (action === primary && locked) return 'locked';
     return choose(action);
   }
@@ -310,14 +369,24 @@ export function ApprovalRow({
   const keepDecided = (element: HTMLElement | null) => { decidedRef.current = element; };
 
   if (phase === 'decided' && decided) {
-    const { line, receiptId } = decided;
-    const text = receiptId ? (line.endsWith(receiptId) ? line.slice(0, -receiptId.length) : `${line} · `) : line;
+    const { line, receiptId, undo } = decided;
+    // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
+    const text = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
     const status = (
       <span role="status">
         <span className={s.decidedTitle}>{current.title}</span>
         {' · '}
         {text}
-        {receiptId && <Receipt id={receiptId} onOpen={onReceipt} />}
+        {receiptId && <>{' '}<Receipt id={receiptId} onOpen={onReceipt} /></>}
+        {/* W4 4J19: a send back or an edit can be taken back until its revision starts. */}
+        {undo && (
+          <>
+            {' '}
+            <Button variant="quiet" size={buttonSize === 'xl' ? 'xl' : 'sm'} data-undo="" onClick={() => void undo().then((said) => setDecided({ line: said }), (error: unknown) => setDecided({ line: error instanceof Error ? error.message : String(error), undo }))}>
+              {t('approval.undo')}
+            </Button>
+          </>
+        )}
       </span>
     );
     if (layout === 'row') {
@@ -348,6 +417,24 @@ export function ApprovalRow({
   /** Every action but the primary, in the engine's order: the first answers keyboard D, any more (Read beside Reject
    *  and Send to CA) are there to click. */
   const otherKey = (index: number) => (index === 0 ? 'secondary' : 'more');
+
+  // W4 4J19: the line with each amount the engine proved at its exact place (a Figure with its receipt). The engine-line
+  // stopgap stays only while some amount in it is still unproved (NOTES item 30).
+  const shownLine = current.line ? provedText(current, current.line, 'line', onReceipt) : null;
+  const lineMarks = { 'data-engine-line': shownLine && !shownLine.proved ? '' : undefined, 'data-content': current.kind === 'question' ? '' : undefined };
+  // A change the engine proved through its amounts (a plan's change count) carries that proof.
+  const change = current.change && !current.change.receiptId && !current.change.estimate ? { ...current.change, ...(changeProof(current) ?? {}) } : current.change;
+  const toolsApi: ApprovalToolsApi = {
+    row: current, busy, open: toolsOpen, setOpen: setToolsOpen, size: buttonSize ?? 'sm',
+    finish: (decision, undo) => { if (apply(decision, undo)) inFlight.current = true; },
+  };
+  const toolsNode = tools && phase !== 'confirm' && phase !== 'answer' ? tools(toolsApi) : null;
+  const facts = (
+    <>
+      <RowFacts row={current} onReceipt={onReceipt} />
+      <BesideApprove row={current} onReceipt={onReceipt} />
+    </>
+  );
 
   if (layout === 'row') {
     const actions = phase === 'confirm' || phase === 'answer' ? null : (
@@ -380,17 +467,18 @@ export function ApprovalRow({
         id={current.id}
         eyebrow={eyebrow}
         title={current.title}
-        line={current.line ? <span data-engine-line="" data-content={current.kind === 'question' ? '' : undefined}>{current.line}</span> : undefined}
+        line={shownLine ? <span {...lineMarks}>{shownLine.node}</span> : undefined}
         secondAsk={Boolean(primary.secondAsk)}
         onOpen={onOpen ? (origin) => onOpen(current, origin) : undefined}
         actions={actions}
         className={busy ? s.sending : undefined}
       >
-        {current.change && (
+        {change && (
           <div className={s.change}>
-            <Change {...current.change} onReceipt={onReceipt} />
+            <Change {...change} onReceipt={onReceipt} />
           </div>
         )}
+        {facts}
         {notices}
         {phase === 'confirm' && pending && (
           <div className={s.inline}>
@@ -402,11 +490,11 @@ export function ApprovalRow({
           </div>
         )}
         {phase === 'answer' && (
-          <form className={s.inline} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(primary, answer.trim()); }}>
-            <Field label={t('approval.answerLabel')} value={answer} onChange={(event) => setAnswer(event.currentTarget.value)} autoFocus />
+          <form className={s.inline} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(asksDay ? pending ?? primary : primary, answer.trim()); }}>
+            <AnswerField day={asksDay} line={current.needs?.line} value={answer} onChange={setAnswer} />
             <div className={s.buttons}>
               <Button onClick={cancel}>{t('approval.cancel')}</Button>
-              <Button variant="primary" type="submit" disabled={!answer.trim()}>{t('approval.answerSend')}</Button>
+              <Button variant="primary" type="submit" disabled={!answer.trim()}>{asksDay ? primary.label : answerLabel?.(answer) ?? t('approval.answerSend')}</Button>
             </div>
           </form>
         )}
@@ -423,18 +511,31 @@ export function ApprovalRow({
   const kindWords = stopped ? stateText(t, 'run', 'failed') : stateText(t, 'queue', current.kind);
   const kindIcon: IconName = stopped ? 'triangle-alert' : KIND_ICON[current.kind] ?? 'file-text';
   const name = current.agent ?? t('app.name');
-  const time = timeOf(current.createdAt, language);
-  const note = lockNote ?? (primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : undefined);
-  const previewNode = typeof preview === 'function' ? preview(view) : preview;
+  // W4 4E4: a follow-up's time is only its due day's start, so it shows none.
+  const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, language);
+  const note = lockNote ?? (primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : current.needs?.answer === 'day' ? t('approval.pickDay') : undefined);
+  const previewNode = typeof preview === 'function'
+    ? preview(view, { answer: (text) => { if (phase !== 'idle' || inFlight.current) return; setAnswer(text); setPhase('answer'); } })
+    : preview;
   const primaryIcon = ACTION_ICON[primary.id];
   const avatar = (px: 24 | 40) => (current.agent ? <Avatar name={current.agent} dept={dept} state={agentState} size={px} /> : <ChausarAvatar size={px} />);
-  const meta = (
-    <>
-      {showBusiness && current.businessName}
-      {showBusiness && time && ' · '}
-      {time && <span className="mono">{time}</span>}
-    </>
-  );
+  const meta = <MetaLine row={current} showBusiness={showBusiness} time={time} />;
+
+  /**
+   * W4 4J19 (O7): Ctrl+Enter (Cmd+Enter) approves only a plain yes or no: Approve with no second ask, no answer to give,
+   * not locked, and never while the card's second ask, answer box or a draft tool (Send back, Edit) is open, or while
+   * the owner types.
+   */
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    const target = event.target as HTMLElement;
+    if (target.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+    const plain = primary.id === 'approve' && !primary.secondAsk && !locked && !current.needs && current.kind !== 'question'
+      && others.every((action) => action.id === 'deny' || action.id === 'later' || VIEW_ACTIONS.has(action.id));
+    if (!plain || phase !== 'idle' || toolsOpen || inFlight.current) return;
+    event.preventDefault();
+    choose(primary);
+  }
 
   return (
     <article
@@ -447,6 +548,7 @@ export function ApprovalRow({
       data-second-ask={primary.secondAsk ? '' : undefined}
       tabIndex={-1}
       aria-labelledby={titleId}
+      onKeyDown={onKeyDown}
     >
       {compact ? (
         <>
@@ -488,14 +590,16 @@ export function ApprovalRow({
       {/* The line is the engine's own sentence (data-engine-line): an amount it composed there (a judge's cost bound,
           why Accept is blocked) has no receipt of its own until W4 4J1 moves it into receipted row meta. A question's
           line is also the agent's own words (title options it wrote), so it is quoted content. Never cut short. */}
-      {current.line && <p className={s.line} data-engine-line="" data-content={current.kind === 'question' ? '' : undefined}>{current.line}</p>}
+      {shownLine && <p className={s.line} {...lineMarks}>{shownLine.node}</p>}
 
       {previewNode && <div className={s.preview} data-preview="">{previewNode}</div>}
-      {current.change && (
+      {/* W4 4J19: an invoice's paper preview (4J3) already shows its total with the receipt; the card does not say it twice. */}
+      {change && !(previewNode && current.preview?.kind === 'paper' && current.preview.paper === 'invoice') && (
         <div className={compact ? s.changeMini : s.changeBox}>
-          <Change {...current.change} size={compact ? 'mini' : 'pill'} onReceipt={onReceipt} />
+          <Change {...change} size={compact ? 'mini' : 'pill'} onReceipt={onReceipt} />
         </div>
       )}
+      {facts}
 
       {notices}
       {note && (
@@ -515,15 +619,15 @@ export function ApprovalRow({
         </div>
       )}
       {phase === 'answer' && (
-        <form className={s.confirm} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(primary, answer.trim()); }}>
-          <Field label={t('approval.answerLabel')} value={answer} onChange={(event) => setAnswer(event.currentTarget.value)} autoFocus />
+        <form className={s.confirm} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(asksDay ? pending ?? primary : primary, answer.trim()); }}>
+          <AnswerField day={asksDay} line={current.needs?.line} value={answer} onChange={setAnswer} />
           <div className={s.acts}>
             <Button size={size} onClick={cancel}>{t('approval.cancel')}</Button>
-            <Button variant="primary" size={size} type="submit" disabled={!answer.trim()}>{t('approval.answerSend')}</Button>
+            <Button variant="primary" size={size} type="submit" disabled={!answer.trim()}>{asksDay ? primary.label : answerLabel?.(answer) ?? t('approval.answerSend')}</Button>
           </div>
         </form>
       )}
-      {phase !== 'confirm' && phase !== 'answer' && (
+      {phase !== 'confirm' && phase !== 'answer' && !toolsOpen && (
         <div className={s.acts}>
           {others.map((action, index) => (
             <Button key={action.id} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
@@ -549,6 +653,15 @@ export function ApprovalRow({
           </Button>
         </div>
       )}
+      {toolsNode}
     </article>
   );
+}
+
+/** The answer box's field: words, or (W4 4E4) the day a next step is due, with the engine's line under it. */
+function AnswerField({ day, line, value, onChange }: { day: boolean; line: string | undefined; value: string; onChange: (value: string) => void }) {
+  const t = useT();
+  return day
+    ? <Field label={t('approval.dayLabel')} type="date" hint={line} value={value} onChange={(event) => onChange(event.currentTarget.value)} autoFocus />
+    : <Field label={t('approval.answerLabel')} value={value} onChange={(event) => onChange(event.currentTarget.value)} autoFocus />;
 }

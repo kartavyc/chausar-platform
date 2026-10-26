@@ -14,6 +14,8 @@ import { postingPropose, postingSignIn } from './posting.ts';
 import { postingCheckSteps } from './posting-steps.ts';
 import { postingLimitsGet, postingLimitsSet } from './posting-limits.ts';
 import { socialCalendarHandler } from '../playbooks/social/calendar-export.ts';
+import { connectorsCheckHandler } from './connector-check.ts';
+import { shareRequestHandler } from './file-requests.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -61,6 +63,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.bank.apply': bankApply satisfies VentureHandler<'venture.bank.apply'>,
   'venture.bank.alerts.get': bankAlertsGet satisfies VentureHandler<'venture.bank.alerts.get'>,
   'venture.bank.alerts.set': bankAlertsSet satisfies VentureHandler<'venture.bank.alerts.set'>,
+  // Ink v2 wave 4 (package 4-0 registered these; 4J7 replaces them): connection checks and the client's file request.
+  'venture.connectors.check': connectorsCheckHandler satisfies VentureHandler<'venture.connectors.check'>,
+  'venture.share.request': shareRequestHandler satisfies VentureHandler<'venture.share.request'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';
@@ -71,4 +76,6 @@ export { CONNECTOR_CATALOGUE } from './catalogue.ts';
 // The journal sweep the host runs when a vault opens and on the engine's tick: a trusted host entry point, not a method.
 export { JOURNAL_CLAIM_LIMIT_MS, sweepWholeJournal } from './journal-sweep.ts';
 // The hosted /share/<token> page: trusted host entry points, never RPC methods (VentureHost.shareLink).
-export { shareDecide, sharePage } from './share-links.ts';
+export { shareComment, shareDecide, sharePage } from './share-links.ts';
+// The hosted /share/<token>/upload page (4J7, K9): a trusted host entry point, never an RPC method.
+export { fileRequestEntry } from './file-requests.ts';

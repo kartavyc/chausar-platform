@@ -5,7 +5,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CONNECTORS, MODEL_PRESETS } from '../../src/engine/fixtures-business';
 import { connectorLabelOf } from '../../src/parts/ConnectorLabel';
 import type { BooksSummaryLite, ConnectorCardLite, EngineClient, MethodName } from '../../src/engine/types';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /**
  * Connections in the Ink v2 look (w3 package 3G1; spec 4.3 "Connections"; catalogue U10, K10, K11). Built from the
@@ -257,7 +257,7 @@ describe('Connections in the Ink v2 look', () => {
     const payment = within(sheet).getByText('NEFT/INV-0039/BOAT AUDIO').closest('[data-bank-row]') as HTMLElement;
     await act(async () => { fireEvent.click(within(payment).getByRole('button', { name: 'Record payment' })); });
     await waitFor(() => expect(within(sheet).getByText('Recorded ₹26,200.00 as a payment of INV-0039.')).toBeTruthy());
-    expect(within(payment).getByRole('button', { name: /^Receipt / })).toBeTruthy();
+    expect(within(payment).getByRole('button', { name: receiptMark(/./) })).toBeTruthy();
     const rent = within(sheet).getByText('OFFICE RENT OCTOBER').closest('[data-bank-row]') as HTMLElement;
     await act(async () => { fireEvent.click(within(rent).getByRole('button', { name: 'Add as cost' })); });
     const added = await within(sheet).findByText('Added ₹25,000.00 to your costs.');

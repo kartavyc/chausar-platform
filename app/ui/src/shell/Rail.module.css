@@ -90,3 +90,15 @@
   background: var(--wait-soft);
   color: var(--wait);
 }
+
+/* W4 4C2: Chats says "New" (D's `.new`) until the open business has its first chat: the accent's soft ground. */
+.new {
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--accent-soft);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: var(--sp-5);
+  color: var(--accent-text);
+}

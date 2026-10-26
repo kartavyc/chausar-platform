@@ -1,0 +1,222 @@
+/* W4 4J19: Today's actions beyond one button: a draft card's tools (Send back, Edit), the edit sheet, approving
+   several, and sorting Today. Boxes sit on the inner grey like the card's own second ask (ApprovalRow `.confirm`). */
+
+.tools {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.toolButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.merged {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg);
+}
+
+.box {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.boxHead {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.boxForm {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.boxButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.hint,
+.said,
+.confirmLine {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.problem,
+.refusal {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fail);
+}
+
+.fix,
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  border: 0;
+}
+
+.fixHead {
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.fixCheck,
+.choiceLabel,
+.pickLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg);
+}
+
+.merge {
+  display: grid;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.mergeLine {
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.replace {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.changes,
+.pickList,
+.dryRun {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dryRun {
+  padding-left: var(--sp-4);
+  list-style: decimal;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.changeItem,
+.pickItem {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.changeBy,
+.pickKind {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.before {
+  color: var(--mute);
+}
+
+.after {
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.pickWords {
+  display: grid;
+}
+
+.pickTitle {
+  color: var(--fg);
+}
+
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.confirm {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.ask {
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+/* The work receipt sheet (W4 4J19): the receipt's figures in plain DM Mono, then its steps and explanation. */
+.workReceipt {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.workFigures {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.workFigure {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.workFigure dd {
+  margin: 0;
+}
+
+.workSteps {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+/* The newer version of a draft that changed under the owner's edit, quoted as written. */
+.newerText {
+  max-height: 240px;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow: auto;
+}

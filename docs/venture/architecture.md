@@ -179,8 +179,8 @@ The Anthropic route asks for structured JSON at low effort and records refusals 
 | Build | Lovable, Replit, Bolt, v0, GitHub | handoff (brief link or copy); GitHub read |
 | Site and domain | Vercel, Netlify, Cloudflare, Porkbun | planned: handoff |
 | Payments | Razorpay, Cashfree, Stripe, PayPal, Paddle | planned: handoff, read, write |
-| Email and inbox | Your own mail app, Google Workspace, Resend | Your own mail app: handoff (you send a draft); others planned |
-| Booking and calendar | Cal.com, Calendly, Google Calendar | planned: handoff, read |
+| Email and inbox | Your own mail app, Google Workspace, Zoho Mail, Resend | Your own mail app: handoff (you send a draft); Google Workspace and Zoho Mail: read (your inbox over IMAP with an app password, desktop app only); others planned |
+| Booking and calendar | Cal.com, Calendly, Google Calendar | Google Calendar: read (the private address you paste, desktop app only); planned: handoff, read |
 | Customers and CRM | Chausar CRM, HubSpot, Zoho CRM, Attio | Chausar CRM read and write; others planned |
 | Messaging and support | WhatsApp, Telegram, Slack, Discord | planned: handoff, write |
 | Docs and ops | Notion, Google Drive, Linear, Airtable | planned |

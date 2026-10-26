@@ -2,6 +2,7 @@
 // Steps are fixed by code; the only words taken from the plan are the work and drafting steps' titles. Agent steps
 // name the tools they may call (deny by default) and hold guidance the improvement loop can change with typed
 // patches. Playbook versions are never overwritten: every change is a new version, and the business points at one.
+// The owner's own changes from chat are versions too (ownerVersion, Ink v2 wave 4).
 import { check, type Context, type State } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import { CHECK_IDS, REQUIRED_SECTIONS, TOOL_NAMES } from '../contracts.ts';
@@ -17,6 +18,7 @@ import { acceptedBlueprint, latestPlaybook, readAs } from './shared.ts';
 import { DRAFT_CHECKS, VERIFY_CHECKS } from './check-lists.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
+import { validateFlow } from './flow.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
 const TIER_ORDER: readonly ExecutionTier[] = ['code', 'actor', 'wasm-lite', 'wasm', 'container', 'owner-cli', 'hosted'];
@@ -130,6 +132,8 @@ export function validatePlaybook(steps: PlaybookStep[], extras?: { limits: Harne
     if (step.kind === 'operator' && !approvalSeen) refuse(`The step ${step.id} acts outside Chausar before you approve.`);
     if (step.kind === 'approve') approvalSeen = true;
   }
+  // Ink v2 wave 4 (4J12, H23): edges, loop caps, timeouts, gates and the run deadline (delivery/flow.ts).
+  validateFlow(steps, extras?.limits);
   if (extras) {
     check(Number.isInteger(extras.limits.maxTurns) && extras.limits.maxTurns >= 1 && extras.limits.maxTurns <= 8
       && Number.isInteger(extras.limits.maxToolCalls) && extras.limits.maxToolCalls >= 1 && extras.limits.maxToolCalls <= 24
@@ -266,6 +270,25 @@ export async function ensurePlaybook(deps: VentureDeps, ctx: Context): Promise<P
 export async function playbookHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PlaybookRecord> {
   exactPayload(payload, []);
   return ensurePlaybook(deps, ctx);
+}
+
+/**
+ * Stores a version the owner's own words made (Ink v2 wave 4, 4B1): an accepted "from now on" change, or an undo
+ * that rebuilt the playbook without one. The body is validated like every other version; it keeps the version's plan,
+ * service type and flagship, is the next version number, names `from` as its parent, and the business points at it.
+ * Versions are never overwritten: `from` stays stored as it was. A run already going keeps the version it started on.
+ */
+export function ownerVersion(tx: VentureTx, from: PlaybookRecord, body: PlaybookBody, patches: readonly PlaybookPatch[], event: { proposalId?: string; undoneFrom?: string } = {}): PlaybookRecord {
+  const { hash, tierCeiling } = validatePlaybook(body.steps, { limits: body.limits, aliases: body.aliases });
+  const versions = listRecords(tx.state, 'venture-playbook', from.ventureId).map(record => record.version);
+  const record: PlaybookRecord = {
+    ...from, ...tx.base('venture-playbook'), version: Math.max(0, ...versions) + 1, hash, steps: body.steps, validated: true, tierCeiling, format: 2,
+    limits: body.limits, aliases: body.aliases, patches: [...patches], parentId: from.id, origin: 'owner',
+  };
+  tx.put(record);
+  tx.touch({ playbookId: record.id });
+  tx.emit('playbook-adopted', { playbookId: record.id, version: record.version, hash, ...event });
+  return record;
 }
 
 /** The checks a playbook's verify step runs; falls back to the fixed list for an older record. */

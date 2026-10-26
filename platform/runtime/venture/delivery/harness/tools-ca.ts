@@ -9,12 +9,16 @@
 // versions. A refusal the engine gives every time (a case it does not model, a date no table covers, a table the CA
 // has not confirmed) reaches the agent marked { retry: false }: asking again changes nothing, and the same call again is
 // answered from the run without running (tools.ts callTool). A mistake the agent can fix (a GSTIN, a month or a date
-// written wrong, a GSTIN that is not the client's) is a plain TOOL_FAILED, checked here before the engine runs.
+// written wrong, a GSTIN that is not the client's) is a plain TOOL_FAILED, checked here before the engine runs. A fact
+// only the client knows (the regime, residency, age band, filing date, month, a payee's kind) is left out rather than
+// guessed: the engine answers NEEDS_FACTS with what is missing, and the turn ends as a question to the client in
+// Chausar's words (Ink v2 4J16, playbooks/ca-firm/needs-facts.ts).
 import { ChausarError } from '../../../contracts.ts';
 import { gstinValid } from '../../../memory.ts';
 import { numberGuard } from '../../../calculator.ts';
-import { digest, findRecord } from '../../records.ts';
+import { digest, findRecord, listRecords } from '../../records.ts';
 import type { Json, ToolName, WorkFigure, WorkReceiptRecord } from '../../contracts.ts';
+import { writingLanguage } from '../../playbooks/writing-checks.ts';
 import { computeIncomeTax, type IncomeTaxInput, type NotModelledIncome } from '../../playbooks/ca-firm/income-tax.ts';
 import { computeInterest234, type InterestInput } from '../../playbooks/ca-firm/interest.ts';
 import { gstWorking, type GstWorking, type GstWorkingInput } from '../../playbooks/ca-firm/gst.ts';
@@ -22,6 +26,7 @@ import { tdsWorking, type TdsWorking, type TdsWorkingInput } from '../../playboo
 import { bpsText } from '../../playbooks/ca-firm/money.ts';
 import { RATE_TABLES, type RateTableKind, type RateUse } from '../../playbooks/ca-firm/rates.ts';
 import type { CaReceipt } from '../../playbooks/ca-firm/receipt.ts';
+import { absent, guessedFacts, requireFacts } from '../../playbooks/ca-firm/needs-facts.ts';
 import {
   advancePayments, gstLines, newLog, requireRupees, sumPicks, tdsPayments, type AmountPick, type ReadLog, type RegisterMap,
 } from '../../playbooks/ca-firm/tool-inputs.ts';
@@ -44,6 +49,45 @@ export async function noRetry<T>(work: () => Promise<T>): Promise<T> {
   try { return await work(); } catch (error) {
     if (error instanceof ChausarError && NO_RETRY_CODES.includes(error.code)) {
       throw refusal(error.code, error.message, Object.hasOwn(UNTIL, error.code) ? { retry: false, until: UNTIL[error.code] } : { retry: false });
+    }
+    throw error;
+  }
+}
+
+const ENGINE_WORDS: Readonly<Record<CaToolName, string>> = { 'tax.income': 'income tax working', 'tax.interest': 'interest working', 'tax.gst': 'GST working', 'tax.tds': 'TDS working' };
+
+/**
+ * The language the client writes in, for a NEEDS_FACTS question (4J16): Hindi when the order's request is written in
+ * Devanagari, or, with no order, when every voice the business uses is Hindi; else English.
+ */
+function factsLanguage(env: ToolEnv): 'en' | 'hi' {
+  try {
+    const state = env.deps.store.read();
+    if (env.runRef.kind === 'delivery') {
+      const run = findRecord(state, 'venture-delivery-run', env.runRef.runId);
+      const order = run ? findRecord(state, 'venture-order', run.orderId) : undefined;
+      if (order?.request) return writingLanguage(order.request);
+    }
+    const voices = listRecords(state, 'venture-voice', env.ventureId).filter(voice => voice.on && !voice.draft);
+    return voices.length && voices.every(voice => voice.language === 'hi') ? 'hi' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+/**
+ * Ink v2 4J16 (CA8): a tax tool's work, where the client's facts are never guessed. A fact an earlier call of this tool
+ * was refused NEEDS_FACTS for may be filled in only once a question to the client since then was really answered (not
+ * a timeout); else it is asked again. A NEEDS_FACTS refusal carries the client's language for the question.
+ */
+async function askingClient<T>(env: ToolEnv, tool: CaToolName, input: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
+  try {
+    requireFacts(ENGINE_WORDS[tool], guessedFacts(env.calls ?? [], env.handoffs ?? [], tool, input));
+    return await work();
+  } catch (error) {
+    if (error instanceof ChausarError && error.code === 'NEEDS_FACTS') {
+      const held = error as ChausarError & { details?: Json };
+      held.details = { ...((held.details && typeof held.details === 'object' && !Array.isArray(held.details) ? held.details : {}) as Record<string, Json>), language: factsLanguage(env) };
     }
     throw error;
   }
@@ -153,6 +197,8 @@ export function caAnswer(env: ToolEnv, receipt: CaReceipt, inputs: unknown, log:
 // ---------------------------------------------------------------------------
 
 const SKIP: Field = { type: 'list', required: false, max: 50, item: text('A row id such as r12.', 12), about: 'Rows to leave out, such as a subtotal, a total or a note. Each is logged on the receipt.' };
+/** Ink v2 4J16 (CA8): what the agent does with a fact it does not know (playbooks/ca-firm/needs-facts.ts). */
+const LEAVE_OUT = 'Never guess a fact about the client: leave it out, and the calculator answers NEEDS_FACTS, Chausar asks the client and your turn ends.';
 
 const PICK: Field = {
   type: 'object', required: true, about: 'One amount: an amount id in a PDF you read (file and amount), or one table cell (table, row and column).',
@@ -181,12 +227,13 @@ const REGISTER_FIELDS: Record<string, Field> = {
 
 const INCOME: Spec = {
   name: 'tax.income', effect: 'compute', tier: 'code', endsTurn: false,
-  summary: "The calculator works income tax for one person for one assessment year, under the regime you choose, from amounts you pick in the client's files. It refuses what it does not model (name it in alsoHas): that goes to the CA.",
+  summary: `The calculator works income tax for one person for one assessment year, under the regime you choose, from amounts you pick in the client's files. It refuses what it does not model (name it in alsoHas): that goes to the CA. ${LEAVE_OUT}`,
   input: {
     assessmentYear: yearChoice(ASSESSMENT_YEARS, 'The assessment year, such as 2027-28 for income of the year to 31 March 2027.'),
-    regime: { type: 'enum', required: true, values: ['new', 'old'], about: 'The new regime, or the old one the person opted for.' },
-    residency: { type: 'enum', required: true, values: ['resident', 'non-resident'], about: 'Whether the person is resident in India for the year.' },
-    ageBand: { type: 'enum', required: true, values: ['below-60', '60-79', '80-plus'], about: "The person's age band." },
+    // Ink v2 4J16 (CA8): facts the files may not show are optional, so the agent leaves them out instead of guessing.
+    regime: { type: 'enum', required: false, values: ['new', 'old'], about: 'The new regime, or the old one the person opted for. Leave it out when the files do not say.' },
+    residency: { type: 'enum', required: false, values: ['resident', 'non-resident'], about: 'Whether the person is resident in India for the year. Leave it out when the files do not say.' },
+    ageBand: { type: 'enum', required: false, values: ['below-60', '60-79', '80-plus'], about: "The person's age band. Leave it out when the files do not say." },
     salary: picks('Taxable salary after exempt allowances, before the standard deduction, as on Form 16.'),
     professionalTax: picks('Professional tax paid, as on Form 16.'),
     otherIncome: picks('Interest and other income taxed at slab rates.'),
@@ -212,7 +259,7 @@ const INCOME: Spec = {
     },
   },
   async run(env, input) {
-    return noRetry(async () => {
+    return noRetry(() => askingClient(env, 'tax.income', input, async () => {
       requireRupees(env);
       const log = newLog();
       const amount = (list: readonly AmountPick[] | undefined, field: string) => sumPicks(env, list, field, log);
@@ -256,7 +303,7 @@ const INCOME: Spec = {
         } : {}),
       };
       return caAnswer(env, computeIncomeTax(engineInput, rateUseOf(env)), engineInput, log);
-    });
+    }));
   },
 };
 
@@ -270,12 +317,13 @@ const INTEREST: Spec = {
       type: 'object', required: false, about: 'The advance tax paid, one dated payment per row. Leave it out when none was paid.',
       fields: { table: text('The table, such as f2.', 12), date: column('Payment date column.'), amount: column('Amount paid column.'), skipRows: SKIP },
     },
-    filedOn: text('The date the return was or will be filed, written YYYY-MM-DD.', 10),
+    filedOn: text(`The date the return was or will be filed, written YYYY-MM-DD. ${LEAVE_OUT}`, 10, false),
   },
   async run(env, input) {
-    return noRetry(async () => {
+    return noRetry(() => askingClient(env, 'tax.interest', input, async () => {
       requireRupees(env);
-      const filedOn = dateInput(input.filedOn, 'filedOn');
+      // Ink v2 4J16 (CA8): with no filing date the calculator answers NEEDS_FACTS (interest.ts).
+      const filedOn = input.filedOn === undefined ? undefined as unknown as string : dateInput(input.filedOn, 'filedOn');
       const match = /^w(\d{1,2})$/.exec(input.taxFrom);
       const from = match ? env.receipts[parseInt(match[1], 10) - 1] : undefined;
       if (!from) fail(`There is no receipt ${JSON.stringify(input.taxFrom)}. The receipts are: ${env.receipts.map((_, index) => `w${index + 1}`).join(', ') || 'none'}.`);
@@ -304,7 +352,7 @@ const INTEREST: Spec = {
       };
       const receipt = computeInterest234(engineInput, rateUseOf(env));
       return caAnswer(env, receipt, engineInput, log, { lateMonths: receipt.working.months234a, shortMonths: receipt.working.months234b });
-    });
+    }));
   },
 };
 
@@ -312,8 +360,8 @@ const GST: Spec = {
   name: 'tax.gst', effect: 'compute', tier: 'code', endsTurn: false,
   summary: 'The calculator works the GST working for one GSTIN and one month (output tax by rate and head, GSTR-1 sections, HSN summary, credit found in GSTR-2B, cash to pay) from a sales register, and a purchase register if there is one, mapped column by column. Lines it cannot count are listed with the reason.',
   input: {
-    gstin: text("The business's own GSTIN, as on its registration.", 15),
-    period: text('The month, written YYYY-MM.', 7),
+    gstin: text("The business's own GSTIN, as on its registration. Leave it out to use the GSTIN on the client's record.", 15, false),
+    period: text(`The month, written YYYY-MM. ${LEAVE_OUT}`, 7, false),
     outward: { type: 'object', required: true, about: 'The sales register, column by column.', fields: REGISTER_FIELDS },
     inward: {
       type: 'object', required: false, about: 'The purchase register, column by column, for the credit. Leave it out when there is none.',
@@ -325,11 +373,14 @@ const GST: Spec = {
     },
   },
   async run(env, input) {
-    return noRetry(async () => {
+    return noRetry(() => askingClient(env, 'tax.gst', input, async () => {
       requireRupees(env);
-      const period = input.period.trim();
-      if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(period)) fail(`input.period is a month written like 2026-10, not ${JSON.stringify(period.slice(0, 20))}.`);
-      const gstin = await workingGstin(env, input.gstin);
+      // Ink v2 4J16 (CA8): with no month, or no GSTIN given and none on the client's record, the engine asks the client,
+      // after any line it does not model is refused (NOT_MODELLED comes first: that part is the CA's).
+      const named = absent(input.gstin) ? clientGstin(env) : input.gstin;
+      const period = absent(input.period) ? '' : input.period.trim();
+      if (period && !/^\d{4}-(?:0[1-9]|1[0-2])$/.test(period)) fail(`input.period is a month written like 2026-10, not ${JSON.stringify(period.slice(0, 20))}.`);
+      const gstin = absent(named) ? '' : await workingGstin(env, named!);
       const log = newLog();
       const outward = gstLines(env, input.outward as RegisterMap, 'outward', log);
       const inward = input.inward ? gstLines(env, input.inward as RegisterMap, 'inward', log) : [];
@@ -342,7 +393,7 @@ const GST: Spec = {
         creditHeld: working.held.map(item => ({ line: item.lineId, reason: item.reason })),
         chargedDiffers: working.differences.map(item => ({ line: item.lineId, invoice: item.invoiceNo, head: item.head.toUpperCase() })),
       });
-    });
+    }));
   },
 };
 
@@ -355,13 +406,14 @@ const TDS: Spec = {
       type: 'object', required: true, about: 'The payments table, column by column.',
       fields: {
         table: text('The table, such as f1.', 12), payeeName: column("Payee's name column."), pan: column("Payee's PAN column, if there is one.", false),
-        payeeKind: column('Kind of payee column: individual, huf, company, firm or other.'), section: column('TDS section column.'),
+        // 4J16 (CA8): with no such column, or an empty cell, the calculator asks the client (NEEDS_FACTS), never guesses.
+        payeeKind: column('Kind of payee column: individual, huf, company, firm or other. Leave it out when the table has none.', false), section: column('TDS section column.'),
         date: column('Payment or credit date column.'), amount: column('Amount paid column.'), skipRows: SKIP,
       },
     },
   },
   async run(env, input) {
-    return noRetry(async () => {
+    return noRetry(() => askingClient(env, 'tax.tds', input, async () => {
       requireRupees(env);
       const log = newLog();
       const engineInput: TdsWorkingInput = { financialYear: input.financialYear, payments: tdsPayments(env, input.payments, input.financialYear, log) };
@@ -372,7 +424,7 @@ const TDS: Spec = {
         challans: working.challans.map(item => ({ section: item.section, month: item.month, depositDue: item.depositDue })),
         findings: working.findings,
       });
-    });
+    }));
   },
 };
 

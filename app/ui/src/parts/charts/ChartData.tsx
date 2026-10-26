@@ -55,26 +55,35 @@ export function ChartData({ caption, columns, rows }: ChartDataProps) {
   );
 }
 
-/** How a chart's proof is shown: the one receipt (or the "model estimate" label) that proves every amount it writes. */
+/**
+ * How a chart's proof is shown: the one receipt (or the "model estimate" label) that proves every amount it writes, or
+ * `each` when every point's amount carries its own receipt (listed in the chart's table) and no one receipt covers them
+ * all (W4 4A2: a department's spend week by week).
+ */
+export type ChartProof = FigureProof | 'each';
+
 export interface ChartProofProps {
-  proof?: FigureProof | undefined;
+  proof?: ChartProof | undefined;
   onReceipt?: ((id: string) => void) | undefined;
 }
 
 /**
  * What a chart's values are, as a discriminant the type checks: a money chart cannot be built without its proof.
- * - `money`: the values are amounts, proved by `proof`; a `noteLabel` names an optional second string per point.
+ * - `money`: the values are amounts, proved by `proof`; a `noteLabel` names an optional second string per point. Proof
+ *   `each` (W4 4J20: in and out by month) when every point's amount has its own receipt, listed in the chart's table.
  * - `count`: the values are counts (jobs, runs) and need no proof.
- * - `count` with a money note beside each value (D-Team's jobs and spend): the notes are amounts, so `proof` is needed.
+ * - `count` with a money note beside each value (D-Team's jobs and spend): the notes are amounts, so `proof` is needed:
+ *   one receipt, or `each` when each point's `receiptId` proves its own note (the table lists them).
  */
 export type ChartValues =
-  | { kind: 'money'; proof: FigureProof; noteLabel?: string | undefined; onReceipt?: ((id: string) => void) | undefined }
+  | { kind: 'money'; proof: ChartProof; noteLabel?: string | undefined; onReceipt?: ((id: string) => void) | undefined }
   | { kind: 'count'; proof?: undefined; noteLabel?: undefined; onReceipt?: undefined }
-  | { kind: 'count'; proof: FigureProof; noteLabel: string; onReceipt?: ((id: string) => void) | undefined };
+  | { kind: 'count'; proof: FigureProof; noteLabel: string; onReceipt?: ((id: string) => void) | undefined }
+  | { kind: 'count'; proof: 'each'; noteLabel: string; onReceipt?: ((id: string) => void) | undefined };
 
 /** The attributes of a chart's outer element: a `data-figure-group` when it holds money, so its one proof covers
  *  every amount written inside it (tests/helpers/ink-rules.ts). */
-export function chartRoot(proof: FigureProof | undefined, extra?: Record<string, string | undefined>) {
+export function chartRoot(proof: ChartProof | undefined, extra?: Record<string, string | undefined>) {
   return { 'data-chart': '', 'data-figure-group': proof ? '' : undefined, ...extra };
 }
 
@@ -83,7 +92,7 @@ export function ChartFoot({ proof, onReceipt, children }: ChartProofProps & { ch
   return (
     <div className={s.foot}>
       {children}
-      {proof && (
+      {proof && proof !== 'each' && (
         <span className={s.proof}>
           {proof.estimate ? <ModelEstimate /> : <Receipt id={proof.receiptId} onOpen={onReceipt} />}
         </span>

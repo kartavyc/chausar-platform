@@ -1,6 +1,12 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { useT } from '../text';
 import s from './PageTitle.module.css';
+
+/**
+ * The shell's own tools for every page header (D's `.tools`: W4 4G4's bell), drawn after the place's own tools. The
+ * shell gives them only beside the rail; on a phone they sit in the top bar instead.
+ */
+export const ShellToolsContext = createContext<ReactNode>(null);
 
 export interface PageTitleProps {
   title: string;
@@ -32,6 +38,7 @@ function withCount(line: ReactNode, count: string | undefined): ReactNode {
 /** A place's header (D's `header.phead`): the eyebrow, the title (28/600), its line, and the page tools beside them. */
 export function PageTitle({ title, eyebrow, line, count, tools }: PageTitleProps) {
   const t = useT();
+  const shellTools = useContext(ShellToolsContext);
   return (
     <header className={s.header}>
       <div className={s.text}>
@@ -39,7 +46,7 @@ export function PageTitle({ title, eyebrow, line, count, tools }: PageTitleProps
         <h1 className={s.title}>{title}</h1>
         {line && <p className={s.line}>{withCount(line, count)}</p>}
       </div>
-      {tools && <div className={s.tools} role="group" aria-label={t('shell.pageTools')}>{tools}</div>}
+      {(tools || shellTools) && <div className={s.tools} role="group" aria-label={t('shell.pageTools')}>{tools}{shellTools}</div>}
     </header>
   );
 }

@@ -8,7 +8,7 @@ import type { QueueRow } from '../src/engine/types';
 import { ApprovalRow } from '../src/parts/ApprovalRow';
 import { Figure } from '../src/parts/Figure';
 import { cssOf, rule } from './helpers/css';
-import { assertInkRules } from './helpers/ink-rules';
+import { assertInkRules, receiptMark } from './helpers/ink-rules';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -189,8 +189,9 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     window.location.hash = '#/team';
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const glance = await screen.findByRole('region', { name: 'Team at a glance' });
+    // 4Z3: a business in India with a rupee rate leads with rupees, then its words, the dollars beneath.
     await waitFor(() => expect(glance.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10'));
-    expect(glance.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(', includes estimates');
+    expect(glance.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(' (includes estimates)');
   });
 
   it('7. an order says it is priced on its receipt, never a bare "Price" with no amount', async () => {
@@ -199,8 +200,9 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     const order = (await screen.findByRole('heading', { name: 'Two mentions in episode 14' })).closest('li')!;
     await settle();
     const meta = within(order).getByText('Priced on receipt').closest('p')!;
-    expect(within(meta).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
-    expect(within(order).queryByText(/^Price$/)).toBeNull();
+    expect(within(meta).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
+    // W4 4J3: the order's stage steps name a "Price" stage; that is a step's name, not a price line.
+    expect(within(order).queryAllByText(/^Price$/).filter((el) => !el.closest('[data-order-steps]'))).toEqual([]);
   });
 
   it("8. Today's count badge sits on the tab icon's corner, so the 22 px icon stays readable", () => {
@@ -208,5 +210,38 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     expect(badge).toMatch(/left:\s*50%/);
     // The icon reaches 11 px right of the middle: a badge that starts 8 px or more right of it covers at most its corner.
     expect(badge).toMatch(/margin-left:\s*var\(--sp-(2|3)\)/);
+  });
+});
+
+/** What the wave 4 walk (4Z) found by hand in Chrome that jsdom could not, each held by a test once fixed. */
+describe('found by the wave 4 walk', () => {
+  it("a chat thread is positioned, so the screen-reader words inside it scroll with it and never with the sheet", () => {
+    // Chrome, Team > Editor > Chat at 1280: the thread scrolls inside the panel, but the visually hidden words of its
+    // messages (absolutely placed) took the sheet column as their box, 800 px below the panel. Sending a message
+    // scrolled that column to them and pushed the panel's head and the thread out of view, leaving a blank strip.
+    expect(rule('ChatThread.module.css', '.thread')).toMatch(/position:\s*relative/);
+  });
+
+  it("the agent panel's Chat fits its column: the thread leaves room for the head, tabs, box and the sample line", () => {
+    // Chrome, 1280 by 860: the panel around the thread takes 482 px (head, tabs, peers, the box and its suggestions), so
+    // a thread of 100dvh - 30rem made it 862 px in an 830 px column (the sample-data line takes 30). The column scrolled,
+    // its scroll bar took 15 px,
+    // and the tab panel, which would not shrink below its content, then pushed the column sideways too.
+    const thread = rule('../places/team/AgentChat.module.css', '.thread');
+    const rem = Number(/max-block-size:\s*calc\(100dvh - (\d+)rem\)/.exec(thread)?.[1]);
+    expect(rem * 16).toBeGreaterThanOrEqual(482 + 30);
+    expect(rule('../places/team/Team.module.css', '.tabPanel')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  });
+
+  it("the pipeline board is positioned, so its columns' hidden hints scroll with it and the place never scrolls sideways", () => {
+    // Chrome, Clients > Pipeline at 390 (and at 1280 with a card sheet open): the board scrolls sideways, but each
+    // column's visually hidden hint (absolutely placed) took the page column as its box: main was 1056 px wide in 390.
+    expect(rule('Board.module.css', '.board')).toMatch(/position:\s*relative/);
+  });
+
+  it("a plan's title keeps its words on one line and the step count wraps under it on a phone", () => {
+    // Chrome, Chats at 390 in Hindi: the title grew from nothing (flex: 1), so "एक छोटा प्लान" broke one word per line
+    // beside the longer count. The title now starts at its own width, and the count wraps below when they don't fit.
+    expect(rule('../places/chats/Chats.module.css', '.planTitle')).toMatch(/flex:\s*1 0 auto/);
   });
 });

@@ -45,10 +45,17 @@ import {
   currentVenture, digest, exactPayload, houseStyleFindings, identifier, isAppChannel, listRecords, requireAppChannel, singleLine, ventureAction,
 } from '../records.ts';
 import { AGENT_WINDOW_MS, JOURNAL_ACTIONS, applyAction, approveAction, rejectAction, resolveUnknown, sweepJournal } from '../journal/journal.ts';
+import { refuseCorrupt } from '../journal/chain.ts';
+import { fenceAccount } from '../journal/action-extras.ts';
+import { reportEndState } from '../journal/end-states.ts';
 import { FREEZE_HOURS, playwrightBrowserPort } from './browser.ts';
 import { addedPicks, keptPosted, recordStepsWorked } from './posting-steps.ts';
 import { clientDraft } from './draft-text.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
+import { writeCapDenial } from '../delivery/harness/write-caps.ts';
+import { changedFiles, checkManifest, FILE_CHANGED_WORDS, refuseChangedFiles } from '../delivery/file-manifest.ts';
+import { findRecord } from '../records.ts';
+import { checkConnectorFields } from './connector-truth.ts';
 
 export const OWNER_SESSION_RISK = 'The platform may restrict this account.';
 /** The task-scoped consent line a browser post's Today row starts with (spec K1). */
@@ -516,6 +523,27 @@ function describePost(profile: PostingProfile, mode: ConnectorPostRecord['mode']
 }
 
 /**
+ * The checks a post passes before it is proposed, in the order proposePost runs them: the channel is not held, the
+ * accepted files did not change, the same post is not already out or under way, the draft may go (checked, accepted,
+ * the client's answer bound to it), it fits the platform, and the pre-post risk gate does not block it. Exported in Ink
+ * v2 wave 4 (4J11, H33) so the practice posting provider (delivery/harness/mocks.ts) runs exactly these checks.
+ */
+export function postGate(deps: VentureDeps, state: State, input: { connectorId: string; draftId: string; part: number | null }, nowIso: string): { gate: DraftPostGate; risk: RiskResult } {
+  const profile = PROFILES[input.connectorId];
+  check(profile, 'INVALID_VENTURE_REQUEST', 'Posting works only on LinkedIn, X, Instagram and YouTube.');
+  requireChannelOpen(state, profile.id, nowIso);
+  const draft = findRecord(state, 'venture-delivery-run', input.draftId);
+  if (draft) checkManifest(state, draft);
+  requireNotSent(state, { draftId: input.draftId, connectorId: profile.id, part: input.part });
+  const gate = draftPostGate(state, { draftId: input.draftId, connectorId: profile.id, part: input.part });
+  requireDraftPost(gate);
+  check([...gate.text].length <= profile.maxChars, 'INVALID_VENTURE_REQUEST', `A post on ${profile.name} holds at most ${profile.maxChars} characters.`);
+  const risk = postRisk(state, { connectorId: profile.id, channel: gate.channel, text: gate.text }, nowIso, postLogOf(deps));
+  requireRiskClear(risk);
+  return { gate, risk };
+}
+
+/**
  * An agent or the owner proposes one post from a draft, by its id; never free text. It waits on Today as its own
  * 'connector' row until the owner decides. Refused while the channel is held, and with every reason the draft may not go.
  * descriptionComplete (W1 H21): a text post shows its whole exact text, so it is complete unless the proposer says a
@@ -534,17 +562,10 @@ export async function proposePost(deps: VentureDeps, ctx: Context, payload: unkn
   const agent = body.agent === undefined ? null : singleLine(body.agent, 'agent', { max: 80 });
   check(body.mode === undefined || body.mode === 'api' || body.mode === 'owner-browser-session', 'INVALID_VENTURE_REQUEST', 'Choose api or owner-browser-session.');
   authorize(deps.store, ctx, 'prepare');
+  // 4J1 (J2): a file the owner accepted that changed since clears the acceptance and refuses the post (file-manifest.ts).
+  await refuseChangedFiles(deps, ctx, draftId);
   // The pre-post risk gate (K5) comes last: a block refuses with POST_RISK_BLOCKED; warnings go on the Today row.
-  const gateNow = (state: State, nowIso: string): { gate: DraftPostGate; risk: RiskResult } => {
-    requireChannelOpen(state, profile.id, nowIso);
-    requireNotSent(state, { draftId, connectorId: profile.id, part });
-    const gate = draftPostGate(state, { draftId, connectorId: profile.id, part });
-    requireDraftPost(gate);
-    check([...gate.text].length <= profile.maxChars, 'INVALID_VENTURE_REQUEST', `A post on ${profile.name} holds at most ${profile.maxChars} characters.`);
-    const risk = postRisk(state, { connectorId: profile.id, channel: gate.channel, text: gate.text }, nowIso, postLogOf(deps));
-    requireRiskClear(risk);
-    return { gate, risk };
-  };
+  const gateNow = (state: State, nowIso: string): { gate: DraftPostGate; risk: RiskResult } => postGate(deps, state, { connectorId: profile.id, draftId, part }, nowIso);
   gateNow(deps.store.read(), deps.clock().toISOString());
   const options = postingOptions(profile.id, await postingEnvironment(deps)).filter(option => option.mode !== 'handoff');
   const chosen = body.mode !== undefined
@@ -553,7 +574,13 @@ export async function proposePost(deps: VentureDeps, ctx: Context, payload: unkn
   check(chosen.status === 'available', 'NOT_BUILT_YET', chosen.reason ?? 'Not in this build.');
   const mode = chosen.mode as ConnectorPostRecord['mode'];
   return ventureAction(deps, ctx, 'prepare', 'connector.post.propose', tx => {
+    // 4J10 (H26): while Chausar's record of outside actions does not add up, no post is even proposed.
+    refuseCorrupt(tx.state, tx.venture?.id);
     const { gate, risk } = gateNow(tx.state, tx.now);
+    // Ink v2 wave 4 (4F2, H32): a post an agent proposes (named, or any proposal from outside the app) is a message for
+    // people, held to today's cap.
+    const capped = agent !== null || !isAppChannel(ctx) ? writeCapDenial(tx.state, tx.venture!, 'messages', tx.now) : null;
+    if (capped) throw new ChausarError(capped.code, capped.reason);
     const describe = describePost(profile, mode, account);
     const record: ConnectorPostRecord = {
       ...tx.base('venture-connector-post'), connectorId: profile.id, mode, account, text: gate.text, agent, digest: '', state: 'described', describe,
@@ -681,17 +708,35 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
   requireRiskClear(riskOfPost(deps.store.read(), waiting, deps.clock().toISOString(), postLogOf(deps)));
   const option = postingOptions(waiting.connectorId, await postingEnvironment(deps)).find(item => item.mode === waiting.mode);
   check(option?.status === 'available', 'NOT_BUILT_YET', option?.reason ?? 'This way of posting is not in this build.');
+  // 4J1 (J2): the draft's files again, at the approval: one changed since Accept clears it and nothing is posted.
+  if (waiting.draftId) await refuseChangedFiles(deps, ctx, waiting.draftId);
 
   const met: { hold?: BrowserSiteHold; worked?: Extract<BrowserPostResult, { outcome: 'posted' }>['checked'] } = {};
+  // 4J10 (H28): the account fence before anything is approved: a post for a named account that is not the one signed in
+  // here, or where Chausar cannot see which is, is turned down with the reason, and nothing is posted.
+  const running = waiting.account ? await signedInAccount(deps, waiting) : undefined;
+  if (waiting.account) {
+    try {
+      fenceAccount(waiting, running ?? null);
+    } catch (error) {
+      await rejectAction(deps, ctx, { entryId: postId, digest: seen, line: (error as Error).message });
+      throw error;
+    }
+  }
   const { token } = await approveAction(deps, ctx, { entryId: postId, digest: seen, line: 'You approved this post.' });
-  const done = await applyAction(deps, ctx, { entryId: postId, token, idempotencyKey: `${postId}.post` }, async handle => {
+  const done = await applyAction(deps, ctx, { entryId: postId, token, idempotencyKey: `${postId}.post`, ...(waiting.account ? { account: running ?? null } : {}) }, async handle => {
     const post = handle.entry as ConnectorPostRecord;
     // The policy gate before anything leaves: posting is on the always-ask floor, so only the owner's approval sealed on
     // this post, bound to the digest the owner saw, lets it through. A refusal here is known to have sent nothing.
     gateEffect({ name: 'connector.post', digest: seen }, sealApproval(post, post.digest));
     const stop = stopBeforeSending(deps, post);
     if (stop) return { outcome: 'not-sent', line: stop, by: 'engine', value: stop };
+    // 4J1 (J2): and once more at the claim, the last look before the browser: a changed file sends nothing.
+    const draft = post.draftId ? findRecord(deps.store.read(), 'venture-delivery-run', post.draftId) : undefined;
+    if (draft && changedFiles(deps.store.read(), draft).length) return { outcome: 'not-sent', line: FILE_CHANGED_WORDS, by: 'engine', value: FILE_CHANGED_WORDS };
     // Logged for this computer before the browser starts: a crash from here on still counts for the other businesses.
+    // 4J10 (H28): and the fence once more right before the browser, in case the account changed since the approval.
+    if (post.account) handle.fence(await signedInAccount(deps, post));
     logPost(deps, post);
     const result = await runPost(deps, post);
     if (result.outcome !== 'posted' && result.hold) met.hold = result.hold;
@@ -705,7 +750,24 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
   if (met.hold) await recordHold(deps, ctx, post, met.hold);
   // A post that went out dates the steps it used, the confirmation's too (2B2). Never throws.
   if (met.worked) await recordStepsWorked(deps, ctx, post.connectorId, met.worked);
+  // 4J10 (H27): the browser saw the post on the platform after posting it, so it was shown. Never throws.
+  if (post.state === 'applied' && met.worked?.some(step => step.step === 'confirm')) {
+    await reportEndState(deps, ctx, { entryId: post.id, state: 'shown', by: 'platform', line: `The post showed on ${nameOf(post.connectorId)} after it went out.` }).catch(() => {});
+  }
   return { outcome: 'done', line: done.value ?? post.outcome?.line ?? post.journal[post.journal.length - 1].line, post };
+}
+
+/** 4J10 (H28): the account signed in to this platform where the post would run, as its port says; null when it cannot tell. */
+async function signedInAccount(deps: VentureDeps, post: ConnectorPostRecord): Promise<string | null> {
+  const ports = portsOf(deps);
+  const runner = post.mode === 'api' ? ports.api?.[post.connectorId] : ports.browser;
+  if (!runner?.signedInAccount) return null;
+  try {
+    const account = await runner.signedInAccount(post.connectorId);
+    return typeof account === 'string' && account.trim() ? account.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -830,6 +892,9 @@ export async function postingPropose(deps: VentureDeps, ctx: Context, payload: u
   const options = postingOptions(connectorId, await postingEnvironment(deps)).filter(option => option.mode !== 'handoff');
   const usable = options.find(option => option.status === 'available');
   check(usable, 'NOT_BUILT_YET', options.find(option => option.mode === 'owner-browser-session')?.reason ?? 'Posting is not in this build.');
+  // 4J7 (K6): the browser posts from the account signed in, so it takes the text only; an account is refused, never
+  // dropped (connector-truth.ts). 4J10's account fence would refuse it at claim anyway.
+  if (usable.mode === 'owner-browser-session') checkConnectorFields(connectorId, 'post', ['text', ...(account ? ['account'] : [])]);
   refuseWith(scheduleReasons(item, { clientApproval: needsClientApproval(state, run) }));
   const record = await proposePost(deps, ctx, { connectorId, draftId: run.id, part: post.part ?? 1, ...(account ? { account } : {}) });
   return {

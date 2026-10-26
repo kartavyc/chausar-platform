@@ -29,10 +29,13 @@ import { journalled, type ApplyResult } from '../journal/journal.ts';
 import { booksReceiptFor, RECEIVED_COVERS_MORE } from '../money/books.ts';
 import { costFact, insertBooksFact } from '../money/facts.ts';
 import { recordPaymentMinor } from '../money/payments.ts';
+import { paymentState } from '../money/ledger.ts';
+import { billPaymentList } from '../money/bills.ts';
 import {
   alertDeliveries, consentStatus, emptyLedger, grantConsent, importAlerts, importStatement, matchInvoices, namesOwnAccount, namesWord, pairOwnTransfers,
   readAlertRules, revokeConsent, ruleLine, setAlertWebhook, CONSENT_MAX_DAYS, TRANSFER_DAYS, type BankAlert, type BankSettings, type BookRow, type InvoiceMatch,
 } from './bank.ts';
+import { checkConnectorFields } from './connector-truth.ts';
 
 /** The most one import keeps. A larger statement is refused in plain words, never cut short. */
 const MAX_IMPORT_CHARS = MAX_STORED_PAYLOAD * 4;
@@ -74,6 +77,8 @@ function keptTransactions(tx: VentureTx, accountId: string): BankTransactionData
 export async function bankImport(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BankImportResult> {
   requireAppChannel(ctx, 'venture.bank.import');
   const body = exactPayload(payload, ['csv', 'account'], ['csv', 'account']);
+  // 4J7 (K6): the bank account's capability set names every field a statement import takes.
+  checkConnectorFields('bank-account', 'import-statement', Object.keys(body));
   check(typeof body.csv === 'string', 'BANK_STATEMENT_INVALID', 'Choose a statement file.');
   const csv = body.csv;
   const label = accountLabel(body.account);
@@ -196,7 +201,8 @@ export async function bankConsent(deps: VentureDeps, ctx: Context, payload: unkn
 
 /** A kept row with where it lives. Its ledger id is '<account id>:<transaction id>', unique even when two accounts hold one file. */
 type KeptRow = BankTransactionData & { ledgerId: string; accountId: string; account: string; importedAt: string };
-type BookEntry = { data: KeptRow; view: BankLedgerRow; match: InvoiceMatch | null };
+/** billPaid (4J5): the bill payment the owner recorded that this money out is, already a cost in the books. */
+type BookEntry = { data: KeptRow; view: BankLedgerRow; match: InvoiceMatch | null; billPaid?: { vendor: string; paidOn: string } | null };
 type Book = { accounts: BankAccountRecord[]; rows: BookEntry[]; byId: Map<string, BookEntry> };
 
 const ledgerIdOf = (accountId: string, transactionId: string) => `${accountId}:${transactionId}`;
@@ -235,9 +241,23 @@ function bankBook(state: State, venture: VentureRecord): Book {
   const numbered = listRecords(state, 'venture-invoice', venture.id).filter(invoice => invoice.number !== null && invoice.status !== 'draft' && invoice.status !== 'void');
   const invoices = numbered.filter(invoice => invoice.status === 'issued' || invoice.status === 'part-paid')
     .map(invoice => ({ id: invoice.id, number: invoice.number as string, currency: invoice.currency, balanceMinor: invoice.balanceMinor }));
-  // Payments the owner typed (no statement row behind them). Each one covers at most one statement row.
-  const typed = listRecords(state, 'venture-payment', venture.id).filter(payment => !payment.bankTransactionId);
+  // Payments the owner typed (no statement row behind them). Each one covers at most one statement row. A cheque still
+  // waiting to clear (4J5) is not money in yet: a deposit row that pays it is suggested as that cheque, and clears it.
+  const payments = listRecords(state, 'venture-payment', venture.id);
+  const typed = payments.filter(payment => !payment.bankTransactionId && paymentState(payment) === 'cleared');
+  const waiting = payments.filter(payment => paymentState(payment) === 'pending' && !payment.split && !payment.tds);
   const covered = new Set<string>();
+  // Bill payments the owner recorded (4J5): money out of the same amount a few days apart is that payment, already a cost.
+  const billPays = billPaymentList(state, venture.id);
+  const billCovered = new Set<string>();
+  const billFor = (row: KeptRow): { vendor: string; paidOn: string } | null => {
+    const out = -BigInt(row.amountMinor);
+    const found = billPays.find(item => !billCovered.has(item.paymentId) && item.currency === row.currency && BigInt(item.amountMinor) === out
+      && Math.abs(dayNumber(item.paidOn) - dayNumber(row.date)) <= TRANSFER_DAYS);
+    if (!found) return null;
+    billCovered.add(found.paymentId);
+    return { vendor: found.vendor, paidOn: found.paidOn };
+  };
   const typedFor = (row: KeptRow): string | null => {
     for (const invoice of numbered) {
       if (invoice.currency !== row.currency || !namesWord(row, invoice.number as string)) continue;
@@ -254,19 +274,22 @@ function bankBook(state: State, venture: VentureRecord): Book {
     const amount = BigInt(row.amountMinor);
     const already = decided === null && !own && amount > 0n ? typedFor(row) : null;
     const match = decided === null && !own && already === null ? matchInvoices(bookRow(row), invoices) : null;
+    const billPaid = decided === null && !own && amount < 0n ? billFor(row) : null;
     const recorded = decided === 'payment' || decided === 'cost';
     const flag = already !== null ? `Already recorded as a payment of ${already}.`
-      : recorded && own ? `This was added to your books, but it looks like a move between your own accounts${partner ? ` (with a row in ${byLedgerId.get(partner)?.account ?? 'another account'})` : ''}. Check it.`
-        : null;
+      : billPaid ? `Already recorded as your payment of the ${billPaid.vendor} bill on ${formatVentureDate(billPaid.paidOn, venture.country.dateOrder)}.`
+        : recorded && own ? `This was added to your books, but it looks like a move between your own accounts${partner ? ` (with a row in ${byLedgerId.get(partner)?.account ?? 'another account'})` : ''}. Check it.`
+          : null;
+    const cheque = match ? waiting.find(item => item.invoiceId === match.invoiceId && item.amountMinor === row.amountMinor) : undefined;
     const classification: BankLedgerRow['classification'] = decided !== null ? (decided === 'skip' ? 'skipped' : 'applied')
       : own ? 'own-transfer' : match ? 'suggested-payment' : amount > 0n ? 'money-in' : 'money-out';
     return {
-      data: row, match,
+      data: row, match, billPaid,
       view: {
         id: row.ledgerId, accountId: row.accountId, account: row.account, date: row.date, dateDisplay: formatVentureDate(row.date, venture.country.dateOrder),
         amount: formatMinor(amount < 0n ? -amount : amount, row.currency), direction: amount > 0n ? 'in' : 'out',
         description: row.description, counterparty: row.counterparty, classification, flag, pairedWith: partner,
-        suggestion: match ? { invoiceId: match.invoiceId, number: match.number, line: suggestionLine(match, row.currency) } : null,
+        suggestion: match ? { invoiceId: match.invoiceId, number: match.number, line: cheque ? `Pays the cheque waiting on ${match.number}.` : suggestionLine(match, row.currency) } : null,
         decided,
       },
     };
@@ -364,6 +387,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
     }
     if (as === 'cost') {
       check(amount < 0n, 'BANK_NOT_MONEY_OUT', 'Only money that went out can be a cost.');
+      check(!entry.billPaid, 'BANK_ALREADY_APPLIED', `This is already in your books as your payment of the ${entry.billPaid?.vendor ?? ''} bill. Chausar never counts it twice.`);
       const minor = (-amount).toString();
       const description = entry.data.description ?? entry.data.counterparty ?? 'Bank payment';
       const fact = insertBooksFact(tx, deps.store, costFact(base.id, minor, entry.data.currency, entry.data.date, description, rowId));
@@ -371,7 +395,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
       return { as, rowId, line: `Added ${formatMinor(minor, entry.data.currency)} to your costs.`, payment: null, cost: { minor, date: entry.data.date } };
     }
     tx.put<BankMatchRecord>({ ...decision, invoiceId: null, paymentId: null, factId: null });
-    return { as, rowId, line: 'Skipped. It stays in your bank ledger and is not counted in the books.', payment: null, cost: null };
+    return { as, rowId, line: 'Line skipped. It stays in your bank ledger and is not counted in the books.', payment: null, cost: null };
   });
 
   let receiptId: string | null = null;

@@ -7,6 +7,7 @@ import { refusalWords } from '../parts/custody';
 import { initialsOf } from '../parts/Avatar';
 import { Icon } from '../parts/Icon';
 import { LeftContext, StartedContext } from '../places/onboarding/started';
+import { RunControlsMenu } from './RunControlsMenu';
 import s from './BusinessMenu.module.css';
 
 /**
@@ -52,14 +53,17 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const list = useResource('workspace.list', {}, { skip: !open });
 
-  const name = venture.data?.venture.workingName ?? t('business.none');
+  // 4Z3: "No business open" only when the engine answers that none is (null); while venture.get loads, no name yet.
+  const loading = venture.data === undefined;
+  const name = venture.data ? venture.data.venture.workingName : venture.data === null ? t('business.none') : '';
   const type = venture.data?.venture.serviceType;
   // The playbook's own label ("YouTube channel") when the idea picked one; else the service type's label.
   const kind = venture.data?.playbook?.label ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
   const links: (readonly [string, string])[] = [
-    ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.build', '#/business/build'],
+    ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.goals', '#/business/goals'], ['business.build', '#/business/build'],
     ['business.practice', '#/business/practice'],
     ...(venture.data?.playbook?.id === 'ca-firm' ? [['business.ca', '#/business/ca'] as const] : []),
+    ['business.notify', '#/business/notifications'],
     ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
   ];
 
@@ -188,7 +192,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
       <button ref={button} type="button" className={s.business} data-variant={variant} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
         {venture.data && <span className={s.square} data-initials="" aria-hidden="true">{initialsOf(name)}</span>}
         <span className={s.words}>
-          <span className={s.name}>{name}</span>
+          {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : <span className={s.name}>{name}</span>}
           {variant === 'rail' && kindLine(kind, name) && <span className={s.kind}>{kindLine(kind, name)}</span>}
         </span>
         <Icon name={variant === 'bar' ? 'chevron-down' : 'chevrons-up-down'} size={16} className={s.chevrons} />
@@ -231,6 +235,16 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
               </li>
             ))}
           </ul>
+          {/* W4 4F3: Pause all, Stop all and Away (RunControlsMenu.tsx). */}
+          <RunControlsMenu onLeave={() => { setOpen(false); onNavigate?.(); }} />
+          {/* W4 4J20: a read-only month of books for the owner's accountant (Money's accountant sheet). */}
+          {venture.data && (
+            <ul className={s.list}>
+              <li>
+                <a className={s.item} href="#/money?sheet=accountant:books" onClick={() => { setOpen(false); onNavigate?.(); }}>{t('business.accountant')}</a>
+              </li>
+            </ul>
+          )}
         </div>,
         document.body,
       )}

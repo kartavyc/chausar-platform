@@ -59,7 +59,8 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
       check(!req.headers.origin || req.headers.origin === origin, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
       check(req.headers['sec-fetch-site'] !== 'cross-site', 'INVALID_ORIGIN', 'Cross-site browser requests are blocked.');
       const url = new URL(req.url ?? '/', origin);
-      // Client share links open only on the hosted web server (hosted/server.ts); this computer serves none.
+      // Client share links open only on the hosted web server (hosted/server.ts); this computer serves none, and no
+      // client's file request page (/share/<token>/upload, 4J7) either.
       check(url.pathname !== '/share' && !url.pathname.startsWith('/share/'), 'NOT_FOUND', 'Share links open only on the hosted Chausar.');
       if (url.pathname === '/api/companion/rpc') {
         check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
@@ -77,15 +78,19 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
         const auth = req.headers.authorization ?? '';
         check(auth.startsWith('Bearer '), 'UNAUTHENTICATED', 'This request needs a current local session.');
-        if (!validToken(auth.slice(7), token)) {
-          try { engine.contextForSession(auth.slice(7)); }
+        // The owner's own stream (the bootstrap token, or a session with the owner's role) is the owner watching (4G1).
+        let ownerStream = validToken(auth.slice(7), token);
+        if (!ownerStream) {
+          try { ownerStream = engine.contextForSession(auth.slice(7)).role === 'owner'; }
           catch { throw Object.assign(new Error('This workspace session expired or was revoked.'), { code: 'UNAUTHENTICATED' }); }
         }
         res.writeHead(200, SSE_HEADERS); res.write(SSE_PREAMBLE);
+        // Each frame carries its seq (and names it as the event id).
         const off = engine.onVentureEvent(event => { res.write(sseFrame(event)); });
+        const unwatch = ownerStream ? engine.watchEvents() : () => {};
         const heartbeat = setInterval(() => res.write(SSE_HEARTBEAT), 25_000); heartbeat.unref();
         streams.add(res);
-        const done = () => { clearInterval(heartbeat); off(); streams.delete(res); };
+        const done = () => { clearInterval(heartbeat); off(); unwatch(); streams.delete(res); };
         req.on('close', done); res.on('close', done);
         return;
       }

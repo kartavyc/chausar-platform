@@ -1,5 +1,7 @@
 // Chausar venture launcher: connector cards with honest modes (package P4).
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
+// Ink v2 wave 4 (4J7): each card carries its setup guide (guides.ts) and, in venture.connectors.list, each mode's rung
+// of the truth ladder from this business's records and the operations it really takes (connector-truth.ts).
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { CONNECTOR_CATEGORIES, STARTER_CONNECTORS } from '../contracts.ts';
 import type { ConnectorCard, ConnectorCategory, ConnectorMode, ConnectorModeName, IsoDate, PostingOption, VentureDeps, VentureRecord } from '../contracts.ts';
@@ -12,6 +14,8 @@ import { pickPlaybook } from '../playbooks/registry.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
 import { youtubeConnectors } from '../playbooks/youtube/playbook.ts';
 import { localTranscription, transcriptionNote } from '../playbooks/youtube/transcribe.ts';
+import { NO_EVIDENCE, connectorEvidence, withTruth } from './connector-truth.ts';
+import { guideOf, halfConfigured } from './guides.ts';
 
 const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read', 'write']);
 
@@ -33,6 +37,19 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
     qualification: 'built-in',
     what: 'Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.',
   },
+  // Ink v2 wave 4 (4E3, labelled by 4J7): the owner's own mailbox over IMAP and the private calendar address, desktop only.
+  'zoho-mail': {
+    qualification: 'fixture-tested',
+    what: 'Reads your inbox over IMAP with an app-specific password, read only, in the desktop app: replies from people in your network and pipeline. Never sends mail or marks it read.',
+  },
+  'google-workspace': {
+    qualification: 'fixture-tested',
+    what: 'Reads your Gmail inbox over IMAP with an app password, read only, in the desktop app: replies from people in your network and pipeline. Never sends mail or marks it read.',
+  },
+  'google-calendar': {
+    qualification: 'fixture-tested',
+    what: 'Reads your calendar from the private address you paste, in the desktop app, each morning: past calls with people in your network. Never writes to it.',
+  },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
@@ -44,6 +61,8 @@ const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorMod
   // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
   // build has neither, so the write mode stays planned.
   github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.' },
+  'google-workspace': { write: 'Planned: sending from Gmail would need a Google review first. Chausar only reads your inbox today.' },
+  'google-calendar': { write: 'Planned: adding calls to your calendar. Chausar only reads it today.' },
 });
 
 function planned(mode: ConnectorModeName, what: string): ConnectorMode {
@@ -102,6 +121,8 @@ export function connectorCard(
     id: item.id, name: item.name, category: item.category, categoryLabel: CATEGORY_LABELS[item.category],
     modes, chips: connectorChips(modes), regions: [...item.regions], regionNote: item.regionNote,
     auth: item.auth, vendorUrl: item.vendorUrl, note: item.note, starter, ...(posting ? { posting } : {}), postingOptions: options,
+    // 4J7 (K11): the setup guide; listConnectors adds the missing setting of a half-configured connection.
+    guide: guideOf(item),
   };
 }
 
@@ -145,14 +166,21 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const state = deps.store.read();
   const starters = new Set(starterIds(state, currentVenture(state)));
   const env = await postingEnvironment(deps);
+  const venture = currentVenture(state);
+  // 4J7 (K6, K11): each card's truth from this business's records, and a half-configured connection's missing setting.
+  const evidence = venture ? connectorEvidence(state, venture.id) : NO_EVIDENCE;
+  const hosted = deps.host === 'hosted-web';
   const cards = CONNECTOR_CATALOGUE
     .filter(item => body.category === undefined || item.category === body.category)
-    .map(item => connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId)))
+    .map(item => {
+      const card = connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId));
+      const missing = venture ? halfConfigured(deps, state, venture.id, item.id) : null;
+      return withTruth(missing ? { ...card, guide: guideOf(item, missing) } : card, evidence, hosted);
+    })
     .filter(card => body.starterOnly !== true || card.starter);
   // A YouTube business also sees the transcript made on this computer, with what this computer really has (2E2).
-  const venture = currentVenture(state);
   if (venture && pickPlaybook(venture.idea)?.id === YOUTUBE_ID && body.starterOnly !== true && (body.category === undefined || body.category === 'docs-ops')) {
-    cards.push(transcriptionCard(deps));
+    cards.push(withTruth(transcriptionCard(deps), evidence, hosted));
   }
   return orderCards(cards);
 }

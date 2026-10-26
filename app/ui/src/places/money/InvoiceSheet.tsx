@@ -4,6 +4,10 @@
  *
  * A draft is issued from here. Issuing cannot be undone, so it asks a second time, and it sends the digest of the
  * invoice on screen: if the draft changed since, the engine refuses, the sheet says so and shows the new version.
+ *
+ * W4 4J20 (InvoiceExtras.tsx): the invoice's next step (a reminder to draft or open, a cheque to clear), a draft's rate
+ * change, each payment with a cheque waiting and the client's TDS, its credit notes and asking for one, and its
+ * timeline.
  */
 
 import { useEffect, useId, useRef, useState } from 'react';
@@ -15,6 +19,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type InvoiceViewLite } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceExtras';
 import { messageOf, onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
 
@@ -36,6 +41,12 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = answered ?? view.data;
+  // 4J20: what an action in the sheet answered; a draft made again at today's rate is a new invoice, so it opens.
+  const changed = (next?: InvoiceViewLite) => {
+    if (next && next.invoice.id !== id) openSheet('invoice', next.invoice.id);
+    else if (next) setAnswered(next);
+    else view.reload();
+  };
   if (!current) {
     return (
       <Sheet label={t('money.invoice.label')} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
@@ -111,7 +122,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
         </dl>
         <p className={s.sheetLine}>
           <span className={s.figureLabel}>{t('money.invoice.priced')}</span>
-          <Receipt id={invoice.priceReceiptId} />
+          {/* 4Z3: the mark named for the total the price receipt proves, when the engine sent it. */}
+          <Receipt id={invoice.priceReceiptId} amount={current.figures.find((figure) => figure.key === 'total')?.display} />
           {current.receipt.stale && <span className={s.stale}>{t('money.changed')}</span>}
         </p>
         {invoice.booksReceiptId ? (
@@ -124,17 +136,16 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           <section className={s.block} aria-labelledby={paymentsId}>
             <h3 id={paymentsId} className={s.blockTitle}>{t('money.invoice.payments')}</h3>
             <ul className={s.plain}>
-              {current.payments.map((payment) => (
-                <li key={payment.id} className={s.payment}>
-                  <span>{t('money.invoice.payment', { date: day(payment.receivedOn), method: t(`money.method.${payment.method}`) })}</span>
-                  {payment.booksReceiptId ? <Receipt id={payment.booksReceiptId} /> : payment.booksNote ? <span className={s.note} data-engine-line="">{payment.booksNote}</span> : null}
-                </li>
-              ))}
+              {current.payments.map((payment) => <PaymentLine key={payment.id} payment={payment} onChanged={changed} />)}
             </ul>
           </section>
         )}
       </div>
+      <NextStep view={current} />
+      <RateChange view={current} onChanged={changed} />
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
+      <Credits view={current} />
+      <Timeline view={current} />
       <details className={`${s.fold} ${s.block}`}>
         <summary>{t('money.invoice.document')}</summary>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}

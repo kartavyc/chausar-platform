@@ -370,6 +370,14 @@
   align-items: flex-start;
 }
 
+/* W4 4J21: one setup step in the fold: its tick when done, then its name as a link. */
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--av-24);
+}
+
 .tick {
   display: grid;
   flex: none;
@@ -614,4 +622,17 @@
   .agree {
     min-height: var(--target);
   }
+}
+
+/* W4 4J21: a settings form's left-behind draft, offered back above the form. */
+.draftOffer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--wash);
 }

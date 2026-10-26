@@ -28,6 +28,8 @@ type Slot = {
   lastUsed: number;
   listeners: Map<string, Set<(event: ActorEvent) => void>>;
   pumping: Promise<void>;
+  /** Ink v2 wave 4 (4G3): work outside the actions (a phone alert under way) is held in inflight until it ends. */
+  holdingOutside: boolean;
 };
 
 export const LOCAL_DESCRIPTOR: RuntimeDescriptor = Object.freeze({
@@ -65,7 +67,7 @@ export class LocalVentureRuntime implements VentureRuntime {
     const id = `${key[0]}/${key[1]}`;
     let slot = this.#slots.get(id);
     if (!slot || slot.state === 'destroyed') {
-      slot = { key: [key[0], key[1]], id, state: 'asleep', business: null, waking: null, closing: null, inflight: 0, lastUsed: this.#clock(), listeners: new Map(), pumping: Promise.resolve() };
+      slot = { key: [key[0], key[1]], id, state: 'asleep', business: null, waking: null, closing: null, inflight: 0, lastUsed: this.#clock(), listeners: new Map(), pumping: Promise.resolve(), holdingOutside: false };
       this.#slots.set(id, slot);
     }
     return slot;
@@ -101,13 +103,15 @@ export class LocalVentureRuntime implements VentureRuntime {
       key: slot.key,
       action(name: string, input: unknown, caller: ActionCaller) { return runtime.#action(slot.key, name, input, caller); },
       on(event: string, listener: (event: ActorEvent) => void) { return runtime.#on(slot.key, event, listener); },
-      shareLink(op: 'page' | 'decide', token: string, input: unknown) { return runtime.#shareLink(slot.key, op, token, input); },
+      shareLink(op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown) { return runtime.#shareLink(slot.key, op, token, input); },
+      endPushSessions(hashes: readonly string[]) { return runtime.#endPushSessions(slot.key, hashes); },
     });
   }
 
   /** The client share page: wakes the business like an action does, then reads or records through its engine. */
-  async #shareLink(key: ActorKey, op: 'page' | 'decide', token: string, input: unknown): Promise<unknown> {
-    check(op === 'page' || op === 'decide', 'INVALID_REQUEST', 'Read the link or answer it.');
+  async #shareLink(key: ActorKey, op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown): Promise<unknown> {
+    // 4J7: 'comment' is the client's comment on one item; 'upload' a step of the file request page.
+    check(op === 'page' || op === 'decide' || op === 'comment' || op === 'upload', 'INVALID_REQUEST', 'Read the link or answer it.');
     const slot = this.#slot(key);
     slot.inflight++;
     try {
@@ -118,7 +122,35 @@ export class LocalVentureRuntime implements VentureRuntime {
       slot.inflight--;
       slot.lastUsed = this.#clock();
       this.#pump(slot);
+      this.#holdOutside(slot);
     }
+  }
+
+  /** Hosted sessions that ended (4G3): wakes the business like an action does and ends their phone alert subscriptions. */
+  async #endPushSessions(key: ActorKey, hashes: readonly string[]): Promise<number> {
+    const slot = this.#slot(key);
+    slot.inflight++;
+    try {
+      const business = await this.#ready(slot);
+      return await business.endPushSessions(hashes);
+    } finally {
+      slot.inflight--;
+      this.#pump(slot);
+    }
+  }
+
+  /**
+   * Work a business started outside its actions (a phone alert under way, 4G3) counts as in flight until it ends, so
+   * the business never sleeps, and its vault never closes, under it.
+   */
+  #holdOutside(slot: Slot) {
+    if (slot.holdingOutside || slot.state !== 'awake' || !slot.business) return;
+    const work = slot.business.outsideWork();
+    if (!work) return;
+    slot.holdingOutside = true;
+    slot.inflight++;
+    const done = () => { slot.inflight--; slot.holdingOutside = false; this.#holdOutside(slot); };
+    void work.then(done, done);
   }
 
   async #action(key: ActorKey, name: string, input: unknown, caller: ActionCaller): Promise<unknown> {
@@ -134,6 +166,7 @@ export class LocalVentureRuntime implements VentureRuntime {
       slot.inflight--;
       slot.lastUsed = this.#clock();
       this.#pump(slot);
+      this.#holdOutside(slot);
     }
   }
 
@@ -180,6 +213,25 @@ export class LocalVentureRuntime implements VentureRuntime {
     })().finally(() => { slot.closing = null; });
     await slot.closing;
     return true;
+  }
+
+  /**
+   * The engine's tick for every awake business (Ink v2 wave 4, 4G1 and 4G3): the notification centre looks at Today,
+   * so time alone can bring an alert while a business is awake. A sleeping one is not woken: nothing changes in it
+   * until its owner comes back. A tick is not use, so an idle business still goes to sleep; the events it wrote are
+   * handed to listeners as an action's are. Answers how many businesses it ticked.
+   */
+  async tick(): Promise<number> {
+    let ticked = 0;
+    for (const slot of [...this.#slots.values()]) {
+      if (slot.state !== 'awake' || !slot.business || slot.closing) continue;
+      const business = slot.business;
+      slot.inflight++;
+      try { await business.tick(); ticked++; }
+      catch { /* The next tick looks again. */ }
+      finally { slot.inflight--; this.#pump(slot); this.#holdOutside(slot); }
+    }
+    return ticked;
   }
 
   async sleepIdle(): Promise<number> {

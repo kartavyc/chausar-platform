@@ -107,6 +107,33 @@ describe('the Hindi a native reader still has to review (spec section 10)', () =
   });
 });
 
+/* w4 4Z: the same list for the keys wave 4 added, against the English keys of the wave 3 commit. The wave 2 check above
+   stays: the wave 3 keys are still machine-drafted and wait for the same native reviewer. */
+describe('the Hindi wave 4 added, for the native reviewer', () => {
+  const w3 = readJson<{ commit: string; keys: string[] }>('baselines/text-keys-w3.json');
+  const { machineDrafted, engine } = readJson<{ machineDrafted: string[]; engine?: string[] }>('../src/text/hi-review.json');
+
+  it('the wave 4 baseline is the English keys of the wave 3 commit, sorted and unique', () => {
+    expect(w3.commit).toBe('180ed4ff');
+    expect(w3.keys.length).toBeGreaterThan(1500);
+    expect([...new Set(w3.keys)].sort()).toEqual(w3.keys);
+  });
+  it('every English key added since wave 3 is in both catalogues and listed in src/text/hi-review.json', () => {
+    const before = new Set(w3.keys);
+    const listed = new Set(machineDrafted);
+    const added = Object.keys(CATALOGUES.en).filter((key) => !before.has(key));
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.filter((key) => !(key in CATALOGUES.hi)), 'added in wave 4 but missing in Hindi').toEqual([]);
+    expect(added.filter((key) => !listed.has(key)), 'add these wave 4 keys to src/text/hi-review.json').toEqual([]);
+  });
+  it('lists the engine files whose Hindi is machine-drafted (HINDI_REVIEW), and each still says so', () => {
+    expect(engine ?? []).not.toEqual([]);
+    for (const file of engine ?? []) {
+      expect(readFileSync(join(import.meta.dirname, '../../..', file), 'utf8'), file).toContain('HINDI_REVIEW');
+    }
+  });
+});
+
 /**
  * Words the house style keeps out of English copy (catalogue U14): hype and "AI-ish" words. "Unlocks" stays legal
  * because a locked button really does unlock ("Approve unlocks after you watch it"); "unlock your" is the hype.

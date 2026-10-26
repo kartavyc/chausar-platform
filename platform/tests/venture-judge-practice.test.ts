@@ -54,6 +54,7 @@ test('practice with built-in templates: no rules judge result, and the runs view
   assert.equal(env.models.rulesTasks().length, 0);
   const detail = await env.call('venture.runs.get', { runId: run.id });
   for (const step of detail.steps) {
-    assert.ok(step.evidence?.some((item: any) => item.id === 'rules-judge' && item.label === 'Not checked: no judge connected.'), JSON.stringify(step));
+    // 4J14 (Q7): a judge that was never asked did not run, so it reads "Not run" from the one table.
+    assert.ok(step.evidence?.some((item: any) => item.id === 'rules-judge' && item.label === 'Not run: no judge connected.'), JSON.stringify(step));
   }
 });

@@ -18,6 +18,11 @@ export type HostedConfig = {
   custody: { kind: 'env'; key: string } | { kind: 'dev-file' };
   tls: { kind: 'none' } | { kind: 'files'; cert: string; key: string } | { kind: 'proxy' };
   trustProxy: boolean;
+  /**
+   * How many trusted proxies stand in front (CHAUSAR_HOSTED_TRUST_PROXY=<hops>, 1 for 1 or true): the browser's
+   * address is the X-Forwarded-For entry that many from the right. 0 when no proxy is trusted.
+   */
+  proxyHops: number;
   mailer: 'dev-outbox' | 'not-configured';
   replay: { model: string | null; github: string | null } | null;
   /** Both are experimental until a real deploy has been tested. */
@@ -31,9 +36,38 @@ export type HostedConfig = {
    * this server's own origin; null when unset, and then share links are kept but get no address.
    */
   publicUrl: string | null;
+  /**
+   * Phone alerts by web push (Ink v2 wave 4, 4G3), on unless CHAUSAR_HOSTED_PUSH=0; null when off, and then the app
+   * says phone alerts are not set up here. The VAPID key pair needs no setting: it is derived from the custody key
+   * (custody.ts pushKey), the same on every server process and never written anywhere. subject: the contact the push
+   * services see, CHAUSAR_HOSTED_PUSH_CONTACT (a mailto: or https: address), else this server's https origin, else
+   * none (development over http), rather than an invented one.
+   */
+  push: { subject: string | null } | null;
+  /**
+   * Ink v2 wave 4 (4J23): whether people may start a business without an account (POST /api/hosted/trial).
+   * CHAUSAR_HOSTED_TRIALS=1 or 0; off by default, on by default with --dev.
+   */
+  trials: boolean;
 };
 
 const refuse = (message: string): never => { throw new ChausarError('HOSTED_CONFIG_INVALID', message); };
+
+/** The web push switch and contact (HostedConfig.push, 4G3). */
+function pushConfig(env: NodeJS.ProcessEnv, origin: URL): HostedConfig['push'] {
+  const switchText = env.CHAUSAR_HOSTED_PUSH ?? '1';
+  if (switchText !== '0' && switchText !== '1') refuse('CHAUSAR_HOSTED_PUSH must be 1 (phone alerts on) or 0 (off).');
+  if (switchText === '0') return null;
+  const contact = env.CHAUSAR_HOSTED_PUSH_CONTACT;
+  if (contact === undefined || contact === '') return { subject: origin.protocol === 'https:' ? origin.origin : null };
+  const words = 'CHAUSAR_HOSTED_PUSH_CONTACT must be a mailto: address or an https address the push services can reach you at.';
+  let given: URL;
+  try { given = new URL(contact); } catch { return refuse(words); }
+  if (given.protocol === 'mailto:') {
+    if (!/^mailto:[^\s@/?#]+@[^\s@/?#]+\.[^\s@/?#]+$/.test(contact)) refuse(words);
+  } else if (given.protocol !== 'https:' || given.username || given.password || given.hash) refuse(words);
+  return { subject: contact };
+}
 
 export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = []): HostedConfig {
   check(env.CHAUSAR_HOSTED === '1' || args.includes('--hosted'), 'HOSTED_OFF', 'Hosted mode is off. Set CHAUSAR_HOSTED=1 or pass --hosted to start the experimental hosted server.');
@@ -97,6 +131,7 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
     if (!Number.isSafeInteger(value) || value < 1 || value > 50) refuse('CHAUSAR_HOSTED_BUSINESSES_PER_ACCOUNT must be from 1 to 50.');
     limits.businessesPerAccount = value;
   }
+  const trials = trialSettings(env, dev, limits);
 
   let publicUrl: string | null = null;
   if (env.CHAUSAR_PUBLIC_URL !== undefined && env.CHAUSAR_PUBLIC_URL !== '') {
@@ -107,10 +142,46 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
     publicUrl = given.origin;
   }
 
+  const push = pushConfig(env, url);
+  // Trusted proxies in front (4J23): 0 or false for none, 1 or true for one, up to 10 for a chain. Only behind TLS proxying.
+  const hopsText = env.CHAUSAR_HOSTED_TRUST_PROXY ?? '0';
+  const hops = hopsText === 'true' ? 1 : hopsText === 'false' ? 0 : /^\d{1,2}$/.test(hopsText) ? Number(hopsText) : NaN;
+  if (!Number.isSafeInteger(hops) || hops < 0 || hops > 10) refuse('CHAUSAR_HOSTED_TRUST_PROXY must be 0 (no proxy), 1 or true (one proxy), or the number of proxies in front, up to 10.');
+  const proxyHops = tls.kind === 'proxy' ? hops : 0;
+
   return {
-    dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin }, publicUrl,
+    dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin }, publicUrl, push,
     listen: { host: listenHost, port }, dataDirectory: resolve(env.CHAUSAR_HOSTED_DATA ?? 'data/hosted'),
-    custody, tls, trustProxy: env.CHAUSAR_HOSTED_TRUST_PROXY === '1' && tls.kind === 'proxy',
-    mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits,
+    custody, tls, trustProxy: proxyHops > 0, proxyHops,
+    mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits, trials,
   };
+}
+
+/** A whole number from the environment within a range, or a plain refusal naming the variable; null when unset. */
+function wholeSetting(env: NodeJS.ProcessEnv, name: string, min: number, max: number, words: string): number | null {
+  const text = env[name];
+  if (text === undefined) return null;
+  const value = /^\d{1,12}$/.test(text) ? Number(text) : NaN;
+  if (!Number.isSafeInteger(value) || value < min || value > max) refuse(`${name} must be ${words}.`);
+  return value;
+}
+
+/**
+ * Starting without an account (Ink v2 wave 4, 4J23): the switch, off by default outside --dev, and the trial limits
+ * that may be set, each checked like the other limits.
+ */
+function trialSettings(env: NodeJS.ProcessEnv, dev: boolean, limits: HostedLimits): boolean {
+  const switchText = env.CHAUSAR_HOSTED_TRIALS ?? (dev ? '1' : '0');
+  if (switchText !== '0' && switchText !== '1') refuse('CHAUSAR_HOSTED_TRIALS must be 1 (people may start without an account) or 0 (off).');
+  const live = wholeSetting(env, 'CHAUSAR_HOSTED_TRIALS_LIVE', 1, 100_000, 'a whole number of trials from 1 to 100000');
+  if (live !== null) limits.trialsLive = live;
+  const days = wholeSetting(env, 'CHAUSAR_HOSTED_TRIAL_IDLE_DAYS', 1, 30, 'whole days from 1 to 30');
+  if (days !== null) limits.trialIdleMs = days * 86_400_000;
+  const bytes = wholeSetting(env, 'CHAUSAR_HOSTED_TRIAL_VAULT_BYTES', 1_048_576, 268_435_456, 'whole bytes from 1048576 (1 MB) to 268435456 (256 MB)');
+  if (bytes !== null) limits.trialVaultBytes = bytes;
+  if (env.CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS !== undefined) {
+    if (!/^\d{1,12}$/.test(env.CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS)) refuse('CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS must be whole micro US dollars, like 2000000 for USD 2.');
+    limits.trialModelCeilingMicros = env.CHAUSAR_HOSTED_TRIAL_AI_CEILING_MICROS;
+  }
+  return switchText === '1';
 }

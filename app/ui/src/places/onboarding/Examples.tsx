@@ -7,9 +7,15 @@ import s from './Onboarding.module.css';
  * English app it carries `lang="hi"`.
  */
 const EXAMPLES = [
-  { id: 'wedding', hindi: false },
-  { id: 'gst', hindi: false },
-  { id: 'tuition', hindi: true },
+  { id: 'onboarding.examples.wedding', hindi: false },
+  { id: 'onboarding.examples.gst', hindi: false },
+  { id: 'onboarding.examples.tuition', hindi: true },
+] as const;
+/** W4 4J21: with "Add this to {business}" chosen, examples of things to add to a business, the last one Hindi too. */
+const ADD_EXAMPLES = [
+  { id: 'onboarding.ways.ex.reels', hindi: false },
+  { id: 'onboarding.ways.ex.report', hindi: false },
+  { id: 'onboarding.ways.ex.weekly', hindi: true },
 ] as const;
 
 /**
@@ -17,22 +23,22 @@ const EXAMPLES = [
  * sends nothing. They never cycle or change by themselves (the motion rule), and stand still (`disabled`) once the
  * sentence is kept for Try again.
  */
-export function Examples({ onPick, disabled = false }: { onPick: (text: string) => void; disabled?: boolean | undefined }) {
+export function Examples({ onPick, disabled = false, adding = false }: { onPick: (text: string) => void; disabled?: boolean | undefined; adding?: boolean | undefined }) {
   const t = useT();
   const language = useLanguage();
   return (
     <div className={s.examples} role="group" aria-label={t('onboarding.examples.label')}>
       <span className={s.examplesTry} aria-hidden="true">{t('onboarding.examples.try')}</span>
-      {EXAMPLES.map((example) => (
+      {(adding ? ADD_EXAMPLES : EXAMPLES).map((example) => (
         <button
           key={example.id}
           type="button"
           className={s.example}
           lang={example.hindi && language !== 'hi' ? 'hi' : undefined}
           disabled={disabled}
-          onClick={() => onPick(t(`onboarding.examples.${example.id}.text`))}
+          onClick={() => onPick(t(`${example.id}.text`))}
         >
-          {t(`onboarding.examples.${example.id}.label`)}
+          {t(`${example.id}.label`)}
         </button>
       ))}
     </div>

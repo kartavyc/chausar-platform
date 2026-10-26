@@ -1,0 +1,152 @@
+/* W4 4J22b: Today's last two folds (D-Today folds), each a tile whose summary is the way in: who is waiting on you,
+   then ideas as small inner cards with Start. Closed at rest. */
+
+.folds {
+  display: grid;
+  gap: var(--gap-grid);
+  margin-top: var(--gap-section);
+}
+
+.fold {
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.title {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+}
+
+.count {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* 4Z2: the fold's chevron at the end of its summary, turned up while it is open. */
+.mark {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--mute);
+}
+
+.fold[open] .mark {
+  transform: rotate(180deg);
+}
+
+.body {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.lead,
+.prompt,
+.basisLabel {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.said {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.waiting {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.waitLink {
+  composes: hit from '../../parts/touch.module.css';
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.waitLink:hover,
+.onToday:hover {
+  color: var(--link-hover);
+}
+
+.ideas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--gap-cards);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.idea {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  height: 100%;
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.ideaTitle {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.reason {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.basis {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0 0 0 var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.onToday {
+  composes: hit from '../../parts/touch.module.css';
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+}

@@ -27,13 +27,18 @@ export interface GalleryWay {
   running?: string | undefined;
   /** The hours a week the owner puts in ("4 to 8 h a week"). */
   hours: string;
+  /** W4 4J21: the hours are a model's estimate too (4J8's hoursEstimate), so a screen reader hears it with them. */
+  hoursEstimate?: boolean | undefined;
   /** What the owner does. */
   youDo: string;
   /** The agents that run it, and what they do. */
   team: { names: readonly string[]; line: string };
   /** What clients usually pay: a range a model wrote, so it always reads "model estimate" and never has a receipt.
    *  `per` says per what ("per mention"). */
-  pay: { range: string; per?: string | undefined };
+  pay: { range: string; per?: string | undefined; source?: string | undefined };
+  /** W4 4J21: what the owner needs besides time (their own AI, the connections it uses), one fold away with the pay
+   *  range's source. */
+  needs?: readonly string[] | undefined;
 }
 
 export interface GalleryTileProps {
@@ -51,8 +56,8 @@ const STACK = 5;
 
 /**
  * One way to earn as a tile (D-Start's `.way`): its icon, a category chip (or "You run this"), the name and line,
- * then three facts: what you do with the hours, what your AI team does with an avatar stack, and what clients usually
- * pay as a model estimate. One Start button, a secondary unless the tile is featured. "Good fit for you" is a model's
+ * then two facts at rest: the hours, and what clients usually pay as a model estimate. What you do, what your AI team
+ * does (with an avatar stack), what the way needs and the pay range's source are one fold away. One Start button, a secondary unless the tile is featured. "Good fit for you" is a model's
  * judgement, so it carries the "model estimate" label too.
  */
 export function GalleryTile({ way, featured = false, onStart, buttonSize, className }: GalleryTileProps) {
@@ -78,27 +83,16 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
       </div>
       <h3 id={titleId} className={s.name}>{way.name}</h3>
       <p className={s.line}>{way.line}</p>
+      {/* W4 4J21 (integrator): at rest a tile is its name, one line, the hours and the pay; what you do, what the AI team
+          does, what it needs and where the pay range came from are one fold away. */}
       <ul className={s.facts}>
         <li className={s.fact}>
           <p className={s.factHead}>
             <Icon name="clock" size={14} />
-            <span className={s.factName}>{t('gallery.youDo')}</span>
-            <span className={cx(s.hours, 'mono')}>{way.hours}</span>
+            <span className={s.factName}>{t('gallery.yourTime')}</span>
+            <span className={s.hours}>{way.hours}</span>
+            {way.hoursEstimate && <span className="sr-only">, {t('gallery.estimateHours')}</span>}
           </p>
-          <p className={s.factLine}>{way.youDo}</p>
-        </li>
-        <li className={s.fact}>
-          <p className={s.factHead}>
-            <Icon name="bot" size={14} />
-            <span className={s.factName}>{t('gallery.teamDoes')}</span>
-            {way.team.names.length > 0 && (
-              <span className={s.stack} role="img" aria-label={t('gallery.team', { count: way.team.names.length, names: agents })}>
-                {way.team.names.slice(0, STACK).map((name, index) => <Avatar key={index} name={name} size={24} />)}
-                {way.team.names.length > STACK && <Count value={`+${way.team.names.length - STACK}`} className={s.more} />}
-              </span>
-            )}
-          </p>
-          <p className={s.factLine}>{way.team.line}</p>
         </li>
         {/* The range is a model's, proved by its "model estimate" label on the line above, as on the board: the fact is
             one figure group. */}
@@ -111,6 +105,24 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
           <p className={cx(s.pay, 'mono')}>{way.pay.range}</p>
         </li>
       </ul>
+      <details className={s.needs} data-way-needs="">
+        <summary className={s.needsHead}>{t('gallery.needs')}</summary>
+        <p className={s.factHead}><Icon name="clock" size={14} /><span className={s.factName}>{t('gallery.youDo')}</span></p>
+        <p className={s.factLine}>{way.youDo}</p>
+        <p className={s.factHead}>
+          <Icon name="bot" size={14} />
+          <span className={s.factName}>{t('gallery.teamDoes')}</span>
+          {way.team.names.length > 0 && (
+            <span className={s.stack} role="img" aria-label={t('gallery.team', { count: way.team.names.length, names: agents })}>
+              {way.team.names.slice(0, STACK).map((name, index) => <Avatar key={index} name={name} size={24} />)}
+              {way.team.names.length > STACK && <Count value={`+${way.team.names.length - STACK}`} className={s.more} />}
+            </span>
+          )}
+        </p>
+        <p className={s.factLine}>{way.team.line}</p>
+        {way.needs?.map((line) => <p key={line} className={s.factLine}>{line}</p>)}
+        {way.pay.source && <p className={s.source}>{way.pay.source}</p>}
+      </details>
       <div className={s.foot}>
         <Button
           variant={featured ? 'primary' : 'secondary'}
@@ -119,7 +131,8 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
           aria-label={startName}
           onClick={() => onStart(way.id)}
         >
-          {way.running ? t('gallery.startAnother') : t('gallery.start')}
+          {/* 4Z2: every tile reads Start; "You run this" says why one starts another, and its name says so aloud. */}
+          {t('gallery.start')}
           <Icon name="arrow-right" size={16} />
         </Button>
       </div>

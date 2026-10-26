@@ -1,0 +1,87 @@
+/* The run sheet's quality lines (W4 4J22a): coverage, the checks that did not run, the outcome, the report fold, a
+   question's expiry and an interruption. */
+
+.block {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.coverage {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.partial {
+  color: var(--fg2);
+}
+
+.small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
+}
+
+.list {
+  margin: 0;
+  padding: 0 0 var(--sp-2) var(--sp-5);
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.sep {
+  color: var(--fg2);
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--link);
+  padding: var(--sp-1) 0;
+}
+
+.note {
+  font-size: var(--text-read);
+  color: var(--fg);
+  padding-bottom: var(--sp-2);
+}
+
+.quiet {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
+}
+
+.column {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-1);
+}
+
+.expiry {
+  font-size: var(--text-read);
+  color: var(--wait);
+}
+
+.interrupted {
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+  font-size: var(--text-body);
+  color: var(--fg);
+}

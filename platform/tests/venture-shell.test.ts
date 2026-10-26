@@ -20,7 +20,7 @@ import type { DesktopBridge } from '../../app/desktop/types.ts';
 const require = createRequire(import.meta.url);
 const ipc = require('../../app/desktop/ipc-contract.cjs');
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
-const TOKEN_LINK = 'https://github.com/settings/personal-access-tokens/new?name=Chausar%20read%20only&description=Lets%20Chausar%20read%20one%20app%20repo.%20Read%20only.&expires_in=90&contents=read&metadata=read&deployments=read&statuses=read&actions=read';
+const TOKEN_LINK = 'https://github.com/settings/personal-access-tokens/new?name=Chausar%20read%20only&description=Lets%20Chausar%20read%20one%20app%20repo.%20Read%20only.&expires_in=90&contents=read&metadata=read&deployments=read&actions=read';
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 
 // Compile-time only: the desktop types know every venture method, its payload and its result, and the link opener.

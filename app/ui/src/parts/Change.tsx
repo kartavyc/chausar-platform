@@ -45,7 +45,7 @@ export function Change({ label, before, after, receiptId, estimate, onReceipt, s
       <span className={cx(s.now, 'mono')}>{after}</span>
     </>
   );
-  const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} onOpen={onReceipt} /> : null;
+  const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} amount={after} onOpen={onReceipt} /> : null;
   return (
     <span className={cx(s.change, s[size])} data-figure-group="" data-size={size}>
       {/* The label says what changes ("Most it can cost"), so every size shows it; the small one at the label size. */}

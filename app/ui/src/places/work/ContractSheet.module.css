@@ -1,0 +1,51 @@
+/* The order's contract on Work (W4 4J22a): the goal, the engine's line, what it covers and Sign with its second ask. */
+
+.tile {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.goal {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.covers {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.part {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0 0 0 var(--sp-5);
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--link);
+  padding: var(--sp-1) 0;
+}
+
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+}

@@ -13,6 +13,11 @@ const REQUIRED_EXPORTS: Record<VenturePackageId, string[]> = {
   build: ['handlers', 'defaultGitHubTransport', 'createFixtureGitHubTransport'],
   delivery: ['handlers'],
   views: ['handlers', 'questionRowId', 'floorReason'],
+  // Ink v2 wave 4 (package 4-0): the four new packages and the shared record helpers.
+  agents: ['handlers', 'appendAgentMessage'],
+  chief: ['handlers', 'appendChiefMessage', 'draftProposal'],
+  network: ['handlers', 'personById', 'listPeople'],
+  notify: ['handlers'],
 };
 
 async function loadAll(): Promise<Record<VenturePackageId, VenturePackageModule>> {
@@ -30,7 +35,7 @@ test('each venture package exports what the host loads', async () => {
   }
 });
 
-test('the six handler tables cover every venture method, each in its owner package only', async () => {
+test('the ten handler tables cover every venture method, each in its owner package only', async () => {
   const modules = await loadAll();
   const tables = Object.fromEntries(Object.entries(modules).map(([id, module]) => [id, module.handlers])) as Record<VenturePackageId, VenturePackageModule['handlers']>;
   assert.deepEqual(missingHandlers(tables), []);

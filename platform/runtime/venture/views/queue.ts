@@ -20,6 +20,9 @@
 // whose next call would cross its spend cap is a 'quote' row asking for one more window (delivery/harness/loop.ts).
 // A bank statement row that looks like an invoice's payment, and what a statement's alert rules found, are 'bank' rows
 // (build/bank-methods.ts); away from the app an alert row carries its count only.
+// Ink v2 wave 4 (package 4-0): five more row sources (proposals, follow-ups, replies, notices, run controls) whose
+// decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
+// (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
@@ -50,8 +53,19 @@ import { evidenceApply, evidenceQuestions, recordEvidence } from '../evidence/le
 import { bankQueueItems } from '../build/bank-methods.ts';
 import { AGENT_ID, agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
 import { agentWordsLabeller } from './agent-words.ts';
+import { decideW4Row, type W4RowSource, type W4RowSourceFn } from './queue-w4.ts';
+import { withMeta } from './row-meta.ts';
+import { withPreviews } from './previews.ts';
+import { withTriage } from './triage.ts';
+import { noticeRows } from './probes.ts';
+import { proposalRows } from '../chief/rows.ts';
+import { followupRows } from '../network/followup-rows.ts';
+import { replyRows } from '../network/inbound-rows.ts';
+import { runControlRows } from '../delivery/run-control-rows.ts';
+import { moneyRows } from '../money/credits.ts';
+import { routineRows } from '../agents/routine-runner.ts';
 
-export const STALE_LINE = 'This changed since you opened it.';
+export const STALE_LINE = 'This click did not run anything. Here is the new version.';
 export const GONE_LINE = 'This was resolved elsewhere.';
 const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
   watch: 'Open it to watch it.', read: 'Open it to read it.', connect: 'Connect it under Connections.',
@@ -60,7 +74,10 @@ const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
 const BUILDERS: Readonly<Record<string, string>> = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
 /** The plan and setup rows lead Today, in this order; other rows made at the same moment keep it too. */
 const LEAD: readonly QueueKind[] = ['plan', 'price', 'setup'];
-const RANK: Readonly<Record<QueueKind, number>> ={ plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, bank: 3, invoice: 4, locked: 9 };
+const RANK: Readonly<Record<QueueKind, number>> ={
+  plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, bank: 3, invoice: 4, locked: 9,
+  proposal: 3, followup: 3, reply: 3, notice: 5,
+};
 
 type Input = { answer: string | null };
 type Outcome = { line: Display; receiptId?: string };
@@ -72,7 +89,8 @@ const action = (id: QueueActionId, label: string, primary: boolean, extra: { sec
   ({ id, label, primary, ...(extra.secondAsk ? { secondAsk: true } : {}), ...(extra.requiresView ? { requiresView: true } : {}) });
 /** Id parts keep to the identifier alphabet, so a row id always passes the payload check. */
 const part = (value: string) => value.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80);
-const rowId = (subject: string, version: string) => `${subject}:${part(version)}`;
+/** A row's id: its subject, then its version in the identifier alphabet (4G2's probes read it to tell decided rows). */
+export const rowId = (subject: string, version: string) => `${subject}:${part(version)}`;
 const subjectOf = (id: string) => id.slice(0, Math.max(0, id.lastIndexOf(':')));
 
 /** The id of the Today row that answers a run's open question; the run sheet uses it as the question id. */
@@ -138,7 +156,7 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
 // ---------------------------------------------------------------------------
 
 /** 'none': templates serve every job. A reason: an AI is connected but cannot be used now. null: nothing to do. */
-function aiState(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord): { kind: 'none' } | { kind: 'attention'; reason: string } | null {
+export function aiState(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord): { kind: 'none' } | { kind: 'attention'; reason: string } | null {
   try {
     const { tiers } = deps.models.status(ctx);
     if (tiers.main.presetId === 'built-in-templates' && tiers.fast.presetId === 'built-in-templates') return { kind: 'none' };
@@ -270,7 +288,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
       // The next call would cross the run's spend cap, so it was held back: more room, on the second ask.
       const callId = run.callId;
       rows.push({
-        subject, perform: { approve: async (d, ctx) => { await allowRunWindow(d, ctx, run.id, callId); return { line: 'Allowed. Approve the next step when you are ready.' }; } },
+        subject, perform: { approve: async (d, ctx) => { await allowRunWindow(d, ctx, run.id, callId); return { line: 'More room allowed. Approve the next step when you are ready.' }; } },
         row: { ...base(business, 'quote', subject, `cap-${callId}`, at), agent, title: `${agent} reached its spend cap for this run`,
           ...roomWords(run.harness, capWindow(run.harness, run.preview.estimatedMaxCostMicros)!, rupees),
           viewRef: viewRun, actions: [action('later', 'Not now', false), action('approve', 'Allow', true, { secondAsk: true })] },
@@ -297,7 +315,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
         continue;
       }
       rows.push({
-        subject, perform: { answer: async (d, ctx, input) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer: input.answer }); return { line: 'Answered.' }; } },
+        subject, perform: { answer: async (d, ctx, input) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer: input.answer }); return { line: 'Your answer went to the agent.' }; } },
         row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
           // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
           title: `${agent} has a question about ${client}'s order`, line: short(open ? agentWordsLabeller(state, venture, run)(open.question) : 'The agent needs your answer to carry on.', 300),
@@ -329,7 +347,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
       rows.push({
         subject, perform: run.canAccept ? { approve: review('accepted'), deny: review('rejected') } : blocked,
         row: run.canAccept
-          ? { ...base(business, 'draft', subject, 'review', at), agent, title: `Draft reply for ${client}`, viewRef: viewDraft,
+          ? { ...base(business, 'draft', subject, run.reopened ? `review-${run.reopened.count + 1}` : 'review', at), agent, title: `Draft reply for ${client}`, viewRef: viewDraft,
             // Where the judge stands, so a verdict that is not in never reads like a pass (judge-run.ts).
             line: [`Read it, then approve it. You send it yourself.`, judgeStateLine(state, venture, record, nowMs)].filter(Boolean).join(' '),
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
@@ -341,7 +359,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     } else if (run.status === 'failed' && newest) {
       rows.push({
         subject, perform: { 'run-again': async (d, ctx) => { await deliveryRunHandler(d, ctx, { orderId: run.orderId }); return { line: 'Started again.' }; } },
-        row: { ...base(business, 'draft', subject, 'failed', at), agent, title: `The draft for ${client} stopped`, line: short(runError(state, run), 300), viewRef: viewRun,
+        row: { ...base(business, 'draft', subject, 'failed', at), agent, title: `The draft for ${client} failed`, line: short(runError(state, run), 300), viewRef: viewRun,
           actions: [action('later', 'Later', false), action('run-again', 'Run again', true)] },
       });
     }
@@ -443,7 +461,7 @@ function quoteRows(deps: VentureDeps, state: State, venture: VentureRecord, busi
     const subject = `spend-quote:${part(quote.id)}`;
     const approve: Perform = async (d, ctx) => {
       await approveSpendQuote(d, ctx, { quoteId: quote.id, draftDigest: quote.draftDigest, figureMicros: quote.figureMicros, payer: quote.payer });
-      return { line: 'Approved. It can run once in the next hour.' };
+      return { line: 'Cost approved. It can run once in the next hour.' };
     };
     return {
       subject, perform: { approve },
@@ -563,6 +581,61 @@ function bankRows(state: State, venture: VentureRecord, business: Business, ctx:
 }
 
 // ---------------------------------------------------------------------------
+// Ink v2 wave 4 rows (views/queue-w4.ts)
+// ---------------------------------------------------------------------------
+
+const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
+  ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
+  ['money', moneyRows], // 4J5: credit notes waiting to be issued
+  ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
+];
+
+/**
+ * The wave 4 sources' rows: proposals raised from Chats, follow-ups and replies from the pipeline, needs-you notices and
+ * run controls. Every decision on them goes to decideW4Row, except Later, which is recorded here like any row's, and the
+ * navigation actions, which answer with the row's navigate line. Each source is told the subjects already on Today
+ * (earlier rows, then the sources before it), so 4G2's probes never say again what another row says.
+ */
+async function w4Rows(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, business: Business, earlier: readonly Pending[] = []): Promise<Pending[]> {
+  const pending: Pending[] = [];
+  const shownSubjects = new Set(earlier.map(item => item.subject));
+  for (const [source, rowsOf] of W4_SOURCES) {
+    for (const item of await rowsOf(deps, ctx, state, venture, shownSubjects)) {
+      shownSubjects.add(item.subject);
+      const { subject, version, createdAt, navigate, ...shown } = item;
+      const row: Omit<QueueRow, 'digest'> = { ...base(business, item.kind, subject, version, createdAt), ...shown };
+      const perform: Pending['perform'] = {};
+      for (const { id } of item.actions) {
+        if (id === 'later' || Object.hasOwn(NOT_A_DECISION, id)) continue;
+        perform[id] = (d, c, input) => decideW4Row(d, c, { source, row, subject, action: id, answer: input.answer });
+      }
+      pending.push({ subject, perform, row, ...(navigate ? { navigate } : {}) });
+    }
+  }
+  return pending;
+}
+
+/**
+ * The wave 4 hooks, after the digests and the engine's order: meta (4J1) and previews (4J3) add fields, the owner's
+ * triage rule (4J2) orders the rows. A hook never changes a row's id or digest, and never drops or adds a row: a row it
+ * leaves out keeps its place at the end, one it makes up is ignored.
+ */
+function withW4Hooks(state: State, rows: Built[], now: string): Built[] {
+  const original = new Map(rows.map(built => [built.row.id, built]));
+  const shown = withTriage(state, withPreviews(state, withMeta(state, rows.map(built => built.row), now)));
+  const result: Built[] = [];
+  const seen = new Set<string>();
+  for (const row of shown) {
+    const built = original.get(row.id);
+    if (!built || seen.has(row.id)) continue;
+    seen.add(row.id);
+    result.push({ pending: built.pending, row: { ...row, id: built.row.id, digest: built.row.digest } });
+  }
+  for (const built of rows) if (!seen.has(built.row.id)) result.push(built);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Other businesses
 // ---------------------------------------------------------------------------
 
@@ -595,7 +668,8 @@ function sealed(pending: Pending): Built {
 }
 
 function decidedIds(state: State, ventureId: string | null): Set<string> {
-  return new Set(ventureId ? listRecords(state, 'venture-queue-decision', ventureId).map((record: QueueDecisionRecord) => record.rowId) : []);
+  // 4J2: a decision the owner undid no longer counts, so its row comes back to decide anew.
+  return new Set(ventureId ? listRecords(state, 'venture-queue-decision', ventureId).filter(record => !record.undoneAt).map((record: QueueDecisionRecord) => record.rowId) : []);
 }
 
 /** Every row the owner can see now, decided rows left out, oldest first; locked rows last. */
@@ -611,6 +685,7 @@ async function buildRows(deps: VentureDeps, ctx: Context, scope: 'current' | 'al
     pending.push(...signoffRows(state, venture, business));
     pending.push(...quoteRows(deps, state, venture, business), ...postRows(state, business), ...evidenceRows(state, venture, business));
     pending.push(...bankRows(state, venture, business, ctx));
+    pending.push(...await w4Rows(deps, ctx, state, venture, business, pending));
   }
   if (scope === 'all' && deps.workspace) {
     let others: VentureBusinessRef[] = [];
@@ -626,7 +701,7 @@ async function buildRows(deps: VentureDeps, ctx: Context, scope: 'current' | 'al
     || (group(a.row) === 0 ? RANK[a.row.kind] - RANK[b.row.kind] : 0)
     || (a.row.kind === 'locked' ? 0 : a.row.createdAt.localeCompare(b.row.createdAt))
     || RANK[a.row.kind] - RANK[b.row.kind]);
-  return { rows, state, venture };
+  return { rows: withW4Hooks(state, rows, deps.clock().toISOString()), state, venture };
 }
 
 function summaryOf(rows: QueueRow[]): Pick<QueueList, 'summary' | 'needsYou' | 'businesses'> {
@@ -676,7 +751,7 @@ async function staleOrGone(deps: VentureDeps, ctx: Context, subject: string): Pr
 /** Records the decision once. A second record for the same row id is never written. */
 async function record(deps: VentureDeps, ctx: Context, row: QueueRow, subject: string, chosen: QueueActionId, outcome: Outcome): Promise<boolean> {
   return ventureAction(deps, ctx, 'approve', 'queue.decide', tx => {
-    if (tx.list('venture-queue-decision').some(item => item.rowId === row.id)) return false;
+    if (tx.list('venture-queue-decision').some(item => item.rowId === row.id && !item.undoneAt)) return false;
     tx.put<QueueDecisionRecord>({ ...tx.base('venture-queue-decision'), rowId: row.id, subject, digest: row.digest, action: chosen, line: outcome.line, receiptId: outcome.receiptId ?? null, decidedBy: ctx.memberId });
     tx.emit('queue.changed', { rowId: row.id });
     return true;

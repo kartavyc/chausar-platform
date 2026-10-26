@@ -1,0 +1,455 @@
+/* The agent panel's Chat, Instructions and Notes tabs (W4 4B3; D-TeamChat `.cp-body`, `.cp-comp`, `.prop`, `.ver`,
+   `.sugs`, `.cbox`). The thread runs to the panel's edges on the page's grey; the box stays at the bottom of the panel
+   while the thread scrolls. Amber words use --wait-strong, which holds on white. */
+
+.chatButton {
+  margin-inline-start: auto;
+}
+
+.tabBadge {
+  margin-inline-start: var(--sp-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  opacity: 0.8;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-inline: calc(var(--pad-tile) * -1);
+}
+
+.chat > :not(.thread):not(.compose) {
+  margin-inline: var(--pad-tile);
+}
+
+/* Previous and next agent, and where this one is in the team ("2 of 7"). */
+.peers {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.peer {
+  composes: hit from '../../parts/touch.module.css';
+  display: grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button-sm);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-row);
+  cursor: pointer;
+}
+
+.peer:hover:not(:disabled) {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.peer:disabled {
+  color: var(--line);
+  cursor: default;
+}
+
+.peer:focus-visible,
+.earlier:focus-visible,
+.chip:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.position {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* The question the agent's run waits on, pinned above the thread (catalogue A2: one waiting place). */
+.waiting {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  padding: var(--pad-card);
+  border: var(--hair) solid var(--wait-soft);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.waitingHead {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--wait-strong);
+}
+
+.question {
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.earlier {
+  justify-self: center;
+  align-self: center;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-size: var(--text-read);
+  cursor: pointer;
+}
+
+/* The thread scrolls inside the panel, so the head, the tabs and the box stay in view: it takes the window's height
+   less what they take (482 px measured in Chrome) and the sample-data line (30 px), never less than a few messages. */
+.thread {
+  min-block-size: 14rem;
+  max-block-size: calc(100dvh - 32rem);
+  border-block: var(--hair) solid var(--line-soft);
+}
+
+.line {
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.compose {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: var(--sp-3);
+  background: var(--surface);
+}
+
+.compose > section {
+  margin-inline: var(--pad-tile);
+}
+
+/* The chat consent above the box. */
+.consent {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.consentTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+}
+
+.consentTitle:focus {
+  outline: none;
+}
+
+.consentStale {
+  font-size: var(--text-read);
+  color: var(--wait-strong);
+}
+
+.consentText {
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* The reply to a request on the floor opens its card on Today. */
+.onToday {
+  composes: hit from '../../parts/touch.module.css';
+  font-size: var(--text-read);
+}
+
+/* A run's Recalled chip and the notes behind it. */
+.recalled {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+
+.chip {
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border: var(--hair) dashed var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.recalledList {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-inline-start: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.forgotten {
+  color: var(--mute);
+  font-style: italic;
+}
+
+/* A note to keep, an import, or a change accepted before (D's `.prop`). */
+.prop {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.propTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 1.4;
+}
+
+.quote {
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.noteText {
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.prop .noteText {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--inner);
+}
+
+.lines {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.lineWord {
+  font-weight: var(--weight-medium);
+  color: var(--accent-text);
+}
+
+.applies {
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.outcome:focus {
+  outline: none;
+}
+
+/* Instructions. */
+.version {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.howSteps {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.howStep {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.howTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.guidance {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-inline-start: var(--sp-4);
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.doneWhen {
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.orders {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.orderText {
+  font-size: var(--text-body);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.orderMeta,
+.orderQuote,
+.setBy {
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.goBack {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+/* Notes. */
+.used {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.notes,
+.changes {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.noteMeta,
+.noteSource {
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.noteActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.noteForm {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.addNote {
+  justify-self: start;
+}
+
+.change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.changeLine {
+  flex: 1 1 60%;
+  overflow-wrap: anywhere;
+}
+
+.changeAt {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* A phone (3H1): the panel covers the screen, and the thread takes what the box leaves. */
+@media (max-width: 759px) {
+  .peer {
+    width: var(--target);
+    height: var(--target);
+  }
+
+  .thread {
+    max-block-size: calc(100dvh - 26rem);
+  }
+}

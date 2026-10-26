@@ -5,7 +5,9 @@
 // rehearse the old and the new playbook on the reserve plus the three practice clients and keep the new one only
 // if it wins with no new critical error and no case it newly fails. Rounds build on the version kept so far.
 // Versions are never overwritten: a kept candidate is a new playbook version, and the owner adopts it with one tap,
-// and can go back to the version it was made from with another (rollback, Ink v2 wave 2, Q2).
+// and can go back to the version it was made from with another (rollback, Ink v2 wave 2, Q2). Each gated round is kept
+// as an experiment with its control, budget and rules; a change that did not help against a real control waits its
+// retry spacing; the run stops at its budget (Ink v2 wave 4, 4J16, experiments.ts).
 import { check, newId, type Context, type State } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
@@ -22,7 +24,14 @@ import { computeLaunchStatus } from './launch.ts';
 import { currentPlaybook, ensurePlaybook, fits, validatePlaybook } from './playbook.ts';
 import { scenariosFor, signalScenario } from './scenarios.ts';
 import { acceptedBlueprint, newestFirst, optionalFlag, readAs, ventureReceipts } from './shared.ts';
+import { refuseNewWork } from './run-guards.ts';
 import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
+import { rupeesOf } from '../money/spend.ts';
+import {
+  budgetReached, budgetWords, EXPERIMENT_BUDGET_MICROS, EXPERIMENT_CANDIDATES, experimentOf, recentlyTried, RETRY_SPACING_DAYS, reviewQueue, signalWindow, spacingReason,
+} from './experiments.ts';
+import { formatMicros } from '../records.ts';
+import { scanTrace } from './trace-scan.ts';
 
 export const MAX_ROUNDS = 4;
 const DEFAULT_ROUNDS = 2;
@@ -252,7 +261,8 @@ function candidateRecord(parent: PlaybookRecord, body: PlaybookBody, patches: Pl
 function scenarioOf(state: State, venture: VentureRecord, item: ImprovementCase, serviceType: Scenario['serviceType']): Scenario {
   if (item.signalId === null) return scenariosFor(serviceType).find(scenario => scenario.id === item.scenarioId)!;
   const signal = findRecord(state, 'venture-signal', item.signalId)!;
-  return signalScenario(signal, serviceType);
+  // Ink v2 4J16 (Q15): the reserve's cases carry the owner's corrections as expectations, so the gate checks them too.
+  return signalScenario(signal, serviceType, state);
 }
 
 function scoresOf(outcome: RehearsalOutcome): Map<string, CaseScore> {
@@ -283,18 +293,34 @@ async function tiePreferences(
     if (!scoresTie(item.parent, item.candidate)) continue;
     const parent = draftOf(versions.parent, item.scenario.id), candidate = draftOf(versions.candidate, item.scenario.id);
     if (!parent || !candidate || parent === candidate) continue;
+    // Ink v2 wave 4 (4J15, Q14): code scans both drafts before the pairwise judge reads them; a finding means no judge.
+    if (!scanTrace({ harness: null, draft: parent }).clean || !scanTrace({ harness: null, draft: candidate }).clean) continue;
     const { winner, detail } = await preferDraft(ask, { question: PREFER_QUESTION, criteria: [item.scenario.expectedOutcome], parent, candidate, containsClientData: false });
     preferences.set(item.scenario.id, { winner, detail });
   }
   return preferences;
 }
 
-/** venture.improve.run { maxRounds?, useTemplate? }: one improvement run; stores its record and, if one was kept, the candidate. */
+/**
+ * A lower budget the owner gave one improvement run (4J16), in micro-dollars: a whole number above zero, at most the
+ * default; anything else is refused.
+ */
+function budgetOf(value: unknown): string {
+  check(typeof value === 'string' && /^\d{1,13}$/.test(value) && BigInt(value) > 0n && BigInt(value) <= BigInt(EXPERIMENT_BUDGET_MICROS), 'INVALID_VENTURE_REQUEST',
+    `A budget is a whole number of micro-dollars, above zero and at most ${formatMicros(EXPERIMENT_BUDGET_MICROS)}.`);
+  return String(BigInt(value as string));
+}
+
+/** venture.improve.run { maxRounds?, useTemplate?, budgetMicros? }: one improvement run; stores its record and, if one was kept, the candidate. */
 export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ImprovementRunRecord> {
   const startedAt = deps.clock().toISOString();
-  const body = exactPayload(payload, ['maxRounds', 'useTemplate']);
+  const body = exactPayload(payload, ['maxRounds', 'useTemplate', 'budgetMicros']);
   const maxRounds = body.maxRounds === undefined ? DEFAULT_ROUNDS : smallInteger(body.maxRounds, 'Rounds', 1, MAX_ROUNDS);
   const useTemplate = optionalFlag(body.useTemplate, 'useTemplate');
+  const capMicros = body.budgetMicros === undefined ? EXPERIMENT_BUDGET_MICROS : budgetOf(body.budgetMicros);
+  // Ink v2 wave 4 (4F1): no improvement run spends while paused, or on its own while the owner is away (run-guards.ts).
+  const opened = readAs(deps, ctx, 'prepare');
+  refuseNewWork(opened.state, opened.venture, ctx, startedAt);
   const parent = await ensurePlaybook(deps, ctx);
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
@@ -315,14 +341,34 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
   const rounds: ImprovementRound[] = [];
   const tried = new Set<string>();
   let incompleteReason: string | null = null;
+  // Ink v2 4J16 (Q16, experiments.ts): a change tried against a real control that did not help waits its retry
+  // spacing; the proposer reads at most EXPERIMENT_CANDIDATES signals, oldest first; the run stops at its budget.
+  const waiting = recentlyTried(state, venture.id, Date.parse(startedAt));
+  for (const reason of waiting.keys()) tried.add(reason);
+  // Signals whose reason waits are left out of the pool, so newer signals reach the proposer; so are signals no
+  // playbook change can fix (a calculator or dictionary reason), so old ones of those never fill the slots.
+  const fresh = frozen.pool.filter(signal => !(signal.reason && waiting.has(signal.reason)));
+  const actionable = fresh.filter(signal => !(signal.reason && Object.hasOwn(RULES, signal.reason) && (RULES[signal.reason].level === 'calculator' || RULES[signal.reason].level === 'dictionary')));
+  const pool = reviewQueue(actionable.map(signal => ({ ...signal, triedAt: null })), { max: EXPERIMENT_CANDIDATES, now: Date.parse(startedAt), spacingDays: RETRY_SPACING_DAYS });
+  const window = signalWindow(signals, startedAt);
+  // The budget in rupees at the owner's rate, when they set one; USD otherwise.
+  const rupees = venture.country ? rupeesOf(state, venture) : null;
+  const budgetLine = `The run reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
+  const left = () => BigInt(capMicros) - BigInt(spendSummary(spend).costMicros);
 
   // The reserve is held back from the proposer: its rehearsal episodes never reach the diagnosis, in any round.
   const reserveIds = new Set(frozen.cases.reserve.map(item => item.scenarioId));
   for (let round = 1; round <= maxRounds; round += 1) {
+    if (budgetReached(spendSummary(spend).costMicros, capMicros)) {
+      incompleteReason = budgetLine;
+      break;
+    }
     const episodes = (retained.rehearsal ? retained.rehearsal.episodes : latestEpisodes).filter(episode => !reserveIds.has(episode.scenarioId));
-    const diagnosis = diagnose(frozen.pool, episodes, tried);
+    const diagnosis = diagnose(pool, episodes, tried);
     if (!diagnosis.chosen) {
-      incompleteReason = rounds.length ? 'No other failure has a change Chausar can try.' : 'Every failure points at the calculator or the dictionary, which a playbook change never fixes.';
+      const spaced = !rounds.length && fresh.length < frozen.pool.length;
+      incompleteReason = spaced ? spacingReason(waiting)
+        : rounds.length ? 'No other failure has a change Chausar can try.' : 'Every failure points at the calculator or the dictionary, which a playbook change never fixes.';
       rounds.push({ round, diagnosis, patch: null, refused: incompleteReason, candidateHash: null, gate: null });
       break;
     }
@@ -335,12 +381,24 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
     }
     const candidate = candidateRecord(parent, candidateBody, [...(retained.record.patches ?? []), patch], Math.max(0, ...versions) + 1);
     if (!retained.scores) {
-      retained.rehearsal = await rehearse(deps, ctx, retained.record, scenarios, { useTemplate, episodes: 1 });
-      retained.scores = scoresOf(retained.rehearsal);
-      spend.push(...retained.rehearsal.spend);
+      const before = await rehearse(deps, ctx, retained.record, scenarios, { useTemplate, episodes: 1, budgetMicros: left() });
+      spend.push(...before.spend);
+      // 4J16 (Q16): a rehearsal the budget cut short judges nothing: the round stops there.
+      if (before.stopped) {
+        incompleteReason = budgetLine;
+        rounds.push({ round, diagnosis, patch, refused: budgetLine, candidateHash: null, gate: null });
+        break;
+      }
+      retained.rehearsal = before;
+      retained.scores = scoresOf(before);
     }
-    const rehearsal = await rehearse(deps, ctx, candidate, scenarios, { useTemplate, episodes: 1 });
+    const rehearsal = await rehearse(deps, ctx, candidate, scenarios, { useTemplate, episodes: 1, budgetMicros: left() });
     spend.push(...rehearsal.spend);
+    if (rehearsal.stopped) {
+      incompleteReason = budgetLine;
+      rounds.push({ round, diagnosis, patch, refused: budgetLine, candidateHash: null, gate: null });
+      break;
+    }
     const scores = scoresOf(rehearsal);
     const sameDrafts = useTemplate || rehearsal.spend.every(item => item.by === 'template');
     const scored = gateCases.map((item, index) => ({ item, scenario: scenarios[index], parent: retained.scores!.get(item.scenarioId)!, candidate: scores.get(item.scenarioId)! }));
@@ -350,7 +408,13 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       const pairwise = preferences.get(item.scenarioId);
       return { scenarioId: item.scenarioId, set: item.set as 'reserve' | 'rehearsal', parent, candidate, ...(pairwise ? { pairwise } : {}) };
     }), sameDrafts);
-    rounds.push({ round, diagnosis, patch, refused: null, candidateHash: candidate.hash, gate: result });
+    // 4J16 (Q16): the round as an experiment: its hypothesis and change, the control (the version kept so far on the
+    // same cases, unless both wrote the same drafts), the budget spent so far, and the rules the run keeps to.
+    const experiment = experimentOf({
+      patch, change: describePatch(patch, candidate.steps), parentHash: retained.record.hash, gate: result, sameDrafts, window,
+      spentMicros: spendSummary(spend).costMicros, maxRounds, capMicros, rupees,
+    });
+    rounds.push({ round, diagnosis, patch, refused: null, candidateHash: candidate.hash, gate: result, experiment });
     if (result.decision === 'keep-candidate') retained = { record: candidate, body: candidateBody, scores, rehearsal };
   }
 

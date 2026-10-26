@@ -9,7 +9,8 @@ import { useSyncExternalStore } from 'react';
 import { useEngine } from '../../engine/context';
 import type { EngineClient, QueueRow } from '../../engine/types';
 
-export interface DecidedLine { row: QueueRow; line: string; receiptId?: string | undefined }
+/** undo (W4 4J19): a send back or an edit made here can be taken back until its revision starts; it answers the line to show. */
+export interface DecidedLine { row: QueueRow; line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined }
 
 /** A row as the owner saw it: a new digest is a new version, which has to be seen again. */
 export const seenKey = (row: Pick<QueueRow, 'id' | 'digest'>) => `${row.id}@${row.digest}`;
@@ -37,9 +38,9 @@ export class TodaySession {
   private changed() { this.version += 1; for (const listener of [...this.listeners]) listener(); }
 
   /** Keep a decided row as one line. `replace: false` never overwrites a line already kept. */
-  keep(row: QueueRow, line: string, receiptId?: string, replace = true) {
+  keep(row: QueueRow, line: string, receiptId?: string, replace = true, undo?: () => Promise<string>) {
     if (!replace && this.decided.has(row.id)) return;
-    this.decided.set(row.id, { row, line, receiptId });
+    this.decided.set(row.id, { row, line, receiptId, ...(undo ? { undo } : {}) });
     this.changed();
   }
   line(id: string): DecidedLine | undefined { return this.decided.get(id); }

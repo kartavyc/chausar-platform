@@ -1,0 +1,15 @@
+/* Business > About you: the form's two fields, Save with the autosave word beside it, and the recover offer above. */
+
+.form {
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 560px;
+}
+
+.end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}

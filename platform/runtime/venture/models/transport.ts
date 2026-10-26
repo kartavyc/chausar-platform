@@ -187,7 +187,8 @@ async function postModel(request: ModelHttpRequest): Promise<ModelHttpResponse> 
   if (result.outcome === 'done') return result.value;
   if (result.outcome === 'failed' && result.value) return result.value;
   if (result.cause === 'timed-out') throw new ChausarError('MODEL_TIMEOUT', 'The model did not answer in time. Chausar did not retry it.');
-  if (result.cause === 'not-connected') throw new ChausarError('MODEL_FAILED', 'Chausar could not reach the model provider. Nothing was sent.');
+  // The retry class rides on the error (Ink v2 wave 4, 4F2), so the owner reads "offline" from the class, not the words.
+  if (result.cause === 'not-connected') throw Object.assign(new ChausarError('MODEL_FAILED', 'Chausar could not reach the model provider. Nothing was sent.'), { details: { cause: 'not-connected' } });
   if (result.cause === 'status') {
     throw new ChausarError('MODEL_OUTCOME_UNKNOWN', `The model provider answered with HTTP ${result.status}, which does not say whether it ran the request. It may have charged for it. Chausar did not retry it or follow it anywhere.`);
   }
@@ -200,7 +201,9 @@ export function defaultModelTransport(options: { hostProcess?: (request: any) =>
     replay: false,
     http: postModel,
     async process(request: ModelProcessRequest): Promise<ModelProcessResponse> {
-      return processPort({ command: request.command, args: request.args, cwd: tmpdir(), env: request.env, stdin: request.stdin, timeoutMs: request.timeoutMs, schema: null });
+      // A model call runs in the empty folder made for it (4H1, H39), and a look's checks in the empty folder made for
+      // that look (cli-status.ts); the temp folder is only the fallback for a request that names none.
+      return processPort({ command: request.command, args: request.args, cwd: request.cwd ?? tmpdir(), env: request.env, stdin: request.stdin, timeoutMs: request.timeoutMs, schema: null });
     },
   };
 }

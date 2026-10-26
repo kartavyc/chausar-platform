@@ -1,0 +1,149 @@
+/* Start's tiles from Chausar (W4 4C2): the fit (D-Start's `.fit` with `.n-eye` "Good fit for you") and "Not sure which
+   fits?" (`.unsure`, `.qs`, `.qb`). The fit sits on the accent's soft ground, the only colour on it beside its one
+   primary; the questions are quiet chips. Beside puts each next to the tile it belongs with. */
+
+.beside {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--gap-grid);
+  align-items: stretch;
+}
+
+.main {
+  display: grid;
+  min-width: 0;
+}
+
+.beside[data-alone] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1099px) {
+  .beside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid var(--accent-line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  line-height: var(--sp-6);
+  color: var(--accent-text);
+}
+
+.title {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.6;
+  color: var(--fg2);
+}
+
+.actions {
+  display: flex;
+  margin-top: auto;
+  padding-top: var(--sp-3);
+}
+
+.actions > button {
+  flex: 1;
+}
+
+.unsure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.unsureTitle {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.unsureLine {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--mute);
+}
+
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.question {
+  min-height: var(--target);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.question:hover {
+  border-color: var(--edge);
+  color: var(--fg);
+}
+
+/* D's `.btn.wide`: an outlined button the width of the tile. */
+.open {
+  display: grid;
+  place-items: center;
+  min-height: var(--control);
+  margin-top: auto;
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.open:hover {
+  background: var(--wash);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

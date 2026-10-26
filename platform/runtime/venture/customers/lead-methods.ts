@@ -10,6 +10,10 @@ import {
   exactPayload, identifier, isAppChannel, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx,
 } from '../records.ts';
 import { addToBlocklist, createLead, draftOutreach, moveLead, onBlocklist, recordSend, verifyLeadEmail, type Blocklist, type Lead } from './leads.ts';
+import { CLOSED_STAGES, cardsOf, ensureLeadCard } from '../network/pipeline.ts';
+import { localDayAt } from '../local-day.ts';
+import { normalLinkedIn, normalPhone } from '../network/text.ts';
+import { refuseNeverContact } from '../network/outreach-checks.ts';
 
 /** A stored lead as the screens and the rules read it. A lead stored before stages kept their moves reads with none. */
 function leadOf(record: LeadRecord): LeadView {
@@ -27,7 +31,7 @@ function settingsOf(tx: VentureTx): LeadSettingsRecord | undefined {
 }
 
 function blocklistOf(settings: LeadSettingsRecord | undefined): Blocklist {
-  return { emails: new Set(settings?.blockedEmails ?? []), domains: new Set(settings?.blockedDomains ?? []) };
+  return { emails: new Set(settings?.blockedEmails ?? []), domains: new Set(settings?.blockedDomains ?? []), handles: new Set(settings?.blockedHandles ?? []) };
 }
 
 function findLead(tx: VentureTx, leadId: string): LeadRecord {
@@ -64,6 +68,9 @@ export async function leadsDraft(deps: VentureDeps, ctx: Context, payload: unkno
   const owner = isAppChannel(ctx);
   const address = body.postalAddress === undefined ? undefined : singleLine(body.postalAddress, 'The postal address', { min: 5, max: 300 });
   check(address === undefined || owner, 'APP_APPROVAL_REQUIRED', 'Set your business postal address inside the Chausar app.');
+  // 4J6 (C10): an address the never-contact list of the businesses on this computer holds gets no draft.
+  const listed = listRecords(deps.store.read(), 'venture-lead').find(item => item.id === leadId);
+  if (listed) await refuseNeverContact(deps, [listed.email], listed.name);
   return ventureAction(deps, ctx, 'prepare', 'leads.draft', tx => {
     const stored = findLead(tx, leadId);
     let settings = settingsOf(tx);
@@ -93,35 +100,81 @@ export async function leadsRecordSend(deps: VentureDeps, ctx: Context, payload: 
   return ventureAction(deps, ctx, 'approve', 'leads.recordSend', tx => {
     const stored = findLead(tx, leadId);
     const lead = recordSend(leadOf(stored), { draftId, sentAt }, ctx, tx.now);
-    return leadOf(tx.replace(recordOf(tx, lead, stored)));
+    const view = leadOf(tx.replace(recordOf(tx, lead, stored)));
+    ensureLeadCard(tx, leadId); // Ink v2 wave 4 (4E1): the lead's pipeline card is stored with this day's follow-up sequence
+    return view;
   });
 }
 
 const EMAIL_ENTRY = /^[^\s@]{1,64}@[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/;
 const DOMAIN_ENTRY = /^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})+$/;
 
+const BLOCK_ENTRY_LINE = 'Type one email address, a domain, a phone number or a LinkedIn profile address, like name@example.com, example.com, +91 98765 43210 or linkedin.com/in/name.';
+
 /**
- * venture.leads.block { value } (approve, inside the app): puts an email or a whole domain on the blocklist for good.
- * Drafting checks it first, so no agent drafts to anyone on it again. Every lead it covers moves to blocked, with the
- * entry as the move's evidence. Answers with every blocked entry, emails first.
+ * The entry as the blocklist keeps it: an email or a domain in lower case; a phone in E.164 (Ink v2 wave 4, 4E2: a
+ * "stop" on WhatsApp), read in the business's country when it has no plus; or a LinkedIn profile address in the
+ * network's one spelling (a "stop" on LinkedIn). Null for anything else.
+ */
+function blockEntry(value: string, countryCode: string | null): string | null {
+  const text = value.trim();
+  const lower = text.toLowerCase().replace(/^@/, '');
+  if (EMAIL_ENTRY.test(lower) || DOMAIN_ENTRY.test(lower)) return lower;
+  if (/linkedin\.com/i.test(text)) return normalLinkedIn(text);
+  return /^\+?[\d\s().-]{7,24}$/.test(text) ? normalPhone(text, countryCode ?? '') : null;
+}
+
+/**
+ * venture.leads.block { value } (approve, inside the app): puts an email, a whole domain, a phone or a LinkedIn profile
+ * address on the blocklist for good. Drafting checks it first, so no agent drafts to anyone on it again. Every lead it
+ * covers moves to blocked, with the entry as the move's evidence. Answers with every blocked entry, emails first.
  */
 export async function leadsBlock(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ blocked: string[] }> {
   requireAppChannel(ctx, 'venture.leads.block');
   const body = exactPayload(payload, ['value'], ['value']);
-  check(typeof body.value === 'string' && body.value.length <= 254, 'INVALID_VENTURE_REQUEST', 'Type one email address or one domain, like name@example.com or example.com.');
-  const entry = body.value.trim().toLowerCase().replace(/^@/, '');
-  check(EMAIL_ENTRY.test(entry) || DOMAIN_ENTRY.test(entry), 'INVALID_VENTURE_REQUEST', 'Type one email address or one domain, like name@example.com or example.com.');
+  check(typeof body.value === 'string' && body.value.length <= 254, 'INVALID_VENTURE_REQUEST', BLOCK_ENTRY_LINE);
+  const value = body.value;
   return ventureAction(deps, ctx, 'approve', 'leads.block', tx => {
-    const settings = settingsOf(tx);
-    const next = addToBlocklist(blocklistOf(settings), entry);
-    const blockedEmails = [...next.emails].sort(), blockedDomains = [...next.domains].sort();
-    if (settings) tx.replace<LeadSettingsRecord>({ ...settings, blockedEmails, blockedDomains });
-    else tx.put<LeadSettingsRecord>({ ...tx.base('venture-lead-settings'), postalAddress: null, blockedEmails, blockedDomains });
-    for (const stored of tx.list('venture-lead')) {
-      const lead = leadOf(stored);
-      if (lead.status === 'blocked' || !onBlocklist(lead, next)) continue;
-      tx.replace(recordOf(tx, moveLead(lead, 'blocked', { evidence: { kind: 'opt-out', id: entry }, by: ctx.memberId, at: tx.now }), stored));
-    }
-    return { blocked: [...blockedEmails, ...blockedDomains] };
+    const entry = blockEntry(value, tx.venture?.country?.code ?? null);
+    check(entry, 'INVALID_VENTURE_REQUEST', BLOCK_ENTRY_LINE);
+    return { blocked: blockEntries(tx, [entry], ctx.memberId).blocked };
   });
+}
+
+/**
+ * The one way an entry goes on the blocklist (venture.leads.block, and 4E3's opt-outs and bounces): each entry (an
+ * email, a domain, a phone or a LinkedIn profile address, read as blockEntry reads it; anything else is skipped) is
+ * added for good, every lead it covers moves to blocked with the entry as the move's evidence, and every open pipeline
+ * card it now blocks is announced (pipeline.changed with its id, then queue.changed), as a blocked phone or LinkedIn
+ * page always is (4E2). Answers the entries that were new and every blocked entry, emails first.
+ */
+export function blockEntries(tx: VentureTx, values: readonly string[], by: string): { added: string[]; blocked: string[] } {
+  const countryCode = tx.venture?.country?.code ?? null;
+  const entries = [...new Set(values.map(value => blockEntry(value, countryCode)).filter((entry): entry is string => !!entry))];
+  const settings = settingsOf(tx);
+  const before = blocklistOf(settings);
+  const known = (entry: string) => before.emails.has(entry) || before.domains.has(entry) || (before.handles?.has(entry) ?? false);
+  const added = entries.filter(entry => !known(entry));
+  let next: Blocklist = before;
+  for (const entry of added) next = addToBlocklist(next, entry);
+  const blockedEmails = [...next.emails].sort(), blockedDomains = [...next.domains].sort(), blockedHandles = [...(next.handles ?? [])].sort();
+  if (!added.length) return { added, blocked: [...blockedEmails, ...blockedDomains, ...blockedHandles] };
+  const venture = tx.venture?.country ? tx.venture : null;
+  const today = venture ? localDayAt(tx.now, venture.country) : null;
+  const wasBlocked = new Set(venture ? cardsOf(tx.state, venture, today!).filter(card => card.blocked).map(card => card.id) : []);
+  const handles = blockedHandles.length ? { blockedHandles } : {};
+  if (settings) tx.replace<LeadSettingsRecord>({ ...settings, blockedEmails, blockedDomains, ...handles });
+  else tx.put<LeadSettingsRecord>({ ...tx.base('venture-lead-settings'), postalAddress: null, blockedEmails, blockedDomains, ...handles });
+  for (const stored of tx.list('venture-lead')) {
+    const lead = leadOf(stored);
+    if (lead.status === 'blocked' || !onBlocklist(lead, next)) continue;
+    const entry = added.find(item => onBlocklist(lead, addToBlocklist(before, item))) ?? added[0];
+    tx.replace(recordOf(tx, moveLead(lead, 'blocked', { evidence: { kind: 'opt-out', id: entry }, by, at: tx.now }), stored));
+  }
+  const nowBlocked = venture ? cardsOf(tx.state, venture, today!).filter(card => card.blocked && !CLOSED_STAGES.has(card.stage) && !wasBlocked.has(card.id)) : [];
+  for (const card of nowBlocked) tx.emit('pipeline.changed', { id: card.id });
+  const handle = added.some(entry => blockedHandles.includes(entry));
+  if (handle) tx.emit('pipeline.changed', {});
+  if (nowBlocked.length || handle) tx.emit('queue.changed', {});
+  return { added, blocked: [...blockedEmails, ...blockedDomains, ...blockedHandles] };
 }

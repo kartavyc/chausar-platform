@@ -123,3 +123,40 @@
 .acts > button:last-child {
   flex: 1;
 }
+
+/* Folded into the dark goal card on a phone (D-Phone-Today's `.g-next`): the eyebrow, the title with its figure, and
+   the one filled button across the card. */
+.folded {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.foldedEyebrow {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--goal-mute);
+}
+
+.foldedLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-body);
+  line-height: 20px;
+  font-weight: var(--weight-strong);
+  color: var(--goal-fg);
+}
+
+.foldedNote {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--goal-fg2);
+}
+
+.folded > button {
+  width: 100%;
+  margin-top: var(--sp-2);
+}

@@ -9,8 +9,9 @@ import type {
 } from '../contracts.ts';
 import { digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { latestBrief } from './brief.ts';
+import { checkConnectorFields } from './connector-truth.ts';
 
-export const TOKEN_LINK = 'https://github.com/settings/personal-access-tokens/new?name=Chausar%20read%20only&description=Lets%20Chausar%20read%20one%20app%20repo.%20Read%20only.&expires_in=90&contents=read&metadata=read&deployments=read&statuses=read&actions=read';
+export const TOKEN_LINK = 'https://github.com/settings/personal-access-tokens/new?name=Chausar%20read%20only&description=Lets%20Chausar%20read%20one%20app%20repo.%20Read%20only.&expires_in=90&contents=read&metadata=read&deployments=read&actions=read';
 
 export const GITHUB_API = 'https://api.github.com';
 export const GITHUB_API_VERSION = '2026-03-10';
@@ -169,6 +170,8 @@ export function latestFollow(state: State, ventureId: string): BuildFollowRecord
 export async function linkRepo(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BuildFollowRecord> {
   requireAppChannel(ctx, 'venture.build.link');
   const body = exactPayload(payload ?? {}, ['repo', 'token'], ['repo']);
+  // 4J7 (K6): GitHub's capability set names every field following a repo takes.
+  checkConnectorFields('github', 'read-repo', Object.keys(body));
   const repo = parseRepo(body.repo);
   const token = body.token === undefined ? null : checkToken(body.token);
   authorize(deps.store, ctx, 'admin');

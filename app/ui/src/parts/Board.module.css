@@ -2,7 +2,9 @@
    `.lift.pc`, `.pc-top`, `.pc-id`, `.pc-name`, `.pc-co` (D-Clients). Open columns share the width; a folded column
    is a 44 px strip. On a phone the board scrolls sideways and each column keeps a readable width. */
 
+/* Positioned (4Z walk): the columns' visually hidden hints scroll with the board, never widen the place around it. */
 .board {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--gap-cards);
@@ -63,15 +65,6 @@
 .hide:hover {
   background: var(--wash);
   color: var(--fg);
-}
-
-.hint {
-  margin-top: calc(var(--sp-1) / 2);
-  padding: 0 calc(var(--sp-1) / 2);
-  font-size: var(--text-label);
-  line-height: 1.35;
-  color: var(--mute);
-  overflow-wrap: anywhere;
 }
 
 .empty {

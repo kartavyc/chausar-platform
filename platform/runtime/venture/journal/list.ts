@@ -9,6 +9,8 @@ import type { JournalEntry, JournalRecord, JournalState, SiteEditRecord, SiteEdi
 import { currentVenture, exactPayload, findRecord, identifier, isAppChannel, listRecords, singleLine, ventureAction, type VentureTx } from '../records.ts';
 import { postJournal, postResolvedLine } from '../build/posting.ts';
 import { JOURNAL_ACTIONS, resolveIn, resolvedLine } from './journal.ts';
+import { allowedByEntries } from './decisions.ts';
+import { chainBreakEntries } from './chain.ts';
 
 export const JOURNAL_LIST_DEFAULT = 100;
 export const JOURNAL_LIST_MAX = 500;
@@ -20,6 +22,9 @@ function entryOf(record: JournalRecord): JournalEntry {
   return {
     id: record.id, action: JOURNAL_ACTIONS[record.action]?.label ?? record.action, target: record.target, state: record.state,
     at: last?.at ?? record.at, line: last?.line ?? record.describe, ...(record.receiptId ? { receiptId: record.receiptId } : {}),
+    // 4J10 (H27): how far it went after applied, and how each target ended.
+    ...(record.ends?.length ? { endState: record.ends[record.ends.length - 1].state } : {}),
+    ...(record.targets ? { targets: record.targets.map(target => ({ ...target })) } : {}),
   };
 }
 
@@ -39,9 +44,14 @@ export function journalEntries(state: State, limit = JOURNAL_LIST_DEFAULT): Jour
   if (!venture) return [];
   const entries = [
     // A website edit is listed once, from its own record: its journal entry (the bound token) is the same effect.
-    ...listRecords(state, 'venture-journal-entry', venture.id).filter(record => !record.shadow && record.action !== 'site.apply').map(entryOf),
+    // Phone alerts (4G3) stay in the journal but out of this list: each is a notice of a count to the owner's own device.
+    ...listRecords(state, 'venture-journal-entry', venture.id).filter(record => !record.shadow && record.action !== 'site.apply' && record.action !== 'notify.push' && record.action !== 'notify.relay').map(entryOf),
     ...postJournal(state, venture.id),
     ...listRecords(state, 'venture-site-edit', venture.id).map(siteOf),
+    // 4J1 (O17): each step a saved rule let run without asking, with the rule and how to stop always allowing it.
+    ...allowedByEntries(state, venture),
+    // 4J10 (H26): where a new record began, after a break the owner accepted.
+    ...chainBreakEntries(state, venture),
   ];
   return entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, limit);
 }

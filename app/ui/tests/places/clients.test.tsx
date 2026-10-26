@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type EngineClient } from '../../src/engine/types';
+import { receiptMark } from '../helpers/ink-rules';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
@@ -44,7 +45,7 @@ describe('Clients place', () => {
     const boat = rows.find((r) => r.textContent?.includes('Boat Audio'))!;
     expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
     expect(within(boat).getByText('₹26,200.00').className).toContain('mono');
-    expect(within(boat).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(boat).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((r) => r.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.textContent).toContain('No orders yet.');
     expect(within(nimbus).queryByRole('button', { name: /Receipt/ })).toBeNull();
@@ -56,7 +57,7 @@ describe('Clients place', () => {
 
   it('opens a receipt from what a client owes', async () => {
     start();
-    await click(await screen.findByRole('button', { name: 'Receipt R-0416' }));
+    await click(await screen.findByRole('button', { name: receiptMark('R-0416') }));
     const sheet = await screen.findByRole('complementary', { name: 'R-0416' });
     await waitFor(() => expect(sheet.textContent).toContain('₹13,100.00'));
   });
@@ -231,8 +232,9 @@ describe('client sheet', () => {
     const link = within(orders).getByRole('link', { name: 'Two mentions in episode 14' });
     expect(link.getAttribute('href')).toBe('#/work?order=o-boat-14');
     expect(orders.textContent).toContain('Open');
-    expect(orders.textContent).toContain('Invoiced');
-    expect(within(orders).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    // o-boat-12 is delivered (its fixture says so since 4Z2), so it reads Delivered in plain words.
+    expect(orders.textContent).toContain('Delivered');
+    expect(within(orders).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const drafts = await within(sheet).findByRole('list', { name: 'Drafts' });
     expect(drafts.textContent).toContain('Sponsor script for episode 14');
     expect(drafts.textContent).toContain('Ready for you to read');
@@ -250,10 +252,12 @@ describe('client sheet', () => {
     const owes = await within(sheet).findByText('owes');
     const line = owes.parentElement!;
     // Ink v2 (3E2): the amount is a Figure, its receipt chip beside it with a gap rather than a space character.
-    expect(line.textContent).toMatch(/^owes ₹26,200\.00\s*R-0416$/);
+    // 4Z3: the receipt is a mark beside it; its code is not printed.
+    expect(line.textContent).toMatch(/^owes ₹26,200\.00\s*$/);
+    expect(within(line).getByRole('button', { name: 'Receipt for ₹26,200.00' }).getAttribute('data-receipt')).toBe('R-0416');
     expect(within(line).getByText('₹26,200.00').className).toContain('mono');
     expect(within(line).getByText('₹26,200.00').closest('[data-figure]')).toBeTruthy();
-    expect(within(line).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(line).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
   });
 
   it('says so for a client that is not in this business', async () => {
