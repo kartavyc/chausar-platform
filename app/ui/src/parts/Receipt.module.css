@@ -1,15 +1,46 @@
+/* Receipt: D's `.rc` chip on light grounds and `.rc-d` underlined link on the dark goal card. On a phone either keeps
+   its look and takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+
 .receipt {
-  font-size: inherit;
+  composes: hit from './touch.module.css';
+}
+
+.receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: none;
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid var(--receipt-line);
+  border-radius: var(--r-button-sm);
+  background: var(--surface);
+  color: var(--link);
+  font-size: var(--text-label);
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: border-color var(--t-press) var(--ease);
+}
+
+.receipt:hover {
+  border-color: var(--link);
+}
+
+.receipt[data-tone='dark'] {
+  min-height: auto;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
-  color: var(--link);
-  cursor: pointer;
+  color: var(--goal-link);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-.receipt:hover {
+.receipt[data-tone='dark']:hover {
+  color: var(--goal-link-hover);
   text-decoration-thickness: 2px;
 }

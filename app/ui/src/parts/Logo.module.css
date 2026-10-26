@@ -1,0 +1,33 @@
+/* Logo: D's `.brand` mark and `.word`. The first square is ink on any page (it follows the theme), white-on-dark
+   inside the Chausar avatar; the second square is always the accent. */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--fg);
+}
+
+.mark {
+  display: block;
+  flex: none;
+}
+
+.first {
+  fill: var(--fg);
+}
+
+.firstInAvatar {
+  fill: var(--on-selected);
+}
+
+.second {
+  fill: var(--accent);
+}
+
+.word {
+  font-size: var(--text-sheet);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}

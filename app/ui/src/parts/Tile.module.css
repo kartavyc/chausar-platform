@@ -1,0 +1,153 @@
+/* Tile: D's `.bento` grid with `.c3` to `.c12`, `.tile`, the department panel `.dp.p-x`, the tile head `.th`
+   (`.h3`, `.meta`, `.more`) and the section head `.shead` (`.h2`). Each surface sets --ring-ground to its own ground,
+   so an avatar's status ring has the right gap inside it. */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+/* Anything in the bento without a span takes the full row, never one twelfth of it. */
+.bento > :not([data-span]) {
+  grid-column: 1 / -1;
+}
+
+.tile {
+  --ring-ground: var(--surface);
+  min-width: 0;
+  padding: var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.tile[data-pad='compact'] {
+  padding: var(--pad-tile-compact);
+}
+
+.tile[data-pad='none'] {
+  padding: 0;
+}
+
+/* A stopped run keeps a red line only (no wash). */
+.tile[data-tone='fail'] {
+  border-color: var(--fail-line);
+}
+
+/* Department panels: the tint, its line, and the tint as the ground under rings. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--pad-panel);
+  border: var(--hair) solid transparent;
+  border-radius: var(--r-tile);
+  box-shadow: var(--shadow-tile);
+}
+
+.panel[data-dept='sales'] { --ring-ground: var(--sales-tint); background: var(--sales-tint); border-color: var(--sales-line); }
+.panel[data-dept='mkt'] { --ring-ground: var(--mkt-tint); background: var(--mkt-tint); border-color: var(--mkt-line); }
+.panel[data-dept='prod'] { --ring-ground: var(--prod-tint); background: var(--prod-tint); border-color: var(--prod-line); }
+.panel[data-dept='money'] { --ring-ground: var(--money-tint); background: var(--money-tint); border-color: var(--money-line); }
+.panel[data-dept='ops'] { --ring-ground: var(--ops-tint); background: var(--ops-tint); border-color: var(--ops-line); }
+
+/* Columns in the bento. */
+.tile[data-span='3'], .panel[data-span='3'] { grid-column: span 3; }
+.tile[data-span='4'], .panel[data-span='4'] { grid-column: span 4; }
+.tile[data-span='5'], .panel[data-span='5'] { grid-column: span 5; }
+.tile[data-span='6'], .panel[data-span='6'] { grid-column: span 6; }
+.tile[data-span='7'], .panel[data-span='7'] { grid-column: span 7; }
+.tile[data-span='8'], .panel[data-span='8'] { grid-column: span 8; }
+.tile[data-span='9'], .panel[data-span='9'] { grid-column: span 9; }
+.tile[data-span='10'], .panel[data-span='10'] { grid-column: span 10; }
+.tile[data-span='11'], .panel[data-span='11'] { grid-column: span 11; }
+.tile[data-span='12'], .panel[data-span='12'] { grid-column: span 12; }
+
+/* A phone stacks every tile full width. */
+@media (max-width: 759px) {
+  .tile[data-span], .panel[data-span] { grid-column: 1 / -1; }
+}
+
+/* Tile head: title, a quiet meta line, and "more" at the end. */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-height: 24px;
+}
+
+.headTitle {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.005em;
+}
+
+.meta {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.more {
+  composes: hit from './touch.module.css';
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.more:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.more ~ .end {
+  margin-left: var(--sp-2);
+}
+
+/* Section head outside tiles: the heading at section size and the amber count. */
+.section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 32px;
+}
+
+.sectionTitle {
+  font-size: var(--text-section);
+  line-height: 26px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+}
+
+/* A phone (3H1): a head with a link ("See team") keeps the link on the title's line, as D-Phone-Today does; the
+   counts beside the title take the line under them. */
+@media (max-width: 759px) {
+  .head:has(> .more) .meta {
+    order: 1;
+    flex-basis: 100%;
+  }
+}

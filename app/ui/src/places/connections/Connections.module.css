@@ -1,94 +1,223 @@
-.list {
+/* Connections in the D look (D-STYLE section 4; no board of its own): Your AI as the first tile with the privacy rule
+   and transcription beside it, "What Chausar can do on this computer" as a tile of list rows, then each category's
+   connectors as tiles. A planned connector is drawn open and dashed, the look of everything that is not real yet. */
+
+/* ---- Your AI and the tiles beside it ---- */
+
+.top,
+.second {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--gap-grid);
+}
+
+.second {
+  margin-top: var(--gap-grid);
+}
+
+.top[data-side='none'],
+.second[data-side='none'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.side {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-height: 24px;
+}
+
+.title {
   margin: 0;
   padding: 0;
-  list-style: none;
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.005em;
+  color: var(--fg);
 }
 
-.group {
-  margin-top: var(--sp-9);
-}
-
-.heading {
-  margin: 0 0 6px;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
-}
-
-.heading:focus {
+.title:focus {
   outline: none;
 }
 
-.heading:focus-visible {
+.title:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: 4px;
 }
 
+.meta {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.end {
+  margin-left: auto;
+}
+
+/* The two jobs, each on an inner card with the bot mark. */
+.jobs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-cards);
+  margin-top: var(--sp-4);
+}
+
+.jobs[data-one] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.job {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  font-size: var(--text-body);
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.jobIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: calc(var(--av-32) * 0.3);
+  background: var(--surface);
+  color: var(--fg2);
+}
+
+.spend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: baseline;
+  margin: var(--sp-4) 0 0;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.rows {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .subheading {
-  margin: var(--sp-6) 0 var(--sp-1);
+  margin: var(--sp-5) 0 0;
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
   font-size: var(--text-read);
   font-weight: var(--weight-medium);
   color: var(--fg2);
 }
 
-.label,
-.posting {
-  margin: var(--sp-2) 0 0;
+/* "Every choice", one fold away: the choices grouped by how the owner pays for them. */
+.fold {
+  margin-top: var(--sp-2);
   font-size: var(--text-read);
-  color: var(--fg2);
 }
 
-.postingWord {
-  margin-right: var(--sp-2);
-  color: var(--mute);
-}
-
-.reason {
-  display: block;
-  margin-top: 2px;
-  color: var(--mute);
-}
-
-.note {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-.line {
-  margin: var(--sp-1) 0 0;
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.said {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.problem {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-read);
-  color: var(--fail);
-}
-
-.link {
-  font-size: var(--text-read);
+.fold > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
   color: var(--link);
-  text-decoration: none;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-.link:hover {
-  text-decoration: underline;
+.fold > summary:hover {
+  color: var(--link-hover);
 }
 
+.choiceGroup + .choiceGroup {
+  margin-top: var(--sp-3);
+}
+
+.groupLabel {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--mute);
+}
+
+.fixLine {
+  color: var(--fg2);
+}
+
+.quiet {
+  color: var(--mute);
+}
+
+/* The privacy rule and transcription, each a tile of its own beside Your AI. */
 .form {
   display: grid;
   gap: var(--sp-3);
-  margin-top: var(--sp-3);
-  max-width: 520px;
+  margin: 0;
+}
+
+.rule {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rule > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--sp-2);
+}
+
+.rule > legend + * {
+  clear: both;
+}
+
+/* Radio cards: each choice a full-width target with its words, the chosen one outlined in ink. */
+.choice {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: var(--target);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 1.35;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--selected);
+}
+
+.choice input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--selected);
+}
+
+.agree {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--target);
+  font-size: var(--text-body);
+  color: var(--fg);
 }
 
 .consent {
@@ -98,59 +227,378 @@
   color: var(--fg2);
 }
 
-.agree {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-  font-size: var(--text-body);
-  color: var(--fg);
-}
-
 .buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
+  align-items: center;
   justify-content: flex-end;
 }
 
-.tiers {
-  margin: var(--sp-2) 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-body);
+/* The connect form opens under its row on the inner grey. */
+.connect {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* ---- What Chausar can do on this computer ---- */
+
+.mini {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: calc(var(--av-32) * 0.3);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.stopLine {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+/* ---- The connectors, one group per category ---- */
+
+/* The groups share the page's 12 columns: a category of one or two tiles sits beside the next one, so small
+   categories line up in a row instead of leaving the rest of the line empty. */
+.groups {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap-section) var(--gap-grid);
+  margin-top: var(--gap-section);
+}
+
+.group {
+  grid-column: span 12;
+  min-width: 0;
+}
+
+.group[data-cols='1'] {
+  grid-column: span 4;
+}
+
+.group[data-cols='2'] {
+  grid-column: span 8;
+}
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--text-section);
+  line-height: 26px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
   color: var(--fg);
 }
 
-.tiers li + li {
+.groupTitle:focus {
+  outline: none;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards[data-cols='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cards[data-cols='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.connector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Planned: open, dashed and flat, so it never reads as a live connection. */
+.connector.planned {
+  border-style: dashed;
+  border-color: var(--dash);
+  background: transparent;
+  box-shadow: none;
+}
+
+.tileTop {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+}
+
+.catIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-40);
+  height: var(--av-40);
+  border: var(--hair) solid transparent;
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.planned .catIcon {
+  border-style: dashed;
+  border-color: var(--dash);
+  background: transparent;
+  color: var(--mute);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.name {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.name {
+  display: block;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  text-align: left;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.name:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.name:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+  border-radius: var(--r-button-sm);
+}
+
+.labelSlot {
+  display: block;
   margin-top: var(--sp-1);
 }
 
-.mode {
-  margin-top: var(--sp-3);
+.note {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--mute);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.works {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--accent-text);
+}
+
+/* Posting: the label and mode on one line, the engine's reason under it; the sign-in, the steps and the limits below. */
+.posting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0;
   padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.postingWord {
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.reason {
+  color: var(--mute);
+}
+
+.tools {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.toolRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-read);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-top: auto;
+}
+
+.foot:empty {
+  display: none;
+}
+
+.said {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+.foot .link:last-child {
+  margin-left: auto;
+}
+
+/* ---- The connector sheet ---- */
+
+.sheetIcon {
+  display: grid;
+  place-items: center;
+  width: var(--av-40);
+  height: var(--av-40);
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+/* The sheet's body spaces its sections; inside one, the heading sits close to its list. */
+.sheetSection {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.sheetHeading {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.modes {
+  display: grid;
+  gap: var(--gap-cards);
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
 .modeHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: 0 0 var(--sp-2);
   font-size: var(--text-body);
+  font-weight: var(--weight-medium);
   color: var(--fg);
 }
 
 .status {
-  margin-left: var(--sp-2);
   font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--accent-text);
+}
+
+.setupHead {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
   color: var(--mute);
 }
 
-.fold {
-  margin-top: var(--sp-3);
+/* Setup steps, numbered by the list itself. */
+.setup {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-left: var(--sp-5);
   font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
 }
 
-.fold summary {
-  cursor: pointer;
-  color: var(--link);
+.setup li::marker {
+  font-family: var(--font-mono);
+  color: var(--mute);
 }
+
+.fact {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* ---- Bank statement import ---- */
 
 .rejected {
   margin: var(--sp-2) 0 0;
@@ -161,14 +609,33 @@
 }
 
 .rejected li + li {
-  margin-top: 2px;
+  margin-top: var(--sp-1);
 }
 
-/* What may leave this computer: three choices on their own lines, no box. */
-.rule {
-  display: grid;
-  gap: var(--sp-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
+/* The place's own width decides the columns, so a sheet open beside the page narrows them as a phone does. */
+.place {
+  container-type: inline-size;
+}
+
+@container (max-width: 759px) {
+  .top,
+  .second,
+  .jobs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .group[data-cols] {
+    grid-column: 1 / -1;
+  }
+
+  .cards[data-cols='3'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A phone stacks everything in one column. */
+@container (max-width: 559px) {
+  .cards[data-cols] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

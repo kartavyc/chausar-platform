@@ -48,7 +48,10 @@ describe('Clients place', () => {
     const nimbus = rows.find((r) => r.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.textContent).toContain('No orders yet.');
     expect(within(nimbus).queryByRole('button', { name: /Receipt/ })).toBeNull();
-    expect(screen.getByText('2 clients')).toBeTruthy();
+    // Ink v2 (3E2): the count in the header line is set in bold, so the line is one paragraph with a <b> in it.
+    const line = screen.getByRole('heading', { level: 1, name: 'Clients' }).nextElementSibling!;
+    expect(line.textContent).toBe('2 clients');
+    expect(line.querySelector('b')?.textContent).toBe('2');
   });
 
   it('opens a receipt from what a client owes', async () => {
@@ -246,8 +249,10 @@ describe('client sheet', () => {
     const sheet = await openClient('Boat Audio');
     const owes = await within(sheet).findByText('owes');
     const line = owes.parentElement!;
-    expect(line.textContent).toBe('owes ₹26,200.00 R-0416');
+    // Ink v2 (3E2): the amount is a Figure, its receipt chip beside it with a gap rather than a space character.
+    expect(line.textContent).toMatch(/^owes ₹26,200\.00\s*R-0416$/);
     expect(within(line).getByText('₹26,200.00').className).toContain('mono');
+    expect(within(line).getByText('₹26,200.00').closest('[data-figure]')).toBeTruthy();
     expect(within(line).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
   });
 
@@ -260,7 +265,7 @@ describe('client sheet', () => {
     start('#/clients');
     await screen.findByRole('button', { name: 'Boat Audio' });
     fireEvent.click(screen.getByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const ledgerline = await within(menu).findByRole('button', { name: 'Ledgerline' });
     await act(async () => { fireEvent.click(ledgerline); });
     expect(await screen.findByRole('button', { name: 'Mehta Traders' })).toBeTruthy();

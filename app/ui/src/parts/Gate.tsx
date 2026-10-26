@@ -1,4 +1,5 @@
 import { useT } from '../text';
+import { Icon } from './Icon';
 import s from './Gate.module.css';
 
 export interface GateProps {
@@ -10,18 +11,22 @@ export interface GateProps {
   disabled?: boolean | undefined;
 }
 
+const VALUES = ['auto', 'hold'] as const;
+
 /**
- * A step's gate: auto runs without asking, hold waits for the owner. A floor step always asks and has no switch. Both
- * take the same width and padding, so a list of steps shows Auto, Hold and Always asks you in one column.
+ * A step's gate, D's `.gate`: both words, Auto and Hold, with the one in force filled. Auto runs without asking, Hold
+ * waits for the owner. It is one switch: the words are drawn for the eye, and the switch's name (which holds both
+ * words) and checked state say the same to a screen reader. People click the word they want, so a click on the word
+ * already in force changes nothing and a click on the other word sets it; Space, Enter or a click elsewhere on the
+ * switch toggles it. A floor step always asks: D's `.floor`, a lock and "Always asks you", with no switch.
  */
 export function Gate({ purpose, gate, floor, onChange, disabled }: GateProps) {
   const t = useT();
-  // The floor's words sit in the same column as Auto and Hold: an empty space where the switch would be.
   if (floor) {
     return (
       <span className={s.floor}>
-        <span className={s.space} aria-hidden="true" />
-        <span className={s.word}>{t('gate.floor')}</span>
+        <Icon name="lock" size={14} />
+        {t('gate.floor')}
       </span>
     );
   }
@@ -35,10 +40,17 @@ export function Gate({ purpose, gate, floor, onChange, disabled }: GateProps) {
       className={s.gate}
       data-gate={gate}
       disabled={disabled}
-      onClick={() => onChange?.(auto ? 'hold' : 'auto')}
+      onClick={(event) => {
+        const word = (event.target as Element).closest?.('[data-value]')?.getAttribute('data-value');
+        const next = word === 'auto' || word === 'hold' ? word : auto ? 'hold' : 'auto';
+        if (next !== gate) onChange?.(next);
+      }}
     >
-      <span className={s.track} aria-hidden="true"><span className={s.knob} /></span>
-      <span className={s.word}>{auto ? t('gate.auto') : t('gate.hold')}</span>
+      {VALUES.map((value) => (
+        <span key={value} className={s.option} data-value={value} data-on={value === gate ? '' : undefined} aria-hidden="true">
+          {t(`gate.${value}`)}
+        </span>
+      ))}
     </button>
   );
 }

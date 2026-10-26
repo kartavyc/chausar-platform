@@ -1,8 +1,9 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { ApprovalRow, readBack } from '../../parts/ApprovalRow';
 import { ModelEstimate } from '../../parts/ModelEstimate';
+import { Tile, TileHead } from '../../parts/Tile';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
 import s from './Business.module.css';
 
@@ -12,6 +13,23 @@ export const messageOf = (error: unknown): string => (error instanceof Error ? e
 export function dayOf(at: string, language: string): string {
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00.000Z` : at);
   return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { dateStyle: 'medium', timeZone: 'UTC' }).format(date);
+}
+
+/**
+ * One tile of a business page (D's `.tile` with its `.th` head): a region named by its heading, and its words under it
+ * spaced by the grid. Every business page is built from these.
+ */
+export function TileSection({ title, meta, end, more, className, children }: {
+  title: string; meta?: ReactNode; end?: ReactNode; more?: { href: string; label: string } | undefined;
+  className?: string | undefined; children?: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    <Tile as="section" labelledBy={headingId} className={className}>
+      <TileHead id={headingId} title={title} meta={meta} end={end} more={more} />
+      <div className={s.body}>{children}</div>
+    </Tile>
+  );
 }
 
 /** Who said a line, in small grey words; a number a model wrote says "model estimate". */
@@ -54,7 +72,6 @@ export function totalOf(receipt: BlueprintViewLite['offerReceipts'][string]): st
 export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
   const t = useT();
   const client = useEngine();
-  const headingId = useId();
   const queue = useResource('venture.queue.list', { scope: 'current' }, { refreshOn: (event) => event.type === 'queue.changed' });
   const [kept, setKept] = useState<QueueRow[]>([]);
   const live = (queue.data?.rows ?? []).filter((row) => row.viewRef?.kind === 'plan');
@@ -67,8 +84,7 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
   }
   if (rows.length === 0) return null;
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.waiting')}</h2>
+    <TileSection title={t('business.waiting')}>
       <ul className={s.list}>
         {rows.map((row) => (
           <ApprovalRow
@@ -81,6 +97,6 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
           />
         ))}
       </ul>
-    </section>
+    </TileSection>
   );
 }

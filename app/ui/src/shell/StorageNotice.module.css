@@ -1,0 +1,21 @@
+/* The experimental storage notice: a quiet line under the page header, its caution in the icon's amber, not a block
+   of colour. */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: calc(var(--sp-2) * -1) 0 var(--sp-6);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fg2);
+}
+
+.icon {
+  margin-top: calc(var(--sp-1) / 4);
+  color: var(--wait);
+}

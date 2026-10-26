@@ -25,6 +25,16 @@ function desktop() {
 }
 const plan = async (engine: FakeEngine) => (await engine.request('venture.blueprint.get', {})) as BlueprintViewLite;
 const offerRow = async (name: string) => (await screen.findByText(name, { selector: '[data-offer-name]' })).closest('li')!;
+/**
+ * A region found by its heading's words, then checked to be named by that heading (connections-v2's pattern). Role
+ * queries over the whole page are slow in jsdom, so a wait polls a cheap text query and the name is checked once.
+ */
+async function region(title: string): Promise<HTMLElement> {
+  const heading = await screen.findByText(title, { selector: 'h2' });
+  const section = heading.closest('section') as HTMLElement;
+  expect(section.getAttribute('aria-labelledby')).toBe(heading.id);
+  return section;
+}
 
 afterEach(() => { delete (window as Bridged).chausar; vi.unstubAllGlobals(); });
 
@@ -85,7 +95,7 @@ describe('Business: plan and playbook', () => {
   it("accepts a draft plan through its row on Today's queue", async () => {
     const engine = await ledgerline();
     start('#/business/plan', engine);
-    const waiting = await screen.findByRole('region', { name: 'Waiting on you' });
+    const waiting = await region('Waiting on you');
     const row = (await within(waiting).findByText('Your plan is ready. Read it.')).closest('li')!;
     const accept = within(row).getByRole('button', { name: 'Accept' }) as HTMLButtonElement;
     expect(accept.disabled).toBe(false);
@@ -102,7 +112,7 @@ describe('Business: plan and playbook', () => {
     fireEvent.change(line, { target: { value: 'Audio gear reviews every Friday, with sponsor slots.' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
     await waitFor(() => expect(screen.getByText(/Version 3, not accepted yet/)).toBeTruthy());
-    const waiting = screen.getByRole('region', { name: 'Waiting on you' });
+    const waiting = await region('Waiting on you');
     expect(within(waiting).getByText('Your plan changed. Read it, then accept it.')).toBeTruthy();
     const queue = (await engine.request('venture.queue.list', { scope: 'current' })) as QueueList;
     expect(queue.rows.some((r) => r.viewRef?.kind === 'plan' && r.viewRef.id === 'bp-lumen-3')).toBe(true);
@@ -203,7 +213,7 @@ describe('Business: prices', () => {
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
     await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000.00'));
-    const waiting = screen.getByRole('region', { name: 'Waiting on you' });
+    const waiting = await region('Waiting on you');
     const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
     expect(row.textContent).toContain('Not set');
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
@@ -373,15 +383,15 @@ describe('Business menu: the playbook label', () => {
     start('#/today');
     const rail = screen.getByRole('navigation', { name: 'Places' });
     const button = await within(rail).findByRole('button', { name: /Lumen Studio/ });
-    await waitFor(() => expect(button.textContent).toContain('YouTube channel · switch'));
+    await waitFor(() => expect(button.textContent).toContain('YouTube channel'));
     fireEvent.click(button);
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const current = await within(menu).findByRole('button', { name: /Lumen Studio/ });
     expect(current.textContent).toContain('YouTube channel');
     const ledgerline = await within(menu).findByRole('button', { name: /Ledgerline/ });
     await act(async () => { fireEvent.click(ledgerline); });
     // Switching reads the whole app again for the other business, so the rail is a new one.
-    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm · switch'));
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm'));
   });
 
   it("falls back to the service type's label when the engine sends no playbook", async () => {
@@ -395,7 +405,7 @@ describe('Business menu: the playbook label', () => {
     window.location.hash = '#/today';
     render(<App client={plain} language="en" />);
     const rail = screen.getByRole('navigation', { name: 'Places' });
-    await waitFor(() => expect(within(rail).getByRole('button', { name: /Lumen Studio/ }).textContent).toContain('Content shop · switch'));
+    await waitFor(() => expect(within(rail).getByRole('button', { name: /Lumen Studio/ }).textContent).toContain('Content shop'));
   });
 });
 
@@ -403,8 +413,8 @@ describe('Business menu', () => {
   it('a business that opens with its passphrase says so; Continue closes this one and asks for it on Welcome back', async () => {
     const { engine } = start('#/today');
     const spy = vi.spyOn(engine, 'request');
-    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     { const target = await within(menu).findByRole('button', { name: /Sitara Events/ }); await act(async () => { fireEvent.click(target); }); }
     expect(within(menu).getByText('Sitara Events opens with its passphrase. Chausar closes this business first.')).toBeTruthy();
     expect(spy.mock.calls.some(([method]) => method === 'workspace.open' || method === 'workspace.lock')).toBe(false);
@@ -417,8 +427,8 @@ describe('Business menu', () => {
 
   it("a business whose key is missing goes to its recovery code on Welcome back, after this one closes", async () => {
     start('#/today', new FakeEngine({ keyMissing: ['ledgerline'] }));
-    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     { const target = await within(menu).findByRole('button', { name: /Ledgerline/ }); await act(async () => { fireEvent.click(target); }); }
     expect(within(menu).getByText("Ledgerline can't open with this computer's key. Your recovery code opens it. Chausar closes this business first.")).toBeTruthy();
     await act(async () => { fireEvent.click(within(menu).getByRole('button', { name: 'Continue' })); });
@@ -429,8 +439,8 @@ describe('Business menu', () => {
   it('switching closes the open business first, as the engine keeps one open, then opens the other', async () => {
     const { engine } = start('#/today');
     const spy = vi.spyOn(engine, 'request');
-    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     { const target = await within(menu).findByRole('button', { name: /Ledgerline/ }); await act(async () => { fireEvent.click(target); }); }
     const order = spy.mock.calls.map(([method]) => method).filter((method) => method === 'workspace.lock' || method === 'workspace.open');
     expect(order).toEqual(['workspace.lock', 'workspace.open']);
@@ -439,8 +449,8 @@ describe('Business menu', () => {
 
   it('leads to plan and playbook, prices, website build, practice and a new business', async () => {
     start('#/today');
-    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding']]);
   });
@@ -590,8 +600,8 @@ describe('Business: your CA (CA firm playbook)', () => {
 
   it('the business menu of a CA firm leads to Your CA', async () => {
     start('#/today', await ledgerline());
-    fireEvent.click(await screen.findByRole('button', { name: /Ledgerline/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Ledgerline' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Ledgerline/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
     await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/build', '#/business/practice', '#/business/ca', '#/business/keep', '#/onboarding']);

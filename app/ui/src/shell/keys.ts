@@ -62,7 +62,8 @@ export function runKey(intent: KeyIntent, main: HTMLElement | null, close: () =>
   }
   if (current.hasAttribute('data-second-ask')) return false;
   const button = current.querySelector<HTMLButtonElement>(`[data-key="${intent}"]`);
-  if (!button || button.disabled) return false;
+  // A locked button (view before approve) is aria-disabled, not disabled, so it stays reachable: A and D skip it too.
+  if (!button || button.disabled || button.hasAttribute('data-locked') || button.getAttribute('aria-disabled') === 'true') return false;
   button.click();
   return true;
 }

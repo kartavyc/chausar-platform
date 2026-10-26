@@ -5,7 +5,15 @@
 
 import { useMemo } from 'react';
 import { useLanguage, type T } from '../../text';
-import type { InvoiceLite, VentureRunEvent } from '../../engine/types';
+import { useClock } from '../../shell/clock';
+import type { BooksSummaryLite, InvoiceLite, VentureRunEvent } from '../../engine/types';
+
+export type OpenInvoice = BooksSummaryLite['openInvoices'][number];
+
+/** Open invoices oldest due first, by their due dates as written (YYYY-MM-DD sorts as text): nothing is worked out. */
+export function byDue(open: readonly OpenInvoice[]): OpenInvoice[] {
+  return [...open].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
 
 /** Money moves when the queue does (an invoice issued, a payment recorded); spend moves when a run does. */
 export const onMoney = (event: VentureRunEvent) => event.type === 'queue.changed';
@@ -39,9 +47,10 @@ export function useMoment(): (iso: string) => string {
   }, [language]);
 }
 
-/** Today on this computer's calendar, as the date field wants it (YYYY-MM-DD). */
-export function localToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+/** Today on this computer's calendar, as the date field wants it (YYYY-MM-DD), read from the app's one clock. */
+export function useLocalToday(): () => string {
+  const clock = useClock();
+  return () => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(clock());
 }
 
 /** Where an invoice stands, in one sentence: "Issued 14 Oct 2026, due 28 Oct 2026". */

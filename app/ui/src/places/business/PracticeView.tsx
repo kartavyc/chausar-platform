@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
-import { dayOf, messageOf } from './shared';
+import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
 
 /**
@@ -18,17 +18,20 @@ import s from './Business.module.css';
  *                      "Go back to version N" (venture.improve.rollback, asked twice) when the engine would take it
  *   The judge          whether the judge reads every draft for a client or the public on its own (venture.judge.auto),
  *                      with the engine's line; turning it on asks first, since it is a standing consent
- * Nothing is counted or priced here: every number and every refusal is the engine's.
+ * Nothing is counted or priced here: every number and every refusal is the engine's. In the D look each part is a
+ * tile; the loop and the judge sit side by side.
  */
 export function PracticeView() {
   const t = useT();
   return (
-    <>
+    <div className={s.page}>
       <p className={s.lead}>{t('business.practice.lead')}</p>
       <Rehearsal />
-      <Improvement />
-      <JudgeSetting />
-    </>
+      <div className={s.split} data-ratio="even">
+        <Improvement />
+        <JudgeSetting />
+      </div>
+    </div>
   );
 }
 
@@ -40,7 +43,7 @@ function Confirm({ ask, label, onConfirm, onCancel }: { ask: string; label: stri
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { cancelRef.current?.focus(); }, []);
   return (
-    <div data-second-ask="">
+    <div className={s.foldBody} data-second-ask="">
       <p className={s.line}>{ask}</p>
       <div className={s.buttons}>
         <Button ref={cancelRef} variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>
@@ -61,7 +64,6 @@ function failureOf(episode: EpisodeLite): string {
 function Rehearsal() {
   const t = useT();
   const client = useEngine();
-  const headingId = useId();
   const scenarios = useResource('venture.simulation.scenarios', {}, { refreshOn: onQueue });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SimulationRunLite | null>(null);
@@ -90,8 +92,7 @@ function Rehearsal() {
   const mode = result ? modeLine(result.modelMode, t) : null;
   return (
     <>
-      <section className={s.section} aria-labelledby={headingId}>
-        <h2 id={headingId} className={s.heading}>{t('business.practice.clients')}</h2>
+      <TileSection title={t('business.practice.clients')}>
         {scenarios.error && <p className={s.problem} role="alert">{t('business.failed', { message: scenarios.error.message })}</p>}
         {!scenarios.data && !scenarios.error && <p className={s.note}>{t('business.loading')}</p>}
         {scenarios.data && templates.length === 0 && <p className={s.line}>{t('business.practice.none')}</p>}
@@ -102,18 +103,19 @@ function Rehearsal() {
         <p className={s.note}>{t('business.practice.ownAi')}</p>
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         {result && (
-          <div data-rehearsal={result.id}>
+          <div className={s.foldBody} data-rehearsal={result.id}>
             <p className={s.strong} role="status">{t('business.practice.result', { passed: String(result.summary.passed), total: String(result.summary.scenarios) })}</p>
             {failed.length > 0 && (
               <ul className={s.log}>
                 {failed.map((episode) => <li key={`${episode.scenarioId}-${episode.index}`}>{t('business.practice.failure', { client: title(episode.scenarioId), failure: failureOf(episode) })}</li>)}
               </ul>
             )}
-            <p className={s.note}>{t('business.practice.cost', { cost: result.costDisplay })}</p>
+            {/* What the run cost, as the engine writes it, with no receipt until W4 4J1: its words, marked so. */}
+            <p className={s.note} data-engine-line="">{t('business.practice.cost', { cost: result.costDisplay })}</p>
             {mode && <p className={s.note}>{mode}</p>}
           </div>
         )}
-      </section>
+      </TileSection>
       {cases.length > 0 && <FeedbackCases cases={cases} />}
     </>
   );
@@ -135,13 +137,11 @@ function ScenarioList({ scenarios }: { scenarios: ScenarioLite[] }) {
 /** Cases the engine made from drafts the owner rejected or edited, or that failed a check: what the judge and the loop learn from. */
 function FeedbackCases({ cases }: { cases: ScenarioLite[] }) {
   const t = useT();
-  const headingId = useId();
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.practice.cases')}</h2>
+    <TileSection title={t('business.practice.cases')}>
       <p className={s.line}>{t('business.practice.casesLine')}</p>
       <ScenarioList scenarios={cases} />
-    </section>
+    </TileSection>
   );
 }
 
@@ -160,7 +160,6 @@ function latestLine(run: ImprovementRunLite, t: ReturnType<typeof useT>): string
 function Improvement() {
   const t = useT();
   const client = useEngine();
-  const headingId = useId();
   const status = useResource('venture.improve.status', {});
   const [phase, setPhase] = useState<'idle' | 'running' | 'adopt' | 'rollback' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
@@ -196,8 +195,7 @@ function Improvement() {
   const inUse = data?.inUse ?? null;
   const rollback = inUse?.rollback ?? null;
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.practice.improve')}</h2>
+    <TileSection title={t('business.practice.improve')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
       {!data && !status.error && <p className={s.note}>{t('business.loading')}</p>}
       {data && (
@@ -206,7 +204,7 @@ function Improvement() {
           {data.latest && (
             <>
               <p className={s.line}>{latestLine(data.latest, t)}</p>
-              <p className={s.note}>{t('business.practice.cost', { cost: data.latest.costDisplay })}</p>
+              <p className={s.note} data-engine-line="">{t('business.practice.cost', { cost: data.latest.costDisplay })}</p>
               {modeLine(data.latest.modelMode, t) && <p className={s.note}>{modeLine(data.latest.modelMode, t)}</p>}
             </>
           )}
@@ -217,7 +215,7 @@ function Improvement() {
           </div>
           <p className={s.note}>{t('business.practice.ownAi')}</p>
           {candidate && (
-            <div data-candidate={candidate.runId}>
+            <div className={s.foldBody} data-candidate={candidate.runId}>
               <p className={s.strong}>{t('business.practice.changes')}</p>
               <ul className={s.plain}>
                 {candidate.changes.map((change) => <li key={change}>{change}</li>)}
@@ -236,7 +234,7 @@ function Improvement() {
             </div>
           )}
           {inUse && (
-            <div data-in-use={inUse.playbookId}>
+            <div className={s.foldBody} data-in-use={inUse.playbookId}>
               <p className={s.strong}>{t(`business.practice.inUse.${inUse.origin}`, { version: String(inUse.version) })}</p>
               {rollback && (phase === 'rollback' ? (
                 <Confirm
@@ -254,7 +252,7 @@ function Improvement() {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
-    </section>
+    </TileSection>
   );
 }
 
@@ -262,7 +260,6 @@ function JudgeSetting() {
   const t = useT();
   const language = useLanguage();
   const client = useEngine();
-  const headingId = useId();
   const setting = useResource('venture.judge.auto.get', {}, { refreshOn: onQueue });
   const [phase, setPhase] = useState<'idle' | 'ask' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
@@ -284,8 +281,7 @@ function JudgeSetting() {
   }
 
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.practice.judge')}</h2>
+    <TileSection title={t('business.practice.judge')}>
       {setting.error && !view && <p className={s.problem} role="alert">{t('business.failed', { message: setting.error.message })}</p>}
       {!view && !setting.error && <p className={s.note}>{t('business.loading')}</p>}
       {view && (
@@ -305,6 +301,6 @@ function JudgeSetting() {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
-    </section>
+    </TileSection>
   );
 }

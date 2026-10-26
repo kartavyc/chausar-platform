@@ -19,6 +19,8 @@ Self-employed people and retail owners must not find business, share or tax deta
 3. Add `lucide-react` (MIT) to the root `package.json` devDependencies beside `react`, pinned to the exact version current at wave start (the repo pins every version), and commit `package-lock.json`. Read its licence file; the PR says why it is the one new dependency.
 4. Commit 1 to 3 as `docs(w3): direction D boards and the icon dependency`.
 
+Done 23 Oct: `lucide-react` 1.54.0 (published 9 Oct, the newest release at least two weeks old; licence ISC, not MIT as first written; no dependencies of its own, React as a peer). The root `package-lock.json` is not tracked on this branch (CI runs `npm install`), so it is not committed here either; the desktop preview build that needs a reviewed lockfile is unchanged.
+
 ## The rules that hold, and the test that holds each
 
 Everything in "How every wave runs" applies (test first, packages in one checkout, no worktrees, agents never commit, stash, switch branches or run the full suite, shared files by small Edit calls only, every new string in `src/text/en/*.json` and `hi/*.json` in the same change, no em dashes).
@@ -92,15 +94,20 @@ Ink v1 tokens stay as they are, with one value change: `--rail` goes from 220px 
 | `--goal-chip` | #242527 | #313336 | "8 days left" pill, icon box | goal-fg2 10.82 / 8.94 |
 | `--goal-line` | #292a2c | #35373a | divider in the goal card | not text |
 | `--goal-link` | #8fb4ff | #8fb4ff | receipt links on the goal card | 9.05 / 7.79 |
+| `--goal-link-hover` | #b5ccff | #b5ccff | receipt link hover on the goal card (D `.rc-d:hover`; added by 3A1 after review) | 11.64 / 10.03 |
 | `--sales`, `--sales-tint`, `--sales-line` | #2f5bd3, #e8eefc, #d5e0fa | #8aa8f5, #1b2337, #2a3756 | Sales and clients | ink on tint 5.08 / 6.71; fg2 on tint 8.84 / 9.30 |
 | `--mkt`, `-tint`, `-line` | #7c3aed, #f1eafe, #e4d6fc | #b99af7, #251c37, #3a2d57 | Marketing | 4.87 / 6.95; 8.78 / 9.60 |
 | `--prod`, `-tint`, `-line` | #0f766e, #e3f4f2, #cbe8e4 | #5fcdbf, #14282a, #214043 | Production | 4.82 / 8.03; 9.05 / 9.13 |
 | `--money`, `-tint`, `-line` | #0b7a45, #e6f6ec, #cdebd8 | #5fcf94, #152a20, #224232 | Money | 4.83 / 7.83; 9.18 / 9.02 |
-| `--ops`, `-tint`, `-line` | #475467, #eef0f3, #dde1e7 | #a7b1c0, #1f2329, #30363f | Operations | 6.73 / 7.28; 9.00 / 9.38 |
-| `--dept-on` | #ffffff | #111214 | icon on a solid department badge | 5.41 to 7.69 / 8.03 to 9.79 (non-text 3:1) |
+| `--ops`, `-tint`, `-line` | #475467, #eef0f3, #dde1e7 | #848e9d, #1f2329, #30363f | Operations (dark ink moved from #a7b1c0 after the 3B2 charts review) | 6.73 / 4.76; 9.00 / 9.38 |
+| `--dept-on` | #ffffff | #111214 | icon on a solid department badge | 5.41 to 7.69 / 5.66 to 9.79 (non-text 3:1) |
 | `--chart-ink` | #16181b | #eceef0 | single series, "In" bars, cash line, "not due" bucket | 17.79 / 15.27 |
 | `--chart-rest` | #d5d8dc | #4a4f56 | the other bars of a single series, "Out" bars | not text (values are labelled) |
 | `--chart-forecast` | #9aa0a6 | #7d838a | dashed forecast line | not text |
+| `--age-30` | #f2a93b | same | aging bucket 1 to 30 days (chart only, theme-invariant; 3B2 review) | on surface 2.00 / 8.89: the one non-text exception, carried by the legend words and "View chart data" |
+| `--age-60` | #b45309 | same | aging bucket 31 to 60 days | on surface 5.02 / 3.54 (non-text 3:1) |
+| `--age-90` | #ff5065 | same | aging bucket 61 to 90 days | on surface 3.19 / 5.57 (non-text 3:1) |
+| `--age-over` | #bd3b26 | same | aging bucket over 90 days | on surface 5.50 / 3.23 (non-text 3:1) |
 | `--pv-video-1`, `-2`, `-3` | #25433f, #132523, #0a1213 | same | video preview ground (theme-invariant) | white text on them, over 10:1 |
 | `--pv-scrim`, `--pv-scrim-strong`, `--pv-play`, `--pv-text-2` | rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.72), rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.6) | same | tags, duration, play button over previews | theme-invariant |
 | `--shadow-tile` | 0 1px 2px rgb(16 24 40 / 0.06) | 0 1px 2px rgb(0 0 0 / 0.4) | tiles | |
@@ -294,7 +301,7 @@ View models (what W4 maps engine views onto; W3 adds no engine type): `GoalBarDa
    - BarChart: single and paired series; each rect `height` equals its `valuePermille`; a `null` point draws no bar and its label shows "N/A" in ranked bars and nothing in series bars (never 0); values above bars are the engine strings; `role="img"` with the label; `ChartData` renders "View chart data" as a `details` with a table of the strings; an empty series renders nothing at all (the caller says why in words).
    - AgingBar: five segments in the order not due, 1 to 30, 31 to 60, 61 to 90, over 90 (fills `--chart-ink`, `--wait-ring`, `--wait`, `--fail-ring`, `--fail`); a zero bucket draws no segment and a hollow legend square; the legend lists words, counts and amounts; one receipt for the tile.
    - SplitBar: segments carry `data-dept`; the legend names each department with its amount.
-   - CashLine: the actual polyline and the dashed forecast polyline take their `points` from the data; today's dot is at the first actual point; the assumptions list renders under the chart and "Forecast" is said in words (catalogue M9).
+   - CashLine: the actual polyline and the dashed forecast polyline take their `points` from the data; today's dot is at the last actual point (the latest week with an actual figure, where the forecast takes over); the assumptions list renders under the chart and "Forecast" is said in words (catalogue M9).
 2. Implement; department data uses the department solids, single series `--chart-ink` and `--chart-rest`; never the accent for data (D-STYLE "Charts").
 
 **Done when** the chart tests pass. No place uses a chart with engine data in W3 except where the data exists (none of the money series exist yet; see 3F).
@@ -343,12 +350,12 @@ These parts are used by places in W4 (4B, 4C, 4D, 4E, 4G) except Board, which 3E
 
 1. Failing tests:
    - Every existing test in the four existing files passes unchanged (behaviour is kept; only look changes). Any assertion that names a v1 visual (none known) is listed in the PR if it has to change.
-   - `layout="card"`: an `article` with `data-card` and the row id; the head has the agent's Avatar (state from the props), the name with an optional DeptChip (W4 4A gives the department), the meta "Lumen Studio · 08:40" (business and the time of `createdAt`, formatted by `Intl.DateTimeFormat` in the UI language, as `places/business/shared.tsx` already does for dates), and a KindChip with the words for the row's kind from `states.ts` ("Draft", "Price change", "Quote", "Plan", "Invoice", "CA sign-off", "Question", "Setup", "Locked", "Post"); the title is an `h3`; the line clamps to two lines; a `preview` slot; the note line says "Approve unlocks after you watch it" (the verb from the row's view action: watch, read, open) while locked, "Asks once more" when the primary has `secondAsk`, and "Nothing changes until you approve" on a `plan` row; actions are size lg, the secondary first and the primary last, each half the width; there is exactly one primary.
+   - `layout="card"`: an `article` with `data-card` and the row id; the head has the agent's Avatar (state from the props), the name with an optional DeptChip (W4 4A gives the department), the meta "Lumen Studio · 08:40" (business and the time of `createdAt`, formatted by `Intl.DateTimeFormat` in the UI language, as `places/business/shared.tsx` already does for dates), and a KindChip with the words for the row's kind from `states.ts` ("Draft", "Price change", "Quote", "Plan", "Invoice", "CA sign-off", "Question", "Setup", "Locked", "Post"); the title is an `h3`; the line is never clamped (it carries the engine's safety words: the judge's notice and its cost, `acceptBlocked`, "The platform may restrict this account"; review of 3B5a); a `preview` slot; the note line says "Approve unlocks after you watch it" (the verb from the row's view action: watch, read, open) while locked, "Asks once more" when the primary has `secondAsk`, and "Nothing changes until you approve" on a `plan` row; actions are size lg, the secondary first and the primary last, each half the width; there is exactly one primary.
    - Rendering a preview in the card does not set viewed: Approve stays locked until `onView` runs through Watch, Read or Open.
    - The second ask in a card behaves as in a row (Approve asks again inside the card; Cancel returns focus; a digest change shows the new version with "This changed. Here is the new version.").
-   - `layout="compact"`: title and line two lines each, the change as a small pill, buttons size sm; still one primary.
+   - `layout="compact"`: the title at most two lines (the line is never clamped), the business and time when more than one business is listed, the change as a small pill with its label, buttons size sm that wrap a long label; still one primary.
    - `descriptionComplete: false` still shows the W1 line in both layouts.
-   - Change: the old value is in an `s` element, an arrow icon, the new value in DM Mono, the receipt or estimate; sr text "{after}, was {before}".
+   - Change: the old value is in a `del` element (two existing tests pin it), an arrow icon, the new value in DM Mono, the receipt or estimate, the whole change one `[data-figure-group]`; a screen reader hears "was {before} now {after}", in the order the eye reads it (the `change.` keys stay as they are).
    - Steps: done shows a check on `--accent-soft`; current shows the still arc and bold words; pending a dashed circle; failed an x with the error in fail words; waiting amber words; the sr words of v1 stay.
    - Sheet: `width="panel"` sets `data-width="panel"` (440 px); the head has an avatar slot and a close button named from `sheet.close` with the sheet's name; existing focus-return tests pass.
    - RunSheet: the failure box ("What went wrong", the engine's error words) on `--fail-soft`; Run again stays where it was; existing tests pass.
@@ -431,9 +438,9 @@ Layout (desktop): header (eyebrow date, greeting, sub line); row 1 the goal card
 **Files:** `src/places/work/index.tsx`, `Work.module.css`, `OrderList.tsx` (becomes orders grouped by client), `OrderFocus.tsx`, `PreviousRuns.tsx` (becomes Finished), new `RunTiles.tsx`, `StoppedRun.tsx`; W2's `PostButtons.tsx`, `JudgeLine.tsx`, `TranscribeButton.tsx`, `CalendarFile.tsx` restyled in place; `src/text/{en,hi}/work.json`; tests `tests/places/work.test.tsx`, `tests/places/work-orders.test.tsx` (existing, must pass), new `tests/places/work-v2.test.tsx`, `tests/a11y.test.tsx` rows.
 
 1. Failing tests:
-   - FilterChips "All", "Needs you", "Running", "Stopped", "Done" reflect `?state=` (the existing `#/work?state=failed` address shows "Stopped" pressed); business chips appear only when runs come from more than one business.
+   - FilterChips "All", "Needs you", "Running", "Failed", "Done" reflect `?state=` (the existing `#/work?state=failed` address shows "Failed" pressed); business chips appear only when runs come from more than one business. A run the engine failed is called "Failed" everywhere in Work (chip, empty state, header line, section head); "Stopped" is kept for the owner's own Stop (W4 4F).
    - Running now: one tile per active or waiting run with Avatar, agent, business, ProgressRing, the purpose as an `h3`, the current step, and "Run {id} · {elapsed}" in DM Mono; the waiting tile says "Step 3 of 3 waits on you" in wait words, the run's question from `venture.runs.get`, and an Answer button (the one primary) that opens the run sheet; there is no Stop button (W4 4F; the test asserts none named "Stop").
-   - Stopped: a failed run that still has a Run again row shows a tile with the purpose, "Stopped at step {n} of {total}" (the position of the failed step, counted), "What went wrong" with the engine's error, the steps, and Run again (primary) that decides the queue row through `venture.queue.decide`; there is no "How to fix it" button until W4 4F.
+   - Failed: a failed run that still has a Run again row shows a tile (D's `.stopped`) with the purpose, "Failed at step {n} of {total}" (the position of the failed step, counted), "What went wrong" with the engine's error, the steps, and Run again (primary, the action's own label) that decides the queue row through `venture.queue.decide` with its digest, through a second ask when the action has `secondAsk` and locked until the run is opened when it has `requiresView`; there is no "How to fix it" button until W4 4F.
    - Finished: done runs with result and receipt, or "model estimate".
    - Orders: one tile per client with orders, the client's initials avatar, the name opening the client sheet, "client since {date}", and what they owe as a `Figure` with receipt when `owed` is present; each order as an inner card with the request, a status chip from `states.ts`, the price receipt, the delivery's and invoice's own status words, and "Open on Today" when a delivery waits on the owner. There is no stage stepper until W4 4J.
    - The existing intake, share link, new order and W2 controls keep their tests.

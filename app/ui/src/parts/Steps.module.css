@@ -1,3 +1,7 @@
+/* Steps: D-TeamDept's tick rows (`.sr`, `.tick`, `.spin`, `.pend-dot`) and D-Work's failed step (`.sr.bad`, `.xk`).
+   Each mark is a 20 px circle with its own shape; D's 11.5 px times become 12 px, and its lightest grey becomes --mute
+   because steps also sit on the inner grey, where --dim is too faint. Purposes wrap rather than cut off. */
+
 .wrap {
   display: grid;
   gap: var(--sp-2);
@@ -16,17 +20,58 @@
 
 .line {
   display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: var(--sp-2) 0;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-1) 0;
   font-size: var(--text-read);
+  line-height: 20px;
   color: var(--fg2);
 }
 
 .mark {
+  display: grid;
+  place-items: center;
   flex: none;
-  width: 1em;
-  text-align: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-chip);
+}
+
+.mark svg {
+  stroke-width: 2.5;
+}
+
+.done .mark {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.waiting .mark {
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.failed .mark {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+.pending .mark {
+  border: 1.5px dashed var(--dash);
+}
+
+/* The current step: a ring with a quarter in the accent. It never turns. */
+.arc {
+  display: block;
+}
+
+.arcTrack {
+  stroke: var(--line);
+}
+
+.arcPart {
+  stroke: var(--accent);
+  stroke-linecap: round;
 }
 
 .purpose {
@@ -36,6 +81,7 @@
 
 .time {
   flex: none;
+  font-size: var(--text-label);
   color: var(--mute);
 }
 
@@ -45,11 +91,11 @@
 
 .current .line {
   color: var(--fg);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-strong);
 }
 
 .pending .line {
-  color: var(--dim);
+  color: var(--mute);
 }
 
 .waiting .line {
@@ -58,21 +104,24 @@
 
 .waitWord {
   flex: none;
+  font-weight: var(--weight-medium);
   color: var(--wait);
 }
 
 .failed .line {
   color: var(--fail);
+  font-weight: var(--weight-strong);
 }
 
+/* The engine's error, under the step it stopped, lined up with the step's words. */
 .error {
-  margin: 0 0 var(--sp-2) calc(1em + 10px);
+  margin: 0 0 var(--sp-2) calc(var(--sp-5) + var(--sp-3));
   font-size: var(--text-read);
   color: var(--fail);
 }
 
 .tools {
-  margin: 0 0 var(--sp-2) calc(1em + 10px);
+  margin: 0 0 var(--sp-2) calc(var(--sp-5) + var(--sp-3));
   font-size: var(--text-label);
   color: var(--mute);
 }

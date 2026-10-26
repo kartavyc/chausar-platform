@@ -1,0 +1,42 @@
+{
+  "about": "Words a reader sees in each place at rest (the main region, on the fake engine; Money with the overview the real engine sends), measured once by w3 package 3I on 26 October 2026 and rounded up to the next 10. A baseline may only shrink: tests/budgets.test.tsx fails when a place grows past its number, or drops a whole step of 10 under it (then lower it), each place may not pass its first measure in \"first\" (rounded the same way), and the total may not pass firstTotal. The founder confirms these in the wave 3 PR.",
+  "firstTotal": 3970,
+  "budgets": {
+    "today": 660,
+    "team": 140,
+    "work": 320,
+    "clients": 30,
+    "clients/pipeline": 100,
+    "money": 80,
+    "money/invoices": 80,
+    "money/books": 70,
+    "money/spend": 120,
+    "money/journal": 110,
+    "connections": 740,
+    "connections/ai": 740,
+    "business/plan": 240,
+    "business/prices": 130,
+    "business/build": 130,
+    "business/keep": 150,
+    "onboarding": 130
+  },
+  "first": {
+    "today": 660,
+    "team": 140,
+    "work": 320,
+    "clients": 30,
+    "clients/pipeline": 100,
+    "money": 80,
+    "money/invoices": 80,
+    "money/books": 70,
+    "money/spend": 120,
+    "money/journal": 110,
+    "connections": 740,
+    "connections/ai": 740,
+    "business/plan": 240,
+    "business/prices": 130,
+    "business/build": 130,
+    "business/keep": 150,
+    "onboarding": 130
+  }
+}

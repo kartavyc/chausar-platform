@@ -1,10 +1,15 @@
+/* The rail: D's `.rail`, `.brand`, `.nav`, `.nav a`, `.nav a.on` and `.ct` (D-Today.dc.html). The mark and the
+   wordmark are the Logo part; the business button is BusinessMenu.module.css. D's 14 px side padding and 10 px item
+   padding snap to --sp-3, so the logo and the place icons share one left edge; its 2 px between items is half of
+   --sp-1. */
+
 .rail {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
   height: 100%;
-  padding: var(--sp-6) var(--sp-4);
+  padding: var(--sp-5) var(--sp-3) var(--sp-6);
   border-right: var(--hair) solid var(--line);
+  background: var(--surface);
   overflow-y: auto;
 }
 
@@ -12,14 +17,25 @@
   display: block;
 }
 
-.menuButton {
-  display: none;
+.brand {
+  display: flex;
+  align-items: center;
+  min-height: var(--sp-7);
+  margin-bottom: var(--sp-5);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.logo {
+  color: var(--fg);
 }
 
 .places {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: calc(var(--sp-1) / 2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -27,67 +43,50 @@
 
 .place {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: var(--sp-2) 10px;
-  border-radius: var(--radius);
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--sp-10);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button);
   font-size: var(--text-body);
-  color: var(--mute);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
   text-decoration: none;
 }
 
 .place:hover {
+  background: var(--wash);
   color: var(--fg);
 }
 
-.on {
-  color: var(--fg);
-  background: var(--hover);
+.icon {
+  color: var(--mute);
 }
 
+.on,
+.on:hover {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.on .icon {
+  color: var(--on-selected);
+}
+
+/* Today's count. On the selected item it sits on a lighter step of the selected ground; elsewhere it is amber. */
 .count {
+  min-width: var(--sp-6);
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--count-on-selected);
   font-size: var(--text-label);
-  color: var(--fg2);
+  line-height: var(--sp-5);
+  text-align: center;
+  color: var(--on-selected);
 }
 
-@media (max-width: 759px) {
-  .rail {
-    height: auto;
-    padding: var(--sp-2) var(--sp-4);
-    border-right: 0;
-    border-bottom: var(--hair) solid var(--line);
-  }
-
-  .top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-  }
-
-  .top > :first-child {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .menuButton {
-    display: block;
-    min-height: var(--target);
-    padding: 0 var(--sp-3);
-    border: var(--hair) solid var(--edge);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-read);
-    color: var(--fg);
-    cursor: pointer;
-  }
-
-  .places {
-    display: none;
-    padding-bottom: var(--sp-2);
-  }
-
-  .rail[data-menu-open] .places {
-    display: flex;
-  }
+.count[data-tone='wait'] {
+  background: var(--wait-soft);
+  color: var(--wait);
 }

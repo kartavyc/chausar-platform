@@ -1,3 +1,6 @@
+/* Provenance: a value with its source (the dotted underline and the tip), and the honesty lines of catalogue U17.
+   Quoted words read like D-Network's quoted facts (`.why .q`); the source tip is a small lifted card. */
+
 .value {
   position: relative;
   display: inline-block;
@@ -12,19 +15,64 @@
 .tip {
   position: absolute;
   left: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--sp-1));
   z-index: 2;
   width: max-content;
   max-width: 280px;
-  padding: var(--sp-1) var(--sp-2);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-button-sm);
   background: var(--surface);
+  box-shadow: var(--shadow-lift);
   color: var(--fg2);
   font-size: var(--text-label);
+  line-height: 1.4;
   white-space: normal;
 }
 
 .tip[hidden] {
   display: none;
+}
+
+/* A value followed by its "model estimate" chip or its pending link: the prose wraps, the chip follows it. */
+.with > :not(:first-child) {
+  margin-left: var(--sp-2);
+}
+
+/* Quoted words, then "Shown as written" on its own line under them. */
+.quoted {
+  display: block;
+}
+
+.quoted > .pending {
+  margin-left: var(--sp-2);
+}
+
+.quote {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.asWritten {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+/* "link not ready yet": dashed like everything that is not real yet, and plainly not clickable. */
+.pending {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: var(--hair) dashed var(--dash);
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--mute);
+  font-size: var(--text-label);
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: not-allowed;
 }

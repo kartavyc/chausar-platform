@@ -5,6 +5,7 @@ import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { QueueItemView } from '../../engine/types';
 import { useTodaySession } from './session';
+import { EngineViewText } from './CardPreview';
 import s from './Today.module.css';
 
 const KINDS: readonly QueueItemView['kind'][] = ['draft', 'file', 'plan'];
@@ -15,7 +16,8 @@ export const viewSheetId = (ref: { kind: QueueItemView['kind']; id: string }) =>
 /**
  * The thing a row asks the owner to look at before approving: a draft, a file or a plan, as text. Once its content is
  * on screen the row's Approve unlocks (the session marks that version seen); a sheet that fails to load unlocks
- * nothing.
+ * nothing. A draft's lines are its own words, quoted; a file's or a plan's are Chausar's own (engine lines until W4 4J1
+ * gives their figures receipts), with each "(model estimate)" the engine marks shown as the label.
  */
 export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -35,6 +37,8 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 
   if (!known) return <Sheet label="" title={t('sheet.unknown')} onClose={onClose} returnFocus={returnFocus} />;
   const label = t(`today.view.${kind}`);
+  const quoted = kind === 'draft';
+  const words = (text: string) => (quoted ? text : <EngineViewText text={text} />);
   if (!data) {
     return (
       <Sheet label={label} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
@@ -46,16 +50,17 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     <Sheet
       label={label}
       eyebrow={data.agent ? `${data.businessName} · ${data.agent}` : data.businessName}
-      title={data.title}
-      line={data.line}
+      title={words(data.title)}
+      // The line under the title is the engine's own sentence about the thing, whatever it is.
+      line={data.line === undefined ? undefined : <span data-engine-line="">{words(data.line)}</span>}
       onClose={onClose}
       returnFocus={returnFocus}
     >
       {data.sections.map((section, i) => (
         <section key={`${section.heading ?? ''}:${i}`} className={s.part}>
           {section.heading && <h3 className={s.partHeading}>{section.heading}</h3>}
-          <ul className={s.lines}>
-            {section.lines.map((text, j) => <li key={`${j}:${text}`}>{text}</li>)}
+          <ul className={s.lines} data-content={quoted ? '' : undefined} data-engine-line={quoted ? undefined : ''}>
+            {section.lines.map((text, j) => <li key={`${j}:${text}`}>{words(text)}</li>)}
           </ul>
         </section>
       ))}

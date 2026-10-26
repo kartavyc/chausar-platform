@@ -41,6 +41,22 @@ export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
+  // Ink v2 wave 4 (4A1) fills these; wave 3's Team reads them when present.
+  department?: DepartmentId;
+  state?: 'working' | 'waiting' | 'failed' | 'idle';
+}
+export type DepartmentId = 'sales' | 'marketing' | 'production' | 'money' | 'operations';
+export interface MoneyFigure { display: Display; receiptId: string }
+/** A point the engine scaled: valuePermille of the largest, null (never 0) where there is no data. */
+export interface SeriesPoint { key: string; label: Display; value: Display | null; valuePermille: number | null; receiptId: string | null; rupees?: Display }
+export interface DepartmentSpend { display: Display; receiptId: string; rupees?: Display; held?: Display; heldReceiptId?: string }
+export interface DepartmentView {
+  id: DepartmentId; name: Display; counts: { working: number; waiting: number; stopped: number; idle: number };
+  doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; series: { jobs: SeriesPoint[]; spend: SeriesPoint[] };
+}
+export interface TeamListView {
+  agents: AgentView[]; departments?: DepartmentView[]; shared?: DepartmentSpend | null;
+  totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigure | null };
 }
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed';
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string }
@@ -621,7 +637,7 @@ export interface EngineMethods {
   'venture.queue.view': { params: { kind: QueueItemView['kind']; id: string }; result: QueueItemView };
   'venture.runs.list': { params: { state?: 'active' | 'done' | 'all' }; result: { runs: RunSummary[] } };
   'venture.runs.get': { params: { runId: string }; result: RunDetail };
-  'venture.team.list': { params: Record<string, never>; result: { agents: AgentView[] } };
+  'venture.team.list': { params: Record<string, never>; result: TeamListView };
   'venture.team.gate': { params: { agentId: string; stepId: string; gate: 'auto' | 'hold' }; result: { agent: AgentView } };
   'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };

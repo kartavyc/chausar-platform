@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Team, Editor chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;family=Noto+Sans+Devanagari:wght@400;500&amp;display=swap">
+<style>
+/* ===== D base: paste verbatim on every D board (D-STYLE.md) ===== */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+h1,h2,h3,h4,p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+a{color:#2f5bd3;text-decoration:none}
+a:hover{color:#1f45b0}
+:focus-visible{outline:2px solid #2f5bd3;outline-offset:2px}
+.mono{font-family:'DM Mono','Noto Sans Devanagari',ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.i12{width:12px;height:12px}.i14{width:14px;height:14px}.i16{width:16px;height:16px}.i20{width:20px;height:20px}.i22{width:22px;height:22px}
+.fill{fill:currentColor;stroke:none}
+/* Departments: d- tint ground with ink, t- ink only, s- solid (badges, dots) */
+.d-sales{background:#E8EEFC;color:#2F5BD3}.d-mkt{background:#F1EAFE;color:#7C3AED}.d-prod{background:#E3F4F2;color:#0F766E}.d-money{background:#E6F6EC;color:#0B7A45}.d-ops{background:#EEF0F3;color:#475467}
+.t-sales{color:#2F5BD3}.t-mkt{color:#7C3AED}.t-prod{color:#0F766E}.t-money{color:#0B7A45}.t-ops{color:#475467}
+.s-sales{background:#2F5BD3}.s-mkt{background:#7C3AED}.s-prod{background:#0F766E}.s-money{background:#0B7A45}.s-ops{background:#475467}
+/* Rail */
+.rail{flex:0 0 232px;display:flex;flex-direction:column;padding:20px 14px 24px;background:#ffffff;border-right:1px solid #e3e5e8}
+.brand{display:flex;align-items:center;gap:9px;height:28px;padding:0 8px;margin-bottom:18px;color:#16181b}
+.brand:hover{color:#16181b}
+.word{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.biz{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px 8px 8px;margin-bottom:20px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);text-align:left}
+.biz:hover{background:#fbfbfa}
+.biz-sq{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#16181b;color:#ffffff;font-size:12px;font-weight:600;letter-spacing:.03em}
+.biz-txt{display:flex;flex-direction:column;flex:1;min-width:0}
+.biz-name{font-size:14px;line-height:18px;font-weight:600;color:#16181b}
+.biz-kind{font-size:12px;line-height:16px;color:#5c6168}
+.biz .i{color:#5c6168}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;height:40px;padding:0 10px;border-radius:10px;font-size:14px;font-weight:500;color:#3d4146}
+.nav a:hover{background:#f3f4f5;color:#16181b}
+.nav a .i{color:#5c6168}
+.nav a.on{background:#16181b;color:#ffffff}
+.nav a.on .i{color:#ffffff}
+.nav .ct{margin-left:auto;min-width:24px;height:20px;padding:0 7px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:11.5px;line-height:20px;text-align:center}
+.nav a.on .ct{background:rgba(255,255,255,.16);color:#ffffff}
+.nav .new{margin-left:auto;height:20px;padding:0 8px;border-radius:999px;color:#0B7A45;font-size:11px;font-weight:600;line-height:20px}
+/* Page */
+.main{flex:999 1 560px;min-width:0;padding:28px 32px 48px}
+.wrap{max-width:984px;margin:0 auto}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.eyebrow{font-size:13px;line-height:18px;font-weight:500;color:#5c6168}
+.h1{font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em}
+.eyebrow+.h1{margin-top:4px}
+.sub{margin-top:4px;font-size:14px;line-height:20px;color:#3d4146}
+.sub b{font-weight:600;color:#16181b}
+.tools{display:flex;align-items:center;gap:8px;flex:none}
+.ask{display:flex;align-items:center;gap:10px;width:300px;height:44px;padding:0 8px 0 14px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06);color:#5c6168;font-size:13.5px;text-align:left}
+.ask:hover{border-color:#c9cdd2}
+.ask .i{color:#16181b}
+.kbd{margin-left:auto;padding:3px 7px;border:1px solid #e3e5e8;border-radius:6px;background:#fbfbfa;font-size:11px;color:#5c6168}
+.ib{position:relative;display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;color:#3d4146}
+.ib:hover{background:#f3f4f5}
+.ib .dot{position:absolute;top:10px;right:11px;width:8px;height:8px;border-radius:999px;background:#F04438;box-shadow:0 0 0 2px #ffffff}
+.me{display:grid;place-items:center;flex:none;width:44px;height:44px;border:0;border-radius:999px;background:#E8EBEE;color:#16181b;font-size:15px;font-weight:600}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-bottom:16px}
+/* Bento grid, tiles, inner cards */
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.tile{background:#ffffff;border:1px solid #e3e5e8;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.inner{border-radius:12px;background:#f6f7f8;min-width:0}
+.lift{border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.07),0 0 0 1px rgba(16,24,40,.04);min-width:0}
+/* Heads */
+.shead{display:flex;align-items:center;gap:10px;min-height:32px}
+.h2{font-size:19px;line-height:26px;font-weight:600;letter-spacing:-0.01em}
+.th{display:flex;align-items:center;gap:10px;min-height:24px}
+.h3{font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.meta{font-size:13px;line-height:18px;color:#5c6168}
+.more{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:13.5px;font-weight:500;color:#16181b;white-space:nowrap}
+.more:hover{color:#16181b;text-decoration:underline;text-underline-offset:3px}
+.count{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 8px;border-radius:999px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:500}
+/* Avatars: rounded square, department tint, status ring (working ring is inline: accent) */
+.av{position:relative;display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;font-size:12.5px;font-weight:600;letter-spacing:.03em;line-height:1}
+.av24{width:24px;height:24px;border-radius:7px;font-size:9.5px}
+.av28{width:28px;height:28px;border-radius:8px;font-size:10.5px}
+.av32{width:32px;height:32px;border-radius:10px;font-size:11.5px}
+.av40{width:40px;height:40px;border-radius:12px;font-size:13.5px}
+.av52{width:52px;height:52px;border-radius:16px;font-size:16px}
+.ring-wait{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F2A93B}
+.ring-fail{box-shadow:0 0 0 2px #ffffff,0 0 0 4px #F04438}
+.av-cz{background:#16181b;color:#ffffff}
+.av-n{background:#EEF0F3;color:#3d4146}
+.stack{display:flex}
+.stack .av{box-shadow:0 0 0 2px #ffffff}
+.stack .av+.av{margin-left:-8px}
+/* Stories row */
+.stories{display:flex;gap:18px}
+.story{display:flex;flex-direction:column;align-items:center;width:76px;padding:6px 0 0;border:0;background:none;text-align:center}
+.st-av{position:relative;display:grid;place-items:center;width:60px;height:60px;border-radius:18px;font-size:18px;font-weight:600;letter-spacing:.02em}
+.st-ring-wait{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F2A93B}
+.st-ring-fail{box-shadow:0 0 0 3px #ffffff,0 0 0 5.5px #F04438}
+.st-add{border:1.5px dashed #b9bec4;background:#ffffff;color:#5c6168}
+.st-badge{position:absolute;right:-6px;bottom:-6px;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;border:2.5px solid #ffffff;color:#ffffff}
+.st-badge .i{width:12px;height:12px}
+.st-name{margin-top:10px;font-size:13px;line-height:18px;font-weight:500;color:#16181b;white-space:nowrap}
+.st-st{font-size:12px;line-height:16px;color:#5c6168;white-space:nowrap}
+.st-st.w{color:#B45309;font-weight:500}
+.st-st.g{color:#0B7A45;font-weight:500}
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.chip .dot{flex:none;width:6px;height:6px;border-radius:999px;background:currentColor}
+.chip.work{color:#0B7A45}
+.chip.wait{background:#FDF1E3;color:#B45309}
+.chip.fail{background:#FEECEA;color:#B42318}
+.chip.idle{background:#f1f2f3;color:#5c6168}
+.chip.line{background:#ffffff;border:1px solid #e3e5e8;color:#3d4146}
+.dchip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.kchip{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;padding:0 11px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:12.5px;font-weight:500;white-space:nowrap}
+.kchip.wait{background:#FDF1E3;color:#B45309}
+.kchip.fail{background:#FEECEA;color:#B42318}
+.pos{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:#f3f4f5;color:#3d4146;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pos .i{color:#5c6168}
+.rc{display:inline-flex;align-items:center;gap:5px;flex:none;height:24px;padding:0 8px;border:1px solid #dbe2f3;border-radius:8px;background:#ffffff;color:#2f5bd3;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;line-height:1;white-space:nowrap}
+.rc:hover{border-color:#2f5bd3;color:#2f5bd3}
+.rc-d{color:#8fb4ff;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:12px;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.rc-d:hover{color:#b5ccff}
+.est{display:inline-flex;align-items:center;flex:none;height:24px;padding:0 9px;border:1px dashed #b9bec4;border-radius:999px;font-size:12px;font-style:italic;color:#5c6168;white-space:nowrap}
+.fchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fchip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;font-size:13px;font-weight:500;color:#3d4146;white-space:nowrap}
+.fchip:hover{border-color:#c9cdd2}
+.fchip .mono{font-size:12px;color:#6e737a}
+.fchip.on{background:#16181b;border-color:#16181b;color:#ffffff}
+.fchip.on .mono{color:#c4c8cc}
+.fsep{width:1px;height:20px;margin:0 4px;background:#e3e5e8}
+.bsq{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600;letter-spacing:.02em}
+/* Buttons (primary fill is inline: background {{accent}}, text {{accentInk}}) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 14px;border:1px solid #d5d8dc;border-radius:10px;background:#ffffff;color:#16181b;font-size:13.5px;font-weight:500;line-height:1;white-space:nowrap}
+.btn:hover{background:#f3f4f5}
+.btn.sm{height:30px;padding:0 11px;border-radius:9px;font-size:12.5px}
+.btn.lg{height:44px;padding:0 18px;border-radius:12px;font-size:14.5px;font-weight:600}
+.btn.xl{height:48px;padding:0 20px;border-radius:14px;font-size:15px;font-weight:600}
+.btn.pri{font-weight:600}
+.btn.pri:hover{filter:brightness(.95)}
+.btn.pri:disabled{filter:none}
+.btn.ink{background:#16181b;border-color:#16181b;color:#ffffff}
+.btn.ink:hover{background:#2a2d31}
+.btn.wide{width:100%}
+.chat{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff;color:#3d4146;font-size:13px;font-weight:500;white-space:nowrap}
+.chat:hover{border-color:#c9cdd2;color:#16181b}
+.hint{display:flex;align-items:center;gap:6px;font-size:12.5px;line-height:18px;color:#5c6168}
+/* Progress */
+.pbar{position:relative;display:block;flex:1;height:6px;border-radius:999px;background:#e3e5e8;overflow:hidden}
+.pbar>span{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.pring{position:relative;flex:none;width:40px;height:40px}
+.pring svg{display:block}
+.pring b{position:absolute;inset:0;display:grid;place-items:center;font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:10.5px;font-weight:500;color:#16181b}
+/* Goal card (dark, banking style) */
+.goal{position:relative;padding:24px;border-radius:16px;background:#111214;color:#eceef0;box-shadow:0 1px 2px rgba(16,24,40,.10),0 12px 28px -12px rgba(16,24,40,.45);min-width:0}
+.g-top{display:flex;align-items:center;gap:10px;height:28px}
+.g-ic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.08)}
+.g-lbl{font-size:14px;line-height:20px;font-weight:600;color:#ffffff}
+.g-sub{font-size:13px;color:#9aa0a6}
+.g-pill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,.08);color:#d6d9dc;font-size:12.5px;font-weight:500}
+.g-edit{display:grid;place-items:center;flex:none;width:28px;height:28px;border:0;border-radius:999px;background:none;color:#9aa0a6}
+.g-edit:hover{background:rgba(255,255,255,.08);color:#ffffff}
+.g-fig{display:flex;align-items:baseline;gap:10px;height:48px;margin-top:18px}
+.g-amt{font-size:40px;line-height:48px;font-weight:500;color:#ffffff;letter-spacing:-0.035em}
+.g-of{font-size:16px;color:#9aa0a6}
+.g-pct{margin-left:auto;font-size:32px;line-height:48px;font-weight:500;letter-spacing:-0.03em}
+.g-bar{position:relative;height:14px;margin-top:16px;border-radius:999px;background:#2a2d31}
+.g-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px 0 0 999px}
+.g-ready{position:absolute;top:0;bottom:0;border-radius:0 999px 999px 0}
+.g-pace{position:absolute;top:-5px;width:3px;height:24px;margin-left:-1.5px;border-radius:2px;background:#ffffff;box-shadow:0 0 0 2px #111214}
+.g-legend{display:flex;align-items:center;gap:16px;height:18px;margin-top:12px;font-size:12.5px;color:#9aa0a6;white-space:nowrap}
+.lg{display:inline-flex;align-items:center;gap:6px}
+.lg .mono{color:#d6d9dc}
+.sw{flex:none;width:10px;height:10px;border-radius:3px}
+.sw.pace{width:3px;height:12px;border-radius:1px;background:#ffffff}
+.g-foot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)}
+.gf-k{font-size:12px;line-height:16px;color:#9aa0a6}
+.gf-v{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:15px;line-height:22px;font-weight:500;color:#ffffff;white-space:nowrap}
+/* Big preview card (Needs you) */
+.qcard{display:flex;flex-direction:column;padding:20px}
+.qc-head{display:flex;align-items:center;gap:12px;height:40px}
+.qc-who{flex:1;min-width:0}
+.qc-name{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}
+.qc-meta{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap}
+.qc-title{margin-top:16px;font-size:16px;line-height:22px;font-weight:600;letter-spacing:-0.005em}
+.qc-line{height:40px;margin-top:4px;font-size:14px;line-height:20px;color:#3d4146;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pv{position:relative;flex:none;height:188px;margin-top:14px;border-radius:12px;overflow:hidden}
+.pv-desk{background:#f3f4f2}
+.qc-note{display:flex;align-items:center;gap:8px;height:28px;margin-top:12px;font-size:13px;line-height:18px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.qc-note>.i{color:#5c6168}
+.qc-note .end{margin-left:auto}
+.qc-acts{display:flex;gap:10px;margin-top:14px}
+.qc-acts .btn{flex:1}
+/* Previews: video frame, paper sheet, before and after pill */
+.pv-video{color:#ffffff;background:radial-gradient(120% 95% at 78% 25%,#25433f 0%,#132523 48%,#0a1213 100%)}
+.v-tag{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:rgba(0,0,0,.45);color:#ffffff;font-size:11.5px;font-weight:500}
+.v-title{position:absolute;left:18px;top:50px;font-size:24px;line-height:28px;font-weight:600;letter-spacing:-0.02em;color:#ffffff}
+.v-title span{display:block;color:rgba(255,255,255,.6)}
+.v-art{position:absolute;right:20px;bottom:30px}
+.v-play{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:56px;height:56px;margin:-28px 0 0 -28px;border:0;border-radius:999px;background:rgba(255,255,255,.95);color:#0b0d0e;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.v-play .i{width:22px;height:22px;margin-left:3px}
+.v-ch{position:absolute;left:12px;bottom:18px;height:22px;padding:0 8px;border-radius:6px;background:rgba(0,0,0,.55);font-size:11.5px;line-height:22px}
+.v-dur{position:absolute;right:12px;bottom:18px;height:22px;padding:0 7px;border-radius:6px;background:rgba(0,0,0,.72);font-size:11.5px;line-height:22px}
+.v-scrub{position:absolute;left:12px;right:12px;bottom:8px;display:flex;gap:3px;height:3px}
+.v-scrub span{border-radius:2px;background:rgba(255,255,255,.34)}
+.paper{position:absolute;padding:12px 14px;border-radius:8px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08),0 10px 24px -8px rgba(16,24,40,.22)}
+.pp-top{display:flex;align-items:center;gap:7px;height:18px}
+.pp-logo{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:5px;background:#16181b;color:#ffffff;font-size:8px;font-weight:600}
+.pp-biz{font-size:11.5px;font-weight:600}
+.pp-no{margin-left:auto;font-size:11px;color:#16181b}
+.pp-k{display:block;font-size:9.5px;line-height:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6e737a}
+.pp-t{font-size:12px;line-height:16px;font-weight:600}
+.pp-s{font-size:10.5px;line-height:14px;color:#5c6168}
+.pp-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:17px;color:#3d4146}
+.pp-row .mono{font-size:10.5px;color:#16181b}
+.pp-tot{display:flex;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:1px solid #e3e5e8;font-size:12px;line-height:17px;font-weight:600}
+.pp-chk{display:flex;align-items:center;gap:5px;font-size:10.5px;line-height:16px;color:#3d4146}
+.chg{display:inline-flex;align-items:center;gap:12px;height:52px;padding:0 20px;border:1px solid #dbe3f7;border-radius:999px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.05),0 6px 16px -8px rgba(16,24,40,.18)}
+.chg .old{font-size:18px;color:#6e737a;text-decoration:line-through;text-decoration-thickness:1.5px}
+.chg .arr{display:grid;place-items:center;width:28px;height:28px;border-radius:999px}
+.chg .now{font-size:26px;font-weight:500;letter-spacing:-0.03em;color:#16181b}
+.bx{display:flex;flex-direction:column;justify-content:center;height:50px;padding:0 12px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff}
+.bx-k{font-size:11.5px;line-height:15px;color:#5c6168}
+.bx .mono{font-size:14px;line-height:20px;color:#16181b}
+.op{font-size:15px;color:#6e737a}
+/* Department panels and agent cards */
+.dp{display:flex;flex-direction:column;padding:18px;border:1px solid transparent;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06);min-width:0}
+.p-sales{background:#E8EEFC;border-color:#D5E0FA}.p-mkt{background:#F1EAFE;border-color:#E4D6FC}.p-prod{background:#E3F4F2;border-color:#CBE8E4}.p-money{background:#E6F6EC;border-color:#CDEBD8}.p-ops{background:#EEF0F3;border-color:#DDE1E7}
+.dp-head{display:flex;align-items:center;gap:12px;height:44px}
+.dp-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.dp-ic .i{width:20px;height:20px}
+.dp-t{min-width:0}
+.dp-name{font-size:16px;line-height:22px;font-weight:600;white-space:nowrap}
+.dp-line{font-size:12.5px;line-height:18px;color:#3d4146;white-space:nowrap}
+.dp-line .w{color:#B45309;font-weight:500}
+.dp-line .f{color:#B42318;font-weight:500}
+.dp-stats{display:flex;gap:18px;margin-left:auto}
+.dp-s{display:flex;flex-direction:column;align-items:flex-end}
+.dp-s b{font-family:'DM Mono','Noto Sans Devanagari',monospace;font-size:17px;line-height:22px;font-weight:500;letter-spacing:-0.02em}
+.dp-s span{font-size:11px;line-height:16px;color:#3d4146;white-space:nowrap}
+.agents{display:grid;gap:12px;flex:1;margin-top:16px;min-height:0}
+.agents.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.acard{display:flex;flex-direction:column;padding:14px}
+.a-top{display:flex;align-items:center;gap:12px;height:40px}
+.a-id{flex:1;min-width:0}
+.a-name{font-size:15px;line-height:20px;font-weight:600}
+.a-role{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-now{margin-top:12px;font-size:13.5px;line-height:19px;font-weight:500;color:#16181b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.a-now .w{color:#B45309}
+.a-prog{display:flex;align-items:center;gap:8px;height:22px;margin-top:8px;font-size:12px;color:#3d4146;white-space:nowrap;overflow:hidden}
+.a-prog .pbar{flex:0 0 88px}
+.a-prog .muted{color:#5c6168}
+.a-prog .w{color:#B45309;font-weight:500}
+.a-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px}
+/* Segmented toggle and step gates */
+.seg{display:inline-flex;align-items:center;gap:2px;padding:4px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.seg button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:0;border-radius:9px;background:none;font-size:13.5px;font-weight:500;color:#3d4146;white-space:nowrap}
+.seg button:hover{background:#f3f4f5;color:#16181b}
+.seg button.on{background:#16181b;color:#ffffff}
+.sdot{flex:none;width:8px;height:8px;border-radius:999px}
+.gate{display:inline-flex;gap:2px;padding:3px;border:1px solid #e3e5e8;border-radius:10px;background:#ffffff}
+.gate button{height:26px;padding:0 10px;border:0;border-radius:7px;background:none;font-size:12.5px;font-weight:500;color:#5c6168}
+.gate button.on{background:#16181b;color:#ffffff}
+.floor{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:10px;background:#FDF1E3;color:#B45309;font-size:12.5px;font-weight:600;white-space:nowrap}
+/* List rows (runs, decisions) */
+.lrow{display:flex;align-items:center;gap:12px;height:60px;border-top:1px solid #eceef0}
+.lrow:first-child{border-top:0}
+.lrow.ev{height:52px}
+.lr-b{flex:1;min-width:0}
+.lr-t{font-size:13.5px;line-height:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s{font-size:12px;line-height:17px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr-s .w{color:#B45309}
+.lr-p{display:flex;align-items:center;gap:8px;flex:none;width:170px;font-size:12px;color:#3d4146;white-space:nowrap}
+.lr-p .w{color:#B45309;font-weight:500}
+.lr-p .f{color:#B42318;font-weight:500}
+.lr-e{flex:none;width:36px;text-align:right;font-size:12px;color:#5c6168}
+.sic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:999px}
+.sic.ok{color:#0B7A45}
+.sic.no{background:#eceef0;color:#5c6168}
+.sic.q{background:#FDF1E3;color:#B45309}
+.sic.est{background:#F1EAFE;color:#7C3AED}
+.sic.fail{background:#FEECEA;color:#B42318}
+.k{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px}
+.k-n{background:#EEF0F3;color:#3d4146}
+.k-fail{background:#FEECEA;color:#B42318}
+.k-wait{background:#FDF1E3;color:#B45309}
+/* ===== end of D base ===== */
+
+/* ---- D-TeamChat ---- */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:16px}
+.lcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:112px;gap:16px}
+.stat{display:flex;flex-direction:column;padding:16px 18px}
+.s-lab{display:flex;align-items:center;gap:7px;height:18px;font-size:12.5px;font-weight:500;color:#5c6168}
+.ldot{flex:none;width:8px;height:8px;border-radius:999px}
+.s-row{display:flex;align-items:flex-end;justify-content:space-between;height:36px;margin-top:6px}
+.s-val{font-size:30px;line-height:36px;font-weight:500;letter-spacing:-0.04em}
+.s-val.amber{color:#B45309}
+.s-sub{margin-top:2px;font-size:12px;line-height:16px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.depts{display:grid;grid-auto-rows:288px;gap:16px}
+.a-now .chip{height:20px;margin-right:6px;vertical-align:1px}
+.acard.sel{box-shadow:0 0 0 2px #16181b}
+.chat.on{background:#16181b;border-color:#16181b;color:#ffffff}
+.chat.on:hover{color:#ffffff}
+.chart{display:flex;flex-direction:column;padding:20px}
+.ch-sub{margin-top:6px;font-size:12.5px;line-height:18px;color:#5c6168}
+.bars{display:flex;flex-direction:column;gap:6px;margin-top:18px}
+.bar{display:flex;align-items:center;gap:12px;height:26px}
+.bar-n{display:flex;align-items:center;gap:8px;flex:none;width:140px;font-size:13px;color:#3d4146}
+.bar-d{flex:none;width:8px;height:8px;border-radius:3px}
+.bar-t{flex:1;height:10px;border-radius:5px;background:#f1f2f3;overflow:hidden}
+.bar-t span{display:block;height:10px;border-radius:5px}
+.bar-v{flex:none;width:28px;text-align:right;font-size:13px;font-weight:500}
+.bar-sp{flex:none;width:64px;text-align:right;font-size:12px;color:#5c6168}
+/* The Editor chat panel, a tall tile beside the departments */
+.cpanel{display:flex;flex-direction:column;height:2064px;overflow:hidden}
+.cp-h{display:flex;align-items:center;gap:12px;flex:none;height:72px;padding:0 12px 0 20px;border-bottom:1px solid #eceef0}
+.cp-id{flex:1;min-width:0}
+.cp-name{display:flex;align-items:center;gap:8px;font-size:16px;line-height:22px;font-weight:600}
+.cp-sub{font-size:12.5px;line-height:18px;color:#5c6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-sub .g{color:#0B7A45;font-weight:500}
+.gib{display:grid;place-items:center;flex:none;width:36px;height:36px;border:0;border-radius:10px;background:none;color:#5c6168}
+.gib:hover{background:#f3f4f5;color:#16181b}
+.cp-tabs{display:flex;align-items:center;flex:none;height:64px;padding:0 20px;border-bottom:1px solid #eceef0}
+.cp-tabs .seg{display:flex;width:100%}
+.cp-tabs .seg button{flex:1;justify-content:center}
+.cp-tabs .seg .mono{font-size:12px;color:#6e737a}
+.cp-tabs .seg button.on .mono{color:#c4c8cc}
+.cp-body{display:flex;flex-direction:column;justify-content:flex-end;gap:14px;flex:1;min-height:0;padding:20px;overflow:hidden;background:#fbfbfa}
+.day{display:flex;align-items:center;gap:10px;flex:none;font-size:12px;line-height:16px;font-weight:500;color:#6e737a}
+.day::before,.day::after{content:"";flex:1;height:1px;background:#e3e5e8}
+.mine{flex:none;align-self:flex-end;max-width:320px;padding:10px 14px;border-radius:16px 16px 6px 16px;background:#16181b;color:#ffffff;font-size:14px;line-height:20px}
+.tm{flex:none;align-self:flex-end;margin-top:-8px;font-size:11.5px;line-height:16px;color:#6e737a}
+.from{display:flex;align-items:flex-start;gap:10px;flex:none}
+.fb{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.bub{align-self:flex-start;max-width:340px;padding:10px 14px;border:1px solid #e3e5e8;border-radius:6px 16px 16px 16px;background:#ffffff;font-size:14px;line-height:20px}
+.fold{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 10px 0 12px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;font-size:13px;line-height:18px;color:#3d4146;text-align:left}
+.fold:hover{border-color:#c9cdd2}
+.fold-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold-t b{font-weight:600;color:#16181b}
+.fold .mono{font-size:12px;color:#6e737a}
+.fold>.i{color:#5c6168}
+.runc{border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;overflow:hidden}
+.runc-h{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px 0 14px;border-bottom:1px solid #eceef0}
+.runc-t{flex:1;min-width:0;font-size:13.5px;line-height:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.runc-t .mono{margin-left:4px;font-size:12px;font-weight:400;color:#6e737a}
+.runc-b{padding:10px 14px 8px}
+.runc-b>.pbar{flex:none;margin:2px 0 8px}
+.sr{display:flex;align-items:center;gap:10px;height:28px;font-size:13px;color:#3d4146}
+.sr .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr .e{flex:none;font-size:11.5px;color:#6e737a}
+.sr.cur,.sr.bad{color:#16181b;font-weight:600}
+.sr.pend{color:#6e737a}
+.sr-err{margin:-2px 0 2px 30px;font-size:12.5px;line-height:18px;color:#B42318}
+.tick{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:999px;color:#0B7A45}
+.tick .i{width:12px;height:12px;stroke-width:2.5}
+.tick.no{background:#FEECEA;color:#B42318}
+.spin{flex:none;width:20px;height:20px}
+.pend-dot{flex:none;width:20px;height:20px;border:1.5px dashed #b9bec4;border-radius:999px}
+.shorts{display:flex;align-items:center;gap:6px;height:40px;margin:6px 0 6px 30px}
+.sh{flex:none;width:24px;height:40px;border-radius:5px;background:linear-gradient(180deg,#2a4542 0%,#0b1314 100%)}
+.sh.todo{background:none;border:1.5px dashed #c9cdd2}
+.sh-l{margin-left:6px;font-size:11px;color:#5c6168;white-space:nowrap}
+.runc-a{display:flex;gap:8px;padding:10px 14px 12px;border-top:1px solid #eceef0}
+.runc-a .btn{flex:1}
+.att{border:1px solid #e3e5e8;border-radius:12px;background:#ffffff;overflow:hidden}
+.att .pv{height:132px;margin-top:0;border-radius:0}
+.att .v-title{left:14px;top:40px;font-size:20px;line-height:24px}
+.att .v-art{right:12px;bottom:26px;width:100px;height:79px}
+.att .v-play{width:44px;height:44px;margin:-22px 0 0 -22px}
+.att .v-play .i{width:18px;height:18px;margin-left:2px}
+.att-b{padding:12px 14px 14px}
+.att-row{display:flex;align-items:center;justify-content:space-between;gap:8px;height:24px}
+.att-t{display:flex;align-items:center;gap:8px;height:20px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}
+.att-t .meta{font-weight:400}
+.att .qc-note{height:24px;margin-top:8px;font-size:12.5px}
+.att .qc-acts{margin-top:12px}
+.prop{padding:16px;border:1px solid #e3e5e8;border-radius:12px;background:#ffffff}
+.prop-h{display:flex;align-items:center;gap:10px}
+.prop-t{font-size:13.5px;line-height:19px;font-weight:600}
+.prop-s{font-size:12px;line-height:17px;color:#5c6168}
+.diff{margin-top:12px;border:1px solid #e3e5e8;border-radius:10px;overflow:hidden;font-size:13px;line-height:19px}
+.dl{display:flex;gap:10px;padding:7px 12px;color:#5c6168}
+.dl+.dl{border-top:1px solid #eceef0}
+.dl .s{flex:none;width:10px;color:#9aa0a6}
+.dl.add{color:#16181b;font-weight:500}
+.dl.add .s{color:#0B7A45}
+.ver{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;line-height:18px;color:#5c6168}
+.prop .qc-acts{margin-top:12px}
+.cp-comp{flex:none;padding:12px 16px 16px;border-top:1px solid #eceef0;background:#ffffff}
+.sugs{display:flex;gap:8px;overflow:hidden}
+.sug{flex:none;height:30px;padding:0 11px;border:1px solid #e3e5e8;border-radius:999px;background:#ffffff;font-size:12.5px;font-weight:500;color:#3d4146;white-space:nowrap}
+.sug:hover{border-color:#c9cdd2;color:#16181b}
+.cbox{display:flex;align-items:center;gap:4px;height:56px;margin-top:10px;padding:0 8px 0 6px;border:1px solid #d5d8dc;border-radius:14px;background:#ffffff}
+.cbox:focus-within{border-color:#16181b}
+.cbox textarea{flex:1;min-width:0;height:22px;margin-left:4px;padding:0;border:0;outline:none;resize:none;background:none;font-size:14px;line-height:22px}
+.cbox textarea::placeholder{color:#6e737a}
+.send{display:grid;place-items:center;flex:none;width:40px;height:40px;border:0;border-radius:10px}
+.send:hover{filter:brightness(.95)}
+.cp-comp .hint{margin-top:8px}
+</style>
+</helmet>
+<div style="width:100%;min-height:2322px;display:flex;flex-wrap:wrap;background:#fbfbfa;color:#16181b;font-family:'Instrument Sans','Noto Sans Devanagari',system-ui,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased">
+
+  <nav class="rail" aria-label="Places">
+    <a class="brand" href="#/today"><svg width="22" height="22" viewBox="0 0 37 37" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#16181b"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg><span class="word">chausar</span></a>
+    <button type="button" class="biz" aria-haspopup="menu" aria-expanded="false"><span class="biz-sq" aria-hidden="true">LS</span><span class="biz-txt"><span class="biz-name">Lumen Studio</span><span class="biz-kind">YouTube channel</span></span><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg><span class="sr-only">Switch business</span></button>
+    <ul class="nav">
+      <li><a href="#/today"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg><span>Today</span><span class="ct mono" aria-hidden="true">12</span><span class="sr-only">, 12 need you</span></a></li>
+      <li><a href="#/chats"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg><span>Chats</span><span class="new" style="background:{{accentSoft}}">New</span></a></li>
+      <li><a class="on" href="#/team" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span>Team</span></a></li>
+      <li><a href="#/work"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg><span>Work</span></a></li>
+      <li><a href="#/clients"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 2v2"></path><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"></path><path d="M8 2v2"></path><circle cx="12" cy="11" r="3"></circle><rect x="3" y="4" width="18" height="18" rx="2"></rect></svg><span>Clients</span></a></li>
+      <li><a href="#/money"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg><span>Money</span></a></li>
+      <li><a href="#/connections"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg><span>Connections</span></a></li>
+    </ul>
+  </nav>
+
+  <main class="main">
+    <div class="wrap">
+
+      <header class="phead">
+        <div>
+          <h1 class="h1">Team</h1>
+          <p class="sub">7 agents in 5 departments. They do the work, you approve what matters.</p>
+        </div>
+        <div class="tools">
+          <button type="button" class="ask"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path></svg><span>Ask Chausar anything</span><span class="kbd mono">Ctrl K</span></button>
+          <button type="button" class="ib" aria-label="Notifications, 2 new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><span class="dot"></span></button>
+          <button type="button" class="me" aria-label="Your account">K</button>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Show departments">
+          <button type="button" class="on" aria-pressed="true"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg>All departments</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-sales" aria-hidden="true"></span>Sales and clients</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-mkt" aria-hidden="true"></span>Marketing</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-prod" aria-hidden="true"></span>Production</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-money" aria-hidden="true"></span>Money</button>
+          <button type="button" aria-pressed="false"><span class="sdot s-ops" aria-hidden="true"></span>Operations</button>
+        </div>
+        <button type="button" class="btn"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Add an agent</button>
+      </div>
+
+      <div class="split">
+
+        <!-- Team, narrowed to one column while the chat is open -->
+        <div class="lcol">
+          <section class="stats" aria-label="Team at a glance">
+            <div class="tile stat">
+              <p class="s-lab"><span class="ldot" style="background:{{accent}}"></span>Working now</p>
+              <div class="s-row"><span class="s-val mono">3</span><span class="stack" aria-hidden="true"><span class="av av28 d-prod">ED</span><span class="av av28 d-mkt">RE</span><span class="av av28 d-ops">KE</span></span></div>
+              <p class="s-sub">Editor, Researcher and Keeper</p>
+            </div>
+            <div class="tile stat">
+              <p class="s-lab"><span class="ldot" style="background:#F2A93B"></span>Waiting on you</p>
+              <div class="s-row"><span class="s-val amber mono">1</span><span class="av av28 d-sales ring-wait" aria-hidden="true">PR</span></div>
+              <p class="s-sub">Producer, about the sponsor preview</p>
+            </div>
+            <div class="tile stat">
+              <p class="s-lab"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Done this week</p>
+              <div class="s-row"><span class="s-val mono">36</span>
+                <svg width="80" height="32" viewBox="0 0 80 32" role="img" aria-label="Jobs per day this week: 4, 6, 5, 7, 3, 6, and 5 so far today"><rect x="0" y="14.9" width="8" height="17.1" rx="2" fill="#d5d8dc"></rect><rect x="12" y="6.3" width="8" height="25.7" rx="2" fill="#d5d8dc"></rect><rect x="24" y="10.6" width="8" height="21.4" rx="2" fill="#d5d8dc"></rect><rect x="36" y="2" width="8" height="30" rx="2" fill="#d5d8dc"></rect><rect x="48" y="19.1" width="8" height="12.9" rx="2" fill="#d5d8dc"></rect><rect x="60" y="6.3" width="8" height="25.7" rx="2" fill="#d5d8dc"></rect><rect x="72" y="10.6" width="8" height="21.4" rx="2" fill="#16181b"></rect></svg>
+              </div>
+              <p class="s-sub">jobs across five departments</p>
+            </div>
+            <div class="tile stat">
+              <p class="s-lab"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>AI spend this month</p>
+              <div class="s-row"><span class="s-val mono">₹78.80</span></div>
+              <p class="s-sub">plus <span class="mono">₹18.00</span> held for running work</p>
+            </div>
+          </section>
+
+          <section class="depts" aria-label="Departments">
+
+            <!-- Production, with the Editor's chat open -->
+            <article class="dp p-prod" aria-labelledby="dp-prod">
+              <div class="dp-head">
+                <span class="dp-ic t-prod"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"></path><path d="m7.5 4.27 9 5.15"></path></svg></span>
+                <div class="dp-t"><h2 id="dp-prod" class="dp-name">Production</h2><p class="dp-line">1 working · <span class="f">1 run stopped</span></p></div>
+                <div class="dp-stats"><div class="dp-s"><b>6</b><span>jobs this week</span></div><div class="dp-s"><b>₹42.10</b><span>this month</span></div></div>
+              </div>
+              <div class="agents">
+                <div class="lift acard sel">
+                  <div class="a-top"><span class="av av40 d-prod" style="box-shadow:0 0 0 2px #ffffff,0 0 0 4px {{accent}}" aria-hidden="true">ED</span><div class="a-id"><p class="a-name">Editor</p><p class="a-role">Cuts episodes and shorts</p></div></div>
+                  <p class="a-now">Cutting shorts from episode 13</p>
+                  <div class="a-prog"><span class="pbar"><span style="width:60%;background:{{accent}}"></span></span><span class="mono">3 of 5</span><span class="muted">· 4m · rendering short 3</span></div>
+                  <div class="a-foot"><span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span><button type="button" class="chat on" aria-label="Chat with Editor" aria-expanded="true" aria-controls="editor-chat"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Marketing -->
+            <article class="dp p-mkt" aria-labelledby="dp-mkt">
+              <div class="dp-head">
+                <span class="dp-ic t-mkt"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg></span>
+                <div class="dp-t"><h2 id="dp-mkt" class="dp-name">Marketing</h2><p class="dp-line">1 working · 1 idle</p></div>
+                <div class="dp-stats"><div class="dp-s"><b>7</b><span>jobs this week</span></div><div class="dp-s"><b>₹18.00</b><span>held this month</span></div></div>
+              </div>
+              <div class="agents two">
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-mkt" style="box-shadow:0 0 0 2px #ffffff,0 0 0 4px {{accent}}" aria-hidden="true">RE</span><div class="a-id"><p class="a-name">Researcher</p><p class="a-role">Titles, hooks and thumbnails</p></div></div>
+                  <p class="a-now">Checking titles against the last 30 videos</p>
+                  <div class="a-prog"><span class="pbar"><span style="left:30%;width:40%;background:linear-gradient(90deg,rgba(255,255,255,0),{{accent}} 40%,{{accent}} 60%,rgba(255,255,255,0))"></span></span><span>Step 2</span><span class="muted">· 1m</span></div>
+                  <div class="a-foot"><span class="pos" title="Drafts only. Nothing goes out."><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>Shadowing</span><button type="button" class="chat" aria-label="Chat with Researcher" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-mkt" aria-hidden="true">PU</span><div class="a-id"><p class="a-name">Publisher</p><p class="a-role">Posts to your channels</p></div></div>
+                  <p class="a-now"><span class="chip idle">Idle</span>Ready when you approve a post</p>
+                  <div class="a-prog"><a href="#/today">Its LinkedIn post waits on Today</a></div>
+                  <div class="a-foot"><span class="pos" title="Practice runs. Nothing is posted."><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>Rehearsing</span><button type="button" class="chat" aria-label="Chat with Publisher" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Money -->
+            <article class="dp p-money" aria-labelledby="dp-money">
+              <div class="dp-head">
+                <span class="dp-ic t-money"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg></span>
+                <div class="dp-t"><h2 id="dp-money" class="dp-name">Money</h2><p class="dp-line">2 idle · <span class="w">3 cards on Today</span></p></div>
+                <div class="dp-stats"><div class="dp-s"><b>12</b><span>jobs this week</span></div><div class="dp-s"><b>₹33.50</b><span>this month</span></div></div>
+              </div>
+              <div class="agents two">
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-money" aria-hidden="true">BK</span><div class="a-id"><p class="a-name">Bookkeeper</p><p class="a-role">Monthly books and GST working</p></div></div>
+                  <p class="a-now"><span class="chip idle">Idle</span>GST working waits for your CA</p>
+                  <div class="a-prog"><span class="muted">Matched 212 of 214</span><a class="rc" href="#/receipt/R-0412">R-0412</a></div>
+                  <div class="a-foot"><span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span><button type="button" class="chat" aria-label="Chat with Bookkeeper" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-money" aria-hidden="true">BI</span><div class="a-id"><p class="a-name">Billing</p><p class="a-role">Invoices and quotes</p></div></div>
+                  <p class="a-now"><span class="chip idle">Idle</span>INV-0042 is ready to issue</p>
+                  <div class="a-prog"><span class="muted">Total</span><span class="mono">₹18,880.00</span><a class="rc" href="#/receipt/R-0419">R-0419</a></div>
+                  <div class="a-foot"><span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span><button type="button" class="chat" aria-label="Chat with Billing" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Sales and clients -->
+            <article class="dp p-sales" aria-labelledby="dp-sales">
+              <div class="dp-head">
+                <span class="dp-ic t-sales"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m11 17 2 2a1 1 0 1 0 3-3"></path><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"></path><path d="m21 3 1 11h-2"></path><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"></path><path d="M3 4h8"></path></svg></span>
+                <div class="dp-t"><h2 id="dp-sales" class="dp-name">Sales and clients</h2><p class="dp-line"><span class="w">1 waiting on you</span></p></div>
+                <div class="dp-stats"><div class="dp-s"><b>3</b><span>jobs this week</span></div><div class="dp-s"><b>₹0.00</b><span>this month</span></div></div>
+              </div>
+              <div class="agents">
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-sales ring-wait" aria-hidden="true">PR</span><div class="a-id"><p class="a-name">Producer</p><p class="a-role">Sponsors and prices</p></div></div>
+                  <p class="a-now"><span class="w">Waiting on you.</span> Pricing the sponsor slot</p>
+                  <div class="a-prog"><span class="pbar"><span style="width:66%;background:#F2A93B"></span></span><span class="mono">2 of 3</span><span class="w">· Share a preview?</span><a href="#/today">Answer</a></div>
+                  <div class="a-foot"><span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span><button type="button" class="chat" aria-label="Chat with Producer" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Operations -->
+            <article class="dp p-ops" aria-labelledby="dp-ops">
+              <div class="dp-head">
+                <span class="dp-ic t-ops"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>
+                <div class="dp-t"><h2 id="dp-ops" class="dp-name">Operations</h2><p class="dp-line">1 working</p></div>
+                <div class="dp-stats"><div class="dp-s"><b>8</b><span>jobs this week</span></div><div class="dp-s"><b>₹3.20</b><span>this month</span></div></div>
+              </div>
+              <div class="agents">
+                <div class="lift acard">
+                  <div class="a-top"><span class="av av40 d-ops" style="box-shadow:0 0 0 2px #ffffff,0 0 0 4px {{accent}}" aria-hidden="true">KE</span><div class="a-id"><p class="a-name">Keeper</p><p class="a-role">Backups, connections and renewals</p></div></div>
+                  <p class="a-now">Checking that every connection still works</p>
+                  <div class="a-prog"><span class="pbar"><span style="width:66%;background:{{accent}}"></span></span><span class="mono">4 of 6</span><span class="muted">· 2m · LinkedIn next</span></div>
+                  <div class="a-foot"><span class="pos" title="Asks you before each step that matters"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Asks each time</span><button type="button" class="chat" aria-label="Chat with Keeper" aria-expanded="false"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- This week by department -->
+            <section class="tile chart" aria-labelledby="ch-h">
+              <div class="th"><h2 id="ch-h" class="h3">Jobs done this week</h2><span class="meta"><span class="mono">36</span> in all</span><a class="more" href="#/work">Open Work<svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+              <p class="ch-sub">Each job ends with a receipt, or a card on Today for you.</p>
+              <ul class="bars">
+                <li class="bar"><span class="bar-n"><span class="bar-d s-money"></span>Money</span><span class="bar-t"><span class="s-money" style="width:100%"></span></span><span class="bar-v mono">12</span><span class="bar-sp mono">₹33.50</span></li>
+                <li class="bar"><span class="bar-n"><span class="bar-d s-ops"></span>Operations</span><span class="bar-t"><span class="s-ops" style="width:66.7%"></span></span><span class="bar-v mono">8</span><span class="bar-sp mono">₹3.20</span></li>
+                <li class="bar"><span class="bar-n"><span class="bar-d s-mkt"></span>Marketing</span><span class="bar-t"><span class="s-mkt" style="width:58.3%"></span></span><span class="bar-v mono">7</span><span class="bar-sp mono">₹18.00</span></li>
+                <li class="bar"><span class="bar-n"><span class="bar-d s-prod"></span>Production</span><span class="bar-t"><span class="s-prod" style="width:50%"></span></span><span class="bar-v mono">6</span><span class="bar-sp mono">₹42.10</span></li>
+                <li class="bar"><span class="bar-n"><span class="bar-d s-sales"></span>Sales and clients</span><span class="bar-t"><span class="s-sales" style="width:25%"></span></span><span class="bar-v mono">3</span><span class="bar-sp mono">₹0.00</span></li>
+              </ul>
+            </section>
+          </section>
+        </div>
+
+        <!-- The Editor's chat, opened from its quiet Chat button -->
+        <aside id="editor-chat" class="tile cpanel" aria-labelledby="cp-name">
+          <header class="cp-h">
+            <span class="av av40 d-prod" style="box-shadow:0 0 0 2px #ffffff,0 0 0 4px {{accent}}" aria-hidden="true">ED</span>
+            <div class="cp-id">
+              <h2 id="cp-name" class="cp-name">Editor <span class="dchip d-prod">Production</span></h2>
+              <p class="cp-sub">Cuts episodes and shorts · <span class="g">Working, <span class="mono">3 of 5</span></span></p>
+            </div>
+            <button type="button" class="gib" aria-label="Editor's instructions, version 4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7"></path><path d="M10 4H3"></path><path d="M21 12h-9"></path><path d="M8 12H3"></path><path d="M21 20h-5"></path><path d="M12 20H3"></path><path d="M14 2v4"></path><path d="M8 10v4"></path><path d="M16 18v4"></path></svg></button>
+            <button type="button" class="gib" aria-label="Close the chat with Editor"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          </header>
+
+          <div class="cp-tabs">
+            <div class="seg" role="tablist" aria-label="Editor">
+              <button type="button" class="on" role="tab" aria-selected="true"><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</button>
+              <button type="button" role="tab" aria-selected="false">Instructions <span class="mono">v4</span></button>
+              <button type="button" role="tab" aria-selected="false">Runs <span class="mono">6</span></button>
+            </div>
+          </div>
+
+          <div class="cp-body" role="log" aria-label="Conversation with Editor">
+            <p class="day">Today</p>
+
+            <p class="mine">Cut episode 14 from the 52 min recording. Keep it under 12 minutes.</p>
+            <p class="tm mono">08:02</p>
+
+            <!-- A finished run, folded to one line, then its draft -->
+            <div class="from">
+              <span class="av av28 d-prod" aria-hidden="true">ED</span>
+              <div class="fb">
+                <button type="button" class="fold" aria-expanded="false"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="fold-t"><b>Cut episode 14</b> · 3 steps done</span><span class="mono">4m</span><svg class="i i16" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg><span class="sr-only">Show the steps</span></button>
+                <p class="bub">Episode 14 is cut, 11 min 42 s. It's on Today for you to watch.</p>
+                <article class="att" aria-labelledby="att-t">
+                  <div class="pv pv-video">
+                    <span class="v-tag"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"></path><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"></path><path d="m2 2 20 20"></path></svg>Not watched yet</span>
+                    <p class="v-title" aria-hidden="true">Five mics.<span>One room.</span></p>
+                    <svg class="v-art" width="132" height="104" viewBox="0 0 132 104" aria-hidden="true">
+                      <rect x="2" y="40" width="18" height="32" rx="9" fill="#24302f" stroke="rgba(255,255,255,.18)" stroke-width="1.25"></rect><path d="M11 72v26" stroke="#46575a" stroke-width="2.5"></path>
+                      <rect x="28" y="28" width="18" height="32" rx="9" fill="#24302f" stroke="rgba(255,255,255,.18)" stroke-width="1.25"></rect><path d="M37 60v38" stroke="#46575a" stroke-width="2.5"></path>
+                      <rect x="40" y="0" width="52" height="18" rx="9" fill="#ffffff"></rect>
+                      <text x="66" y="13" text-anchor="middle" font-family="DM Mono, monospace" font-size="10.5" fill="#0b0d0e">₹2,000</text>
+                      <rect x="57" y="22" width="18" height="32" rx="9" fill="#2e3f3c" stroke="#ffffff" stroke-width="1.75"></rect><path d="M66 54v44" stroke="#46575a" stroke-width="2.5"></path>
+                      <rect x="86" y="32" width="18" height="32" rx="9" fill="#24302f" stroke="rgba(255,255,255,.18)" stroke-width="1.25"></rect><path d="M95 64v34" stroke="#46575a" stroke-width="2.5"></path>
+                      <rect x="112" y="44" width="18" height="32" rx="9" fill="#24302f" stroke="rgba(255,255,255,.18)" stroke-width="1.25"></rect><path d="M121 76v22" stroke="#46575a" stroke-width="2.5"></path>
+                      <path d="M0 99h132" stroke="#46575a" stroke-width="2"></path>
+                    </svg>
+                    <button type="button" class="v-play" aria-label="Watch episode 14"><svg class="i fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.52.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"></path></svg></button>
+                    <span class="v-ch">5 chapters</span>
+                    <span class="v-dur mono">11:42</span>
+                    <div class="v-scrub" aria-hidden="true"><span style="flex:48"></span><span style="flex:202"></span><span style="flex:320"></span><span style="flex:95"></span><span style="flex:37"></span></div>
+                  </div>
+                  <div class="att-b">
+                    <div class="att-row"><h3 id="att-t" class="att-t">Episode 14, draft <span class="meta mono">08:40</span></h3><span class="chip line"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true" style="color:#0B7A45"><path d="M20 6 9 17l-5-5"></path></svg>3 checks passed</span></div>
+                    <p class="qc-note"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Approve unlocks after you watch it</p>
+                    <div class="qc-acts">
+                      <button type="button" class="btn"><svg class="i i14 fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.52.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"></path></svg>Watch</button>
+                      <button type="button" class="btn pri" disabled title="Unlocks after you watch it" style="background:{{accentSoft}};border-color:transparent;color:#5c6168"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Approve</button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <!-- A run that stopped, with its real reason -->
+            <div class="from">
+              <span class="av av28 d-prod" aria-hidden="true">ED</span>
+              <div class="fb">
+                <article class="runc" aria-labelledby="r28">
+                  <div class="runc-h"><h3 id="r28" class="runc-t">Render the thumbnail set<span class="mono">Run 28</span></h3><span class="chip fail"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>Stopped</span></div>
+                  <ul class="runc-b" aria-label="Steps in run 28">
+                    <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Picked 3 frames for thumbnails</span><span class="e mono">22s</span></li>
+                    <li class="sr bad"><span class="tick no"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span><span class="t">Render the thumbnails</span><span class="e mono">18s</span></li>
+                    <li class="sr-err">ffmpeg was not found on this computer.</li>
+                    <li class="sr pend"><span class="pend-dot"></span><span class="t">Send drafts to you</span></li>
+                  </ul>
+                  <div class="runc-a">
+                    <button type="button" class="btn"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>How to fix</button>
+                    <button type="button" class="btn pri" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>Run again</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <p class="mine">Now cut shorts from episode 13, each under a minute.</p>
+            <p class="tm mono">18:37</p>
+
+            <!-- The run now going, as tick rows -->
+            <div class="from">
+              <span class="av av28 d-prod" aria-hidden="true">ED</span>
+              <div class="fb">
+                <p class="bub">On it. I'll pick the best moments, each under 60 s.</p>
+                <article class="runc" aria-labelledby="r31">
+                  <div class="runc-h"><h3 id="r31" class="runc-t">Shorts from episode 13<span class="mono">Run 31 · 4m</span></h3><span class="chip work" style="background:{{accentSoft}}"><span class="dot" style="background:{{accent}}"></span><span class="mono">3 of 5</span></span></div>
+                  <div class="runc-b">
+                    <span class="pbar"><span style="width:60%;background:{{accent}}"></span></span>
+                    <ul aria-label="Steps in run 31">
+                      <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Read the transcript</span><span class="e mono">12s</span></li>
+                      <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Picked 6 moments, each with a timestamp</span><span class="e mono">48s</span></li>
+                      <li class="sr"><span class="tick" style="background:{{accentSoft}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><span class="t">Checked: no black, silent or frozen frames</span><span class="e mono">20s</span></li>
+                      <li class="sr cur"><svg class="spin" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="#e3e5e8" stroke-width="2.5"></circle><path d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" fill="none" stroke="{{accent}}" stroke-width="2.5" stroke-linecap="round"></path></svg><span class="t">Rendering short 3 of 6</span><span class="e mono">now</span></li>
+                      <li aria-label="Shorts: 2 rendered, 1 rendering, 3 to go"><div class="shorts"><span class="sh"></span><span class="sh"></span><span class="sh" style="box-shadow:0 0 0 2px {{accent}}"></span><span class="sh todo"></span><span class="sh todo"></span><span class="sh todo"></span><span class="sh-l mono">short-3.mp4</span></div></li>
+                      <li class="sr pend"><span class="pend-dot"></span><span class="t">Send drafts to you</span></li>
+                    </ul>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <p class="mine">From now on, always add burned-in captions to shorts.</p>
+            <p class="tm mono">18:40</p>
+
+            <!-- "From now on" becomes a proposed change -->
+            <div class="from">
+              <span class="av av28 d-prod" aria-hidden="true">ED</span>
+              <div class="fb">
+                <p class="bub">You said "from now on", so here is the change to my instructions.</p>
+                <article class="prop" aria-labelledby="prop-t">
+                  <div class="prop-h">
+                    <span class="k d-prod"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M13.378 15.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path></svg></span>
+                    <div><h3 id="prop-t" class="prop-t">Proposed change to Editor's instructions</h3><p class="prop-s">Applies to every short from now on</p></div>
+                  </div>
+                  <div class="diff" role="group" aria-label="The change, with the lines around it">
+                    <p class="dl"><span class="s mono" aria-hidden="true"></span>Cut shorts under 60 s with a clear hook</p>
+                    <p class="dl"><span class="s mono" aria-hidden="true"></span>Render shorts at 1080 x 1920</p>
+                    <p class="dl add" style="background:{{accentSoft}}"><span class="s mono" aria-hidden="true">+</span><span class="sr-only">Added: </span>Always add burned-in captions to shorts</p>
+                  </div>
+                  <p class="ver"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>Version <span class="mono">4</span> to <span class="mono">5</span>, you can undo</p>
+                  <div class="qc-acts">
+                    <button type="button" class="btn">Reject</button>
+                    <button type="button" class="btn pri" style="background:{{accent}};border-color:{{accent}};color:{{accentInk}}"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Accept</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <form class="cp-comp" aria-label="Message Editor">
+            <div class="sugs" role="group" aria-label="Suggestions">
+              <button type="button" class="sug">Show short 3</button>
+              <button type="button" class="sug">Run thumbnails again</button>
+              <button type="button" class="sug">Pause this run</button>
+            </div>
+            <div class="cbox">
+              <button type="button" class="gib" aria-label="Attach a file"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+              <label class="sr-only" for="msg-editor">Message Editor</label>
+              <textarea id="msg-editor" rows="1" placeholder="Message Editor"></textarea>
+              <button type="submit" class="send" aria-label="Send" style="background:{{accent}};color:{{accentInk}}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg></button>
+            </div>
+            <p class="hint"><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Editor asks you before anything that publishes or spends.</p>
+          </form>
+        </aside>
+      </div>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2FB67C","options":["#2FB67C","#22A06B","#4CAF86","#1F8F63"]},"$preview":{"width":1280,"height":2322}}'>
+class Component extends DCLogic {
+renderVals() {
+const accent = this.props.accent ?? '#2FB67C';
+const hex = String(accent).replace('#', '');
+const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+const n = parseInt(full, 16);
+const rgb = isNaN(n) ? [47, 182, 124] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+const accentSoft = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.12)';
+return { accent: accent, accentInk: '#0b0d0e', accentSoft: accentSoft };
+}
+}
+</script>
+</body>
+</html>

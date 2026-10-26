@@ -50,6 +50,20 @@ select {
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Every number the engine sends keeps its digits in columns, whatever face its part sets. */
+[data-ui-number] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A Hindi count mixes digits and words ("5 में से 3"); in DM Mono it reads loosely spaced, so it takes the body face,
+   digits still in columns (w3 3I). */
+:lang(hi) [data-count] {
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
 }
 
 /* Words a screen reader says that the eye does not need. */

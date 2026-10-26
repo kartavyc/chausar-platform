@@ -1,0 +1,161 @@
+/* SwipeCard: D's `.swipe`, `.under`, `.under-ic`, `.under small` and `.shifted`. The card follows the finger in
+   `--sp-1` steps set by `data-shift` (1 to 24, so 4 to 96 px), never by an inline style; a drag let go short of the
+   swipe distance snaps back once from `data-snap` over --t-settle (ink-snap in motion.css). D's 11 px small line
+   rises to the 12 px floor; its 88 px underlay becomes 96 px, the swipe distance, so a card that shows all of it acts. */
+
+.root {
+  position: relative;
+}
+
+.swipe {
+  position: relative;
+  border-radius: var(--r-tile);
+}
+
+/* Only while it moves: the ground under the card shows, clipped to the card's corners. At rest nothing is clipped,
+   so a focus ring around the card stays whole. */
+.swipe[data-side] {
+  overflow: hidden;
+}
+
+/* The grounds only; the words sit on the underlay, so the card inside never inherits the underlay's ink. */
+.swipe[data-side='right'] {
+  background: var(--accent);
+}
+
+.swipe[data-side='right'][data-locked] {
+  background: var(--accent-soft);
+}
+
+.swipe[data-side='left'] {
+  background: var(--wash);
+}
+
+.under {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  width: calc(var(--sp-12) * 2);
+  padding: 0 var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  line-height: 18px;
+  text-align: center;
+}
+
+.under[data-under='right'] {
+  left: 0;
+  color: var(--accent-ink);
+}
+
+.under[data-under='right'][data-locked] {
+  color: var(--accent-text);
+}
+
+.under[data-under='left'] {
+  right: 0;
+  color: var(--fg2);
+}
+
+.underIcon {
+  display: grid;
+  place-items: center;
+  width: var(--av-40);
+  height: var(--av-40);
+  border: var(--hair) solid currentColor;
+  border-radius: var(--r-chip);
+}
+
+/* Past the swipe distance the icon fills with the underlay's ink and the mark takes its ground: letting go now acts. */
+.swipe[data-armed] .under[data-under='right'] .underIcon {
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+
+.swipe[data-armed] .under[data-under='right'][data-locked] .underIcon {
+  background: var(--accent-text);
+  color: var(--accent-soft);
+}
+
+.swipe[data-armed] .under[data-under='left'] .underIcon {
+  background: var(--fg2);
+  color: var(--wash);
+}
+
+.underSmall {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 16px;
+}
+
+/* The card: its own tile look stays; the wrapper moves it. Vertical scrolling and pinch-zoom stay with the page; only a
+   sideways one-finger drag comes to the card. */
+.card {
+  --swipe-steps: 0;
+  --swipe-dir: 1;
+  position: relative;
+  border-radius: var(--r-tile);
+  touch-action: pan-y pinch-zoom;
+}
+
+.card[data-side='left'] {
+  --swipe-dir: -1;
+}
+
+.card[data-shift] {
+  transform: translateX(calc(var(--sp-1) * var(--swipe-steps) * var(--swipe-dir)));
+  user-select: none;
+}
+
+.card[data-side='right'][data-shift] {
+  box-shadow: var(--shadow-swipe);
+}
+
+.card[data-snap] {
+  --snap-from: calc(var(--sp-1) * var(--swipe-steps) * var(--swipe-dir));
+  animation: global(ink-snap) var(--t-settle) var(--ease) 1 both;
+}
+
+.card[data-shift='1'], .card[data-snap='1'] { --swipe-steps: 1; }
+.card[data-shift='2'], .card[data-snap='2'] { --swipe-steps: 2; }
+.card[data-shift='3'], .card[data-snap='3'] { --swipe-steps: 3; }
+.card[data-shift='4'], .card[data-snap='4'] { --swipe-steps: 4; }
+.card[data-shift='5'], .card[data-snap='5'] { --swipe-steps: 5; }
+.card[data-shift='6'], .card[data-snap='6'] { --swipe-steps: 6; }
+.card[data-shift='7'], .card[data-snap='7'] { --swipe-steps: 7; }
+.card[data-shift='8'], .card[data-snap='8'] { --swipe-steps: 8; }
+.card[data-shift='9'], .card[data-snap='9'] { --swipe-steps: 9; }
+.card[data-shift='10'], .card[data-snap='10'] { --swipe-steps: 10; }
+.card[data-shift='11'], .card[data-snap='11'] { --swipe-steps: 11; }
+.card[data-shift='12'], .card[data-snap='12'] { --swipe-steps: 12; }
+.card[data-shift='13'], .card[data-snap='13'] { --swipe-steps: 13; }
+.card[data-shift='14'], .card[data-snap='14'] { --swipe-steps: 14; }
+.card[data-shift='15'], .card[data-snap='15'] { --swipe-steps: 15; }
+.card[data-shift='16'], .card[data-snap='16'] { --swipe-steps: 16; }
+.card[data-shift='17'], .card[data-snap='17'] { --swipe-steps: 17; }
+.card[data-shift='18'], .card[data-snap='18'] { --swipe-steps: 18; }
+.card[data-shift='19'], .card[data-snap='19'] { --swipe-steps: 19; }
+.card[data-shift='20'], .card[data-snap='20'] { --swipe-steps: 20; }
+.card[data-shift='21'], .card[data-snap='21'] { --swipe-steps: 21; }
+.card[data-shift='22'], .card[data-snap='22'] { --swipe-steps: 22; }
+.card[data-shift='23'], .card[data-snap='23'] { --swipe-steps: 23; }
+.card[data-shift='24'], .card[data-snap='24'] { --swipe-steps: 24; }
+
+/* Why a locked swipe did nothing, under the card. Empty at rest, so it takes no room. */
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.note:not(:empty) {
+  margin-top: var(--sp-2);
+}

@@ -1,0 +1,163 @@
+/* DiffCard: D's `.prop`, `.prop-h`, `.k`, `.prop-t`, `.prop-s`, `.diff`, `.dl`, `.ver` and `.qc-acts` (D-TeamChat).
+   An added line is green words on the soft accent, a removed line red struck words on the soft red; both also say
+   "Added:" or "Removed:" so colour never carries the change alone. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-5) / 2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: calc(var(--av-36) * 0.3);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.icon[data-dept='sales'] { background: var(--sales-tint); color: var(--sales); }
+.icon[data-dept='mkt'] { background: var(--mkt-tint); color: var(--mkt); }
+.icon[data-dept='prod'] { background: var(--prod-tint); color: var(--prod); }
+.icon[data-dept='money'] { background: var(--money-tint); color: var(--money); }
+.icon[data-dept='ops'] { background: var(--ops-tint); color: var(--ops); }
+
+.headText {
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.applies {
+  font-size: var(--text-label);
+  line-height: 1.4;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.diff {
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  overflow: hidden;
+  font-size: var(--text-read);
+  line-height: 1.45;
+}
+
+.line {
+  display: flex;
+  gap: calc(var(--sp-5) / 2);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--mute);
+}
+
+.line + .line {
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.sign {
+  flex: none;
+  width: var(--sp-3);
+  text-align: center;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.word {
+  font-weight: var(--weight-strong);
+}
+
+.changed {
+  text-decoration: none;
+}
+
+.line[data-line='added'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+
+.line[data-line='removed'] {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+.line[data-line='removed'] .changed {
+  text-decoration: line-through;
+}
+
+.version {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-3) / 2);
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+.note {
+  min-width: 0;
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.note[data-tone='wait'] {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.note[data-tone='done'] {
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+
+/* Why a decision did not go through, in the engine's words. */
+.error {
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: calc(var(--sp-5) / 2);
+}
+
+.actions > * {
+  flex: 1;
+}
+
+.decided {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+}

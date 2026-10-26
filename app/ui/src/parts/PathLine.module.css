@@ -1,0 +1,113 @@
+/* PathLine: D's `.path` and `.pl` (Clients board card) and `.r-path`, `.pth`, `.pn`, `.pln`, `.pt-t`, `.unc` (Network).
+   A strong step is a 2 px ink line, a fair one a 1.5 px grey line, an unconfirmed one dashed; the words say it too.
+   A confirmed step code has no strength for yet is a plain light line, so it claims neither strong nor fair. */
+
+.path {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  flex: none;
+  align-self: flex-start;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--sp-1) * 0.75);
+  flex: none;
+}
+
+.link {
+  flex: none;
+  width: var(--sp-4);
+  height: 0;
+  border-top: 1.5px solid var(--edge);
+}
+
+.link[data-strength='strong'] {
+  border-top: 2px solid var(--fg);
+}
+
+.link[data-strength='fair'] {
+  border-top: 1.5px solid var(--dim);
+}
+
+.link[data-confirmed='false'] {
+  border-top: 1.5px dashed var(--chart-forecast);
+}
+
+.caption {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.name {
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+/* On a card the "not confirmed" words take their own line, in italics. */
+.unconfirmed {
+  display: block;
+  font-style: italic;
+  color: var(--mute);
+}
+
+/* Named: each name under its avatar, the lines running between the avatars, the caption to the right. */
+.path[data-layout='named'] {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.path[data-layout='named'] .line {
+  align-items: flex-start;
+  align-self: center;
+}
+
+.path[data-layout='named'] .node {
+  width: 64px;
+}
+
+.path[data-layout='named'] .link {
+  width: var(--sp-9);
+  margin: calc(var(--av-28) / 2) calc(var(--sp-9) / -2) 0;
+}
+
+.nodeName {
+  max-width: 100%;
+  font-size: var(--text-label);
+  line-height: 1.2;
+  color: var(--fg2);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.path[data-layout='named'] .caption {
+  flex: 1 1 180px;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.path[data-layout='named'] .unconfirmed {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--sp-5);
+  padding: 0 var(--sp-2);
+  border: var(--hair) dashed var(--dash);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+}

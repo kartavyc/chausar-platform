@@ -37,16 +37,16 @@ export interface MoneyHost {
 }
 
 const COVERS_MORE = 'The books receipt covers more than this invoice.';
-const NOT_TAX = 'INVOICE (not a tax invoice)';
-const NOT_REGISTERED = 'Not a tax invoice: add your GSTIN to issue tax invoices.';
+// A business not registered for tax issues a plain INVOICE with no tax note, as money/invoices.ts does.
+const NOT_TAX = 'INVOICE';
 const plain = (subtotal: number): Price => ({ subtotal, taxes: [] });
 const nine = (subtotal: number) => Math.floor((subtotal * 9 + 50) / 100);
 const gst = (subtotal: number): Price => ({ subtotal, taxes: [{ key: 'cgst', label: 'CGST at 9%', minor: nine(subtotal) }, { key: 'sgst', label: 'SGST at 9%', minor: nine(subtotal) }] });
 
 /** What each sample order costs, as its price receipt says. */
 const ORDER_PRICES: Readonly<Record<string, { price: Price; title: string; notes: string[] }>> = {
-  'o-boat-14': { price: plain(3000000), title: NOT_TAX, notes: [NOT_REGISTERED] },
-  'o-boat-12': { price: plain(2620000), title: NOT_TAX, notes: [NOT_REGISTERED] },
+  'o-boat-14': { price: plain(3000000), title: NOT_TAX, notes: [] },
+  'o-boat-12': { price: plain(2620000), title: NOT_TAX, notes: [] },
   'o-iyer-oct': { price: gst(1200000), title: 'TAX INVOICE', notes: [] },
   'o-mehta-sep': { price: gst(1600000), title: 'TAX INVOICE', notes: [] },
 };
@@ -56,12 +56,12 @@ const SEED: Seed[] = [
   {
     id: 'inv-0038', at: '2026-10-01T10:00:00.000Z', businessId: 'lumen', orderId: 'o-boat-10', clientId: 'c-boat', number: 'INV-0038', status: 'paid',
     issueDate: '2026-10-01', dueDate: '2026-10-16', dueInDays: 15, currency: 'INR', documentTitle: NOT_TAX, priceReceiptId: 'R-0391',
-    booksReceiptId: null, booksNote: COVERS_MORE, description: 'Four mentions in episodes 9 and 10', price: plain(8620000), paid: 8620000, notes: [NOT_REGISTERED],
+    booksReceiptId: null, booksNote: COVERS_MORE, description: 'Four mentions in episodes 9 and 10', price: plain(8620000), paid: 8620000, notes: [],
   },
   {
     id: 'inv-0039', at: '2026-10-14T10:00:00.000Z', businessId: 'lumen', orderId: 'o-boat-12', clientId: 'c-boat', number: 'INV-0039', status: 'issued',
     issueDate: '2026-10-14', dueDate: '2026-10-28', dueInDays: 15, currency: 'INR', documentTitle: NOT_TAX, priceReceiptId: 'R-0416',
-    booksReceiptId: null, booksNote: COVERS_MORE, description: 'Two mentions in episode 12', price: plain(2620000), paid: 0, notes: [NOT_REGISTERED],
+    booksReceiptId: null, booksNote: COVERS_MORE, description: 'Two mentions in episode 12', price: plain(2620000), paid: 0, notes: [],
   },
   {
     id: 'inv-0041', at: '2026-10-21T09:00:00.000Z', businessId: 'ledgerline', orderId: 'o-mehta-sep', clientId: 'c-mehta', number: 'INV-0041', status: 'issued',
@@ -189,9 +189,10 @@ export class FakeMoney {
   }
 
   /** "Clients owe you" for Money at a glance: the open balances of this business, added up here as the engine does. */
-  owed(): { value: string } {
+  owed(): { value: string; receiptId: string } {
     const open = this.mine().filter((i) => (i.status === 'issued' || i.status === 'part-paid') && totalOf(i.price) > i.paid);
-    return { value: inr(open.reduce((sum, i) => sum + totalOf(i.price) - i.paid, 0)) };
+    // The engine proves this figure with its "owed" sum receipt, as money/overview.ts does.
+    return { value: inr(open.reduce((sum, i) => sum + totalOf(i.price) - i.paid, 0)), receiptId: 'R-0430' };
   }
 
   private figures(invoice: HeldInvoice): PriceFigureLite[] {

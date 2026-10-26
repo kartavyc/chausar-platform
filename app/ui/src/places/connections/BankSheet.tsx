@@ -5,8 +5,10 @@
  * (venture.bank.alerts.*); and the ledger (venture.bank.ledger), each row with how the engine reads it against the
  * books and the decisions it allows: Record payment, Add as cost, Skip (venture.bank.apply). Money in that names no
  * invoice offers the open invoices the engine lists (venture.books.summary); after a payment or a cost the row shows the
- * calculator's receipt. Every figure and line here
- * is the engine's own. Ink works out no amount; a new alert sends the amount as the owner typed it.
+ * calculator's receipt. Every figure and line here is the engine's own. Ink works out no amount; a new alert sends
+ * the amount as the owner typed it. A row's In or Out amount, an alert rule and a cost's line are sentences the engine
+ * writes, marked as its words (data-engine-line, until W4 4J1 gives them receipts); a recorded payment shows the
+ * calculator's receipt beside its line.
  */
 
 import { useId, useState, type FormEvent } from 'react';
@@ -16,7 +18,9 @@ import type {
   BankAlertRuleInputLite, BankAlertsView, BankConsentView, BankLedgerRow, BankLedgerView, BooksSummaryLite,
 } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { Chip, type ChipTone } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
+import { Icon } from '../../parts/Icon';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
@@ -46,7 +50,11 @@ export function BankSheet({ onClose, returnFocus }: SheetComponentProps) {
   function reload() { ledger.reload(); alerts.reload(); }
 
   return (
-    <Sheet label={t('connections.bankSheet.label')} title={t('connections.bankSheet.title')} line={view?.provider} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet
+      label={t('connections.sheet.label')} title={t('connections.bankSheet.title')} name={t('connections.bankSheet.title')} line={view?.provider}
+      avatar={<span className={s.sheetIcon} aria-hidden="true"><Icon name="wallet" size={20} /></span>}
+      onClose={onClose} returnFocus={returnFocus}
+    >
       {ledger.error && <p className={s.problem} role="alert">{t('connections.bankSheet.failed', { message: ledger.error.message })}</p>}
       {!view && !ledger.error && <p className={s.note}>{t('connections.bankSheet.loading')}</p>}
 
@@ -56,7 +64,7 @@ export function BankSheet({ onClose, returnFocus }: SheetComponentProps) {
       </section>
 
       {view && (
-        <div className={s.section}>
+        <div className={s.accounts}>
           {view.accounts.length === 0 && <p className={s.note}>{t('connections.bankSheet.noAccounts')}</p>}
           {view.accounts.map((account) => (
             <AccountBlock
@@ -125,6 +133,7 @@ function AccountBlock({ label, consent, alerts, onConsent, onAlerts }: {
   const typedDays = days.trim() ? { days: Number.parseInt(days.trim(), 10) } : {};
   const live = consent !== null && (consent.state === 'active' || consent.state === 'expiring');
   return (
+    // D's inner card (`.inner`) on the sheet: one account, its bank access and its alerts.
     <section className={s.account} aria-labelledby={headingId} data-bank-account="">
       <h3 id={headingId} className={s.name}>{label}</h3>
       <p className={s.line}>{consent ? consent.line : t('connections.bankSheet.consentNone')}</p>
@@ -132,8 +141,8 @@ function AccountBlock({ label, consent, alerts, onConsent, onAlerts }: {
         <div className={s.days}>
           <Field label={t('connections.bankSheet.days')} inputMode="numeric" autoComplete="off" value={days} maxLength={3} onChange={(event) => setDays(event.currentTarget.value)} />
         </div>
-        <Button disabled={busy} onClick={() => void change(typedDays)}>{t('connections.bankSheet.renew')}</Button>
-        {live && <Button disabled={busy} onClick={() => void change({ revoke: true })}>{t('connections.bankSheet.stop')}</Button>}
+        <Button size="sm" disabled={busy} onClick={() => void change(typedDays)}>{t('connections.bankSheet.renew')}</Button>
+        {live && <Button size="sm" disabled={busy} onClick={() => void change({ revoke: true })}>{t('connections.bankSheet.stop')}</Button>}
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <AlertRules account={label} alerts={alerts} onAlerts={onAlerts} />
@@ -187,8 +196,8 @@ function AlertRules({ account, alerts, onAlerts }: { account: string; alerts: Al
         <ul className={s.rules}>
           {lines.map((line, index) => (
             <li key={`${index}-${line}`} className={s.ruleItem}>
-              <span>{line}</span>
-              <Button variant="quiet" disabled={busy} onClick={() => void save({ rules: kept(rules.filter((_, at) => at !== index)) })}>{t('connections.bankSheet.remove')}</Button>
+              <span data-engine-line="">{line}</span>
+              <Button size="sm" variant="quiet" disabled={busy} onClick={() => void save({ rules: kept(rules.filter((_, at) => at !== index)) })}>{t('connections.bankSheet.remove')}</Button>
             </li>
           ))}
         </ul>
@@ -206,8 +215,8 @@ function AlertRules({ account, alerts, onAlerts }: { account: string; alerts: Al
         <Field label={t('connections.bankSheet.address')} hint={t('connections.bankSheet.addressHint')} type="url" autoComplete="off" value={address} maxLength={2000} onChange={(event) => setAddress(event.currentTarget.value)} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         <div className={s.buttons}>
-          <Button disabled={busy} onClick={() => void save({ rules: kept(rules), alertAddress: null })}>{t('connections.bankSheet.stopSending')}</Button>
-          <Button variant="primary" type="submit" disabled={busy}>{t('connections.bankSheet.save')}</Button>
+          <Button size="sm" disabled={busy} onClick={() => void save({ rules: kept(rules), alertAddress: null })}>{t('connections.bankSheet.stopSending')}</Button>
+          <Button size="sm" variant="primary" type="submit" disabled={busy}>{t('connections.bankSheet.save')}</Button>
         </div>
       </form>
     </>
@@ -215,6 +224,9 @@ function AlertRules({ account, alerts, onAlerts }: { account: string; alerts: Al
 }
 
 type OpenInvoices = BooksSummaryLite['openInvoices'];
+
+/** Each reading's chip tone: decided rows done or set aside; the rest plain. The words always say it. */
+const CLASS_TONE: Readonly<Partial<Record<BankLedgerRow['classification'], ChipTone>>> = { applied: 'done', skipped: 'idle' };
 
 /**
  * One statement row as the engine reads it against the books, with only the decisions that row allows. Money in that
@@ -248,20 +260,32 @@ function LedgerRow({ row, said, openInvoices, onApplied }: {
 
   const open = row.decided === null;
   const picking = open && row.classification === 'money-in';
-  const canPay = open && ((row.classification === 'suggested-payment' && row.suggestion !== null) || picking);
+  // Money in that names no invoice is recorded against one the owner picks, so Record payment shows only when there
+  // is an open invoice to pick: never a control that would act on nothing.
+  const canPick = picking && openInvoices !== null && openInvoices.length > 0;
+  const canPay = open && ((row.classification === 'suggested-payment' && row.suggestion !== null) || canPick);
   const canCost = open && row.classification === 'money-out';
   const canSkip = open && row.classification !== 'own-transfer';
   return (
     <li className={s.row} data-bank-row="">
       <div className={s.head}>
-        <span className={s.date}>{row.dateDisplay}</span>
         <span className={s.what}>{row.description ?? row.counterparty ?? ''}</span>
-        <span className={s.amount}>{t(row.direction === 'in' ? 'connections.bankSheet.in' : 'connections.bankSheet.out', { amount: row.amount })}</span>
+        {/* The engine's line for the row's amount, as the bank file gave it: its words, with no receipt until W4 4J1. */}
+        <span className={s.amount} data-direction={row.direction} data-engine-line="">{t(row.direction === 'in' ? 'connections.bankSheet.in' : 'connections.bankSheet.out', { amount: row.amount })}</span>
       </div>
-      <p className={s.note}>{t(`connections.bankSheet.class.${row.classification}`)} · {row.account}</p>
+      <p className={s.meta}>
+        <Chip tone={CLASS_TONE[row.classification] ?? 'neutral'}>{t(`connections.bankSheet.class.${row.classification}`)}</Chip>
+        <span className={s.date}>{row.dateDisplay}</span>
+        <span>{row.account}</span>
+      </p>
       {row.flag && <p className={s.flag} data-bank-flag="">{row.flag}</p>}
       {row.suggestion && open && <p className={s.line}>{row.suggestion.line}</p>}
-      {said && <p className={s.line} role="status"><span>{said.line}</span>{said.receiptId && <> <Receipt id={said.receiptId} /></>}</p>}
+      {said && (said.receiptId ? (
+        <p className={s.line} role="status" data-figure-group=""><span>{said.line}</span> <Receipt id={said.receiptId} /></p>
+      ) : (
+        // The engine's own line (a cost restates the statement's amount, and the engine gives it no receipt).
+        <p className={s.line} role="status" data-engine-line="">{said.line}</p>
+      ))}
       {picking && openInvoices && openInvoices.length === 0 && <p className={s.note}>{t('connections.bankSheet.noOpenInvoices')}</p>}
       {picking && openInvoices && openInvoices.length > 0 && (
         <div className={`${s.field} ${s.pick}`}>
@@ -279,9 +303,9 @@ function LedgerRow({ row, said, openInvoices, onApplied }: {
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {(canPay || canCost || canSkip) && (
         <div className={s.buttons}>
-          {canPay && <Button variant="primary" disabled={busy || (picking && !picked)} onClick={() => void apply('payment')}>{t('connections.bankSheet.recordPayment')}</Button>}
-          {canCost && <Button disabled={busy} onClick={() => void apply('cost')}>{t('connections.bankSheet.addCost')}</Button>}
-          {canSkip && <Button disabled={busy} onClick={() => void apply('skip')}>{t('connections.bankSheet.skip')}</Button>}
+          {canSkip && <Button size="sm" disabled={busy} onClick={() => void apply('skip')}>{t('connections.bankSheet.skip')}</Button>}
+          {canCost && <Button size="sm" disabled={busy} onClick={() => void apply('cost')}>{t('connections.bankSheet.addCost')}</Button>}
+          {canPay && <Button size="sm" variant="primary" disabled={busy || (picking && !picked)} onClick={() => void apply('payment')}>{t('connections.bankSheet.recordPayment')}</Button>}
         </div>
       )}
     </li>

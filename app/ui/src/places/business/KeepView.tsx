@@ -4,10 +4,12 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
+import { Icon } from '../../parts/Icon';
+import { Tile } from '../../parts/Tile';
 import { momentOf, saveTextFile } from '../../parts/custody';
 import type { CustodyViewLite, Deleted, UnlockMode } from '../../engine/types';
 import { AllBackups, CloseBusiness, DeleteBusiness, DeletedNote, ExportCopy, MoveAway } from './KeepMore';
-import { messageOf } from './shared';
+import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 
 /**
@@ -20,6 +22,9 @@ import s from './Business.module.css';
  * Below it, everything else the old app's workspace menu offered for the open business (KeepMore.tsx): every backup
  * with its restore, moving to another computer, closing or locking it, exporting a copy and deleting it. Hosted keeps
  * the key, the backups and the moves on the server, so there only Delete is offered here.
+ *
+ * In the D look: a tile saying where the key is, the recovery code and the backups side by side, and the rest as a
+ * tile of folded rows, each one press away.
  */
 export function KeepView() {
   const t = useT();
@@ -41,7 +46,14 @@ export function KeepView() {
       <DeleteBusiness onDeleted={setDeleted} />
     </>
   );
-  if (custody.error) return <><p className={s.problem} role="alert">{t('business.failed', { message: custody.error.message })}</p>{leave(null)}</>;
+  if (custody.error) {
+    return (
+      <div className={s.page}>
+        <p className={s.problem} role="alert">{t('business.failed', { message: custody.error.message })}</p>
+        <TileSection title={t('business.keepMore')}><div className={s.more}>{leave(null)}</div></TileSection>
+      </div>
+    );
+  }
   if (!custody.data) return <p className={s.note}>{t('business.loading')}</p>;
   const { computer, business } = custody.data;
   if (!business) return <EmptyState title={t('business.keepNone')} />;
@@ -61,37 +73,46 @@ export function KeepView() {
   const newest = backups.data?.backups[0]?.at ?? business.backups.newestAt;
 
   return (
-    <>
-      <section className={s.section}>
-        <p className={s.lead}>{locked ? t('business.keepPassphraseWhere') : computer.where}</p>
-        {loss && <p className={s.note}>{loss}</p>}
-        {business.storage === 'experimental-file' && <p className={s.note}>{t('business.experimental')}</p>}
-      </section>
-      <section className={s.section} aria-label={t('business.recovery')}>
-        <h2 className={s.heading}>{t('business.recovery')}</h2>
-        <p className={s.line}>{t(made ? 'business.recoveryMade' : business.recovery === 'not-made' ? 'business.recoveryNotMade' : 'business.recoveryUnknown')}</p>
-        {made && <p className={s.note}>{t('business.oldCodeStops')}</p>}
-        <RecoveryForm locked={locked} made={made} busy={busy} onMake={(passphrase) => run(async () => {
-          const result = await client.request('workspace.custody.recoveryCode', passphrase ? { passphrase } : {});
-          setCode(result.recoveryCode);
-        })} />
-      </section>
-      <section className={s.section} aria-label={t('business.backups')}>
-        <h2 className={s.heading}>{t('business.backups')}</h2>
-        <p className={s.line}>{t(business.backups.auto ? 'business.backupsAuto' : 'business.backupsManual')}</p>
-        {business.backups.lastError
-          ? <p className={s.problem} role="alert">{business.backups.lastError}</p>
-          : <p className={s.note}>{newest ? t('business.lastBackup', { when: momentOf(newest, language) }) : t('business.noBackup')}</p>}
-        <div className={s.buttons}>
-          <Button disabled={busy} onClick={() => void run(async () => { await client.request('workspace.backups.create', {}); refresh(); })}>{t('business.backupNow')}</Button>
+    <div className={s.page}>
+      <Tile>
+        <div className={s.where}>
+          <span className={s.whereIcon} aria-hidden="true"><Icon name={locked ? 'lock' : 'shield-check'} size={20} /></span>
+          <div className={s.whereText}>
+            <p className={s.lead}>{locked ? t('business.keepPassphraseWhere') : computer.where}</p>
+            {loss && <p className={s.note}>{loss}</p>}
+            {business.storage === 'experimental-file' && <p className={s.warn}>{t('business.experimental')}</p>}
+          </div>
         </div>
-        {!hosted && <AllBackups backups={backups.data?.backups ?? []} />}
-      </section>
+      </Tile>
+      <div className={s.split} data-ratio="even">
+        <TileSection title={t('business.recovery')}>
+          <p className={s.line}>{t(made ? 'business.recoveryMade' : business.recovery === 'not-made' ? 'business.recoveryNotMade' : 'business.recoveryUnknown')}</p>
+          {made && <p className={s.note}>{t('business.oldCodeStops')}</p>}
+          <RecoveryForm locked={locked} made={made} busy={busy} onMake={(passphrase) => run(async () => {
+            const result = await client.request('workspace.custody.recoveryCode', passphrase ? { passphrase } : {});
+            setCode(result.recoveryCode);
+          })} />
+        </TileSection>
+        <TileSection title={t('business.backups')}>
+          <p className={s.line}>{t(business.backups.auto ? 'business.backupsAuto' : 'business.backupsManual')}</p>
+          {business.backups.lastError
+            ? <p className={s.problem} role="alert">{business.backups.lastError}</p>
+            : <p className={s.note}>{newest ? t('business.lastBackup', { when: momentOf(newest, language) }) : t('business.noBackup')}</p>}
+          <div className={s.buttons}>
+            <Button disabled={busy} onClick={() => void run(async () => { await client.request('workspace.backups.create', {}); refresh(); })}>{t('business.backupNow')}</Button>
+          </div>
+          {!hosted && <AllBackups backups={backups.data?.backups ?? []} />}
+        </TileSection>
+      </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-      {!hosted && <MoveAway locked={locked} />}
-      <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} />
-      {leave(business.unlock)}
-    </>
+      <TileSection title={t('business.keepMore')}>
+        <div className={s.more}>
+          {!hosted && <MoveAway locked={locked} />}
+          <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} />
+          {leave(business.unlock)}
+        </div>
+      </TileSection>
+    </div>
   );
 }
 
@@ -158,7 +179,7 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
   }
 
   return (
-    <details className={`${s.fold} ${s.section}`}>
+    <details className={s.fold}>
       <summary>{t(locked ? 'business.passphraseOffTitle' : 'business.passphraseOnTitle')}</summary>
       {stuck ? (
         <p className={s.line}>{custody.computer.where}</p>
@@ -190,22 +211,24 @@ function CodeOnce({ code, folder, onDone }: { code: string; folder: string; onDo
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
-    <section className={s.section} aria-label={t('business.recovery')}>
-      <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.recovery')}</h2>
-      <p className={s.line}>{t('business.codeOnce')}</p>
-      <div className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
-        {(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}
+    <Tile as="section" label={t('business.recovery')}>
+      <div className={s.body}>
+        <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.recovery')}</h2>
+        <p className={s.line}>{t('business.codeOnce')}</p>
+        <div className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
+          {(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}
+        </div>
+        <div className={s.buttons}>
+          <Button variant="quiet" onClick={() => { void navigator.clipboard?.writeText(code).then(() => setCopied(true), () => setCopied(false)); }}>{t('business.copy')}</Button>
+          <Button variant="quiet" onClick={() => saveTextFile('chausar-recovery-code.txt', `Chausar recovery code\nFolder: ${folder}\n\n${code}\n`, 'text/plain')}>{t('business.saveFile')}</Button>
+          {copied && <span className={s.note} role="status">{t('business.codeCopied')}</span>}
+        </div>
+        <label className={s.agree}>
+          <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.currentTarget.checked)} />
+          {t('business.codeSaved')}
+        </label>
+        <div className={s.buttons}><Button variant="primary" disabled={!saved} onClick={onDone}>{t('business.done')}</Button></div>
       </div>
-      <div className={s.buttons}>
-        <Button variant="quiet" onClick={() => { void navigator.clipboard?.writeText(code).then(() => setCopied(true), () => setCopied(false)); }}>{t('business.copy')}</Button>
-        <Button variant="quiet" onClick={() => saveTextFile('chausar-recovery-code.txt', `Chausar recovery code\nFolder: ${folder}\n\n${code}\n`, 'text/plain')}>{t('business.saveFile')}</Button>
-        {copied && <span className={s.note} role="status">{t('business.codeCopied')}</span>}
-      </div>
-      <label className={s.agree}>
-        <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.currentTarget.checked)} />
-        {t('business.codeSaved')}
-      </label>
-      <div className={s.buttons}><Button variant="primary" disabled={!saved} onClick={onDone}>{t('business.done')}</Button></div>
-    </section>
+    </Tile>
   );
 }

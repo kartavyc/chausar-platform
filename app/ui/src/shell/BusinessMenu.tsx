@@ -1,29 +1,41 @@
-import { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { SERVICE_TYPES, type BusinessOnComputer } from '../engine/types';
 import { refusalWords } from '../parts/custody';
+import { initialsOf } from '../parts/Avatar';
+import { Icon } from '../parts/Icon';
 import { LeftContext, StartedContext } from '../places/onboarding/started';
 import s from './BusinessMenu.module.css';
 
 /**
- * The top of the rail: the open business (name, kind, "switch"). It opens a small menu beside it, not a dialog:
+ * The top of the rail (D's `.biz`): the open business as its initials square, its name and its kind, with a
+ * chevron that says it switches. It opens a small menu beside it, not a dialog:
  * the businesses on this computer, then plan and playbook, prices, website build, your CA (only for a business on the
  * CA firm playbook), keep this business and new business. The menu is a popover over the page (a portal on the body,
- * placed under the button), so the 220 px rail and the phone top bar never clip it.
+ * placed under the button and no taller than the window left below it), so the rail and the phone top bar never
+ * clip it, and nor does the bottom of the window.
  * The engine keeps one business open, so switching closes this one first (workspace.lock), then opens the other and
  * reads the app again. This menu never asks for a passphrase or a code itself: a business that needs one says so, and
  * Continue closes this business and asks for it on Welcome back, under that business's own row.
  */
 /** The kind under the business name, unless it only repeats the name (a business named after its playbook). */
-export const kindPrefix = (kind: string | null | undefined, name: string | null | undefined) => (kind && kind !== name ? `${kind} · ` : '');
+export const kindLine = (kind: string | null | undefined, name: string | null | undefined) => (kind && kind !== name ? kind : null);
 
 /** Pixels between the button and the popover, and the least space it keeps from the window's edge. */
 const GAP = 4;
 const EDGE = 8;
+/** What in the popover takes the focus, in page order (the open business's own row is disabled). */
+const FOCUSABLE = 'button:not(:disabled), a[href]';
 
-export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * `rail`: the rail's button (D's `.biz`), with the kind line and the up-down chevrons. `bar`: the phone's top bar
+ * (D's `.bizb`), the initials and the name with a chevron down, a 44 px target.
+ */
+export type BusinessMenuVariant = 'rail' | 'bar';
+
+export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: () => void; variant?: BusinessMenuVariant }) {
   const t = useT();
   const client = useEngine();
   const restarted = useContext(StartedContext);
@@ -71,8 +83,11 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
       const popover = menu.current;
       if (!rect || !popover) return;
       const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - popover.offsetWidth - EDGE));
-      popover.style.top = `${rect.bottom + GAP}px`;
+      const top = rect.bottom + GAP;
+      popover.style.top = `${top}px`;
       popover.style.left = `${left}px`;
+      // No taller than the window left under it; it scrolls inside instead of running off the bottom.
+      popover.style.maxHeight = `${Math.max(0, window.innerHeight - top - EDGE)}px`;
     };
     at();
     window.addEventListener('resize', at);
@@ -95,6 +110,24 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
     if (next instanceof Node && (menu.current?.contains(next) || holder.current?.contains(next))) return;
     if (next instanceof Node) { setOpen(false); setProblem(null); setNotice(null); return; }
     close();
+  }
+
+  /**
+   * Tab between the button and the open popover. The popover sits at the end of the body, so on its own the browser
+   * would send Shift+Tab from its first item to the last thing on the page, and Tab from the button past it. Shift+Tab
+   * from the first item (or from the popover itself) goes back to the button, which keeps it open; Tab from the
+   * button goes to its first item. Every other Tab is the browser's own.
+   */
+  function tabAcross(event: KeyboardEvent<HTMLDivElement>) {
+    const first = menu.current?.querySelector<HTMLElement>(FOCUSABLE) ?? null;
+    const from = event.target;
+    if (event.shiftKey && (from === menu.current || from === first)) {
+      event.preventDefault();
+      button.current?.focus();
+    } else if (!event.shiftKey && from === button.current && first) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   async function switchTo(business: BusinessOnComputer) {
@@ -147,15 +180,23 @@ export function BusinessMenu({ onNavigate }: { onNavigate?: () => void }) {
     <div
       ref={holder}
       className={s.holder}
-      onKeyDown={(event) => { if (event.key === 'Escape' && open) { event.stopPropagation(); close(); } }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) { event.stopPropagation(); close(); }
+        if (event.key === 'Tab' && open) tabAcross(event);
+      }}
     >
-      <button ref={button} type="button" className={s.business} aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
-        <span className={s.name}>{name}</span>
-        <span className={s.kind}>{kindPrefix(kind, name)}{t('business.switch')}</span>
+      <button ref={button} type="button" className={s.business} data-variant={variant} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
+        {venture.data && <span className={s.square} data-initials="" aria-hidden="true">{initialsOf(name)}</span>}
+        <span className={s.words}>
+          <span className={s.name}>{name}</span>
+          {variant === 'rail' && kindLine(kind, name) && <span className={s.kind}>{kindLine(kind, name)}</span>}
+        </span>
+        <Icon name={variant === 'bar' ? 'chevron-down' : 'chevrons-up-down'} size={16} className={s.chevrons} />
+        <span className="sr-only">{t('business.switchTo')}</span>
       </button>
       {open && createPortal(
         <div
-          ref={menu} id={menuId} className={s.menu} role="group" aria-label={t('business.menu', { name })} tabIndex={-1}
+          ref={menu} id={menuId} className={s.menu} role="dialog" aria-label={t('business.menu', { name })} tabIndex={-1}
           onBlur={(event) => focusLeft(event.relatedTarget)}
         >
           <p className={s.heading}>{t('business.switchTo')}</p>

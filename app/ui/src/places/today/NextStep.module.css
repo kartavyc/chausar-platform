@@ -1,0 +1,125 @@
+/* The next best step: D-Today's `.next`, `.n-top`, `.n-eye`, `.n-who`, `.n-title`, `.n-line`, `.n-figs`, `.n-fig`,
+   `.n-lab`, `.n-val`, `.n-note` and `.n-act`, on the tile with D's soft accent fade at the top. D's 18 px title
+   snaps to the tile size; 11.5 and 12.5 px type to 12 and 13. Shown from W4 4I. */
+
+.next {
+  --ring-ground: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 52%);
+  box-shadow: var(--shadow-tile);
+  color: var(--fg);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 24px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid var(--accent-line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--accent-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.title {
+  margin-top: var(--sp-3);
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+}
+
+.line {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 64px;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.figureLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.arrow {
+  color: var(--mute);
+}
+
+.after {
+  font-size: var(--fig-tile);
+  line-height: 26px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.02em;
+  color: var(--accent-text);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.note svg {
+  color: var(--mute);
+}
+
+.acts {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: auto;
+  padding-top: var(--sp-4);
+}
+
+.acts > button:last-child {
+  flex: 1;
+}

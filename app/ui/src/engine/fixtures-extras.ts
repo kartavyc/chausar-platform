@@ -9,7 +9,7 @@ import type { CaReceiptView, CaView, LeadView, MoneyOverviewLine, SpendPolicyVie
 export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
   lumen: [
     { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
-    { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', estimate: true },
+    { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', receiptId: 'R-0431', estimate: true },
   ],
   ledgerline: [
     { id: 'received', label: 'Came in this month', value: '₹0.00', receiptId: 'R-0402' },
@@ -21,7 +21,12 @@ export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
 export const TAX_WORKINGS: Record<string, TaxWorking> = {
   lumen: {
     period: 'October 2026', needsCaConfirmation: false,
-    sections: [{ id: 'gst', title: 'GST', lines: [], note: 'Not registered for GST, so there is no GST to work out.' }],
+    // The shape the real engine's plain working sends (money/tax-working.ts plainWorking): one 'tax' section.
+    sections: [{
+      id: 'tax', title: 'GST',
+      lines: [{ label: 'What your plan says', value: 'You do not charge GST' }, { label: 'GST on invoices issued in October 2026', value: 'No invoices issued' }],
+      note: 'Billed and earned leave out tax. Received is the cash that came in, tax included.',
+    }],
   },
   ledgerline: {
     period: 'September 2026', needsCaConfirmation: true,

@@ -1,0 +1,21 @@
+/* The phone's touch area (3H1; founder: big touch targets, every phone target at least --target, 44 px). A control that
+   reads as text (a card title, a receipt chip, a "See team" link, an agent's name) keeps its look; on a phone it
+   gains an invisible area of at least 44 by 44 px, centred on it, that takes the tap. A module opts a class in with
+   `composes: hit from '<path>/touch.module.css'`. Only links and buttons get the area, so a class that also styles
+   plain text never covers its neighbours. */
+
+@media (max-width: 759px) {
+  .hit:is(a, button) {
+    position: relative;
+  }
+
+  .hit:is(a, button)::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--target));
+    height: max(100%, var(--target));
+    transform: translate(-50%, -50%);
+  }
+}
