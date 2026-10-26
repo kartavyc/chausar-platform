@@ -644,7 +644,7 @@ test('npm shim: anything but the standard form is refused (extra commands, & or 
     ['climbing out of node_modules', swap('node_modules\\..\\..\\evil.js')],
     ['an absolute script path', swap('C:\\tools\\evil.js')],
     ['not a script', swap('node_modules\\@openai\\codex\\bin\\codex.exe')],
-    ['a truncated shim', REAL_CMD.split('\r\n').slice(0, 8).join('\r\n')],
+    ['a truncated shim', REAL_CMD.split(/\r?\n/).slice(0, 8).join('\r\n')],
     ['an empty file', ''],
     ['a ps1 whose four script paths disagree', REAL_PS1.replace('"$basedir/node_modules/@openai/codex/bin/codex.js" $args', '"$basedir/node_modules/evil/bin/evil.js" $args')],
   ];
