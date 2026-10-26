@@ -846,10 +846,12 @@ export class Engine {
     await this.closeVault();
   }
   private async closeVault() {
-    // The business's summary for the others on this computer, written again on lock (4J6). Never throws.
-    await this.writeSnapshot(true);
+    // The business's summary for the others on this computer, written again on lock (4J6). Never throws. Only awaited
+    // when there is one to write, and the alerts only when a venture host is open: with nothing to do, closing marks the
+    // vault closed in the same turn, so a read after close() is refused at once (sync-engine's drain tests).
+    if (this.snapshotWanted(true)) await this.writeSnapshot(true);
     // Phone alerts under way finish first, for 12 s at most (4G3).
-    await this.#venture?.settle().catch(() => {});
+    if (this.#venture) await this.#venture.settle().catch(() => {});
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
     this.#draft?.clear();
     this.services.connectorRuntime?.close();
@@ -2380,12 +2382,20 @@ export class Engine {
    * that needs a passphrase has its summary taken away. Either way the addresses its own blocklist keeps out join the
    * never-contact list, as keyed checks. Never throws: the next tick or lock tries again.
    */
+  /** Whether a summary is due now: a store, an open venture business, and snapshotDue. Synchronous; never throws. */
+  private snapshotWanted(lock: boolean): boolean {
+    const store = this.snapshotStore(), vault = this.vault, folder = this.#openFolder;
+    if (!store || !vault || !folder) return false;
+    try {
+      if (!vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return false;
+      return snapshotDue(this.#snapshotMark, vault.read().revision, this.custodyNow(), lock);
+    } catch { return false; }
+  }
   private async writeSnapshot(lock: boolean) {
     const store = this.snapshotStore(), vault = this.vault, folder = this.#openFolder;
     if (!store || !vault || !folder) return;
     try {
-      if (!vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return;
-      if (!snapshotDue(this.#snapshotMark, vault.read().revision, this.custodyNow(), lock)) return;
+      if (!this.snapshotWanted(lock)) return;
       const host = await this.#ventureHost() as unknown as { snapshot?: (ctx: Context) => Promise<{ snapshot: Record<string, unknown>; neverContact: string[] } | null> };
       if (this.vault !== vault || typeof host.snapshot !== 'function') return;
       const made = await host.snapshot({ ...this.#baseContext });
