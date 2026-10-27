@@ -194,6 +194,19 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'An intake form on your site, added through the brief, is planned.'),
   entry('analytics', 'typeform', 'Typeform', 'https://www.typeform.com/', [], GI, 'Sign-in or personal token',
     'Forms. Its free plan is small for real client intake. Planned.'),
+  // Ink v2 wave 5, 5A6: mail files the owner imports, the webhook handoff (K24) and speech out on the owner's key.
+  entry('email', 'mail-import', 'Mail files you import', null, ['read'], GI, 'None: a file you export from your mail app',
+    'Import .eml or .mbox files. Each message is screened first.'),
+  entry('docs-ops', 'n8n-webhook', 'n8n webhook', null, ['write'], GI, 'The webhook address n8n gives you',
+    'Sends only an item you approve, as shown.'),
+  entry('docs-ops', 'make-webhook', 'Make webhook', null, ['write'], GI, 'The webhook address Make gives you',
+    'Sends only an item you approve, as shown.'),
+  entry('docs-ops', 'google-tts', 'Google Cloud Text-to-Speech', null, ['write'], GI, 'API key',
+    'Speech in Indian languages on your own key. Planned.'),
+  entry('docs-ops', 'sarvam-tts', 'Sarvam AI (Bulbul)', null, ['write'], I, 'API key',
+    'Indian languages, made in India. Planned.'),
+  entry('docs-ops', 'elevenlabs', 'ElevenLabs', null, ['write'], GI, 'API key',
+    'Natural voices on your own key; a cloned voice needs the speaker\'s recorded consent. Planned.'),
   // Ink v2 wave 5: each new playbook's own entries (build/catalogue-playbooks.ts; none until a package adds them)
   ...PLAYBOOK_CATALOGUE_ENTRIES,
 ]);

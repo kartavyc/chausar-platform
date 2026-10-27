@@ -71,8 +71,8 @@ describe('Start: the ways to earn from the engine', () => {
     const tile = within(region).getByRole('article', { name: 'CA practice' });
     expect(tile.textContent).toContain('6 to 10 h a week');
     expect(within(tile).getByText('Your time')).toBeTruthy();
-    expect(tile.textContent).toContain('Meet clients, review every draft, and work with your CA.');
-    expect(within(tile).getByRole('img', { name: '4 agents: Intake clerk, Tax preparer, Reconciler and Working papers writer' })).toBeTruthy();
+    expect(tile.textContent).toContain('Meet clients, review drafts, work with your CA.');
+    expect(within(tile).getByRole('img', { name: '2 agents: Reconciler and Tax preparer' })).toBeTruthy();
     const pay = tile.querySelector('[data-figure-group]')!;
     expect(pay.textContent).toContain('Clients usually pay, a client a month');
     expect(pay.textContent).toContain('₹5,000 to ₹20,000');
@@ -126,6 +126,67 @@ describe('Start: the ways to earn from the engine', () => {
     const names = ['CA प्रैक्टिस', 'YouTube चैनल', 'सोशल मीडिया एजेंसी'].sort((a, b) => a.localeCompare(b, 'hi-IN'));
     expect(tileNames(region, 'कमाई के तरीके')).toEqual(names);
     expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('हफ़्ते में 6 से 10 घंटे');
+  });
+});
+
+/**
+ * The three flagship tiles (Ink v2 wave 5, 5A1): each from its playbook's tile.ts (plan "Gallery tile" lines of 5B, 5C
+ * and 5D), through venture.playbooks.list: the line, the hours and the pay as a model estimate, what the owner does, the
+ * AI team (code roles never drawn as AI) and its line.
+ */
+describe('Start: the flagship tiles (5A1)', () => {
+  const tileOf = async (name: string) => within(await gallery()).getByRole('article', { name });
+  const figures = (tile: HTMLElement) => {
+    expect(tile.querySelector('[data-figure-group] [data-estimate]')?.textContent).toBe('model estimate');
+    expect(tile.querySelector('.sr-only')?.textContent).toContain('model estimate');
+  };
+
+  it('YouTube channel: episodes, shorts and packaging; 4 to 8 h; three agents; ₹5,000 to ₹30,000 per video', async () => {
+    await start();
+    const tile = await tileOf('YouTube channel');
+    expect(tile.textContent).toContain("Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.");
+    expect(tile.textContent).toContain('4 to 8 h a week');
+    expect(tile.textContent).toContain('Record, watch each cut, meet sponsors.');
+    expect(within(tile).getByRole('img', { name: '3 agents: Story editor, Producer and Packager' })).toBeTruthy();
+    expect(tile.textContent).toContain('Edits, shorts, titles and sponsor quotes.');
+    const pay = tile.querySelector('[data-figure-group]')!;
+    expect(pay.textContent).toContain('Clients usually pay, per video');
+    expect(pay.textContent).toContain('₹5,000 to ₹30,000');
+    figures(tile);
+    assertInkRules();
+  });
+
+  it('CA practice: working papers your CA signs; 6 to 10 h; the reconciler and the tax preparer; ₹5,000 to ₹20,000 a client a month', async () => {
+    await start();
+    const tile = await tileOf('CA practice');
+    expect(tile.textContent).toContain('Books, GST, TDS and income tax working papers for small businesses; your CA of record signs anything regulated.');
+    expect(tile.textContent).toContain('Meet clients, review drafts, work with your CA.');
+    expect(within(tile).getByRole('img', { name: '2 agents: Reconciler and Tax preparer' })).toBeTruthy();
+    expect(tile.textContent).toContain('Books, workings, receipts for every figure.');
+    expect(tile.querySelector('[data-figure-group]')!.textContent).toContain('₹5,000 to ₹20,000');
+    // The calculator and the checks are code: never drawn as an AI.
+    expect(tile.textContent).not.toMatch(/Calculator|Checks/);
+    figures(tile);
+  });
+
+  it('Social media agency: posts, replies, reels and reports; 4 to 6 h; three agents; ₹8,000 to ₹25,000', async () => {
+    await start();
+    const tile = await tileOf('Social media agency');
+    expect(tile.textContent).toContain('Posts, replies, reels and monthly reports for local shops, clinics and coaches.');
+    expect(tile.textContent).toContain('4 to 6 h a week');
+    expect(tile.textContent).toContain('Approve drafts, talk to clients, post or hand off.');
+    expect(within(tile).getByRole('img', { name: '3 agents: Strategist, Writer and Creative' })).toBeTruthy();
+    expect(tile.textContent).toContain('Calendars, posts, reply drafts, report figures from exports.');
+    expect(tile.querySelector('[data-figure-group]')!.textContent).toContain('₹8,000 to ₹25,000');
+    figures(tile);
+  });
+
+  it('in Hindi, each flagship tile carries its Hindi words', async () => {
+    await start({}, { language: 'hi' });
+    const region = await screen.findByRole('region', { name: 'कमाई के सभी तरीके' });
+    expect(within(region).getByRole('article', { name: 'YouTube चैनल' }).textContent).toContain('रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।');
+    expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('बही-खाते, वर्किंग और हर आँकड़े की रसीद।');
+    expect(within(region).getByRole('article', { name: 'सोशल मीडिया एजेंसी' }).textContent).toContain('लोकल दुकानों, क्लिनिक और कोच के लिए पोस्ट, जवाब, रील और महीने की रिपोर्ट।');
   });
 });
 

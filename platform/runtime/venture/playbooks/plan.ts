@@ -17,6 +17,8 @@ import { YOUTUBE_APPROVALS, YOUTUBE_CONNECTOR_IDS, YOUTUBE_OFFERS } from './yout
 import { YOUTUBE_ID } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_CONNECTORS, SOCIAL_OFFERS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
+import type { KitIntakeField, PlaybookDefinition } from './kit/define.ts';
+import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 
 /** One offer on the plan: the playbook's own name, description and pricing, and the library block it refines. */
 export type FlagshipOffer = {
@@ -28,6 +30,8 @@ export type FlagshipOffer = {
   block: OfferBlockId;
   /** The rights to footage this offer accepts at intake; empty when it cuts no footage. */
   rights: readonly RightsBasis[];
+  /** Ink v2 wave 5 (5A1): a kit offer's own intake fields, in its order (playbooks/kit/intake.ts); absent on the flagships. */
+  intake?: readonly KitIntakeField[];
 };
 /** One approval on the plan, in the playbook's own words, and the library approval it refines. */
 export type FlagshipApproval = { key: string; words: string; block: ApprovalBlockId };
@@ -123,14 +127,64 @@ const SOCIAL_PLAN = build(
   },
 );
 
-/** One plan per registered flagship playbook, in registry order. */
+/**
+ * One plan per hand-written flagship playbook, in registry order. A kit playbook's plan comes from its definition
+ * (kitPlan); a kit registration whose definition has not landed has none, and the plain service type serves it.
+ */
 export const FLAGSHIP_PLANS: readonly FlagshipPlan[] = Object.freeze(
-  PLAYBOOK_REGISTRY.map(entry => [CA_FIRM_PLAN, YOUTUBE_PLAN, SOCIAL_PLAN].find(plan => plan.id === entry.id) ?? fail(`The playbook ${entry.id} has no plan words.`)),
+  PLAYBOOK_REGISTRY.flatMap(entry => [CA_FIRM_PLAN, YOUTUBE_PLAN, SOCIAL_PLAN].find(plan => plan.id === entry.id) ?? []),
 );
 
-/** The plan words for a registered playbook id, or null. */
-export function flagshipPlanById(id: string | null | undefined): FlagshipPlan | null {
-  return id ? FLAGSHIP_PLANS.find(plan => plan.id === id) ?? null : null;
+// ---------------------------------------------------------------------------
+// Kit playbooks (Ink v2 wave 5, 5A1): the plan words from a definition's planPicks
+// ---------------------------------------------------------------------------
+
+/** The library offer block a kit offer refines, by how it is sold. */
+const KIT_OFFER_BLOCKS: Readonly<Record<PricingModel, OfferBlockId>> = Object.freeze({ monthly: 'retainer', project: 'one-off-project', hourly: 'hourly-help' });
+const kitPlans = new WeakMap<PlaybookDefinition, FlagshipPlan>();
+
+/**
+ * A kit definition's plan words: its label and summary, the offers its planPicks name with their pricing, intake fields
+ * and rights, the approvals with the library approval each refines, and the catalogue connectors its picked connectors
+ * are (a planned connector, or one with no catalogue entry, starts nothing).
+ */
+export function kitPlan(definition: PlaybookDefinition): FlagshipPlan {
+  const ready = kitPlans.get(definition);
+  if (ready) return ready;
+  const id = definition.registration.id;
+  const plan: FlagshipPlan = Object.freeze({
+    id, label: definition.registration.label, serviceType: definition.registration.serviceType, oneLiner: definition.registration.summary,
+    offers: Object.freeze(definition.planPicks.offers.map(key => {
+      const offer = definition.offers.find(item => item.id === key) ?? fail(`The ${id} playbook has no offer ${key}.`);
+      const intake = offer.intake.map(field => definition.intakeFields.find(item => item.id === field) ?? fail(`The ${id} playbook has no intake field ${field}.`));
+      return Object.freeze({
+        key: offer.id, name: offer.name, description: offer.description, model: offer.pricing, block: KIT_OFFER_BLOCKS[offer.pricing],
+        rights: Object.freeze([...offer.rights]), intake: Object.freeze(intake.map(field => Object.freeze({ ...field }))),
+      });
+    })),
+    approvals: Object.freeze(definition.planPicks.approvals.map(key => {
+      const approval = definition.approvals.find(item => item.id === key) ?? fail(`The ${id} playbook has no approval ${key}.`);
+      return Object.freeze({ key: approval.id, words: approval.words, block: approval.block ?? 'each-draft' as const });
+    })),
+    connectors: Object.freeze([...new Set(definition.planPicks.connectors.flatMap(key => {
+      const connector = definition.connectors.find(item => item.id === key) ?? fail(`The ${id} playbook has no connector ${key}.`);
+      return connector.catalogueId && !connector.label.startsWith('planned') ? [connector.catalogueId] : [];
+    }))]),
+  });
+  kitPlans.set(definition, plan);
+  return plan;
+}
+
+/**
+ * The plan words for a registered playbook id, or null: a flagship's own, else a kit definition's (definitions: the
+ * kit definitions to look in; default the landed ones, kit/installed.ts).
+ */
+export function flagshipPlanById(id: string | null | undefined, definitions: readonly PlaybookDefinition[] = kitDefinitions()): FlagshipPlan | null {
+  if (!id) return null;
+  const flagship = FLAGSHIP_PLANS.find(plan => plan.id === id);
+  if (flagship) return flagship;
+  const definition = kitDefinition(id, definitions);
+  return definition ? kitPlan(definition) : null;
 }
 
 /** The plan words of the flagship playbook an idea picks, or null when the plain service type serves. */

@@ -17,7 +17,7 @@ import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
   type ClientLite, type DeliveryLite, type DiffLine, type IdeaView, type KnowledgeSourceInput, type KnowledgeSourceView, type ModelStatusLite,
   type OrderLite, type PersonaFields, type PersonaView, type ProposalKind, type ProposalView, type RunDetail, type StandingOrdersView, type TeamListView,
-  type UploadLite, type VoiceInput, type VoiceSections, type VoiceView,
+  type UploadLite, type VoiceInput, type VoiceSections, type VoiceView, type PipelineIdeaView,
 } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -37,6 +37,8 @@ export interface AgentExtrasHooks {
   say?: (agent: string, text: string) => void;
   /** Mail the owner answers themselves that is not handled yet (the pipeline desk's inbound records). */
   waitingMail?: () => { id: string; who: string; date: string }[];
+  /** 5A3: the idea pipeline on the same list (fake-kit-rules.ts). */
+  pipelineIdeas?: () => PipelineIdeaView[];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -245,7 +247,7 @@ export class FakeAgentExtras {
       case 'venture.knowledge.add': return this.knowledgeAdd(p);
       case 'venture.knowledge.remove': return this.knowledgeRemove(p);
       case 'venture.knowledge.test': return this.knowledgeTest(p);
-      case 'venture.ideas.list': exact(p, []); return { ideas: this.ideas().map(ideaView), waiting: this.waiting() };
+      case 'venture.ideas.list': exact(p, []); return { ideas: this.ideas().map(ideaView), waiting: this.waiting(), pipeline: this.hooks.pipelineIdeas?.() ?? [] };
       case 'venture.ideas.start': return this.ideaStart(p);
       case 'venture.ideas.dismiss': return this.ideaDismiss(p);
       case 'venture.agents.capabilities': { const body = exact(p, ['agent']); return this.capabilities(id(body.agent, 'Agent')); }

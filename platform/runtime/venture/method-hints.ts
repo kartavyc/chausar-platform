@@ -122,13 +122,13 @@ const W4_FLAGS: Readonly<Record<W4Method, Flags>> = Object.freeze({
  */
 const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
   'venture.order.chain': 'rui',
-  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u',
+  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui',
   'venture.ideas.add': 'u', 'venture.ideas.move': '', 'venture.ideas.grade': '',
   'venture.brandKit.get': 'rui', 'venture.brandKit.set': 'ui', 'venture.assets.list': 'rui', 'venture.assets.rerun': 'o', 'venture.assets.reuse': 'u',
   'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',
-  'venture.report.render': 'ui', 'venture.report.share': 'uo', 'venture.report.shareRotate': '', 'venture.report.shareDisable': 'i',
-  'venture.monitors.list': 'rui', 'venture.monitors.add': 'uo', 'venture.monitors.remove': 'i', 'venture.mail.import': 'u', 'venture.mail.threads': 'rui',
-  'venture.localApps.list': 'rui', 'venture.webhook.set': 'ui', 'venture.speechOut.providers': 'rui',
+  'venture.report.render': 'u', 'venture.report.share': 'uo', 'venture.report.shareRotate': 'o', 'venture.report.shareDisable': 'i', 'venture.report.list': 'rui',
+  'venture.monitors.list': 'rui', 'venture.monitors.add': 'uo', 'venture.monitors.remove': 'i', 'venture.mail.import': 'i', 'venture.mail.threads': 'rui',
+  'venture.localApps.list': 'rui', 'venture.webhook.set': 'uio', 'venture.speechOut.providers': 'rui',
   'venture.ca.confirmCitations': '', 'venture.ca.signoff.get': 'rui', 'venture.ca.differential.add': '', 'venture.ca.dataPack.export': 'i',
   'venture.desk.list': 'rui', 'venture.desk.get': 'rui', 'venture.desk.act': 'o',
 });

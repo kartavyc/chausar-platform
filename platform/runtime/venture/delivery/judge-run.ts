@@ -43,6 +43,7 @@ import { flagshipJudgeRules } from '../playbooks/draft-checks.ts';
 import { caOfferFor } from '../playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
+import { kitDefinition } from '../playbooks/kit/installed.ts';
 import { scanRun } from './trace-scan.ts';
 
 /** Why the judge did not run on its own near the month's limit (Ink v2 wave 4, 4F2, M5). */
@@ -84,6 +85,13 @@ export type JudgeAudience = 'client' | 'public' | 'internal';
 export function judgeAudience(state: State, venture: VentureRecord, run: Pick<DeliveryRunRecord, 'orderId' | 'playbookId'>): JudgeAudience {
   if (caOfferFor(state, venture, run.orderId)?.caOnly) return 'internal';
   const flagship = findRecord(state, 'venture-playbook', run.playbookId)?.flagship ?? null;
+  // Ink v2 wave 5 (5A1): a kit playbook's offer says who its work is for; internal work gets no automatic judge.
+  const kit = kitDefinition(flagship);
+  if (kit) {
+    const order = findRecord(state, 'venture-order', run.orderId);
+    const key = order ? acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null : null;
+    return kit.offers.find(offer => offer.id === key)?.audience ?? 'client';
+  }
   if (flagship !== YOUTUBE_ID && flagship !== SOCIAL_AGENCY_ID) return 'client';
   const order = findRecord(state, 'venture-order', run.orderId);
   const offerKey = order ? acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null : null;

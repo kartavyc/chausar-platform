@@ -10,9 +10,11 @@ import type { Display, QueueAction, QueueActionId, QueueChange, QueueKind, Queue
 
 /**
  * Where a wave 4 row comes from. 'money': credit notes waiting for the owner to issue them (money/credits.ts, 4J5).
- * 'routine': a routine's run waiting for the owner's go-ahead (agents/routine-runner.ts, 4J13).
+ * 'routine': a routine's run waiting for the owner's go-ahead (agents/routine-runner.ts, 4J13). 'idea' (Ink v2 wave 5,
+ * 5A3): a published idea waiting for its grade (playbooks/kit/ideas.ts), whose only actions are Open and Later.
+ * 'sales-proposal' (5A2): a sales proposal waiting for the owner to read and approve (playbooks/kit/proposal.ts).
  */
-export type W4RowSource = 'proposal' | 'followup' | 'reply' | 'notice' | 'run-control' | 'money' | 'routine';
+export type W4RowSource = 'proposal' | 'followup' | 'reply' | 'notice' | 'run-control' | 'money' | 'routine' | 'idea' | 'sales-proposal';
 /**
  * A row a wave 4 source makes, before queue.ts adds the business, the id (subject and version) and the digest.
  * subject: what the row stands for, the same across its versions, in identifier characters only (letters, digits and
@@ -93,6 +95,10 @@ const BY_ACTION: Readonly<Partial<Record<QueueActionId, Decide>>> = { sent: deci
 const BY_SOURCE: Readonly<Record<W4RowSource, Decide>> = {
   proposal: decideProposal, followup: decideFollowup, reply: decideReply, notice: decideNotice, 'run-control': decideRunControl, money: decideMoney,
   routine: decideRoutineRow,
+  // 5A3: a grade row offers only Open (navigation) and Later, which queue.ts handles; the grade is given on Work.
+  idea: async () => { throw new ChausarError('INVALID_VENTURE_REQUEST', 'Open Work, then Ideas, to grade it.'); },
+  // 5A2: Approve on a sales proposal the owner read (playbooks/kit/proposal.ts), loaded on use.
+  'sales-proposal': async (deps, ctx, decision) => (await import('../playbooks/kit/proposal.ts')).decideSalesProposalRow(deps, ctx, decision),
 };
 
 /** Runs one decision on a wave 4 row: a new action id goes to its own function, any other to its row's source. */

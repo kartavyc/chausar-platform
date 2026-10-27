@@ -53,6 +53,9 @@ import { writingChecks } from './writing-checks.ts';
 import { draftQuotes, moveQuoteTimes, quoteCheck } from '../delivery/checks/quote-at.ts';
 import { rateFinding } from '../delivery/checks/rating.ts';
 import { factsWords, missingOf } from './ca-firm/needs-facts.ts';
+import type { PlaybookDefinition } from './kit/define.ts';
+import { kitDefinition, kitDefinitions } from './kit/installed.ts';
+import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
   flagship: string;
@@ -85,12 +88,15 @@ export type FlagshipCheckInput = {
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
 };
 
-/** The rules judge's rules for a flagship playbook's drafts, or null for any other playbook. */
-export function flagshipJudgeRules(flagship: string | null | undefined): readonly JudgeRule[] | null {
+/**
+ * The rules judge's rules for a flagship or kit playbook's drafts (a kit playbook's are its definition's judgeRules,
+ * Ink v2 wave 5, 5A1; definitions: default the landed ones), or null for any other playbook.
+ */
+export function flagshipJudgeRules(flagship: string | null | undefined, definitions: readonly PlaybookDefinition[] = kitDefinitions()): readonly JudgeRule[] | null {
   if (flagship === YOUTUBE_ID) return YOUTUBE_DRAFT_RULES;
   if (flagship === CA_FIRM_ID) return CA_JUDGE_RULES;
   if (flagship === SOCIAL_AGENCY_ID) return SOCIAL_JUDGE_RULES;
-  return null;
+  return kitDefinition(flagship, definitions)?.judgeRules ?? null;
 }
 
 /** The first failed playbook check, in the owner's words, or null. */
@@ -107,8 +113,11 @@ function textLines(deliverable: Deliverable): string[] {
  * The playbook's checks on a draft, then the prompt-leak lint on the agent's words (prompt-leak.ts). Template outlines
  * are not drafts these checks read, so nothing runs on them.
  */
-export async function runFlagshipChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
-  const own = await playbookOwnChecks(input);
+export async function runFlagshipChecks(input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Promise<PlaybookCheckResult[]> {
+  // Ink v2 wave 5 (5A1): a kit playbook's own checks and their coverage (playbooks/kit/checks.ts), then the same lint.
+  const kit = kitDefinition(input.flagship, definitions);
+  const own = kit ? (input.servedBy === 'template' ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
+    : await playbookOwnChecks(input);
   if (!own.length || input.servedBy === 'template') return own;
   const line = promptLeakLine(draftLeaks(input));
   return [...own, { playbook: input.flagship, check: PROMPT_LEAK_CHECK, outcome: line ? 'fail' : 'pass', detail: line ?? 'No words meant for the AI and no template placeholders.' }];
@@ -120,10 +129,23 @@ function draftLeaks(input: FlagshipCheckInput): PromptLeak[] {
   return [...promptLeaks(deliverableWords(input.deliverable)), ...posts.flatMap(post => promptLeaks(post.text, 'post'))];
 }
 
+/**
+ * A kit playbook's checks with their coverage (kit/checks.ts), then rules-current on the dated rules the checks that ran
+ * rest on (5A3: not run once one is past its recheck window, which never blocks Accept).
+ */
+function kitChecks(kit: PlaybookDefinition, input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[]): PlaybookCheckResult[] {
+  const results = runKitChecks(kit, input);
+  const ran = results.filter(item => item.outcome !== 'not-run').map(item => item.check);
+  const rules = rulesCurrentResult(kit.registration.id, input.today, ran, undefined, definitions);
+  return rules ? [...results, { playbook: input.flagship, check: rules.check, outcome: rules.outcome, detail: rules.detail }] : results;
+}
+
+const TEMPLATE_NOT_RUN = "not run: this playbook's checks read an agent's draft, and this is a template outline.";
+
 async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
   const as = (check: string, outcome: PlaybookCheckResult['outcome'], detail: string): PlaybookCheckResult => ({ playbook: input.flagship, check, outcome, detail });
   if (![YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID].includes(input.flagship)) return [];
-  if (input.servedBy === 'template') return [as('playbook-checks', 'not-run', "not run: this playbook's checks read an agent's draft, and this is a template outline.")];
+  if (input.servedBy === 'template') return [as('playbook-checks', 'not-run', TEMPLATE_NOT_RUN)];
   const scope = { channels: [] as string[], exports: [] as string[], quoted: [] as string[] };
   const own = input.flagship === YOUTUBE_ID ? (await youtubeChecks(input)).map(item => as(item.check, item.outcome, item.detail))
     : input.flagship === CA_FIRM_ID ? caChecks(input).map(item => as(item.check, item.outcome, item.detail))

@@ -303,6 +303,21 @@ export class FakeBusinessDesk {
         offer.pricing.unitPriceLabel = 'told-by-you';
         typedPrices[offer.id] = rupees(typed);
       }
+      // 5A2 (money/share-price.ts applyShareChange): a share in place of a fixed price; a fixed price takes it away.
+      if (change.share !== undefined) {
+        if (change.unitPrice !== undefined) throw invalid('Set a fixed price or a share, not both.');
+        if (change.share === null) delete offer.pricing.share;
+        else {
+          const typed = String((change.share as { percent?: unknown }).percent ?? '').replace(/[\s%]/g, '');
+          const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(typed);
+          const bps = match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : 0;
+          if (!match || bps < 1 || bps > 10000) throw new EngineError('INVALID_SHARE', match ? 'A share must be from 0.01% to 100%.' : 'Type the share as a percent, like 8.33 or 12.');
+          offer.pricing.share = { kind: 'share', bps: String(bps), baseMinor: null, baseEvidenceFileId: null, words: '' };
+          offer.pricing.share.words = this.priceText(offer, '');
+          offer.pricing.unitPriceMinor = null;
+          offer.pricing.unitPriceLabel = 'not-set';
+        }
+      } else if (change.unitPrice !== undefined) delete offer.pricing.share;
     }
     // 4J8: an offer the owner adds, with no price yet, or takes out again (core/owner-offers.ts).
     if (patch.removeOffer !== undefined) {
@@ -336,6 +351,12 @@ export class FakeBusinessDesk {
   }
 
   private priceText(offer: OfferLite | undefined, key: string): string {
+    // 5A2: a share reads as the engine's shareWords ("8.33% of the amount your client confirms").
+    if (offer?.pricing.share) {
+      const bps = offer.pricing.share.bps.padStart(3, '0');
+      const fraction = bps.slice(-2).replace(/0+$/, '');
+      return `${bps.slice(0, -2).replace(/^0+(?=\d)/, '')}${fraction ? `.${fraction}` : ''}% of the amount your client confirms`;
+    }
     if (!offer || offer.pricing.unitPriceMinor === null) return 'Not set';
     return `${this.prices[key] ?? rupees(offer.pricing.unitPriceMinor.slice(0, -2) || '0')} per ${offer.pricing.quantityUnit}`;
   }
@@ -346,7 +367,11 @@ export class FakeBusinessDesk {
     const accepted = this.accepted[biz];
     const base = { id: `q-plan-${biz}-v${latest.version}`, businessId: biz, businessName: this.host.businessName(biz), createdAt: latest.at, line: latest.oneLiner.value, viewRef: { kind: 'plan' as const, id: latest.id } };
     let seed: Omit<QueueRow, 'digest'>;
-    const changes = accepted ? latest.offers.filter((o) => (accepted.offers.find((a) => a.id === o.id)?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor) : [];
+    const changes = accepted ? latest.offers.filter((o) => {
+      const before = accepted.offers.find((a) => a.id === o.id);
+      // 5A2: setting or changing a share is a price change too.
+      return (before?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (o.pricing.share?.bps ?? null);
+    }) : [];
     if (!accepted) {
       seed = { ...base, kind: 'plan', title: 'Your plan is ready. Read it.', actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }] };
     } else if (changes.length === 0) {

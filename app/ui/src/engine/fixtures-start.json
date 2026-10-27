@@ -8,35 +8,25 @@
         "label": "CA practice",
         "category": "money-and-tax",
         "department": "money",
-        "line": "Books, GST, TDS and income tax working papers for small businesses. Your CA of record signs anything regulated.",
+        "line": "Books, GST, TDS and income tax working papers for small businesses; your CA of record signs anything regulated.",
         "hours": "6 to 10 h a week",
         "minHours": 6,
         "maxHours": 10,
         "hoursEstimate": true,
-        "youDo": "Meet clients, review every draft, and work with your CA.",
+        "youDo": "Meet clients, review drafts, work with your CA.",
         "team": [
-          {
-            "role": "Intake clerk",
-            "initials": "IC",
-            "department": "sales"
-          },
-          {
-            "role": "Tax preparer",
-            "initials": "TP",
-            "department": "money"
-          },
           {
             "role": "Reconciler",
             "initials": "RE",
             "department": "money"
           },
           {
-            "role": "Working papers writer",
-            "initials": "WP",
+            "role": "Tax preparer",
+            "initials": "TP",
             "department": "money"
           }
         ],
-        "teamLine": "Read client files, match statements, pick the tax rules and write working papers. Code works out every figure.",
+        "teamLine": "Books, workings, receipts for every figure.",
         "clientsPay": {
           "text": "₹5,000 to ₹20,000",
           "per": "a client a month",
@@ -51,16 +41,14 @@
         "yours": [],
         "hi": {
           "label": "CA प्रैक्टिस",
-          "line": "छोटे बिज़नेस के लिए बही-खाते, GST, TDS और इनकम टैक्स के वर्किंग पेपर्स। जो भी काम नियमों के तहत है, उस पर आपके CA दस्तख़त करते हैं।",
+          "line": "छोटे बिज़नेस के लिए बही-खाते, GST, TDS और इनकम टैक्स के वर्किंग पेपर्स; जो भी काम नियमों के तहत है, उस पर आपके CA दस्तख़त करते हैं।",
           "hours": "हफ़्ते में 6 से 10 घंटे",
-          "youDo": "क्लाइंट से मिलें, हर ड्राफ़्ट जाँचें और अपने CA के साथ काम करें।",
+          "youDo": "क्लाइंट से मिलें, ड्राफ़्ट जाँचें, अपने CA के साथ काम करें।",
           "team": [
-            "इनटेक क्लर्क",
-            "टैक्स प्रिपेयरर",
             "रिकंसाइलर",
-            "वर्किंग पेपर्स राइटर"
+            "टैक्स प्रिपेयरर"
           ],
-          "teamLine": "क्लाइंट की फ़ाइलें पढ़ते हैं, स्टेटमेंट मिलाते हैं, टैक्स के नियम चुनते हैं और वर्किंग पेपर्स लिखते हैं। हर आँकड़ा कोड निकालता है।",
+          "teamLine": "बही-खाते, वर्किंग और हर आँकड़े की रसीद।",
           "pay": "₹5,000 से ₹20,000",
           "per": "प्रति क्लाइंट, हर महीने",
           "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
@@ -77,16 +65,16 @@
         "label": "YouTube channel",
         "category": "content",
         "department": "production",
-        "line": "Hooks, edit lists, titles, descriptions and chapters for client videos, from footage the client owns or has licensed.",
+        "line": "Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.",
         "hours": "4 to 8 h a week",
         "minHours": 4,
         "maxHours": 8,
         "hoursEstimate": true,
-        "youDo": "Talk to clients, cut each video from the edit list in your own editor, then you or the client publish.",
+        "youDo": "Record, watch each cut, meet sponsors.",
         "team": [
           {
-            "role": "Intake clerk",
-            "initials": "IC",
+            "role": "Story editor",
+            "initials": "SE",
             "department": "production"
           },
           {
@@ -95,17 +83,12 @@
             "department": "sales"
           },
           {
-            "role": "Story editor",
-            "initials": "SE",
-            "department": "production"
-          },
-          {
             "role": "Packager",
             "initials": "PA",
             "department": "marketing"
           }
         ],
-        "teamLine": "Read each brief, ask the client what is missing, write hooks, pick moments for the edit list, and draft titles and chapters.",
+        "teamLine": "Edits, shorts, titles and sponsor quotes.",
         "clientsPay": {
           "text": "₹5,000 to ₹30,000",
           "per": "per video",
@@ -120,16 +103,15 @@
         "yours": [],
         "hi": {
           "label": "YouTube चैनल",
-          "line": "क्लाइंट के वीडियो के लिए हुक, एडिट लिस्ट, टाइटल, डिस्क्रिप्शन और चैप्टर, उसी फ़ुटेज से जो क्लाइंट का अपना है या लाइसेंस पर है।",
+          "line": "अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स और पैकेजिंग, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।",
           "hours": "हफ़्ते में 4 से 8 घंटे",
-          "youDo": "क्लाइंट से बात करें, एडिट लिस्ट से अपने एडिटर में हर वीडियो एडिट करें, फिर आप या क्लाइंट पब्लिश करें।",
+          "youDo": "रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।",
           "team": [
-            "इनटेक क्लर्क",
-            "प्रोड्यूसर",
             "स्टोरी एडिटर",
+            "प्रोड्यूसर",
             "पैकेजर"
           ],
-          "teamLine": "हर ब्रीफ़ पढ़ते हैं, क्लाइंट से कमी पूछते हैं, हुक लिखते हैं, एडिट लिस्ट के लिए पल चुनते हैं और टाइटल व चैप्टर का ड्राफ़्ट बनाते हैं।",
+          "teamLine": "एडिट, शॉर्ट्स, टाइटल और स्पॉन्सर के लिए कोटेशन।",
           "pay": "₹5,000 से ₹30,000",
           "per": "प्रति वीडियो",
           "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
@@ -146,18 +128,13 @@
         "label": "Social media agency",
         "category": "marketing",
         "department": "marketing",
-        "line": "Calendars, posts, replies and monthly reports for local shops, clinics and coaches.",
+        "line": "Posts, replies, reels and monthly reports for local shops, clinics and coaches.",
         "hours": "4 to 6 h a week",
         "minHours": 4,
         "maxHours": 6,
         "hoursEstimate": true,
-        "youDo": "Approve every draft and post, talk to clients, and post or hand off.",
+        "youDo": "Approve drafts, talk to clients, post or hand off.",
         "team": [
-          {
-            "role": "Intake",
-            "initials": "IN",
-            "department": "sales"
-          },
           {
             "role": "Strategist",
             "initials": "ST",
@@ -172,19 +149,9 @@
             "role": "Creative",
             "initials": "CR",
             "department": "production"
-          },
-          {
-            "role": "Checker",
-            "initials": "CH",
-            "department": "operations"
-          },
-          {
-            "role": "Analyst",
-            "initials": "AN",
-            "department": "marketing"
           }
         ],
-        "teamLine": "Voice sheets, calendars, captions, reply drafts, ad briefs, and report words from the client's own exports.",
+        "teamLine": "Calendars, posts, reply drafts, report figures from exports.",
         "clientsPay": {
           "text": "₹8,000 to ₹25,000",
           "per": "a client a month",
@@ -199,18 +166,15 @@
         "yours": [],
         "hi": {
           "label": "सोशल मीडिया एजेंसी",
-          "line": "लोकल दुकानों, क्लिनिक और कोच के लिए कैलेंडर, पोस्ट, जवाब और महीने की रिपोर्ट।",
+          "line": "लोकल दुकानों, क्लिनिक और कोच के लिए पोस्ट, जवाब, रील और महीने की रिपोर्ट।",
           "hours": "हफ़्ते में 4 से 6 घंटे",
-          "youDo": "हर ड्राफ़्ट और पोस्ट मंज़ूर करें, क्लाइंट से बात करें, और ख़ुद पोस्ट करें या क्लाइंट को सौंपें।",
+          "youDo": "ड्राफ़्ट मंज़ूर करें, क्लाइंट से बात करें, ख़ुद पोस्ट करें या क्लाइंट को सौंपें।",
           "team": [
-            "इनटेक",
             "स्ट्रैटेजिस्ट",
             "राइटर",
-            "क्रिएटिव",
-            "चेकर",
-            "एनालिस्ट"
+            "क्रिएटिव"
           ],
-          "teamLine": "वॉइस शीट, कैलेंडर, कैप्शन, जवाबों के ड्राफ़्ट, ऐड ब्रीफ़, और क्लाइंट के अपने एक्सपोर्ट से रिपोर्ट के शब्द।",
+          "teamLine": "कैलेंडर, पोस्ट, जवाबों के ड्राफ़्ट, और एक्सपोर्ट से रिपोर्ट के आँकड़े।",
           "pay": "₹8,000 से ₹25,000",
           "per": "प्रति क्लाइंट, हर महीने",
           "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",

@@ -63,6 +63,7 @@ function shareDocument(title: string, body: string): string {
 const SHARED_WORDS: Readonly<Record<NonNullable<SharePageView['kind']>, string>> = Object.freeze({
   draft: 'shared a draft with you. Read only.', 'order-status': 'shared where your order stands. Read only.',
   statement: 'shared what you owe them. Read only.', books: 'shared a month of its books with you. Read only.',
+  report: 'shared a report with you. Read only.', // 5A5 (playbooks/kit/report/share.ts)
 });
 
 /**

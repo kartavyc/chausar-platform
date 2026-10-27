@@ -22,7 +22,7 @@ import { dictionaryEntries } from './harness/dictionary.ts';
 import { applyPatch, describePatch, toolCeiling, type PlaybookBody } from './harness/patches.ts';
 import { computeLaunchStatus } from './launch.ts';
 import { currentPlaybook, ensurePlaybook, fits, validatePlaybook } from './playbook.ts';
-import { scenariosFor, signalScenario } from './scenarios.ts';
+import { businessScenarios, scenariosFor, signalScenario } from './scenarios.ts';
 import { acceptedBlueprint, newestFirst, optionalFlag, readAs, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
 import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
@@ -160,14 +160,14 @@ function validateImprove(raw: unknown): ImproveModelOutput {
 type Frozen = { pool: SignalRecord[]; reserve: SignalRecord[]; cases: { pool: ImprovementCase[]; reserve: ImprovementCase[]; rehearsal: ImprovementCase[] } };
 
 /** Signals in time order: the latest thirty percent (at least one once there are two) are held back for the gate. */
-export function freeze(signals: readonly SignalRecord[], serviceType: Scenario['serviceType']): Frozen {
+export function freeze(signals: readonly SignalRecord[], serviceType: Scenario['serviceType'], rehearsal: readonly Scenario[] = scenariosFor(serviceType)): Frozen {
   const ordered = [...signals].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   const held = ordered.length >= 2 ? Math.max(1, Math.floor(ordered.length * 0.3)) : 0;
   const pool = ordered.slice(0, ordered.length - held), reserve = ordered.slice(ordered.length - held);
   const toCase = (signal: SignalRecord, set: 'pool' | 'reserve'): ImprovementCase => ({ scenarioId: signalScenario(signal, serviceType).id, set, signalId: signal.id });
   return {
     pool, reserve,
-    cases: { pool: pool.map(signal => toCase(signal, 'pool')), reserve: reserve.map(signal => toCase(signal, 'reserve')), rehearsal: scenariosFor(serviceType).map(scenario => ({ scenarioId: scenario.id, set: 'rehearsal' as const, signalId: null })) },
+    cases: { pool: pool.map(signal => toCase(signal, 'pool')), reserve: reserve.map(signal => toCase(signal, 'reserve')), rehearsal: rehearsal.map(scenario => ({ scenarioId: scenario.id, set: 'rehearsal' as const, signalId: null })) },
   };
 }
 
@@ -259,7 +259,8 @@ function candidateRecord(parent: PlaybookRecord, body: PlaybookBody, patches: Pl
 }
 
 function scenarioOf(state: State, venture: VentureRecord, item: ImprovementCase, serviceType: Scenario['serviceType']): Scenario {
-  if (item.signalId === null) return scenariosFor(serviceType).find(scenario => scenario.id === item.scenarioId)!;
+  // Ink v2 wave 5 (5A1): the business's own practice clients (a kit playbook's, else the service type's).
+  if (item.signalId === null) return businessScenarios(state, venture.id, serviceType).find(scenario => scenario.id === item.scenarioId)!;
   const signal = findRecord(state, 'venture-signal', item.signalId)!;
   // Ink v2 4J16 (Q15): the reserve's cases carry the owner's corrections as expectations, so the gate checks them too.
   return signalScenario(signal, serviceType, state);
@@ -330,7 +331,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
   check(signals.length > 0 || latestEpisodes.some(episode => !episode.passed), 'IMPROVEMENT_NOT_READY',
     'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.');
 
-  const frozen = freeze(signals, type);
+  const frozen = freeze(signals, type, businessScenarios(state, venture.id, type));
   const gateCases = [...frozen.cases.reserve, ...frozen.cases.rehearsal];
   const scenarios = gateCases.map(item => scenarioOf(state, venture, item, type));
   const entryIds = dictionaryEntries(state, venture).map(entry => entry.id);

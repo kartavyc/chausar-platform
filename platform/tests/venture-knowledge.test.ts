@@ -20,6 +20,8 @@ import { pages } from './venture-network-search-env.ts';
 import { emptyShelf, withNetworkKey } from './venture-network-env.ts';
 import { realPortEnv, wordsTask } from './venture-real-port-env.ts';
 import { ERASED_SOURCE_CALL } from '../runtime/venture/agents/knowledge.ts';
+/** 5A6: every self-made read asks robots.txt first; these checks are about the pages themselves. */
+const pagesOnly = (fetched: readonly string[]) => fetched.filter(url => !url.endsWith('/robots.txt'));
 
 const POLICY = 'Refunds are paid within 7 days of a cancelled order.\nDelivery times are three working days for every episode.';
 const PAGE = 'https://studio.example/faq';
@@ -103,7 +105,7 @@ test('knowledge: a web page is read through the network guard and the untrusted 
   }, { 'intranet.studio.example': '10.0.0.5' });
   env.deps.net = { resolve: site.resolve, send: site.send };
   const made = await add(env, { kind: 'link', url: PAGE });
-  assert.deepEqual(site.fetched, [PAGE]);
+  assert.deepEqual(pagesOnly(site.fetched), [PAGE]);
   assert.equal(made.source.kind, 'link');
   assert.equal(made.source.title, 'Studio FAQ');
   // 4J16 (Q19): one page is a single source, so the line says it is not confirmed elsewhere.
@@ -119,7 +121,7 @@ test('knowledge: a web page is read through the network guard and the untrusted 
   await assert.rejects(add(env, { kind: 'link', url: 'https://moved.example/page' }), code('RESEARCH_HOST_REFUSED'), 'a redirect to a profile is refused at the hop');
   await assert.rejects(add(env, { kind: 'link', url: 'https://intranet.studio.example/wiki' }), code('NET_ADDRESS_REFUSED'));
   await assert.rejects(add(env, { kind: 'link', url: 'file:///etc/passwd' }), code('NET_URL_REFUSED'));
-  assert.deepEqual(site.fetched, [PAGE, 'https://bad.example/page', 'https://encoded.example/page', 'https://moved.example/page'], 'the profile, the inside address and the file address were never opened');
+  assert.deepEqual(pagesOnly(site.fetched), [PAGE, 'https://bad.example/page', 'https://encoded.example/page', 'https://moved.example/page'], 'the profile, the inside address and the file address were never opened');
   assert.equal(stored(env).length, 1, 'nothing from a refused or held page was kept');
 });
 

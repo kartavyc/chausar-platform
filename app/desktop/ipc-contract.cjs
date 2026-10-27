@@ -18,6 +18,9 @@ const PICK_FILE_CHANNEL = 'chausar:network:pickFile';
 // 4J4 (P12): the desktop asks the engine for one month's CSV for the owner's CA and saves it where the owner picks
 // (money-export.cjs); the window names only the month. Chausar never sends the file.
 const MONEY_EXPORT_CHANNEL = 'chausar:money:saveExport';
+// Ink v2 wave 5 (5A5, P11): the desktop makes a client report and saves its files where the owner picks (report-save.cjs);
+// the window names only the draft. Chausar never sends the files.
+const REPORT_SAVE_CHANNEL = 'chausar:report:save';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -125,11 +128,11 @@ const METHODS = Object.freeze([
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
   // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
   'venture.order.chain',
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
-  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
+  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable', 'venture.report.list',
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
   'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
@@ -257,4 +260,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

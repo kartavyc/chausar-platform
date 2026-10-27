@@ -274,6 +274,8 @@ export class FakeEngine {
       extras: {
         draftIdea: (input) => this.chief.draftFromIdea(input), draftImport: (input) => this.agentsDesk.draftImport(input), say: (agent, text) => this.agentsDesk.say(agent, text),
         waitingMail: () => this.network.waitingMail(),
+        // 5A3: venture.ideas.list adds the idea pipeline the kit rules desk keeps.
+        pipelineIdeas: () => this.kitRules()?.pipeline() ?? [],
       },
     });
     if (fresh) {
@@ -319,7 +321,8 @@ export class FakeEngine {
       case 'venture.queue.list': return this.queueList(p.scope === 'current' ? 'current' : 'all');
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id);
+        // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -408,7 +411,8 @@ export class FakeEngine {
   /** Another desk's answer at once, with no latency: what the wave 2 desks read (orders, runs, files, invoices). */
   /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
   private findReceipt(id: string): ReceiptLite | undefined {
-    return RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id);
+    return RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
+      ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
   }
 
   /**
@@ -460,9 +464,20 @@ export class FakeEngine {
     throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
   }
 
+  /** 5A2: the desk that keeps sales proposals and GO cards. */
+  private kitSales(): FakeKitSalesDesk | undefined {
+    return this.w5?.find((desk): desk is FakeKitSalesDesk => desk instanceof FakeKitSalesDesk);
+  }
+
+  /** 5A3: the desk that keeps the idea pipeline. */
+  private kitRules(): FakeKitRulesDesk | undefined {
+    return this.w5?.find((desk): desk is FakeKitRulesDesk => desk instanceof FakeKitRulesDesk);
+  }
+
   private queueList(scope: 'current' | 'all') {
     this.network.syncRows(); // 4E4: follow-ups come due as the clock moves; replies and calls wait as the engine lists them
     this.chief.syncRows(); // 4C2: a proposal's card is made again from what it acts on now (only Dismiss once its gate fails)
+    if (this.open && this.current) this.kitRules()?.syncRows(); // 5A3: a published idea's grade row comes due as the clock moves
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
@@ -506,6 +521,12 @@ export class FakeEngine {
     if (networked) {
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       return { outcome: 'done', line: networked };
+    }
+    // 5A2: Approve on a sales proposal's row (fake-kit-sales.ts), in the engine's words.
+    const sold = this.kitSales()?.decide(row, action.id);
+    if (sold) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: sold };
     }
     if (action.id === 'approve' && row.viewRef?.kind === 'plan') this.desk.accept(row.businessId, row.viewRef.id);
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;

@@ -7,7 +7,7 @@
 // - floor: the steps the playbook keeps in the always-ask floor, with its own reason;
 // - draftStep: the writing step that drafts an order's reply, by the order's offer.
 // Owner, client, CA and filer steps are people's work: they keep their gates but belong to no agent.
-import type { OrderIntake, PlaybookStep } from '../contracts.ts';
+import type { DepartmentId, OrderIntake, PlaybookStep } from '../contracts.ts';
 import { CA_STEPS, caFirmPlaybookSteps } from './ca-firm/playbook.ts';
 import { CA_FIRM_ID, CA_FIRM_LABEL } from './ca-firm/registration.ts';
 import { YOUTUBE_STEPS, youtubeEngineSteps } from './youtube/playbook.ts';
@@ -15,9 +15,14 @@ import { YOUTUBE_ID, YOUTUBE_LABEL } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_ROLES, SOCIAL_STEPS, socialPlaybookSteps, type SocialRoleId } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID, SOCIAL_AGENCY_LABEL } from './social/registration.ts';
 import { calendarGuidance, calendarSlotsOrNone } from './social/draft-posts.ts';
+import { kitEngineSteps, type PlaybookDefinition } from './kit/define.ts';
+import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 
-/** parent (4J12, H25): the role a helper reports to; Team nests the helper under it. No shipped role has one in W4. */
-export type FlagshipRole = { id: string; name: string; job: string; kind: 'agent' | 'code'; parent?: string };
+/**
+ * parent (4J12, H25): the role a helper reports to; Team nests the helper under it. No shipped role has one in W4.
+ * department (5A1): a kit role carries its own (the flagships' are in departments.ts ROLE_DEPARTMENTS).
+ */
+export type FlagshipRole = { id: string; name: string; job: string; kind: 'agent' | 'code'; parent?: string; department?: DepartmentId };
 /**
  * One step as the plan lists it (core/blueprint.ts flagshipStepLines): its title and who does it. doneBy: you, an
  * agent (who is its role), code with no model (who is the code's name), or another person such as the CA of record
@@ -36,8 +41,11 @@ export type FlagshipDelivery = {
   roleOf: Readonly<Record<string, string>>;
   /** Step id to why the playbook asks the owner at every posture. */
   floor: Readonly<Record<string, string>>;
-  /** The writing step that drafts an order's reply, by the playbook offer id (null: the playbook's usual one). */
-  draftStep(offerKey: string | null | undefined): string;
+  /**
+   * The writing step that drafts an order's reply, by the playbook offer id (null: the playbook's usual one). stage: a
+   * kit chain order's stage, counted from 1 (5A1 kit/chain.ts), which drafts that stage's step; the flagships ignore it.
+   */
+  draftStep(offerKey: string | null | undefined, stage?: number | null): string;
   /**
    * Lines for one order's drafting task, from code, after the step's own guidance: the social agency's calendar slots
    * (ids and dates planned from the order's intake). Empty for every other order.
@@ -151,10 +159,45 @@ function socialAgency(): FlagshipDelivery {
   };
 }
 
+/**
+ * A kit playbook's delivery (Ink v2 wave 5, 5A1), from its definition: the engine steps without the kit's own fields;
+ * the agent and code roles in the order of their first step, each with its department; people's steps belong to no
+ * role (you, or another person); the floor from each step's floor reason; the draft step by offer, or by a chain
+ * order's stage when that stage is a writing step.
+ */
+export function kitDelivery(definition: PlaybookDefinition): FlagshipDelivery {
+  const roleById = new Map(definition.roles.map(role => [role.id, role]));
+  const { roles, roleOf } = rolesIn(definition.steps.map(step => {
+    const role = roleById.get(step.role);
+    return { stepId: step.id, role: role && role.kind !== 'person' ? { id: role.id, name: role.name, job: role.job, kind: role.kind, department: role.department } : null };
+  }));
+  const steps = kitEngineSteps(definition);
+  const doers = new Map(definition.steps.map(step => {
+    const role = roleById.get(step.role)!;
+    return [step.id, role.kind === 'person' ? (step.doneBy === 'you' ? { doneBy: 'you' as const, who: 'You' } : { doneBy: 'person' as const, who: role.name }) : { doneBy: role.kind, who: role.name }];
+  }));
+  const writing = new Set(steps.filter(step => step.kind === 'write').map(step => step.id));
+  return {
+    id: definition.registration.id, label: definition.registration.label, steps, plan: planOf(steps, doers), roles, roleOf,
+    floor: Object.fromEntries(definition.steps.filter(step => step.floor).map(step => [step.id, step.floor!])),
+    draftStep: (offerKey, stage) => {
+      const offer = definition.offers.find(item => item.id === offerKey);
+      const staged = offer && stage ? offer.stages[stage - 1] : undefined;
+      return staged && writing.has(staged) ? staged : definition.draftStep(offerKey ?? null);
+    },
+    orderGuidance: () => [],
+  };
+}
+
 const DELIVERIES: Readonly<Record<string, () => FlagshipDelivery>> = Object.freeze({ [CA_FIRM_ID]: caFirm, [YOUTUBE_ID]: youtube, [SOCIAL_AGENCY_ID]: socialAgency });
 
-/** How a flagship playbook delivers, by its id; null for any other id. Every call returns fresh steps. */
-export function flagshipDelivery(id: string | null | undefined): FlagshipDelivery | null {
+/**
+ * How a flagship or kit playbook delivers, by its id; null for any other id. Every call returns fresh steps.
+ * definitions: the kit definitions to look in (default the landed ones, kit/installed.ts).
+ */
+export function flagshipDelivery(id: string | null | undefined, definitions: readonly PlaybookDefinition[] = kitDefinitions()): FlagshipDelivery | null {
   const make = id ? DELIVERIES[id] : undefined;
-  return make ? make() : null;
+  if (make) return make();
+  const definition = kitDefinition(id, definitions);
+  return definition ? kitDelivery(definition) : null;
 }

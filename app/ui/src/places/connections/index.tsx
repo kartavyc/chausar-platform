@@ -37,6 +37,8 @@ import { YourAi } from './YourAi';
 import { YourNetwork } from './YourNetwork';
 import { Mailbox } from './Mailbox';
 import { CalendarFeed } from './CalendarFeed';
+// W5 5A6: pages you watch, mail files, apps on this computer, your n8n or Make, speech from text.
+import { KitConnect } from './KitConnect';
 // W4 4J21: the setup guides, the truth ladder's words and Check connections (from 4J7).
 import { ChecksTile } from './ChecksTile';
 import { Guide, LadderWord } from './Guide';
@@ -111,6 +113,7 @@ export function Place() {
         {venture.data && <YourNetwork />}
         {venture.data && <Mailbox />}
         {venture.data && <CalendarFeed />}
+        {venture.data && <KitConnect />}
       </div>
     </>
   );

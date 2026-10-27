@@ -12,6 +12,7 @@ import { Tile } from '../../parts/Tile';
 import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite, type ChecklistItemLite } from '../../engine/types';
 import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
+import { Recipes } from './Recipes';
 import s from './Business.module.css';
 
 /**
@@ -104,6 +105,7 @@ export function PlanView() {
         </div>
       </div>
       <RulesSection />
+      <Recipes />
     </div>
   );
 }

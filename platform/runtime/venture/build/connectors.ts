@@ -50,8 +50,13 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
     qualification: 'fixture-tested',
     what: 'Reads your calendar from the private address you paste, in the desktop app, each morning: past calls with people in your network. Never writes to it.',
   },
+  // Ink v2 wave 5 (5A6): .eml and .mbox files the owner imports (build/mail-in.ts).
+  'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  // Ink v2 wave 5 (5A6, K24): one item you approve, exactly as shown, to your own webhook (build/webhook-handoff.ts).
+  'n8n-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own n8n webhook. In this build that is the test item.' },
+  'make-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own Make webhook. In this build that is the test item.' },
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Issues invoices and records payments inside Chausar, each number with a receipt.' },
 });
@@ -63,6 +68,10 @@ const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorMod
   github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.' },
   'google-workspace': { write: 'Planned: sending from Gmail would need a Google review first. Chausar only reads your inbox today.' },
   'google-calendar': { write: 'Planned: adding calls to your calendar. Chausar only reads it today.' },
+  // 5A6: speech out waits for a place to add your own key.
+  'google-tts': { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
+  'sarvam-tts': { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
+  elevenlabs: { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
 });
 
 function planned(mode: ConnectorModeName, what: string): ConnectorMode {

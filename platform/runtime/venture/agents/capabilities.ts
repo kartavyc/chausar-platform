@@ -67,10 +67,10 @@ export const TOOL_WORDS: Readonly<Record<ToolName, string>> = Object.freeze({
   // the kit (5A3, 5A4, 5A6)
   'ideas.add': 'Add a suggestion to your ideas list, marked with the role that made it. Nothing else changes.',
   'assets.record': 'Record where a file it delivers came from: its source, licence, credit and cost.',
-  'media.clean': 'Remove location and camera data from a client\'s photo or clip before it is kept.',
+  'media.clean': 'Remove location and camera data from the order\'s clip on this computer, into a new file beside it. Photos are cleaned when they are added.',
   'localapp.run': 'Run an app you installed on this computer, only the exact command you approved.',
-  'mail.read': 'Read the mail you imported or your read-only mailbox synced, screened first.',
-  'speech.say': 'Turn text into speech with your own provider, after a quote, with a licensed or consented voice.',
+  'mail.read': "Read this order's client's mail, imported or from your read-only mailbox, screened first.",
+  'speech.say': 'Quote turning text into speech with your own provider and a licensed voice. It spends nothing.',
   // YouTube (5B1 to 5B3)
   'youtube.editOps': 'Typed edits on the transcript\'s word ids, each applied whole or refused with a reason.',
   'youtube.clean': 'Silences and fillers to cut, found by code from the word times and the audio.',

@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  // A client report (5A5): the desktop makes the files and saves them in a new folder where the owner picks. Null when cancelled.
+  saveReport: async runId => {
+    const reply = await ipcRenderer.invoke('chausar:report:save', { runId: String(runId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The report could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

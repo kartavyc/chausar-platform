@@ -82,7 +82,7 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'media.clean': { effects: ['write'], ...OF_FILES },
   'localapp.run': { effects: ['write', 'egress'], integrity: 'untrusted', source: 'tool-output' },
   'mail.read': { effects: ['private-read'], integrity: 'untrusted', source: 'mail' },
-  'speech.say': { effects: ['egress', 'money'], ...OWN },
+  'speech.say': { effects: ['read'], ...OWN }, // 5A6: a quote only; making audio is the engine's speechSay (spend reserved, journalled by its caller)
   // YouTube (5B1 to 5B3)
   'youtube.editOps': { effects: ['read'], ...OF_FILES },
   'youtube.clean': { effects: ['read'], ...OF_FILES },

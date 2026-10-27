@@ -200,6 +200,8 @@ export class VentureHost {
       ...(options.net ? { net: options.net } : {}),
       // Ink v2 wave 4 (4J23): whether this business is temporary (no real money, nothing sent), only on the hosted web server.
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
+      // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
+      ...(options.print && options.host !== 'hosted-web' ? { print: options.print } : {}),
     });
   }
 
@@ -342,7 +344,13 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
-    if (op === 'page') return (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+    if (op === 'page') {
+      const found = await (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+      if (found !== null) return found;
+      // Ink v2 wave 5 (5A5): a client report's link (playbooks/kit/report/share.ts), read only, opens on the same page.
+      const report = (await this.#load('playbooks')).reportSharePage;
+      return typeof report === 'function' ? (report as Entry)(this.#deps, ctx, token, { preview: body.preview === true }) : null;
+    }
     if (op === 'comment') return (comment as Entry)(this.#deps, ctx, token, body);
     if (op === 'upload') return (upload as Entry)(this.#deps, ctx, token, body);
     return (decide as Entry)(this.#deps, ctx, token, body);

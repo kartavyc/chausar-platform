@@ -1916,6 +1916,7 @@ export class Engine {
       case 'venture.salesProposal.draft':
       case 'venture.salesProposal.get':
       case 'venture.goNoGo.card':
+      case 'venture.goNoGo.list':
       case 'venture.ideas.add':
       case 'venture.ideas.move':
       case 'venture.ideas.grade':
@@ -1931,6 +1932,7 @@ export class Engine {
       case 'venture.report.share':
       case 'venture.report.shareRotate':
       case 'venture.report.shareDisable':
+      case 'venture.report.list':
       case 'venture.monitors.list':
       case 'venture.monitors.add':
       case 'venture.monitors.remove':

@@ -18,6 +18,7 @@ import { judgeNotice } from '../delivery/judge-run.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { clientNameFor } from './shared.ts';
 import { weekFigureReceipt } from './probe-figures.ts';
+import { shareWords } from '../money/share-price.ts';
 
 /** Money text as the screens' money rule finds it: a currency sign or code, then its digits. */
 export const MONEY_TEXT = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d[\d,]*(?:\.\d+)?/g;
@@ -44,6 +45,8 @@ const MOVED_ON = 'This step was sent or replaced since, so this figure no longer
 
 /** A plan offer's price as Today's rows say it: "INR 2,999.00 per month", or "Not set". */
 export function offerPriceText(offer: Offer | undefined, currency: string): string {
+  // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
+  if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
   return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
@@ -154,7 +157,7 @@ function planPrices(state: State, venture: VentureRecord, id: string, blueprintI
     const was = before?.pricing.unitPriceMinor ?? null, now = offer.pricing.unitPriceMinor;
     if (was !== null) figures.push({ key: `${offer.id}.before`, label: `${offer.name.value}, in use`, amount: was, unit: 'minor', currency, display: offerPriceText(before, currency) });
     if (now !== null) figures.push({ key: `${offer.id}.after`, label: `${offer.name.value}, in version ${plan.version}`, amount: now, unit: 'minor', currency, display: offerPriceText(offer, currency) });
-    if (was !== now) said.push(`${offer.name.value} is ${offerPriceText(before, currency)} in the plan in use and ${offerPriceText(offer, currency)} in version ${plan.version}`);
+    if (was !== now || (before?.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null)) said.push(`${offer.name.value} is ${offerPriceText(before, currency)} in the plan in use and ${offerPriceText(offer, currency)} in version ${plan.version}`);
   }
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
   return receiptOf(venture, id, { type: 'plan-price', recordId: plan.id }, plan.at, figures,

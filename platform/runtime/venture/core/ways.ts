@@ -9,10 +9,12 @@
 import type { State } from '../../contracts.ts';
 import type { WaysView, WayView } from '../contracts.ts';
 import { currentVenture, exactPayload } from '../records.ts';
-import { PLAYBOOK_REGISTRY, pickPlaybook, type PlaybookRegistration } from '../playbooks/registry.ts';
+import { currentRegistry, pickPlaybook, type PlaybookRegistration } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { departmentOfRole, departmentOfService } from '../playbooks/departments.ts';
 import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
+import { kitDefinitions } from '../playbooks/kit/installed.ts';
+import { kitWay } from '../playbooks/kit/tile.ts';
 
 /** A business on this computer as a way sees it: its folder id, its name, and the playbook its idea picks (or none). */
 export type WayBusiness = { businessId: string; name: string; playbook: string | null };
@@ -34,8 +36,10 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
   const registration = registry.find(entry => entry.id === way.playbook);
   const delivery = registration ? flagshipDelivery(registration.id) : null;
   if (!registration || !delivery) return null;
-  // The AI team is the playbook's agents only: its code (checks, the calculator) is never shown as AI.
-  const agents = delivery.roles.filter(role => role.kind === 'agent');
+  // The AI team is the playbook's agents only: its code (checks, the calculator) is never shown as AI. A tile that names
+  // its team (Ink v2 wave 5, 5A1) shows those roles, in its order.
+  const shown = way.team ? way.team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles;
+  const agents = shown.filter(role => role.kind === 'agent');
   const team = agents.map(role => ({ role: role.name, initials: initialsOf(role.name), department: departmentOfRole(delivery, role.id) }));
   const pay = { en: `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`, hi: `${rupees(way.pay.minRupees)} से ${rupees(way.pay.maxRupees)}` };
   return {
@@ -78,7 +82,8 @@ export function waysView(data: readonly WayData[], registry: readonly PlaybookRe
  */
 export function listWays(payload: unknown, businesses: readonly WayBusiness[] = []): WaysView {
   exactPayload(payload, []);
-  return waysView(WAYS, PLAYBOOK_REGISTRY, businesses);
+  // Ink v2 wave 5 (5A1): every kit playbook that landed has its tile from its definition (playbooks/kit/tile.ts).
+  return waysView([...WAYS, ...kitDefinitions().map(kitWay)], currentRegistry(), businesses);
 }
 
 /** The open business as a way's "You run this": its name and the playbook its idea picks, or null with no business. */

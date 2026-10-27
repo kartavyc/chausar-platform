@@ -8,11 +8,15 @@
 
 import type { PlatformRuleView, RulesListView } from './types';
 import { PLAYBOOK_REVIEW, RULE_DATA } from './fixtures-rules-data';
+import { devAsksKitSample, kitSampleRules } from './fake-kit-rules';
 
 /** One rule as the engine's registers give it, with its line while inside its window. */
 export interface SampleRule {
   id: string; kind: 'social' | 'youtube'; platform: string; name: string; rule: string; checkedOn: string; windowDays: number;
-  unconfirmed: boolean; usedBy: string[]; limitations: string[]; source: { title: string; url: string } | null; freshLine: string;
+  unconfirmed: boolean; usedBy: string[]; limitations: string[]; source: { title: string; url: string } | null;
+  /** 5A3: every source the engine lists for the rule. */
+  sources: { title: string; url: string }[];
+  freshLine: string;
 }
 
 const dayNumber = (day: string) => Math.floor(Date.parse(`${day}T00:00:00.000Z`) / 86400000);
@@ -26,6 +30,7 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
   return {
     id: rule.id, platform: rule.platform, rule: rule.rule, checkedOn: rule.checkedOn, stale,
     usedBy: [...rule.usedBy], limitations: [...rule.limitations], source: rule.source ? { ...rule.source } : null,
+    sources: rule.sources.map((source) => ({ ...source })),
     line: stale ? staleLine : rule.freshLine,
   };
 }
@@ -33,7 +38,9 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
 /** venture.rules.list for a business on a playbook (by id and label) on a day; a null playbook for a business on none. */
 export function rulesListFor(playbook: { id: string; label: string } | null | undefined, today: string): RulesListView {
   const review = playbook ? PLAYBOOK_REVIEW[playbook.id] : undefined;
-  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.' };
+  // 5A3: the dev page's ?kit-sample shows a kit playbook's rules, recipes and boundaries (no kit playbook has landed yet).
+  if (devAsksKitSample()) return kitSampleRules(today);
+  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] };
   const sample = RULE_DATA[playbook.id] ?? [];
   const rules = sample.map((rule) => viewOf(rule, today));
   const stale = rules.filter((rule) => rule.stale).length;
@@ -45,5 +52,7 @@ export function rulesListFor(playbook: { id: string; label: string } | null | un
     summary: rules.length
       ? `${rules.length - stale - unsure} current, ${stale} to recheck${unsure ? `, ${unsure} not confirmed against a source yet` : ''}.`
       : 'This playbook rests on no dated platform rules.',
+    // 5A3: recipes and boundaries come from a kit playbook's definition; the flagships have none.
+    recipes: [], boundaries: [],
   };
 }

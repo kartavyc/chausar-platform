@@ -34,6 +34,9 @@ import { youtubeWorked } from './harness/tools-youtube.ts';
 import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
 import { recheckRun, recheckSend } from './harness/recheck.ts';
 import { storeRunEvidence } from './harness/tools-evidence.ts';
+import { mediaAcceptBlock, recordHandedOverFiles, storeRunAssets } from '../playbooks/kit/assets.ts';
+import { requireOrderPeopleConsent, todayOf } from '../playbooks/kit/voice-consent.ts';
+import { brandKitPart } from '../playbooks/kit/brand-kit.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits, verifyChecks } from './playbook.ts';
 import { failedPlaybookCheck, runFlagshipChecks, voiceDraftCheck, withQuoteFixes, withVoiceCheck } from '../playbooks/draft-checks.ts';
 import { voicePart, voiceRules } from '../agents/voice.ts';
@@ -54,6 +57,8 @@ import { notesCarried, recallNotes, staleNotes } from '../agents/recall.ts';
 import { knowledgeForTurn, SOURCES_CHANGED, sourcesCarried, staleSources, turnQuery } from '../agents/knowledge-recall.ts';
 import { repairTurn } from './harness/repair.ts';
 import { acceptManifest } from './file-manifest.ts';
+import { chainOnAnswer, chainOnQuestion, chainOnReview, orderChain } from '../playbooks/kit/chain.ts';
+import { requireConfirmedRules } from '../playbooks/kit/rules.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { unconfirmedActions } from './harness/hygiene.ts';
 import { questionWindowMs, refuseExpiredQuestion, withQuestionExpiry } from './timed-questions.ts';
@@ -216,6 +221,8 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
   return {
     ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null,
     scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
+    // Ink v2 wave 5 (5A1): the chain stage this run drafts, once a kit chain order is past its first (playbooks/kit/chain.ts).
+    ...(order.chainStage ? { chainStage: order.chainStage } : {}),
   };
 }
 
@@ -234,6 +241,12 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   refuseQuarantined(state, venture, deps.clock().toISOString());
   // 4J12 (H24): an order whose contract waits for the owner's signature starts nothing, before any preview.
   refuseUnsignedContract(state, venture, order);
+  // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
+  requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
+  // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
+  // stages or the playbook's checks rest on waits for a CA or lawyer (RULE_UNCONFIRMED). The check-time gate stays as a backstop.
+  const chain = orderChain(state, venture, order);
+  if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
   const template = useTemplate || status!.tiers.main.presetId === 'built-in-templates';
@@ -268,14 +281,14 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   }
 
   // A flagship playbook drafts with its own step for this offer: that step's headings and guidance, and this order's slots.
-  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
+  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
     containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
     // 4J18: the sources that share words with the draft's work, as the writing turn's (agents/knowledge-recall.ts).
     knowledge: oneStepKnowledge(fresh.state, context, playbook, offer, draft),
     // 4J17: the writer's persona and the owner's voice, as the writing turn's.
-    style: writingStyle(fresh.state, context.venture, playbook),
+    style: { ...writingStyle(fresh.state, context.venture, playbook), ...brandKitPart(fresh.state, context.venture, context.order.clientId) }, // 5A4: the client's kit
   }));
 
   if (!preview) {
@@ -318,7 +331,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
  */
 function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[], delegate: readonly DelegateAvailability[] = []): LoopContext {
   const entries = dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
-  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
+  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
     files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
@@ -337,6 +350,8 @@ function loopContext(deps: VentureDeps, ctx: Context, state: State, context: Ord
     personas: personaPart(personaInputs(state, context.venture, playbook, 'act')),
     writePersonas: personaPart(personaInputs(state, context.venture, playbook, 'write')),
     voice: voicePart(state, context.venture, playbook.flagship ?? null),
+    // 5A4 (P7): the client's brand kit, for the writing turn.
+    brandKit: brandKitPart(state, context.venture, context.order.clientId),
   };
 }
 
@@ -428,7 +443,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     recheckSend(deps, venture.id, runId, callId, approved);
     if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending, answered: () => { went.out = true; } });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
-    const draft = flagshipDraft(playbook, context.offerKey);
+    const draft = flagshipDraft(playbook, context.offerKey, null, context.order.chainStage ?? null);
     // 4J18: a source this draft's text carries that was removed, changed or held since never goes; it is made again.
     await refuseStaleSources(deps, ctx, { run, callId, context, harness: null });
     const knowledge = sourcesCarried(state, venture, run.preview?.payloadText ?? '');
@@ -606,10 +621,16 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
         tx.replace(stored);
         // Facts the agent noted (evidence.record), checked again against the trace just stored: suggestions for the owner.
         storeRunEvidence(tx, env.evidence ?? [], { runId: run.id, clientId: context.order.clientId });
+        // 5A4 (P8): the files its tools recorded (assets.record, media.clean), as the order's asset records.
+        storeRunAssets(tx, stored.harness?.toolCalls ?? [], { runId: run.id, orderId: run.orderId, clientId: context.order.clientId });
         if (stopping) tx.emit('run.stopped', { runId: stored.id });
         else if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
         else if (next.phase === 'brief') tx.emit('delivery-brief-waiting', { runId: stored.id, orderId: stored.orderId });
-        else if (next.phase === 'needs-answer') tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
+        else if (next.phase === 'needs-answer') {
+          tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
+          // Ink v2 wave 5 (5A1): a kit chain stage that asks the client waits on the client (playbooks/kit/chain.ts).
+          chainOnQuestion(tx, stored);
+        }
         tx.emit('run.step', { runId: stored.id });
         if (!stopping) tx.emit('run.waiting', { runId: stored.id });
         return runView(stored, tx.venture!, Date.parse(tx.now), tx.state);
@@ -624,7 +645,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     const { deliverable, corrections } = correctOrderDraft(context, playbook, value as Deliverable, { work: made.receipts, answers, harness: done, files });
     const receipts: AnyReceipt[] = [...context.receipts, ...made.receipts];
     const renderedText = renderDeliverable(deliverable, receipts, context.venture.country);
-    const draft = flagshipDraft(playbook, context.offerKey);
+    const draft = flagshipDraft(playbook, context.offerKey, null, context.order.chainStage ?? null);
     const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
       work: made.receipts, proofs: harness.proofs, answers, harness: done, files, corrections, times: youtubeWorked(harness.toolCalls, made.tables).times,
       sections: draft?.sections ?? (harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]),
@@ -782,13 +803,13 @@ export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: St
   check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, venture));
   if (!harness) {
-    const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
+    const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
     // 4J2: a revision the owner asked for puts their words first in the step's input (revise.ts withRevision).
     const preview = await deps.models.preview(ctx, withRevision(deliveryTask({
       serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
       containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
       knowledge: oneStepKnowledge(state, context, playbook, offer, draft), // 4J18
-      style: writingStyle(state, context.venture, playbook), // 4J17
+      style: { ...writingStyle(state, context.venture, playbook), ...brandKitPart(state, context.venture, context.order.clientId) }, // 4J17; 5A4 the client's kit
     }), run.revision));
     check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     return { preview, harness: null };
@@ -853,6 +874,8 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
     tx.emit('run.step', { runId });
     tx.emit('run.waiting', { runId });
     within?.(tx, current.harness!.handoffs.findLastIndex(handoff => handoff.answer === null));
+    // Ink v2 wave 5 (5A1): the answer resumes a kit chain at the stage its step names (playbooks/kit/chain.ts).
+    chainOnAnswer(tx, stored);
     return runView(stored, tx.venture!, Date.parse(tx.now), tx.state);
   });
 }
@@ -1035,6 +1058,8 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
     check(current && current.status === 'brief-waiting', 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
     for (const receipt of receipts) tx.put(receipt);
     tx.put(record);
+    // 5A4 (P8): what the tool left is handed over, so each file gets an asset record (source unknown until recorded).
+    recordHandedOverFiles(tx, record);
     tx.emit('delegate-finished', { runId, delegateRunId: record.id, cli: record.cli, outcome: record.outcome });
     const stage = tx.venture!.launchStage;
     const merged = workedFor(carryControls(next, current.harness), began, tx.now);
@@ -1112,6 +1137,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
   if (verdict === 'rejected') check(reason !== null, 'INVALID_VENTURE_REQUEST', 'Choose why you reject this draft.');
   if (verdict === 'accepted') check(reason === null, 'INVALID_VENTURE_REQUEST', 'An accepted draft needs no reason.');
   readAs(deps, ctx, 'approve');
+  let chainNext: string | null = null;
   const reviewed = await ventureAction(deps, ctx, 'approve', 'delivery.review', tx => {
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
@@ -1126,6 +1152,9 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
       // AI-native CA firm: regulated papers are accepted only once the CA of record signed off this exact draft.
       const unsigned = caSignoffBlock(tx.state, tx.venture!, run);
       if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+      // 5A4: a file it hands over with no known licence, stale, held, made with withdrawn consent, or not made yet.
+      const media = mediaAcceptBlock(tx.state, tx.venture!, run, tx.now);
+      if (media) throw new ChausarError(media.code, media.line);
     }
     // 4J1 (J2): Accept or an edit binds the files the draft hands over, by the sha256 of their bytes, to whoever decided.
     const manifest = verdict !== 'rejected' ? acceptManifest(tx.state, run, tx.now, ctx.memberId) : null;
@@ -1146,8 +1175,13 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     }
     tx.emit('delivery-reviewed', { runId, verdict, practice });
     tx.emit('run.done', { runId });
+    // Ink v2 wave 5 (5A1): a kit chain order moves on only after Accept, or goes back or stops after a rejection.
+    chainNext = chainOnReview(tx, next, verdict);
     return runView(next, tx.venture!, Date.parse(tx.now), tx.state);
   });
+  // The next stage's run starts through the order path, so its gates, posture and floor hold; if it can't start now
+  // (no AI, a pause, a quarantine), the order stays at its new stage and the owner starts it from Work.
+  if (chainNext) await deliveryRunHandler(deps, ctx, { orderId: chainNext }).catch(() => null);
   // AI-native CA firm: the owner's edit of regulated papers is new papers, so it goes in front of the CA of record too.
   if (reviewed.status === 'edited') {
     await import('../playbooks/ca-firm/delivery-signoff.ts').then(module => module.requestSignoffForRun(deps, ctx, reviewed)).catch(() => null);
@@ -1202,7 +1236,8 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   const capped = live && !!run.harness && capShortfall(run.harness, run.preview!.estimatedMaxCostMicros) !== null;
   const canApprove = live && !capped;
   const blocked = ready
-    ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? caSignoffBlock(state, venture, run) : null))
+    ? (practiceNow ? PRACTICE_REASON : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? caSignoffBlock(state, venture, run) : null)
+      ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
     : null;
   const canAccept = ready && blocked === null;
   const awaitingYou = waiting ? live : asking ? agentStage(stage) && !cancelled : brief ? briefWaits && agentStage(stage) && !cancelled : ready ? !practiceNow || stage === 'shadow' : false;

@@ -15,6 +15,7 @@ import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { parseTranscript, type Cue } from '../../playbooks/youtube/transcript.ts';
 import { HOSTED_NO_TRANSCRIBE, makeLocalTranscript, transcriptName, transcriptPrompt } from '../../playbooks/youtube/transcribe.ts';
 import type { ToolCallRecord } from '../../contracts.ts';
+import { mediaAdd, mediaKindOf } from '../../playbooks/kit/media-intake.ts';
 
 /** Fits one desktop request (two million bytes) once encoded. */
 export const MAX_UPLOAD_BYTES = 1_450_000;
@@ -58,7 +59,7 @@ export function sniffFormat(name: string, bytes: Uint8Array): UploadFormat {
     check(parseTranscript(text).length > 0, 'UNSUPPORTED_UPLOAD', 'This transcript has no timed lines. Export it again as SRT or VTT and add it again.');
     return 'transcript';
   }
-  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file, or a transcript as SRT or VTT. Photos and scans need a reader this build does not have.');
+  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file, a transcript as SRT or VTT, a photo as JPEG, PNG or WebP, or a recording. Scans need a reader this build does not have.');
 }
 
 /** A transcript's lines in file order, each with its segment id (seg-1, seg-2 ...), the only way agents name a moment. */
@@ -78,6 +79,8 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
     'UPLOAD_LIMIT', 'Add a file smaller than one and a half megabytes.');
   const bytes = Buffer.from(encoded, 'base64');
   check(bytes.length > 0 && bytes.length <= MAX_UPLOAD_BYTES, 'UPLOAD_LIMIT', 'Add a file smaller than one and a half megabytes.');
+  // 5A4 (P9): a photo is kept only once cleaned of its location and camera data, a recording as it came, both apart.
+  if (mediaKindOf(name)) return mediaAdd(deps, ctx, { orderId, name, bytes });
   const format = sniffFormat(name, bytes);
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const file: FileLike = { id: 'upload_check', name, format, bytes: bytes.length, digest: digest(encoded), contentBase64: encoded, clientData: true };
@@ -155,7 +158,7 @@ export async function filesListHandler(deps: VentureDeps, ctx: Context, payload:
   const orderId = body.orderId === undefined ? null : identifier(body.orderId, 'Order');
   const { state, venture } = readAs(deps, ctx, 'read');
   return listRecords(state, 'venture-upload', venture.id)
-    .filter(upload => upload.scope.kind !== 'poster' && (orderId === null || (upload.scope.kind === 'order' && upload.scope.orderId === orderId)))
+    .filter(upload => upload.scope.kind !== 'poster' && (orderId === null || ((upload.scope.kind === 'order' || upload.scope.kind === 'media') && upload.scope.orderId === orderId)))
     .map(uploadView);
 }
 

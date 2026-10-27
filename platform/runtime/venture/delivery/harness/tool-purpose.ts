@@ -21,10 +21,10 @@ export const TOOL_PURPOSE: Readonly<Record<string, string>> = Object.freeze({
   // the kit (5A3, 5A4, 5A6)
   'ideas.add': 'Added an idea to your list',
   'assets.record': 'Recorded where a delivered file came from',
-  'media.clean': 'Removed location and camera data from a file',
+  'media.clean': 'Removed location and camera data from a clip',
   'localapp.run': 'Ran an app you installed, as you approved',
-  'mail.read': 'Read imported mail',
-  'speech.say': 'Made speech from text with your provider',
+  'mail.read': "Read the client's mail",
+  'speech.say': 'Quoted speech from text with your provider',
   // YouTube (5B1 to 5B3)
   'youtube.editOps': 'Applied the edit requests to the transcript',
   'youtube.clean': 'Found the silences and fillers to cut',

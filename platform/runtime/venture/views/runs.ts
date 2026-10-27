@@ -28,7 +28,7 @@ import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
-import { scenariosFor } from '../delivery/scenarios.ts';
+import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
@@ -501,7 +501,7 @@ function judgeStanding(record: DeliveryRunRecord): JudgeStanding {
 }
 
 function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRunRecord, business: { id: string }): Built {
-  const scenarios = scenariosFor(serviceTypeOf(state, venture));
+  const scenarios = businessScenarios(state, venture.id, serviceTypeOf(state, venture));
   const { scenarios: total, passed } = record.summary;
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',

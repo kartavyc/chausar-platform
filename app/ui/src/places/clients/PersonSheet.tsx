@@ -120,6 +120,8 @@ function Body({ view, reload, onForgotten }: { view: PersonView; reload: () => v
           </div>
         )}
         {view.drafts.length > 0 && <p className={s.quiet}>{t('clients.person.drafts', { count: view.drafts.length })}</p>}
+        {/* W5 5A2: a sales proposal for them, drafted from the records; it waits on Today, and the owner sends it. */}
+        <div className={s.actions}><Button size="sm" onClick={(event) => openSheet('proposal', `person:${person.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
       </section>
 
       <BeforeYouWrite id={beforeId} view={view} />

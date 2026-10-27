@@ -74,8 +74,9 @@ test('ways: each way has its category, hours a week, the playbook\'s own AI team
     assert.ok(registration, `${way.id} names a registered playbook`);
     const delivery = flagshipDelivery(way.playbook);
     assert.ok(delivery, `${way.id} names a playbook that runs today`);
-    // The AI team is the playbook's agents only: code is never shown as AI.
-    const agents = delivery.roles.filter(role => role.kind === 'agent');
+    // The AI team is the playbook's agents only: code is never shown as AI. A tile names its team's roles (W5 5A1).
+    const team = WAYS.find(item => item.playbook === way.playbook)?.team;
+    const agents = (team ? team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles).filter(role => role.kind === 'agent');
     assert.deepEqual(way.team.map(member => member.role), agents.map(role => role.name), way.id);
     for (const [index, member] of way.team.entries()) assert.equal(member.department, departmentOfRole(delivery, agents[index].id), `${way.id} ${member.role}`);
     assert.equal(way.department, departmentOfService(registration.serviceType));
@@ -91,18 +92,19 @@ test('ways: each way has its category, hours a week, the playbook\'s own AI team
     ...byId(view, 'youtube'),
     playbook: 'youtube', label: 'YouTube channel', category: 'content', department: 'production',
     hours: '4 to 8 h a week', minHours: 4, maxHours: 8,
+    // Ink v2 wave 5 (5A1): the tile's team (5B's Gallery tile line), the playbook's own roles in the tile's order.
     team: [
-      { role: 'Intake clerk', initials: 'IC', department: 'production' }, { role: 'Producer', initials: 'PR', department: 'sales' },
-      { role: 'Story editor', initials: 'SE', department: 'production' }, { role: 'Packager', initials: 'PA', department: 'marketing' },
+      { role: 'Story editor', initials: 'SE', department: 'production' }, { role: 'Producer', initials: 'PR', department: 'sales' },
+      { role: 'Packager', initials: 'PA', department: 'marketing' },
     ],
     clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en },
   });
   const ca = byId(view, 'ca-firm');
   assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay.text, ca.clientsPay.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);
-  assert.deepEqual(ca.team.map(member => member.initials), ['IC', 'TP', 'RE', 'WP']);
+  assert.deepEqual(ca.team.map(member => member.initials), ['RE', 'TP']);
   const social = byId(view, 'social-agency');
   assert.deepEqual([social.label, social.category, social.department, social.hours, social.maxHours, social.clientsPay.text, social.clientsPay.per], ['Social media agency', 'marketing', 'marketing', '4 to 6 h a week', 6, '₹8,000 to ₹25,000', 'a client a month']);
-  assert.deepEqual(social.team.map(member => member.role), ['Intake', 'Strategist', 'Writer', 'Creative', 'Checker', 'Analyst']);
+  assert.deepEqual(social.team.map(member => member.role), ['Strategist', 'Writer', 'Creative']);
   const names = view.ways.flatMap(way => way.team.map(member => member.role));
   for (const codeRole of ['Chausar', 'Calculator', 'Checks']) assert.ok(!names.includes(codeRole), `${codeRole} is code, not an agent`);
   assert.match(WAY_SOURCE.en, /^Model estimate/);
@@ -128,8 +130,8 @@ test('ways: each way says what it needs in plain words: your own AI, the connect
   assert.equal(connectorWorks('social-agency', 'posting'), false, 'posting is planned');
   assert.equal(connectorWorks('ca-firm', 'gst-portal'), false, 'filing on the portal stays with a person');
   assert.throws(() => validateWays([...WAYS.slice(1), { ...structuredClone(WAYS[0]), uses: ['gst-portal'] } as WayData]), /gst-portal is not a connection that works today/);
-  // The YouTube way is honest about the cut: Chausar builds the edit list, the owner cuts in their own editor.
-  assert.match(byId(view, 'youtube').youDo, /your own editor/);
+  // The YouTube way's words are its tile's (Ink v2 wave 5, 5B's Gallery tile line): the owner watches each cut.
+  assert.match(byId(view, 'youtube').youDo, /watch each cut/);
   assert.match(byId(view, 'social-agency').needs.connections, /You post from your own accounts/);
 });
 

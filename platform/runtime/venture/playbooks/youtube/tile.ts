@@ -1,0 +1,22 @@
+// Chausar flagship playbook, YouTube channel: its Start gallery tile (Ink v2 wave 5, package 5A1; plan 5B "Gallery
+// tile"; 5B3 updates the line when its offers land). The hours and pay are a model estimate, shown so with their basis
+// (playbooks/ways.ts WAY_SOURCE). The team names the playbook's own roles, at most four; its code role (Chausar, which
+// builds the edit list) is never drawn as an AI. The Hindi is machine-drafted and needs a native reviewer
+// (HINDI_REVIEW, playbooks/ways.ts). Written for Chausar; nothing here is learned from an outside source.
+import type { StartTile } from '../kit/define.ts';
+
+export const YOUTUBE_TILE: StartTile = Object.freeze({
+  category: 'content',
+  icon: 'video',
+  line: "Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.",
+  youDo: Object.freeze({ hoursMin: 4, hoursMax: 8, line: 'Record, watch each cut, meet sponsors.' }),
+  team: Object.freeze({ roleIds: Object.freeze(['chausar', 'story-editor', 'producer', 'packager']), line: 'Edits, shorts, titles and sponsor quotes.' }),
+  pay: Object.freeze({ minRupees: 5000, maxRupees: 30000, per: 'per video' }),
+});
+
+/** The tile's lines in Hindi (machine-drafted, needs a native reviewer). */
+export const YOUTUBE_TILE_HI = Object.freeze({
+  line: 'अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स और पैकेजिंग, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।',
+  youDo: 'रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।',
+  teamLine: 'एडिट, शॉर्ट्स, टाइटल और स्पॉन्सर के लिए कोटेशन।',
+});

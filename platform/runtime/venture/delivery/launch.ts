@@ -8,7 +8,7 @@ import { LAUNCH_STAGES } from '../contracts.ts';
 import type { ImprovementReadiness, LaunchStage, LaunchStatus, SimulationRunRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { NOT_JUDGED_REASON } from './judge.ts';
 import { expectedPlaybookHash } from './playbook.ts';
-import { scenariosFor } from './scenarios.ts';
+import { businessScenarios } from './scenarios.ts';
 import { acceptedBlueprintOrNull, newestFirst, readAs, serviceTypeOf } from './shared.ts';
 import { AUTO_LOCKED_WORDS, autoLocked } from '../policy/auto-lock.ts';
 
@@ -52,7 +52,7 @@ function rehearsalRows(state: State, venture: VentureRecord): RowWithRun[] {
   // would use now: the current playbook when it fits the plan, else a fresh build with the adopted patches.
   try { currentHash = blueprint ? expectedPlaybookHash(state, venture, blueprint) : null; } catch { currentHash = null; }
   const runs = newestFirst(listRecords(state, 'venture-simulation-run', venture.id)).filter(run => currentHash !== null && run.playbookHash === currentHash);
-  return scenariosFor(type).map(scenario => {
+  return businessScenarios(state, venture.id, type).map(scenario => {
     const run = runs.find(item => item.scenarioIds.includes(scenario.id));
     if (!run) return { row: { scenarioId: scenario.id, runId: null, passed: null, judged: false }, run: null };
     const episodes = scenarioEpisodes(run, scenario.id);

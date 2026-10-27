@@ -18,16 +18,16 @@ import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
 // records file, as placeholders until that package lands; the package replaces them there, not here.
-import type { IntakeValue, StartTile } from './playbooks/kit/define.ts';
+import type { IntakeValue, KitIntakeField, StartTile } from './playbooks/kit/define.ts';
 import type { OrderChainView } from './playbooks/kit/records-chain.ts';
-import type { GoNoGoBody, GoNoGoCardView, GoNoGoInputs, SalesProposalView, SharePrice } from './playbooks/kit/records-sales.ts';
-import type { IdeaAddedView, IdeaGrade, IdeaGradedView, IdeaMovedView, IdeaStage } from './playbooks/kit/records-rules.ts';
+import type { GoNoGoBody, GoNoGoCardView, GoNoGoInputs, GoNoGoListView, SalesPilotTerms, SalesProposalBody, SalesProposalView, SharePrice } from './playbooks/kit/records-sales.ts';
+import type { IdeaAddedView, IdeaGrade, IdeaGradedView, IdeaMovedView, IdeaPipeline, IdeaStage, PipelineIdeaView } from './playbooks/kit/records-rules.ts';
 import type {
   AssetBody, AssetRerunView, AssetReuseView, AssetsView, BrandKitBody, BrandKitInput, BrandKitView, VoiceConsentBody, VoiceConsentsView, VoiceConsentView,
 } from './playbooks/kit/records-media.ts';
-import type { ReportBody, ReportFormat, ReportShareBody, ReportShareView, ReportView } from './playbooks/kit/records-report.ts';
+import type { PrintPort, ReportBody, ReportFormat, ReportListView, ReportShareBody, ReportShareView, ReportView } from './playbooks/kit/records-report.ts';
 import type {
-  LocalAppsView, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookView,
+  LocalAppBody, LocalAppPort, LocalAppsView, MailAttachment, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookKind, WebhookView,
 } from './build/records-connect.ts';
 import type { YoutubeDictionaryBody, YoutubeEditBody, YoutubeStyleBody } from './playbooks/youtube/records.ts';
 import type {
@@ -226,8 +226,10 @@ export const VENTURE_RECORD_KINDS = [
   // that package lands). Ideas reuse 4J18's 'venture-idea', routines 4J13's, imported mail 4E3's 'venture-inbound'.
   // The kit: 5A2 the GO card (playbooks/kit/records-sales.ts); 5A4 brand kits, assets and voice consent
   // (records-media.ts); 5A5 reports and their share links (records-report.ts); 5A6 monitors (build/records-connect.ts).
-  'venture-go-no-go', 'venture-brand-kit', 'venture-asset', 'venture-voice-consent', 'venture-report', 'venture-report-share',
+  'venture-go-no-go', 'venture-sales-proposal', 'venture-brand-kit', 'venture-asset', 'venture-voice-consent', 'venture-report', 'venture-report-share',
   'venture-monitor',
+  // 5A6 (K13): one owner-installed local app's last run and what it asked of the owner (build/records-connect.ts).
+  'venture-local-app',
   // The flagships (playbooks/<id>/records.ts): YouTube 5B1 edits and the names dictionary, 5B2 the style card; the CA
   // firm 5C1 citations, 5C2 differential cases and the ITR data pack; social 5D2 inbox items and the ad ledger, 5D3
   // influencer cases.
@@ -390,6 +392,11 @@ export type Offer = {
     unitPriceMinor: MinorString | null; // owner-entered only; null shows "Set your price"
     unitPriceLabel: 'told-by-you' | 'not-set';
     defaultQuantity: string; // integer text, engine default '1'
+    /**
+     * Ink v2 wave 5 (5A2): the offer is priced as a share of an amount the client confirms later (money/share-price.ts),
+     * in place of a fixed price; base and evidence stay null on the plan. Absent on every fixed-price offer.
+     */
+    share?: SharePrice;
   };
 };
 /**
@@ -404,7 +411,11 @@ export type PlanFlagshipStep = { id: string; title: Labelled<string>; doneBy: 'y
  * rights: the rights to the footage this offer accepts, in order; empty when it cuts no footage. fields: the other
  * intake fields its checks read; 'cutFile' never on the hosted server, which reads no file on the owner's computer.
  */
-export type OfferIntakeAsk = { rights: RightsBasis[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[] };
+export type OfferIntakeAsk = {
+  rights: RightsBasis[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[];
+  /** Ink v2 wave 5 (5A1): a kit offer's own intake fields, in order (kept under OrderIntake.fields); absent on the flagships. */
+  kit?: KitIntakeField[];
+};
 /** 'yours': work only the owner does, with no agent planned (composed plans only). */
 export type StepCapability = 'drafts-now' | 'planned' | 'yours';
 export type BlueprintStep = {
@@ -473,7 +484,8 @@ export type BlueprintPatch = {
   taxState?: string | null;
   sacCode?: string | null;
   lutConfirmed?: boolean;
-  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel }[];
+  /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
+  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
   /** Ink v2 wave 4 (4J8): a new offer of the owner's, with no price yet (Set your prices then names it). */
   addOffer?: { name: string; description: string; pricingModel: PricingModel };
   /** Ink v2 wave 4 (4J8): takes out an offer the owner added. A playbook's or the plan's own offers stay. */
@@ -931,6 +943,13 @@ export type OrderRecord = RecordBase<'venture-order'> & {
    */
   chainStage?: number;
   chainState?: 'running' | 'waiting' | 'stopped' | 'done';
+  /** 5A1: when the chain last moved (a stage, a wait on the client, a stop), for the waiting rows on Today. */
+  chainSince?: IsoTime;
+  /**
+   * Ink v2 wave 5 (5A2, the honest exit, playbooks/kit/exit.ts): the order is for the in-scope part of the ask only;
+   * rest lists what the playbook does not do, and reply the fixed words for the client. Absent when all of it is in scope.
+   */
+  outOfScope?: { rest: string[]; reply: string };
 };
 /**
  * A flagship offer's intake, checked by code when the order is made. rights: the rights to the footage, required for
@@ -1731,6 +1750,8 @@ export type DeliveryReason = typeof DELIVERY_REASONS[number];
 export type DeliveryRunStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed' | 'stopped';
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   orderId: string;
+  /** Ink v2 wave 5 (5A1, playbooks/kit/chain.ts): the chain stage this run drafts, when the order is past its first; absent is stage 1. */
+  chainStage?: number;
   playbookId: string;
   playbookHash: string;
   status: DeliveryRunStatus;
@@ -2143,7 +2164,8 @@ export type AuditRound = { round: number; plan: string; steps: AuditStep[]; prog
 /** A file a client sent, kept in the vault. Its content is client data, except Chausar's made-up practice files. */
 /** transcript: an SRT or VTT file of what was said, with timings (venture/playbooks/youtube/transcript.ts). */
 /** image: a still from an order's cut (Ink v2 wave 4, 4J3), a JPEG kept only as the order's poster. */
-export type UploadFormat = 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image';
+/** image and audio (5A4): a client's photo, cleaned at intake, and a recording kept as it came (playbooks/kit/media-intake.ts). */
+export type UploadFormat = 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio';
 export type UploadRecord = RecordBase<'venture-upload'> & {
   name: string;
   format: UploadFormat;
@@ -2152,9 +2174,10 @@ export type UploadRecord = RecordBase<'venture-upload'> & {
   contentBase64: string;
   /**
    * poster (4J3): the order's one still from its cut (delivery/poster.ts). Its own scope, so no agent tool, run file
-   * list or order file count ever reads it as a file the client sent.
+   * list or order file count ever reads it as a file the client sent. media (5A4): an order's photos and recordings, in
+   * their own scope for the same reason.
    */
-  scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string };
+  scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string } | { kind: 'media'; orderId: string };
   clientData: boolean;
   /**
    * Where it came from: the client, a transcript made on this computer from the client's footage, or a still taken
@@ -2645,8 +2668,11 @@ export interface QueueRow {
   /** 4G2: a needs-you probe's notice parts. Part of the row's digest. */
   notice?: QueueNotice;
 }
-/** The needs-you probes (4G2, O10): failed posts, a broken connection, drafts waiting, a calendar gap, a sharp move, a stalled client. */
-export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled';
+/**
+ * The needs-you probes (4G2, O10): failed posts, a broken connection, drafts waiting, a calendar gap, a sharp move, a
+ * stalled client. 'idea' (Ink v2 wave 5, 5A3): a published idea whose seven days are over, waiting for its grade.
+ */
+export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea';
 /**
  * A probe's notice (4G2): which probe made it, how much it matters, the screen Open goes to (an app address such as
  * #/connections), and each amount its line states, written exactly as there, with the receipt behind it, in the order
@@ -3193,13 +3219,24 @@ export interface PlatformRuleView {
   usedBy: string[];
   limitations: string[];
   source: { title: string; url: string } | null;
+  /** Ink v2 wave 5 (5A3): every source it was read from; a house rule's is "Chausar's own rule" with no address (url ''). */
+  sources: { title: string; url: string }[];
   line: Display;
 }
-/** venture.rules.list: the playbook's rules with their freshness, its risk level and when it was last reviewed. Empty with no flagship. */
+/** 5A3 (P6): a recipe the owner can follow: when to use it, steps with why, how to read the result, common mistakes. */
+export interface RecipeView { id: string; name: Display; whenToUse: Display; steps: { do: Display; why: Display }[]; howToRead: Display; mistakes: Display[] }
+/** 5A3 (P6): one row of the measurement-boundaries table: what this evidence can say and what it cannot. */
+export interface BoundaryView { evidence: Display; canSay: Display; cannotSay: Display }
+/**
+ * venture.rules.list: the playbook's rules with their freshness, its risk level and when it was last reviewed; for a kit
+ * playbook (5A3) also its recipes and its measurement boundaries (empty for the flagships). Empty with no playbook.
+ */
 export interface RulesListView {
   playbook: { id: string; label: string; riskLevel: string; lastReviewed: IsoDate } | null;
   rules: PlatformRuleView[];
   summary: Display;
+  recipes: RecipeView[];
+  boundaries: BoundaryView[];
 }
 
 /**
@@ -3233,7 +3270,8 @@ export const DEPARTMENT_IDS = ['sales', 'marketing', 'production', 'money', 'ope
 export type DepartmentId = typeof DEPARTMENT_IDS[number];
 
 /** Keeper's jobs: the engine's own work, run as code, never AI (4A1). The probes (4G2) and the calendar feed (4E3) write runs too. */
-export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed';
+export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed'
+  | 'monitors'; // 5A6 (K16): the owner's page monitors
 export type KeeperOutcome = 'ok' | 'warn' | 'failed';
 /** The last run of one Keeper job: one record per job, replaced each run (4A1). */
 export type KeeperRunRecord = RecordBase<'venture-keeper-run'> & { job: KeeperJobId; outcome: KeeperOutcome; line: string };
@@ -3493,7 +3531,8 @@ export type RowFigureReceipt = {
   id: string; kind: 'row-figure'; ventureId: string; at: IsoTime; operation: 'venture.row-figure';
   // 4G2: 'week-total' and 'week-average', the two figures of a "moved sharply" notice (views/probe-figures.ts).
   // 4F3: 'scope-cap', a run's spend cap as its scope froze it when it started.
-  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap'; recordId: string };
+  // 5A2: 'go-no-go', a GO card's maximum loss against the owner's limit (playbooks/kit/go-no-go.ts).
+  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go'; recordId: string };
   figures: RowFigure[]; allowedNumbers: string[]; explanation: Display; digest: string; stale: boolean;
 };
 /** One trait a plain-English search looks for (4D3). */
@@ -3692,6 +3731,15 @@ export type InboundRecord = RecordBase<'venture-inbound'> & {
   hindi?: boolean;
   /** 4E3: what the owner decided on it: matched it to a card, said it was not about one, moved the card, or set it aside. */
   handled?: { how: 'confirmed' | 'not-them' | 'moved' | 'done'; at: IsoTime; by: string } | null;
+  /**
+   * 5A6 (mail in): 'file-import' for a message from an .eml or .mbox file the owner imported (build/mail-in.ts); absent
+   * for 4E3's mailbox sync. Only an imported message keeps its new words (text, screened, at most 4,000 characters; null
+   * when the screen held them) and its attachments (MailAttachment); the import it came in is importId.
+   */
+  source?: 'file-import';
+  text?: string | null;
+  attachments?: MailAttachment[];
+  importId?: string;
 };
 /** What a reply asks about, so the owner answers it (4E3, C11). */
 export type InboundTopic = 'price' | 'contract' | 'meeting' | 'buying';
@@ -4115,6 +4163,8 @@ export type IdeaRecord = RecordBase<'venture-idea'> & {
   rule: string;
   status: 'open' | 'started' | 'dismissed' | 'retired';
   decidedAt: IsoTime | null;
+  /** Ink v2 wave 5 (5A3): an idea in the pipeline (rule 'pipeline'), its stage, author, days and grade; absent on 4J18's ideas. */
+  pipeline?: IdeaPipeline;
 };
 
 // --- Wave 4 views (what the methods answer). Every figure arrives formatted with its receipt. ---
@@ -4847,7 +4897,8 @@ export interface KnowledgeTestView { hits: { sourceId: string; title: string; li
 export type IdeaView = { id: string; title: Display; reason: Display; evidence: { id: string; line: Display }[]; prompt: string };
 /** 4J18. Who is waiting on the owner: real records only. */
 export type WaitingOnYouView = { id: string; recordId: string; line: Display };
-export interface IdeasView { ideas: IdeaView[]; waiting: WaitingOnYouView[] }
+/** pipeline (Ink v2 wave 5, 5A3): the ideas the owner and the agents added, newest first, on the same records. */
+export interface IdeasView { ideas: IdeaView[]; waiting: WaitingOnYouView[]; pipeline: PipelineIdeaView[] }
 export interface IdeaStarted { proposal: ProposalView | null; suggestion: AgentSuggestion | null; line: Display }
 /**
  * 4J18. One line of the capability page: its list, what it is about (key: tool:<name>, step:<id>, input:<kind>,
@@ -4919,12 +4970,15 @@ export type Department = DepartmentId;
 export type { IntakeValue, SharePrice, StartTile };
 // The kit (5A2, 5A4, 5A5, 5A6)
 export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody;
+/** 5A2: a sales proposal drafted for a client or a pipeline person (playbooks/kit/records-sales.ts SalesProposalBody). */
+export type SalesProposalRecord = RecordBase<'venture-sales-proposal'> & SalesProposalBody;
 export type BrandKitRecord = RecordBase<'venture-brand-kit'> & BrandKitBody;
 export type AssetRecord = RecordBase<'venture-asset'> & AssetBody;
 export type VoiceConsentRecord = RecordBase<'venture-voice-consent'> & VoiceConsentBody;
 export type ReportRecord = RecordBase<'venture-report'> & ReportBody;
 export type ReportShareRecord = RecordBase<'venture-report-share'> & ReportShareBody;
 export type MonitorRecord = RecordBase<'venture-monitor'> & MonitorBody;
+export type LocalAppRecord = RecordBase<'venture-local-app'> & LocalAppBody;
 // The flagships (5B, 5C, 5D)
 export type YoutubeEditRecord = RecordBase<'venture-youtube-edit'> & YoutubeEditBody;
 export type YoutubeDictionaryRecord = RecordBase<'venture-youtube-dictionary'> & YoutubeDictionaryBody;
@@ -5024,7 +5078,7 @@ export type AnyVentureRecord =
   | VoiceRecord | PersonaRecord
   | KnowledgeRecord | IdeaRecord
   // Ink v2 wave 5 (section 9f)
-  | GoNoGoRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord
+  | GoNoGoRecord | SalesProposalRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord | LocalAppRecord
   | YoutubeEditRecord | YoutubeDictionaryRecord | YoutubeStyleRecord
   | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord
   | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
@@ -5148,8 +5202,8 @@ export type W4Method = typeof W4_METHODS[number];
 export const W5_METHODS = [
   // 5A1 the chain of an order's stages, from a kit offer's stages
   'venture.order.chain',
-  // 5A2 the sales proposal and the GO, HOLD or NO-GO card
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card',
+  // 5A2 the sales proposal and the GO, HOLD or NO-GO card (5A2 added goNoGo.list, so Business lists the stored cards)
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
   // 5A3 the idea pipeline, beside 4J18's venture.ideas.list, .start and .dismiss
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   // 5A4 brand kits, asset records and voice consent
@@ -5157,6 +5211,8 @@ export const W5_METHODS = [
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
   // 5A5 client reports and their share links
   'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
+  // 5A5 added report.list, so reports and their live links stay findable after the screen closes
+  'venture.report.list',
   // 5A6 monitors, mail import, the owner's local apps, the webhook handoff and speech providers (build)
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
   'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
@@ -5332,11 +5388,12 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.ideas.list': 'agents', 'venture.ideas.start': 'agents', 'venture.ideas.dismiss': 'agents', 'venture.agents.capabilities': 'agents',
   // Ink v2 wave 5 (named by package 5-0)
   'venture.order.chain': 'playbooks',
-  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks',
+  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks', 'venture.goNoGo.list': 'playbooks',
   'venture.ideas.add': 'playbooks', 'venture.ideas.move': 'playbooks', 'venture.ideas.grade': 'playbooks',
   'venture.brandKit.get': 'playbooks', 'venture.brandKit.set': 'playbooks', 'venture.assets.list': 'playbooks', 'venture.assets.rerun': 'playbooks', 'venture.assets.reuse': 'playbooks',
   'venture.voiceConsent.record': 'playbooks', 'venture.voiceConsent.revoke': 'playbooks', 'venture.voiceConsent.list': 'playbooks',
   'venture.report.render': 'playbooks', 'venture.report.share': 'playbooks', 'venture.report.shareRotate': 'playbooks', 'venture.report.shareDisable': 'playbooks',
+  'venture.report.list': 'playbooks',
   'venture.monitors.list': 'build', 'venture.monitors.add': 'build', 'venture.monitors.remove': 'build', 'venture.mail.import': 'build', 'venture.mail.threads': 'build',
   'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.speechOut.providers': 'build',
   'venture.ca.confirmCitations': 'playbooks', 'venture.ca.signoff.get': 'playbooks', 'venture.ca.differential.add': 'playbooks', 'venture.ca.dataPack.export': 'playbooks',
@@ -5456,11 +5513,12 @@ export const W4_METHOD_LEVELS: Readonly<Record<W4Method, MethodLevel>> = Object.
  */
 export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.freeze({
   'venture.order.chain': 'read',
-  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare',
+  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare', 'venture.goNoGo.list': 'read',
   'venture.ideas.add': 'prepare', 'venture.ideas.move': 'prepare', 'venture.ideas.grade': 'prepare',
   'venture.brandKit.get': 'read', 'venture.brandKit.set': 'approve', 'venture.assets.list': 'read', 'venture.assets.rerun': 'prepare', 'venture.assets.reuse': 'prepare',
   'venture.voiceConsent.record': 'approve', 'venture.voiceConsent.revoke': 'approve', 'venture.voiceConsent.list': 'read',
   'venture.report.render': 'prepare', 'venture.report.share': 'approve', 'venture.report.shareRotate': 'approve', 'venture.report.shareDisable': 'approve',
+  'venture.report.list': 'read',
   'venture.monitors.list': 'read', 'venture.monitors.add': 'approve', 'venture.monitors.remove': 'approve', 'venture.mail.import': 'approve', 'venture.mail.threads': 'read',
   'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.speechOut.providers': 'read',
   'venture.ca.confirmCitations': 'approve', 'venture.ca.signoff.get': 'read', 'venture.ca.differential.add': 'approve', 'venture.ca.dataPack.export': 'approve',
@@ -5807,11 +5865,13 @@ export type VenturePayloads = {
   'venture.agents.capabilities': { agent: string };
   // Ink v2 wave 5 (5-0, from the plan's words; the owning package may tighten its own lines)
   'venture.order.chain': { orderId: string };
-  /** Exactly one of clientId and personId (a pipeline person, 4E). pilot: propose the offer's pilot (5A2 pilotOf). */
-  'venture.salesProposal.draft': ({ clientId: string; personId?: never } | { personId: string; clientId?: never }) & { offerId: string; pilot?: boolean };
-  'venture.salesProposal.get': { id: string };
-  /** inputs: typed by the owner; money as minor-unit strings (5A2 records-sales.ts GoNoGoInputs). */
+  /** Exactly one of clientId and personId (a pipeline person, 4E). pilot: propose the offer's pilot, with the terms agreed so far (5A2 pilotOf). */
+  'venture.salesProposal.draft': ({ clientId: string; personId?: never } | { personId: string; clientId?: never }) & { offerId: string; pilot?: boolean | SalesPilotTerms };
+  /** 5A2: by its id, or the newest proposal for a client or a pipeline person (PROPOSAL_NOT_FOUND when there is none). */
+  'venture.salesProposal.get': { id: string } | { clientId: string } | { personId: string };
+  /** inputs: typed by the owner; money as rupee text the engine reads like a price (5A2 records-sales.ts GoNoGoInputs). */
   'venture.goNoGo.card': { playbook: string; subject: string; inputs: GoNoGoInputs };
+  'venture.goNoGo.list': Empty;
   'venture.ideas.add': { text: string; source: string };
   /** reason: one sentence, required when the stage is 'dropped'. */
   'venture.ideas.move': { id: string; stage: IdeaStage; reason?: string };
@@ -5828,15 +5888,18 @@ export type VenturePayloads = {
   'venture.report.share': { reportId: string; from: IsoDate; to: IsoDate; channels?: string[] };
   'venture.report.shareRotate': { shareId: string };
   'venture.report.shareDisable': { shareId: string };
+  'venture.report.list': { orderId?: string; runId?: string };
   'venture.monitors.list': Empty;
   'venture.monitors.add': MonitorInput;
   'venture.monitors.remove': { id: string };
   /** uploadId: an .eml or .mbox file the owner added (venture.files.add). */
-  'venture.mail.import': { uploadId: string };
+  /** 5A6: an .eml or .mbox file, as its bytes (venture.files.add takes only order files of up to 1.45 MB). */
+  'venture.mail.import': { name: string; contentBase64: string };
   'venture.mail.threads': { clientId?: string };
   'venture.localApps.list': Empty;
   /** url null clears it. */
-  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null };
+  /** 5A6: test: send the fixed test item (shown first) once, journalled, before the address is kept. */
+  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null; test?: boolean };
   'venture.speechOut.providers': Empty;
   /** As venture.ca.confirmRates: the CA of record's membership number and the citations table version confirmed. */
   'venture.ca.confirmCitations': { version: number; membershipNo: string };
@@ -6141,6 +6204,7 @@ export type VentureResults = {
   'venture.salesProposal.draft': SalesProposalView;
   'venture.salesProposal.get': SalesProposalView;
   'venture.goNoGo.card': GoNoGoCardView;
+  'venture.goNoGo.list': GoNoGoListView;
   'venture.ideas.add': IdeaAddedView;
   'venture.ideas.move': IdeaMovedView;
   'venture.ideas.grade': IdeaGradedView;
@@ -6156,6 +6220,7 @@ export type VentureResults = {
   'venture.report.share': ReportShareView;
   'venture.report.shareRotate': ReportShareView;
   'venture.report.shareDisable': ReportShareView;
+  'venture.report.list': ReportListView;
   'venture.monitors.list': MonitorsView;
   'venture.monitors.add': MonitorView;
   'venture.monitors.remove': MonitorView;
@@ -6299,9 +6364,32 @@ export const VENTURE_ERRORS = [
   'ROUTINE_NOT_STANDALONE', 'ROUTINE_NOT_YOURS', 'AUTO_LOCKED', 'NEEDS_FACTS', 'PERSONA_FIELD_REFUSED', 'QUESTION_HAS_APPROVAL', 'TRIAL_LIMIT',
   // Ideas (4J18): an idea with no record behind it, and one whose records no longer hold it
   'IDEA_NO_EVIDENCE', 'IDEA_RETIRED',
+  // Ink v2 wave 5, 5A3: a dated rule, manual path, recipe or boundary a playbook cannot rest on; a rule a CA or lawyer
+  // has not confirmed, on a client's work; the idea pipeline's refusals (unknown idea, a move back, a drop without a
+  // reason, a grade before it was published or before its seven days)
+  'RULE_INVALID', 'RULE_UNCONFIRMED', 'MANUAL_PATH_MISSING', 'RECIPE_INVALID', 'BOUNDARY_INVALID',
+  'IDEA_NOT_FOUND', 'IDEA_STAGE_BACKWARD', 'IDEA_DROP_REASON', 'IDEA_NOT_PUBLISHED', 'IDEA_GRADE_EARLY',
   // 4J2 review: a copy of a draft that has not gone out, a set item never read in this version, a set that asks twice
   // without its second answer, and a settings draft holding a key, card or account number
   'COPY_NOT_SENT', 'VIEW_FIRST', 'SET_NEEDS_SECOND_ASK', 'DRAFT_HOLDS_SECRET',
+  // Ink v2 wave 5, 5A1: a kit definition that breaks a rule, and a kit order missing a required intake field
+  'PLAYBOOK_DEFINITION_INVALID', 'INTAKE_FIELD_REQUIRED',
+  // Ink v2 wave 5, 5A2: share prices (no recorded base, a base without its file, a share outside 0.01% to 100%); the
+  // pilot (a window outside 2 to 6 weeks, no price, an offer that is not a pilot); the sales proposal (an unpriced
+  // offer, none found, a check that failed); an ask wholly outside what the business does
+  'SHARE_BASE_MISSING', 'SHARE_BASE_UNPROVEN', 'INVALID_SHARE', 'PILOT_WINDOW', 'PILOT_UNPRICED', 'PILOT_NOT_OFFERED',
+  'OFFER_UNPRICED', 'PROPOSAL_NOT_FOUND', 'PROPOSAL_CHECKS_FAILED', 'OUTSIDE_SCOPE',
+  // Ink v2 wave 5, 5A6: the fetch policy and robots.txt; monitors; the owner's local apps; publish tiers' quota; the
+  // webhook handoff; mail files; speech out (no dated price, quote first, a voice without a licence or consent)
+  'FETCH_POLICY_REFUSED', 'FETCH_DISGUISE_REFUSED', 'ROBOTS_REFUSED', 'MONITOR_NOT_FOUND', 'MONITOR_LIMIT',
+  'LOCAL_APP_NOT_FOUND', 'LOCAL_APP_UNAVAILABLE', 'LOCAL_APP_REFUSED', 'LOCAL_APP_FAILED', 'LOCAL_APP_NEEDS_YOU', 'QUOTA_REACHED',
+  'WEBHOOK_NOT_SET', 'WEBHOOK_REFUSED', 'MAIL_FILE_TOO_LARGE', 'MAIL_FILE_UNREADABLE',
+  'UNPRICED_CALL', 'QUOTE_FIRST', 'VOICE_NOT_ALLOWED', 'SPEECH_PLANNED', 'SPEECH_TOO_LONG',
+  // Ink v2 wave 5, 5A4: asset records (an unknown licence, not found, not made yet, a rerun or reuse refused), a clip
+  // still holding its location data, voice consent (none current, withdrawn, not found, another voice than the step
+  // named), and a derived unit whose source changed
+  'ASSET_LICENCE_UNKNOWN', 'ASSET_NOT_FOUND', 'ASSET_NOT_MADE', 'ASSET_REFUSED', 'MEDIA_NOT_CLEAN',
+  'CONSENT_REQUIRED', 'CONSENT_WITHDRAWN', 'CONSENT_NOT_FOUND', 'VOICE_MISMATCH', 'DERIVED_STALE',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -6316,7 +6404,9 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  * receipt:signing: the seed of the business's receipt signing key (4J10), derived from the vault's own key when it opens.
  * journal:head: the key of the HMAC on the journal's pinned head and the first signing time (4J10), derived the same way.
  */
-export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head';
+export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
+  // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
+  | `webhook:${WebhookKind}` | `speech:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;
@@ -6423,6 +6513,10 @@ export type VentureDeps = {
    * trial's size cap is held by the hosted vault store itself. Only on the hosted web server; absent: never temporary.
    */
   trial?: () => boolean;
+  /** Ink v2 wave 5 (5A5): the desktop's printer for a report's PDF (Electron's printToPDF). Never on hosted; absent: no PDF. */
+  print?: PrintPort;
+  /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
+  localApps?: LocalAppPort;
 };
 
 /**
@@ -6494,6 +6588,8 @@ export type VentureHostOptions = {
   closing?: VentureClosingPort;
   /** Trusted host composition (4J23): whether this hosted business is temporary (VentureDeps.trial). Hosted only. */
   trial?: () => boolean;
+  /** Trusted host composition (5A5): the desktop's report printer over the worker's channel (VentureDeps.print). Never on hosted. */
+  print?: PrintPort;
 };
 
 /**

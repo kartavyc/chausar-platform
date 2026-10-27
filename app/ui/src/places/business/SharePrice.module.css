@@ -1,0 +1,5 @@
+/* The share price fold under the price cards (Ink v2 wave 5, 5A2): one tile, the grid's gap above it. Tokens only. */
+
+.tile {
+  margin-top: var(--gap-grid);
+}

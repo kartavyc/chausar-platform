@@ -250,7 +250,8 @@ export function planChangeCount(state: State, venture: VentureRecord): { draft: 
   const details: Display[] = [];
   const priced = draft.offers.filter(offer => {
     const before = accepted.offers.find(item => item.id === offer.id);
-    return before !== undefined && before.pricing.unitPriceMinor !== offer.pricing.unitPriceMinor;
+    // 5A2: a share set or changed is a price change too (money/share-price.ts).
+    return before !== undefined && (before.pricing.unitPriceMinor !== offer.pricing.unitPriceMinor || (before.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null));
   });
   if (priced.length) parts.push(many(priced.length, 'price changed', 'prices changed'));
   for (const offer of priced) details.push(`${offer.name.value}: ${offerPriceText(accepted.offers.find(item => item.id === offer.id), currency)} to ${offerPriceText(offer, currency)}`);

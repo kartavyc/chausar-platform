@@ -109,7 +109,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
-      case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || (u.scope.kind === 'order' && u.scope.orderId === p.orderId)));
+      case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': return this.addFile(biz, p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -186,9 +186,25 @@ export class FakeWorkDesk {
     if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw tooBig;
     const bytes = Math.floor((encoded.length * 3) / 4) - (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0);
     if (bytes <= 0 || bytes > MAX_UPLOAD_BYTES) throw tooBig;
-    const format = FORMAT_OF[name.toLowerCase().split('.').pop() ?? ''];
+    const ext = name.toLowerCase().split('.').pop() ?? '';
+    // 5A4 (P9): a photo (kept cleaned of its location data) or a recording sits in the order's media scope, apart.
+    const media = !name.includes('.') ? null : ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' as const : ['wav', 'mp3', 'm4a', 'ogg'].includes(ext) ? 'audio' as const : null;
+    const format = media ?? FORMAT_OF[ext];
     if (!name.includes('.') || !format) throw new EngineError('UNSUPPORTED_UPLOAD', 'Add a CSV, Excel or PDF file, or a transcript as SRT or VTT.');
     const list = (this.uploads[biz] ??= []);
+    if (media) {
+      // The engine reads the first bytes: a file that is not what its name says is refused, never kept as it came.
+      const head = Array.from(atob(encoded.slice(0, 24)), (c) => c.charCodeAt(0));
+      const word = (at: number) => String.fromCharCode(...head.slice(at, at + 4));
+      const real = ext === 'png' ? head[0] === 0x89 && word(1).startsWith('PNG') : ext === 'webp' ? word(0) === 'RIFF' && word(8) === 'WEBP'
+        : ext === 'jpg' || ext === 'jpeg' ? head[0] === 0xff && head[1] === 0xd8 : ext === 'wav' ? word(0) === 'RIFF' && word(8) === 'WAVE'
+          : ext === 'mp3' ? word(0).startsWith('ID3') || (head[0] === 0xff && ((head[1] ?? 0) & 0xe0) === 0xe0) : ext === 'm4a' ? word(4) === 'ftyp' : word(0) === 'OggS';
+      if (!real) throw new EngineError('UNSUPPORTED_UPLOAD', media === 'image' ? `${name} is not a photo Chausar can read. Export it again as JPEG, PNG or WebP.` : `${name} is not a recording Chausar can keep. Add a WAV, MP3, M4A or Ogg file.`);
+      if (list.filter((u) => u.scope.kind === 'media' && u.scope.orderId === order.id).length >= 10) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most 10 photos and recordings.');
+      const kept: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format: media, bytes, scope: { kind: 'media', orderId: order.id }, clientData: true };
+      list.unshift(kept);
+      return clone(kept);
+    }
     if (list.filter((u) => u.scope.kind === 'order' && u.scope.orderId === order.id).length >= MAX_UPLOADS_PER_ORDER) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most ten files.');
     const upload: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true, ...(origin ? { origin } : {}) };
     list.unshift(upload);

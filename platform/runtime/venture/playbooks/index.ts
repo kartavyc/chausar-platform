@@ -6,42 +6,49 @@
 // nothing here is learned from an outside source.
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
+import { orderChainHandler } from './kit/chain.ts';
+import { deskRoute } from './kit/desk-route.ts';
 
 /** A wave 5 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = Object.freeze({
   // 5A1 the chain of an order's stages
-  'venture.order.chain': notBuiltYet,
+  'venture.order.chain': orderChainHandler,
   // 5A2 the sales proposal and the GO card
-  'venture.salesProposal.draft': notBuiltYet,
-  'venture.salesProposal.get': notBuiltYet,
-  'venture.goNoGo.card': notBuiltYet,
+  'venture.salesProposal.draft': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).salesProposalDraftHandler(deps, ctx, payload),
+  'venture.salesProposal.get': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).salesProposalGetHandler(deps, ctx, payload),
+  'venture.goNoGo.card': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).goNoGoCardHandler(deps, ctx, payload),
+  'venture.goNoGo.list': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).goNoGoListHandler(deps, ctx, payload),
   // 5A3 the idea pipeline
-  'venture.ideas.add': notBuiltYet,
-  'venture.ideas.move': notBuiltYet,
-  'venture.ideas.grade': notBuiltYet,
+  'venture.ideas.add': async (deps, ctx, payload) => (await import('./kit/ideas.ts')).ideasAddHandler(deps, ctx, payload),
+  'venture.ideas.move': async (deps, ctx, payload) => (await import('./kit/ideas.ts')).ideasMoveHandler(deps, ctx, payload),
+  'venture.ideas.grade': async (deps, ctx, payload) => (await import('./kit/ideas.ts')).ideasGradeHandler(deps, ctx, payload),
   // 5A4 brand kits, asset records and voice consent
-  'venture.brandKit.get': notBuiltYet,
-  'venture.brandKit.set': notBuiltYet,
-  'venture.assets.list': notBuiltYet,
-  'venture.assets.rerun': notBuiltYet,
-  'venture.assets.reuse': notBuiltYet,
-  'venture.voiceConsent.record': notBuiltYet,
-  'venture.voiceConsent.revoke': notBuiltYet,
-  'venture.voiceConsent.list': notBuiltYet,
+  'venture.brandKit.get': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).brandKitGetHandler(deps, ctx, payload),
+  'venture.brandKit.set': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).brandKitSetHandler(deps, ctx, payload),
+  'venture.assets.list': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).assetsListHandler(deps, ctx, payload),
+  'venture.assets.rerun': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).assetsRerunHandler(deps, ctx, payload),
+  'venture.assets.reuse': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).assetsReuseHandler(deps, ctx, payload),
+  'venture.voiceConsent.record': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).voiceConsentRecordHandler(deps, ctx, payload),
+  'venture.voiceConsent.revoke': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).voiceConsentRevokeHandler(deps, ctx, payload),
+  'venture.voiceConsent.list': async (deps, ctx, payload) => (await import('./kit/media-methods.ts')).voiceConsentListHandler(deps, ctx, payload),
   // 5A5 client reports and their share links
-  'venture.report.render': notBuiltYet,
-  'venture.report.share': notBuiltYet,
-  'venture.report.shareRotate': notBuiltYet,
-  'venture.report.shareDisable': notBuiltYet,
+  'venture.report.render': async (deps, ctx, payload) => (await import('./kit/report/methods.ts')).reportRender(deps, ctx, payload),
+  'venture.report.share': async (deps, ctx, payload) => (await import('./kit/report/share.ts')).reportShare(deps, ctx, payload),
+  'venture.report.shareRotate': async (deps, ctx, payload) => (await import('./kit/report/share.ts')).reportShareRotate(deps, ctx, payload),
+  'venture.report.shareDisable': async (deps, ctx, payload) => (await import('./kit/report/share.ts')).reportShareDisable(deps, ctx, payload),
+  'venture.report.list': async (deps, ctx, payload) => (await import('./kit/report/methods.ts')).reportList(deps, ctx, payload),
   // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
   'venture.ca.confirmCitations': notBuiltYet,
   'venture.ca.signoff.get': notBuiltYet,
   'venture.ca.differential.add': notBuiltYet,
   'venture.ca.dataPack.export': notBuiltYet,
   // Every business's desk: 5A1 routes these through playbooks/desks.ts deskHandler
-  'venture.desk.list': notBuiltYet,
-  'venture.desk.get': notBuiltYet,
-  'venture.desk.act': notBuiltYet,
+  'venture.desk.list': deskRoute('list'),
+  'venture.desk.get': deskRoute('get'),
+  'venture.desk.act': deskRoute('act'),
 });
+
+/** 5A5: the hosted /share/<token> page for a report link (VentureHost.shareLink). Trusted host only; no RPC reaches it. */
+export const reportSharePage: typeof import('./kit/report/share.ts').reportSharePage = async (...args) => (await import('./kit/report/share.ts')).reportSharePage(...args);

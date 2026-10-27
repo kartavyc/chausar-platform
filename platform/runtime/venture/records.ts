@@ -72,8 +72,8 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-knowledge': 'knowledge', 'venture-idea': 'idea',
   'venture-owner-offer': 'owneroffer',
   // Ink v2 wave 5 (package 5-0; contracts.ts section 9f)
-  'venture-go-no-go': 'gonogo', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
-  'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-youtube-edit': 'ytedit',
+  'venture-go-no-go': 'gonogo', 'venture-sales-proposal': 'salesprop', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
+  'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-local-app': 'localapp', 'venture-youtube-edit': 'ytedit',
   'venture-youtube-dictionary': 'ytdict', 'venture-youtube-style': 'ytstyle', 'venture-ca-citations': 'cacite', 'venture-ca-differential': 'cadiff',
   'venture-ca-data-pack': 'cadatapack', 'venture-social-inbox-item': 'inboxitem', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
   'venture-seo-panel': 'seopanel', 'venture-seo-observation': 'seoobs', 'venture-seo-finding': 'seofinding', 'venture-seller-sku': 'sku',
@@ -159,7 +159,7 @@ export function trialRefusal(record: AnyVentureRecord): string | null {
     case 'venture-payment': return TRIAL_MONEY_LINE;
     case 'venture-credit-note': return value.status === 'issued' ? TRIAL_MONEY_LINE : null;
     case 'venture-bill': return (Array.isArray(value.payments) && value.payments.length > 0) || (value.paidMinor !== undefined && value.paidMinor !== '0') ? TRIAL_MONEY_LINE : null;
-    case 'venture-share-link': case 'venture-file-request': return TRIAL_SEND_LINE;
+    case 'venture-share-link': case 'venture-file-request': case 'venture-report-share': return TRIAL_SEND_LINE;
     case 'venture-bank-account': return value.alertAddress ? TRIAL_SEND_LINE : null;
     default: return null;
   }

@@ -43,7 +43,7 @@ const CHARGES: Readonly<Record<string, { line: string; noted: boolean }>> = Obje
   firstbase: { line: 'Forming a company through it has a fee.', noted: false },
 });
 /** Chausar's own parts and the connectors that need nothing but this computer or the owner's own mail. */
-const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account']);
+const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import']);
 
 type Hand = Omit<ConnectorGuide, 'charges' | 'missing'>;
 
@@ -152,6 +152,28 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
   },
   linkedin: poster('LinkedIn'),
   x: poster('X'),
+  // Ink v2 wave 5 (5A6): mail files you import, and your own n8n or Make webhook.
+  'mail-import': {
+    steps: ['In your mail app, save the mails as .eml files, or export a folder as an .mbox file.', 'Under Connections, choose Import mail files and pick the file.'],
+    skipped: 'Export only the folder you need: a file over 25 MB is refused, and the smaller the file, the less of other people\'s mail Chausar keeps.',
+    checks: 'Nothing to connect: Chausar reads only the file you pick, and screens each message before it keeps anything.',
+    sends: 'Sends: nothing. Chausar never sends mail.',
+    agentLimits: "Agents read only the mail of the order's own client, screened first, and never your mailbox.",
+  },
+  'n8n-webhook': {
+    steps: ['In n8n, add a Webhook node to a workflow and copy its production address.', 'Under Connections, paste it as your n8n webhook, and send the test item if you like.', AGAIN],
+    skipped: 'Use the production address, not the test one, and keep the workflow active, or n8n will refuse what Chausar sends.',
+    checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if n8n did not refuse it.',
+    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a workflow.',
+    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+  },
+  'make-webhook': {
+    steps: ['In Make, add a Custom webhook trigger to a scenario and copy its address.', 'Under Connections, paste it as your Make webhook, and send the test item if you like.', AGAIN],
+    skipped: 'Turn the scenario on, or Make will hold what Chausar sends until you do.',
+    checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if Make did not refuse it.',
+    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a scenario.',
+    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+  },
 });
 
 /** What a connector this build does not link says it would do until it is built, beside the general planned words. */

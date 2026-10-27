@@ -47,7 +47,7 @@ export type SharePageView = {
   businessName: string; title: string; text: string; expires: string; digest: string;
   decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
   /** 4J7 (O20): what the link shares, whether it may answer now, the posts a comment can name, the comments so far. */
-  kind?: 'draft' | 'order-status' | 'statement' | 'books'; canAnswer?: boolean;
+  kind?: 'draft' | 'order-status' | 'statement' | 'books' | 'report'; canAnswer?: boolean;
   items?: { id: string; name: string; text: string }[]; comments?: { item: string; text: string }[];
 };
 /** What the file request page shows (FileRequestPage in venture/build/file-requests.ts). Text only. */
@@ -368,6 +368,9 @@ export class HostedApp {
     // 4J7 (K9): a client file request link is noted the same way, so /share/<token>/upload finds the business.
     if (method === 'venture.share.create' || method === 'venture.share.request') await this.#indexShare(key, result);
     if (method === 'venture.share.revoke') await this.#unindexShare(key, result);
+    // 5A5: a report link the same way; a rotated one leads only by its new token, a turned-off one nowhere.
+    if (method === 'venture.report.shareRotate' || method === 'venture.report.shareDisable') await this.#unindexShare(key, result);
+    if (method === 'venture.report.share' || method === 'venture.report.shareRotate') await this.#indexShare(key, result);
     return result;
   }
 

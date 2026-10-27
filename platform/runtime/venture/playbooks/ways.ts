@@ -21,6 +21,10 @@ import { SOCIAL_CONNECTORS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { youtubeConnectors } from './youtube/playbook.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
+import { YOUTUBE_TILE, YOUTUBE_TILE_HI } from './youtube/tile.ts';
+import { CA_FIRM_TILE, CA_FIRM_TILE_HI } from './ca-firm/tile.ts';
+import { SOCIAL_AGENCY_TILE, SOCIAL_AGENCY_TILE_HI } from './social/tile.ts';
+import type { StartTile } from './kit/define.ts';
 
 /**
  * The words of one way in one language. per: what the range is for, as it reads after "Clients usually pay,". needs:
@@ -42,7 +46,24 @@ export type WayData = {
   roles: Readonly<Record<string, string>>;
   /** The playbook's connectors the needs line names; each must work today (connectorWorks), never a planned one. */
   uses: readonly string[];
+  /**
+   * Ink v2 wave 5 (5A1): the roles the tile's team shows, by role id, at most four (the tile's team.roleIds); a code role
+   * among them is never drawn as an AI. Absent: every agent of the playbook.
+   */
+  team?: readonly string[];
 };
+
+/**
+ * A flagship tile's figures and lines onto its way (Ink v2 wave 5, 5A1): category, hours, pay, the English and Hindi
+ * lines and the team; the label, what the pay is per, the starter and what it needs stay the way's own.
+ */
+function fromTile(tile: StartTile, hi: { line: string; youDo: string; teamLine: string }, way: WayData): WayData {
+  return {
+    ...way, category: tile.category, hours: { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax }, pay: { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees },
+    en: { ...way.en, line: tile.line, youDo: tile.youDo.line, teamLine: tile.team.line }, hi: { ...way.hi, line: hi.line, youDo: hi.youDo, teamLine: hi.teamLine },
+    team: [...tile.team.roleIds],
+  };
+}
 
 /** Marks the Hindi in this file for a native reviewer. */
 export const HINDI_REVIEW = 'machine-drafted, needs a native reviewer';
@@ -158,7 +179,9 @@ const SOCIAL_AGENCY_WAY: WayData = {
 };
 
 /** Every way, in registry order. */
-export const WAYS: readonly WayData[] = Object.freeze([CA_FIRM_WAY, YOUTUBE_WAY, SOCIAL_AGENCY_WAY].map(way => deepFreeze(way)));
+export const WAYS: readonly WayData[] = Object.freeze([
+  fromTile(CA_FIRM_TILE, CA_FIRM_TILE_HI, CA_FIRM_WAY), fromTile(YOUTUBE_TILE, YOUTUBE_TILE_HI, YOUTUBE_WAY), fromTile(SOCIAL_AGENCY_TILE, SOCIAL_AGENCY_TILE_HI, SOCIAL_AGENCY_WAY),
+].map(way => deepFreeze(way)));
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object') {

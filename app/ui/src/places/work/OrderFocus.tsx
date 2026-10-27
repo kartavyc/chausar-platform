@@ -13,8 +13,14 @@ import { PostButtons } from './PostButtons';
 import { JudgeLine } from './JudgeLine';
 import { CalendarFile } from './CalendarFile';
 import { FileRequest } from './FileRequest';
+// W5 5A5: the client report of an accepted draft, its files and its share link.
+import { ReportFiles } from './ReportFiles';
+// W5 5A4: the order's delivered files (where each came from) and the voices with consent.
+import { Assets } from './Assets';
 // W4 4J22a: the order's contract, with Sign (4J12).
 import { ContractSheet } from './ContractSheet';
+// W5 5A3 (P5): what a person does by hand while a stage's connector is only planned.
+import { ManualPaths } from './ManualPaths';
 import s from './Work.module.css';
 
 /** The status circle of a draft the engine lists no run for: what it says, by its icon as well as its colour. A draft
@@ -64,6 +70,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
         <TranscribeButton order={view.order} />
       </section>
       <ContractSheet orderId={view.order.id} />
+      <ManualPaths orderId={view.order.id} />
       <Tile as="section" labelledBy={runsId}>
         <TileHead id={runsId} title={t('work.focus.runs')} />
         {mine.length === 0 ? <EmptyState title={t('work.focus.noRuns')} /> : (
@@ -97,6 +104,8 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
       <FileRequest orderId={view.order.id} />
       <PostButtons drafts={shareable} version={answered} />
       <CalendarFile drafts={shareable} />
+      <ReportFiles orderId={view.order.id} drafts={shareable} />
+      <Assets order={view.order} />
       <div>{back}</div>
     </>
   );

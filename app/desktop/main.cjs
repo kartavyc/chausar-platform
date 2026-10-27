@@ -74,6 +74,8 @@ async function startEngine() {
   engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
+  // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
+  engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
   await engine.start();
   await reportJobLifecycle();
 }
@@ -222,6 +224,8 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
+  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

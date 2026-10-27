@@ -46,6 +46,9 @@ import { pauseNotices } from '../network/governor.ts';
 import { reminderRows } from '../network/reminder-rows.ts';
 import { contractNoticeRows } from '../money/order-contracts.ts';
 import { relayNoticeRows } from '../agents/relay.ts';
+import { mediaNoticeRows } from '../playbooks/kit/media-intake.ts';
+import { monitorRows } from '../build/monitors.ts';
+import { localAppRows } from '../build/local-apps.ts';
 
 /**
  * The open business's notice rows. 4D3's saved searches with new matches and 4E2's paused outreach channels ("Don't
@@ -57,7 +60,11 @@ import { relayNoticeRows } from '../agents/relay.ts';
 export function noticeRows(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, shown?: ReadonlySet<string>): W4RowItem[] {
   const others = [...savedSearchRows(deps, ctx, state, venture), ...pauseNotices(deps, ctx, state, venture), ...reminderRows(deps, ctx, state, venture),
     // 4J12: order contracts waiting for the owner's signature, and agents' failed or needs_decision reports to the owner.
-    ...contractNoticeRows(deps, ctx, state, venture), ...relayNoticeRows(deps, ctx, state, venture)];
+    ...contractNoticeRows(deps, ctx, state, venture), ...relayNoticeRows(deps, ctx, state, venture),
+    // 5A4 (P9): clips still holding their location data because no ffmpeg was here to clean them.
+    ...mediaNoticeRows(deps, ctx, state, venture),
+    // 5A6 (K16, K13): a page the owner watches that changed, and an app of theirs that asked them to do something first.
+    ...monitorRows(state, venture), ...localAppRows(state, venture)];
   return [...others, ...probeRows(deps, ctx, state, venture, new Set([...shown ?? [], ...others.map(row => row.subject)]))];
 }
 

@@ -46,14 +46,14 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 302 unique valid names with owners and well-formed subsets', () => {
+test('VENTURE_METHODS: 304 unique valid names with owners and well-formed subsets', () => {
   // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
   // venture.bills.stop; and the 34 wave 5 names package 5-0 added (W5_METHODS: venture.order.chain, salesProposal.draft
   // and .get, goNoGo.card, ideas.add, .move and .grade, brandKit.get and .set, assets.list, .rerun and .reuse,
   // voiceConsent.record, .revoke and .list, report.render, .share, .shareRotate and .shareDisable, monitors.list, .add
   // and .remove, mail.import and .threads, localApps.list, webhook.set, speechOut.providers, ca.confirmCitations,
-  // ca.signoff.get, ca.differential.add, ca.dataPack.export, desk.list, .get and .act).
-  assert.equal(VENTURE_METHODS.length, 302);
+  // ca.signoff.get, ca.differential.add, ca.dataPack.export, desk.list, .get and .act); 5A2 added goNoGo.list, 5A5 report.list.
+  assert.equal(VENTURE_METHODS.length, 304);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);

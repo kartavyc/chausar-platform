@@ -7,15 +7,16 @@
 // never flagged), and a content calendar order its calendar (month, channels, posts per channel, weekdays), which code
 // plans into dated slots at once, so a month with too few posting days is refused here (social/calendar.ts). An
 // offer from any other plan takes no intake at all.
-import { check } from '../../contracts.ts';
+import { check, type State } from '../../contracts.ts';
 import { localPathProblem } from '../../local-paths.ts';
-import type { IsoDate, IsoTime, OfferIntakeAsk, OrderIntake, VentureHostKind } from '../contracts.ts';
+import type { IsoDate, IsoTime, OfferIntakeAsk, OrderIntake, VentureHostKind, VentureRecord } from '../contracts.ts';
 import { RIGHTS_LABELS, recordRights, requireRights } from '../delivery/rights.ts';
 import type { FlagshipOffer } from './plan.ts';
 import { planCalendar, type CalendarInput } from './social/calendar.ts';
 import { SOCIAL_OFFERS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
+import { kitIntakeAsk, kitOrderIntake } from './kit/intake.ts';
 
 const KEYS = ['rights', 'format', 'aiVoice', 'aiPresenter', 'paidPromotion', 'cutFile', 'calendar', 'clientRules'] as const;
 /** The social offers whose orders post on a calendar code plans. */
@@ -44,7 +45,9 @@ const FIELDS_READ: Readonly<Record<string, readonly OfferIntakeAsk['fields'][num
  * cut; only a content calendar asks for its calendar, and the monthly report, which holds no posts, asks no post
  * disclosures. Null when the order asks nothing.
  */
-export function offerIntakeAsk(playbookId: string, offer: Pick<FlagshipOffer, 'rights'> & { key?: string }, host: VentureHostKind): OfferIntakeAsk | null {
+export function offerIntakeAsk(playbookId: string, offer: Pick<FlagshipOffer, 'rights' | 'intake'> & { key?: string }, host: VentureHostKind): OfferIntakeAsk | null {
+  // Ink v2 wave 5 (5A1): a kit offer asks its own fields (playbooks/kit/intake.ts).
+  if (offer.intake) return kitIntakeAsk({ rights: offer.rights, intake: offer.intake });
   const key = offer.key ?? '';
   const fields = (FIELDS_READ[playbookId] ?? []).filter(field => (field !== 'cutFile' || host !== 'hosted-web') && (field !== 'calendar' || CALENDAR_OFFERS.includes(key))
     && !(playbookId === SOCIAL_AGENCY_ID && NO_POST_OFFERS.includes(key) && POST_DISCLOSURES.includes(field)));
@@ -122,11 +125,13 @@ function cutFile(value: unknown, host: VentureHostKind): string | null {
  * asked. Refuses with RIGHTS_REQUIRED when the offer cuts footage and the rights are missing, unreadable, of a kind the
  * offer does not accept, or ended.
  */
-export function orderIntake(raw: unknown, offer: { key?: string; name: string; rights: FlagshipOffer['rights'] } | null, meta: { by: string; at: IsoTime; today: IsoDate; host: VentureHostKind }): OrderIntake | null {
+export function orderIntake(raw: unknown, offer: { key?: string; name: string; rights: FlagshipOffer['rights']; intake?: FlagshipOffer['intake'] } | null, meta: { by: string; at: IsoTime; today: IsoDate; host: VentureHostKind; state?: State; venture?: VentureRecord }): OrderIntake | null {
   if (!offer) {
     check(raw === undefined, 'INVALID_VENTURE_REQUEST', 'This offer takes no intake.');
     return null;
   }
+  // Ink v2 wave 5 (5A1): a kit offer keeps its own fields under intake.fields (playbooks/kit/intake.ts).
+  if (offer.intake) return kitOrderIntake(raw, { ...offer, intake: offer.intake }, meta);
   check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
   const body = (raw ?? {}) as Record<string, unknown>;
   const extra = Object.keys(body).filter(key => !(KEYS as readonly string[]).includes(key));

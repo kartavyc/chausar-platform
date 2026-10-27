@@ -20,6 +20,7 @@ import { eraseContractsNaming } from '../money/order-contracts.ts';
 import { eraseKnowledgeNaming } from '../agents/knowledge.ts';
 import { eraseFileCallsNaming } from '../core/attachment.ts';
 import { eraseFileRequestsNaming } from '../build/file-requests.ts';
+import { importedMailOf } from '../build/mail-in.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
 
@@ -272,7 +273,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 4J12: messages between agents, and order contract words (with their marks and a run's contract check), that name them.
     if (names) { eraseRelaysNaming(tx, mentionsName); eraseContractsNaming(tx, mentionsName); }
     // 4J18: their name in what the AI knows (the sources' titles, words and page addresses) and in kept ideas.
-    if (names) eraseKnowledgeNaming(tx, names);
+    // 5A3 review: an idea's words lose their email and phone too.
+    eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.
@@ -294,6 +296,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     }
   }
   let cards = 0, drafts = 0;
+  // 5A6: imported mail keeps words and files, so each imported message of a thread they wrote in, were sent or copied in.
+  const importedGone = options.erase && tx.venture ? importedMailOf(tx.state, tx.venture, emails, mentionsName) : new Set<string>();
   removeRecords(tx, record => {
     switch (record.kind) {
       case 'venture-person': return ids.has(record.id as string);
@@ -308,13 +312,19 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
         // mail that waits on the owner to say whether it is about one of their cards.
         const bounced = ((record.bounces as { address?: string }[] | undefined) ?? []).some(item => typeof item.address === 'string' && emails.has(item.address));
         const candidates = (record.candidates as { opportunityId?: string }[] | undefined) ?? [];
-        return (typeof record.from === 'string' && emails.has(record.from.trim().toLowerCase())) || (!!matched && (cardIds.has(matched) || leadIds.has(matched)))
+        return importedGone.has(record.id as string)
+          || (typeof record.from === 'string' && emails.has(record.from.trim().toLowerCase())) || (!!matched && (cardIds.has(matched) || leadIds.has(matched)))
           || bounced || (typeof record.personId === 'string' && ids.has(record.personId))
           || candidates.some(item => !!item.opportunityId && (cardIds.has(item.opportunityId) || leadIds.has(item.opportunityId)));
       }
       case 'venture-lead': return options.erase && typeof record.email === 'string' && emails.has(record.email.toLowerCase());
       case 'venture-notification': return options.erase && (mentionsId(record.subject) || mentionsId(record.rowId) || mentionsName(record.title));
       case 'venture-proposal': return options.erase && (mentionsId(JSON.stringify(record.input ?? null)) || mentionsName(record.title) || mentionsName(record.line));
+      // Ink v2 wave 5 (5A2): a sales proposal drafted for them (playbooks/kit/proposal.ts) goes as their drafts do, on an
+      // Undo too; Forget also takes one drafted for their client and any whose words name them.
+      case 'venture-sales-proposal': return (typeof record.personId === 'string' && ids.has(record.personId))
+        || (options.erase && ((typeof record.clientId === 'string' && people.some(person => person.clientId === record.clientId))
+          || mentionsName(record.toName) || mentionsName(record.text)));
       case 'venture-sum-receipt': return options.erase && Array.isArray(record.addends)
         && (record.addends as { recordId?: unknown }[]).some(addend => countedIds.has(addend.recordId as string));
       default: return false;

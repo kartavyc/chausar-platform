@@ -126,6 +126,8 @@ export type LoopContext = {
   personas?: Record<string, Json>;
   writePersonas?: Record<string, Json>;
   voice?: Record<string, Json>;
+  /** 5A4 (P7): the client's brand kit, resolved field by field (playbooks/kit/brand-kit.ts brandKitPart); empty without one. */
+  brandKit?: Record<string, Json>;
 };
 
 function turnSchema(grant: readonly ToolName[]): Json {
@@ -690,7 +692,7 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
     // 4J17: the writer's persona (A9) and the owner's voices that are on (A8), as style after the fixed parts; the voice
     // check reads the draft by code against the same never-use words and claims (playbooks/draft-checks.ts). A14: the
     // owner's answers to a round, each beside its question.
-    ...(ctx.writePersonas ?? {}), ...(ctx.voice ?? {}), ...roundAnswers(state.handoffs),
+    ...(ctx.writePersonas ?? {}), ...(ctx.voice ?? {}), ...(ctx.brandKit ?? {}), ...roundAnswers(state.handoffs),
   };
   const guidance = ctx.draft ? [...ctx.draft.guidance] : writeGuidance(ctx.playbook);
   if (guidance.length) input.guidance = guidance;

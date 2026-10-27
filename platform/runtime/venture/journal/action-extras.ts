@@ -50,8 +50,10 @@ export function refuseDenylisted(action: unknown, operation: unknown): void {
  * The writes to a connected service Chausar knows (delivery/harness/tools.ts): sending a deliverable through the
  * owner's mail app and making a payment link. Any other operation, or none, is refused.
  */
-export const CONNECTOR_WRITE_OPERATIONS: readonly string[] = Object.freeze(['send-deliverable', 'create-link']);
-export const OPERATION_UNKNOWN_LINE = 'Chausar writes to a connected service only in the ways it knows: sending a deliverable by mail or making a payment link. This is not one of them.';
+export const CONNECTOR_WRITE_OPERATIONS: readonly string[] = Object.freeze(['send-deliverable', 'create-link',
+  // Ink v2 wave 5 (5A6): one approved item to the owner's own n8n or Make webhook, and one approved command of an app they installed.
+  'webhook-send', 'local-app-run']);
+export const OPERATION_UNKNOWN_LINE = 'Chausar writes to a connected service only in the ways it knows: sending a deliverable by mail, making a payment link, sending an item you approved to your webhook, or running a command you approved in your own app. This is not one of them.';
 
 // ---------------------------------------------------------------------------
 // reject() cleanup
