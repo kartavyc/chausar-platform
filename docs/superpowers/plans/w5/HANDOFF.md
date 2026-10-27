@@ -37,7 +37,17 @@ Batch 1 is committed together on `b2c/ink-v2-w5` (one commit after 5-0), since t
 
 ### Checks at hand-off
 
-CHECKS_AT_HANDOFF
+Run on 27 October on the founder's Windows machine, after batch 1's fix rounds:
+
+- `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs` (1,480 files): clean.
+- `npm run test:ui`: 2,386 passed, 1 failed, 2 skipped. The failures were `today-questions.test.tsx` (passes alone, 8/8) and `clients-network.test.tsx` "opens on the search" (a known debounce flake under load).
+- Engine shards: 4, 5 and 6 passed in full (1,176, 1,091 and 3 tests).
+  - Shard 1 failed only `venture-e2e` (the connector count 66 to 72 and the two new webhook writes). Fixed in the hand-off commit, and it passes now.
+  - Shard 2 failed `venture-docs`:
+    - the connectors-table pin, fixed;
+    - "architecture.md copied as is", local only, which CI skips.
+  - Shard 3 failed `investigation-job-http` "paired HTTP job retains a completed prefix" (a timing flake seen before; it passes alone).
+- CI has not run on `b2c/ink-v2-w5` (no PR yet). Expect to fix Linux-only issues when the PR opens. Wave 4's lesson: line endings in fixtures.
 
 ## How each package was run (keep doing this)
 
