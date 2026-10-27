@@ -71,6 +71,21 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-voice': 'voice', 'venture-persona': 'persona',
   'venture-knowledge': 'knowledge', 'venture-idea': 'idea',
   'venture-owner-offer': 'owneroffer',
+  // Ink v2 wave 5 (package 5-0; contracts.ts section 9f)
+  'venture-go-no-go': 'gonogo', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
+  'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-youtube-edit': 'ytedit',
+  'venture-youtube-dictionary': 'ytdict', 'venture-youtube-style': 'ytstyle', 'venture-ca-citations': 'cacite', 'venture-ca-differential': 'cadiff',
+  'venture-ca-data-pack': 'cadatapack', 'venture-social-inbox-item': 'inboxitem', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
+  'venture-seo-panel': 'seopanel', 'venture-seo-observation': 'seoobs', 'venture-seo-finding': 'seofinding', 'venture-seller-sku': 'sku',
+  'venture-seller-feecard': 'feecard', 'venture-seller-stage': 'sellerstage', 'venture-seller-movement': 'movement', 'venture-seller-case': 'sellercase',
+  'venture-support-ticket': 'ticket', 'venture-support-message': 'supportmsg', 'venture-support-request': 'supportreq', 'venture-support-rating': 'rating',
+  'venture-recruit-role': 'recruitrole', 'venture-recruit-candidate': 'candidate', 'venture-recruit-touch': 'recruittouch', 'venture-recruit-interview': 'recruitinterview',
+  'venture-career-fact': 'careerfact', 'venture-career-listing': 'listing', 'venture-career-thread': 'careerthread', 'venture-translation-job': 'tjob',
+  'venture-translation-segment': 'tsegment', 'venture-glossary': 'glossary', 'venture-promise-to-pay': 'ptp', 'venture-collection-stage': 'collstage',
+  'venture-books-posting': 'booksposting', 'venture-article-ledger': 'articleledger', 'venture-lead-source': 'leadsource', 'venture-newsletter-issue': 'nlissue',
+  'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
+  'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding',
+  'venture-dev-permission': 'devperm', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

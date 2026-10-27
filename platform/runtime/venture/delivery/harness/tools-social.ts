@@ -11,6 +11,7 @@ import { digest } from '../../records.ts';
 import { monthlyReport, type ExportPlatform, type ReportReceipt } from '../../playbooks/social/report.ts';
 import type { WorkReceiptDraft } from './work.ts';
 import { fail, fileOf, receiptOut, text, type Spec, type ToolEnv } from './tools.ts';
+import { notBuiltTool } from './tool-stub.ts';
 
 type SocialToolName = Extract<ToolName, 'social.report'>;
 
@@ -110,3 +111,22 @@ const socialReport: Spec = {
 };
 
 export const SOCIAL_TOOLS: Readonly<Record<SocialToolName, Spec>> = Object.freeze({ 'social.report': socialReport });
+
+/**
+ * Ink v2 wave 5: package 5-0's stubs for the social agency's tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
+ */
+type SocialW5ToolName = Extract<ToolName, 'social.formats' | 'social.inventory' | 'social.slots' | 'social.montage' | 'social.inbox' | 'social.diagnose' | 'social.health' | 'social.adStyle' | 'social.fairPrice' | 'social.keywords'>;
+export const SOCIAL_W5_TOOLS: Readonly<Record<SocialW5ToolName, Spec>> = Object.freeze({
+  'social.formats': notBuiltTool('social.formats', 'compute', 'Each channel\'s format, picked by code rules with the rule trace.'), // 5D1
+  'social.inventory': notBuiltTool('social.inventory', 'compute', 'The claims, numbers, stories and quotes a source holds, with counts.'), // 5D1
+  'social.slots': notBuiltTool('social.slots', 'compute', 'Value and selling slots for the month, with the selling share checked by code.'), // 5D1
+  'social.montage': notBuiltTool('social.montage', 'compute', 'A reel cut plan from the client\'s clips, on the beat grid.'), // 5D2
+  'social.inbox': notBuiltTool('social.inbox', 'compute', 'Comments and messages from an export or paste, sorted with counts first.'), // 5D2
+  'social.diagnose': notBuiltTool('social.diagnose', 'compute', 'A post\'s export run through a code checklist before any view of it.'), // 5D2
+  'social.health': notBuiltTool('social.health', 'compute', 'The account\'s followers, age and posts, each tagged by its source.'), // 5D2
+  'social.adStyle': notBuiltTool('social.adStyle', 'compute', 'The video ad\'s style, picked by code from the product category.'), // 5D2
+  'social.fairPrice': notBuiltTool('social.fairPrice', 'compute', 'A creator\'s fair price from comparable posts, with a receipt, under your cap.'), // 5D3
+  'social.keywords': notBuiltTool('social.keywords', 'compute', 'Keyword groups for the influencer search, competitor terms kept apart.'), // 5D3
+});

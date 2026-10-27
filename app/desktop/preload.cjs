@@ -36,7 +36,8 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   onEvent: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for run events.');
     const types = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
-      'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran'];
+      'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+      'chain.changed', 'desk.changed', 'idea.changed'];
     const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
     const whole = value => Number.isSafeInteger(value) && value >= 0;
     const listener = (_event, value) => {

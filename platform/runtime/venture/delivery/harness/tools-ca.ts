@@ -32,6 +32,7 @@ import {
 } from '../../playbooks/ca-firm/tool-inputs.ts';
 import { fail, receiptOut, refusal, text, type Field, type Spec, type ToolEnv, type ToolResult } from './tools.ts';
 import { pdfPages, tablesOfFile } from './files.ts';
+import { notBuiltTool } from './tool-stub.ts';
 import type { WorkReceiptDraft } from './work.ts';
 
 type CaToolName = Extract<ToolName, 'tax.income' | 'tax.interest' | 'tax.gst' | 'tax.tds'>;
@@ -429,3 +430,18 @@ const TDS: Spec = {
 };
 
 export const CA_TOOLS: Readonly<Record<CaToolName, Spec>> = Object.freeze({ 'tax.income': INCOME, 'tax.interest': INTEREST, 'tax.gst': GST, 'tax.tds': TDS });
+
+/**
+ * Ink v2 wave 5: package 5-0's stubs for the CA firm's tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
+ */
+type CaW5ToolName = Extract<ToolName, 'tax.citations' | 'tax.formChooser' | 'tax.advance' | 'tax.whatIf' | 'books.healthCheck' | 'docs.entry'>;
+export const CA_W5_TOOLS: Readonly<Record<CaW5ToolName, Spec>> = Object.freeze({
+  'tax.citations': notBuiltTool('tax.citations', 'compute', 'Each section a draft cites, checked against the citations table your CA confirmed.'), // 5C1
+  'tax.formChooser': notBuiltTool('tax.formChooser', 'compute', 'The ITR form for the year, picked by dated rules from the client\'s facts.'), // 5C1
+  'tax.advance': notBuiltTool('tax.advance', 'compute', 'Advance tax instalment dates and shares from a dated table, the estimate labelled as the client\'s.'), // 5C1
+  'tax.whatIf': notBuiltTool('tax.whatIf', 'compute', 'Tax under the other regime, at a cliff or for a target, worked out by the calculator.'), // 5C2
+  'books.healthCheck': notBuiltTool('books.healthCheck', 'compute', 'Every ledger and bank line read for duplicates, missing GSTINs and cash limits.'), // 5C2
+  'docs.entry': notBuiltTool('docs.entry', 'compute', 'A bank statement or bill read into entries that must tie, page by page.'), // 5C2
+});

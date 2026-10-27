@@ -20,7 +20,9 @@ import type { VentureEventsResult, VentureRunEvent, VentureRunEventType } from '
 
 const RUN_EVENT_TYPES: readonly VentureRunEventType[] = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES in the engine): ids only; notify.new also carries a count.
-  'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran'];
+  'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed.
+  'chain.changed', 'desk.changed', 'idea.changed'];
 const whole = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 export const POLL_MS = 5000;
 /** How long a dropped stream waits before it opens again: the server's own `retry: 5000`. */

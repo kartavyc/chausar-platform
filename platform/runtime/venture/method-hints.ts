@@ -8,8 +8,8 @@
 // hints, the desktop's IPC allowlist, the Ink app's method map and the hosted allow-list, and that every read is
 // readOnly. The idea of hints beside each action follows mailcheap (lib/actions/define-action.js); learned from, not
 // copied (AGPL).
-import { VENTURE_METHODS, W4_METHOD_LEVELS } from './contracts.ts';
-import type { MethodLevel, VentureMethod, W4Method } from './contracts.ts';
+import { VENTURE_METHODS, W4_METHOD_LEVELS, W5_METHOD_LEVELS } from './contracts.ts';
+import type { MethodLevel, VentureMethod, W4Method, W5Method } from './contracts.ts';
 
 export type MethodHint = { readOnly: boolean; undoable: boolean; idempotent: boolean; reachesOutside: boolean };
 /** admin: the few methods that need the owner's admin rights (creating the business, the bank's consent and alerts). */
@@ -19,7 +19,7 @@ export type HintLevel = MethodLevel | 'admin';
 type Flags = '' | 'r' | 'u' | 'i' | 'o' | 'ui' | 'uo' | 'io' | 'uio' | 'rui' | 'ruio';
 
 /** The methods before wave 4: each one's level and flags, read from its handler. */
-const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method>, readonly [HintLevel, Flags]>> = Object.freeze({
+const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, readonly [HintLevel, Flags]>> = Object.freeze({
   'venture.countries': ['read', 'rui'], 'venture.preview': ['read', 'rui'], 'venture.create': ['admin', ''], 'venture.get': ['read', 'rui'],
   'venture.events': ['read', 'rui'], 'venture.interview.next': ['prepare', 'uo'], 'venture.interview.answer': ['prepare', 'u'],
   'venture.blueprint.draft': ['prepare', 'uo'], 'venture.blueprint.get': ['read', 'rui'], 'venture.blueprint.update': ['prepare', 'u'],
@@ -116,17 +116,35 @@ const W4_FLAGS: Readonly<Record<W4Method, Flags>> = Object.freeze({
   'venture.ideas.list': 'rui', 'venture.ideas.start': '', 'venture.ideas.dismiss': 'u', 'venture.agents.capabilities': 'rui',
 });
 
+/**
+ * Wave 5's methods (package 5-0): the flags; the level is W5_METHOD_LEVELS. Every read is 'rui'. A desk action may
+ * reach outside, so it says so until each package's own actions are known.
+ */
+const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
+  'venture.order.chain': 'rui',
+  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u',
+  'venture.ideas.add': 'u', 'venture.ideas.move': '', 'venture.ideas.grade': '',
+  'venture.brandKit.get': 'rui', 'venture.brandKit.set': 'ui', 'venture.assets.list': 'rui', 'venture.assets.rerun': 'o', 'venture.assets.reuse': 'u',
+  'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',
+  'venture.report.render': 'ui', 'venture.report.share': 'uo', 'venture.report.shareRotate': '', 'venture.report.shareDisable': 'i',
+  'venture.monitors.list': 'rui', 'venture.monitors.add': 'uo', 'venture.monitors.remove': 'i', 'venture.mail.import': 'u', 'venture.mail.threads': 'rui',
+  'venture.localApps.list': 'rui', 'venture.webhook.set': 'ui', 'venture.speechOut.providers': 'rui',
+  'venture.ca.confirmCitations': '', 'venture.ca.signoff.get': 'rui', 'venture.ca.differential.add': '', 'venture.ca.dataPack.export': 'i',
+  'venture.desk.list': 'rui', 'venture.desk.get': 'rui', 'venture.desk.act': 'o',
+});
+
 const hintOf = (flags: Flags): MethodHint => Object.freeze({
   readOnly: flags.includes('r'), undoable: flags.includes('u'), idempotent: flags.includes('i'), reachesOutside: flags.includes('o'),
 });
 const w4 = (method: VentureMethod): method is W4Method => Object.hasOwn(W4_FLAGS, method);
+const w5 = (method: VentureMethod): method is W5Method => Object.hasOwn(W5_FLAGS, method);
 
-/** Each method's level: wave 4's from W4_METHOD_LEVELS, the rest from their handlers. */
+/** Each method's level: wave 4's from W4_METHOD_LEVELS, wave 5's from W5_METHOD_LEVELS, the rest from their handlers. */
 export const METHOD_LEVEL_OF: Readonly<Record<VentureMethod, HintLevel>> = Object.freeze(Object.fromEntries(
-  VENTURE_METHODS.map(method => [method, w4(method) ? W4_METHOD_LEVELS[method] : BEFORE_W4[method][0]]),
+  VENTURE_METHODS.map(method => [method, w4(method) ? W4_METHOD_LEVELS[method] : w5(method) ? W5_METHOD_LEVELS[method] : BEFORE_W4[method][0]]),
 ) as Record<VentureMethod, HintLevel>);
 
 /** The hints, in VENTURE_METHODS order: one per venture method, made from that list, so none can be missing. */
 export const METHOD_HINTS: Readonly<Record<VentureMethod, MethodHint>> = Object.freeze(Object.fromEntries(
-  VENTURE_METHODS.map(method => [method, hintOf(w4(method) ? W4_FLAGS[method] : BEFORE_W4[method][1])]),
+  VENTURE_METHODS.map(method => [method, hintOf(w4(method) ? W4_FLAGS[method] : w5(method) ? W5_FLAGS[method] : BEFORE_W4[method][1])]),
 ) as Record<VentureMethod, MethodHint>);

@@ -199,7 +199,8 @@ export interface AgentView {
   chat?: boolean;
 }
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
-  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran';
+  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
+  | 'chain.changed' | 'desk.changed' | 'idea.changed';
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
 // phase 2 views
@@ -1400,6 +1401,63 @@ export interface IdeaView { id: string; title: Display; reason: Display; evidenc
 export type CapabilityItemView = { list: 'see' | 'do' | 'off'; key: string; state: 'works' | 'reads' | 'records' | 'hands-off' | 'planned' | 'off'; line: Display };
 export interface CapabilityPageView { agent: string; canSee: Display[]; canDo: Display[]; off: Display[]; items: CapabilityItemView[]; line: Display }
 
+/**
+ * Ink v2 wave 5 (package 5-0): the wave 5 methods' shapes as the engine names them (platform/runtime/venture/contracts.ts
+ * W5_METHODS, and each owning package's records file). A result still marked W5Placeholder is one its package has not
+ * built; the package replaces its own line here with the fields the screen reads.
+ */
+export interface W5Placeholder { placeholder: true }
+/** 5A1 */
+export type OrderChainView = W5Placeholder;
+/** 5A2: inputs by name, money as minor units in text, null for an input the owner does not know. */
+export type GoNoGoInputs = Readonly<Record<string, string | null>>;
+export type GoNoGoCardView = W5Placeholder;
+export type SalesProposalView = W5Placeholder;
+/** 5A3: on 4J18's ideas; forward only, or dropped with a reason. */
+export type IdeaStage = 'inbox' | 'triage' | 'drafted' | 'made' | 'published' | 'dropped';
+export type IdeaGrade = 'worked' | 'so-so' | 'did-not';
+export type IdeaAddedView = W5Placeholder;
+export type IdeaMovedView = W5Placeholder;
+export type IdeaGradedView = W5Placeholder;
+/** 5A4 */
+export type BrandKitInput = Readonly<Record<string, unknown>>;
+export type BrandKitView = W5Placeholder;
+export type AssetsView = W5Placeholder;
+export type AssetRerunView = W5Placeholder;
+export type AssetReuseView = W5Placeholder;
+export type VoiceConsentView = W5Placeholder;
+export type VoiceConsentsView = W5Placeholder;
+/** 5A5 */
+export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';
+export type ReportView = W5Placeholder;
+export type ReportShareView = W5Placeholder;
+/** 5A6 */
+export interface MonitorInput { url: string; kind: 'change' | 'contains' | 'price-below'; text?: string; selector?: string; belowMinor?: string }
+export type MonitorView = W5Placeholder;
+export type MonitorsView = W5Placeholder;
+export type MailImportView = W5Placeholder;
+export type MailThreadsView = W5Placeholder;
+export type LocalAppsView = W5Placeholder;
+export type WebhookView = W5Placeholder;
+export type SpeechProvidersView = W5Placeholder;
+/** 5C1, 5C2 */
+export type CitationsConfirmView = W5Placeholder;
+export type SignoffCheckView = W5Placeholder;
+export type DifferentialAddView = W5Placeholder;
+export type DataPackExportView = W5Placeholder;
+/**
+ * Every business's desk (playbooks/desk-types.ts): one playbook id, one of its record kinds. rows, item and result are
+ * the owning package's shapes; a desk package narrows them where it reads them.
+ */
+export type DeskPlaybook =
+  | 'youtube' | 'ca-firm' | 'social-agency' | 'seo-visibility' | 'online-seller' | 'support-desk' | 'recruiting-desk' | 'job-search-desk'
+  | 'translation-studio' | 'bookkeeping-cfo' | 'podcast-to-article' | 'lead-generation' | 'newsletter-studio' | 'tender-desk'
+  | 'website-studio' | 'narration-studio' | 'virtual-assistant' | 'data-entry-desk' | 'app-testing' | 'dev-agency' | 'monitored-data'
+  | 'it-triage' | 'phone-receptionist';
+export interface DeskListView { playbook: DeskPlaybook; kind: string; rows: unknown[]; line: Display }
+export interface DeskItemView { playbook: DeskPlaybook; kind: string; item: unknown; digest: string }
+export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string; result: unknown; line: Display }
+
 // ---------------------------------------------------------------------------------------------------------------
 // The methods the UI calls, with their params and results.
 // ---------------------------------------------------------------------------------------------------------------
@@ -1796,6 +1854,41 @@ export interface EngineMethods {
   'venture.ideas.start': { params: { id: string }; result: { proposal: ProposalView | null; suggestion: AgentSuggestion | null; line: Display } };
   'venture.ideas.dismiss': { params: { id: string }; result: { dismissed: true; line: Display } };
   'venture.agents.capabilities': { params: { agent: string }; result: CapabilityPageView };
+  // Ink v2 wave 5 (package 5-0; W5_METHODS in the engine, each answering NOT_BUILT_YET until its package lands)
+  'venture.order.chain': { params: { orderId: string }; result: OrderChainView };
+  'venture.salesProposal.draft': { params: ({ clientId: string; personId?: never } | { personId: string; clientId?: never }) & { offerId: string; pilot?: boolean }; result: SalesProposalView };
+  'venture.salesProposal.get': { params: { id: string }; result: SalesProposalView };
+  'venture.goNoGo.card': { params: { playbook: string; subject: string; inputs: GoNoGoInputs }; result: GoNoGoCardView };
+  'venture.ideas.add': { params: { text: string; source: string }; result: IdeaAddedView };
+  'venture.ideas.move': { params: { id: string; stage: IdeaStage; reason?: string }; result: IdeaMovedView };
+  'venture.ideas.grade': { params: { id: string; grade: IdeaGrade }; result: IdeaGradedView };
+  'venture.brandKit.get': { params: { clientId: string }; result: BrandKitView };
+  'venture.brandKit.set': { params: { clientId: string; kit: BrandKitInput }; result: BrandKitView };
+  'venture.assets.list': { params: { orderId?: string; clientId?: string }; result: AssetsView };
+  'venture.assets.rerun': { params: { id: string }; result: AssetRerunView };
+  'venture.assets.reuse': { params: { id: string; orderId: string }; result: AssetReuseView };
+  'venture.voiceConsent.record': { params: { speaker: string; recordingFileId: string; transcript: string; statement: string; scope: string; until: string | null }; result: VoiceConsentView };
+  'venture.voiceConsent.revoke': { params: { id: string }; result: VoiceConsentView };
+  'venture.voiceConsent.list': { params: Record<string, never>; result: VoiceConsentsView };
+  'venture.report.render': { params: { runId: string; formats?: ReportFormat[] }; result: ReportView };
+  'venture.report.share': { params: { reportId: string; from: string; to: string; channels?: string[] }; result: ReportShareView };
+  'venture.report.shareRotate': { params: { shareId: string }; result: ReportShareView };
+  'venture.report.shareDisable': { params: { shareId: string }; result: ReportShareView };
+  'venture.monitors.list': { params: Record<string, never>; result: MonitorsView };
+  'venture.monitors.add': { params: MonitorInput; result: MonitorView };
+  'venture.monitors.remove': { params: { id: string }; result: MonitorView };
+  'venture.mail.import': { params: { uploadId: string }; result: MailImportView };
+  'venture.mail.threads': { params: { clientId?: string }; result: MailThreadsView };
+  'venture.localApps.list': { params: Record<string, never>; result: LocalAppsView };
+  'venture.webhook.set': { params: { kind: 'n8n' | 'make'; url: string | null }; result: WebhookView };
+  'venture.speechOut.providers': { params: Record<string, never>; result: SpeechProvidersView };
+  'venture.ca.confirmCitations': { params: { version: number; membershipNo: string }; result: CitationsConfirmView };
+  'venture.ca.signoff.get': { params: { id: string }; result: SignoffCheckView };
+  'venture.ca.differential.add': { params: { name: string; inputs: unknown; outputs: unknown; capturedBy: string }; result: DifferentialAddView };
+  'venture.ca.dataPack.export': { params: { clientId: string; fields: string[] }; result: DataPackExportView };
+  'venture.desk.list': { params: { playbook: DeskPlaybook; kind: string; filter?: unknown }; result: DeskListView };
+  'venture.desk.get': { params: { playbook: DeskPlaybook; kind: string; id: string }; result: DeskItemView };
+  'venture.desk.act': { params: { playbook: DeskPlaybook; kind: string; id: string; action: string; payload: unknown; digest?: string }; result: DeskActView };
 }
 export type MethodName = keyof EngineMethods;
 export type ParamsOf<M extends MethodName> = EngineMethods[M]['params'];

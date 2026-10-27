@@ -50,6 +50,8 @@ export const PACKAGE_LOADERS: PackageLoaders = Object.freeze({
   chief: () => import('./chief/index.ts') as Promise<VenturePackageModule>,
   network: () => import('./network/index.ts') as Promise<VenturePackageModule>,
   notify: () => import('./notify/index.ts') as Promise<VenturePackageModule>,
+  // Ink v2 wave 5 (package 5-0): playbooks (the kit's methods, the CA firm's new ones and every business's desk).
+  playbooks: () => import('./playbooks/index.ts') as Promise<VenturePackageModule>,
 });
 
 function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMethod): boolean {

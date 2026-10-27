@@ -49,10 +49,10 @@ function modelsModule(counter: { ports: number; replays: unknown[] } = { ports: 
 }
 
 type Loaders = Record<VenturePackageId, () => Promise<VenturePackageModule>>;
-/** No package loaded: the six packages and the four Ink v2 wave 4 added. */
-const NO_CALLS: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
+/** No package loaded: the six packages, the four Ink v2 wave 4 added and the one wave 5 added (5-0: playbooks). */
+const NO_CALLS: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0, playbooks: 0 };
 function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: Record<VenturePackageId, number> } {
-  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
+  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0, playbooks: 0 };
   const base: Loaders = {
     core: async () => ({ handlers: {} }),
     models: async () => modelsModule(),
@@ -64,6 +64,8 @@ function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: R
     chief: async () => ({ handlers: {} }),
     network: async () => ({ handlers: {} }),
     notify: async () => ({ handlers: {} }),
+    // 5-0: the playbooks package Ink v2 wave 5 added.
+    playbooks: async () => ({ handlers: {} }),
   };
   const merged = { ...base, ...overrides };
   const counted = Object.fromEntries((Object.keys(merged) as VenturePackageId[]).map(id => [id, () => { calls[id] += 1; return merged[id](); }])) as Loaders;
@@ -88,12 +90,13 @@ test('createSecretShelf keeps secrets in memory and clear() empties it', () => {
 });
 
 test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what each owner lacks', () => {
-  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'views']);
+  // 5-0 added playbooks (Ink v2 wave 5).
+  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'playbooks', 'views']);
   const all = missingHandlers({});
   assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - DRAFT_METHODS.length);
   for (const method of [...PRE_VAULT_METHODS, ...DRAFT_METHODS]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
-  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify'] as VenturePackageId[]).map(id => [id,
+  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify', 'playbooks'] as VenturePackageId[]).map(id => [id,
     Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !DRAFT_METHODS.includes(m)).map(m => [m, fn]))]));
   assert.deepEqual(missingHandlers(full), []);
   // A handler registered in the wrong package's table does not count, and neither does a value that is not a function.

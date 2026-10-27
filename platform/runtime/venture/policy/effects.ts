@@ -73,6 +73,140 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'social.report': { effects: ['read'], ...OF_FILES },
   // It writes Chausar's own evidence ledger, as a suggestion the owner applies; never a client record on its own.
   'evidence.record': { effects: ['write'], ...OWN },
+  // Ink v2 wave 5 (package 5-0, from the plan's words for each tool; the owning package corrects its own line when it
+  // builds the tool). Reading the order's files: OF_FILES. Writing Chausar's own records: OWN. A public page or a
+  // program's output is untrusted, with its source.
+  // the kit (5A3, 5A4, 5A6)
+  'ideas.add': { effects: ['write'], ...OWN },
+  'assets.record': { effects: ['write'], ...OWN },
+  'media.clean': { effects: ['write'], ...OF_FILES },
+  'localapp.run': { effects: ['write', 'egress'], integrity: 'untrusted', source: 'tool-output' },
+  'mail.read': { effects: ['private-read'], integrity: 'untrusted', source: 'mail' },
+  'speech.say': { effects: ['egress', 'money'], ...OWN },
+  // YouTube (5B1 to 5B3)
+  'youtube.editOps': { effects: ['read'], ...OF_FILES },
+  'youtube.clean': { effects: ['read'], ...OF_FILES },
+  'youtube.captions': { effects: ['read'], ...OF_FILES },
+  'youtube.coverage': { effects: ['read'], ...OF_FILES },
+  'youtube.dictionary': { effects: ['read'], ...OF_FILES },
+  'youtube.style': { effects: ['read'], ...OF_FILES },
+  'youtube.clips': { effects: ['read'], ...OF_FILES },
+  'youtube.broll': { effects: ['read'], ...OF_FILES },
+  'youtube.beats': { effects: ['read'], ...OF_FILES },
+  'youtube.export': { effects: ['write'], ...OWN },
+  'youtube.afterPublish': { effects: ['read'], ...OF_FILES },
+  'youtube.outliers': { effects: ['read'], ...OF_FILES },
+  'youtube.niche': { effects: ['read'], ...OF_FILES },
+  'youtube.comments': { effects: ['read'], ...OF_FILES },
+  'youtube.publicStats': { effects: ['private-read', 'egress'], integrity: 'untrusted', source: 'web-page' },
+  'youtube.archive': { effects: ['read'], ...OF_FILES },
+  // the CA firm (5C1, 5C2)
+  'tax.citations': { effects: ['read'], ...OF_FILES },
+  'tax.formChooser': { effects: ['read'], ...OF_FILES },
+  'tax.advance': { effects: ['read'], ...OF_FILES },
+  'tax.whatIf': { effects: ['read'], ...OF_FILES },
+  'books.healthCheck': { effects: ['read'], ...OF_FILES },
+  'docs.entry': { effects: ['read'], ...OF_FILES },
+  // social (5D1 to 5D3)
+  'social.formats': { effects: ['read'], ...OF_FILES },
+  'social.inventory': { effects: ['read'], ...OF_FILES },
+  'social.slots': { effects: ['read'], ...OF_FILES },
+  'social.montage': { effects: ['read'], ...OF_FILES },
+  'social.inbox': { effects: ['read'], ...OF_FILES },
+  'social.diagnose': { effects: ['read'], ...OF_FILES },
+  'social.health': { effects: ['read'], ...OF_FILES },
+  'social.adStyle': { effects: ['read'], ...OF_FILES },
+  'social.fairPrice': { effects: ['read'], ...OF_FILES },
+  'social.keywords': { effects: ['read'], ...OF_FILES },
+  // seo-visibility (5E1, 5E2)
+  'seo.diagnose': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  'seo.aiAccess': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  'seo.panel': { effects: ['read'], ...OF_FILES },
+  'seo.siteCheck': { effects: ['egress'], integrity: 'untrusted', source: 'tool-output' },
+  'seo.corroborate': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  'seo.lint': { effects: ['read'], ...OF_FILES },
+  'seo.meta': { effects: ['read'], ...OF_FILES },
+  'seo.impact': { effects: ['read'], ...OF_FILES },
+  'seo.refresh': { effects: ['read'], ...OF_FILES },
+  'seo.local': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  // online-seller (5F1, 5F2, 5F3)
+  'seller.unitEconomics': { effects: ['read'], ...OF_FILES },
+  'seller.ads': { effects: ['read'], ...OF_FILES },
+  'seller.settlement': { effects: ['read'], ...OF_FILES },
+  'seller.listing': { effects: ['read'], ...OF_FILES },
+  'seller.stage': { effects: ['write'], ...OWN },
+  'seller.alerts': { effects: ['read'], ...OF_FILES },
+  'seller.stock': { effects: ['read'], ...OF_FILES },
+  'seller.shortlist': { effects: ['read'], ...OF_FILES },
+  'seller.catalogueSheet': { effects: ['write'], ...OWN },
+  'seller.multiStore': { effects: ['read'], ...OF_FILES },
+  // support-desk (5G)
+  'support.match': { effects: ['read'], ...OF_FILES },
+  'support.ticket': { effects: ['write'], ...OWN },
+  // recruiting-desk (5H)
+  'recruit.criteria': { effects: ['read'], ...OF_FILES },
+  'recruit.ledger': { effects: ['write'], ...OWN },
+  'recruit.slots': { effects: ['read'], ...OF_FILES },
+  // job-search-desk (5I)
+  'career.facts': { effects: ['read'], ...OF_FILES },
+  'career.capture': { effects: ['write'], ...OWN },
+  'career.shortlist': { effects: ['read'], ...OF_FILES },
+  'career.score': { effects: ['read'], ...OF_FILES },
+  // translation-studio (5J1, 5J2)
+  'translate.check': { effects: ['read'], ...OF_FILES },
+  'translate.terms': { effects: ['read'], ...OF_FILES },
+  'subtitle.check': { effects: ['read'], ...OF_FILES },
+  'dub.align': { effects: ['read'], ...OF_FILES },
+  'dub.verify': { effects: ['read'], ...OF_FILES },
+  // bookkeeping-cfo (5K1, 5K2)
+  'cfo.ratios': { effects: ['read'], ...OF_FILES },
+  'cfo.scenarios': { effects: ['read'], ...OF_FILES },
+  'collections.ladder': { effects: ['read'], ...OF_FILES },
+  'money.checkup': { effects: ['read'], ...OF_FILES },
+  'books.write': { effects: ['write', 'egress'], ...OWN },
+  'vouchers.draft': { effects: ['write'], ...OWN },
+  // podcast-to-article (5L)
+  'article.ledger': { effects: ['read'], ...OF_FILES },
+  'article.style': { effects: ['read'], ...OF_FILES },
+  // lead-generation (5M)
+  'leads.osm': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  'leads.enrich': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  'leads.dedupe': { effects: ['read'], ...OF_FILES },
+  'community.vote': { effects: ['read'], ...OF_FILES },
+  // newsletter-studio (5N)
+  'newsletter.presend': { effects: ['read'], ...OF_FILES },
+  'newsletter.import': { effects: ['read'], ...OF_FILES },
+  'newsletter.slices': { effects: ['read'], ...OF_FILES },
+  'newsletter.stats': { effects: ['read'], ...OF_FILES },
+  // tender-desk (5O)
+  'tender.questions': { effects: ['read'], ...OF_FILES },
+  'tender.ground': { effects: ['read'], ...OF_FILES },
+  // website-studio (5P)
+  'site.requirements': { effects: ['read'], ...OF_FILES },
+  'site.uiReport': { effects: ['read'], ...OF_FILES },
+  'site.flow': { effects: ['read'], ...OF_FILES },
+  'site.preview': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  // narration-studio (5Q)
+  'narration.markup': { effects: ['read'], ...OF_FILES },
+  'narration.verify': { effects: ['read'], ...OF_FILES },
+  // virtual-assistant (5R1)
+  'va.brief': { effects: ['read'], ...OF_FILES },
+  // data-entry-desk (5R2)
+  'forms.map': { effects: ['read'], ...OF_FILES },
+  'forms.readBack': { effects: ['private-read'], integrity: 'untrusted', source: 'web-page' },
+  // app-testing (5R3)
+  'apptest.logcat': { effects: ['read'], integrity: 'untrusted', source: 'tool-output' },
+  'demo.plan': { effects: ['read'], ...OF_FILES },
+  // dev-agency (5R4)
+  'qa.verdict': { effects: ['read'], ...OF_FILES },
+  'security.scan': { effects: ['read'], integrity: 'untrusted', source: 'tool-output' },
+  // monitored-data (5R5)
+  'monitor.extract': { effects: ['egress'], integrity: 'untrusted', source: 'web-page' },
+  // it-triage (5R5)
+  'triage.summary': { effects: ['read'], ...OF_FILES },
+  // phone-receptionist (5R6)
+  'calls.cost': { effects: ['read'], ...OF_FILES },
+  'calls.log': { effects: ['write'], ...OWN },
 });
 
 /** A Chausar tool's declaration, or null for a name Chausar does not ship. */

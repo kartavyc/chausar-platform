@@ -22,12 +22,14 @@ import { owner, seedBlueprint, seedOrder, setup } from './venture-views-env.ts';
 
 const names = (env: { store: { read(): any } }) => listRecords(env.store.read(), 'venture-event').sort((a, b) => a.seq - b.seq).map(event => event.name);
 
-test('the run events join VENTURE_EVENTS, after every older event: the six of P1-A, then the eight of Ink v2 wave 4', () => {
+test('the run events join VENTURE_EVENTS, after every older event: the six of P1-A, the eight of Ink v2 wave 4, the three of wave 5', () => {
   assert.deepEqual([...VENTURE_RUN_EVENT_TYPES], [
     'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
     'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+    // 5-0 added chain.changed, desk.changed and idea.changed (Ink v2 wave 5).
+    'chain.changed', 'desk.changed', 'idea.changed',
   ]);
-  assert.deepEqual(VENTURE_EVENTS.slice(-14), [...VENTURE_RUN_EVENT_TYPES]);
+  assert.deepEqual(VENTURE_EVENTS.slice(-17), [...VENTURE_RUN_EVENT_TYPES]);
 });
 
 test('a delivery run emits run.started and run.waiting, a review run.done, each followed by one queue.changed, published after the commit', async () => {

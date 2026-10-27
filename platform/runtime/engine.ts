@@ -1911,6 +1911,41 @@ export class Engine {
       case 'venture.ideas.start':
       case 'venture.ideas.dismiss':
       case 'venture.agents.capabilities':
+      // Ink v2 wave 5 (venture/contracts.ts W5_METHODS)
+      case 'venture.order.chain':
+      case 'venture.salesProposal.draft':
+      case 'venture.salesProposal.get':
+      case 'venture.goNoGo.card':
+      case 'venture.ideas.add':
+      case 'venture.ideas.move':
+      case 'venture.ideas.grade':
+      case 'venture.brandKit.get':
+      case 'venture.brandKit.set':
+      case 'venture.assets.list':
+      case 'venture.assets.rerun':
+      case 'venture.assets.reuse':
+      case 'venture.voiceConsent.record':
+      case 'venture.voiceConsent.revoke':
+      case 'venture.voiceConsent.list':
+      case 'venture.report.render':
+      case 'venture.report.share':
+      case 'venture.report.shareRotate':
+      case 'venture.report.shareDisable':
+      case 'venture.monitors.list':
+      case 'venture.monitors.add':
+      case 'venture.monitors.remove':
+      case 'venture.mail.import':
+      case 'venture.mail.threads':
+      case 'venture.localApps.list':
+      case 'venture.webhook.set':
+      case 'venture.speechOut.providers':
+      case 'venture.ca.confirmCitations':
+      case 'venture.ca.signoff.get':
+      case 'venture.ca.differential.add':
+      case 'venture.ca.dataPack.export':
+      case 'venture.desk.list':
+      case 'venture.desk.get':
+      case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

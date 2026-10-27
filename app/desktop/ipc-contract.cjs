@@ -8,6 +8,8 @@ const VENTURE_EVENT_TYPES = Object.freeze([
   'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES): ids only; notify.new also carries a count.
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed; ids only.
+  'chain.changed', 'desk.changed', 'idea.changed',
 ]);
 // Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
 // worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
@@ -121,6 +123,17 @@ const METHODS = Object.freeze([
   'venture.agents.export', 'venture.agents.import',
   'venture.knowledge.list', 'venture.knowledge.add', 'venture.knowledge.remove', 'venture.knowledge.test',
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
+  // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
+  'venture.order.chain',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card',
+  'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
+  'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
+  'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
+  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
+  'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';

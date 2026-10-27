@@ -866,7 +866,7 @@ test('VentureHost: on the desktop the CLI status reaches the port through the ho
       },
     };
     const empty = async () => ({ handlers: {} });
-    const loaders = { core: empty, models: async () => models, money: empty, build: empty, delivery: empty, views: empty, agents: empty, chief: empty, network: empty, notify: empty };
+    const loaders = { core: empty, models: async () => models, money: empty, build: empty, delivery: empty, views: empty, agents: empty, chief: empty, network: empty, notify: empty, playbooks: empty }; // 5-0 added playbooks
     const host = new VentureHost(new VentureTestStore(), hostServices, {
       demo: false, storage: 'experimental-file', host: kind, modelTransport: fake.transport, claudeCodeTerms: 'accepted', clock: () => new Date(START),
     }, loaders);

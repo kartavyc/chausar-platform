@@ -16,6 +16,44 @@ import type { CaEngine, CaReceiptStep } from './playbooks/ca-firm/receipt.ts';
 import type { SocialChannel } from './playbooks/social/channels.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
+// Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
+// records file, as placeholders until that package lands; the package replaces them there, not here.
+import type { IntakeValue, StartTile } from './playbooks/kit/define.ts';
+import type { OrderChainView } from './playbooks/kit/records-chain.ts';
+import type { GoNoGoBody, GoNoGoCardView, GoNoGoInputs, SalesProposalView, SharePrice } from './playbooks/kit/records-sales.ts';
+import type { IdeaAddedView, IdeaGrade, IdeaGradedView, IdeaMovedView, IdeaStage } from './playbooks/kit/records-rules.ts';
+import type {
+  AssetBody, AssetRerunView, AssetReuseView, AssetsView, BrandKitBody, BrandKitInput, BrandKitView, VoiceConsentBody, VoiceConsentsView, VoiceConsentView,
+} from './playbooks/kit/records-media.ts';
+import type { ReportBody, ReportFormat, ReportShareBody, ReportShareView, ReportView } from './playbooks/kit/records-report.ts';
+import type {
+  LocalAppsView, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookView,
+} from './build/records-connect.ts';
+import type { YoutubeDictionaryBody, YoutubeEditBody, YoutubeStyleBody } from './playbooks/youtube/records.ts';
+import type {
+  CaCitationsBody, CaDataPackBody, CaDifferentialBody, CitationsConfirmView, DataPackExportView, DifferentialAddView, SignoffCheckView,
+} from './playbooks/ca-firm/records.ts';
+import type { AdLedgerEntryBody, InfluencerCaseBody, SocialInboxItemBody } from './playbooks/social/records.ts';
+import type { SeoFindingBody, SeoObservationBody, SeoPanelBody } from './playbooks/seo-visibility/records.ts';
+import type { SellerCaseBody, SellerFeecardBody, SellerMovementBody, SellerSkuBody, SellerStageBody } from './playbooks/online-seller/records.ts';
+import type { SupportMessageBody, SupportRatingBody, SupportRequestBody, SupportTicketBody } from './playbooks/support-desk/records.ts';
+import type { RecruitCandidateBody, RecruitInterviewBody, RecruitRoleBody, RecruitTouchBody } from './playbooks/recruiting-desk/records.ts';
+import type { CareerFactBody, CareerListingBody, CareerThreadBody } from './playbooks/job-search-desk/records.ts';
+import type { GlossaryBody, TranslationJobBody, TranslationSegmentBody } from './playbooks/translation-studio/records.ts';
+import type { BooksPostingBody, CollectionStageBody, PromiseToPayBody } from './playbooks/bookkeeping-cfo/records.ts';
+import type { ArticleLedgerBody } from './playbooks/podcast-to-article/records.ts';
+import type { LeadSourceBody } from './playbooks/lead-generation/records.ts';
+import type { NewsletterContactBody, NewsletterIssueBody } from './playbooks/newsletter-studio/records.ts';
+import type { TenderQuestionBody } from './playbooks/tender-desk/records.ts';
+import type { SiteReleaseBody, SiteRequirementBody } from './playbooks/website-studio/records.ts';
+import type { NarrationSegmentBody } from './playbooks/narration-studio/records.ts';
+import type { RoomBriefBody } from './playbooks/virtual-assistant/records.ts';
+import type { EntryRecordBody } from './playbooks/data-entry-desk/records.ts';
+import type { TestFindingBody } from './playbooks/app-testing/records.ts';
+import type { DevPermissionBody } from './playbooks/dev-agency/records.ts';
+import type { WatchSourceBody } from './playbooks/monitored-data/records.ts';
+import type { CallLogBody } from './playbooks/phone-receptionist/records.ts';
+import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskListPayload, DeskListView } from './playbooks/desk-types.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
 
@@ -184,6 +222,41 @@ export const VENTURE_RECORD_KINDS = [
   'venture-knowledge', 'venture-idea',
   // 4J8: an offer the owner added to the plan ("Add this to {business}"), kept apart so every rewrite keeps it.
   'venture-owner-offer',
+  // Ink v2 wave 5 (named by package 5-0; each body is a type in the owning package's records file, a placeholder until
+  // that package lands). Ideas reuse 4J18's 'venture-idea', routines 4J13's, imported mail 4E3's 'venture-inbound'.
+  // The kit: 5A2 the GO card (playbooks/kit/records-sales.ts); 5A4 brand kits, assets and voice consent
+  // (records-media.ts); 5A5 reports and their share links (records-report.ts); 5A6 monitors (build/records-connect.ts).
+  'venture-go-no-go', 'venture-brand-kit', 'venture-asset', 'venture-voice-consent', 'venture-report', 'venture-report-share',
+  'venture-monitor',
+  // The flagships (playbooks/<id>/records.ts): YouTube 5B1 edits and the names dictionary, 5B2 the style card; the CA
+  // firm 5C1 citations, 5C2 differential cases and the ITR data pack; social 5D2 inbox items and the ad ledger, 5D3
+  // influencer cases.
+  'venture-youtube-edit', 'venture-youtube-dictionary', 'venture-youtube-style',
+  'venture-ca-citations', 'venture-ca-differential', 'venture-ca-data-pack',
+  'venture-social-inbox-item', 'venture-ad-ledger-entry', 'venture-influencer-case',
+  // The new playbooks (playbooks/<id>/records.ts): seo-visibility 5E1 and 5E2; online-seller 5F1 and 5F2; support-desk
+  // 5G; recruiting-desk 5H; job-search-desk 5I; translation-studio 5J1; bookkeeping-cfo 5K1 and 5K2; podcast-to-article
+  // 5L; lead-generation 5M; newsletter-studio 5N; tender-desk 5O; website-studio 5P; narration-studio 5Q;
+  // virtual-assistant 5R1; data-entry-desk 5R2; app-testing 5R3; dev-agency 5R4; monitored-data 5R5; phone-receptionist 5R6.
+  'venture-seo-panel', 'venture-seo-observation', 'venture-seo-finding',
+  'venture-seller-sku', 'venture-seller-feecard', 'venture-seller-stage', 'venture-seller-movement', 'venture-seller-case',
+  'venture-support-ticket', 'venture-support-message', 'venture-support-request', 'venture-support-rating',
+  'venture-recruit-role', 'venture-recruit-candidate', 'venture-recruit-touch', 'venture-recruit-interview',
+  'venture-career-fact', 'venture-career-listing', 'venture-career-thread',
+  'venture-translation-job', 'venture-translation-segment', 'venture-glossary',
+  'venture-promise-to-pay', 'venture-collection-stage', 'venture-books-posting',
+  'venture-article-ledger',
+  'venture-lead-source',
+  'venture-newsletter-issue', 'venture-newsletter-contact',
+  'venture-tender-question',
+  'venture-site-requirement', 'venture-site-release',
+  'venture-narration-segment',
+  'venture-room-brief',
+  'venture-entry-record',
+  'venture-test-finding',
+  'venture-dev-permission',
+  'venture-watch-source',
+  'venture-call-log',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -852,6 +925,12 @@ export type OrderRecord = RecordBase<'venture-order'> & {
   intake?: OrderIntake;
   /** 4J5 (M15): the owner's price for this order includes the tax; its receipts split it. Absent: tax is added. */
   taxInclusive?: boolean;
+  /**
+   * Ink v2 wave 5 (named by 5-0, kept by 5A1's chain, playbooks/kit/chain.ts): the stage of a kit offer's stages this
+   * order is at, counted from 1, and where the chain stands. Absent on an order that is not a chain.
+   */
+  chainStage?: number;
+  chainState?: 'running' | 'waiting' | 'stopped' | 'done';
 };
 /**
  * A flagship offer's intake, checked by code when the order is made. rights: the rights to the footage, required for
@@ -872,6 +951,11 @@ export type OrderIntake = {
   calendar?: { month: string; channels: SocialChannel[]; postsPerChannel: number; weekdays: number[] };
   /** The client's own word lists the social checks read: banned words and topics, competitors, phrases never flagged. */
   clientRules?: { bannedWords: string[]; bannedTopics: string[]; competitors: string[]; protectedPhrases: string[] };
+  /**
+   * Ink v2 wave 5 (named by 5-0, checked by 5A1's playbooks/kit/intake.ts): a kit playbook's own intake fields, by field
+   * id, as the definition's intakeFields name them.
+   */
+  fields?: Record<string, IntakeValue>;
 };
 /**
  * Ink v2 wave 4 (4J3): an order's stage steps on Work, from the playbook's stage list (playbooks/order-stages.ts) and
@@ -1810,6 +1894,44 @@ export const TOOL_NAMES = [
   'youtube.hooks', 'youtube.editList', 'youtube.chapters', 'youtube.retention',
   'social.report',
   'evidence.record',
+  // Ink v2 wave 5 (named by package 5-0; each answers NOT_BUILT_YET until its package lands). The kit: 5A3 ideas.add;
+  // 5A4 assets.record, media.clean; 5A6 localapp.run, mail.read, speech.say (delivery/harness/tools-kit.ts).
+  'ideas.add', 'assets.record', 'media.clean', 'localapp.run', 'mail.read', 'speech.say',
+  // YouTube (tools-youtube.ts): 5B1 editOps to dictionary; 5B2 style to export; 5B3 afterPublish to archive.
+  'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary',
+  'youtube.style', 'youtube.clips', 'youtube.broll', 'youtube.beats', 'youtube.export',
+  'youtube.afterPublish', 'youtube.outliers', 'youtube.niche', 'youtube.comments', 'youtube.publicStats', 'youtube.archive',
+  // The CA firm (tools-ca.ts): 5C1 citations, formChooser, advance; 5C2 whatIf, healthCheck, entry.
+  'tax.citations', 'tax.formChooser', 'tax.advance', 'tax.whatIf', 'books.healthCheck', 'docs.entry',
+  // Social (tools-social.ts): 5D1 formats, inventory, slots; 5D2 montage to adStyle; 5D3 fairPrice, keywords.
+  'social.formats', 'social.inventory', 'social.slots', 'social.montage', 'social.inbox', 'social.diagnose', 'social.health',
+  'social.adStyle', 'social.fairPrice', 'social.keywords',
+  // The new playbooks, each in delivery/harness/tools-<playbook id>.ts: seo-visibility (5E1 diagnose to siteCheck, 5E2
+  // the rest), online-seller (5F1 to listing, 5F2 the rest), support-desk (5G), recruiting-desk (5H), job-search-desk
+  // (5I), translation-studio (5J1 to subtitle.check, 5J2 dub), bookkeeping-cfo (5K1 to money.checkup, 5K2 books.write and
+  // vouchers.draft), podcast-to-article (5L), lead-generation (5M), newsletter-studio (5N), tender-desk (5O),
+  // website-studio (5P), narration-studio (5Q), virtual-assistant (5R1), data-entry-desk (5R2), app-testing (5R3),
+  // dev-agency (5R4), monitored-data and it-triage (5R5), phone-receptionist (5R6).
+  'seo.diagnose', 'seo.aiAccess', 'seo.panel', 'seo.siteCheck', 'seo.corroborate', 'seo.lint', 'seo.meta', 'seo.impact', 'seo.refresh', 'seo.local',
+  'seller.unitEconomics', 'seller.ads', 'seller.settlement', 'seller.listing', 'seller.stage', 'seller.alerts', 'seller.stock', 'seller.shortlist',
+  'seller.catalogueSheet', 'seller.multiStore',
+  'support.match', 'support.ticket',
+  'recruit.criteria', 'recruit.ledger', 'recruit.slots',
+  'career.facts', 'career.capture', 'career.shortlist', 'career.score',
+  'translate.check', 'translate.terms', 'subtitle.check', 'dub.align', 'dub.verify',
+  'cfo.ratios', 'cfo.scenarios', 'collections.ladder', 'money.checkup', 'books.write', 'vouchers.draft',
+  'article.ledger', 'article.style',
+  'leads.osm', 'leads.enrich', 'leads.dedupe', 'community.vote',
+  'newsletter.presend', 'newsletter.import', 'newsletter.slices', 'newsletter.stats',
+  'tender.questions', 'tender.ground',
+  'site.requirements', 'site.uiReport', 'site.flow', 'site.preview',
+  'narration.markup', 'narration.verify',
+  'va.brief',
+  'forms.map', 'forms.readBack',
+  'apptest.logcat', 'demo.plan',
+  'qa.verdict', 'security.scan',
+  'monitor.extract', 'triage.summary',
+  'calls.cost', 'calls.log',
 ] as const;
 export type ToolName = typeof TOOL_NAMES[number];
 /**
@@ -2469,6 +2591,9 @@ export const VENTURE_EVENTS = [
   // Ink v2 wave 4: run events too, so they reach the window and /api/events. Their data holds ids only, and a frame
   // never carries words, names or figures; notify.new carries a count (4G1).
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  // Ink v2 wave 5 (named by 5-0, ids only): an order's chain moved (5A1), a playbook desk's records changed (each
+  // business package), an idea moved or was graded (5A3).
+  'chain.changed', 'desk.changed', 'idea.changed',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; name: VentureEventName; data: Json };
@@ -2710,7 +2835,8 @@ export interface AgentView {
   chat?: boolean;
 }
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
-  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran';
+  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
+  | 'chain.changed' | 'desk.changed' | 'idea.changed';
 /** seq: the event's place in the business's log, so a client that reconnects replays the gap (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
 // phase 2 views (SpendRow is in section 8c)
@@ -2756,6 +2882,7 @@ export type EvidenceRecord = RecordBase<'venture-evidence'> & {
 export const VENTURE_RUN_EVENT_TYPES: readonly VentureRunEventType[] = Object.freeze([
   'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  'chain.changed', 'desk.changed', 'idea.changed',
 ] as const);
 export const QUEUE_ACTION_IDS: readonly QueueActionId[] = Object.freeze([
   'approve', 'deny', 'later', 'watch', 'read', 'answer', 'send-to-ca', 'open', 'connect', 'set-prices', 'keep', 'issue', 'run-again',
@@ -4782,6 +4909,73 @@ export type BusinessSnapshot = {
 /** 4J6. Another business as its snapshot reads: none saved yet, locked (never read), unreadable, or the snapshot. */
 export type BusinessSnapshotRead = VentureBusinessRef & { read: 'saved' | 'none' | 'locked' | 'unreadable'; snapshot: BusinessSnapshot | null };
 
+// ---------------------------------------------------------------------------
+// 9f. Ink v2 wave 5 (named by package 5-0). Each record is RecordBase<kind> & Body, Body from the owning package's
+// records file (a placeholder there until the package lands). The new shared types: Department is wave 4's DepartmentId;
+// StartTile and IntakeValue are 5A1's (playbooks/kit/define.ts); SharePrice is 5A2's (playbooks/kit/records-sales.ts).
+// ---------------------------------------------------------------------------
+
+export type Department = DepartmentId;
+export type { IntakeValue, SharePrice, StartTile };
+// The kit (5A2, 5A4, 5A5, 5A6)
+export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody;
+export type BrandKitRecord = RecordBase<'venture-brand-kit'> & BrandKitBody;
+export type AssetRecord = RecordBase<'venture-asset'> & AssetBody;
+export type VoiceConsentRecord = RecordBase<'venture-voice-consent'> & VoiceConsentBody;
+export type ReportRecord = RecordBase<'venture-report'> & ReportBody;
+export type ReportShareRecord = RecordBase<'venture-report-share'> & ReportShareBody;
+export type MonitorRecord = RecordBase<'venture-monitor'> & MonitorBody;
+// The flagships (5B, 5C, 5D)
+export type YoutubeEditRecord = RecordBase<'venture-youtube-edit'> & YoutubeEditBody;
+export type YoutubeDictionaryRecord = RecordBase<'venture-youtube-dictionary'> & YoutubeDictionaryBody;
+export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeStyleBody;
+export type CaCitationsRecord = RecordBase<'venture-ca-citations'> & CaCitationsBody;
+export type CaDifferentialRecord = RecordBase<'venture-ca-differential'> & CaDifferentialBody;
+export type CaDataPackRecord = RecordBase<'venture-ca-data-pack'> & CaDataPackBody;
+export type SocialInboxItemRecord = RecordBase<'venture-social-inbox-item'> & SocialInboxItemBody;
+export type AdLedgerEntryRecord = RecordBase<'venture-ad-ledger-entry'> & AdLedgerEntryBody;
+export type InfluencerCaseRecord = RecordBase<'venture-influencer-case'> & InfluencerCaseBody;
+// The new playbooks (5E to 5R)
+export type SeoPanelRecord = RecordBase<'venture-seo-panel'> & SeoPanelBody;
+export type SeoObservationRecord = RecordBase<'venture-seo-observation'> & SeoObservationBody;
+export type SeoFindingRecord = RecordBase<'venture-seo-finding'> & SeoFindingBody;
+export type SellerSkuRecord = RecordBase<'venture-seller-sku'> & SellerSkuBody;
+export type SellerFeecardRecord = RecordBase<'venture-seller-feecard'> & SellerFeecardBody;
+export type SellerStageRecord = RecordBase<'venture-seller-stage'> & SellerStageBody;
+export type SellerMovementRecord = RecordBase<'venture-seller-movement'> & SellerMovementBody;
+export type SellerCaseRecord = RecordBase<'venture-seller-case'> & SellerCaseBody;
+export type SupportTicketRecord = RecordBase<'venture-support-ticket'> & SupportTicketBody;
+export type SupportMessageRecord = RecordBase<'venture-support-message'> & SupportMessageBody;
+export type SupportRequestRecord = RecordBase<'venture-support-request'> & SupportRequestBody;
+export type SupportRatingRecord = RecordBase<'venture-support-rating'> & SupportRatingBody;
+export type RecruitRoleRecord = RecordBase<'venture-recruit-role'> & RecruitRoleBody;
+export type RecruitCandidateRecord = RecordBase<'venture-recruit-candidate'> & RecruitCandidateBody;
+export type RecruitTouchRecord = RecordBase<'venture-recruit-touch'> & RecruitTouchBody;
+export type RecruitInterviewRecord = RecordBase<'venture-recruit-interview'> & RecruitInterviewBody;
+export type CareerFactRecord = RecordBase<'venture-career-fact'> & CareerFactBody;
+export type CareerListingRecord = RecordBase<'venture-career-listing'> & CareerListingBody;
+export type CareerThreadRecord = RecordBase<'venture-career-thread'> & CareerThreadBody;
+export type TranslationJobRecord = RecordBase<'venture-translation-job'> & TranslationJobBody;
+export type TranslationSegmentRecord = RecordBase<'venture-translation-segment'> & TranslationSegmentBody;
+export type GlossaryRecord = RecordBase<'venture-glossary'> & GlossaryBody;
+export type PromiseToPayRecord = RecordBase<'venture-promise-to-pay'> & PromiseToPayBody;
+export type CollectionStageRecord = RecordBase<'venture-collection-stage'> & CollectionStageBody;
+export type BooksPostingRecord = RecordBase<'venture-books-posting'> & BooksPostingBody;
+export type ArticleLedgerRecord = RecordBase<'venture-article-ledger'> & ArticleLedgerBody;
+export type LeadSourceRecord = RecordBase<'venture-lead-source'> & LeadSourceBody;
+export type NewsletterIssueRecord = RecordBase<'venture-newsletter-issue'> & NewsletterIssueBody;
+export type NewsletterContactRecord = RecordBase<'venture-newsletter-contact'> & NewsletterContactBody;
+export type TenderQuestionRecord = RecordBase<'venture-tender-question'> & TenderQuestionBody;
+export type SiteRequirementRecord = RecordBase<'venture-site-requirement'> & SiteRequirementBody;
+export type SiteReleaseRecord = RecordBase<'venture-site-release'> & SiteReleaseBody;
+export type NarrationSegmentRecord = RecordBase<'venture-narration-segment'> & NarrationSegmentBody;
+export type RoomBriefRecord = RecordBase<'venture-room-brief'> & RoomBriefBody;
+export type EntryRecordRecord = RecordBase<'venture-entry-record'> & EntryRecordBody;
+export type TestFindingRecord = RecordBase<'venture-test-finding'> & TestFindingBody;
+export type DevPermissionRecord = RecordBase<'venture-dev-permission'> & DevPermissionBody;
+export type WatchSourceRecord = RecordBase<'venture-watch-source'> & WatchSourceBody;
+export type CallLogRecord = RecordBase<'venture-call-log'> & CallLogBody;
+
 export type AnyVentureRecord =
   | VentureRecord | InterviewRecord | BlueprintRecord | TermRecord | ModelConnectionRecord | ModelCallRecord
   | PriceReceiptRecord | ClientRecord | OrderRecord | InvoiceRecord | PaymentRecord
@@ -4828,7 +5022,22 @@ export type AnyVentureRecord =
   | RoutineRecord | RoutineRunRecord
   | DrillRunRecord
   | VoiceRecord | PersonaRecord
-  | KnowledgeRecord | IdeaRecord;
+  | KnowledgeRecord | IdeaRecord
+  // Ink v2 wave 5 (section 9f)
+  | GoNoGoRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord
+  | YoutubeEditRecord | YoutubeDictionaryRecord | YoutubeStyleRecord
+  | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord
+  | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
+  | SeoPanelRecord | SeoObservationRecord | SeoFindingRecord
+  | SellerSkuRecord | SellerFeecardRecord | SellerStageRecord | SellerMovementRecord | SellerCaseRecord
+  | SupportTicketRecord | SupportMessageRecord | SupportRequestRecord | SupportRatingRecord
+  | RecruitRoleRecord | RecruitCandidateRecord | RecruitTouchRecord | RecruitInterviewRecord
+  | CareerFactRecord | CareerListingRecord | CareerThreadRecord
+  | TranslationJobRecord | TranslationSegmentRecord | GlossaryRecord
+  | PromiseToPayRecord | CollectionStageRecord | BooksPostingRecord
+  | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
+  | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
+  | TestFindingRecord | DevPermissionRecord | WatchSourceRecord | CallLogRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -4931,6 +5140,33 @@ export const W4_METHODS = [
 ] as const;
 export type W4Method = typeof W4_METHODS[number];
 
+/**
+ * Ink v2 wave 5's methods, by package (named by package 5-0; each answers NOT_BUILT_YET until its package lands). They
+ * are part of VENTURE_METHODS; listed apart so W5_METHOD_LEVELS can be typed complete. Every one is owned by the
+ * playbooks package (playbooks/index.ts) but 5A6's, owned by build (build/index.ts).
+ */
+export const W5_METHODS = [
+  // 5A1 the chain of an order's stages, from a kit offer's stages
+  'venture.order.chain',
+  // 5A2 the sales proposal and the GO, HOLD or NO-GO card
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card',
+  // 5A3 the idea pipeline, beside 4J18's venture.ideas.list, .start and .dismiss
+  'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
+  // 5A4 brand kits, asset records and voice consent
+  'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
+  'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
+  // 5A5 client reports and their share links
+  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
+  // 5A6 monitors, mail import, the owner's local apps, the webhook handoff and speech providers (build)
+  'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  // Every business's own records, through its desk (playbooks/desks.ts and desk-types.ts)
+  'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
+] as const;
+export type W5Method = typeof W5_METHODS[number];
+
 export const VENTURE_METHODS = [
   // P1 core (venture.countries and venture.preview are answered before a vault is open)
   'venture.countries', 'venture.preview', 'venture.create', 'venture.get', 'venture.events',
@@ -4990,6 +5226,8 @@ export const VENTURE_METHODS = [
   'venture.transcription.get', 'venture.transcription.set',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
+  // Ink v2 wave 5 (W5_METHODS above)
+  ...W5_METHODS,
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
@@ -5009,8 +5247,11 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
 ] as const);
 
-/** Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). */
-export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views' | 'agents' | 'chief' | 'network' | 'notify';
+/**
+ * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
+ * (playbooks/index.ts): the kit's methods, the CA firm's new ones and every business's desk.
+ */
+export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views' | 'agents' | 'chief' | 'network' | 'notify' | 'playbooks';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
   'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
@@ -5089,6 +5330,17 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.agents.export': 'agents', 'venture.agents.import': 'agents',
   'venture.knowledge.list': 'agents', 'venture.knowledge.add': 'agents', 'venture.knowledge.remove': 'agents', 'venture.knowledge.test': 'agents',
   'venture.ideas.list': 'agents', 'venture.ideas.start': 'agents', 'venture.ideas.dismiss': 'agents', 'venture.agents.capabilities': 'agents',
+  // Ink v2 wave 5 (named by package 5-0)
+  'venture.order.chain': 'playbooks',
+  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks',
+  'venture.ideas.add': 'playbooks', 'venture.ideas.move': 'playbooks', 'venture.ideas.grade': 'playbooks',
+  'venture.brandKit.get': 'playbooks', 'venture.brandKit.set': 'playbooks', 'venture.assets.list': 'playbooks', 'venture.assets.rerun': 'playbooks', 'venture.assets.reuse': 'playbooks',
+  'venture.voiceConsent.record': 'playbooks', 'venture.voiceConsent.revoke': 'playbooks', 'venture.voiceConsent.list': 'playbooks',
+  'venture.report.render': 'playbooks', 'venture.report.share': 'playbooks', 'venture.report.shareRotate': 'playbooks', 'venture.report.shareDisable': 'playbooks',
+  'venture.monitors.list': 'build', 'venture.monitors.add': 'build', 'venture.monitors.remove': 'build', 'venture.mail.import': 'build', 'venture.mail.threads': 'build',
+  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.speechOut.providers': 'build',
+  'venture.ca.confirmCitations': 'playbooks', 'venture.ca.signoff.get': 'playbooks', 'venture.ca.differential.add': 'playbooks', 'venture.ca.dataPack.export': 'playbooks',
+  'venture.desk.list': 'playbooks', 'venture.desk.get': 'playbooks', 'venture.desk.act': 'playbooks',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -5142,6 +5394,14 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.drills.run',
   'venture.voice.set', 'venture.voice.learn', 'venture.persona.set', 'venture.persona.test', 'venture.agents.import',
   'venture.knowledge.add', 'venture.knowledge.remove', 'venture.knowledge.test', 'venture.ideas.start', 'venture.ideas.dismiss',
+  // Ink v2 wave 5 (5-0): every method that sets, records, revokes, adds, removes, exports, confirms, rotates or disables,
+  // the desk's act and the webhook; also the report's share link (as venture.share.create is) and the mail import (as
+  // venture.network.import is).
+  'venture.ideas.add', 'venture.brandKit.set', 'venture.voiceConsent.record', 'venture.voiceConsent.revoke',
+  'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
+  'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set',
+  'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  'venture.desk.act',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -5189,6 +5449,22 @@ export const W4_METHOD_LEVELS: Readonly<Record<W4Method, MethodLevel>> = Object.
   'venture.agents.export': 'read', 'venture.agents.import': 'prepare',
   'venture.knowledge.list': 'read', 'venture.knowledge.add': 'prepare', 'venture.knowledge.remove': 'prepare', 'venture.knowledge.test': 'prepare',
   'venture.ideas.list': 'read', 'venture.ideas.start': 'prepare', 'venture.ideas.dismiss': 'prepare', 'venture.agents.capabilities': 'read',
+});
+/**
+ * Ink v2 wave 5: each wave 5 method's level, as package 5-0 named it from the plan; its handler authorizes at this
+ * level. A package that finds its level wrong changes its own line and says so.
+ */
+export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.freeze({
+  'venture.order.chain': 'read',
+  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare',
+  'venture.ideas.add': 'prepare', 'venture.ideas.move': 'prepare', 'venture.ideas.grade': 'prepare',
+  'venture.brandKit.get': 'read', 'venture.brandKit.set': 'approve', 'venture.assets.list': 'read', 'venture.assets.rerun': 'prepare', 'venture.assets.reuse': 'prepare',
+  'venture.voiceConsent.record': 'approve', 'venture.voiceConsent.revoke': 'approve', 'venture.voiceConsent.list': 'read',
+  'venture.report.render': 'prepare', 'venture.report.share': 'approve', 'venture.report.shareRotate': 'approve', 'venture.report.shareDisable': 'approve',
+  'venture.monitors.list': 'read', 'venture.monitors.add': 'approve', 'venture.monitors.remove': 'approve', 'venture.mail.import': 'approve', 'venture.mail.threads': 'read',
+  'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.speechOut.providers': 'read',
+  'venture.ca.confirmCitations': 'approve', 'venture.ca.signoff.get': 'read', 'venture.ca.differential.add': 'approve', 'venture.ca.dataPack.export': 'approve',
+  'venture.desk.list': 'read', 'venture.desk.get': 'read', 'venture.desk.act': 'approve',
 });
 /** Methods whose success changes what saved answers may cite (the retired app/renderer cleared its cached answers on them). */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -5529,6 +5805,47 @@ export type VenturePayloads = {
   'venture.ideas.start': { id: string };
   'venture.ideas.dismiss': { id: string };
   'venture.agents.capabilities': { agent: string };
+  // Ink v2 wave 5 (5-0, from the plan's words; the owning package may tighten its own lines)
+  'venture.order.chain': { orderId: string };
+  /** Exactly one of clientId and personId (a pipeline person, 4E). pilot: propose the offer's pilot (5A2 pilotOf). */
+  'venture.salesProposal.draft': ({ clientId: string; personId?: never } | { personId: string; clientId?: never }) & { offerId: string; pilot?: boolean };
+  'venture.salesProposal.get': { id: string };
+  /** inputs: typed by the owner; money as minor-unit strings (5A2 records-sales.ts GoNoGoInputs). */
+  'venture.goNoGo.card': { playbook: string; subject: string; inputs: GoNoGoInputs };
+  'venture.ideas.add': { text: string; source: string };
+  /** reason: one sentence, required when the stage is 'dropped'. */
+  'venture.ideas.move': { id: string; stage: IdeaStage; reason?: string };
+  'venture.ideas.grade': { id: string; grade: IdeaGrade };
+  'venture.brandKit.get': { clientId: string };
+  'venture.brandKit.set': { clientId: string; kit: BrandKitInput };
+  'venture.assets.list': { orderId?: string; clientId?: string };
+  'venture.assets.rerun': { id: string };
+  'venture.assets.reuse': { id: string; orderId: string };
+  'venture.voiceConsent.record': { speaker: string; recordingFileId: string; transcript: string; statement: string; scope: string; until: IsoDate | null };
+  'venture.voiceConsent.revoke': { id: string };
+  'venture.voiceConsent.list': Empty;
+  'venture.report.render': { runId: string; formats?: ReportFormat[] };
+  'venture.report.share': { reportId: string; from: IsoDate; to: IsoDate; channels?: string[] };
+  'venture.report.shareRotate': { shareId: string };
+  'venture.report.shareDisable': { shareId: string };
+  'venture.monitors.list': Empty;
+  'venture.monitors.add': MonitorInput;
+  'venture.monitors.remove': { id: string };
+  /** uploadId: an .eml or .mbox file the owner added (venture.files.add). */
+  'venture.mail.import': { uploadId: string };
+  'venture.mail.threads': { clientId?: string };
+  'venture.localApps.list': Empty;
+  /** url null clears it. */
+  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null };
+  'venture.speechOut.providers': Empty;
+  /** As venture.ca.confirmRates: the CA of record's membership number and the citations table version confirmed. */
+  'venture.ca.confirmCitations': { version: number; membershipNo: string };
+  'venture.ca.signoff.get': { id: string };
+  'venture.ca.differential.add': { name: string; inputs: Json; outputs: Json; capturedBy: string };
+  'venture.ca.dataPack.export': { clientId: string; fields: string[] };
+  'venture.desk.list': DeskListPayload;
+  'venture.desk.get': DeskGetPayload;
+  'venture.desk.act': DeskActPayload;
   'venture.ai.options': OnboardingPayloads['venture.ai.options'];
   'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
@@ -5819,6 +6136,41 @@ export type VentureResults = {
   'venture.ideas.start': IdeaStarted;
   'venture.ideas.dismiss': { dismissed: true; line: Display };
   'venture.agents.capabilities': CapabilityPageView;
+  // Ink v2 wave 5 (5-0): each result type is the owning package's, a placeholder until it lands
+  'venture.order.chain': OrderChainView;
+  'venture.salesProposal.draft': SalesProposalView;
+  'venture.salesProposal.get': SalesProposalView;
+  'venture.goNoGo.card': GoNoGoCardView;
+  'venture.ideas.add': IdeaAddedView;
+  'venture.ideas.move': IdeaMovedView;
+  'venture.ideas.grade': IdeaGradedView;
+  'venture.brandKit.get': BrandKitView;
+  'venture.brandKit.set': BrandKitView;
+  'venture.assets.list': AssetsView;
+  'venture.assets.rerun': AssetRerunView;
+  'venture.assets.reuse': AssetReuseView;
+  'venture.voiceConsent.record': VoiceConsentView;
+  'venture.voiceConsent.revoke': VoiceConsentView;
+  'venture.voiceConsent.list': VoiceConsentsView;
+  'venture.report.render': ReportView;
+  'venture.report.share': ReportShareView;
+  'venture.report.shareRotate': ReportShareView;
+  'venture.report.shareDisable': ReportShareView;
+  'venture.monitors.list': MonitorsView;
+  'venture.monitors.add': MonitorView;
+  'venture.monitors.remove': MonitorView;
+  'venture.mail.import': MailImportView;
+  'venture.mail.threads': MailThreadsView;
+  'venture.localApps.list': LocalAppsView;
+  'venture.webhook.set': WebhookView;
+  'venture.speechOut.providers': SpeechProvidersView;
+  'venture.ca.confirmCitations': CitationsConfirmView;
+  'venture.ca.signoff.get': SignoffCheckView;
+  'venture.ca.differential.add': DifferentialAddView;
+  'venture.ca.dataPack.export': DataPackExportView;
+  'venture.desk.list': DeskListView;
+  'venture.desk.get': DeskItemView;
+  'venture.desk.act': DeskActView;
   'venture.ai.options': OnboardingResults['venture.ai.options'];
   'venture.ai.connect': OnboardingResults['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];

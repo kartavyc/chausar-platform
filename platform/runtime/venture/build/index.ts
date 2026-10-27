@@ -66,6 +66,16 @@ export const handlers: VentureHandlerTable = Object.freeze({
   // Ink v2 wave 4 (package 4-0 registered these; 4J7 replaces them): connection checks and the client's file request.
   'venture.connectors.check': connectorsCheckHandler satisfies VentureHandler<'venture.connectors.check'>,
   'venture.share.request': shareRequestHandler satisfies VentureHandler<'venture.share.request'>,
+  // Ink v2 wave 5 (package 5-0 registered these; 5A6 replaces them): monitors, mail import, the owner's local apps, the
+  // webhook handoff and speech providers.
+  'venture.monitors.list': notBuiltYet,
+  'venture.monitors.add': notBuiltYet,
+  'venture.monitors.remove': notBuiltYet,
+  'venture.mail.import': notBuiltYet,
+  'venture.mail.threads': notBuiltYet,
+  'venture.localApps.list': notBuiltYet,
+  'venture.webhook.set': notBuiltYet,
+  'venture.speechOut.providers': notBuiltYet,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

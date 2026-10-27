@@ -6,6 +6,7 @@ import { CONNECTOR_CATEGORIES, EXTERNAL_ORIGINS, STARTER_CONNECTORS } from '../r
 import type { BlueprintRecord, ConnectorCard, CountryProfile, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, ventureAction } from '../runtime/venture/records.ts';
 import { CONNECTOR_CATALOGUE, handlers } from '../runtime/venture/build/index.ts';
+import { PLAYBOOK_CATALOGUE_ENTRIES } from '../runtime/venture/build/catalogue-playbooks.ts';
 import { connectorCard } from '../runtime/venture/build/connectors.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -47,8 +48,9 @@ const availableIds = (mode: 'handoff' | 'read' | 'write') =>
   cards().filter(card => card.modes.some(m => m.mode === mode && m.status === 'available')).map(card => card.id).sort();
 
 test('1. 66 entries, unique ids, all 12 categories present', () => {
-  assert.equal(CONNECTOR_CATALOGUE.length, 66);
-  assert.equal(new Set(CONNECTOR_CATALOGUE.map(item => item.id)).size, 66);
+  // 5-0: the 66 of catalogue.ts, then each wave 5 playbook's own entries (build/catalogue-playbooks.ts; none yet).
+  assert.equal(CONNECTOR_CATALOGUE.length, 66 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal(new Set(CONNECTOR_CATALOGUE.map(item => item.id)).size, CONNECTOR_CATALOGUE.length);
   assert.deepEqual([...new Set(CONNECTOR_CATALOGUE.map(item => item.category))].sort(), [...CONNECTOR_CATEGORIES].sort());
   const labels = new Set(cards().map(card => card.categoryLabel));
   assert.deepEqual([...labels], ['Build', 'Site and domain', 'Payments', 'Email and inbox', 'Booking and calendar', 'Customers and CRM', 'Messaging and support',
@@ -184,16 +186,20 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the thirty-three owned methods', () => {
-  // Thirty-one, and the two Ink v2 wave 4 added (connectors.check and share.request, 4J7).
+test('7. handlers keys equal the forty-one owned methods', () => {
+  // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
+  // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
+  // speechOut.providers).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
     'venture.connectors.check', 'venture.connectors.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
     'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
-    'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar', 'venture.speechOut.providers',
+    'venture.webhook.set',
   ]);
 });
 

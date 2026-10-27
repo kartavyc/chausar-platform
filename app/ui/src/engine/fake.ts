@@ -25,6 +25,14 @@ import { FakeChiefDesk } from './fake-chief';
 import { FakeNetworkDesk } from './fake-network';
 import { FakeNotifyDesk } from './fake-notify';
 import { FakeW4Desk } from './fake-w4';
+// Ink v2 wave 5 (package 5-0): every playbook's desk, and the kit's methods (5A1 to 5A6).
+import { FakePlaybooksDesk } from './fake-playbooks';
+import { FakeKitChainDesk } from './fake-kit-chain';
+import { FakeKitSalesDesk } from './fake-kit-sales';
+import { FakeKitRulesDesk } from './fake-kit-rules';
+import { FakeKitMediaDesk } from './fake-kit-media';
+import { FakeKitReportDesk } from './fake-kit-report';
+import { FakeKitConnectDesk } from './fake-kit-connect';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
 import { withTruth } from './fake-setup';
@@ -169,6 +177,13 @@ export class FakeEngine {
   private readonly network: FakeNetworkDesk;
   private readonly notify: FakeNotifyDesk;
   private readonly w4: FakeW4Desk;
+  /**
+   * Ink v2 wave 5 (registered by package 5-0; each package fills its own file): every playbook's desk
+   * (fake-playbooks.ts, one fake-<id>.ts each), and the kit's methods: the chain (fake-kit-chain.ts, 5A1), sales
+   * (fake-kit-sales.ts, 5A2), ideas (fake-kit-rules.ts, 5A3), media (fake-kit-media.ts, 5A4), reports
+   * (fake-kit-report.ts, 5A5) and the shared connectors (fake-kit-connect.ts, 5A6).
+   */
+  private readonly w5: readonly { handles(method: string): boolean; request(method: string, p: Record<string, unknown>): unknown }[];
 
   constructor(options: FakeOptions = {}) {
     // `npm run dev:ui` can show the first run: add ?fresh to the address (and ?no-keys for a computer without
@@ -237,6 +252,12 @@ export class FakeEngine {
       // 4J22a: the chain counts the journal's entries, and verify reads a stored receipt (fake-4j22a.ts).
       journal: () => this.journal, receipt: (id: string) => this.findReceipt(id),
     };
+    // Ink v2 wave 5: made first, so a desk below that asks another desk during its own setup finds them.
+    this.w5 = [
+      new FakePlaybooksDesk(waveHost), new FakeKitChainDesk(waveHost, { fresh }), new FakeKitSalesDesk(waveHost, { fresh }),
+      new FakeKitRulesDesk(waveHost, { fresh }), new FakeKitMediaDesk(waveHost, { fresh }), new FakeKitReportDesk(waveHost, { fresh }),
+      new FakeKitConnectDesk(waveHost, { fresh }),
+    ];
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });
     this.bank = new FakeBankDesk(waveHost, { fresh });
@@ -379,7 +400,7 @@ export class FakeEngine {
         if (this.practice.handles(method)) return this.practice.request(method, p);
         if (this.bank.handles(method)) return this.bank.request(method, p);
         if (this.wiring.handles(method)) return this.wiring.request(method, p);
-        for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4]) if (desk.handles(method)) return desk.request(method, p);
+        for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) if (desk.handles(method)) return desk.request(method, p);
         throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
@@ -433,7 +454,7 @@ export class FakeEngine {
     if (method === 'venture.client.add') return this.addClient(p);
     // 4J2: a set approval decides each item as Today does (fake-4j2.ts).
     if (method === 'venture.queue.decide') return this.decide(p as ParamsOf<'venture.queue.decide'>);
-    for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4]) {
+    for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);
     }
     throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);

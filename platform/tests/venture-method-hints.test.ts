@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contracts.ts';
 import { METHOD_HINTS, METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { ACTOR_ACTIONS } from '../runtime/hosted/runtime/contract.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
@@ -21,10 +21,11 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 268 venture methods, 256 reached through the hosted host', () => {
-  assert.equal(VENTURE_METHODS.length, 268);
+test('the pinned counts: 302 venture methods, 290 reached through the hosted host', () => {
+  // 5-0 added the 34 wave 5 methods (contracts.ts W5_METHODS); all reach the hosted host.
+  assert.equal(VENTURE_METHODS.length, 302);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 256);
+  assert.equal(hosted.length, 290);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 
@@ -54,6 +55,8 @@ test('every hint is the four booleans and nothing else', () => {
 
 test('every read-level method is readOnly, and only reads are; a read is safe to repeat and has nothing to undo', () => {
   for (const method of W4_METHODS) assert.equal(METHOD_LEVEL_OF[method], W4_METHOD_LEVELS[method], `${method}: wave 4 levels are the contract's`);
+  // 5-0: and wave 5's.
+  for (const method of W5_METHODS) assert.equal(METHOD_LEVEL_OF[method], W5_METHOD_LEVELS[method], `${method}: wave 5 levels are the contract's`);
   for (const method of VENTURE_METHODS) {
     const hint = METHOD_HINTS[method];
     const read = METHOD_LEVEL_OF[method] === 'read';

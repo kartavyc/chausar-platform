@@ -4,6 +4,8 @@
 // `targets` lists the modes R6 aims for one day; connectors.ts decides which of them work in this build,
 // so a card never claims more than the code does today. A vendorUrl is a plain "Visit site" link, never a mode.
 import type { ConnectorCategory, ConnectorModeName } from '../contracts.ts';
+// Ink v2 wave 5 (package 5-0): each new playbook's own entries, in build/catalogue/<id>.ts.
+import { PLAYBOOK_CATALOGUE_ENTRIES } from './catalogue-playbooks.ts';
 
 export type CatalogueRegion = 'global' | 'india';
 export type CatalogueEntry = {
@@ -192,6 +194,8 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'An intake form on your site, added through the brief, is planned.'),
   entry('analytics', 'typeform', 'Typeform', 'https://www.typeform.com/', [], GI, 'Sign-in or personal token',
     'Forms. Its free plan is small for real client intake. Planned.'),
+  // Ink v2 wave 5: each new playbook's own entries (build/catalogue-playbooks.ts; none until a package adds them)
+  ...PLAYBOOK_CATALOGUE_ENTRIES,
 ]);
 
 const BY_ID: ReadonlyMap<string, CatalogueEntry> = new Map(CONNECTOR_CATALOGUE.map(item => [item.id, item]));

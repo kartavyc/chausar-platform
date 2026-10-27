@@ -2240,6 +2240,7 @@
     "money.policy.shownFirst",
     "money.policy.shownFirst.auto",
     "money.policy.shownFirst.INR",
-    "money.policy.shownFirst.USD"
+    "money.policy.shownFirst.USD",
+    "kit-desk.notBuilt"
   ]
 }
