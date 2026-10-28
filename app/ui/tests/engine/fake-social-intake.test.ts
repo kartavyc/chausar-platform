@@ -12,7 +12,7 @@ async function onboard() {
  for (const [questionId, answer] of [['q_1', { skipped: true }], ['q_pricing_model', { choiceId: 'monthly' }], ['q_price', { skipped: true }], ['q_tax', { yes: false }]] as const) await engine.request('venture.interview.answer', { questionId, answer });
  return await engine.request('venture.blueprint.draft', { useTemplate: true }) as BlueprintViewLite;
 }
-const keys = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting'];
+const keys = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting'];
 function desk(key: string, legacy = false) {
  const runs: RunDetail[] = [];
  const view = { playbook: { id: 'social-agency', label: 'Social media agency' }, blueprint: { offers: [{ id: 'offer_social', playbookOffer: key, name: { value: 'Social service' }, pricing: { unitPriceMinor: '10000', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: { offer_social: { rights: [], fields: ['clientRules'], kit: socialIntakeFields(key)?.map(field => legacy ? { ...field, required: false } : field) } } } as unknown as BlueprintViewLite;
@@ -21,7 +21,7 @@ function desk(key: string, legacy = false) {
  return { work, runs, create, start: (order: OrderLite) => work.request('venture.delivery.run', { orderId: order.id }) };
 }
 const source = (words: string[]) => ({ sourceFile: { name: 'source.srt', contentBase64: btoa(words.map((word, i) => `${i + 1}\n00:00:0${i},000 --> 00:00:0${i+1},000\n${word}\n`).join('\n')) } });
-it('onboards all six social offers with merged legacy and generic intake in stable plan order', async () => {
+it('onboards all thirteen social offers with merged legacy and generic intake in stable plan order', async () => {
  const view = await onboard();
  expect(view.playbook?.id).toBe('social-agency');
  expect(view.blueprint.offers.map(offer => offer.playbookOffer)).toEqual(keys);

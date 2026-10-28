@@ -230,6 +230,9 @@ if (singleInstance) app.whenReady().then(async () => {
   const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
+  const socialProjects = require('./social-project.cjs').createSocialProject();
+  ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
+  ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

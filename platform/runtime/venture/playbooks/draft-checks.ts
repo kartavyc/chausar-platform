@@ -598,9 +598,9 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
   const ownRules = input.intake?.clientRules;
   const usesKit = input.brandKit && (!ownRules || ![ownRules.bannedWords, ownRules.bannedTopics, ownRules.competitors, ownRules.protectedPhrases].some(list => list.length));
   const withOrigin = (result: SocialResult): SocialResult => usesKit ? { ...result, detail: result.detail + ' Rule source: ' + [...new Set([input.brandKit!.bannedWords.source, input.brandKit!.bannedTopics.source, input.brandKit!.competitors.source])].join(', ') + '.' } : result;
-  const paid = input.offerKey === 'ugc-ads' || !!input.intake?.paidPromotion;
+  const paid = ['ugc-ads','video-ads'].includes(input.offerKey??'') || !!input.intake?.paidPromotion;
   const ai = { person: !!input.intake?.aiPresenter, voice: !!input.intake?.aiVoice };
-  const style = input.offerKey === 'community-replies' ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
+  const style = ['community-replies','reply-inbox','local-instagram'].includes(input.offerKey??'') ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
   if (input.stageId === 'voice' || input.stageId === 'calendar') {
     const stageDraft: PostDraft = { id: input.stageId, channel: 'linkedin', text: deliverableWords(input.deliverable), style: 'post' };
     const claims = checkDraftClaims(stageDraft, client).findings, words = checkWords(stageDraft, client);

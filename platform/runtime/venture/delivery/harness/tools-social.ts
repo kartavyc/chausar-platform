@@ -13,6 +13,7 @@ import type { WorkReceiptDraft } from './work.ts';
 import { fail, fileOf, receiptOut, text, type Spec, type ToolEnv } from './tools.ts';
 import { notBuiltTool } from './tool-stub.ts';
 import { SOCIAL_CONTENT_TOOLS } from './tools-social-content.ts';
+import { SOCIAL_PRODUCTION_TOOLS } from './tools-social-production.ts';
 
 type SocialToolName = Extract<ToolName, 'social.report'>;
 
@@ -123,11 +124,11 @@ export const SOCIAL_W5_TOOLS: Readonly<Record<SocialW5ToolName, Spec>> = Object.
   'social.formats': SOCIAL_CONTENT_TOOLS['social.formats'],
   'social.inventory': SOCIAL_CONTENT_TOOLS['social.inventory'],
   'social.slots': SOCIAL_CONTENT_TOOLS['social.slots'],
+  'social.montage': SOCIAL_PRODUCTION_TOOLS['social.montage'],
+  'social.inbox': SOCIAL_PRODUCTION_TOOLS['social.inbox'],
+  'social.diagnose': SOCIAL_PRODUCTION_TOOLS['social.diagnose'],
+  'social.health': SOCIAL_PRODUCTION_TOOLS['social.health'],
+  'social.adStyle': SOCIAL_PRODUCTION_TOOLS['social.adStyle'],
   'social.fairPrice': notBuiltTool('social.fairPrice', 'compute', 'A creator\'s fair price from comparable posts, with a receipt, under your cap.'), // 5D3
   'social.keywords': notBuiltTool('social.keywords', 'compute', 'Keyword groups for the influencer search, competitor terms kept apart.'), // 5D3
-  'social.montage': notBuiltTool('social.montage', 'compute', 'A reel cut plan from the client\'s clips, on the beat grid.'), // 5D2
-  'social.inbox': notBuiltTool('social.inbox', 'compute', 'Comments and messages from an export or paste, sorted with counts first.'), // 5D2
-  'social.diagnose': notBuiltTool('social.diagnose', 'compute', 'A post\'s export run through a code checklist before any view of it.'), // 5D2
-  'social.health': notBuiltTool('social.health', 'compute', 'The account\'s followers, age and posts, each tagged by its source.'), // 5D2
-  'social.adStyle': notBuiltTool('social.adStyle', 'compute', 'The video ad\'s style, picked by code from the product category.'), // 5D2
 });

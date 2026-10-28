@@ -40,6 +40,16 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
   },
+  saveSocialProject: async (orderId, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:social:saveProject', { orderId: String(orderId), digest: String(digest) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The approved posts could not be saved.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
+  openSocialProject: async savedId => {
+    const reply = await ipcRenderer.invoke('chausar:social:openProject', { savedId: String(savedId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

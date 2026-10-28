@@ -6,7 +6,7 @@ import {SOCIAL_RULES_REGISTER,validateRulesRegister} from '../runtime/venture/pl
 import {SOCIAL_CONNECTORS} from '../runtime/venture/playbooks/social/playbook.ts';
 test('D1 adds executable thin-source, five-structure and selling-share baseline cases while preserving the old seven',async()=>{
  const {file,social}=await loadSocialBaseline();const ids=['repurpose-thin-source','ghostwriting-structure','selling-share-cap'];for(const id of ids)assert.ok(file.cases.some(row=>row.id===id),id);
- const result=await runSocialBaseline();assert.equal(result.passed,10,result.cases.filter(row=>!row.passed).map(row=>row.failures).join('\n'));assert.equal(result.of,10);assert.equal(result.ok,true);
+ const result=await runSocialBaseline();assert.equal(result.passed,14,result.cases.filter(row=>!row.passed).map(row=>row.failures).join('\n'));assert.equal(result.of,14);assert.equal(result.ok,true);
  const thin=file.cases.find(row=>row.id===ids[0])!;assert.equal(scoreSocialCase(thin,social[thin.id],JSON.stringify({outcome:'drafted',message:'Send a longer piece or a voice note.'})).passed,false);
  const enough={...thin,sources:[{id:'source',text:'Claim: We roast coffee.\nStory: We learnt from our neighbours.\nMistake: The first batch was burnt.\nQuote: Keep trying.'}]};assert.equal(scoreSocialCase(enough,social[thin.id],thin.reference).passed,false,'the source inventory decides whether a refusal is appropriate');
  const ghost=file.cases.find(row=>row.id===ids[1])!;const pack=JSON.parse(ghost.reference);pack.posts.forEach((post:{heading:string})=>{post.heading='Post | Story';});assert.equal(scoreSocialCase(ghost,social[ghost.id],JSON.stringify(pack)).passed,false);

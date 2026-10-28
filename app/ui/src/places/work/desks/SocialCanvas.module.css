@@ -10,3 +10,5 @@
 .post { border-top:var(--hair) solid var(--line-soft);padding-block:var(--sp-3);display:grid;gap:var(--sp-2); }
 .post p { white-space:pre-wrap; }
 .actions { display:flex;flex-wrap:wrap;gap:var(--sp-2); }
+
+.still { display:block;width:100%;height:auto;object-fit:contain;border-radius:var(--radius); }

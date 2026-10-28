@@ -927,6 +927,7 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  socialProduction?: import('./playbooks/social/production-types.ts').SocialProduction;
   socialPostHistory?: import('./playbooks/social/slots-live.ts').SocialHookHistory[];
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   socialChain?: import('./playbooks/social/chain.ts').SocialChainPin;
@@ -6280,6 +6281,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'PRODUCT_PHOTO_REQUIRED',
+
   'STATEMENT_DOES_NOT_TIE',
   'AUDIO_INPUT_INVALID', 'AUDIO_TOO_LARGE', 'BEAT_INPUT_INVALID', 'BEAT_RULES_FAILED', 'BOARD_OUTPUT_INVALID', 'BOARD_REQUIRED', 'BROLL_APPROVAL_REQUIRED', 'BROLL_INVALID', 'BROLL_LICENCE_REQUIRED', 'BROLL_REMOVED', 'BROLL_REVIEW_REQUIRED', 'CLIP_PAGE_INVALID', 'CLIP_RULES_FAILED', 'FINISHING_FAILED', 'FINISHING_INPUT_INVALID', 'INTERCHANGE_INVALID', 'MEDIA_FILE_REQUIRED', 'OUTPUT_APPROVAL_REQUIRED', 'PUBLISHING_TEXT_INVALID', 'SOURCE_DOWNSCALED', 'STYLE_MEASUREMENTS_REQUIRED', 'STYLE_NOT_FOUND', 'STYLE_OWNED_REQUIRED', 'STYLE_SAMPLES_REQUIRED',
   'COMMUNITY_NO_GO',

@@ -17,6 +17,7 @@ import { SOCIAL_CHECK_IDS, SOCIAL_RUN_CHECK_IDS } from './check-ids.ts';
 import { SOCIAL_STEPS } from './playbook.ts';
 // post-limits.ts imports only types from this file, so it loads first and makes no cycle.
 import { HOUSE_POSTING_RULES } from './post-limits.ts';
+import { SOCIAL_D2_RULES } from './d2-rules.ts';
 import { socialLegalStatus } from './legal-confirmation.ts';
 
 export type RuleScope = 'instagram' | 'facebook' | 'linkedin' | 'x' | 'threads' | 'tiktok' | 'youtube-shorts' | 'meta' | 'india' | 'united-states' | 'all';
@@ -438,6 +439,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
   }),
   // Chausar's own posting limits for the risk gate (post-limits.ts, Ink v2 wave 2 2B1): house rules, used by publish.
   ...HOUSE_POSTING_RULES,
+  ...SOCIAL_D2_RULES,
 ] satisfies PlatformRule[]);
 
 const ID = /^[a-z][a-z0-9-]{1,40}$/;

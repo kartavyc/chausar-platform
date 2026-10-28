@@ -616,3 +616,8 @@ Social writing, client review, revisions and source-bound scheduling are include
 
 - CA working desk adds source-backed tax scenarios, document entry, health findings, named-CA decisions and exact masked return-pack export. Browser calculations reuse engine code; receipts remain code-derived. External filing and absent departmental calibration captures remain planned/manual.
 - Independent spec and quality PASS and actual RED fixes are recorded in NOTES-5C2. Hindi focused walk passed after the shared selector correction. This isolated package reconstruction does not replace full batch gates.
+
+
+### 5D2 isolated commit checkpoint
+
+Adds the reviewed local social production and inbox package, including exact owner approvals and sticky opt-out/Forget repairs. Independent spec/quality PASS and limitations are in NOTES-5D2.md. D3 stays stubbed; provider and professional review stay planned/manual.

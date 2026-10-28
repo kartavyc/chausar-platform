@@ -2,7 +2,9 @@
 import registry from './fixtures-playbook-picks.json';
 import metadata from './fixtures-social-plan.json';
 import type { BlueprintViewLite, OfferIntakeLite } from './types';
-const KEYS = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting'];
+import {SOCIAL_D2_KEYS} from '../../../../platform/runtime/venture/playbooks/social/d2-core';
+const CLIPS=['reel-from-clips','hook-variations','local-instagram','cross-posting'];
+const KEYS = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting',...SOCIAL_D2_KEYS];
 export function fakeSocialForIdea(idea: string): boolean {
  const text = idea.toLowerCase().replace(/\s+/g, ' ');
  let best = '', length = 0;
@@ -11,7 +13,7 @@ export function fakeSocialForIdea(idea: string): boolean {
 }
 export function fakeSocialOfferIntake(key: string | undefined): OfferIntakeLite | undefined {
  if (!key || !KEYS.includes(key)) return undefined;
- return { rights: [], fields: [...(key === 'monthly-report' ? [] : ['aiVoice', 'aiPresenter', 'paidPromotion'] as const), ...(key === 'content-calendar' ? ['calendar'] as const : []), 'clientRules'], kit: structuredClone(metadata.offers.find(offer => offer.id === key)!.intake) as NonNullable<OfferIntakeLite['kit']> };
+ return { rights: CLIPS.includes(key)?['own-footage']:[], fields: [...(key === 'monthly-report' ? [] : ['aiVoice', 'aiPresenter', 'paidPromotion'] as const), ...(key === 'content-calendar' ? ['calendar'] as const : []), 'clientRules'], kit: structuredClone(metadata.offers.find(offer => offer.id === key)!.intake) as NonNullable<OfferIntakeLite['kit']> };
 }
 export function fakeSocialPlan(base: BlueprintViewLite): BlueprintViewLite {
  const label = (value: string) => ({ value, label: 'assumption' as const, by: 'template' as const });

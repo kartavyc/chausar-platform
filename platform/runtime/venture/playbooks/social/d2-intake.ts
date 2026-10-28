@@ -1,0 +1,11 @@
+// Original Chausar social media intake. Rights use the kit's shared order rights and people consent records.
+import type { KitIntakeField } from '../kit/define.ts';
+const f=(id:string,label:string,help:string,kind:KitIntakeField['kind'],required=false):KitIntakeField=>({id,label,help,kind,required});
+export const SOCIAL_CLIP_OFFERS=['reel-from-clips','hook-variations','local-instagram','cross-posting'];
+export function socialD2Intake(offer:string):KitIntakeField[]|null{
+ if(SOCIAL_CLIP_OFFERS.includes(offer))return [f('clipRights','Client clip rights','Only the client videos you own can be used.','rights',true),f('clipFiles','Local clip files','Full local file paths, one per row. Reels are cut in the desktop app.','list',true),f('peopleWhoAppear','People who appear','Record the current consent for each person seen or heard.','people'),f('bpm','Beats per minute','Your whole beats per minute, or provide a beat map.','text'),f('beatMap','Beat map','Cut times in milliseconds from zero, one per row.','list'),f('contact','Contact for the end card','The contact words shown at the end of the reel.','text',offer==='reel-from-clips')];
+ if(offer==='video-ads')return [f('productPhoto','Real product photo','Upload a photo of the actual product. A generated substitute cannot be used.','file',true),f('productPhotoReal','This is the real product','Confirm this photo shows the actual product.','yes-no',true),{...f('productCategory','Product category','Choose the category for the code-selected ad style.','choice',true),options:['d2c','restaurant','property']},f('peopleWhoAppear','People who appear','Record the current consent for each person seen or heard.','people')];
+ if(offer==='post-diagnosis')return [{...f('diagnosisSource','Insights source','Choose an export or figures copied from a screenshot.','choice',true),options:['export','typed-by-you']},f('insightsFile','Insights CSV','Columns: durationMs,hookMs,averageWatchMs.','file'),f('durationMs','Video length in milliseconds','Use the figure shown in the platform app.','text'),f('hookMs','Hook length in milliseconds','Use the figure shown in the platform app.','text'),f('averageWatchMs','Average watch in milliseconds','Use the figure shown in the platform app.','text')];
+ if(offer==='reply-inbox')return [];
+ return null;
+}

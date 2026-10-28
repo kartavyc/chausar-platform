@@ -32,6 +32,8 @@ export interface ChausarBridge {
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
+  saveSocialProject?(orderId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
+  openSocialProject?(savedId: string): Promise<{ opened: true }>;
   onEngineStatus?(callback: (status: { healthy: boolean; state: string }) => void): () => void;
   onEvent?(callback: (value: unknown) => void): () => void;
 }
@@ -209,6 +211,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveReport ? { saveReport: (runId: string) => bridge.saveReport!(runId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.saveYoutubeProject ? { saveYoutubeProject: (editId: string, digest: string) => bridge.saveYoutubeProject!(editId, digest).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.openYoutubeProject ? { openYoutubeProject: (savedId: string) => bridge.openYoutubeProject!(savedId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.saveSocialProject ? { saveSocialProject: (orderId: string, digest: string) => bridge.saveSocialProject!(orderId, digest).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.openSocialProject ? { openSocialProject: (savedId: string) => bridge.openSocialProject!(savedId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
   };
   const feed = createEventFeed({
     onEvent: bridge?.onEvent ? (callback) => bridge.onEvent!(callback) : undefined,

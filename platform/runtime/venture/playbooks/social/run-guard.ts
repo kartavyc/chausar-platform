@@ -7,7 +7,9 @@ import { repurposeSource } from './repurpose.ts';
 import { socialFormats } from './formats.ts';
 import type { SocialChannel } from './channels.ts';
 import { boundSocialSource } from './bound-source.ts';
+import { socialD2Preflight } from './d2-preflight.ts';
 import { digest,listRecords } from '../../records.ts';
+import { requireOrderPeopleConsent } from '../kit/voice-consent.ts';
 import { findRecord } from '../../records.ts';
 import { socialLegalBlock } from './legal-confirmation.ts';
 export { boundSocialSource } from './bound-source.ts';
@@ -15,9 +17,12 @@ export function refuseSocialDraft(state: State, venture: VentureRecord, order: O
     const key = acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer;
     const fields = order.intake?.fields ?? {};
     try {
-        if (order.socialChain) {
+        const files=listRecords(state,'venture-upload',venture.id).filter(file=>(file.scope.kind==='order'||file.scope.kind==='media')&&file.scope.orderId===order.id&&file.digest===digest(file.contentBase64)).map(file=>({id:file.id,format:file.format,text:file.format==='csv'?Buffer.from(file.contentBase64,'base64').toString('utf8'):''}));
+        socialD2Preflight(key,fields,order.intake?.rights,files);
+        if (['video-ads','reel-from-clips','hook-variations','local-instagram','cross-posting'].includes(key??'')) requireOrderPeopleConsent(state,venture,order,today);
+        if (order.socialChain || key === 'video-ads') {
             const client = findRecord(state, 'venture-client', order.clientId);
-            const legal = socialLegalBlock({ countries: [venture.country.code, client?.countryCode], rehearsal: venture.launchStage === 'shadow', paid: order.intake?.paidPromotion === true, synthetic: order.intake?.aiVoice === true || order.intake?.aiPresenter === true });
+            const legal = socialLegalBlock({ countries: [venture.country.code, client?.countryCode], rehearsal: venture.launchStage === 'shadow', paid: key === 'video-ads' || order.intake?.paidPromotion === true, synthetic: order.intake?.aiVoice === true || order.intake?.aiPresenter === true });
             check(!legal, 'RULE_UNCONFIRMED', legal ?? 'A lawyer must confirm the applicable disclosure rules.');
         }
         if (key === 'community-replies') {

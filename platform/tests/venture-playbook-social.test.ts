@@ -43,8 +43,8 @@ test('social playbook: registered as the social media agency, picked by the phra
   assert.equal(pickPlaybook('A bakery that sells bread'), null);
 });
 
-test('social playbook: six offers, each priced by the owner, each naming the steps it uses', () => {
-  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads', 'repurpose-pack','linkedin-ghostwriting']);
+test('social playbook: thirteen offers, each priced by the owner, each naming the steps it uses', () => {
+  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads', 'repurpose-pack','linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting']);
   const stepIds = new Set(SOCIAL_STEPS.map(step => step.id));
   for (const offer of SOCIAL_OFFERS) {
     assert.equal(offer.price, 'owner-sets');

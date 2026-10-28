@@ -4,8 +4,8 @@
   "recordedAt": "2026-10-28",
   "recordedFrom": "Reference drafts written by hand for the held-back cases. Re-record from a real playbook run; the baseline only rises.",
   "baseline": {
-    "passed": 10,
-    "of": 10
+    "passed": 14,
+    "of": 14
   },
   "cases": [
     {
@@ -276,6 +276,82 @@
         "scenario": {
           "kind": "selling-share-cap",
           "capPercent": 20
+        }
+      }
+    },
+    {
+      "id": "reel-end-card",
+      "title": "Reel end card",
+      "clientRequest": "Use only the supplied owner facts.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"clips\":[{\"id\":\"own\",\"durationMs\":6000,\"startMs\":1000,\"endMs\":5000}],\"beatMap\":[0,1000,2000,3000,4000,5000,6000],\"contact\":\"Call the shop\",\"words\":[{\"text\":\"Fresh coffee\",\"startMs\":0,\"endMs\":1000}]}"
+        }
+      ],
+      "reference": "{\"contact\":\"Call the shop\",\"durationMs\":6000}",
+      "social": {
+        "channel": "instagram",
+        "scenario": {
+          "kind": "d2",
+          "caseId": "reel-end-card"
+        }
+      }
+    },
+    {
+      "id": "keyword-comment-delivery",
+      "title": "Keyword comment delivery",
+      "clientRequest": "Use only the supplied owner facts.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"promise\":\"Here is your menu: https://example.test/menu\",\"question\":\"Which meal suits you?\"}"
+        }
+      ],
+      "reference": "{\"messages\":[\"Here is your menu: https://example.test/menu\",\"Which meal suits you?\"]}",
+      "social": {
+        "channel": "instagram",
+        "scenario": {
+          "kind": "d2",
+          "caseId": "keyword-comment-delivery"
+        }
+      }
+    },
+    {
+      "id": "video-ad-no-photo",
+      "title": "Video ad no photo",
+      "clientRequest": "Use only the supplied owner facts.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"category\":\"restaurant\",\"photo\":null}"
+        }
+      ],
+      "reference": "{\"outcome\":\"blocked\",\"code\":\"PRODUCT_PHOTO_REQUIRED\"}",
+      "social": {
+        "channel": "instagram",
+        "scenario": {
+          "kind": "d2",
+          "caseId": "video-ad-no-photo"
+        }
+      }
+    },
+    {
+      "id": "diagnosis-labelled",
+      "title": "Diagnosis labelled",
+      "clientRequest": "Use only the supplied owner facts.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"durationMs\":20000,\"hookMs\":5000,\"averageWatchMs\":4000,\"retention\":[],\"source\":\"typed-by-you\"}"
+        }
+      ],
+      "reference": "{\"label\":\"model estimate\",\"findings\":[\"hook-too-long\",\"length-above-watch\"]}",
+      "social": {
+        "channel": "instagram",
+        "scenario": {
+          "kind": "d2",
+          "caseId": "diagnosis-labelled"
         }
       }
     }

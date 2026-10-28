@@ -80,6 +80,9 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'no-filing-claims': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Never say a return was filed, signed or verified; the CA or the client does that on the portal.' },
   // The social agency's judge rules (playbooks/social/judge.ts): its posts are written on the drafts step.
   'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
+  'ad-disclosed': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Disclose every ad upfront and label any synthetic presenter Made with AI.' },
+  'reply-in-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Answer the specific comment in the client approved voice.' },
+  'no-customer-pretence': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Never let a synthetic presenter claim to be a customer or claim personal product experience.' },
   'source-faithful': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'For a repurposed post use only facts from its bound source, even if other proof files contain more.' },
   'one-goal': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Give each post one clear goal and one audience action.' },
   'fits-pillar': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Tie each post to one of the approved content pillars.' },

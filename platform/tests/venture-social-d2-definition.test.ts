@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
+import {SOCIAL_OFFERS,SOCIAL_STEPS} from '../runtime/venture/playbooks/social/playbook.ts';import {SOCIAL_AGENCY_REGISTRATION} from '../runtime/venture/playbooks/social/registration.ts';import {socialIntakeFields} from '../runtime/venture/playbooks/social/intake-fields.ts';
+test('browser offer metadata equals the actual social offers, fields and steps',async()=>{const actual=JSON.parse(await readFile(new URL('../../app/ui/src/engine/fixtures-social-plan.json',import.meta.url),'utf8'));assert.deepEqual(actual,{registration:SOCIAL_AGENCY_REGISTRATION,offers:SOCIAL_OFFERS.map(offer=>({...offer,intake:socialIntakeFields(offer.id)})),steps:SOCIAL_STEPS});});

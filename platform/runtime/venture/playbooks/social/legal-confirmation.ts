@@ -1,6 +1,9 @@
 // Original Chausar professional-review gate. Legal sources remain in the dated social register.
 export type SocialLegalRule = { id: string; country: 'IN' | 'US'; uses: 'paid' | 'synthetic'; needs: 'lawyer'; confirmedBy: { name: string; on: string } | null };
 export const SOCIAL_LEGAL_RULES: readonly SocialLegalRule[] = Object.freeze([
+    {id:'asci-virtual-influencer',country:'IN',uses:'synthetic',needs:'lawyer',confirmedBy:null},
+    {id:'ccpa-endorsement-2023',country:'IN',uses:'paid',needs:'lawyer',confirmedBy:null},
+    {id:'meta-branded-content-d2',country:'IN',uses:'paid',needs:'lawyer',confirmedBy:null},
     { id: 'ftc-endorsement-guides', country: 'US', uses: 'paid', needs: 'lawyer', confirmedBy: null },
     { id: 'ftc-reviews-rule', country: 'US', uses: 'synthetic', needs: 'lawyer', confirmedBy: null },
     { id: 'asci-influencer-label', country: 'IN', uses: 'paid', needs: 'lawyer', confirmedBy: null },

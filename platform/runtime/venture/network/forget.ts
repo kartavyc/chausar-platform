@@ -1,3 +1,4 @@
+import { eraseSocialD2Naming } from '../playbooks/social/d2-privacy.ts';
 import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSocialChainNaming } from '../playbooks/social/chain-privacy.ts';
 import { eraseScheduledNaming } from '../playbooks/social/scheduled-privacy.ts';
@@ -283,6 +284,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSocialD2Naming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.

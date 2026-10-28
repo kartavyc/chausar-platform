@@ -31,7 +31,7 @@ export class FakeSocialChain {
  private checkLegal(order:OrderLite){
   const venture=this.host.ask?.('venture.get',{}) as {venture?:{country?:{code?:string};launchStage?:string}}|null|undefined;
   const client=this.host.clients().find(row=>row.id===order.clientId);
-  const reason=socialLegalBlock({countries:[venture?.venture?.country?.code,client?.countryCode],rehearsal:venture?.venture?.launchStage==='shadow',paid:order.intake?.paidPromotion===true,synthetic:order.intake?.aiVoice===true||order.intake?.aiPresenter===true});
+  const reason=socialLegalBlock({countries:[venture?.venture?.country?.code,client?.countryCode],rehearsal:venture?.venture?.launchStage==='shadow',paid:this.host.plan()?.blueprint.offers.find(o=>o.id===order.offerId)?.playbookOffer==='video-ads'||order.intake?.paidPromotion===true,synthetic:order.intake?.aiVoice===true||order.intake?.aiPresenter===true});
   if(reason)throw new EngineError('RULE_UNCONFIRMED',reason);
  }
  private brand(clientId:string){

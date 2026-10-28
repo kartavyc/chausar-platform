@@ -3,8 +3,8 @@
 // Chausar; nothing here is learned from an outside source.
 
 /** venture-social-inbox-item: one comment or message in the reply inbox, a placeholder until 5D2 lands. */
-export type SocialInboxItemBody = { placeholder: true };
+export type SocialInboxItemBody = import('./inbox.ts').InboxItem;
 /** venture-ad-ledger-entry: one competitor ad the owner captured, a placeholder until 5D2 lands. */
-export type AdLedgerEntryBody = { placeholder: true };
+export type AdLedgerEntryBody = { orderId: string; capturedBy: 'owner'; status: 'live'|'stopped'; format: 'video'|'image'|'carousel'; source: string; capturedAt: string };
 /** venture-influencer-case: one influencer campaign case, a placeholder until 5D3 lands. */
 export type InfluencerCaseBody = { placeholder: true };

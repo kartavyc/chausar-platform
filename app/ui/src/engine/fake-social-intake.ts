@@ -1,4 +1,5 @@
 // Browser-only social intake and delivery preflight, matching the real order boundary.
+import { socialD2Preflight } from '../../../../platform/runtime/venture/playbooks/social/d2-preflight';
 import { fakeKitIntake } from './fake-kit-intake';
 import { EngineError, type OfferIntakeLite, type OrderLite, type BlueprintViewLite, type CalendarIntakeLite } from './types';
 import { localPathProblem } from '../../../../platform/runtime/local-paths';
@@ -67,6 +68,7 @@ export function fakeSocialPreflight(plan: BlueprintViewLite | null, order: Order
  if (plan?.playbook?.id !== 'social-agency') return;
  const key = plan.blueprint.offers.find(offer => offer.id === order.offerId)?.playbookOffer, fields = order.intake?.fields ?? {};
  try {
+  socialD2Preflight(key,fields,order.intake?.rights,files.map(file=>({...file,text:file.format==='csv'?new TextDecoder().decode(Uint8Array.from(atob(file.contentBase64),c=>c.charCodeAt(0))):''})));
   if (key === 'community-replies') requireCommunityGo(communityDecision({ rules: typeof fields.communityRules === 'string' ? fields.communityRules : '', promotion: fields.communityPromotion as boolean, links: fields.communityLinks as boolean, flair: typeof fields.communityFlair === 'string' ? fields.communityFlair : '' }));
   if (key === 'repurpose-pack') {
    const file = files.find(file => file.id === fields.sourceFile);

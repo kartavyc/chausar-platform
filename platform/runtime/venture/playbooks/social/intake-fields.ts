@@ -1,8 +1,10 @@
 // Original Chausar social intake fields. Generic kit fields share the existing order form.
 import type { KitIntakeField } from '../kit/define.ts';
+import { socialD2Intake } from './d2-intake.ts';
 const field = (id: string, label: string, help: string, kind: KitIntakeField['kind'], required = false, options?: string[]): KitIntakeField => ({ id, label, help, kind, required, ...(options ? { options } : {}) });
 const common = [field('sellingCap', 'Selling share cap', 'A whole percentage from 0 to 100. The default is 20.', 'text'), field('revisionDue', 'Revision due date', 'The day the monthly revisions are due.', 'date')];
 export function socialIntakeFields(offer: string): KitIntakeField[] | undefined {
+    const d2=socialD2Intake(offer); if(d2!==null)return d2;
     if (offer === 'monthly-report')
         return [field('reportMonth', 'Report month', 'The month of the client exports, as YYYY-MM.', 'text', true)];
     const fields = [...common];
