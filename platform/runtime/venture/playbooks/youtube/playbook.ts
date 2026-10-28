@@ -74,7 +74,7 @@ export type StepRole =
 /** The deterministic checks a step runs (checks.ts and finishing.ts). */
 export type YoutubeCheckId =
   | 'hook-score' | 'title-thumbnail' | 'metadata-limits' | 'chapters' | 'retention-risk' | 'ai-disclosure'
-  | 'paid-promotion' | 'rights-recorded' | 'source-credit' | 'finishing';
+  | 'paid-promotion' | 'rights-recorded' | 'source-credit' | 'finishing' | 'caption-file' | 'script-coverage' | 'cleanup';
 
 export type YoutubeStep = {
   id: string;
@@ -141,6 +141,12 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
   {
+    id: 'edit', kind: 'work', title: 'Propose typed edits, measured cleanup, captions and script coverage',
+    role: agent('Cutter', 'Proposes whole edit operations on measured word ids only. Never invents speech or timings.'),
+    tier: 'actor', model: 'main', tools: ['files.list', 'files.read', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'handoff.owner'], checks: none, youtubeChecks: none,
+    requiredSections: none, clipping: false, gate: null, floor: null,
+  },
+  {
     id: 'assemble', kind: 'compute', title: 'Build the edit list from the chosen segments, with any paid voice quoted first',
     role: code('Builds the edit list from segment ids and snaps it to frames. A paid AI voice or presenter waits for your approval of its quote.'),
     tier: 'code', model: null, tools: none, checks: none, youtubeChecks: ['rights-recorded'],
@@ -156,7 +162,7 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
     id: 'verify', kind: 'verify', title: 'Check the package and the finished cut',
     role: code('Runs every check above again, then the finishing check on the cut when ffmpeg is on this computer.'),
     tier: 'code', model: null, tools: none, checks: VERIFY_CHECKS,
-    youtubeChecks: ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'retention-risk', 'ai-disclosure', 'paid-promotion', 'rights-recorded', 'source-credit', 'finishing'],
+    youtubeChecks: ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'retention-risk', 'ai-disclosure', 'paid-promotion', 'rights-recorded', 'source-credit', 'finishing', 'caption-file', 'script-coverage', 'cleanup'],
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
   {
@@ -324,7 +330,7 @@ const fail = (message: string): never => { throw new Error(message); };
 export function validateYoutubePlaybook(playbook: YoutubePlaybook): void {
   const steps = playbook.steps;
   const approvals = new Map(playbook.approvals.map(item => [item.id, item]));
-  if (steps.length !== 10) fail('The YouTube channel playbook has ten steps.');
+  if (steps.length !== 11) fail('The YouTube channel playbook has eleven steps, including the Cutter.');
   const rights = approvals.get('rights-at-intake');
   if (!rights || steps[0].gate !== 'rights-at-intake') fail('The first step must ask the owner to confirm the rights to the footage.');
   const cutting = steps.filter(step => step.clipping);

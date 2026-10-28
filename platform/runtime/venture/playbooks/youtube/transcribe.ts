@@ -8,7 +8,9 @@
 // says so in plain words. Draft, final and refined tiers, word timings and model hashes (the rest of K12) are the
 // YouTube deepening in wave 5.
 import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { statSync } from 'node:fs';
+import { statSync, createReadStream } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { TRANSCRIPT_MODELS, tierTranscript, type TranscriptTier } from './tiers.ts';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { check, ChausarError, type Context, type State } from '../../../contracts.ts';
@@ -205,4 +207,40 @@ export async function transcriptionSetHandler(deps: VentureDeps, ctx: Context, p
     tx.put<TranscriptionSetupRecord>({ ...tx.base('venture-transcription-setup'), command: setup?.command ?? null, model: setup?.model ?? null }));
   deps.services.speech?.useLocal(setup);
   return transcriptionSetupView(deps, record);
+}
+
+/** Stream a local file's fingerprint without keeping model bytes in memory. */
+async function localFileSha256(path: string): Promise<string> {
+  const hash = createHash('sha256');
+  try { for await (const chunk of createReadStream(path)) hash.update(chunk); }
+  catch { throw new ChausarError('TRANSCRIBE_NOT_AVAILABLE', 'The configured local model or whisper program could not be read.'); }
+  return hash.digest('hex');
+}
+/**
+ * A pinned tier on the actual configured local model. The exact whisper binary fingerprint is its reproducible
+ * version identifier, rather than an unverified filename or guessed release number. Voice activity is measured
+ * input supplied with the word-time source. A legacy SRT-only transcript is never upgraded to word timings.
+ */
+export async function makePinnedLocalTranscript(deps: VentureDeps, ctx: Context, input: {
+  cutFile: string; prompt: string; tier: TranscriptTier; voiceActivity: readonly { startMs: number; endMs: number }[];
+}) {
+  check(deps.host !== 'hosted-web', 'TIER_UNAVAILABLE', HOSTED_NO_TRANSCRIBE);
+  check(Object.hasOwn(TRANSCRIPT_MODELS, input.tier), 'INVALID_VENTURE_REQUEST', 'Choose draft, final or refined transcription.');
+  const speech = deps.services.speech;
+  check(speech, 'TRANSCRIBE_NOT_AVAILABLE', WHISPER_MISSING);
+  const ready = speech.localTranscriber();
+  check(ready.ready, 'TRANSCRIBE_NOT_AVAILABLE', WHISPER_MISSING);
+  const provider = speech.localTranscriptionFiles?.(ctx);
+  check(provider && typeof provider.model === 'string' && typeof provider.command === 'string', 'TRANSCRIBE_NOT_AVAILABLE', WHISPER_MISSING);
+  const modelSha256 = await localFileSha256(provider.model);
+  check(modelSha256 === TRANSCRIPT_MODELS[input.tier].sha256, 'MODEL_HASH_MISMATCH', 'The model file differs from the pinned table. Choose the verified model before transcribing.');
+  const whisperVersion = `binary-sha256:${await localFileSha256(provider.command)}`;
+  // Validate provenance and measured VAD before paying any compute cost.
+  tierTranscript({ ...input, whisperVersion, modelSha256, segments: [] });
+  const made = await makeLocalTranscript(deps, ctx, input);
+  // Re-check both files after the run so replacing a binary or model cannot receive the old provenance.
+  check(await localFileSha256(provider.model) === modelSha256 && `binary-sha256:${await localFileSha256(provider.command)}` === whisperVersion,
+    'MODEL_HASH_MISMATCH', 'The model or whisper program changed while transcribing. Nothing was kept.');
+  const provenance = tierTranscript({ ...input, whisperVersion, modelSha256, segments: parseTranscript(made.srt) });
+  return { ...provenance, srt: srtOf(provenance.segments), providerId: made.providerId };
 }

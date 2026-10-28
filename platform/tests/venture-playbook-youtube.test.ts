@@ -1,4 +1,4 @@
-// Flagship playbook (design 7.8): the YouTube channel, as data. Offers, ten typed steps with agent roles, the four
+// Flagship playbook (design 7.8): the YouTube channel, as data. Offers, eleven typed steps with agent roles, the four
 // approvals, the always-ask floor, connectors with honest modes, and a dated register of platform rules with sources.
 // Clipping other people's shows needs recorded rights; AI voice or presenter is always disclosed.
 import test from 'node:test';
@@ -54,9 +54,9 @@ test('offers: an episode package, shorts from the client\'s own long video, and 
   assert.equal(offerAcceptsRights('shorts-from-own-video', 'licence'), false);
 });
 
-test('steps: ten typed steps, each with a role; agents only on agent kinds, code and owner steps use no model', () => {
-  assert.equal(YOUTUBE_STEPS.length, 10);
-  assert.deepEqual(YOUTUBE_STEPS.map(step => step.id), ['intake', 'clarify', 'probe', 'find', 'score', 'assemble', 'package', 'verify', 'review', 'publish']);
+test('steps: eleven typed steps, each with a role; agents only on agent kinds, code and owner steps use no model', () => {
+  assert.equal(YOUTUBE_STEPS.length, 11);
+  assert.deepEqual(YOUTUBE_STEPS.map(step => step.id), ['intake', 'clarify', 'probe', 'find', 'score', 'edit', 'assemble', 'package', 'verify', 'review', 'publish']);
   for (const step of YOUTUBE_STEPS) {
     if (step.role.kind === 'agent') {
       assert.ok(['gather', 'question', 'work', 'write'].includes(step.kind), step.id);
@@ -90,9 +90,9 @@ test('floor: rights, paid generation, sending to the client and publishing ask a
   for (const step of floorSteps()) assert.ok(step.floor && step.floor.length > 10, step.id);
 });
 
-test('engine: the ten steps map onto the delivery harness and pass its validation', () => {
+test('engine: the eleven steps map onto the delivery harness and pass its validation', () => {
   const steps = youtubeEngineSteps();
-  assert.equal(steps.length, 10);
+  assert.equal(steps.length, 11);
   const checked = validatePlaybook(steps);
   assert.equal(checked.validated, true);
   assert.equal(steps.find(step => step.id === 'package')!.kind, 'write');
@@ -104,7 +104,7 @@ test('validation refuses a playbook that clips without the rights gate, or publi
   const broken = (change: (copy: any) => void) => { const copy = structuredClone(YOUTUBE_PLAYBOOK) as any; change(copy); return () => validateYoutubePlaybook(copy); };
   assert.throws(broken(copy => { copy.steps[0].gate = null; copy.approvals = copy.approvals.filter((a: any) => a.id !== 'rights-at-intake'); }), /rights/i);
   assert.throws(broken(copy => { copy.steps.find((s: any) => s.id === 'probe').clipping = true; }), /clip/i);
-  assert.throws(broken(copy => { const [review, publish] = copy.steps.splice(8, 2); copy.steps.splice(8, 0, publish, review); }), /approve|review/i);
+  assert.throws(broken(copy => { const index = copy.steps.findIndex((step: any) => step.id === 'review'); const [review, publish] = copy.steps.splice(index, 2); copy.steps.splice(index, 0, publish, review); }), /approve|review/i);
   assert.throws(broken(copy => { copy.offers[2].rightsBases = ['own-footage', 'licence']; }), /own footage|clips/i);
   assert.throws(broken(copy => { copy.steps.find((s: any) => s.id === 'publish').floor = null; }), /floor/i);
 });
@@ -136,7 +136,9 @@ test('platform rules: dated, sourced, and they go stale visibly', () => {
     assert.ok(ids.includes(id), id);
   }
   for (const rule of PLATFORM_RULES) {
-    assert.match(rule.sourceUrl, /^https:\/\/(support\.google\.com|developers\.google\.com)\//, rule.id);
+    if (rule.id === 'cleanup-thresholds') assert.equal(rule.sourceUrl, 'house:youtube-cleanup');
+    else if (rule.id === 'caption-profile') assert.match(rule.sourceUrl, /^https:\/\/partnerhelp\.netflixstudios\.com\//, rule.id);
+    else assert.match(rule.sourceUrl, /^https:\/\/(support\.google\.com|developers\.google\.com)\//, rule.id);
     assert.match(rule.checkedOn, /^\d{4}-\d{2}-\d{2}$/);
   }
   // The API rule changed: Google's page (updated 15 October 2026) no longer locks unverified uploads to private.

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -13,8 +13,10 @@ import { assertInkRules } from '../helpers/ink-rules';
  * venture.order.chain answers as the engine does for a flagship business's order.
  */
 
-const ready = YoutubeDesk as typeof YoutubeDesk & { ready?: boolean };
-afterEach(() => { delete ready.ready; });
+const ready = YoutubeDesk;
+const originalReady = ready.ready;
+beforeEach(() => { ready.ready = false; });
+afterEach(() => { ready.ready = originalReady; });
 
 async function work() {
   window.location.hash = '#/work';

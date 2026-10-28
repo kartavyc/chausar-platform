@@ -592,3 +592,8 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 
 - Support desk includes shop-scoped source matching, screened mail routing, exact owner reply approval and unsent mail handoff, business-hour targets, takeover guards, optional rating links and Forget cleanup. Both languages and real/fake public desk paths are included. No email is sent automatically; professional rule confirmations remain null.
 - Independent package review closure remains in the takeover checkpoint. This isolated reconstruction validates the support package at the batch-2 commit boundary; it is not a new visual PASS or broad batch gate.
+
+## 5B1 implementation and review closure
+
+- Measured word editing, cleanup, captions, script coverage, dictionary corrections and pinned local transcription extend the YouTube playbook with the Cutter step. Edit transactions retain exact source bindings, refusal reasons, undo and the second ask for large removals. English/Hindi edit desk and fake parity are included; later board/style/finishing/export features remain for 5B2.
+- Independent spec and quality PASS and killed mutants are recorded in NOTES-5B1. This isolated commit reconstruction is not a fresh screenshot PASS or the full batch gate.

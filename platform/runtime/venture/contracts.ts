@@ -6270,6 +6270,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'EDIT_NOT_FOUND', 'SCRIPT_FILE_REQUIRED', 'WORD_TIMES_REQUIRED',
   'SUPPORT_THREAD_INVALID', 'SUPPORT_TICKET_NOT_FOUND',
   'INTERNAL_ORDER', 'SELLER_INPUT_INVALID',
   'CLIENT_BALANCE_REQUIRED', 'CLIENT_LEDGER_REQUIRED', 'PLAYBOOK_ROUTE_INVALID', 'PLAYBOOK_WORKFLOW_CHANGED',
@@ -6447,6 +6448,7 @@ export type VentureEngineServices = {
    */
   speech?: {
     localTranscriber(): { ready: true; providerId: string } | { ready: false; reason: string };
+    localTranscriptionFiles?(ctx: Context): { providerId: string; command: string; model: string } | null;
     transcribeFile(ctx: Context, input: { path: string; prompt?: string; timeoutMs?: number; signal?: AbortSignal }): Promise<{ srt: string; providerId: string }>;
     /** Puts in place (or removes, with null) the whisper.cpp the owner set up in the app (venture.transcription.set). */
     useLocal(setup: { command: string; model: string } | null): void;

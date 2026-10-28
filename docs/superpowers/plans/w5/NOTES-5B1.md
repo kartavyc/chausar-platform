@@ -1,0 +1,18 @@
+# 5B1: measured YouTube editing checkpoint
+- Built edit operations, transcript tiers, conservative cleanup, captions, script coverage and personal pronunciation dictionary.
+- Engine modules live under platform/runtime/venture/playbooks/youtube; tools and desk expose the same owner-approved operations.
+- UI/fake: YoutubeDesk and fake-youtube mirror source import, preview/commit, exact digests, second asks and refusal codes.
+- Imported measured word JSON is required; SRT cue boundaries are never presented as measured word times.
+- Stored measurements bind to the live source identity, including uploaded bytes or indexed 5A4 asset fingerprints.
+- Local transcription pins model hashes and executable hashes, checks both before/after execution, and records provenance.
+- Local dependencies remain explicit setup/handoff capabilities; hosted paths cannot read the owner's local filesystem.
+- Cleanup normalizes quiet intervals before linear intersections; duplicate measurements cannot cause Cartesian explosion.
+- Existing/manual cuts count toward speech loss and cut-frequency budgets. The extra confirmation names the newly removed share consistently.
+- Caption and cleanup checks explicitly remain not-run when applicable tools have no completed result; script coverage is required only with supplied script.
+- Coverage uses bounded alignment and one-edit matching rather than running full Levenshtein at every alignment cell.
+- Integration regressions were reconciled for improvement-loop rule targeting and the Cutter role in the team fixture.
+- Independent reviewer seo_review_youtube: Stage 1 PASS / Stage 2 code-quality PASS after source binding and gate repairs.
+- Reviewer checkpoints: pure eight-file set 24/24; latest desk/gates/coverage 8/8; UI/fake 8/8. These overlapping groups are not summed.
+- Five independent in-memory mutants were killed: second ask, saved-cut budget, indexed-before source, model hash, live source freshness.
+- Full batch typechecks, shards, UI checks and screenshot walk remain the root integrator's responsibility.
+- Dedicated browser attempt failed at Chrome CDP 9497 before screenshots; log results/w5c1/browser-walk.log. No visual PASS or outside effect is claimed.

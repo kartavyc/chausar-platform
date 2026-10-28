@@ -17,8 +17,9 @@ import { transcriptCues, type FileLike } from './files.ts';
 import type { WorkedForWriter } from './loop.ts';
 import { computedTable, fail, fileOf, text, type Spec, type ToolEnv } from './tools.ts';
 import { notBuiltTool } from './tool-stub.ts';
+import { YOUTUBE_EDIT_TOOLS } from './tools-youtube-edit.ts';
 
-type YoutubeToolName = Extract<ToolName, 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
+type YoutubeToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
 
 /** How many hooks the scorer keeps for the package. */
 const KEEP_HOOKS = 2;
@@ -58,6 +59,7 @@ function runDay(env: ToolEnv): IsoDate {
 const hookRow = (score: HookScore) => ({ Hook: score.hook, Score: String(score.verdict), Band: score.band, Weakest: score.weakest, Fix: score.fix });
 
 export const YOUTUBE_TOOLS: Readonly<Record<YoutubeToolName, Spec>> = Object.freeze({
+  ...YOUTUBE_EDIT_TOOLS,
   'youtube.hooks': {
     name: 'youtube.hooks', effect: 'compute', tier: 'code', endsTurn: false,
     summary: 'Scores the opening hooks you wrote and keeps the best two in a table. Write two to eight, in words; the package uses the kept two word for word.',
@@ -211,13 +213,8 @@ export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly
  * tool into the table above (and its name into that table's type) and deletes its stub line here
  * (delivery/harness/tools-playbooks.ts spreads this table).
  */
-type YoutubeW5ToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
+type YoutubeW5ToolName = Extract<ToolName, 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
 export const YOUTUBE_W5_TOOLS: Readonly<Record<YoutubeW5ToolName, Spec>> = Object.freeze({
-  'youtube.editOps': notBuiltTool('youtube.editOps', 'compute', 'Typed edits on the transcript\'s word ids, each applied whole or refused with a reason.'), // 5B1
-  'youtube.clean': notBuiltTool('youtube.clean', 'compute', 'Silences and fillers to cut, found by code from the word times and the audio.'), // 5B1
-  'youtube.captions': notBuiltTool('youtube.captions', 'compute', 'Captions grouped by code from the stored word times, with findings for each cue.'), // 5B1
-  'youtube.coverage': notBuiltTool('youtube.coverage', 'compute', 'How much of the script was said, the missing passages and the retakes, worked out by code.'), // 5B1
-  'youtube.dictionary': notBuiltTool('youtube.dictionary', 'compute', 'Fixes to names in the transcript, applied only where your names list matches.'), // 5B1
   'youtube.style': notBuiltTool('youtube.style', 'compute', 'The cut rate, shot length, loudness and pace of your own videos, measured by code.'), // 5B2
   'youtube.clips': notBuiltTool('youtube.clips', 'compute', 'Clips that start and end on a sentence and fit the length rules, checked by code.'), // 5B2
   'youtube.broll': notBuiltTool('youtube.broll', 'compute', 'A b-roll plan placed on the words, from owned or licensed footage only.'), // 5B2

@@ -29,7 +29,7 @@ test('validateDepartments passes for the three flagships: every role id has exac
     return Object.fromEntries(delivery.roles.map(role => [role.id, departmentOfRole(delivery, role.id)]));
   };
   assert.deepEqual(map('youtube'), {
-    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', packager: 'marketing',
+    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', packager: 'marketing', cutter: 'production',
   });
   // The CA firm's checks role is the auditor; the calculator is code that works out tax, so it sits with Money.
   assert.deepEqual(map('ca-firm'), {

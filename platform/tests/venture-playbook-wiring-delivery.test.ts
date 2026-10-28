@@ -211,13 +211,15 @@ test('a YouTube draft is a package checked by the playbook: a failed check block
   assert.deepEqual((task.input as any).requiredSections, [...PACKAGE_SECTIONS], 'the package step\'s headings, not the studio reply\'s');
   assert.ok(((task.input as any).guidance as string[]).some(line => /Hook/.test(line)));
   const results = Object.fromEntries((good.playbookChecks ?? []).map(item => [item.check, item]));
-  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'rules-current', 'source-credit', 'title-thumbnail',
+  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'cleanup', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'rules-current', 'source-credit', 'title-thumbnail',
     // Ink v2 4J16: the writing checks (playbooks/writing-checks.ts).
     'writing-bait', 'writing-bans', 'writing-quotes', 'writing-tells']);
   for (const id of ['writing-bait', 'writing-bans', 'writing-quotes', 'writing-tells']) assert.equal(results[id].outcome, 'pass', results[id].detail);
   assert.equal(results['prompt-leak'].outcome, 'pass', results['prompt-leak'].detail);
   assert.ok(good.playbookChecks!.every(item => item.playbook === 'youtube'));
   for (const id of ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'ai-disclosure', 'rights-recorded']) assert.equal(results[id].outcome, 'pass', `${id}: ${results[id].detail}`);
+  assert.equal(results.cleanup.outcome, 'not-run', 'no measured cleanup evidence must never count as a pass');
+  assert.match(results.cleanup.detail, /not run/);
   assert.equal(results.finishing.outcome, 'not-run');
   assert.match(results.finishing.detail, /not run/);
   assert.equal(results['retention-risk'].outcome, 'not-run', 'no transcript, so no retention check, never a pass');
@@ -385,7 +387,7 @@ test('the team shows the playbook\'s roles as the agents; a gate set on a role\'
   const delivery = flagshipDelivery('youtube')!;
   // Ink v2 wave 4 (4A1): Keeper, the engine's own jobs as code, is listed after the playbook's roles.
   assert.deepEqual(agents.map((agent: any) => agent.name), [...delivery.roles.map(role => role.name), 'Keeper']);
-  assert.deepEqual(agents.map((agent: any) => agent.name), ['Intake clerk', 'Producer', 'Chausar', 'Story editor', 'Packager', 'Keeper']);
+  assert.deepEqual(agents.map((agent: any) => agent.name), ['Intake clerk', 'Producer', 'Chausar', 'Story editor', 'Cutter', 'Packager', 'Keeper']);
   const editor = agents.find((agent: any) => agent.name === 'Story editor');
   assert.deepEqual(editor.steps.map((step: any) => step.id), ['find']);
   const intake = agents.find((agent: any) => agent.name === 'Intake clerk');

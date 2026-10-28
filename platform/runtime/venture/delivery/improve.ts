@@ -88,6 +88,8 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'client-comfortable': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write only what the client would be comfortable seeing under their name.' },
   // The YouTube playbook's judge rules (playbooks/youtube/judge.ts): the package is written on the package step, and
   // the moments are picked on the find step.
+  'meaning-kept': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Keep the speaker meaning and every qualifier when proposing a cut.' },
+  'no-new-words': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Use only the supplied spoken word ids and never invent speech.' },
   'faithful-to-source': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Say only what the footage, the transcript and the brief show.' },
   'self-contained': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'Pick moments that make sense to a viewer who has not seen the rest.' },
   'opening-has-context': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Open by telling a new viewer what this is about.' },

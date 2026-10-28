@@ -1,0 +1,18 @@
+/* Chausar 5B1: Ink tokens, stacked word editing controls. Tomada (AGPL), ideas only, no copied styling. */
+.body { display: grid; gap: var(--sp-4); min-width: 0; }
+.import, .label { display: grid; gap: var(--sp-2); min-width: 0; }
+.line { color: var(--fg2); font-size: var(--text-read); }
+.select { width: 100%; min-width: 0; min-height: var(--control); padding: var(--sp-2); background: var(--surface); color: var(--fg); border: var(--hair) solid var(--line); border-radius: var(--radius); font: inherit; }
+.actions, .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.actions { padding-block: var(--sp-3); }
+.list { list-style: none; padding: 0; margin: 0; }
+.row { padding-block: var(--sp-2); border-top: var(--hair) solid var(--line-soft); overflow-wrap: anywhere; }
+.row > :first-child { flex: 1; min-width: 0; }
+.notice { padding: var(--sp-3); border: var(--hair) solid var(--line); border-radius: var(--radius); margin-block: var(--sp-3); }
+.summary { font-family: var(--font-mono); font-size: var(--text-read); overflow-wrap: anywhere; }
+.transcript { overflow-wrap: anywhere; font-size: var(--text-read); }
+.preview { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--text-read); }
+.gridImage { display: block; width: 100%; height: auto; }
+.body input[type='file'] { max-width: 100%; min-width: 0; font: inherit; }
+.body details { margin-block: var(--sp-3); }
+.body summary { cursor: pointer; color: var(--fg2); font-size: var(--text-read); }

@@ -613,6 +613,7 @@ export function runYoutubeChecks(input: YoutubeCheckInput): YoutubeCheckResult[]
       case 'rights-recorded': return rightsCheck(input.order, input.today);
       case 'source-credit': return sourceCreditCheck(input.order, input.pkg);
       case 'finishing': return input.finishing ?? result('finishing', 'not-run', 'not run: no finishing check for this cut.');
+      case 'caption-file': case 'script-coverage': case 'cleanup': return result(id, 'not-run', 'not run: the measured word-edit tool has not completed.');
     }
   });
 }

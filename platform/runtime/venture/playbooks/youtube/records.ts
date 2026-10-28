@@ -1,10 +1,17 @@
-// Chausar flagship playbook: the YouTube channel's wave 5 records (Ink v2 wave 5, packages 5B1 and 5B2). Package 5-0
-// named each body as a placeholder; the package replaces it here, never in contracts.ts. Types only. Written for
-// Chausar; nothing here is learned from an outside source.
-
-/** venture-youtube-edit: one request of typed edit operations, a placeholder until 5B1 lands. */
-export type YoutubeEditBody = { placeholder: true };
-/** venture-youtube-dictionary: the owner's names list, a placeholder until 5B1 lands. */
-export type YoutubeDictionaryBody = { placeholder: true };
-/** venture-youtube-style: the measured style card, a placeholder until 5B2 lands. */
+// Chausar 5B1 edit records. Tomada (AGPL), transaction ideas only; no source copied.
+import type { SourceRef } from '../kit/records-media.ts';
+import type { EditDocument, EditOp, EditResult } from './edit-ops.ts';
+import type { CleanupInput } from './clean.ts';
+import type { CaptionCue, CaptionProfileId } from '../kit/captions.ts';
+export type YoutubeWordSource = Omit<CleanupInput, 'document'> & { label: string; document: EditDocument; vadMeasured: boolean };
+export type YoutubeEditBody = {
+  orderId: string; binding: { source: SourceRef; sourceDigest: string }; source: YoutubeWordSource; sourceDigest: string; document: EditDocument;
+  history: EditDocument[]; request: string | null; last: Omit<EditResult, 'undo' | 'document'> | null;
+  pending: { ops: EditOp[]; digest: string; request: string; preview: Omit<EditResult, 'undo' | 'document'> } | null;
+  transcripts: { tier: string; whisperVersion: string; modelSha256: string; revision: string; model: string; srt: string; dropped: number }[];
+  captions: { cues: CaptionCue[]; sourceDigest: string; profile: CaptionProfileId } | null;
+};
+export type YoutubeDictionaryBody = { terms: string[] };
+/** The measured style card belongs to 5B2. */
 export type YoutubeStyleBody = { placeholder: true };
+export type YoutubeEditView = YoutubeEditBody & { id: string; digest: string };

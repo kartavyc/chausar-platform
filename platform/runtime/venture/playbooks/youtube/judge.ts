@@ -14,10 +14,16 @@ import {
 import { chapterProblems, parseChapters, parsePackageText, tagsLength, titleThumbnail, youtubeChecksOutcome, type YoutubeCheckResult } from './checks.ts';
 import { platformRule } from './platform-rules.ts';
 import { YOUTUBE_ID } from './registration.ts';
+import { applyEditOps, type EditDocument } from './edit-ops.ts';
+import { youtubeCaptions } from './captions.ts';
+import { scriptCoverage } from './coverage.ts';
+import type { HeldBackCase } from '../../delivery/judge/index.ts';
 
 const unbacked = DRAFT_RULES.find(rule => rule.id === 'no-unbacked-claims')!;
 
 export const YOUTUBE_DRAFT_RULES: readonly JudgeRule[] = Object.freeze(validateRules([
+  { id: 'meaning-kept', question: 'Does the edit keep the qualifiers and what the speaker meant?', text: 'Keep the speaker meaning and every qualifier when cutting.', floor: { kind: 'share', percent: 75 } },
+  { id: 'no-new-words', question: 'Is the edit free of invented speech?', text: 'Never put new words in the speaker mouth.', floor: { kind: 'required-yes' } },
   {
     id: 'faithful-to-source', question: 'Does every line of the package say only what the footage, the transcript and the brief show?',
     text: 'The package must say only what the footage, the transcript and the brief show.', floor: { kind: 'required-yes' },
@@ -129,7 +135,7 @@ export async function runYoutubeBaseline(file: BaselineFile, draftFor: DraftMake
     const draft = drafts.get(result.id);
     if (draft === undefined) return result;
     const item = file.cases.find(entry => entry.id === result.id)!;
-    const failures = [...scoreCase(item, draft).failures, ...packageTextFailures(draft)];
+    const failures = [...scoreCase(item, draft).failures, ...packageTextFailures(draft), ...wordEditBaselineFailures(item, draft)];
     return { id: result.id, passed: failures.length === 0, failures };
   });
   const passed = cases.filter(item => item.passed).length;
@@ -139,4 +145,26 @@ export async function runYoutubeBaseline(file: BaselineFile, draftFor: DraftMake
     ? `${passed} of ${of} held-back cases pass; the baseline is ${file.baseline.passed} of ${file.baseline.of}.`
     : `Quality dropped: ${passed} of ${of} held-back cases pass, below the baseline of ${file.baseline.passed} of ${file.baseline.of}.`;
   return { playbook: file.playbook, passed, of, baseline: { ...file.baseline }, ok, cases, detail };
+}
+
+/** Real deterministic checks behind the three word-edit held-back cases. */
+function wordEditBaselineFailures(item: HeldBackCase, draft: string): string[] {
+  try {
+    if (item.id === 'cleanup-summary') {
+      const source = JSON.parse(item.sources[0].text) as EditDocument;
+      const made = applyEditOps(source, [{ kind: 'cut', from: 'w1', to: 'w1' }]);
+      return draft.includes(made.summary) ? [] : ['The cleanup summary differs from the applied edit.'];
+    }
+    if (item.id === 'caption-file') {
+      const words = JSON.parse(item.sources[0].text);
+      const made = youtubeCaptions({ words, profile: 'web', sourceDigest: 'baseline', currentDigest: 'baseline' });
+      return made.findings.length ? ['The caption file fails its validator.'] : [];
+    }
+    if (item.id === 'scripted-coverage') {
+      const source = JSON.parse(item.sources[0].text);
+      const made = scriptCoverage(source.script, source.words);
+      return made.missing.length === 1 && draft.includes(made.missing[0].words.join(' ')) ? [] : ['The missing scripted passage is not shown.'];
+    }
+    return [];
+  } catch { return ['The word-edit baseline fixture could not run.']; }
 }

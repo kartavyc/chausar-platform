@@ -295,7 +295,25 @@ async function youtubeChecks(input: FlagshipCheckInput): Promise<YoutubeCheckRes
   // The upload settings are the owner's publishing checklist, made from the intake: the publish step ticks them. When
   // the scorer kept hooks in this run (youtube.hooks), the hook check judges the better kept one the package uses.
   const pkg = { ...parsed, hooks, keptHooks: keptHooksOf(input.tables ?? []), durationMs, uploadSettings: { aiUse, paidPromotion: !!intake?.paidPromotion } };
-  const results = runYoutubeChecks({ checks: VERIFY.youtubeChecks, order, pkg, transcript, today: input.today, finishing: await finishing(input, format) });
+  const measuredCalls = input.toolCalls ?? [];
+  const captionApplies = offer !== 'episode-package' || measuredCalls.some(call => call.tool === 'youtube.captions');
+  const scriptApplies = measuredCalls.some(call => call.tool === 'youtube.coverage') || input.files.some(file => /(?:^|[\s._-])script(?:[\s._-]|$)/i.test(file.name));
+  const checks = VERIFY.youtubeChecks.filter(id => (id !== 'caption-file' || captionApplies) && (id !== 'script-coverage' || scriptApplies));
+  const results = runYoutubeChecks({ checks, order, pkg, transcript, today: input.today, finishing: await finishing(input, format) });
+  // 5B1: applicable measured checks remain visibly not-run until a completed tool supplies evidence.
+  for (const [tool, checkId] of [['youtube.captions', 'caption-file'], ['youtube.coverage', 'script-coverage'], ['youtube.clean', 'cleanup']] as const) {
+    const call = [...(input.toolCalls ?? [])].reverse().find(call => call.tool === tool);
+    if (!call) continue; // The applicable check remains explicitly not-run from runYoutubeChecks.
+    const prior = results.findIndex(result => result.check === checkId);
+    if (prior >= 0) results.splice(prior, 1);
+    const output = call.envelope.ok && call.envelope.result && typeof call.envelope.result === 'object' && !Array.isArray(call.envelope.result) ? call.envelope.result as Record<string, unknown> : null;
+    if (!output || call.outcome !== 'succeeded') { results.push({ check: checkId, outcome: 'not-run', detail: 'The measured word-edit tool did not complete. Its output has not passed.', notes: [] }); continue; }
+    const invalid = checkId === 'caption-file' ? !Array.isArray(output.findings) || output.findings.length > 0
+      : checkId === 'script-coverage' ? !Array.isArray(output.missing) || output.missing.length > 0
+      : !Number.isSafeInteger(output.removedMs) || (output.removedMs as number) < 0 || typeof output.summary !== 'string';
+    results.push({ check: checkId, outcome: invalid ? 'fail' : 'pass', detail: invalid ? 'The measured word-edit output has findings to fix before this package goes out.' : 'The measured word-edit output passes its code checks.',
+      notes: checkId === 'caption-file' && Array.isArray(output.notRun) ? output.notRun.map(item => String((item as { check?: string }).check ?? 'unmeasured')) : [] });
+  }
   // Practice clients record no rights, so the rights and credit checks have nothing to read in rehearsal.
   return input.mode === 'rehearsal'
     ? results.map(item => (item.check === 'rights-recorded' || item.check === 'source-credit' ? { ...item, outcome: 'not-run' as const, detail: NO_FOOTAGE } : item))

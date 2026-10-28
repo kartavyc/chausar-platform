@@ -241,6 +241,7 @@ export class FakeEngine {
     const waveHost = {
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
+      uploadFingerprint: (id: string) => this.work.uploadFingerprint(this.current, id),
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
