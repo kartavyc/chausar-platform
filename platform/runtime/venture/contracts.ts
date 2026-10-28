@@ -6261,6 +6261,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'PANEL_APPROVAL_REQUIRED', 'PANEL_NOT_FOUND', 'PANEL_ORDER_REQUIRED', 'SITE_CHECK_DESKTOP_ONLY', 'SITE_CHECK_INVALID',
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
@@ -6451,6 +6452,7 @@ export function experimentalStorage(deps: { storage: VentureStorage; host: Ventu
   return deps.storage === 'experimental-file' || deps.host === 'hosted-web';
 }
 export type VentureDeps = {
+  seoWebsiteChecker?: { run(url: string, signal?: AbortSignal): Promise<unknown> } | null;
   store: StateStore;
   clock: () => Date;
   models: ModelPort;

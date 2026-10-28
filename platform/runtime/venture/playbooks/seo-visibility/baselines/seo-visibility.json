@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "playbook": "seo-visibility",
+  "recordedAt": "2026-10-28T12:00:00.000Z",
+  "baseline": {
+    "passed": 5,
+    "of": 5
+  },
+  "cases": [
+    {
+      "id": "clinic-visibility-check",
+      "request": "Check a clinic site.",
+      "draft": "Source gaps remain unknown; fix the missing title using the page evidence."
+    },
+    {
+      "id": "blocked-training-bot-only",
+      "request": "Training bots are blocked.",
+      "draft": "Training access is separate from search access. This does not prove a search failure."
+    },
+    {
+      "id": "empty-without-js",
+      "request": "An app root has no text.",
+      "draft": "The page is empty without JavaScript. Check the delivered HTML."
+    },
+    {
+      "id": "panel-not-enough-data",
+      "request": "Answers are missing.",
+      "draft": "Not enough data. Missing slots remain in the denominator."
+    },
+    {
+      "id": "promise-ranking-refused",
+      "request": "Promise a ranking.",
+      "draft": "Requests for promised results are refused. No forecast is sold."
+    }
+  ]
+}

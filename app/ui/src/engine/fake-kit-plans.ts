@@ -1,3 +1,4 @@
+import { SEO_FAKE_META } from './fake-seo-visibility';
 // Chausar fake kit onboarding (5M integration). Original adaptation of landed browser-safe playbook metadata.
 import type { BlueprintViewLite, OfferIntakeLite, PricingModel, ServiceType } from './types';
 import planPicks from './fixtures-kit-plan-picks.json';
@@ -8,7 +9,7 @@ export interface FakeKitMetadata {
  offers: readonly { id: string; name: string; description: string; pricing: PricingModel; unit: string; intake: readonly string[]; rights?: readonly ('own-footage' | 'licence' | 'creator-clip-programme')[] }[];
  intakeFields: readonly NonNullable<OfferIntakeLite['kit']>[number][];
 }
-const METADATA = [{ registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
+const METADATA = [SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
 const KITS = planPicks.map(plan => {
  const kit = METADATA.find(item => item.registration.id === plan.id);
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);

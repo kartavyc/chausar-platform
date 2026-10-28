@@ -242,7 +242,7 @@ test('venture.desk.list, .get and .act reach a playbook desk; an unknown playboo
   for (const [method, payload] of [
     ['venture.desk.list', { playbook: 'space-tourism', kind: 'rocket' }],
     ['venture.desk.get', { playbook: 'youtube', kind: 'no-such-kind', id: 'x' }],
-    ['venture.desk.act', { playbook: 'seo-visibility', kind: 'panel', id: 'x', action: 'approve', payload: {} }],
+    ['venture.desk.act', { playbook: 'seo-visibility', kind: 'no-such-kind', id: 'x', action: 'approve', payload: {} }],
     ['venture.desk.list', null],
   ] as const) {
     await assert.rejects(call(method, payload), code('NOT_BUILT_YET', /not built yet/));

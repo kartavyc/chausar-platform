@@ -366,3 +366,5 @@ export class FakeKitConnectDesk {
     return { kind, set: true, host: url.hostname, line: `The test item reached your ${NAMES[kind]} webhook. ${kept}`, test: 'answered' };
   }
 }
+
+export { checkedUrl as fakeCheckedFetchUrl };

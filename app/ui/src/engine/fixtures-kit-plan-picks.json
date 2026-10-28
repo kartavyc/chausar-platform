@@ -1,5 +1,13 @@
 [
   {
+    "id": "seo-visibility",
+    "offers": [
+      "visibility-check",
+      "quarterly-remeasure",
+      "website-check"
+    ]
+  },
+  {
     "id": "lead-generation",
     "offers": [
       "researched-pipeline",
