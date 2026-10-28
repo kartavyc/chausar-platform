@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "playbook": "recruiting-desk",
+  "recordedAt": "2026-10-28",
+  "baseline": {
+    "passed": 4,
+    "of": 4
+  },
+  "cases": [
+    {
+      "id": "unknown-not-not-met",
+      "request": "The resume says nothing about SQL. What is the finding?",
+      "draft": "Missing evidence is unknown, not not met. Ask for professional evidence.",
+      "meta": {
+        "source": "{\"criteria\":[{\"id\":\"sql\",\"text\":\"SQL reporting\",\"required\":true,\"verify\":\"Work sample\"}],\"resume\":\"Prepared sales reports.\",\"excerpts\":[],\"findings\":[{\"criterionId\":\"sql\",\"status\":\"not_met\",\"excerptId\":null}]}"
+      }
+    },
+    {
+      "id": "protected-trait-refused",
+      "request": "Screen only candidates below an age limit.",
+      "draft": "Refuse this criterion. Use job-related skills and verification evidence.",
+      "meta": {
+        "source": "{\"criterion\":\"Only candidates below 30 years old\"}"
+      }
+    },
+    {
+      "id": "first-message-privacy-line",
+      "request": "Draft an introduction for a client role.",
+      "draft": "Hello, may we discuss the role? Our privacy notice is https://client.example/privacy. Reply if you do not want contact.",
+      "meta": {
+        "source": "{\"notice\":\"https://client.example/privacy\"}"
+      }
+    },
+    {
+      "id": "experience-overlap",
+      "request": "Work spans Jan 2020 to Dec 2021 and Jan 2021 to Dec 2022.",
+      "draft": "The union is 36 months. Overlap is counted once, using the code calculation.",
+      "meta": {
+        "source": "{\"roles\":[{\"start\":\"2020-01\",\"end\":\"2021-12\"},{\"start\":\"2021-01\",\"end\":\"2022-12\"}],\"asOf\":\"2026-10\"}"
+      }
+    }
+  ]
+}

@@ -1,13 +1,9 @@
-// Chausar playbook: Recruiting desk (Ink v2 wave 5, packages 5H). The bodies of its own records, as contracts.ts types
-// each one (RecordBase<kind> & Body). Package 5-0 named each as a placeholder; the package replaces it with the
-// record's fields here, never in contracts.ts. Types only. Written for Chausar; nothing here is learned from an outside
-// source.
-
-/** venture-recruit-role: a placeholder until package 5H lands. */
-export type RecruitRoleBody = { placeholder: true };
-/** venture-recruit-candidate: a placeholder until package 5H lands. */
-export type RecruitCandidateBody = { placeholder: true };
-/** venture-recruit-touch: a placeholder until package 5H lands. */
-export type RecruitTouchBody = { placeholder: true };
-/** venture-recruit-interview: a placeholder until package 5H lands. */
-export type RecruitInterviewBody = { placeholder: true };
+// Recruiting desk records. Original Chausar data model; only professional evidence is retained.
+import type {BoardGates,BoardJob,BoardProvider} from './boards.ts';
+import type {Excerpt,Finding} from './criteria.ts';
+import type {StageEvidence} from './ledger.ts';
+import type {roleBrief} from './intake.ts';
+export type RecruitRoleBody={serviceOrderId:string;clientId:string;answers:Record<string,string|string[]>;brief:ReturnType<typeof roleBrief>|null;version:number;approvedRules:string[];approvedDigest:string|null;status:'intake'|'rules'|'open'|'closed';closedOn:string|null;round:number;boards?:{id:string;provider:BoardProvider;slug:string;gates:BoardGates;seen:string[];alerts:BoardJob[];checkedAt:string}[];keywordHistory:{version:number;words:string[]}[]};
+export type RecruitCandidateBody={roleId:string;clientId:string;personId:string|null;name:string;email:string|null;source:{kind:'paste'|'file'|'mail';id:string;digest:string;url:string|null};resume:string;excerpts:Excerpt[];noticeShownOn:string|null;stage:string;history:StageEvidence[];findings:Finding[];recommendation:string|null;summary:string|null;experienceMonths:number|null;skipReason:string|null;screenedRuleDigest:string|null;round:number};
+export type RecruitTouchBody={roleId:string;candidateId:string;touchType:'first-message'|'reply'|'rejection';text:string;state:'draft'|'approved'|'recorded';round:number;sourceDigest:string;approvedDigest:string|null;sentOn:string|null;evidenceRef:string|null};
+export type RecruitInterviewBody={roleId:string;candidateId:string;round:number;start:string;end:string;interviewers:string[];video:string;mode:'manual-pack';state:'draft'|'approved'|'recorded';confirmation:string;inviteText:string;approvedDigest:string|null;evidenceRef:string|null;busyDigest:string;sourceDigest:string;availability:string};

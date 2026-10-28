@@ -17,6 +17,7 @@ import { FAKE_4E4_METHODS, FakePipelineDesk, type MeetingDrafts } from './fake-p
 const NETWORK_METHODS = new Set<string>([...FAKE_4D4_METHODS, ...FAKE_4E4_METHODS]);
 
 export class FakeNetworkDesk {
+  recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   /** 4D4: the people, imports, searches and the cards added from them. */

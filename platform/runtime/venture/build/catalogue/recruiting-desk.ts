@@ -4,4 +4,8 @@
 // Chausar; nothing here is learned from an outside source.
 import type { CatalogueEntry } from '../catalogue.ts';
 
-export const RECRUITING_DESK_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([]);
+export const RECRUITING_DESK_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
+ {id:'recruit-greenhouse',name:'Greenhouse public jobs',category:'customers',auth:'No sign-in for published jobs',regions:['india','global'],regionNote:null,note:'Reads a chosen public board with owner-approved filters. No applications or candidate profiles.',vendorUrl:'https://boards.greenhouse.io/',targets:['read']},
+ {id:'recruit-lever',name:'Lever public jobs',category:'customers',auth:'No sign-in for published jobs',regions:['india','global'],regionNote:null,note:'Reads a chosen public board with owner-approved filters. No applications or candidate profiles.',vendorUrl:'https://jobs.lever.co/',targets:['read']},
+ {id:'recruit-ashby',name:'Ashby public jobs',category:'customers',auth:'No sign-in for published jobs',regions:['india','global'],regionNote:null,note:'Reads a chosen public board with owner-approved filters. No applications or candidate profiles.',vendorUrl:'https://jobs.ashbyhq.com/',targets:['read']},
+]);

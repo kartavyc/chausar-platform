@@ -270,7 +270,7 @@ function SheetBody({ card }: { card: ConnectorCardLite }) {
           ))}
         </ul>
       </section>
-      {card.guide && <Guide guide={card.guide} />}
+      {card.guide && <Guide connectorId={card.id} guide={card.guide} />}
       {card.postingOptions.length > 0 && (
         <section className={s.sheetSection}>
           <h3 className={s.sheetHeading}>{t('connections.sheet.posting')}</h3>

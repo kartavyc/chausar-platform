@@ -1,3 +1,4 @@
+import {eraseRecruitingNaming} from '../playbooks/recruiting-desk/privacy.ts';
 import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
 import { eraseSocialD2Naming } from '../playbooks/social/d2-privacy.ts';
 import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
@@ -284,6 +285,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseSupportNaming(tx, emails, mentionsName, phones);
     eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseRecruitingNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
     eraseSocialD2Naming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));

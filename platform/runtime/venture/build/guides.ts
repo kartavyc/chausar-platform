@@ -1,3 +1,4 @@
+import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
 // Chausar venture launcher, connector setup guides (Ink v2 wave 4, package 4J7, catalogue K11). Every catalogue
 // connector has a guide: numbered steps that ask for the least access the code uses, the step people skip, what the
 // platform charges (dated only where Chausar's catalogue note says it), "No charge" for Chausar's own parts, a line on
@@ -75,6 +76,7 @@ const AGAIN = 'Chausar keeps it only while the app is open, so type it again aft
 
 /** The guides written by hand: every connector this build really links, hands off to, reads or keeps inside Chausar. */
 const HAND: Readonly<Record<string, Hand>> = Object.freeze({
+  ...PLAYBOOK_GUIDES,
   lovable: builder('Lovable', 'Turn on GitHub sync in Lovable, so Chausar can follow the code.'),
   replit: builder('Replit', 'Connect GitHub in Replit, so Chausar can follow the code.'),
   bolt: builder('Bolt', 'Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.'),

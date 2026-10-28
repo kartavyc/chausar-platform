@@ -1,7 +1,4 @@
-// Chausar playbook: Recruiting desk (Ink v2 wave 5, package 5H). The registry entry, with no runtime imports. Package
-// 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id ('recruiting-desk'),
-// label, service type, picks, summary, risk level and review day (the plan's "Registration" line). Written for Chausar;
-// nothing here is learned from an outside source.
+// Recruiting registry entry. Original Chausar data.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const RECRUITING_DESK_REGISTRATION: PlaybookRegistration | null = null;
+export const RECRUITING_DESK_REGISTRATION: PlaybookRegistration = Object.freeze({id:'recruiting-desk',label:'Recruiting desk',serviceType:'consulting',picks:['recruiting','recruitment agency','hiring help','headhunting','talent sourcing','resume screening','placement agency'],summary:'Agents turn roles into clear rules and screen client resumes with quoted proof. You approve messages and decide every rejection.',riskLevel:'high',lastReviewed:'2026-10-28'});

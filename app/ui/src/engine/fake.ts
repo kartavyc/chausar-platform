@@ -221,7 +221,7 @@ export class FakeEngine {
     }, { fresh });
     this.work = new FakeWorkDesk({
       rows:()=>this.rows,setRows:rows=>{this.rows=rows;}, hosted:()=>this.hosted,
-      fingerprint: digestOf,
+      fingerprint: digestOf, recruitDigest: digestOf,
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
       plan: () => this.desk.request('venture.blueprint.get', {}) as BlueprintViewLite | null,
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
@@ -263,6 +263,11 @@ export class FakeEngine {
       keepSellerAsset: (asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.recordSellerAsset(asset),
       eraseSellerAssets: (ids:readonly string[]) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.eraseSellerAssets(ids),
       eraseSellerFiles: (ids:readonly string[]) => this.work.eraseSellerFiles(this.current,ids),
+      recruitingReports:(orderId:string)=>this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.recruitingReports(this.current,orderId)??{reports:[],shares:[]},
+      recruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.recruitingMail(threadIds)??[],
+      eraseRecruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.eraseRecruitingMail(threadIds),
+      recruitingBlocked:(email:string|null,personId:string|null)=>this.extras.isBlocked(this.current,email)||this.network.recruitingBlocked(email,personId),
+      eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,

@@ -259,6 +259,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // 4J12 (H24): an order whose contract waits for the owner's signature starts nothing, before any preview.
   refuseUnsignedContract(state, venture, order);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, order);
+  (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, order);
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
@@ -447,6 +448,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, context.order);
+  (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, context.order);
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, context.order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,context.order);
   const playbook = playbookForRun(state, run);
@@ -483,6 +485,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     refuseUnsignedRun(deps.store.read(), venture, run);
     const latestSupport=deps.store.read();
     (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
+    (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,orderContext(deps.store.read(),venture,run.orderId).order);
     recheckSend(deps, venture.id, runId, callId, approved);

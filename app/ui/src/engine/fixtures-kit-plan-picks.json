@@ -39,6 +39,13 @@
     ]
   },
   {
+    "id": "recruiting-desk",
+    "offers": [
+      "role-intake",
+      "shortlist"
+    ]
+  },
+  {
     "id": "bookkeeping-cfo",
     "offers": [
       "collections-desk",

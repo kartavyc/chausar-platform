@@ -1,3 +1,4 @@
+import {fakeRecruitPreflight} from './fake-recruiting-preflight';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
@@ -26,6 +27,7 @@ const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', 
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
 export interface WorkHost {
+  recruitDigest?(value:unknown):string;
   rows?(): import('./types').QueueRow[];
   setRows?(rows:import('./types').QueueRow[]):void;
   hosted?(): boolean;
@@ -71,6 +73,7 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 }
 
 export class FakeWorkDesk {
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
   private readonly host: WorkHost;
   readonly socialChain: FakeSocialChain;
   private orders: Record<string, OrderLite[]>;
@@ -250,6 +253,7 @@ export class FakeWorkDesk {
   /** venture.delivery.run: a new run on the order, working (not waiting on the owner), first step current. */
   private start(biz: string, p: Record<string, unknown>): DeliveryLite {
     const order = this.order(biz, p.orderId);
+    fakeRecruitPreflight(this.host,order);
     const blocked = order.intake?.fields?.blockedCustomers;
     const named = Array.isArray(blocked) && blocked.some(value => typeof value === 'string' && value.trim() && order.request.toLowerCase().includes(value.trim().toLowerCase()));
     const support = this.host.ask?.('venture.desk.list', { playbook: 'support-desk', kind: 'ticket', filter: { queue: 'all' } }) as { rows?: { id: string; paused: boolean; status: string }[] } | undefined;

@@ -86,8 +86,8 @@ export const TOOL_PURPOSE: Readonly<Record<string, string>> = Object.freeze({
   'support.match': 'Found the matching answer',
   'support.ticket': 'Updated a support ticket',
   // recruiting-desk (5H)
-  'recruit.criteria': 'Turned the role into clear rules',
-  'recruit.ledger': 'Updated the candidate ledger',
+  'recruit.criteria': 'Checked source quotes against approved rules',
+  'recruit.ledger': 'Read the saved candidate ledger',
   'recruit.slots': 'Found interview times',
   // job-search-desk (5I)
   'career.facts': 'Listed the client\'s facts',

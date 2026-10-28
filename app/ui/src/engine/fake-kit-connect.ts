@@ -156,6 +156,8 @@ function mailBody(head: string, body: string, depth = 0): string {
 const AIMED = /ignore (?:all )?previous instructions|disregard (?:the )?(?:above|previous)|you are now|system prompt/i;
 
 export class FakeKitConnectDesk {
+  eraseRecruitingMail(threadIds:readonly string[]):void{const ids=new Set(this.recruitingMail(threadIds).map(m=>m.id));this.book().mail=this.book().mail.filter(m=>!ids.has(m.id));}
+  recruitingMail(threadIds:readonly string[]):Mail[]{return [...this.threads()].filter(([id])=>threadIds.includes(id)).flatMap(([,messages])=>messages.filter(m=>m.source==='file-import')).map(m=>structuredClone(m));}
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   private readonly books = new Map<string, Book>();

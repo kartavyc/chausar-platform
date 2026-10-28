@@ -6284,6 +6284,9 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'RECRUIT_NOT_FOUND',
+  'RECRUIT_ROLE_REQUIRED',
+
   'SELLER_PROVENANCE_REQUIRED',
   'SEO_INPUT_INVALID',
   'PRODUCT_PHOTO_REQUIRED',

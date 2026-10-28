@@ -1,0 +1,15 @@
+// Original Chausar public board configuration and reads; exact approval before installation, no day-one alerts.
+import {check} from '../../../contracts.ts';
+import type {Context} from '../../../contracts.ts';
+import type {VentureDeps} from '../../contracts.ts';
+import {digest,exactPayload,listRecords,readVenture,ventureAction} from '../../records.ts';
+import {boardJobs,boardUrl,pollBoard,type BoardGates,type BoardProvider} from './boards.ts';
+import {readBoard} from './boards-read.ts';
+import {rulesReady} from './role-state.ts';
+import {ownerBoardGates} from './board-gates.ts';
+export async function boardAction(deps:VentureDeps,ctx:Context,id:string,action:string,raw:unknown,approval:unknown){const {state,venture}=readVenture(deps,ctx),role=listRecords(state,'venture-recruit-role',venture.id).find(r=>r.id===id);check(role,'RECRUIT_NOT_FOUND','Choose a role in this business.');rulesReady(role);const order=listRecords(state,'venture-order',venture.id).find(o=>o.id===role.serviceOrderId&&o.clientId===role.clientId);check(order&&order.status!=='cancelled','RECRUIT_ORDER_REQUIRED','Choose a current service order.');const snapshot=digest(role);let existing=role.boards??[],config:{provider:BoardProvider;slug:string;gates:BoardGates},boardId:string,seen:string[]|null;
+ if(action==='board-preview'||action==='board-install'){const b=exactPayload(raw,['provider','slug','gates'],['provider','slug','gates']);check(typeof b.provider==='string'&&typeof b.slug==='string','INVALID_VENTURE_REQUEST','Choose a public board.');boardUrl(b.provider,b.slug);const gates=ownerBoardGates(b.gates);config={provider:b.provider as BoardProvider,slug:b.slug,gates};boardId=digest(config);check(!existing.some(x=>x.id===boardId)&&existing.length<3,'RECRUIT_BOARD_LIMIT','Use up to three distinct public boards for a role.');const proposal={roleId:id,...config,line:'Read this public board with these exact filters. Installation seeds its current jobs without alerts.'},proposalDigest=digest({proposal,role:snapshot});if(action==='board-preview')return {...proposal,digest:proposalDigest};check(approval===proposalDigest,'APPROVAL_CHANGED','Approve this exact public board and its filters.');seen=null;
+ }else{check(action==='board-poll','INVALID_VENTURE_REQUEST','Choose a public board action.');const b=exactPayload(raw,['boardId'],['boardId']),board=existing.find(x=>x.id===b.boardId);check(board,'RECRUIT_NOT_FOUND','Choose an installed public board.');config=board;boardId=board.id;seen=board.seen;}
+ const data=await readBoard(config.provider,config.slug,deps.net),matches=boardJobs(config.provider,data,config.gates),poll=pollBoard(seen,data,matches,config.provider);
+ return ventureAction(deps,ctx,'approve','recruit.board',tx=>{const current=tx.find('venture-recruit-role',id);check(current&&digest(current)===snapshot,'APPROVAL_CHANGED','The role or board changed during the read. Review it again.');const board={id:boardId,...config,seen:poll.seen,alerts:poll.alerts,checkedAt:tx.now};tx.replace({...current,boards:[...existing.filter(b=>b.id!==boardId),board]});tx.emit('desk.changed',{playbook:'recruiting-desk'});return board;});
+}

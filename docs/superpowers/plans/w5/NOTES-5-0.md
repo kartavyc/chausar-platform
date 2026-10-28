@@ -631,3 +631,8 @@ Adds the reviewed local social production and inbox package, including exact own
 
 - Seller operations now provide exact source-bound staging, receipts, stock movement, research reports, catalogue sheets, multi-store reporting, case follow-ups and approved manual photo handoffs. Provider writes remain planned or owner handoffs.
 - Independent spec/quality PASS and original failing regressions are in NOTES-5F2.md. Isolated checks do not replace stable batch gates.
+
+
+### 5H isolated commit checkpoint
+
+Adds the independently reviewed recruiting desk, professional evidence screening, exact approved manual contact/interview handoffs, role ledger/report, public job-board reads and source-linked Forget/expiry. Review evidence and remaining legal/manual boundaries are in NOTES-5H.md. Later article, tender and website hooks are excluded.

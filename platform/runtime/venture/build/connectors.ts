@@ -28,6 +28,9 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'recruit-greenhouse': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Greenhouse board and filters.'},
+  'recruit-lever': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Lever board and filters.'},
+  'recruit-ashby': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Ashby board and filters.'},
   'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Reads the existing client override key before a reviewed change.'},
   // 5M: bounded, policy-checked lead research and one exact-approved paid network search.
   overpass: { qualification: 'fixture-tested', what: 'Reads bounded city prospects with OpenStreetMap attribution.' },

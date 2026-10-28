@@ -49,6 +49,11 @@ export interface W4DeskHost {
   keepSellerAsset?(asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>):void;
   eraseSellerAssets?(ids:readonly string[]):void;
   eraseSellerFiles?(ids:readonly string[]):void;
+  eraseRecruitingCopies?(orderIds:readonly string[]):void;
+  recruitingBlocked?(email:string|null,personId:string|null):boolean;
+  recruitingReports?(orderId:string):{reports:unknown[];shares:unknown[]};
+  recruitingMail?(threadIds:readonly string[]):unknown[];
+  eraseRecruitingMail?(threadIds:readonly string[]):void;
   orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
   supportImported?(mail:SupportImportedMail):void;
   supportThread?(id: string): { held: boolean; messages: { messageId: string; references: string[]; from: string; subject: string; date: string; text: string | null; source: 'mailbox' | 'file-import' }[] } | null;

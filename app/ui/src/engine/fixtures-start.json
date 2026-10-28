@@ -184,6 +184,69 @@
             "connections": "क्लाइंट की ब्रांड फ़ाइलें और प्लेटफ़ॉर्म के एक्सपोर्ट, और आपका अपना मेल ऐप। पोस्ट आप अपने अकाउंट से करते हैं, या कैलेंडर फ़ाइल अपने शेड्यूलर में डालते हैं।"
           }
         }
+      },
+      {
+        "id": "recruiting-desk",
+        "playbook": "recruiting-desk",
+        "label": "Recruiting desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Role rules, shortlists with quoted proof and interview scheduling.",
+        "hours": "5 to 8 h a week",
+        "minHours": 5,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Talk to clients and candidates, approve messages.",
+        "team": [
+          {
+            "role": "Sourcer",
+            "initials": "SO",
+            "department": "sales"
+          },
+          {
+            "role": "Screener",
+            "initials": "SC",
+            "department": "production"
+          },
+          {
+            "role": "Scheduler",
+            "initials": "SC",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Screens resumes with quotes, keeps the ledger, drafts invites.",
+        "clientsPay": {
+          "text": "₹25,000 to ₹80,000",
+          "per": "per hire",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client resumes, Imported mail, Greenhouse, Lever, Ashby, Calendar export, LinkedIn and Naukri."
+        },
+        "starter": "Recruiting desk: Role rules, shortlists with quoted proof and interview scheduling.",
+        "yours": [],
+        "hi": {
+          "label": "भर्ती डेस्क",
+          "line": "पद के नियम, उद्धृत सबूत वाली सूची और इंटरव्यू समय।",
+          "hours": "हफ़्ते में 5 से 8 घंटे",
+          "youDo": "क्लाइंट और उम्मीदवार से बात करें, संदेश मंज़ूर करें।",
+          "team": [
+            "उम्मीदवार खोजकर्ता",
+            "जाँचकर्ता",
+            "समय तय करने वाला"
+          ],
+          "teamLine": "उद्धरण से रेज़्यूमे जाँचता है, रजिस्टर रखता है और निमंत्रण बनाता है।",
+          "pay": "₹25,000 से ₹80,000",
+          "per": "प्रति भर्ती",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Recruiting desk: पद के नियम, उद्धृत सबूत वाली सूची और इंटरव्यू समय।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट के रेज़्यूमे, आयातित मेल, ग्रीनहाउस, लीवर, ऐशबी, कैलेंडर निर्यात, लिंक्डइन और नौकरी के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [

@@ -105,6 +105,7 @@ const STAGE_RANK: Partial<Record<LeadView['status'], number>> = { new: 0, drafte
 interface HeldShare extends ShareLink { businessId: string; deliveryId: string; draftDigest?:string }
 
 export class FakeExtrasDesk {
+  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {this.shares=this.shares.filter(s=>s.businessId!==biz||!runIds.includes(s.deliveryId));}
   private readonly host: ExtrasHost;
   private policies: Record<string, SpendPolicyView>;
   private rupees: Record<string, SampleRupeeRate | null> = {};
@@ -432,7 +433,7 @@ export class FakeExtrasDesk {
     return lead;
   }
 
-  private isBlocked(biz: string, email: string | null): boolean {
+  isBlocked(biz: string, email: string | null): boolean {
     if (!email) return false;
     const list = this.blocked[biz] ?? [];
     const domain = email.split('@')[1] ?? '';
