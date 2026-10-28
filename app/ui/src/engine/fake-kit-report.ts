@@ -264,6 +264,8 @@ export class FakeKitReportDesk {
   /** The engine's checkSharable: the draft's state, practice, Accept now, the words unchanged, and a CA's sign-off. */
   private sharable(report: HeldReport): void {
     const run = this.draft(report.runId);
+    const orders = this.host.ask('venture.order.list', {}) as { id: string; internal?: boolean }[];
+    if (orders.some(order => order.id === run.orderId && order.internal)) throw new EngineError('INTERNAL_ORDER', 'Your own shop work has no client share link.');
     if (!['ready-for-review', 'accepted', 'edited'].includes(run.status)) throw new EngineError('DELIVERY_NOT_READY', WORDS.shareNotReady);
     if (run.practice || run.practiceNow) throw new EngineError('PRACTICE_DRAFT', WORDS.practice);
     if (run.status === 'ready-for-review' && run.canAccept === false) throw new EngineError('DELIVERY_NOT_READY', run.acceptBlocked ?? WORDS.shareNotReady);

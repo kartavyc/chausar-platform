@@ -24,8 +24,8 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
   // Ink v2 wave 5 (5A2): the honest exit reads the kit playbooks (playbooks/kit/exit.ts), loaded on use; a test passes its own.
   const exit = await import('../playbooks/kit/exit.ts');
   const definitions = options.definitions ?? (await import('../playbooks/definitions.ts')).PLAYBOOK_DEFINITIONS;
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive'], ['clientId', 'offerId', 'request']);
-  const clientId = recordId(body.clientId, 'Client');
+  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive'], ['offerId', 'request']);
+  const clientId = body.clientId === undefined ? null : recordId(body.clientId, 'Client');
   const offerId = recordId(body.offerId, 'Offer');
   const quantity = body.quantity === undefined ? null : quantityText(body.quantity);
   const request = plainText(body.request, 'The request', { min: 3, max: 4000 });
@@ -38,13 +38,15 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     const venture = tx.venture;
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
     const blueprint = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
-    const client = tx.find('venture-client', clientId);
-    check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
     const offer = requireOffer(blueprint, offerId);
+    const selectedOffer = flagshipOffer(flagshipPlan(venture.idea), offer);
+    const internal = flagshipPlan(venture.idea)?.id === 'online-seller' && selectedOffer?.key === 'own-shop-back-office';
+    const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null }) : clientId ? tx.find('venture-client', clientId) : null;
+    check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
+    check(internal || !client.self, 'INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
     requirePrice(offer);
     // Rights and the other intake fields are checked before anything is written.
     const base = tx.base('venture-order');
-    const selectedOffer = flagshipOffer(flagshipPlan(venture.idea), offer);
     const rawIntake = attachIntakeFiles(tx, base.id, selectedOffer, body.intake, intakeFiles);
     const intake = orderIntake(rawIntake, selectedOffer, {
       by: ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host,
@@ -57,7 +59,7 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity, taxInclusive }, blueprint, offer, client);
     const order: OrderRecord = {
       ...base, clientId: client.id, offerId: offer.id, quantity: orderQuantity, request,
-      status: 'open', priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
+      status: 'open', ...(internal ? { internal: true as const } : {}), priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
       ...(taxInclusive ? { taxInclusive: true } : {}), ...(outOfScope ? { outOfScope } : {}),
     };
     const stored = tx.put(order);
@@ -97,8 +99,8 @@ export async function deliverOrder(deps: VentureDeps, ctx: Context, payload: unk
     const receipt = tx.find('venture-price-receipt', order.priceReceiptId);
     check(receipt, 'RECEIPT_NOT_FOUND', 'The price receipt of this order was not found.');
     const offerName = tx.list('venture-blueprint').find(b => b.digest === receipt.inputs.blueprintDigest)?.offers.find(o => o.id === order.offerId)?.name.value ?? 'Service';
-    const fact = insertBooksFact(tx, deps.store, saleFact(order, client, receiptTaxable(receipt), receipt.currency, deliveredOn, oneLine(offerName)));
-    const delivered: OrderRecord = { ...order, deliveredOn, saleFactId: fact.id, status: 'delivered' };
+    const fact = order.internal ? null : insertBooksFact(tx, deps.store, saleFact(order, client, receiptTaxable(receipt), receipt.currency, deliveredOn, oneLine(offerName)));
+    const delivered: OrderRecord = { ...order, deliveredOn, saleFactId: fact?.id ?? null, status: 'delivered' };
     const stored = tx.replace(delivered);
     activateTerm(tx, 'deliverable', { recordId: stored.id, kind: 'venture-order' });
     tx.emit('order-delivered', { orderId: stored.id });

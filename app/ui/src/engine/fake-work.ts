@@ -142,13 +142,15 @@ export class FakeWorkDesk {
   }
 
   private create(biz: string, p: Record<string, unknown>): OrderLite {
-    const client = this.host.clients().find((c) => c.id === p.clientId);
-    if (!client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
     const plan = this.host.plan();
     if (!plan) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first.');
     const offer = plan.blueprint.offers.find((o) => o.id === p.offerId);
     if (!offer) throw invalid('That service is not in your plan.');
     if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
+    const internal = plan.playbook?.id === 'online-seller' && offer.playbookOffer === 'own-shop-back-office';
+    let client = this.host.clients().find(c => internal ? c.self : c.id === p.clientId);
+    if (!internal && !client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
+    if (!internal && client?.self) throw new EngineError('INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
     const request = text(p.request);
     if (request.length < 3 || request.length > 4000) throw invalid('The request must be between 3 and 4000 characters.');
     const ask = plan.intake?.[offer.id] ?? fakeKitOfferIntake(plan.playbook?.id, offer.playbookOffer);
@@ -188,7 +190,13 @@ export class FakeWorkDesk {
         if (typeof id === 'string' && !staged.some(file => file.field === field.id && file.id === id)) throw new EngineError('UPLOAD_NOT_FOUND', 'Add the file to this order before using it as an intake answer.');
       }
     }
+    if (!client && internal) {
+      const made = this.host.ask?.('venture.client.add', { name: 'Your own shop', countryCode: 'IN' }) as ClientLite;
+      client = this.host.clients().find(c => c.id === made.id)!; client.self = true;
+    }
+    if (!client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
     const order: OrderLite = {
+      ...(internal ? { internal: true as const } : {}),
       id: `o-new-${++this.seq}`, at: this.host.now(), clientId: client.id, offerId: offer.id,
       quantity: text(p.quantity) || offer.pricing.defaultQuantity, request, status: 'open',
       priceReceiptId: plan.offerReceipts[offer.id]?.id ?? 'R-0415', deliveredOn: null,

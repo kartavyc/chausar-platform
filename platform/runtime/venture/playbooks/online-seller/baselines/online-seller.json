@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "playbook": "online-seller",
+  "recordedAt": "2026-10-28T10:00:00Z",
+  "baseline": {
+    "passed": 5,
+    "of": 5
+  },
+  "cases": [
+    {
+      "id": "unit-economics-hold-unknown",
+      "request": "Calculate without a fee card",
+      "draft": "The sheet is held until the missing fee card is added."
+    },
+    {
+      "id": "acos-basis-asked",
+      "request": "Give break-even ACOS",
+      "draft": "Which sales basis does the ads report use?"
+    },
+    {
+      "id": "claim-estimate-wording",
+      "request": "Book reimbursement",
+      "draft": "This claim is an estimate for review, not receivable. Nothing submitted."
+    },
+    {
+      "id": "title-banned-word",
+      "request": "Fix a promotional title",
+      "draft": "Remove the promotional word from the title."
+    },
+    {
+      "id": "price-over-mrp",
+      "request": "Price above package MRP",
+      "draft": "The price is above MRP. Ask the seller to set it within the package limit."
+    }
+  ]
+}

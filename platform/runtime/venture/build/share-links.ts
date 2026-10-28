@@ -148,6 +148,7 @@ export async function shareCreate(deps: VentureDeps, ctx: Context, payload: unkn
     const venture = tx.venture!;
     const record = tx.find('venture-delivery-run', deliveryId);
     check(record, 'DELIVERY_NOT_FOUND', 'That draft was not found.');
+    check(!tx.find('venture-order', record.orderId)?.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
     checkManifest(tx.state, record);
     const run = runView(record, venture, Date.parse(tx.now));
     check(SHARABLE.has(run.status), 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
@@ -214,6 +215,7 @@ type OtherContent = { deliveryId: string; clientId: string | null; title: string
 function orderContent(state: State, venture: VentureRecord, orderId: string): OtherContent {
   const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === orderId);
   check(order && order.status !== 'cancelled', 'ORDER_NOT_FOUND', 'That order was not found, or it was cancelled.');
+  check(!order.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
   // The page works the steps out each time it opens; the record keeps no copy, so it never goes stale.
   return { deliveryId: order.id, clientId: order.clientId, title: `Your order with ${venture.workingName}`, text: '' };
 }
@@ -235,6 +237,7 @@ async function shareCreateOther(deps: VentureDeps, ctx: Context, kind: Exclude<S
     const clientId = identifier(subject, 'Client');
     const today = todayIso(deps, venture);
     content = tx => {
+      check(!tx.find('venture-client', clientId)?.self, 'INTERNAL_ORDER', 'Your own shop has no client statement link.');
       const now = clientStatement(tx.state, clientId, today);
       // The receipts behind the three totals: the owner's proof of what the client was shown.
       const receiptIds = [now.plans.owed, now.plans.paid, now.plans.credited].map(plan => sumReceiptIn(tx, plan).id);

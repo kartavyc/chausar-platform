@@ -72,6 +72,7 @@ function newToken(nowIso: string): { token: string; tokenHash: string; expiresAt
 function checkSharable(state: State, venture: VentureRecord, report: ReportRecord, nowIso: string) {
   const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === report.runId);
   check(run, 'DELIVERY_NOT_FOUND', 'That draft was not found.');
+  check(!listRecords(state, 'venture-order', venture.id).find(order => order.id === run.orderId)?.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
   const view = runView(run, venture, Date.parse(nowIso), state);
   check(SHARABLE.has(view.status), 'DELIVERY_NOT_READY', REPORT_SHARE_WORDS.notReady);
   check(!view.practiceNow && !run.practice, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');

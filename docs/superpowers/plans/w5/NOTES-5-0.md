@@ -582,3 +582,8 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 
 - Registers monthly books, collections, CFO packs, decision memos and spending-only checkups. Client debtor ledgers remain isolated from the service business; promises and owner-edited ladders use code, reminders stay with the client, all calculated money has receipts. Dynamic question workflows are pinned per run without changing the business playbook. English/Hindi collections screens and exact fake onboarding are included. Accounting posting and setup remain for 5K2.
 - Earlier independent spec and quality PASS is recorded in the takeover checkpoint. The isolated commit reconstruction retains the five K1 source-executed baseline cases and their adversarial source tests. This staging validation does not claim a new whole-package, visual or batch acceptance.
+
+## 5F1 implementation and review closure
+
+- Registers the seller foundation with five own-shop and client audit offers. Source-backed unit economics, ads, listing/India checks and settlement differences use code receipts, explicit missing inputs and pending professional confirmation. Own-shop orders reuse one self client and cannot create customer invoices or client share links. English/Hindi owner audit screens and real/fake intake are included. Staged operations, photos and additional offers remain for 5F2; marketplace connectors remain for 5F3.
+- Earlier independent spec and quality PASS is recorded in the takeover checkpoint. The isolated commit candidate retains the five F1 baseline cases and actual delivery/owner/fake regressions. Reconstruction validation is not a fresh package review, visual PASS or complete batch gate.

@@ -24,5 +24,15 @@
       "decision-memo",
       "money-checkup"
     ]
+  },
+  {
+    "id": "online-seller",
+    "offers": [
+      "listing-health-audit",
+      "own-shop-back-office",
+      "reimbursement-audit",
+      "unit-economics-monthly",
+      "ads-health-check"
+    ]
   }
 ]

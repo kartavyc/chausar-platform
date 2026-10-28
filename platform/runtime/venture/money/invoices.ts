@@ -176,6 +176,7 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
   const blueprint = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
   const order = tx.find('venture-order', input.orderId);
   check(order, 'ORDER_NOT_FOUND', 'This order was not found.');
+  check(!order.internal, 'INTERNAL_ORDER', 'Your own shop work has no customer invoice.');
   check(order.status !== 'cancelled', 'INVALID_VENTURE_REQUEST', 'This order was cancelled.');
   const existing = tx.list('venture-invoice').filter(i => i.orderId === order.id);
   check(existing.every(i => i.status === 'draft'), 'QUOTE_ALREADY_INVOICED', "This order's quote is on an issued invoice already. One order becomes one invoice, once.");

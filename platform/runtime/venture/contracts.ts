@@ -917,6 +917,7 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
 };
 
 export type ClientRecord = RecordBase<'venture-client'> & {
+  self?: true;
   name: string; // one line
   email: string | null;
   countryCode: CountryCode | null;
@@ -925,6 +926,7 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  internal?: true;
   clientId: string;
   offerId: string;
   quantity: string;
@@ -6268,6 +6270,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'INTERNAL_ORDER', 'SELLER_INPUT_INVALID',
   'CLIENT_BALANCE_REQUIRED', 'CLIENT_LEDGER_REQUIRED', 'PLAYBOOK_ROUTE_INVALID', 'PLAYBOOK_WORKFLOW_CHANGED',
   'PANEL_APPROVAL_REQUIRED', 'PANEL_NOT_FOUND', 'PANEL_ORDER_REQUIRED', 'SITE_CHECK_DESKTOP_ONLY', 'SITE_CHECK_INVALID',
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',

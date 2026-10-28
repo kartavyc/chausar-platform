@@ -636,6 +636,7 @@ export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopie
  * nothing owed; the UI never adds up invoices itself.
  */
 export interface ClientLite {
+  self?: true;
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
   owed?: { display: Display; receiptId: string };
 }
@@ -643,6 +644,7 @@ export interface ClientAddParams { name: string; email?: string; countryCode?: s
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
 export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
 export interface OrderLite {
+  internal?: true;
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
   /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
@@ -1733,7 +1735,7 @@ export interface EngineMethods {
    */
   'venture.order.create': {
     params: {
-      clientId: string; offerId: string; quantity?: string; request: string;
+      clientId?: string; offerId: string; quantity?: string; request: string;
       intakeFiles?: Record<string, { name: string; contentBase64: string }>;
       intake?: {
         rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string;

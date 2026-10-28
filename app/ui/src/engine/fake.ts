@@ -317,6 +317,8 @@ export class FakeEngine {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    this.guardInternalShare(method, p);
+    this.guardInternalShare(method, p);
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
     // Invoices and payments answer from one desk.
@@ -452,6 +454,15 @@ export class FakeEngine {
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
     };
   }
+
+  private guardInternalShare(method: string, p: Record<string, unknown>): void {
+    if (method === 'venture.share.create') {
+      const orders = this.work.request('venture.order.list', {}) as OrderLite[];
+      const run = (this.work.request('venture.delivery.list', {}) as DeliveryLite[]).find(item => item.id === p.deliveryId);
+      if (orders.some(order => order.internal && (order.id === p.orderId || order.id === run?.orderId)) || (this.clients[this.current] ?? []).some(client => client.self && client.id === p.clientId)) throw new EngineError('INTERNAL_ORDER', 'Your own shop work has no client share link.');
+    }
+  }
+
 
   private answerNow(method: string, p: Record<string, unknown>): unknown {
     if (FakeMoney.answers(method)) return this.money.request(method, p);
