@@ -242,8 +242,8 @@ async function postingDesk(signedIn?: string | null) {
     ...(signedIn !== undefined ? { signedInAccount: async () => signedIn } : {}),
   };
   const deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
-  const draft = await seedPostDraft(deps, ['LinkedIn: Our bakery opens at 8 every weekday.']);
-  const post = await proposePost(deps, agent, { connectorId: 'linkedin', draftId: draft.id, account: 'Asha Rao' });
+  const draft = await seedPostDraft(deps, ['X: Our bakery opens at 8 every weekday.']);
+  const post = await proposePost(deps, agent, { connectorId: 'x', draftId: draft.id, account: 'Asha Rao' });
   return { env, deps, jobs, post };
 }
 

@@ -155,6 +155,8 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
   'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
   'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com', 'https://console.anthropic.com', 'https://platform.openai.com',
+  'https://overpass-api.de', 'https://operations.osmfoundation.org', 'https://developers.google.com',
+  'https://redditinc.com', 'https://developer.happenstance.ai',
 ]);
 const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);

@@ -190,7 +190,7 @@ test('venture.posting.propose refuses a post from a draft whose files changed af
   const env = await setup();
   await setStage(env, 'approve-each');
   env.deps = { ...env.deps, connectors: { browser: { async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; }, async post() { return { outcome: 'posted', line: 'Posted.', url: null }; }, signIn() { return new Promise(() => {}); } }, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
-  const draft = await seedPostDraft(env.deps, ['LinkedIn: Our cafe opens at 8 every weekday.'], { status: 'ready-for-review', verdict: null });
+  const draft = await seedPostDraft(env.deps, ['X: Our cafe opens at 8 every weekday.'], { status: 'ready-for-review', verdict: null });
   const table = await ventureAction(env.deps, owner, 'prepare', 'seed.table', tx => tx.put<WorkTableRecord>({
     ...tx.base('venture-work-table'), name: 'Opening hours', columns: ['Day'], rows: [{ id: 'r1', cells: { Day: 'Mon' } }], source: { kind: 'computed', tool: 'calc.totals', uploadIds: [] },
     runRef: { kind: 'delivery', runId: draft.id }, digest: 'hours',
@@ -211,7 +211,7 @@ test('approving a post checks the files again: changed after it was proposed, no
   await setStage(env, 'approve-each');
   const posted: string[] = [];
   env.deps = { ...env.deps, connectors: { browser: { async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; }, async post(job: { text: string }) { posted.push(job.text); return { outcome: 'posted', line: 'Posted.', url: null }; }, signIn() { return new Promise(() => {}); } }, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
-  const draft = await seedPostDraft(env.deps, ['LinkedIn: Our cafe opens at 8 every weekday.'], { status: 'ready-for-review', verdict: null });
+  const draft = await seedPostDraft(env.deps, ['X: Our cafe opens at 8 every weekday.'], { status: 'ready-for-review', verdict: null });
   const table = await ventureAction(env.deps, owner, 'prepare', 'seed.table', tx => tx.put<WorkTableRecord>({
     ...tx.base('venture-work-table'), name: 'Opening hours', columns: ['Day'], rows: [{ id: 'r1', cells: { Day: 'Mon' } }], source: { kind: 'computed', tool: 'calc.totals', uploadIds: [] },
     runRef: { kind: 'delivery', runId: draft.id }, digest: 'hours',

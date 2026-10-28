@@ -93,11 +93,11 @@ test('each step is an ordered candidate list, every one unchecked in the shipped
 
 test('Today: when the first candidate matches two visible elements and the second exactly one, the second is used', async () => {
   const model: FakePageModel = {
-    ...LINKEDIN_PAGE,
-    elements: { ...LINKEDIN_PAGE.elements, [LINKEDIN_KEYS.button]: [BUTTON(), BUTTON()], 'role:button[name=Post]': [BUTTON(), BUTTON({ visible: false })] },
+    ...X_PAGE,
+    elements: { ...X_PAGE.elements, 'test-id:tweetButton': [BUTTON(), BUTTON()], 'role:button[name=Post]': [BUTTON(), BUTTON({ visible: false })] },
   };
   const { env, fake } = await browserEnv(model);
-  const { decision, post } = await postThroughToday(env, 'LinkedIn: Our cafe opens at 8 every weekday.');
+  const { decision, post } = await postThroughToday(env, 'X: Our cafe opens at 8 every weekday.');
   assert.equal(decision.outcome, 'done', decision.line);
   assert.equal(post.state, 'applied');
   assert.deepEqual(fake.calls.filter(call => call.startsWith('click')), ['click role:button[name=Post]']);
@@ -106,12 +106,12 @@ test('Today: when the first candidate matches two visible elements and the secon
 
 test('Today: when no candidate matches exactly one visible element, nothing is clicked and nothing is posted', async () => {
   const model: FakePageModel = {
-    ...LINKEDIN_PAGE,
-    elements: { ...LINKEDIN_PAGE.elements, [LINKEDIN_KEYS.button]: [BUTTON(), BUTTON()], 'role:button[name=Post]': [BUTTON({ visible: false })] },
+    ...X_PAGE,
+    elements: { ...X_PAGE.elements, 'test-id:tweetButton': [BUTTON(), BUTTON()], 'role:button[name=Post]': [BUTTON({ visible: false })] },
   };
   const { env, fake } = await browserEnv(model);
-  const { decision, post } = await postThroughToday(env, 'LinkedIn: Our cafe opens at 8 every weekday.');
-  assert.equal(decision.line, "LinkedIn's post button was not found the way Chausar knows it. Nothing was posted.");
+  const { decision, post } = await postThroughToday(env, 'X: Our cafe opens at 8 every weekday.');
+  assert.equal(decision.line, "X's post button was not found the way Chausar knows it. Nothing was posted.");
   assert.equal(post.state, 'rejected', 'nothing went out, so it may be proposed again');
   assert.equal(fake.clicks(), 0);
   assert.deepEqual(houseStyleFindings(decision.line), []);

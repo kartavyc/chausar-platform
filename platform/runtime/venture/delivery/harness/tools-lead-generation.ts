@@ -1,3 +1,4 @@
+import {wholeCount} from '../../playbooks/kit/count.ts';
 // Chausar leadgen tools. revenue-squad MIT, reddit-skills no-licence ideas only; no code copied.
 import { check } from '../../../contracts.ts';
 import type { ToolName } from '../../contracts.ts';
@@ -18,8 +19,8 @@ export const LEAD_GENERATION_TOOLS: Readonly<Record<LeadGenerationToolName, Spec
     const offerKey = order && order.ventureId === env.ventureId ? acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer : undefined;
     const offerPlan = offerKey === 'cold-email-month' ? coldEmailMonthPlan(pipelineSettings(state, env.ventureId), env.now()) : null;
     const ownerCount = order?.intake?.fields?.count ?? env.intake?.fields?.count;
-    const approvedCount = ownerCount === undefined || ownerCount === '' ? offerPlan?.prospectLimit : typeof ownerCount === 'string' && /^\d{1,2}$/.test(ownerCount) ? Number(ownerCount) : NaN;
-    const requestedCount = input.count === undefined ? undefined : /^\d{1,2}$/.test(input.count) ? Number(input.count) : NaN;
+    const approvedCount = ownerCount === undefined || ownerCount === '' ? offerPlan?.prospectLimit : typeof ownerCount === 'string' && /^\d{1,2}$/.test(ownerCount) ? wholeCount(ownerCount) : NaN;
+    const requestedCount = input.count === undefined ? undefined : /^\d{1,2}$/.test(input.count) ? wholeCount(input.count) : NaN;
     check(approvedCount === undefined || requestedCount === undefined || requestedCount === approvedCount, 'LEAD_INTAKE_CHANGED', 'Research only the prospect count the owner approved at intake.');
     const count = approvedCount ?? requestedCount ?? 10;
     check(Number.isInteger(count) && count >= 1 && count <= 50, 'INVALID_VENTURE_REQUEST', 'Choose a daily count from one to fifty.');

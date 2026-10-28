@@ -33,7 +33,7 @@ async function posting() {
   const jobs: BrowserPostJob[] = [];
   const port: BrowserPort = {
     async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; },
-    async post(job) { jobs.push(job); return { outcome: 'posted', line: 'LinkedIn showed that the post went out.', url: null }; },
+    async post(job) { jobs.push(job); return { outcome: 'posted', line: 'X showed that the post went out.', url: null }; },
   };
   env.deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
   return { env, deps: env.deps, jobs };
@@ -43,9 +43,10 @@ async function posting() {
 async function sent(env: Env, text: string, ago: number, options: { connectorId?: string; state?: 'applied' | 'outcome_unknown' } = {}) {
   const at = new Date(Date.parse(env.now()) - ago).toISOString();
   const state = options.state ?? 'applied';
+  // LinkedIn rows here are legacy stored browser history only, never a current automated action.
   return ventureAction(env.deps, owner, 'prepare', 'seed.post', tx => tx.put<ConnectorPostRecord>({
-    ...tx.base('venture-connector-post'), at, connectorId: options.connectorId ?? 'linkedin', mode: 'owner-browser-session', account: null, text, agent: null,
-    digest: 'seeded', state, describe: 'Post to LinkedIn from your own browser on this computer.', risk: null, claimedAt: at, decidedBy: 'owner',
+    ...tx.base('venture-connector-post'), at, connectorId: options.connectorId ?? 'x', mode: 'owner-browser-session', account: null, text, agent: null,
+    digest: 'seeded', state, describe: options.connectorId === 'linkedin' ? 'Copy the approved words and post them yourself.' : 'Post to X from your own browser on this computer.', risk: null, claimedAt: at, decidedBy: 'owner',
     outcome: { line: 'Posted.', url: null, by: 'platform' }, journal: [{ state: 'described', at, by: 'owner', line: 'Seeded.' }, { state, at, by: 'platform', line: 'Seeded.' }],
     approval: null, expiresAt: null, descriptionComplete: true, draftId: 'delivery_earlier', draftDigest: null, part: null,
   }));
@@ -100,27 +101,40 @@ test('the fourth post on a channel in 24 hours is blocked, an unknown outcome co
   await seasoned(env);
   await sent(env, 'Monday menu: masala dosa and filter coffee.', 20 * HOUR);
   await sent(env, 'Tuesday menu: pongal and ginger chai.', 10 * HOUR, { state: 'outcome_unknown' });
-  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
   // Two in the last day: the third may go.
   const third = await propose(deps, `${run.id}.post-1`);
   assert.equal(third.state, 'described');
   await sent(env, 'Wednesday menu: upma and cold coffee.', 2 * HOUR);
-  const fourth = await seedPostDraft(deps, ['LinkedIn: Friday menu: idli and sambar.']);
+  const fourth = await seedPostDraft(deps, ['X: Friday menu: idli and sambar.']);
   await assert.rejects(propose(deps, `${fourth.id}.post-1`), blockedBy('house-post-cap-24h'));
   env.advance(9 * HOUR); // the Monday post is now more than a day old
   assert.equal((await propose(deps, `${fourth.id}.post-1`)).state, 'described');
 });
 
-test('a post within 60 minutes of the last one on the channel is blocked; after the gap it goes', async () => {
+test('a post within 60 minutes is blocked for its own channel; another channel history does not count', async () => {
   const { env, deps } = await posting();
   await seasoned(env);
-  await sent(env, 'Our weekend timings are up on the board.', 30 * 60_000);
-  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.', 'X: Thursday menu: poha and lemon tea.']);
-  await assert.rejects(propose(deps, `${run.id}.post-1`), blockedBy('house-post-min-gap'));
-  // Each channel has its own history: X had nothing in the last hour.
-  assert.equal((await propose(deps, `${run.id}.post-2`)).connectorId, 'x');
+  await sent(env, 'Our weekend timings are up on the board.', 30 * 60_000, { connectorId: 'linkedin' });
+  const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
+  assert.equal((await propose(deps, `${run.id}.post-1`)).connectorId, 'x', 'historical manual LinkedIn posts do not consume X limits');
+  await sent(env, 'The evening specials are ready.', 30 * 60_000);
+  const next = await seedPostDraft(deps, ['X: Friday menu: idli and sambar.']);
+  await assert.rejects(propose(deps, `${next.id}.post-1`), blockedBy('house-post-min-gap'));
   env.advance(31 * 60_000);
-  assert.equal((await propose(deps, `${run.id}.post-1`)).connectorId, 'linkedin');
+  assert.equal((await propose(deps, `${next.id}.post-1`)).connectorId, 'x');
+});
+
+test('LinkedIn proposals stay copy-and-open only and never reach the browser or approval queue', async () => {
+  const { env, deps, jobs } = await posting();
+  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  await assert.rejects(propose(deps, `${run.id}.post-1`), (error: any) => {
+    assert.equal(error.code, 'NOT_BUILT_YET');
+    assert.match(error.message, /copy-and-open only/);
+    return true;
+  });
+  assert.equal(jobs.length, 0);
+  assert.equal(listRecords(env.store.read(), 'venture-connector-post').length, 0);
 });
 
 test('near-duplicates of the last five posts: blocked from 85%, a warning on the Today row from 60%', async () => {
@@ -130,13 +144,13 @@ test('near-duplicates of the last five posts: blocked from 85%, a warning on the
   const words = LONG.split(' ');
   const close = [...words.slice(0, -1), 'begins'].join(' ');
   assert.ok(similarityPermille(LONG, close) >= 850);
-  const near = await seedPostDraft(deps, [`LinkedIn: ${close}`]);
+  const near = await seedPostDraft(deps, [`X: ${close}`]);
   await assert.rejects(propose(deps, `${near.id}.post-1`), blockedBy('house-near-duplicate'));
 
   const twice = words.map((word, index) => (index === 5 ? 'shuts' : index === 18 ? 'vada' : word)).join(' ');
   const permille = similarityPermille(LONG, twice);
   assert.ok(permille >= 600 && permille < 850, String(permille));
-  const like = await seedPostDraft(deps, [`LinkedIn: ${twice}`]);
+  const like = await seedPostDraft(deps, [`X: ${twice}`]);
   const proposal = await propose(deps, `${like.id}.post-1`);
   assert.equal(proposal.warnings.length, 1);
   assert.match(proposal.warnings[0], /rule house-near-duplicate-warn\b/);
@@ -150,11 +164,11 @@ test('near-duplicates of the last five posts: blocked from 85%, a warning on the
 
 test("a channel's first seven days allow one post a day; the very first post goes", async () => {
   const { env, deps } = await posting();
-  const first = await seedPostDraft(deps, ['LinkedIn: Hello from our cafe in Pune.']);
+  const first = await seedPostDraft(deps, ['X: Hello from our cafe in Pune.']);
   assert.equal((await propose(deps, `${first.id}.post-1`)).state, 'described', 'no history: the first post goes');
   await sent(env, 'Hello from our cafe in Pune, our first post.', 3 * DAY);
   await sent(env, 'Our filter coffee is back.', 20 * HOUR);
-  const next = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const next = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
   await assert.rejects(propose(deps, `${next.id}.post-1`), blockedBy('house-warm-up'));
   env.advance(5 * HOUR); // a day since the last post, still inside the first week
   assert.equal((await propose(deps, `${next.id}.post-1`)).state, 'described');
@@ -165,19 +179,19 @@ test('a third post in a row linking the same site warns; it is not blocked', asy
   await seasoned(env);
   await sent(env, 'New menu at https://www.cafearoma.example/menu', 5 * HOUR);
   await sent(env, 'Book a table at https://cafearoma.example/book', 3 * HOUR);
-  const run = await seedPostDraft(deps, ['LinkedIn: Our hours are at https://cafearoma.example/hours']);
+  const run = await seedPostDraft(deps, ['X: Our hours are at https://cafearoma.example/hours']);
   const proposal = await propose(deps, `${run.id}.post-1`);
   assert.equal(proposal.warnings.length, 1);
   assert.match(proposal.warnings[0], /cafearoma\.example/);
   assert.match(proposal.warnings[0], /rule house-link-streak\b/);
-  const other = await seedPostDraft(deps, ['LinkedIn: Our hours are at https://another.example/hours']);
+  const other = await seedPostDraft(deps, ['X: Our hours are at https://another.example/hours']);
   assert.deepEqual((await propose(deps, `${other.id}.post-1`)).warnings, []);
 });
 
 test('engagement bait is blocked before the connector is called; a hashtag cap reuses the channel table', async () => {
   const { env, deps } = await posting();
   await seasoned(env);
-  const bait = await seedPostDraft(deps, ['LinkedIn: Tag a friend who loves filter coffee!']);
+  const bait = await seedPostDraft(deps, ['X: Tag a friend who loves filter coffee!']);
   await assert.rejects(propose(deps, `${bait.id}.post-1`), blockedBy('meta-engagement-bait'));
   // Instagram takes five hashtags at most (rule ig-hashtags-5); the gate reads the same table the draft checks read.
   const risk = postingRisk({ channel: 'instagram', name: 'Instagram', text: 'New menu #a #b #c #d #e #f', now: env.now(), history: [] });
@@ -189,8 +203,8 @@ test('engagement bait is blocked before the connector is called; a hashtag cap r
 test('the gate runs again when the owner approves: a post another post overtook is refused and never reaches the browser', async () => {
   const { env, deps, jobs } = await posting();
   await seasoned(env);
-  const one = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
-  const two = await seedPostDraft(deps, ['LinkedIn: Our weekend timings are up on the board.']);
+  const one = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
+  const two = await seedPostDraft(deps, ['X: Our weekend timings are up on the board.']);
   const first = await propose(deps, `${one.id}.post-1`);
   const second = await propose(deps, `${two.id}.post-1`);
   const record = (id: string) => listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === id)!;
@@ -205,7 +219,7 @@ test('the gate runs again when the owner approves: a post another post overtook 
   // Another post goes out right after the commit that records the approval, before the claim: the last look inside the
   // apply stops it. It is made by a Chausar write, as a real post is, so the chained journal (4J10) has it.
   env.advance(2 * HOUR);
-  const three = await seedPostDraft(deps, ['LinkedIn: Our cafe is closed on Monday for Diwali.']);
+  const three = await seedPostDraft(deps, ['X: Our cafe is closed on Monday for Diwali.']);
   const third = await propose(deps, `${three.id}.post-1`);
   const thirdDigest = record(third.postId).digest;
   const overtaking = { ...structuredClone(record(first.postId)), id: 'post_overtaking', text: 'A post made at the same moment.' };
@@ -252,12 +266,12 @@ test("the owner tightens a channel's limits; a looser number is refused; the gat
   const { env, deps } = await posting();
   const first = await limitsCall<LimitsView>(deps, 'get');
   assert.deepEqual(first.channels.map(channel => [channel.connectorId, channel.name]), [['linkedin', 'LinkedIn'], ['x', 'X']]);
-  assert.deepEqual(first.channels[0], { connectorId: 'linkedin', name: 'LinkedIn', house: HOUSE, owner: {}, inUse: HOUSE });
+  assert.deepEqual(first.channels[1], { connectorId: 'x', name: 'X', house: HOUSE, owner: {}, inUse: HOUSE });
   assert.match(first.line, /only make them stricter/);
 
-  const set = await limitsCall<LimitsView>(deps, 'set', { connectorId: 'linkedin', limits: { capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 } });
-  assert.deepEqual(set.channels[0].inUse, { ...HOUSE, capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 });
-  assert.deepEqual(set.channels[1].inUse, HOUSE, 'X keeps the house limits');
+  const set = await limitsCall<LimitsView>(deps, 'set', { connectorId: 'x', limits: { capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 } });
+  assert.deepEqual(set.channels[1].inUse, { ...HOUSE, capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 });
+  assert.deepEqual(set.channels[0].inUse, HOUSE, 'LinkedIn keeps its separate manual-channel limits');
   assert.equal(listRecords(env.store.read(), 'venture-posting-limits').length, 1);
 
   for (const looser of [{ capPer24h: 4 }, { minGapMinutes: 30 }, { warmUpDays: 3 }, { duplicatePercent: 90 }, { linkStreak: 5 }]) {
@@ -273,35 +287,35 @@ test("the owner tightens a channel's limits; a looser number is refused; the gat
   await assert.rejects(limitsCall(deps, 'set', { connectorId: 'x', limits: { capPer24h: 1 } }, agent), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(limitsCall(deps, 'set', { connectorId: 'x', limits: { capPer24h: 1 } }, { ...owner, channel: 'phone' }), code('APP_APPROVAL_REQUIRED'));
 
-  // The gate on LinkedIn now holds a third post in a day, and wants two hours between posts.
+  // The gate on X now holds a third post in a day, and wants two hours between posts.
   await seasoned(env);
   await sent(env, 'Monday menu: masala dosa and filter coffee.', 20 * HOUR);
   await sent(env, 'Tuesday menu: pongal and ginger chai.', 90 * 60_000);
-  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
   await assert.rejects(propose(deps, `${run.id}.post-1`), (error: any) => {
     assert.equal(error.code, 'POST_RISK_BLOCKED');
     assert.match(error.message, /the limit is 2\. \(rule house-post-cap-24h\)/);
     assert.match(error.message, /at least 120 minutes .*\(rule house-post-min-gap\)/);
     return true;
   });
-  await limitsCall(deps, 'set', { connectorId: 'linkedin', limits: {} });
-  assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels[0].inUse, HOUSE);
+  await limitsCall(deps, 'set', { connectorId: 'x', limits: {} });
+  assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels[1].inUse, HOUSE);
   assert.equal((await propose(deps, `${run.id}.post-1`)).state, 'described');
 });
 
 test('a rule the post rests on, past its 90-day recheck on the posting day, is a warning on the Today row, never a block', async () => {
   const { env, deps } = await posting();
-  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
   // 2026-10-15: every rule was checked within 90 days (or after today), so nothing to say.
   assert.deepEqual((await propose(deps, `${run.id}.post-1`)).warnings, []);
   env.advance(102 * DAY); // 2027-01-25
-  const later = await seedPostDraft(deps, ['LinkedIn: Friday menu: idli and sambar.']);
+  const later = await seedPostDraft(deps, ['X: Friday menu: idli and sambar.']);
   const proposal = await propose(deps, `${later.id}.post-1`);
   assert.equal(proposal.state, 'described');
   assert.equal(proposal.warnings.length, 1);
   const [warning] = proposal.warnings;
   assert.match(warning, /more than 90 days ago/);
-  for (const id of ['linkedin-3000', 'meta-engagement-bait', 'house-post-cap-24h', 'house-post-min-gap', 'house-near-duplicate']) assert.match(warning, new RegExp(`rule ${id}[,.]`), id);
+  for (const id of ['x-weighted-280', 'meta-engagement-bait', 'house-post-cap-24h', 'house-post-min-gap', 'house-near-duplicate']) assert.match(warning, new RegExp(`rule ${id}[,.]`), id);
   assert.doesNotMatch(warning, /rule ig-hashtags-5\b/, "another channel's rule is not named");
   const row = connectorQueueRows(env.store.read()).find(item => item.id === proposal.postId)!;
   assert.ok(row.line?.startsWith(`${POSTING_CONSENT_LINE} ${warning}`), row.line);
@@ -314,10 +328,10 @@ test('a rule the post rests on, past its 90-day recheck on the posting day, is a
 test('a post stamped later than now counts as now, and an unreadable time counts as now: a clock moved back never erases history', () => {
   const now = '2026-10-21T10:00:00.000Z';
   const later = { id: 'p1', text: 'Our weekend timings are up on the board.', at: '2026-10-22T10:00:00.000Z' };
-  const risk = postingRisk({ channel: 'linkedin', name: 'LinkedIn', text: 'Thursday menu: poha and lemon tea.', now, history: [later] });
+  const risk = postingRisk({ channel: 'x', name: 'X', text: 'Thursday menu: poha and lemon tea.', now, history: [later] });
   assert.equal(risk.blocked, true);
   assert.match(risk.blocks.join(' '), /rule house-post-min-gap\b/);
-  const broken = postingRisk({ channel: 'linkedin', name: 'LinkedIn', text: 'Thursday menu: poha and lemon tea.', now, history: [{ ...later, at: 'not a time' }] });
+  const broken = postingRisk({ channel: 'x', name: 'X', text: 'Thursday menu: poha and lemon tea.', now, history: [{ ...later, at: 'not a time' }] });
   assert.match(broken.blocks.join(' '), /rule house-post-min-gap\b/);
 });
 
@@ -326,7 +340,7 @@ test('Hindi words keep their vowel signs, so a near repeat in Hindi is caught an
   const words = 'आज सुबह से हमारी दुकान पर ताज़ी जलेबी और गरम चाय मिल रही है तो दोस्तों के साथ ज़रूर आइए और नाश्ता कीजिए'.split(' ');
   const near = [...words.slice(0, -1), 'करिए'].join(' ');
   const risk = postingRisk({
-    channel: 'linkedin', name: 'LinkedIn', text: near, now: '2026-10-21T10:00:00.000Z',
+    channel: 'x', name: 'X', text: near, now: '2026-10-21T10:00:00.000Z',
     history: [{ id: 'old', text: 'पुरानी पोस्ट', at: '2026-09-01T10:00:00.000Z' }, { id: 'p1', text: words.join(' '), at: '2026-10-21T06:00:00.000Z' }],
   });
   assert.match(risk.blocks.join(' '), /rule house-near-duplicate\b/);
@@ -349,14 +363,14 @@ test('one posting history per computer: a second business on this computer, sign
   second.env.deps = second.deps = { ...second.deps, connectors: { ...second.deps.connectors!, postLog: log } } as VentureDeps;
   await seasoned(first.env);
   await seasoned(second.env);
-  const one = await seedPostDraft(first.deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const one = await seedPostDraft(first.deps, ['X: Thursday menu: poha and lemon tea.']);
   const proposed = await propose(first.deps, `${one.id}.post-1`);
   const digestOf = listRecords(first.env.store.read(), 'venture-connector-post').find(post => post.id === proposed.postId)!.digest;
   assert.equal((await decidePost(first.deps, owner, { postId: proposed.postId, digest: digestOf, action: 'approve' })).post.state, 'applied');
   assert.equal(log.entries.length, 1);
   assert.equal('text' in log.entries[0], false, 'the log keeps fingerprints of the words, not the words');
 
-  const two = await seedPostDraft(second.deps, ['LinkedIn: Our weekend timings are up on the board.']);
+  const two = await seedPostDraft(second.deps, ['X: Our weekend timings are up on the board.']);
   await assert.rejects(propose(second.deps, `${two.id}.post-1`), blockedBy('house-post-min-gap'));
   second.env.advance(61 * 60_000);
   assert.equal((await propose(second.deps, `${two.id}.post-1`)).state, 'described');
@@ -381,7 +395,7 @@ test('a post resolved as "did not go out" is not counted again through the log: 
   };
   env.deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40, postLog: log } } as VentureDeps;
   const deps = env.deps;
-  const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea at our cafe in Pune.']);
+  const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea at our cafe in Pune.']);
   const first = await propose(deps, `${run.id}.post-1`);
   const record = () => listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === first.postId)!;
   assert.equal((await decidePost(deps, owner, { postId: first.postId, digest: record().digest, action: 'approve' })).post.state, 'outcome_unknown');
@@ -401,7 +415,7 @@ test('the log entry is written before the browser starts, so a crash between the
     async post() { seen = log.entries.length; return { outcome: 'posted', line: 'Posted.', url: null }; },
   };
   env.deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40, postLog: log } } as VentureDeps;
-  const run = await seedPostDraft(env.deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+  const run = await seedPostDraft(env.deps, ['X: Thursday menu: poha and lemon tea.']);
   const proposal = await propose(env.deps, `${run.id}.post-1`);
   const digestOf = listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === proposal.postId)!.digest;
   await decidePost(env.deps, owner, { postId: proposal.postId, digest: digestOf, action: 'approve' });
@@ -414,26 +428,26 @@ test('the log on disk: written beside the profiles, trimmed to 30 days and 200 e
   try {
     let now = Date.parse('2026-10-21T10:00:00.000Z');
     const disk = diskPostLog(root, () => now);
-    const entry = (id: string, at: string, connectorId = 'linkedin') => ({ id, connectorId, at, print: { shingles: ['a1'], domains: [] } });
+    const entry = (id: string, at: string, connectorId = 'x') => ({ id, connectorId, at, print: { shingles: ['a1'], domains: [] } });
     disk.append(entry('p1', '2026-10-21T09:00:00.000Z'));
-    const file = JSON.parse(await readFile(join(root, 'linkedin.posts.json'), 'utf8'));
+    const file = JSON.parse(await readFile(join(root, 'x.posts.json'), 'utf8'));
     assert.deepEqual(file.map((item: { id: string }) => item.id), ['p1']);
 
     // 31 days on: the old entry goes when the next is written.
     now += 31 * DAY;
     disk.append(entry('p2', new Date(now).toISOString()));
-    assert.deepEqual(disk.read('linkedin').map(item => item.id), ['p2']);
+    assert.deepEqual(disk.read('x').map(item => item.id), ['p2']);
     for (let index = 0; index < 205; index += 1) disk.append(entry(`q${index}`, new Date(now - index * 60_000).toISOString()));
-    assert.equal(disk.read('linkedin').length, 200);
+    assert.equal(disk.read('x').length, 200);
 
     // An entry with a time that cannot be read, or more than a day ahead, is dropped on read.
-    await writeFile(join(root, 'x.posts.json'), JSON.stringify([entry('bad', 'soon', 'x'), entry('ahead', new Date(now + 2 * DAY).toISOString(), 'x'), entry('ok', new Date(now).toISOString(), 'x')]));
-    assert.deepEqual(disk.read('x').map(item => item.id), ['ok']);
+    await writeFile(join(root, 'linkedin.posts.json'), JSON.stringify([entry('bad', 'soon', 'linkedin'), entry('ahead', new Date(now + 2 * DAY).toISOString(), 'linkedin'), entry('ok', new Date(now).toISOString(), 'linkedin')]));
+    assert.deepEqual(disk.read('linkedin').map(item => item.id), ['ok']);
     // A corrupt file reads as empty and is replaced on the next write.
-    await writeFile(join(root, 'x.posts.json'), '{not json');
-    assert.deepEqual(disk.read('x'), []);
-    disk.append(entry('r1', new Date(now).toISOString(), 'x'));
-    assert.deepEqual(disk.read('x').map(item => item.id), ['r1']);
+    await writeFile(join(root, 'linkedin.posts.json'), '{not json');
+    assert.deepEqual(disk.read('linkedin'), []);
+    disk.append(entry('r1', new Date(now).toISOString(), 'linkedin'));
+    assert.deepEqual(disk.read('linkedin').map(item => item.id), ['r1']);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -446,11 +460,11 @@ test('the desktop and the local web host on the owner computer read the log on d
   try {
     const { env, deps } = await posting();
     await seasoned(env);
-    const run = await seedPostDraft(deps, ['LinkedIn: Thursday menu: poha and lemon tea.']);
+    const run = await seedPostDraft(deps, ['X: Thursday menu: poha and lemon tea.']);
     const proposal = await propose(deps, `${run.id}.post-1`);
     const digestOf = listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === proposal.postId)!.digest;
-    // Another business on this computer posted on LinkedIn ten minutes ago.
-    diskPostLog(root).append({ id: 'post_other_business', connectorId: 'linkedin', at: new Date(Date.parse(env.now()) - 10 * 60_000).toISOString(), print: postPrint('Our weekend timings are up.') });
+    // Another business on this computer posted on X ten minutes ago.
+    diskPostLog(root).append({ id: 'post_other_business', connectorId: 'x', at: new Date(Date.parse(env.now()) - 10 * 60_000).toISOString(), print: postPrint('Our weekend timings are up.') });
     for (const host of ['desktop', 'local-web']) {
       const here = { ...deps, connectors: undefined, host } as VentureDeps;
       await assert.rejects(decidePost(here, owner, { postId: proposal.postId, digest: digestOf, action: 'approve' }), blockedBy('house-post-min-gap'), host);

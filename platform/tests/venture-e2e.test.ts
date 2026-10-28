@@ -16,6 +16,7 @@ import type {
 } from '../runtime/venture/contracts.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import { createFixtureGitHubTransport, decompressFromEncodedURIComponent } from '../runtime/venture/build/index.ts';
+import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
 const API_KEY = 'sk-ant-test-not-a-real-key-0000';
@@ -238,12 +239,12 @@ test('the whole venture journey in India, with a model and GitHub answering from
 
   // 15. The connector catalogue claims only what the code does today.
   const cards = await ask('venture.connectors.list', {}) as ConnectorCard[];
-  assert.equal(cards.length, 72); // W5 5A6 added six shared connectors
+  assert.equal(cards.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.equal(new Set(cards.map(c => c.category)).size, 12);
   const availableFor = (mode: string) => cards.filter(c => c.modes.some(m => m.mode === mode && m.status === 'available')).map(c => c.id).sort();
   assert.deepEqual(availableFor('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
   // W5 5A6: the owner's own Make and n8n webhooks write, each send approved.
-  assert.deepEqual(availableFor('write'), ['chausar-books', 'chausar-crm', 'make-webhook', 'n8n-webhook']);
+  assert.deepEqual(availableFor('write'), ['chausar-books', 'chausar-crm', 'make-webhook', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress']);
   const stripe = cards.find(c => c.id === 'stripe');
   assert.ok(stripe?.chips.includes('planned: handoff') && stripe.chips.includes('planned: write'));
   assert.ok(cards.find(c => c.id === 'github')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));

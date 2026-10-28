@@ -1,6 +1,7 @@
 // P4 tests for the venture launcher's build package: the brief, its lint, builder handoff links and the
 // GitHub reader. No network: the model is a stub port and GitHub is a synthetic recording or a stub fetch.
 import test from 'node:test';
+import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
@@ -939,7 +940,7 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal(recorder.requests.length, 0);
   const view = await handlers['venture.build.status']!(deps, viewer, {});
   assert.equal(view.follow?.repo.name, 'ledger-cafe-books');
-  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 72); // 66, and 5A6's six
+  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
 test('handlers are exactly the forty-one owned methods, and every code the package throws is a declared venture or engine code', async () => {
@@ -966,7 +967,7 @@ test('handlers are exactly the forty-one owned methods, and every code the packa
   const engineCodes = ['INVALID_VENTURE_REQUEST'];
   for (const thrownCode of thrown) assert.ok((VENTURE_ERRORS as readonly string[]).includes(thrownCode) || engineCodes.includes(thrownCode), thrownCode);
   assert.ok(thrown.has('GITHUB_READ_FAILED') && thrown.has('BRIEF_LINT_FAILED') && thrown.has('PRICE_REQUIRED'));
-  assert.equal(CONNECTOR_CATALOGUE.length, 72); // 66, and 5A6's six
+  assert.equal(CONNECTOR_CATALOGUE.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
 // ---------------------------------------------------------------------------
