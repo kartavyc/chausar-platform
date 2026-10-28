@@ -1,3 +1,4 @@
+import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
 import { eraseSocialD2Naming } from '../playbooks/social/d2-privacy.ts';
 import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSocialChainNaming } from '../playbooks/social/chain-privacy.ts';
@@ -281,6 +282,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);

@@ -13,11 +13,22 @@
   {
     "id": "online-seller",
     "offers": [
+      "catalogue-upload",
+      "product-research",
+      "multi-store-report",
+      "product-photos",
+      "case-tracker",
       "listing-health-audit",
       "own-shop-back-office",
       "reimbursement-audit",
       "unit-economics-monthly",
-      "ads-health-check"
+      "ads-health-check",
+      "amazon-ungating",
+      "amazon-brand-registry",
+      "amazon-returns",
+      "amazon-storefront",
+      "amazon-deals",
+      "amazon-compliance"
     ]
   },
   {

@@ -286,17 +286,20 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const socialBefore=context.order.socialChain?socialSnapshot(fresh.state,fresh.venture):null;
   const fenceSocialPreview=(tx:VentureTx)=>{if(socialBefore===null)return;check(socialBefore===socialSnapshot(tx.state,tx.venture!),'APPROVAL_STALE','The order or its sources changed. Start again and read the new preview.');socialGuard(tx.state,tx.venture!,tx.find('venture-order',orderId)!);};
   const socialReport = !template ? await (await import('../playbooks/social/report-run.ts')).prepareSocialReport(deps,ctx,fresh.state,fresh.venture,playbook,context.order,uploads) : null;
-  const codeReport = socialReport;
+  const sellerReport = await (await import('../playbooks/online-seller/prepare-run.ts')).prepareSellerReport(deps,ctx,fresh.state,fresh.venture,playbook,context.order,context.offerKey,uploads);
+  const codeReport = socialReport ?? sellerReport;
+  const sellerBefore = sellerReport ? socialSnapshot(fresh.state,fresh.venture) : null;
 
   if (!template && (codeReport || uploads.length && playbookGrant(playbook).length)) {
     let harness = newHarnessState(playbookGrant(playbook), playbookLimits(playbook), uploads.map(upload => upload.id));
-    if (codeReport) harness={...harness,phase:'write',codePrerequisites:[{tool:'social.report',result:codeReport.result}],workReceiptIds:codeReport.receipts.map(r=>r.id),proofs:codeReport.receipts.map(r=>({kind:'totals' as const,toolCallId:'code:'+r.id,receiptId:r.id,tableId:null}))};
+    if (codeReport) harness={...harness,phase:'write',codePrerequisites:[{tool:sellerReport?.tool??'social.report',result:codeReport.result}],workReceiptIds:codeReport.receipts.map(r=>r.id),proofs:codeReport.receipts.map(r=>({kind:'totals' as const,toolCallId:'code:'+r.id,receiptId:r.id,tableId:null}))};
     else if (status!.tiers.fast.presetId === 'built-in-templates') harness = skipActs(harness, NO_QUICK_AI);
     const loop = loopContext(deps, ctx, fresh.state, context, playbook, offer, uploads, [], harness.phase === 'act' ? await delegateOffer(deps) : []);
     const preview = await deps.models.preview(ctx, nextTask(loop, context, refs, harness, codeReport?.receipts??[], uploads, []));
     check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       fenceSocialPreview(tx);
+      if(sellerBefore!==null)check(sellerBefore===socialSnapshot(tx.state,tx.venture!),'APPROVAL_STALE','The seller order or its source changed. Start again.');
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       const run: DeliveryRunRecord = {

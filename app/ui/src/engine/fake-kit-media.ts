@@ -100,6 +100,10 @@ export class FakeKitMediaDesk {
     this.fresh = options.fresh ?? false;
   }
 
+  /** Internal seller import after its exact owner-approved quote. */
+  recordSellerAsset(asset:Asset):void { this.book().assets.push(clone(asset)); }
+  eraseSellerAssets(ids:readonly string[]):void { this.book().assets=this.book().assets.filter(asset=>!ids.includes(asset.id)); }
+
   handles(method: string): boolean {
     return METHODS.has(method);
   }

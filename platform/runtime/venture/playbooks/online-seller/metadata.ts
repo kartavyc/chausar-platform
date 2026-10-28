@@ -1,3 +1,4 @@
+import {SELLER_AMAZON_OFFERS,SELLER_OPERATION_OFFERS,SELLER_OPERATION_INTAKE,SELLER_OPERATION_CONNECTORS} from './operations-metadata.ts';
 // Browser-safe seller metadata. Chausar original; sealeap/listing-doctor ideas (MIT).
 export const SELLER_METADATA = {
   "registration": {
@@ -18,6 +19,7 @@ export const SELLER_METADATA = {
     "lastReviewed": "2026-10-27"
   },
   "offers": [
+    ...SELLER_OPERATION_OFFERS,
     {
       "id": "own-shop-back-office",
       "name": "Your own shop back office",
@@ -140,8 +142,10 @@ export const SELLER_METADATA = {
       ],
       "audience": "client"
     }
+    ,...SELLER_AMAZON_OFFERS
   ],
   "intakeFields": [
+    ...SELLER_OPERATION_INTAKE,
     {
       "id": "channels",
       "label": "Selling channels",

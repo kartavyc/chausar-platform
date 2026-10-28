@@ -2086,7 +2086,7 @@ export type HarnessLimits = {
   deadlineMs?: number;
 };
 export type HarnessState = {
-  codePrerequisites?: {tool:'social.report';result:Json}[];
+  codePrerequisites?: {tool:'social.report'|'seller.shortlist'|'seller.catalogueSheet'|'seller.multiStore';result:Json}[];
   version: 1;
   phase: 'act' | 'write' | 'needs-answer' | 'brief' | 'done' | 'stopped'; // 'brief': a heavy-work brief waits for the owner
   limits: HarnessLimits;
@@ -6284,6 +6284,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'SELLER_PROVENANCE_REQUIRED',
   'SEO_INPUT_INVALID',
   'PRODUCT_PHOTO_REQUIRED',
 

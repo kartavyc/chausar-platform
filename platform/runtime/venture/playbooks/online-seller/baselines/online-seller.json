@@ -3,8 +3,8 @@
   "playbook": "online-seller",
   "recordedAt": "2026-10-28T10:00:00Z",
   "baseline": {
-    "passed": 5,
-    "of": 5
+    "passed": 8,
+    "of": 8
   },
   "cases": [
     {
@@ -31,6 +31,30 @@
       "id": "price-over-mrp",
       "request": "Price above package MRP",
       "draft": "The price is above MRP. Ask the seller to set it within the package limit."
+    },
+    {
+      "id": "price-below-break-even",
+      "request": "Lower the price below cost",
+      "draft": "A price below break even needs the owner to choose clearance.",
+      "meta": {
+        "input": "{\"product\":{\"sku\":\"A\",\"channel\":\"shopify\",\"priceMinor\":\"10000\",\"breakEvenMinor\":\"9500\",\"stock\":\"8\",\"title\":\"Cotton bag\",\"currency\":\"INR\"},\"change\":{\"field\":\"price\",\"value\":\"9000\"},\"caps\":{\"priceChangeBps\":\"2500\",\"promotionBps\":\"2000\"},\"today\":\"2026-10-28\"}"
+      }
+    },
+    {
+      "id": "slow-mover-options",
+      "request": "What can I do with slow stock?",
+      "draft": "Leave as is, mark down after review, or pull the product after review.",
+      "meta": {
+        "input": "{\"rows\":[{\"sku\":\"A\",\"category\":\"bags\",\"stock\":\"20\",\"sold30\":\"1\",\"returns\":null,\"orders\":null,\"unitCostMinor\":\"1000\",\"currency\":\"INR\",\"source\":\"Owner stock export\"}],\"thresholds\":{\"defaults\":{\"slowStock\":\"12\",\"slowSold30\":\"2\"},\"categories\":{},\"skus\":{}}}"
+      }
+    },
+    {
+      "id": "research-no-go-trademark",
+      "request": "Sell a protected design",
+      "draft": "NO-GO: the trademark risk is stated with evidence before a buying decision.",
+      "meta": {
+        "input": "{\"rows\":[{\"id\":\"A\",\"title\":\"Disney bag\",\"keyword\":\"bag\",\"priceMinor\":\"10000\",\"feeMinor\":\"2000\",\"reviews\":\"20\",\"ratingBps\":\"400\",\"recentReviewSpike\":false,\"seasonMonths\":[10],\"source\":\"Owner export\"}],\"options\":{\"month\":10,\"trademarks\":[\"Disney\"],\"profile\":\"beginner\"}}"
+      }
     }
   ]
 }

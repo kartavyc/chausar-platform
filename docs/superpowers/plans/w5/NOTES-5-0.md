@@ -626,3 +626,8 @@ Adds the reviewed local social production and inbox package, including exact own
 
 - SEO monthly work, source-grounded articles, exact WordPress draft writes, existing Cloudflare KV override reviews and source-bound strategy measurement are integrated. Provider access and pre-existing client configuration remain explicit.
 - Independent spec and quality PASS, actual RED repairs and phone evidence are recorded in NOTES-5E2.md. Package checks do not replace stable batch gates.
+
+## 5F2 isolated package closure
+
+- Seller operations now provide exact source-bound staging, receipts, stock movement, research reports, catalogue sheets, multi-store reporting, case follow-ups and approved manual photo handoffs. Provider writes remain planned or owner handoffs.
+- Independent spec/quality PASS and original failing regressions are in NOTES-5F2.md. Isolated checks do not replace stable batch gates.

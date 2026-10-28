@@ -1,6 +1,6 @@
-import {notBuiltTool} from './tool-stub.ts';
 // Chausar seller tools, sealeap and listing-doctor ideas (MIT), independently implemented.
 import type { ToolName } from '../../contracts.ts';
+import {sellerOperationTool,SELLER_STAGE_TOOL} from './tools-seller-operations.ts';
 import { fileOf, text, receiptOut, type Spec } from './tools.ts';
 import { tablesOfFile } from './files.ts';
 import { analyseSellerRows, type SellerMode } from '../../playbooks/online-seller/source.ts';
@@ -25,10 +25,10 @@ export const ONLINE_SELLER_TOOLS: Readonly<Record<Name, Spec>> = Object.freeze({
   'seller.ads': sellerTool('seller.ads', 'ads', 'Recomputes ACOS from the seller export and checks reconciliation.'),
   'seller.settlement': sellerTool('seller.settlement', 'settlement', 'Splits payout differences into named review estimates; submits nothing.'),
   'seller.listing': sellerTool('seller.listing', 'listing', 'Checks data coverage, listing text, image headers and recorded India declarations.'),
-  'seller.stage': notBuiltTool('seller.stage', 'compute', 'A listing or price change staged for you to approve. Nothing goes live.'), // 5F2
-  'seller.alerts': notBuiltTool('seller.alerts', 'compute', 'What needs attention today, from the latest exports.'), // 5F2
-  'seller.stock': notBuiltTool('seller.stock', 'compute', 'Stock counted from the movements, by code.'), // 5F2
-  'seller.shortlist': notBuiltTool('seller.shortlist', 'compute', 'Products to research, shortlisted from the data you added.'), // 5F2
-  'seller.catalogueSheet': notBuiltTool('seller.catalogueSheet', 'compute', 'A marketplace\'s bulk upload sheet, filled for you to check and upload.'), // 5F2
-  'seller.multiStore': notBuiltTool('seller.multiStore', 'compute', 'Your stores compared side by side from their exports.'), // 5F2
+  'seller.stage': SELLER_STAGE_TOOL,
+  'seller.alerts': sellerOperationTool('seller.alerts', 'alerts', 'Attention rows from seller exports.'),
+  'seller.stock': sellerOperationTool('seller.stock', 'stock', 'Stock counters from movements.'),
+  'seller.shortlist': sellerOperationTool('seller.shortlist', 'research', 'Products shortlisted for research.'),
+  'seller.catalogueSheet': sellerOperationTool('seller.catalogueSheet', 'catalogue', 'Bulk upload sheets for the seller.'),
+  'seller.multiStore': sellerOperationTool('seller.multiStore', 'multi-store', 'Stores compared from exports.'),
 });

@@ -11,6 +11,7 @@ import { Sheet } from '../../../parts/Sheet';
 import type { SellerMode } from '../../../../../../platform/runtime/venture/playbooks/online-seller/source';
 import type { SellerSkuBody } from '../../../../../../platform/runtime/venture/playbooks/online-seller/records';
 import s from './OnlineSellerDesk.module.css';
+import {SellerOperations} from './SellerOperations';
 type Report = SellerSkuBody & { id: string };
 type Row = { id: string; orderId: string; mode: SellerMode; sourceName: string; figures: SellerSkuBody['figures'] };
 type Result = { coverage?: { present: number; of: number }; score?: number | null; questions?: { field: string }[]; findings?: { code: string }[]; india?: { findings: { code: string }[] } | null; reconciles?: boolean | null; breakEven?: { bps: string; basis: string } | null; triage?: { phrase: string; action: string }[]; rows?: { orderId: string; holdReasons: string[]; differences: { kind: string; source: string }[] }[] };
@@ -33,6 +34,7 @@ export function OnlineSellerDesk() {
   const orders = useResource('venture.order.list', {}), reports = useResource('venture.desk.list', { playbook: 'online-seller', kind: 'sku' });
   const [order, setOrder] = useState(''), [mode, setMode] = useState<SellerMode>('listing'), [file, setFile] = useState<File | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [operations, setOperations] = useState(false);
   const [economics, setEconomics] = useState<File | null>(null);
   const [busy, setBusy] = useState(false), [problem, setProblem] = useState<string | null>(null), [report, setReport] = useState<Report | null>(null), [receipt, setReceipt] = useState(false);
   const openOrders = (orders.data ?? []).filter(item => item.status === 'open'), selectedOrder = order || openOrders[0]?.id || '';
@@ -78,6 +80,7 @@ export function OnlineSellerDesk() {
       <div className={s.body}>
         <p className={s.line}>{t('pb-online-seller.line')}</p>
         <p className={s.line}>{t('pb-online-seller.manual')}</p>
+        <Button variant="quiet" onClick={()=>setOperations(!operations)}>{t('pb-seller-ops.title')}</Button>
         {ownOffer && <Button variant="quiet" disabled={busy} locked={ownOffer.pricing.unitPriceMinor === null} lockedReason={t('pb-online-seller.ownPrice')} onClick={() => void startOwnShop()}>{t('pb-online-seller.ownStart')}</Button>}
         <form className={s.form} onSubmit={event => void submit(event)} aria-label={t('pb-online-seller.title')}>
           <label htmlFor={orderId}>{t('pb-online-seller.order')}</label>
@@ -100,6 +103,7 @@ export function OnlineSellerDesk() {
         {rows.length > 0 && <ul className={s.list} aria-label={t('pb-online-seller.saved')}>{rows.map(row => <li key={row.id} className={s.row}><span data-content="">{row.sourceName}</span><span>{t(`pb-online-seller.mode.${row.mode}`)}</span><Button variant="quiet" onClick={() => void open(row.id)}>{t('pb-online-seller.open')}</Button></li>)}</ul>}
       </div>
     </Tile>
+    {operations&&<SellerOperations key={selectedOrder} orderId={selectedOrder}/>}
     {report && <Tile as="section" label={t('pb-online-seller.report')}>
       <div className={s.body}>
         <h3 className={s.heading}>{t(`pb-online-seller.mode.${report.mode}`)}</h3>

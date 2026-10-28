@@ -1,3 +1,4 @@
+import {fakeSellerPreflight} from './fake-seller-preflight';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
  * the engine's rules the screens rely on: an order needs a known client and a priced service from the plan, an
@@ -92,6 +93,7 @@ export class FakeWorkDesk {
   /** Seller Forget takes the source bytes and fingerprints as well as their upload rows. */
   /** Exact tender Forget clears order intake after the owner approves erasure. */
 
+  eraseSellerFiles(biz:string,ids:readonly string[]):void {const gone=new Set(ids);this.uploads[biz]=(this.uploads[biz]??[]).filter(file=>!gone.has(file.id));for(const id of gone){this.fileContents.delete(biz+':'+id);this.fileFingerprints.delete(biz+':'+id);}}
   /** Internal byte fingerprint for source-bound fake media; file metadata is never a substitute. */
   uploadFingerprint(biz: string, id: string): string | null {
     return this.uploads[biz]?.some(file => file.id === id) ? this.fileFingerprints.get(biz + ':' + id) ?? null : null;
@@ -254,6 +256,7 @@ export class FakeWorkDesk {
     const paused = support?.rows?.some(row => row.paused && !['resolved', 'closed'].includes(row.status) && (this.host.ask?.('venture.desk.get', { playbook: 'support-desk', kind: 'ticket', id: row.id }) as { item?: { serviceOrderId?: string } } | undefined)?.item?.serviceOrderId === order.id);
     if (named || paused) throw new EngineError('SUPPORT_PERSON_REQUIRED', 'A person is handling this customer. Automatic drafts are paused. Open the support desk.');
     fakeSocialPreflight(this.host.plan(), order, this.orderFiles(biz, order.id));
+    fakeSellerPreflight(this.host.plan(),order,this.orderFiles(biz,order.id),this.host.now());
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}

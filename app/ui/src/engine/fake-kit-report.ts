@@ -327,3 +327,17 @@ export class FakeKitReportDesk {
     return this.view(held);
   }
 }
+
+/** Generic text-only workbook for seller bulk sheets, using safe inline-string cells. */
+export function fakeTextWorkbook(rows:readonly (readonly string[])[]):Uint8Array{
+ const main='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+ const col=(i:number)=>{let name='';for(let n=i+1;n;n=Math.floor((n-1)/26))name=String.fromCharCode(65+(n-1)%26)+name;return name;};
+ const sheet=rows.map((row,index)=>'<row r="'+(index+1)+'">'+row.map((text,i)=>'<c r="'+col(i)+(index+1)+'" t="inlineStr"><is><t xml:space="preserve">'+escapeXml(text)+'</t></is></c>').join('')+'</row>').join('');
+ return storedZip([
+ {name:'[Content_Types].xml',text:HEAD+'<Types xmlns="'+TYPES+'">'+DEFAULTS+'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'},
+ {name:'_rels/.rels',text:HEAD+'<Relationships xmlns="'+PKG+'"><Relationship Id="rId1" Type="'+REL+'/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+ {name:'xl/workbook.xml',text:HEAD+'<workbook xmlns="'+main+'" xmlns:r="'+REL+'"><sheets><sheet name="Catalogue" sheetId="1" r:id="rId1"/></sheets></workbook>'},
+ {name:'xl/_rels/workbook.xml.rels',text:HEAD+'<Relationships xmlns="'+PKG+'"><Relationship Id="rId1" Type="'+REL+'/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'},
+ {name:'xl/worksheets/sheet1.xml',text:HEAD+'<worksheet xmlns="'+main+'"><sheetData>'+sheet+'</sheetData></worksheet>'}
+ ]);
+}
