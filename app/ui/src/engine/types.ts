@@ -1555,7 +1555,7 @@ export interface ReportShareView {
 }
 /** 5A6 */
 export type MonitorKind = 'change' | 'contains' | 'price-below';
-export interface MonitorInput { url: string; kind: MonitorKind; text?: string; selector?: string; belowMinor?: string }
+export interface MonitorInput { url: string; kind: MonitorKind; text?: string; selector?: string; belowRupees?: string }
 /** platform/runtime/venture/build/records-connect.ts, the same shapes. */
 export interface MonitorView {
   id: string; url: string; host: string; kind: MonitorKind; line: Display; lastCheckedAt: string | null; nextCheckAt: string | null;

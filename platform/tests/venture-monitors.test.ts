@@ -45,7 +45,7 @@ test('add refuses a private address, a site on the fetch policy list, a page rob
   net.resolveTo['inside.example'] = '10.0.0.7';
   await assert.rejects(add(env, { url: 'https://inside.example/menu', kind: 'change' }), code('NET_ADDRESS_REFUSED'));
   await assert.rejects(add(env, { url: 'https://www.justdial.com/Pune/Cafes', kind: 'change' }), code('FETCH_POLICY_REFUSED'));
-  await assert.rejects(add(env, { url: 'https://www.amazon.in/Tea/dp/B0ABCDEF12', kind: 'price-below', selector: '#price', belowMinor: '50000' }), code('FETCH_POLICY_REFUSED'));
+  await assert.rejects(add(env, { url: 'https://www.amazon.in/Tea/dp/B0ABCDEF12', kind: 'price-below', selector: '#price', belowRupees: '500' }), code('FETCH_POLICY_REFUSED'));
   await assert.rejects(add(env, { url: 'https://shop.example/private/prices', kind: 'change' }), (error: any) => {
     assert.equal(error.code, 'ROBOTS_REFUSED');
     assert.equal(error.message, 'This site asks robots not to read that page.');
@@ -53,7 +53,7 @@ test('add refuses a private address, a site on the fetch policy list, a page rob
   });
   await assert.rejects(add(env, { url: 'https://shop.example/menu', kind: 'change' }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(add(env, { url: 'https://shop.example/menu', kind: 'contains' }), code('INVALID_VENTURE_REQUEST'), 'a text to look for');
-  await assert.rejects(add(env, { url: 'https://shop.example/menu', kind: 'price-below', belowMinor: '50000' }), code('INVALID_VENTURE_REQUEST'), 'the element the owner picked');
+  await assert.rejects(add(env, { url: 'https://shop.example/menu', kind: 'price-below', belowRupees: '500' }), code('INVALID_VENTURE_REQUEST'), 'the element the owner picked');
   const hosted = { ...env, deps: { ...env.deps, host: 'hosted-web' as const } };
   await assert.rejects(add(hosted, { url: 'https://shop.example/menu', kind: 'change' }), code('TIER_UNAVAILABLE'));
   assert.equal(monitors(env).length, 0);
@@ -126,7 +126,7 @@ test('a price is read only from the picked element, in paise by code, and alerts
 
   const env = await setup();
   const net = web(env, { 'https://shop.example/tea': { status: 200, body: html } });
-  await add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowMinor: '120000' });
+  await add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowRupees: '1200' });
   await checkMonitorsDue(env.deps, owner);
   assert.equal(monitors(env)[0].lastValue, '145000', 'the picked element, not the old price beside it');
   net.pages['https://shop.example/tea'] = { status: 200, body: html.replace('₹1,450.00', '₹1,150.00') };
@@ -138,6 +138,18 @@ test('a price is read only from the picked element, in paise by code, and alerts
   const [record] = monitors(env);
   assert.equal(record.alerts.length, 1, 'once below, it does not alert again while it stays below');
   assert.equal(record.lastValue, '110000');
+});
+
+test('a price threshold is read from the owner\'s rupee text by the engine, with no competing amount', async () => {
+  const env = await setup();
+  web(env, {});
+  await add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowRupees: '1,200.50' });
+  assert.equal(monitors(env)[0].belowMinor, '120050');
+  for (const belowRupees of ['0', '-1', '1.505', 'one thousand']) {
+    await assert.rejects(add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowRupees }), code('INVALID_AMOUNT'));
+  }
+  await assert.rejects(add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowRupees: '1200', belowMinor: '120000' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(add(env, { url: 'https://shop.example/tea', kind: 'price-below', selector: '#price', belowMinor: '120000' }), code('INVALID_VENTURE_REQUEST'), 'obsolete UI-computed paise input is not an alternate public path');
 });
 
 test('errors back off 1, 2, 4, 8 hours up to 24, and two monitors on one site read it at most once an hour', async () => {
@@ -204,4 +216,20 @@ test('one tick has a budget: at most MONITOR_TICK_LOOKS pages, and none once its
   await checkMonitorsDue(env.deps, owner, { budgetMs: 0 });
   assert.equal(pagesRead(), before);
   assert.ok(monitors(env).every(record => Date.parse(record.nextCheckAt) <= Date.parse(env.now())), 'still due');
+});
+
+
+test('a monitor refuses a redirect into a path robots.txt disallows, without reading that path', async () => {
+  const env = await setup();
+  const site = web(env, {
+    'https://shop.example/robots.txt': { status: 200, body: 'User-agent: *\nDisallow: /private' },
+    'https://shop.example/menu': { status: 302, headers: { location: '/private/menu' } },
+    'https://shop.example/private/menu': { status: 200, body: 'Private menu' },
+  });
+  await add(env, { url: 'https://shop.example/menu', kind: 'change' });
+  await checkMonitorsDue(env.deps, owner);
+  assert.ok(!site.sent.some(target => target.url.pathname === '/private/menu'));
+  assert.equal(monitors(env)[0].failures, 1);
+  assert.equal(monitors(env)[0].seeded, false);
+  assert.equal(monitors(env)[0].lastError, 'This site asks robots not to read that page.');
 });

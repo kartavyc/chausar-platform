@@ -13,10 +13,11 @@ import { createHash } from 'node:crypto';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { KeeperRunRecord, MonitorRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
-import { resolvePublic, signedIn } from '../core/net-guard.ts';
+import { resolvePublic, signedIn, pinnedSend } from '../core/net-guard.ts';
 import { pageWords } from '../network/research.ts';
+import { ownerPrice } from '../core/words.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
-import { checkFetchPolicy, politeFetch, robotsCheck, FETCH_POLICY_WORDS } from './fetch-policy.ts';
+import { checkFetchPolicy, politeFetch, robotsCheck, robotsSafe, FETCH_POLICY_WORDS } from './fetch-policy.ts';
 import type { MonitorBody, MonitorInput, MonitorKind, MonitorsView, MonitorView } from './records-connect.ts';
 
 const HOUR = 3_600_000;
@@ -136,7 +137,7 @@ export async function monitorsList(deps: VentureDeps, ctx: Context, payload: unk
 
 /** What the owner asked to watch, checked: the address, what for, and the element or figure it needs. */
 function inputOf(payload: unknown): { url: URL; kind: MonitorKind; text: string | null; selector: string | null; belowMinor: string | null } {
-  const body = exactPayload(payload, ['url', 'kind', 'text', 'selector', 'belowMinor'], ['url', 'kind']) as Partial<Record<keyof MonitorInput, unknown>>;
+  const body = exactPayload(payload, ['url', 'kind', 'text', 'selector', 'belowRupees'], ['url', 'kind']) as Partial<Record<keyof MonitorInput, unknown>>;
   check(typeof body.url === 'string' && body.url.length <= 2000, 'INVALID_VENTURE_REQUEST', 'Give the page\'s web address.');
   check(body.kind === 'change' || body.kind === 'contains' || body.kind === 'price-below', 'INVALID_VENTURE_REQUEST', 'Watch for a change, a text, or a price below your figure.');
   const url = checkFetchPolicy(body.url);
@@ -148,8 +149,7 @@ function inputOf(payload: unknown): { url: URL; kind: MonitorKind; text: string 
   let belowMinor: string | null = null;
   if (body.kind === 'price-below') {
     check(selector, 'INVALID_VENTURE_REQUEST', 'Pick the part of the page that shows the price.');
-    check(typeof body.belowMinor === 'string' && /^[1-9]\d{0,14}$/.test(body.belowMinor), 'INVALID_AMOUNT', 'Give your figure as a whole amount in paise.');
-    belowMinor = body.belowMinor as string;
+    belowMinor = ownerPrice(body.belowRupees, 'INR', 'Your figure').minor;
   }
   return { url, kind: body.kind, text, selector, belowMinor };
 }
@@ -198,10 +198,7 @@ type Look = { ok: true; digest: string; value: string | null; alert: string | nu
 /** One look at a page as Chausar: robots.txt, then the page; what it says now, and the alert it raises, if any. */
 async function look(deps: VentureDeps, record: MonitorRecord): Promise<Look> {
   try {
-    const url = new URL(record.url);
-    const robots = await robotsCheck(url, deps.net ?? {});
-    if (!robots.allowed) return { ok: false, error: FETCH_POLICY_WORDS.robots };
-    const answer = await politeFetch({ url: record.url, headers: { accept: 'text/html, text/plain' }, maxBytes: PAGE_BYTES, maxRedirects: 3 }, deps.net ?? {});
+    const answer = await politeFetch({ url: record.url, headers: { accept: 'text/html, text/plain' }, maxBytes: PAGE_BYTES, maxRedirects: 3 }, { ...deps.net, send: robotsSafe(deps.net?.send ?? pinnedSend, deps.net?.resolve) });
     if (answer.status < 200 || answer.status > 299) return { ok: false, error: `The page answered ${answer.status}.` };
     const html = answer.body.toString('utf8');
     const picked = record.selector ? selectText(html, record.selector) : pageWords(html).replace(/\s+/g, ' ').trim();

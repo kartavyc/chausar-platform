@@ -26,7 +26,6 @@ import { redactUrl } from '../core/secrets.ts';
 import { screenUntrusted, type ScreenResult, type UntrustedSource } from '../policy/untrusted.ts';
 import { pdfPages, tablesOfFile, transcriptCues } from '../delivery/harness/files.ts';
 import { checkResearchUrl, pageWords, profileSafe } from '../network/research.ts';
-import { FETCH_POLICY_WORDS, robotsCheck } from '../build/fetch-policy.ts';
 import { holdsContact } from '../network/protected.ts';
 import { eraseCallText } from '../network/saved-searches.ts';
 import { forgottenIndex, networkKey, type ForgottenIndex } from '../network/forget.ts';
@@ -185,10 +184,9 @@ async function readSource(deps: VentureDeps, state: State, venture: VentureRecor
     case 'link': {
       const url = checkResearchUrl(input.url);
       // 5A6: robots.txt first, read as Chausar; a page it keeps robots from is refused in its words (build/fetch-policy.ts).
-      if (!(await robotsCheck(url, { resolve: deps.net?.resolve, send: deps.net?.send })).allowed) throw new ChausarError('ROBOTS_REFUSED', FETCH_POLICY_WORDS.robots);
       const answer = await guardedFetch(
         { url: url.href, method: 'GET', headers: { accept: 'text/html, text/plain' }, maxBytes: PAGE_BYTES, maxRedirects: 2 },
-        { resolve: deps.net?.resolve, send: profileSafe(deps.net?.send ?? pinnedSend) },
+        { resolve: deps.net?.resolve, send: profileSafe(deps.net?.send ?? pinnedSend, deps.net?.resolve) },
       );
       check(answer.status >= 200 && answer.status <= 299, 'NET_FAILED', 'That page did not answer, so nothing was added.');
       const type = (answer.headers['content-type'] ?? 'text/html').toLowerCase();

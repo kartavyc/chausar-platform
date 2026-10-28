@@ -70,13 +70,13 @@ function exact(p: Record<string, unknown>, allowed: readonly string[], required:
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /** checkUrl and the fetch policy, as the engine applies them before anything is sent. */
-function checkedUrl(raw: unknown): URL {
+function checkedUrl(raw: unknown, reading = true): URL {
   let url: URL;
   try { url = new URL(String(raw)); } catch { throw new EngineError('NET_URL_REFUSED', WORDS.url); }
   if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password) throw new EngineError('NET_URL_REFUSED', WORDS.url);
   if (PRIVATE.test(url.hostname) || !url.hostname.includes('.')) throw new EngineError('NET_ADDRESS_REFUSED', WORDS.address);
   const host = url.hostname.toLowerCase();
-  if (POLICY.some((item) => item.hosts.some((name) => host === name || host.endsWith(`.${name}`)) && (!item.pages || item.pages.test(url.pathname)))) {
+  if (reading && POLICY.some((item) => item.hosts.some((name) => host === name || host.endsWith(`.${name}`)) && (!item.pages || item.pages.test(url.pathname)))) {
     throw new EngineError('FETCH_POLICY_REFUSED', WORDS.policy);
   }
   return url;
@@ -206,7 +206,7 @@ export class FakeKitConnectDesk {
   }
 
   private monitorsAdd(p: Record<string, unknown>): MonitorView {
-    exact(p, ['url', 'kind', 'text', 'selector', 'belowMinor'], ['url', 'kind']);
+    exact(p, ['url', 'kind', 'text', 'selector', 'belowRupees'], ['url', 'kind']);
     if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid("Give the page's web address.");
     const kind = p.kind;
     if (kind !== 'change' && kind !== 'contains' && kind !== 'price-below') throw invalid(WORDS.kind);
@@ -216,7 +216,18 @@ export class FakeKitConnectDesk {
     if (kind === 'contains' && !text) throw invalid(WORDS.text);
     if (kind === 'price-below') {
       if (!selector) throw invalid(WORDS.selector);
-      if (typeof p.belowMinor !== 'string' || !/^[1-9]\d{0,14}$/.test(p.belowMinor)) throw new EngineError('INVALID_AMOUNT', WORDS.figure);
+      {
+        const raw = p.belowRupees;
+        if (typeof raw !== 'string' || raw.length > 40) throw new EngineError('INVALID_AMOUNT', 'Your figure must be an amount like 2499 or 2499.50.');
+        const amount = raw.replace(/[\s,]/g, '');
+        if (!/^\d+(?:\.\d+)?$/.test(amount)) throw new EngineError('INVALID_AMOUNT', 'Your figure must be a positive amount like 2499 or 2499.50.');
+        const [whole, fraction = ''] = amount.split('.');
+        const cents = fraction.replace(/0+$/, '');
+        if (cents.length > 2) throw new EngineError('INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
+        const minor = BigInt(whole!) * 100n + BigInt(cents.padEnd(2, '0') || '0');
+        if (minor <= 0n) throw new EngineError('INVALID_AMOUNT', 'Your figure must be more than zero.');
+        if (minor > 1_000_000_000_000n) throw new EngineError('INVALID_AMOUNT', 'Your figure is larger than Chausar accepts.');
+      }
     }
     if (this.host.hosted()) throw new EngineError('TIER_UNAVAILABLE', WORDS.hosted);
     const book = this.book();
@@ -347,7 +358,7 @@ export class FakeKitConnectDesk {
       return { kind, set: false, host: null, line: `No ${NAMES[kind]} webhook is set. Chausar sends nothing there.`, test: null };
     }
     if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid('Paste the webhook address from n8n or Make.');
-    const url = checkedUrl(p.url);
+    const url = checkedUrl(p.url, false);
     if (url.protocol !== 'https:') throw invalid(WORDS.https);
     book.webhooks[kind] = url.href;
     const kept = `Your ${NAMES[kind]} webhook at ${url.hostname} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`;

@@ -37,7 +37,7 @@ export type MonitorBody = {
   line: Display;
 };
 /** venture.monitors.add's request: a page, what to watch for, and the owner's picked element for a price. */
-export type MonitorInput = { url: string; kind: MonitorKind; text?: string; selector?: string; belowMinor?: MinorString };
+export type MonitorInput = { url: string; kind: MonitorKind; text?: string; selector?: string; belowRupees?: string };
 /** One monitor as the screens show it. */
 export type MonitorView = {
   id: string; url: string; host: string; kind: MonitorKind; line: Display; lastCheckedAt: IsoTime | null; nextCheckAt: IsoTime | null;

@@ -23,7 +23,7 @@ import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
 
 /** Engine codes these tiles word themselves; any other refusal shows the engine's own words. */
-const WORDED = new Set(['FETCH_POLICY_REFUSED', 'ROBOTS_REFUSED', 'NET_ADDRESS_REFUSED', 'MONITOR_LIMIT', 'MAIL_FILE_TOO_LARGE', 'MAIL_FILE_UNREADABLE', 'WEBHOOK_REFUSED', 'TIER_UNAVAILABLE']);
+const WORDED = new Set(['FETCH_POLICY_REFUSED', 'ROBOTS_REFUSED', 'NET_ADDRESS_REFUSED', 'MONITOR_LIMIT', 'MAIL_FILE_TOO_LARGE', 'MAIL_FILE_UNREADABLE', 'WEBHOOK_REFUSED', 'TIER_UNAVAILABLE', 'INVALID_AMOUNT']);
 
 /** A refusal in the owner's language when its code is one these tiles word, else the engine's words. */
 export function codeWords(error: unknown, t: T): string {

@@ -13,7 +13,7 @@
 // Chausar, nothing is copied from an outside source.
 import { ChausarError, check } from '../../contracts.ts';
 import type { DatedRule } from '../playbooks/kit/define.ts';
-import { checkUrl, guardedFetch, pinnedSend, type GuardedRequest, type GuardedResponse, type NetResolver, type PinnedSender } from '../core/net-guard.ts';
+import { checkUrl, guardedFetch, pinnedSend, NET_WORDS, type GuardedRequest, type GuardedResponse, type NetResolver, type PinnedSender } from '../core/net-guard.ts';
 
 /** The name Chausar asks under, and the token a robots.txt group may name it by. */
 export const ROBOTS_TOKEN = 'Chausar';
@@ -114,6 +114,20 @@ export function policySafe(send: PinnedSender): PinnedSender {
 
 export type PoliteNet = { resolve?: NetResolver; send?: PinnedSender };
 
+/** A page sender that checks robots.txt at every hop within the guarded request's remaining deadline. */
+export function robotsSafe(send: PinnedSender, resolve?: NetResolver): PinnedSender {
+  const polite = policySafe(send);
+  return async target => {
+    checkFetchPolicy(target.url);
+    const started = Date.now();
+    const robots = await robotsCheck(target.url, { send, resolve });
+    if (!robots.allowed) throw new ChausarError('ROBOTS_REFUSED', FETCH_POLICY_WORDS.robots);
+    const timeoutMs = target.timeoutMs - (Date.now() - started);
+    check(timeoutMs > 0, 'NET_TIMEOUT', NET_WORDS.timeout);
+    return polite({ ...target, timeoutMs });
+  };
+}
+
 /**
  * One read of the web as Chausar: the policy and the guard first, then the request with Chausar's own user agent, each
  * hop checked again. Only GET or HEAD; the caller's headers may add an accept line, never a disguise.
@@ -170,7 +184,7 @@ function matches(pattern: string, path: string): boolean {
 export function robotsAllows(text: string, path: string): boolean {
   const groups = robotsGroups(text);
   const token = ROBOTS_TOKEN.toLowerCase();
-  const own = groups.filter(group => group.agents.some(agent => agent !== '*' && agent.length > 0 && token.includes(agent)));
+  const own = groups.filter(group => group.agents.some(agent => agent === token));
   const chosen = own.length ? own : groups.filter(group => group.agents.includes('*'));
   let best: RobotsRule | null = null;
   for (const rule of chosen.flatMap(group => group.rules)) {

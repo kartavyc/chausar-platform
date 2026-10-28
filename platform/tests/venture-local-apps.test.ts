@@ -156,7 +156,7 @@ test('a run that never started is known not to have happened; PATH skips .bat, .
   assert.equal(entries(env).at(-1)!.state, 'rejected', 'never started: not sent, so it may be proposed again');
 
   const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs');
-  const { join } = await import('node:path');
+  const { join, delimiter } = await import('node:path');
   const { tmpdir } = await import('node:os');
   const { locateApp } = await import('../runtime/venture/build/local-apps.ts');
   const dir = mkdtempSync(join(tmpdir(), 'localapps-'));
@@ -165,14 +165,16 @@ test('a run that never started is known not to have happened; PATH skips .bat, .
   mkdirSync(shims); mkdirSync(real);
   writeFileSync(join(shims, 'baocut.cmd'), '@echo off');
   writeFileSync(join(shims, 'kimo.bat'), '@echo off');
-  writeFileSync(join(real, 'kimo.exe'), '');
-  const winEnv = { PATH: ['relative\tools', shims, real].join(';'), PATHEXT: '.COM;.EXE;.BAT;.CMD' };
-  assert.equal(locateApp('baocut', winEnv, 'win32'), null, 'a .cmd needs a shell, so it is not runnable here');
-  assert.equal(locateApp('kimo', winEnv, 'win32'), join(real, 'kimo.exe'));
+  const windows = process.platform === 'win32';
+  const program = windows ? 'kimo.exe' : 'kimo';
+  writeFileSync(join(real, program), '');
+  const nativeEnv = { PATH: ['relative-test-tools-5a6', shims, real].join(delimiter), PATHEXT: '.COM;.EXE;.BAT;.CMD' };
+  assert.equal(locateApp('baocut', nativeEnv), null, 'a .cmd needs a shell, so it is not runnable here');
+  assert.equal(locateApp('kimo', nativeEnv), join(real, program));
   mkdirSync(join(process.cwd(), 'relative-test-tools-5a6'), { recursive: true });
   try {
     writeFileSync(join(process.cwd(), 'relative-test-tools-5a6', 'filmcraft.exe'), '');
-    assert.equal(locateApp('filmcraft', { PATH: 'relative-test-tools-5a6', PATHEXT: '.EXE' }, 'win32'), null, 'a relative PATH folder is skipped');
+    assert.equal(locateApp('filmcraft', { PATH: 'relative-test-tools-5a6', PATHEXT: '.EXE' }), null, 'a relative PATH folder is skipped');
   } finally {
     (await import('node:fs')).rmSync(join(process.cwd(), 'relative-test-tools-5a6'), { recursive: true, force: true });
   }

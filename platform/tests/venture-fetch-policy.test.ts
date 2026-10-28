@@ -150,3 +150,48 @@ test('Before you write and knowledge links read robots.txt first, as Chausar: a 
   });
   assert.deepEqual(web.fetched, ['https://studio.example/robots.txt']);
 });
+
+
+test('knowledge links obey robots.txt before every redirect hop, on the same site and another site', async () => {
+  const { agentBusiness } = await import('./venture-agent-helpers.ts');
+  const { pages } = await import('./venture-network-search-env.ts');
+  for (const target of ['https://studio.example/private/faq', 'https://other.example/private/faq']) {
+    const env = await agentBusiness();
+    const web = pages({
+      'https://studio.example/robots.txt': 'User-agent: *\nDisallow: /private',
+      'https://other.example/robots.txt': 'User-agent: *\nDisallow: /private',
+      'https://studio.example/public': { status: 302, headers: { location: target }, body: Buffer.from('') },
+      [target]: '<p>Refunds are handled here.</p>',
+    });
+    env.deps.net = { resolve: web.resolve, send: web.send };
+    await assert.rejects(env.agents('venture.knowledge.add', { source: { kind: 'link', url: 'https://studio.example/public' } }, owner), code('ROBOTS_REFUSED'));
+    assert.ok(!web.fetched.includes(target), 'the disallowed target was never read');
+    assert.ok(web.fetched.includes(new URL(target).origin + '/robots.txt'));
+  }
+});
+
+test('Before you write obeys robots.txt again at a redirect target', async () => {
+  const { searchEnv, importFile, SKINCARE, skincarePeople, pages, webSearch } = await import('./venture-network-search-env.ts');
+  const { net } = await import('./venture-network-env.ts');
+  const env = await searchEnv();
+  await importFile(env, 'linkedin-connections', 'Connections.csv', SKINCARE);
+  const asha = skincarePeople(env).asha;
+  const web = pages({
+    'https://dewdrop.example/robots.txt': 'User-agent: *\nDisallow: /private',
+    'https://dewdrop.example/about': { status: 302, headers: { location: '/private/founder' }, body: Buffer.from('') },
+    'https://dewdrop.example/private/founder': '<p>Asha Rao co-founded Dewdrop Naturals.</p>',
+  });
+  env.deps.webSearch = webSearch([{ url: 'https://dewdrop.example/about', title: 'About', snippet: 'x' }]);
+  env.deps.net = { resolve: web.resolve, send: web.send };
+  const brief = await net<any>(env, 'venture.network.research', { personId: asha.id });
+  assert.ok(!web.fetched.includes('https://dewdrop.example/private/founder'), 'the disallowed target was never read');
+  assert.equal(brief.lines.length, 0);
+});
+
+
+test('robots.txt matches the complete Chausar token, never a substring group', () => {
+  for (const partial of ['Ch', 'haus', 'ChausarBot']) {
+    assert.equal(robotsAllows('User-agent: ' + partial + '\nAllow: /\n\nUser-agent: *\nDisallow: /', '/private'), false, partial);
+  }
+  assert.equal(robotsAllows('User-agent: cHaUsAr\nAllow: /\n\nUser-agent: *\nDisallow: /', '/private'), true);
+});

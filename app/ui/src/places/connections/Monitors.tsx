@@ -2,7 +2,7 @@
  * Connections, "Pages you watch" (Ink v2 wave 5, 5A6; the engine's build/monitors.ts, catalogue K16): a public page
  * Chausar looks at once an hour, as itself, telling the owner on Today when it changes, when words appear, or when a
  * price falls below their figure. Adding one is a standing check, approved here inside the app; the form is one step
- * away. The figure is typed in whole rupees and sent as paise by appending two zeros: no arithmetic on money here. The
+ * away. The figure is sent as the rupee text the owner types; only the engine reads it as paise. The
  * engine refuses addresses inside the network, sites whose terms bar automated reading and pages robots.txt keeps
  * robots from; the hosted app says page watching runs in the desktop app.
  */
@@ -74,8 +74,8 @@ function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
   const [rupees, setRupees] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const wholeRupees = /^[1-9]\d{0,12}$/.test(rupees.trim());
-  const ready = Boolean(url.trim()) && (kind !== 'contains' || Boolean(text.trim())) && (kind !== 'price-below' || (Boolean(selector.trim()) && wholeRupees));
+  const hasRupees = Boolean(rupees.trim());
+  const ready = Boolean(url.trim()) && (kind !== 'contains' || Boolean(text.trim())) && (kind !== 'price-below' || (Boolean(selector.trim()) && hasRupees));
 
   async function save() {
     if (busy || !ready) return;
@@ -85,7 +85,7 @@ function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
       await engine.request('venture.monitors.add', {
         url: url.trim(), kind,
         ...(kind === 'contains' ? { text: text.trim() } : {}),
-        ...(kind === 'price-below' ? { selector: selector.trim(), belowMinor: `${rupees.trim()}00` } : {}),
+        ...(kind === 'price-below' ? { selector: selector.trim(), belowRupees: rupees.trim() } : {}),
       });
       onDone();
     } catch (error) {
@@ -111,7 +111,7 @@ function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
       {kind === 'price-below' && (
         <div className={s.row}>
           <Field label={t('kit-connect.monitors.selector')} hint={t('kit-connect.monitors.selectorHint')} value={selector} spellCheck={false} onChange={(event) => setSelector(event.currentTarget.value)} />
-          <Field label={t('kit-connect.monitors.rupees')} hint={t('kit-connect.monitors.rupeesHint')} inputMode="numeric" value={rupees} onChange={(event) => setRupees(event.currentTarget.value)} />
+          <Field label={t('kit-connect.monitors.rupees')} hint={t('kit-connect.monitors.rupeesHint')} inputMode="decimal" value={rupees} onChange={(event) => setRupees(event.currentTarget.value)} />
         </div>
       )}
       <div className={s.actions}>

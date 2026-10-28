@@ -13,7 +13,7 @@
   "kit-connect.monitors.selector": "दाम दिखाने वाला हिस्सा",
   "kit-connect.monitors.selectorHint": "एक टैग, '#id' या '.class', जैसे '#price'।",
   "kit-connect.monitors.rupees": "इतने रुपये से कम",
-  "kit-connect.monitors.rupeesHint": "पूरे रुपये, जैसे आप लिखते हैं।",
+  "kit-connect.monitors.rupeesHint": "रुपये, जैसे आप लिखते हैं।",
   "kit-connect.monitors.save": "नज़र रखना शुरू करें",
   "kit-connect.monitors.cancel": "रद्द करें",
   "kit-connect.monitors.stop": "नज़र रखना बंद करें",
@@ -45,5 +45,6 @@
   "kit-connect.code.MAIL_FILE_TOO_LARGE": "यह फ़ाइल 25 MB से बड़ी है। छोटा फ़ोल्डर निकालें।",
   "kit-connect.code.MAIL_FILE_UNREADABLE": "एक मेल फ़ाइल लाएं: एक संदेश '.eml' में, या कई '.mbox' में।",
   "kit-connect.code.WEBHOOK_REFUSED": "आपके वेबहुक ने जांच वाली चीज़ नामंज़ूर कर दी, इसलिए पता नहीं रखा गया।",
+  "kit-connect.code.INVALID_AMOUNT": "रुपयों में शून्य से बड़ी रकम लिखें, जैसे 1200.50।",
   "kit-connect.code.TIER_UNAVAILABLE": "यह डेस्कटॉप ऐप में चलता है।"
 }

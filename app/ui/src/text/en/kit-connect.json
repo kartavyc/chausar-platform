@@ -13,7 +13,7 @@
   "kit-connect.monitors.selector": "The part that shows the price",
   "kit-connect.monitors.selectorHint": "A tag, an #id or a .class, such as #price.",
   "kit-connect.monitors.rupees": "Below this many rupees",
-  "kit-connect.monitors.rupeesHint": "Whole rupees, as you would write them.",
+  "kit-connect.monitors.rupeesHint": "Rupees, as you would write them.",
   "kit-connect.monitors.save": "Start watching",
   "kit-connect.monitors.cancel": "Cancel",
   "kit-connect.monitors.stop": "Stop watching",
@@ -45,5 +45,6 @@
   "kit-connect.code.MAIL_FILE_TOO_LARGE": "This file is over 25 MB. Export a smaller folder.",
   "kit-connect.code.MAIL_FILE_UNREADABLE": "Import a mail file: one message as .eml, or many as .mbox.",
   "kit-connect.code.WEBHOOK_REFUSED": "Your webhook refused the test item, so the address was not kept.",
+  "kit-connect.code.INVALID_AMOUNT": "Type a positive amount in rupees, like 1200.50.",
   "kit-connect.code.TIER_UNAVAILABLE": "This works in the desktop app."
 }

@@ -62,17 +62,17 @@ describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => 
     assertInkRules(document.body);
   });
 
-  it('watching a page: the form is one step away, and a price is sent in paise from whole rupees', async () => {
+  it('watching a page sends the owner\'s rupee text for the engine to read', async () => {
     const { spy } = await start();
     const card = await tile('Pages you watch');
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Watch a page' })); });
     type(within(card).getByLabelText('Page address'), 'https://chai-supplies.example/darjeeling');
     fireEvent.click(within(card).getByLabelText('The price falls'));
     type(within(card).getByLabelText('The part that shows the price'), '#price');
-    type(within(card).getByLabelText('Below this many rupees'), '1200');
+    type(within(card).getByLabelText('Below this many rupees'), '1,200.50');
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Start watching' })); });
     await settle();
-    expect(calls(spy, 'venture.monitors.add')[0]![1]).toEqual({ url: 'https://chai-supplies.example/darjeeling', kind: 'price-below', selector: '#price', belowMinor: '120000' });
+    expect(calls(spy, 'venture.monitors.add')[0]![1]).toEqual({ url: 'https://chai-supplies.example/darjeeling', kind: 'price-below', selector: '#price', belowRupees: '1,200.50' });
     expect(card.querySelectorAll('[data-monitor]').length).toBe(2);
     assertInkRules(document.body);
   });

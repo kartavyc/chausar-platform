@@ -147,7 +147,7 @@ test('Forget erases imported mail they were sent or copied on, and every importe
   const mbox = [
     'From ravi@other.example Tue Oct 13 09:30:00 2026',
     crlf(['From: Ravi <ravi@other.example>', 'To: Owner <owner@ledger.example>', 'Cc: Priya Nair <priya@acme.example>', 'Subject: Stall at the expo',
-      'Date: Tue, 13 Oct 2026 09:30:00 +0530', 'Message-ID: <x1@other.example>', '', 'Priya will bring the samples.', '']),
+      'Date: Tue, 13 Oct 2026 09:30:00 +0530', 'Message-ID: <x1@other.example>', '', 'The samples arrive tomorrow.', '']),
     'From owner@ledger.example Tue Oct 13 11:00:00 2026',
     crlf(['From: Owner <owner@ledger.example>', 'To: Ravi <ravi@other.example>', 'Subject: Re: Stall at the expo', 'Date: Tue, 13 Oct 2026 11:00:00 +0530',
       'Message-ID: <x2@ledger.example>', 'In-Reply-To: <x1@other.example>', 'References: <x1@other.example>', '', 'Thanks, see you there.', '']),
@@ -159,5 +159,24 @@ test('Forget erases imported mail they were sent or copied on, and every importe
   assert.equal(inbound(env).length, 3);
   await (await import('./venture-network-env.ts')).net(env, 'venture.network.forget', { id: env.priya.id });
   assert.deepEqual(inbound(env).map(record => record.messageId), ['<x3@other.example>'], 'the copied mail and its whole thread are gone; the rest stays');
-  assert.ok(!JSON.stringify(env.store.read()).includes('bring the samples'));
+  assert.ok(!JSON.stringify(env.store.read()).includes('samples arrive tomorrow'));
 });
+
+
+for (const recipientHeader of ['To', 'Cc']) {
+  test('Forget deletes imported mail addressed only in ' + recipientHeader + ', with no identifying body or subject', async () => {
+    const env = await mailEnv();
+    const text = crlf([
+      'From: Ravi <ravi@other.example>',
+      recipientHeader + ': <priya@acme.example>',
+      'Subject: Delivery details',
+      'Date: Tue, 13 Oct 2026 09:30:00 +0530',
+      'Message-ID: <recipient-only@other.example>', '', 'The parcel arrives tomorrow.', '',
+    ]);
+    await importFile(env, 'delivery.eml', text);
+    assert.equal(inbound(env).length, 1);
+    await (await import('./venture-network-env.ts')).net(env, 'venture.network.forget', { id: env.priya.id });
+    assert.equal(inbound(env).length, 0, 'recipient-only imported mail is erased');
+    assert.ok(!JSON.stringify(env.store.read()).includes('The parcel arrives tomorrow.'));
+  });
+}
