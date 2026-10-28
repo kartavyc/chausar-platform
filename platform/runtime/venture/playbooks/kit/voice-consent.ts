@@ -159,7 +159,7 @@ export async function voiceConsentRecordHandler(deps: VentureDeps, ctx: Context,
     const today = todayOf(venture, tx.now);
     check(until === null || until >= today, 'INVALID_VENTURE_REQUEST', 'Until is in the past. Choose today or a later date, or no end.');
     const recording = tx.find('venture-upload', recordingFileId);
-    check(recording && recording.format === 'audio', 'INVALID_VENTURE_REQUEST', 'Choose the audio recording of the consent, added to the order.');
+    check(recording && recording.format === 'audio' && recording.contentBase64.length > 0, 'INVALID_VENTURE_REQUEST', 'Choose the audio recording of the consent, added to the order.');
     const version = Math.max(0, ...tx.list('venture-voice-consent').filter(item => speakerKey(item.speaker) === speakerKey(speaker)).map(item => item.version)) + 1;
     const record = tx.put<VoiceConsentRecord>({
       ...tx.base('venture-voice-consent'), speaker, recordingFileId, recordingDigest: recording.digest, transcript, statement, scope, until, version, revokedAt: null,

@@ -263,3 +263,21 @@ test('media intake: media.clean cleans the order\'s clip as an approved write; w
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('media intake: metadata between JPEG scans is removed while scan bytes stay intact', () => {
+  const firstScan = [...segment(0xda, [1, 1, 0, 0, 63, 0]), 1, 2, 0xff, 0x00, 3];
+  const secondScan = [...segment(0xda, [1, 1, 0, 0, 63, 0]), 4, 5, 0xff, 0xd0, 6];
+  const dirty = Buffer.from([0xff, 0xd8, ...firstScan,
+    ...segment(0xe1, exifBlock(6)),
+    ...segment(0xe1, ascii('<xmp>GPSLatitude secret</xmp>')),
+    ...segment(0xfe, ascii('private camera note')),
+    ...secondScan, 0xff, 0xd9]);
+  const clean = cleanJpeg(dirty);
+  for (const gone of ['PhoneMaker', 'GPSLatitude', 'private camera note']) assert.ok(!has(clean.bytes, gone), gone);
+  assert.ok(Buffer.from(clean.bytes).includes(Buffer.from(firstScan)));
+  assert.ok(Buffer.from(clean.bytes).includes(Buffer.from(secondScan)));
+  assert.equal(clean.hadLocation, true);
+  assert.equal(exifOrientation(clean.bytes), 6);
+  assert.deepEqual(clean.removed, ['camera and location data (EXIF)', 'XMP data', 'a comment']);
+  assert.deepEqual(Buffer.from(cleanJpeg(clean.bytes).bytes), Buffer.from(clean.bytes));
+});

@@ -108,7 +108,9 @@ test('voice consent: revoking really stops later use, and every file made with i
   await assert.rejects(kit(env, 'venture.voiceConsent.revoke', { id: v1.consent.id }), code('INVALID_VENTURE_REQUEST'), 'already withdrawn');
   await assert.rejects(kit(env, 'venture.voiceConsent.revoke', { id: 'voiceconsent_missing' }), code('CONSENT_NOT_FOUND'));
   // Recording a new consent after a withdrawal is the person agreeing again, as a new version.
-  const again = await kit(env, 'venture.voiceConsent.record', consentFor(recording.id));
+  await assert.rejects(kit(env, 'venture.voiceConsent.record', consentFor(recording.id)), code('INVALID_VENTURE_REQUEST'), 'a withdrawn recording has no sound left');
+  const fresh = await withRecording(env);
+  const again = await kit(env, 'venture.voiceConsent.record', consentFor(fresh.recording.id));
   assert.equal(again.consent.version, 3);
   assert.equal(again.consent.state, 'current');
 });

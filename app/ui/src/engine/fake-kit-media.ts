@@ -251,6 +251,11 @@ export class FakeKitMediaDesk {
   private block(asset: Asset): AssetView['blocked'] {
     if (asset.state === 'requested') return { code: 'ASSET_NOT_MADE', line: `${asset.name} was asked for again and is not made yet. Run the order again, or reuse the old file.` };
     if (asset.state === 'consent-withdrawn') return { code: 'CONSENT_WITHDRAWN', line: `${asset.name} was made with a voice whose consent was withdrawn. Take it out.` };
+    if (asset.consentId !== null) {
+      const consent = this.book().consents.find(item => item.id === asset.consentId);
+      if (!consent || consent.revokedAt !== null) return { code: 'CONSENT_WITHDRAWN', line: `${asset.name} was made with a voice whose consent was withdrawn. Take it out.` };
+      if (consent.until !== null && consent.until < this.today()) return { code: 'CONSENT_REQUIRED', line: `${asset.name} was made with ${consent.speaker}'s voice, whose consent ended on ${consent.until}. Record their consent again, or take it out.` };
+    }
     if (asset.source.kind === 'unknown' || asset.licence === null) return { code: 'ASSET_LICENCE_UNKNOWN', line: `${asset.name} has no known licence. Record where it came from, or take it out.` };
     if (asset.hygiene.state === 'held') return { code: 'MEDIA_NOT_CLEAN', line: `${asset.name} still has its location data. Clean it before it goes out.` };
     if (asset.stale && asset.derived) return { code: 'DERIVED_STALE', line: staleLine(asset.derived) };
@@ -371,7 +376,7 @@ export class FakeKitMediaDesk {
         const until = body.until as string | null;
         if (until !== null && until < this.today()) throw invalid('Until is in the past. Choose today or a later date, or no end.');
         const recording = this.files().find((file) => file.id === recordingFileId);
-        if (!recording || recording.format !== 'audio') throw invalid('Choose the audio recording of the consent, added to the order.');
+        if (!recording || recording.format !== 'audio' || book.consents.some(item => item.recordingFileId === recordingFileId && item.revokedAt !== null)) throw invalid('Choose the audio recording of the consent, added to the order.');
         const version = Math.max(0, ...book.consents.filter((item) => speakerKey(item.speaker) === speakerKey(speaker)).map((item) => item.version)) + 1;
         const consent: Consent = { id: this.nextId('voiceconsent'), at: this.host.now(), speaker, recordingFileId, recordingDigest: recording.id, transcript, statement, scope, until, version, revokedAt: null };
         book.consents.push(consent);

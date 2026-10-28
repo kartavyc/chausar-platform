@@ -74,7 +74,7 @@ const latin = (bytes: Uint8Array, at: number, length: number) => Buffer.from(byt
 // ---------------------------------------------------------------------------
 
 type Segment = { marker: number; start: number; end: number }; // start: the 0xFF; end: after its data
-/** The segments before the image data, or a refusal when the file is not a well-formed JPEG. */
+/** All segments, including complete scans; metadata between scans is checked like metadata before them. */
 function jpegSegments(bytes: Uint8Array): { segments: Segment[]; dataAt: number } {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) refuse(NOT_IMAGE('This file'));
   const segments: Segment[] = [];
@@ -88,9 +88,19 @@ function jpegSegments(bytes: Uint8Array): { segments: Segment[]; dataAt: number 
     const length = (bytes[at + 2] << 8) | bytes[at + 3];
     const end = at + 2 + length;
     if (length < 2 || end > bytes.length) refuse(NOT_IMAGE('This file'));
-    if (marker === 0xda) return { segments, dataAt: at }; // start of scan: the rest is image data, kept as it is
-    segments.push({ marker, start: at, end });
-    at = end;
+    let segmentEnd = end;
+    if (marker === 0xda) {
+      // Preserve this scan byte for byte, stopping at the next real marker. Metadata may appear between scans.
+      while (segmentEnd < bytes.length) {
+        if (bytes[segmentEnd] !== 0xff) { segmentEnd += 1; continue; }
+        const next = bytes[segmentEnd + 1];
+        if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) { segmentEnd += 2; continue; }
+        if (next === 0xff) { segmentEnd += 1; continue; }
+        break;
+      }
+    }
+    segments.push({ marker, start: at, end: segmentEnd });
+    at = segmentEnd;
   }
   return refuse(NOT_IMAGE('This file'));
 }

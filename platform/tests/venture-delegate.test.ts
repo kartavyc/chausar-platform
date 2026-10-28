@@ -31,6 +31,7 @@ import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tool
 import { sumRows } from '../runtime/venture/delivery/harness/work.ts';
 import { listSpend } from '../runtime/venture/money/spend.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { mediaAcceptBlock } from '../runtime/venture/playbooks/kit/assets.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'phone' };
@@ -377,6 +378,10 @@ test('real order: nothing starts before the owner approves the exact brief; the 
     // What it left is stored as untrusted data, with the calculator's checks on its figures.
     const [record] = listRecords(env.store.read(), 'venture-delegate-run') as DelegateRunRecord[];
     assert.equal(record.outcome, 'succeeded');
+    const handedOver = listRecords(env.store.read(), 'venture-asset').filter(asset => asset.runId === run.id);
+    assert.deepEqual(handedOver.map(asset => asset.name).sort(), record.outputs.map(output => output.name).sort(), 'every delegated output is recorded by the approval flow');
+    assert.ok(handedOver.every(asset => asset.source.kind === 'unknown' && asset.licence === null));
+    assert.equal(mediaAcceptBlock(env.store.read(), env.venture, { id: run.id, orderId: run.orderId })?.code, 'ASSET_LICENCE_UNKNOWN', 'Accept holds unknown delegated outputs');
     assert.equal(record.untrusted, true);
     assert.equal(record.approvedDigest, request.digest);
     assert.equal(record.reportedCost, 'USD 0.0421');
