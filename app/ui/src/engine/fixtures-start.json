@@ -186,6 +186,183 @@
         }
       },
       {
+        "id": "seo-visibility",
+        "playbook": "seo-visibility",
+        "label": "Search and AI-search visibility",
+        "category": "marketing",
+        "department": "marketing",
+        "line": "Site checks and captured AI-answer checks for local businesses.",
+        "hours": "3 to 5 h a week",
+        "minHours": 3,
+        "maxHours": 5,
+        "hoursEstimate": true,
+        "youDo": "Approve reports and fixes, talk to clients.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Checks sites, drafts reports, keeps the evidence.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹35,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with WordPress drafts, Cloudflare overrides, Google Business Profile, Client site and Search Console export."
+        },
+        "starter": "Seo agency: Site checks and captured AI-answer checks for local businesses.",
+        "yours": [],
+        "hi": {
+          "label": "खोज और एआई खोज में दिखना",
+          "line": "स्थानीय बिज़नेसों के लिए साइट और सेव किए गए एआई उत्तरों की जाँच।",
+          "hours": "हफ़्ते में 3 से 5 घंटे",
+          "youDo": "रिपोर्ट और सुधार मंज़ूर करें, क्लाइंटों से बात करें।",
+          "team": [
+            "शोधकर्ता",
+            "लेखक",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "साइट जाँचता है, रिपोर्ट लिखता है, प्रमाण रखता है।",
+          "pay": "₹10,000 से ₹35,000",
+          "per": "प्रति क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Seo agency: स्थानीय बिज़नेसों के लिए साइट और सेव किए गए एआई उत्तरों की जाँच।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "WordPress ड्राफ़्ट, Cloudflare बदलाव, Google बिज़नेस प्रोफ़ाइल, क्लाइंट की साइट और सर्च कंसोल निर्यात के साथ काम करता है।"
+          }
+        }
+      },
+      {
+        "id": "online-seller",
+        "playbook": "online-seller",
+        "label": "Online seller and seller services",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Listing, ads and settlement audits from the seller exports you add.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Check exports and approve every draft.",
+        "team": [
+          {
+            "role": "Analyst",
+            "initials": "AN",
+            "department": "marketing"
+          },
+          {
+            "role": "Auditor",
+            "initials": "AU",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Checks margins, listings and payouts.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "per audit or a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your image app, Seller export files and Your seller dashboard."
+        },
+        "starter": "Online seller and seller services: Listing, ads and settlement audits from the seller exports you add.",
+        "yours": [],
+        "hi": {
+          "label": "ऑनलाइन विक्रेता और विक्रेता सेवाएं",
+          "line": "जोड़ी गई विक्रेता फ़ाइलों से लिस्टिंग, विज्ञापन और भुगतान की जांच।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "फ़ाइलें जांचें और हर ड्राफ़्ट को मंज़ूरी दें।",
+          "team": [
+            "विश्लेषक",
+            "लेखा जाँचकर्ता"
+          ],
+          "teamLine": "लाभ, लिस्टिंग और भुगतान जांचता है।",
+          "pay": "₹5,000 से ₹20,000",
+          "per": "प्रति जांच या प्रति क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Online seller and seller services: जोड़ी गई विक्रेता फ़ाइलों से लिस्टिंग, विज्ञापन और भुगतान की जांच।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "आपका इमेज ऐप, विक्रेता की निर्यात की गई फ़ाइलें और आपका विक्रेता डैशबोर्ड के साथ काम करता है।"
+          }
+        }
+      },
+      {
+        "id": "support-desk",
+        "playbook": "support-desk",
+        "label": "Support desk for small shops",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Customer mail sorted, replies drafted and due times kept for small shops.",
+        "hours": "5 to 7 h a week",
+        "minHours": 5,
+        "maxHours": 7,
+        "hoursEstimate": true,
+        "youDo": "Approve and send replies, settle refunds.",
+        "team": [
+          {
+            "role": "Sorter",
+            "initials": "SO",
+            "department": "operations"
+          },
+          {
+            "role": "Replier",
+            "initials": "RE",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Sorts mail, drafts replies with sources, writes help pages.",
+        "clientsPay": {
+          "text": "₹6,000 to ₹20,000",
+          "per": "a shop a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Mail files, Read-only mailbox and Your mail app."
+        },
+        "starter": "Support desk for small shops: Customer mail sorted, replies drafted and due times kept for small shops.",
+        "yours": [],
+        "hi": {
+          "label": "छोटी दुकानों के लिए क्लाइंट सहायता",
+          "line": "छोटी दुकानों की क्लाइंट मेल छँटती है, जवाब बनते हैं और समय सीमाएँ सँभलती हैं।",
+          "hours": "हफ़्ते में 5 से 7 घंटे",
+          "youDo": "जवाब मंज़ूर करके भेजें और पैसे लौटाने का फैसला करें।",
+          "team": [
+            "छाँटने वाला",
+            "जवाब बनाने वाला"
+          ],
+          "teamLine": "मेल छाँटता है, स्रोत सहित जवाब और सहायता पृष्ठ बनाता है।",
+          "pay": "₹6,000 से ₹20,000",
+          "per": "प्रति दुकान प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Support desk for small shops: छोटी दुकानों की क्लाइंट मेल छँटती है, जवाब बनते हैं और समय सीमाएँ सँभलती हैं।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "मेल फ़ाइलें, केवल पढ़ने वाली मेल और आपका मेल ऐप के साथ काम करता है।"
+          }
+        }
+      },
+      {
         "id": "recruiting-desk",
         "playbook": "recruiting-desk",
         "label": "Recruiting desk",
@@ -247,6 +424,120 @@
             "connections": "क्लाइंट के रेज़्यूमे, आयातित मेल, ग्रीनहाउस, लीवर, ऐशबी, कैलेंडर निर्यात, लिंक्डइन और नौकरी के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "bookkeeping-cfo",
+        "playbook": "bookkeeping-cfo",
+        "label": "Bookkeeping and CFO help",
+        "category": "money-and-tax",
+        "department": "production",
+        "line": "Collections drafts, cash packs and spending checks for small firms.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review the books, approve reports and talk to clients.",
+        "team": [
+          {
+            "role": "Finance analyst",
+            "initials": "FA",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Reads ledgers, calculates figures and prepares reports.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and statements, Chausar books, Tally exports and Your mail app."
+        },
+        "starter": "Bookkeeping and CFO help: Collections drafts, cash packs and spending checks for small firms.",
+        "yours": [],
+        "hi": {
+          "label": "बहीखाता और वित्तीय मदद",
+          "line": "छोटे कारोबारों के लिए वसूली के मसौदे, नकदी रिपोर्ट और खर्च की जांच।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "बहीखाता जांचें, रिपोर्ट मंजूर करें और ग्राहकों से बात करें।",
+          "team": [
+            "वित्तीय विश्लेषक"
+          ],
+          "teamLine": "बहीखाता पढ़ता है, आंकड़े गणना करता है और रिपोर्ट तैयार करता है।",
+          "pay": "₹5,000 से ₹20,000",
+          "per": "प्रति ग्राहक प्रति महीना",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Bookkeeping and CFO help: छोटे कारोबारों के लिए वसूली के मसौदे, नकदी रिपोर्ट और खर्च की जांच।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "ग्राहक की फाइलें और विवरण, चौसर बहीखाता, टैली से निकली फाइलें और आपका मेल ऐप के साथ काम करता है।"
+          }
+        }
+      },
+      {
+        "id": "lead-generation",
+        "playbook": "lead-generation",
+        "label": "Lead generation and appointment setting",
+        "category": "marketing",
+        "department": "marketing",
+        "line": "Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
+        "hours": "4 to 6 h a week",
+        "minHours": 4,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Send the messages, take the calls.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Producer",
+            "initials": "PR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Finds leads with sources, drafts outreach, keeps follow-ups.",
+        "clientsPay": {
+          "text": "₹15,000 to ₹40,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with OpenStreetMap Overpass, Nominatim city lookup, Business own site, Happenstance, Your mail app, LinkedIn and WhatsApp."
+        },
+        "starter": "Lead generation and appointment setting: Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
+        "yours": [],
+        "hi": {
+          "label": "संभावित ग्राहक खोजना और मुलाकात तय करना",
+          "line": "आपके प्रस्तावों के लिए शोध वाले स्थानीय ग्राहक, संदेश मसौदे, अगली बातचीत और तय मुलाकातें।",
+          "hours": "हफ़्ते में 4 से 6 घंटे",
+          "youDo": "संदेश भेजें, कॉल लें।",
+          "team": [
+            "शोधकर्ता",
+            "लेखक",
+            "निर्माता"
+          ],
+          "teamLine": "स्रोतों सहित ग्राहक खोजता है, मसौदे बनाता है और अगली बातचीत सँभालता है।",
+          "pay": "₹15,000 से ₹40,000",
+          "per": "प्रति ग्राहक प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Lead generation and appointment setting: आपके प्रस्तावों के लिए शोध वाले स्थानीय ग्राहक, संदेश मसौदे, अगली बातचीत और तय मुलाकातें।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "ओपनस्ट्रीटमैप ओवरपास, नोमिनाटिम शहर खोज, कारोबार की अपनी वेबसाइट, हैपनस्टैन्स, आपकी मेल ऐप, लिंक्डइन और व्हाट्सऐप के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -260,20 +551,26 @@
         "id": "marketing",
         "label": "Marketing",
         "hi": "मार्केटिंग",
-        "count": 1
+        "count": 3
       },
       {
         "id": "money-and-tax",
         "label": "Money and tax",
         "hi": "पैसा और टैक्स",
-        "count": 1
+        "count": 2
+      },
+      {
+        "id": "shops-and-firms",
+        "label": "Shops and firms",
+        "hi": "दुकानें और फ़र्म",
+        "count": 3
       }
     ],
     "upTo": {
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 0
+      "count": 1
     }
   },
   "checklist": [

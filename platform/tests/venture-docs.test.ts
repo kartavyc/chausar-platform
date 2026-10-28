@@ -1,3 +1,4 @@
+import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 // P6: the venture docs stay honest. The architecture page is the founder's document, copied as is, and its
 // Connectors table claims exactly the modes the catalogue makes available today. Every venture doc keeps house style.
 // Written in Phase B; it passes once the build package has landed (Phase C).
@@ -93,7 +94,7 @@ async function catalogueCards(): Promise<ConnectorCard[]> {
 
 test('the architecture Connectors table claims exactly the modes the catalogue makes available', async () => {
   const cards = await catalogueCards();
-  assert.equal(cards.length, 72); // W5 5A6 added six shared connectors
+  assert.equal(cards.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length); // W5 5A6 added six shared connectors
   const rows = connectorRows(await readFile(new URL('architecture.md', docsFolder), 'utf8'));
   assert.equal(rows.length, 12, 'one row per connector category');
   for (const row of rows) {

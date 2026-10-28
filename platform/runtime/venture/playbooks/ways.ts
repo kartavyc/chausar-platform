@@ -120,7 +120,7 @@ const YOUTUBE_WAY: WayData = {
     starter: 'क्लाइंट के वीडियो के लिए YouTube चैनल सर्विस: हुक, टाइटल और चैप्टर।',
     needs: 'क्लाइंट की ट्रांसक्रिप्ट (SRT या VTT) और फ़ुटेज के नोट्स, फ़ाइलों में। इस कंप्यूटर पर ffmpeg हो तो कटे हुए वीडियो की जाँच भी होती है, पर ज़रूरी नहीं।',
   },
-  roles: { 'intake-clerk': 'इनटेक क्लर्क', producer: 'प्रोड्यूसर', 'story-editor': 'स्टोरी एडिटर', packager: 'पैकेजर' },
+  roles: { 'intake-clerk': 'इनटेक क्लर्क', producer: 'प्रोड्यूसर', 'story-editor': 'स्टोरी एडिटर', cutter: 'वीडियो संपादक', packager: 'पैकेजर' },
   uses: ['client-files'],
 };
 

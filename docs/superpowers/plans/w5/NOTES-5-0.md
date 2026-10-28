@@ -636,3 +636,8 @@ Adds the reviewed local social production and inbox package, including exact own
 ### 5H isolated commit checkpoint
 
 Adds the independently reviewed recruiting desk, professional evidence screening, exact approved manual contact/interview handoffs, role ledger/report, public job-board reads and source-linked Forget/expiry. Review evidence and remaining legal/manual boundaries are in NOTES-5H.md. Later article, tender and website hooks are excluded.
+
+
+## Earlier package integration corrections
+
+The isolated recruiting guide check exposed missing setup guides for the already committed M/E2 connectors: Overpass, Nominatim, own-site, Happenstance, WordPress drafts and Cloudflare KV. Their real and rehearsal guides now match, with EN/HI text. The Start gallery snapshot is recomputed from this exact committed engine so every implemented service and category count is visible. No future playbook data is copied.

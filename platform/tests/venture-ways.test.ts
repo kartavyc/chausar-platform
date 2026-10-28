@@ -11,6 +11,8 @@ import type { State } from '../runtime/contracts.ts';
 import type { WaysView, WayView } from '../runtime/venture/contracts.ts';
 import { listWays, openWayBusiness, orderWays, waysUpTo, waysView } from '../runtime/venture/core/ways.ts';
 import { WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, connectorWorks, validateWays, type WayData } from '../runtime/venture/playbooks/ways.ts';
+import {kitDefinitions} from '../runtime/venture/playbooks/kit/installed.ts';
+import {kitWay} from '../runtime/venture/playbooks/kit/tile.ts';
 import { PLAYBOOK_REGISTRY, findPlaybook, pickPlaybook } from '../runtime/venture/playbooks/registry.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { departmentOfRole, departmentOfService } from '../runtime/venture/playbooks/departments.ts';
@@ -75,7 +77,7 @@ test('ways: each way has its category, hours a week, the playbook\'s own AI team
     const delivery = flagshipDelivery(way.playbook);
     assert.ok(delivery, `${way.id} names a playbook that runs today`);
     // The AI team is the playbook's agents only: code is never shown as AI. A tile names its team's roles (W5 5A1).
-    const team = WAYS.find(item => item.playbook === way.playbook)?.team;
+    const team = [...WAYS,...kitDefinitions().map(kitWay)].find(item => item.playbook === way.playbook)?.team;
     const agents = (team ? team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles).filter(role => role.kind === 'agent');
     assert.deepEqual(way.team.map(member => member.role), agents.map(role => role.name), way.id);
     for (const [index, member] of way.team.entries()) assert.equal(member.department, departmentOfRole(delivery, agents[index].id), `${way.id} ${member.role}`);
@@ -137,29 +139,25 @@ test('ways: each way says what it needs in plain words: your own AI, the connect
 
 test('ways: counts per category, only for categories that have a way, and the "Up to 5 h a week" count', () => {
   const view = listWays({});
-  assert.deepEqual(view.categories, [
-    { id: 'content', label: 'Content', hi: 'कंटेंट', count: 1 },
-    { id: 'marketing', label: 'Marketing', hi: 'मार्केटिंग', count: 1 },
-    { id: 'money-and-tax', label: 'Money and tax', hi: 'पैसा और टैक्स', count: 1 },
-  ]);
+  assert.deepEqual(view.categories, WAY_CATEGORIES.map(category=>({id:category.id,label:category.en,hi:category.hi,count:view.ways.filter(way=>way.category===category.id).length})).filter(category=>category.count>0));
   assert.deepEqual(WAY_CATEGORIES.map(category => category.id), ['content', 'marketing', 'money-and-tax', 'shops-and-firms']);
   for (const category of view.categories) assert.equal(category.count, view.ways.filter(way => way.category === category.id).length);
-  assert.deepEqual(view.upTo, { maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: 0 });
-  assert.deepEqual(waysUpTo(view.ways, 5), []);
-  assert.deepEqual(waysUpTo(view.ways, 6).map(way => way.id), ['social-agency'], 'the filter reads maxHours');
-  assert.deepEqual(waysUpTo(view.ways, 10).map(way => way.id), view.ways.map(way => way.id));
+  assert.deepEqual(view.upTo, { maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: view.ways.filter(way=>way.maxHours<=5).length });
+  assert.deepEqual(waysUpTo(view.ways, 5), view.ways.filter(way=>way.maxHours<=5));
+  assert.deepEqual(waysUpTo(view.ways, 6).map(way => way.id), view.ways.filter(way=>way.maxHours<=6).map(way=>way.id), 'the filter reads maxHours');
+  assert.deepEqual(waysUpTo(view.ways, 10).map(way => way.id), view.ways.filter(way=>way.maxHours<=10).map(way => way.id));
 });
 
 test('ways: sort by best fit (the fit first), fewest hours, or name', () => {
   const { ways } = listWays({});
   const ids = (list: readonly WayView[]) => list.map(way => way.id);
-  assert.deepEqual(ids(orderWays(ways, 'best-fit', 'youtube')), ['youtube', 'ca-firm', 'social-agency'], "4C1's fit leads, the rest keep their order");
-  assert.deepEqual(ids(orderWays(ways, 'best-fit', null)), ['ca-firm', 'youtube', 'social-agency'], 'no fit: registry order');
-  assert.deepEqual(ids(orderWays(ways, 'best-fit', 'space-tourism')), ['ca-firm', 'youtube', 'social-agency'], 'a fit not on the list changes nothing');
-  assert.deepEqual(ids(orderWays(ways, 'fewest-hours')), ['social-agency', 'youtube', 'ca-firm'], 'by the most hours a week, then the fewest');
-  assert.deepEqual(ids(orderWays(ways, 'name')), ['ca-firm', 'social-agency', 'youtube']);
+  assert.deepEqual(ids(orderWays(ways, 'best-fit', 'youtube')), ['youtube',...PLAYBOOK_REGISTRY.filter(row=>row.id!=='youtube').map(row=>row.id)], "4C1's fit leads, the rest keep their order");
+  assert.deepEqual(ids(orderWays(ways, 'best-fit', null)), PLAYBOOK_REGISTRY.map(row=>row.id), 'no fit: registry order');
+  assert.deepEqual(ids(orderWays(ways, 'best-fit', 'space-tourism')), PLAYBOOK_REGISTRY.map(row=>row.id), 'a fit not on the list changes nothing');
+  assert.deepEqual(ids(orderWays(ways, 'fewest-hours')), [...ways].sort((a,b)=>a.maxHours-b.maxHours||a.minHours-b.minHours||a.label.localeCompare(b.label,'en-IN')).map(way=>way.id), 'by the most hours a week, then the fewest');
+  assert.deepEqual(ids(orderWays(ways, 'name')), [...ways].sort((a,b)=>a.label.localeCompare(b.label,'en-IN')).map(way=>way.id));
   assert.deepEqual(ids(orderWays(ways, 'name', null, 'hi')), [...ways].sort((a, b) => a.hi.label.localeCompare(b.hi.label, 'hi-IN')).map(way => way.id));
-  assert.deepEqual(ids(ways), ['ca-firm', 'youtube', 'social-agency'], 'sorting never changes the list it was given');
+  assert.deepEqual(ids(ways), PLAYBOOK_REGISTRY.map(row=>row.id), 'sorting never changes the list it was given');
 });
 
 test('ways: "You run this" and "Start another" come only from the businesses the host names', () => {
@@ -253,7 +251,7 @@ test('ways: Good fit for you (4C1) picks from this list, with the open business\
   env.models.respond['chief-fit'] = task => { seen.push(task); return { wayId: 'social-agency', line: 'You already make videos, so posts for shops fit next.' }; };
   assert.deepEqual(await env.chief('venture.chief.fit'), { wayId: 'social-agency', line: 'You already make videos, so posts for shops fit next.', estimate: true });
   assert.equal(seen.length, 1);
-  assert.deepEqual((seen[0].input as any).ways.map((way: any) => way.id), ['ca-firm', 'youtube', 'social-agency']);
+  assert.deepEqual((seen[0].input as any).ways.map((way: any) => way.id), PLAYBOOK_REGISTRY.map(row=>row.id));
   assert.deepEqual((seen[0].input as any).yours, ['YouTube channel']);
   assert.equal(seen[0].containsClientData, false);
   assert.ok(!JSON.stringify(seen[0].input).includes('Test Business'), 'the business name is not sent, only its kind');
