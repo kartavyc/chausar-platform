@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { definePlaybook, type PlaybookDefinition } from '../runtime/venture/playbooks/kit/define.ts';
 import { hiOf, forgetHi } from '../runtime/venture/playbooks/kit/words.ts';
 import { fixtureHi, kitFixture } from './fixtures/venture/kit-fixture.ts';
+import { kitDefinitions } from '../runtime/venture/playbooks/kit/installed.ts';
 
 const code = (expected: string, words?: RegExp) => (error: any) => { assert.equal(error?.code, expected, error?.message); if (words) assert.match(error.message, words); return true; };
 /** Refused with PLAYBOOK_DEFINITION_INVALID, the message naming the field. */
@@ -127,4 +128,19 @@ test('definePlaybook checks the dated rules, the recipes and the boundaries (5A3
   const defined = definePlaybook(kitFixture(), fixtureHi(base), '2026-10-27');
   assert.deepEqual(defined.judgeRules.map(item => item.id), ['on-brief', 'voice-first-mistake-1']);
   assert.deepEqual(defined.judgeRules[1].floor, { kind: 'required-yes' });
+});
+
+test('a rule checked today in India is accepted before midnight UTC', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-26T20:00:00.000Z') });
+  const base = kitFixture();
+  const definition = kitFixture({ rules: base.rules.map(rule => ({ ...rule, checkedOn: '2026-10-27' })) });
+  assert.ok(definition.rules.length, 'exercise a dated rule');
+  assert.doesNotThrow(() => definePlaybook(definition, fixtureHi(definition)));
+});
+
+test('every landed kit definition loads and passes validation', () => {
+  for (const definition of kitDefinitions()) {
+    assert.ok(Object.isFrozen(definition), definition.registration.id);
+    assert.ok(definition.registration.id);
+  }
 });

@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import type { ToolName } from '../../contracts.ts';
 import { TOOL_GROUPS } from '../../delivery/harness/tool-groups.ts';
 import { validateRules } from './rules.ts';
+import { localDayAt } from '../../local-day.ts';
 import { recipeJudgeRules, validateRecipes } from './recipes.ts';
 import { validateBoundaries } from './boundaries.ts';
 import { validateManualPaths, withManualPaths } from './manual-path.ts';
@@ -305,9 +306,9 @@ export function kitEngineSteps(definition: Pick<PlaybookDefinition, 'steps' | 'c
  * paths are checked by their own functions (their codes: RULE_INVALID, RECIPE_INVALID, BOUNDARY_INVALID,
  * MANUAL_PATH_MISSING), and the recipes' judge mistakes join the judge rules.
  * hi: the playbook's Hindi; default its own playbooks/<id>/hi.json. today: the day the rules are checked against
- * (default the UTC day now). Returns the definition, frozen.
+ * (default the India calendar day now). Returns the definition, frozen.
  */
-export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, today: IsoDate = new Date().toISOString().slice(0, 10)): PlaybookDefinition {
+export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, today: IsoDate = localDayAt(new Date(), { code: 'IN' })): PlaybookDefinition {
   const id = typeof definition?.registration?.id === 'string' ? definition.registration.id : 'new';
   const refuse = (field: string, why: string): never => {
     throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} playbook's ${field}: ${why}`);
