@@ -8,6 +8,7 @@
 // offer's rights, when it touches third-party media, are recorded as the flagships' are (delivery/rights.ts). Written
 // for Chausar; nothing here is learned from an outside source.
 import { check, ChausarError, type State } from '../../../contracts.ts';
+import { decimalMinor } from '../../../currency.ts';
 import type { IsoDate, IsoTime, OfferIntakeAsk, OrderIntake, VentureRecord } from '../../contracts.ts';
 import { requirePeopleConsent } from './voice-consent.ts';
 import { RIGHTS_LABELS, recordRights, requireRights, type RightsBasis } from '../../delivery/rights.ts';
@@ -53,6 +54,7 @@ function fieldValue(field: KitIntakeField, value: unknown): IntakeValue {
     case 'list': {
       if (!Array.isArray(value) || value.length > MAX_LIST) bad(`send a list of at most ${MAX_LIST} entries.`);
       const items = (value as unknown[]).map(item => plainWords(item, MAX_ITEM) ?? bad(`each entry is plain words of at most ${MAX_ITEM} characters.`));
+      if (field.options && items.some(item => !field.options!.includes(item))) bad('choose only entries from the offered list.');
       return [...new Set(items)];
     }
     case 'date': return typeof value === 'string' && realDay(value) ? value : bad('give a day like 2026-11-01.');
@@ -82,11 +84,24 @@ function fieldValue(field: KitIntakeField, value: unknown): IntakeValue {
 export function kitOrderIntake(raw: unknown, offer: KitIntakeOffer, meta: { by: string; at: IsoTime; today: IsoDate; state?: State; venture?: VentureRecord }): OrderIntake | null {
   check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
   const body = (raw ?? {}) as Record<string, unknown>;
-  const extra = Object.keys(body).filter(key => key !== 'rights' && key !== 'fields');
+  const extra = Object.keys(body).filter(key => key !== 'rights' && key !== 'fields' && key !== 'moneyRupees');
   check(extra.length === 0, 'INVALID_VENTURE_REQUEST', `The intake has no field called ${extra[0]}.`);
   const sent = body.fields ?? {};
   check(sent !== null && typeof sent === 'object' && !Array.isArray(sent), 'INVALID_VENTURE_REQUEST', 'Send the intake fields as named fields.');
-  const values = sent as Record<string, unknown>;
+  const values = { ...sent as Record<string, unknown> };
+  // The form sends rupees unchanged. Only the engine converts them; records retain the existing whole-paise shape.
+  if (body.moneyRupees !== undefined) {
+    const money = body.moneyRupees;
+    check(money !== null && typeof money === 'object' && !Array.isArray(money), 'INVALID_VENTURE_REQUEST', 'Send rupee amounts as named fields.');
+    for (const [id, rawAmount] of Object.entries(money as Record<string, unknown>)) {
+      const field = offer.intake.find(item => item.id === id && item.kind === 'money');
+      check(!!field && !Object.hasOwn(values, id), 'INVALID_VENTURE_REQUEST', 'Name each money field once, in rupees or paise.');
+      check(typeof rawAmount === 'string' && rawAmount.length <= 30, 'INVALID_AMOUNT', 'Give the rupee amount as exact decimal text.');
+      const minor = decimalMinor((rawAmount as string).trim().replace(/[, ]/g, ''), 'INR');
+      check(/^\d{1,15}$/.test(minor), 'INVALID_AMOUNT', 'Give a non-negative amount of at most fifteen paise digits.');
+      values[id] = minor;
+    }
+  }
   const unknown = Object.keys(values).filter(key => !offer.intake.some(field => field.id === key && field.kind !== 'rights'));
   check(unknown.length === 0, 'INVALID_VENTURE_REQUEST', `The intake has no field called ${unknown[0]}.`);
   const cuts = offer.rights.length > 0;

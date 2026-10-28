@@ -1,0 +1,68 @@
+[
+  {
+    "id": "ca-firm",
+    "picks": [
+      "ca firm",
+      "chartered accountant",
+      "chartered accountancy",
+      "ai-native ca",
+      "ca practice",
+      "bookkeeping practice",
+      "gst filing service",
+      "gst filing",
+      "gst return",
+      "itr filing",
+      "income tax return",
+      "tds return",
+      "tds filing"
+    ]
+  },
+  {
+    "id": "youtube",
+    "picks": [
+      "youtube",
+      "faceless channel",
+      "faceless video",
+      "podcast clips",
+      "podcast clip",
+      "podcast shorts",
+      "video podcast",
+      "clip channel",
+      "clipping channel",
+      "clip programme",
+      "clip program",
+      "long video into shorts",
+      "shorts from long"
+    ]
+  },
+  {
+    "id": "social-agency",
+    "picks": [
+      "social media agency",
+      "social media marketing",
+      "social media management",
+      "social media manager",
+      "smm agency",
+      "instagram management",
+      "instagram marketing",
+      "instagram agency",
+      "linkedin content",
+      "content marketing",
+      "content calendar",
+      "community management",
+      "ugc ads",
+      "ugc-style ads"
+    ]
+  },
+  {
+    "id": "lead-generation",
+    "picks": [
+      "lead generation",
+      "appointment setting",
+      "cold email agency",
+      "cold outreach service",
+      "book meetings for",
+      "local business leads"
+    ]
+  }
+]

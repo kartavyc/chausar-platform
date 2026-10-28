@@ -317,6 +317,11 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
           || bounced || (typeof record.personId === 'string' && ids.has(record.personId))
           || candidates.some(item => !!item.opportunityId && (cardIds.has(item.opportunityId) || leadIds.has(item.opportunityId)));
       }
+      case 'venture-lead-source': {
+        if (!options.erase) return false;
+        const evidence = JSON.stringify(record.community ?? null);
+        return (typeof record.personId === 'string' && ids.has(record.personId)) || mentionsName(evidence) || [...emails, ...phones].some(contact => evidence.toLowerCase().includes(contact.toLowerCase()));
+      }
       case 'venture-lead': return options.erase && typeof record.email === 'string' && emails.has(record.email.toLowerCase());
       case 'venture-notification': return options.erase && (mentionsId(record.subject) || mentionsId(record.rowId) || mentionsName(record.title));
       case 'venture-proposal': return options.erase && (mentionsId(JSON.stringify(record.input ?? null)) || mentionsName(record.title) || mentionsName(record.line));

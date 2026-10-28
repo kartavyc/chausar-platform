@@ -7,6 +7,8 @@
  */
 
 import { DELIVERIES, ORDERS, UPLOADS } from './fixtures';
+import { fakeKitIntake } from './fake-kit-intake';
+import { fakeKitOfferIntake } from './fake-kit-plans';
 import { withFakeOrderSteps } from './fake-previews';
 import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
 
@@ -31,6 +33,7 @@ export interface WorkHost {
   emit(event: VentureRunEvent): void;
   /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
   invoices?(): InvoiceLite[];
+  ask?(method: string, params: Record<string, unknown>): unknown;
 }
 
 const WORK_METHODS = new Set([
@@ -131,15 +134,60 @@ export class FakeWorkDesk {
     if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
     const request = text(p.request);
     if (request.length < 3 || request.length > 4000) throw invalid('The request must be between 3 and 4000 characters.');
-    checkIntake(p.intake, plan.intake?.[offer.id] ?? null, offer.name.value);
+    const ask = plan.intake?.[offer.id] ?? fakeKitOfferIntake(plan.playbook?.id, offer.playbookOffer);
+    checkIntake(p.intake, ask ?? null, offer.name.value);
+    const staged: { field: string; id: string; name: string; contentBase64: string }[] = [];
+    let rawIntake = p.intake;
+    if (p.intakeFiles !== undefined) {
+      if (!p.intakeFiles || typeof p.intakeFiles !== 'object' || Array.isArray(p.intakeFiles)) throw invalid('Send the intake files by their question names.');
+      const entries = Object.entries(p.intakeFiles as Record<string, unknown>);
+      if (entries.length > 10) throw new EngineError('UPLOAD_LIMIT', 'Choose at most ten intake files.');
+      if (entries.length && !ask?.kit) throw invalid('Only a kit offer takes named intake files.');
+      if (rawIntake !== undefined && (!rawIntake || typeof rawIntake !== 'object' || Array.isArray(rawIntake))) throw invalid('Send the intake as named fields.');
+      const body = rawIntake as Record<string, unknown> | undefined;
+      const sent = body?.fields ?? {};
+      if (!sent || typeof sent !== 'object' || Array.isArray(sent)) throw invalid('Send the intake fields as named fields.');
+      const fields = { ...sent as Record<string, unknown> };
+      let bytes = 0;
+      for (const [field, value] of entries) {
+        if (!ask?.kit?.some(item => item.id === field && item.kind === 'file') || Object.hasOwn(fields, field)) throw invalid('Choose each intake file once, for a file question this service asks.');
+        if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).sort().join(',') !== 'contentBase64,name') throw invalid('Send the required fields and nothing else.');
+        const file = value as Record<string, unknown>;
+        if (typeof file.name !== 'string' || !file.name.trim() || file.name.trim().length > 120 || /[\r\n\t\u0000-\u001F\u007F]/.test(file.name)) throw invalid('File name must be plain text on one line.');
+        if (typeof file.contentBase64 !== 'string' || !file.contentBase64 || file.contentBase64.length > Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.contentBase64)) throw new EngineError('UPLOAD_LIMIT', 'Add a file smaller than one and a half megabytes.');
+        bytes += atob(file.contentBase64).length;
+        if (bytes > 1_300_000) throw new EngineError('UPLOAD_LIMIT', 'Intake files together must fit within one megabyte and three hundred kilobytes.');
+        const id = 'upload_intake_' + (++this.seq);
+        fields[field] = id;
+        staged.push({ field, id, name: file.name.trim(), contentBase64: file.contentBase64 });
+      }
+      rawIntake = { ...body, fields };
+    }
+    const keptIntake = ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    if (ask?.kit && keptIntake && typeof keptIntake === 'object') {
+      const values = (keptIntake as NonNullable<OrderLite['intake']>).fields;
+      for (const field of ask.kit.filter(field => field.kind === 'file')) {
+        const id = values?.[field.id];
+        if (typeof id === 'string' && !staged.some(file => file.field === field.id && file.id === id)) throw new EngineError('UPLOAD_NOT_FOUND', 'Add the file to this order before using it as an intake answer.');
+      }
+    }
     const order: OrderLite = {
       id: `o-new-${++this.seq}`, at: this.host.now(), clientId: client.id, offerId: offer.id,
       quantity: text(p.quantity) || offer.pricing.defaultQuantity, request, status: 'open',
       priceReceiptId: plan.offerReceipts[offer.id]?.id ?? 'R-0415', deliveredOn: null,
       // The engine keeps the intake on the order (OrderRecord.intake); a transcript made here reads its cutFile.
-      ...(p.intake && typeof p.intake === 'object' ? { intake: clone(p.intake) as OrderLite['intake'] } : {}),
+      ...(keptIntake && typeof keptIntake === 'object' ? { intake: clone(keptIntake) as OrderLite['intake'] } : {}),
     };
+    const previousOrders = [...(this.orders[biz] ?? [])];
+    const previousUploads = [...(this.uploads[biz] ?? [])];
     (this.orders[biz] ??= []).unshift(order);
+    try {
+      for (const file of staged) this.addFile(biz, { orderId: order.id, name: file.name, contentBase64: file.contentBase64 }, undefined, file.id);
+    } catch (error) {
+      this.orders[biz] = previousOrders;
+      this.uploads[biz] = previousUploads;
+      throw error;
+    }
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
     return clone(order);
   }
@@ -178,7 +226,7 @@ export class FakeWorkDesk {
   }
 
   /** origin: only the fake's own transcript desk passes one, through keepMade. */
-  private addFile(biz: string, p: Record<string, unknown>, origin?: UploadLite['origin']): UploadLite {
+  private addFile(biz: string, p: Record<string, unknown>, origin?: UploadLite['origin'], intakeId?: string): UploadLite {
     const order = this.order(biz, p.orderId);
     const name = text(p.name);
     const encoded = typeof p.contentBase64 === 'string' ? p.contentBase64 : '';
@@ -201,12 +249,12 @@ export class FakeWorkDesk {
           : ext === 'mp3' ? word(0).startsWith('ID3') || (head[0] === 0xff && ((head[1] ?? 0) & 0xe0) === 0xe0) : ext === 'm4a' ? word(4) === 'ftyp' : word(0) === 'OggS';
       if (!real) throw new EngineError('UNSUPPORTED_UPLOAD', media === 'image' ? `${name} is not a photo Chausar can read. Export it again as JPEG, PNG or WebP.` : `${name} is not a recording Chausar can keep. Add a WAV, MP3, M4A or Ogg file.`);
       if (list.filter((u) => u.scope.kind === 'media' && u.scope.orderId === order.id).length >= 10) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most 10 photos and recordings.');
-      const kept: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format: media, bytes, scope: { kind: 'media', orderId: order.id }, clientData: true };
+      const kept: UploadLite = { id: intakeId ?? `u-new-${++this.seq}`, at: this.host.now(), name, format: media, bytes, scope: { kind: 'media', orderId: order.id }, clientData: true };
       list.unshift(kept);
       return clone(kept);
     }
     if (list.filter((u) => u.scope.kind === 'order' && u.scope.orderId === order.id).length >= MAX_UPLOADS_PER_ORDER) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most ten files.');
-    const upload: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true, ...(origin ? { origin } : {}) };
+    const upload: UploadLite = { id: intakeId ?? `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true, ...(origin ? { origin } : {}) };
     list.unshift(upload);
     return clone(upload);
   }

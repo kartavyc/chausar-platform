@@ -646,7 +646,7 @@ export interface OrderLite {
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
   /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
-  intake?: { format?: 'long' | 'short'; cutFile?: string | null };
+  intake?: { rights?: { basis: RightsBasisLite; holder: string; reference: string | null; scope: string | null; expiresOn: string | null; recordedAt: string; recordedBy: string } | null; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; format?: 'long' | 'short'; cutFile?: string | null; fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null> };
   /** 4J3: the order's stage steps from the records, and what waits on the owner ("2 wait on you: ..."), or null. */
   stages?: OrderStageView[];
   waitsOnYou?: OrderWaitsOnYou | null;
@@ -1734,9 +1734,13 @@ export interface EngineMethods {
   'venture.order.create': {
     params: {
       clientId: string; offerId: string; quantity?: string; request: string;
+      intakeFiles?: Record<string, { name: string; contentBase64: string }>;
       intake?: {
         rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string;
         calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite;
+        /** Kit answers; rupee inputs are parsed only by the engine. */
+        fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null>;
+        moneyRupees?: Record<string, string>;
       };
       /** 4J5 (M15): the price includes the tax. */
       taxInclusive?: boolean;

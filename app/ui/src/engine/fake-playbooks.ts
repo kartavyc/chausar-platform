@@ -39,7 +39,9 @@ export interface FakeDeskKind {
   act?(p: Record<string, unknown>): unknown;
 }
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
+export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
 export interface FakePlaybookDesk {
+  forgetPeople?(people: readonly FakeForgottenPerson[], removeClient: boolean): void;
   readonly playbook: string;
   readonly kinds: Readonly<Record<string, FakeDeskKind>>;
   readonly methods?: Readonly<Record<string, (p: Record<string, unknown>) => unknown>>;
@@ -78,6 +80,10 @@ export class FakePlaybooksDesk {
 
   constructor(host: W4DeskHost) {
     this.desks = MAKERS.map((make) => make(host));
+  }
+
+  forgetPeople(people: readonly FakeForgottenPerson[], removeClient: boolean): void {
+    for (const desk of this.desks) desk.forgetPeople?.(people, removeClient);
   }
 
   handles(method: string): boolean {

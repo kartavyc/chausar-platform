@@ -1,0 +1,13 @@
+{
+  "kit-intake.fileError": "सही प्रकार की और सीमा से छोटी फ़ाइल चुनें।",
+  "kit-intake.choose": "जवाब चुनें",
+  "kit-intake.yes": "हाँ",
+  "kit-intake.no": "नहीं",
+  "kit-intake.rupees": "रुपये लिखें। ऑर्डर जोड़ते समय चौसर रकम बदलेगा।",
+  "kit-intake.fileHint": "क्लाइंट की दी गई फ़ाइल चुनें। सभी फ़ाइलें मिलाकर 1.3 मेगाबाइट से छोटी हों।",
+  "kit-intake.person": "व्यक्ति का नाम",
+  "kit-intake.consent": "दर्ज सहमति",
+  "kit-intake.consentHint": "पहले कनेक्शन में उनकी सहमति दर्ज करें। नई सहमति के लिए नई रिकॉर्डिंग चाहिए।",
+  "kit-intake.addPerson": "व्यक्ति जोड़ें",
+  "kit-intake.remove": "इस व्यक्ति को हटाएँ"
+}

@@ -12,6 +12,8 @@ import { localDayAt } from '../local-day.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { orderIntake } from '../playbooks/intake.ts';
 import type { PlaybookDefinition } from '../playbooks/kit/define.ts';
+import { attachIntakeFiles, prepareIntakeFiles } from '../playbooks/kit/intake-files.ts';
+import { requireAppChannel } from '../records.ts';
 
 /**
  * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
@@ -22,13 +24,15 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
   // Ink v2 wave 5 (5A2): the honest exit reads the kit playbooks (playbooks/kit/exit.ts), loaded on use; a test passes its own.
   const exit = await import('../playbooks/kit/exit.ts');
   const definitions = options.definitions ?? (await import('../playbooks/definitions.ts')).PLAYBOOK_DEFINITIONS;
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'taxInclusive'], ['clientId', 'offerId', 'request']);
+  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive'], ['clientId', 'offerId', 'request']);
   const clientId = recordId(body.clientId, 'Client');
   const offerId = recordId(body.offerId, 'Offer');
   const quantity = body.quantity === undefined ? null : quantityText(body.quantity);
   const request = plainText(body.request, 'The request', { min: 3, max: 4000 });
   check(body.taxInclusive === undefined || typeof body.taxInclusive === 'boolean', 'INVALID_VENTURE_REQUEST', 'Say whether the price includes tax with true or false.');
   const taxInclusive = body.taxInclusive === true;
+  if (body.intakeFiles !== undefined) requireAppChannel(ctx, 'venture.order.create');
+  const intakeFiles = prepareIntakeFiles(deps, body.intakeFiles);
 
   return ventureAction(deps, ctx, 'prepare', 'order.create', tx => {
     const venture = tx.venture;
@@ -39,14 +43,16 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     const offer = requireOffer(blueprint, offerId);
     requirePrice(offer);
     // Rights and the other intake fields are checked before anything is written.
-    const intake = orderIntake(body.intake, flagshipOffer(flagshipPlan(venture.idea), offer), {
+    const base = tx.base('venture-order');
+    const selectedOffer = flagshipOffer(flagshipPlan(venture.idea), offer);
+    const rawIntake = attachIntakeFiles(tx, base.id, selectedOffer, body.intake, intakeFiles);
+    const intake = orderIntake(rawIntake, selectedOffer, {
       by: ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host,
       // 5A1, 5A4: a kit offer's people need their consent recorded in this business.
       state: tx.state, venture,
     });
     // 5A2 (P4): an ask wholly outside what a kit playbook does makes no order; one partly outside lists the rest on it.
     const outOfScope = exit.orderScope(venture, request, definitions);
-    const base = tx.base('venture-order');
     const orderQuantity = quantity ?? offer.pricing.defaultQuantity;
     const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity, taxInclusive }, blueprint, offer, client);
     const order: OrderRecord = {

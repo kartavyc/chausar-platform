@@ -35,6 +35,7 @@ import { FakeKitReportDesk } from './fake-kit-report';
 import { FakeKitConnectDesk } from './fake-kit-connect';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
+import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
 import { withTruth } from './fake-setup';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
@@ -220,6 +221,7 @@ export class FakeEngine {
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
       // 4J3: the invoices an order's stage steps read (read only when the order list is asked for, after money exists).
       invoices: () => this.money.request('venture.invoice.list', {}) as InvoiceLite[],
+      ask: (method, params) => this.answerNow(method, params),
     }, { fresh });
     this.money = new FakeMoney({
       now: () => this.now(), business: () => this.current, clients: () => this.clients[this.current] ?? [],
@@ -475,6 +477,7 @@ export class FakeEngine {
     const gone = before.filter(person => !kept.has(person.id));
     if (gone.length) {
       this.kitSales()?.forgetPeople(gone, method === 'venture.network.forget');
+      for (const desk of this.w5 ?? []) if (desk instanceof FakePlaybooksDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
     }
     return answer;
   }
@@ -930,7 +933,8 @@ export class FakeEngine {
     if (!questions.every((q) => q.answer !== null)) throw new EngineError('INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
     const venture = this.ventures.get(this.current)!;
     const business = this.businesses.find((b) => b.id === this.current)!;
-    const type = classify(venture.idea);
+    const kit = fakeKitForIdea(venture.idea);
+    const type = kit?.registration.serviceType ?? classify(venture.idea);
     venture.serviceType = type;
     venture.done = 2;
     const at = this.now();
@@ -977,7 +981,8 @@ export class FakeEngine {
       },
       starterConnectorIds: [],
     };
-    const view = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
+    const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
+    const view = kit ? fakeKitPlan(kit, templateView) : templateView;
     this.desk.putBlueprint(business.id, view);
     return view;
   }

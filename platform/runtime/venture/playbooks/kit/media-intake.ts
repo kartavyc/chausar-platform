@@ -310,7 +310,7 @@ export function mediaKindOf(name: string): 'image' | 'audio' | null {
 }
 
 /** A recording is what its name says, by its first bytes: WAV, MP3, M4A or Ogg. */
-function checkAudio(name: string, bytes: Uint8Array): void {
+export function checkAudio(name: string, bytes: Uint8Array): void {
   const ext = extname(name).toLowerCase();
   const ok = ext === '.wav' ? latin(bytes, 0, 4) === 'RIFF' && latin(bytes, 8, 4) === 'WAVE'
     : ext === '.mp3' ? latin(bytes, 0, 3) === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)

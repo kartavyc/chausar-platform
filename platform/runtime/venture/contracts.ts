@@ -1562,6 +1562,9 @@ export const EXTERNAL_ORIGINS = Object.freeze([
   'https://www.mca.gov.in', 'https://www.gst.gov.in', 'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io',
   'https://posthog.com', 'https://plausible.io', 'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com',
   'https://console.anthropic.com', 'https://platform.openai.com',
+  // 5M catalogue links do not grant provider API access.
+  'https://overpass-api.de', 'https://operations.osmfoundation.org', 'https://developers.google.com',
+  'https://redditinc.com', 'https://developer.happenstance.ai',
 ] as const);
 
 // ---------------------------------------------------------------------------
@@ -6374,6 +6377,8 @@ export const VENTURE_ERRORS = [
   'COPY_NOT_SENT', 'VIEW_FIRST', 'SET_NEEDS_SECOND_ASK', 'DRAFT_HOLDS_SECRET',
   // Ink v2 wave 5, 5A1: a kit definition that breaks a rule, and a kit order missing a required intake field
   'PLAYBOOK_DEFINITION_INVALID', 'INTAKE_FIELD_REQUIRED',
+  // 5M: exact owner-approved research, source permissions, channel limits and paid lookup outcomes.
+  'APPROVAL_CHANGED', 'CITY_NOT_FOUND', 'COLD_CHANNEL_REFUSED', 'COMMUNITY_OWNER_SOURCE_REQUIRED', 'COMMUNITY_QUOTE_MISSING', 'HAPPENSTANCE_SEARCH_UNCONFIRMED', 'KEY_REQUIRED', 'LEAD_HOST_CHANGED', 'LEAD_INTAKE_CHANGED', 'LEAD_RATE_STALE', 'LEAD_SOURCE_UNAVAILABLE', 'PRODUCT_CONFIRM_REQUIRED', 'WHATSAPP_CONSENT_REQUIRED',
   // Ink v2 wave 5, 5A2: share prices (no recorded base, a base without its file, a share outside 0.01% to 100%); the
   // pilot (a window outside 2 to 6 weeks, no price, an offer that is not a pilot); the sales proposal (an unpriced
   // offer, none found, a check that failed); an ask wholly outside what the business does

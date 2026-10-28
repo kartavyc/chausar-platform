@@ -28,6 +28,11 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  // 5M: bounded, policy-checked lead research and one exact-approved paid network search.
+  overpass: { qualification: 'fixture-tested', what: 'Reads bounded city prospects with OpenStreetMap attribution.' },
+  nominatim: { qualification: 'fixture-tested', what: 'Looks up a city once, cached and serialised under its usage policy.' },
+  'own-site': { qualification: 'fixture-tested', what: 'Reads a business own homepage and limited contact pages, obeying robots.' },
+  happenstance: { qualification: 'fixture-tested', what: 'Uses your own key in the lead desk; each paid search shows credits and asks for exact approval.' },
   github: { qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' },
   tally: { qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' },
   'chausar-crm': { qualification: 'built-in', what: 'Shows your clients and orders inside Chausar.' },
