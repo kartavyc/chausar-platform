@@ -409,6 +409,8 @@ export interface VentureEventsResult { events: VentureEventRecordLite[]; lastSeq
 export interface PriceFigureLite { key: string; label: string; display: Display }
 export interface ReceiptLite {
   id: string; at: string; figures: PriceFigureLite[]; explanation: string; stale: boolean;
+  /** Raw code-computed total on a price receipt; absent on other receipt kinds. */
+  totalMinor?: string;
   /** 4J10 (mirrored by 4J22a): a stored receipt's signature and the public half that checks it; absent when unsigned. */
   signature?: ReceiptSignatureLite;
 }

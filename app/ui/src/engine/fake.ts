@@ -403,6 +403,7 @@ export class FakeEngine {
         if (this.practice.handles(method)) return this.practice.request(method, p);
         if (this.bank.handles(method)) return this.bank.request(method, p);
         if (this.wiring.handles(method)) return this.wiring.request(method, p);
+        if (this.network.handles(method)) return this.networkAnswer(method, p);
         for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) if (desk.handles(method)) return desk.request(method, p);
         throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -458,12 +459,25 @@ export class FakeEngine {
     if (method === 'venture.client.add') return this.addClient(p);
     // 4J2: a set approval decides each item as Today does (fake-4j2.ts).
     if (method === 'venture.queue.decide') return this.decide(p as ParamsOf<'venture.queue.decide'>);
+    if (this.network.handles(method)) return this.networkAnswer(method, p);
     for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);
     }
     throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
   }
 
+  /** 5A2: drafts follow the engine's Forget and import Undo, only after the network change succeeds. */
+  private networkAnswer(method: string, p: Record<string, unknown>): unknown {
+    if (method !== 'venture.network.forget' && method !== 'venture.network.importUndo') return this.network.request(method, p);
+    const before = this.network.privacyFacts();
+    const answer = this.network.request(method, p);
+    const kept = new Set(this.network.privacyFacts().map(person => person.id));
+    const gone = before.filter(person => !kept.has(person.id));
+    if (gone.length) {
+      this.kitSales()?.forgetPeople(gone, method === 'venture.network.forget');
+    }
+    return answer;
+  }
   /** 5A2: the desk that keeps sales proposals and GO cards. */
   private kitSales(): FakeKitSalesDesk | undefined {
     return this.w5?.find((desk): desk is FakeKitSalesDesk => desk instanceof FakeKitSalesDesk);

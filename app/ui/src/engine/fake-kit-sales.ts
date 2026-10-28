@@ -38,36 +38,70 @@ const addDays = (day: string, days: number): string => {
   return date.toISOString().slice(0, 10);
 };
 
+
+/** Exact agreed terms, with the same field and type checks as proposal.ts pilotAsk. */
+function pilotTerms(raw: unknown): Record<string, unknown> {
+  const object = (value: unknown, allowed: string[]): Record<string, unknown> => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw invalid('Send one request object.');
+    const body = value as Record<string, unknown>;
+    if (Object.keys(body).some(key => !allowed.includes(key))) throw invalid('Send the required fields and nothing else.');
+    return body;
+  };
+  const terms = raw === true ? {} : object(raw, PILOT_TERMS);
+  const measure = terms.measure === undefined ? {} : object(terms.measure, ['what', 'target', 'by']);
+  for (const [value, field] of [[terms.startsOn, 'The day the pilot starts'], [terms.hypothesis, 'The hypothesis'], [measure.what, 'What you measure'], [measure.target, 'The success number'], [measure.by, 'The success date']] as const) {
+    if (value !== undefined && typeof value !== 'string') throw invalid(`${field} must be text.`);
+  }
+  for (const [value, field] of [[terms.weeks, 'The weeks'], [terms.ownerHours, 'Your hours'], [terms.clientHours, "Your client's hours"]] as const) {
+    if (value !== undefined && typeof value !== 'number') throw invalid(`${field} must be a whole number.`);
+  }
+  if (terms.reference !== undefined && typeof terms.reference !== 'boolean') throw invalid('Say yes or no to mentioning them as a client.');
+  return { ...terms, measure };
+}
+
 /**
  * The engine's pilot page lines (playbooks/kit/pilot.ts pilotOf), from the terms agreed so far: a fact not agreed is a
  * placeholder; a window outside 2 to 6 weeks, or a success date outside it, refuses PILOT_WINDOW.
  */
-function pilotLines(offerName: string, raw: unknown): { lines: string[]; startsOn: string | null } {
-  const terms = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  for (const key of Object.keys(terms)) if (!PILOT_TERMS.includes(key)) throw invalid(`Unknown field: ${key}.`);
-  const measure = (terms.measure && typeof terms.measure === 'object' ? terms.measure : {}) as Record<string, unknown>;
-  const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '') : null);
-  const start = typeof terms.startsOn === 'string' ? terms.startsOn : null;
-  const weeks = typeof terms.weeks === 'number' ? terms.weeks : null;
+function pilotLines(offerName: string, terms: Record<string, unknown>): { lines: string[]; startsOn: string | null } {
+  const measure = terms.measure as Record<string, unknown>;
+  const realDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+  const text = (value: unknown, field: string) => {
+    if (value === undefined) return null;
+    const line = (value as string).replace(/\s+/g, ' ').trim();
+    if (line.length < 2 || line.length > 200) throw invalid(`${field} must be one line of 2 to 200 characters.`);
+    return line.replace(/[.\s]+$/, '');
+  };
+  const start = (terms.startsOn as string | undefined) ?? null;
+  if (start !== null && !realDay(start)) throw invalid('The day the pilot starts must be a date like 2026-11-02.');
+  const weeks = (terms.weeks as number | undefined) ?? null;
   if (weeks !== null && !(Number.isInteger(weeks) && weeks >= 2 && weeks <= 6)) throw new EngineError('PILOT_WINDOW', 'A pilot runs 2 to 6 weeks.');
   const to = weeks !== null && start ? addDays(start, weeks * 7) : null;
-  const by = typeof measure.by === 'string' ? measure.by : null;
+  const by = (measure.by as string | undefined) ?? null;
   if (by !== null) {
+    if (!realDay(by)) throw invalid('The success date must be a date like 2026-11-27.');
     if (!start) throw new EngineError('PILOT_WINDOW', 'Agree the day the pilot starts before its success date.');
     const last = to ?? addDays(start, 42);
     if (!(by > start && by <= last)) throw new EngineError('PILOT_WINDOW', `The success date must fall inside the pilot, after ${start} and by ${last}.`);
   }
-  const hours = (value: unknown) => (typeof value === 'number' ? `${value} ${value === 1 ? 'hour' : 'hours'} a week` : null);
+  const hypothesis = text(terms.hypothesis, 'The hypothesis');
+  const what = text(measure.what, 'What you measure'), target = text(measure.target, 'The success number');
+  const hours = (value: unknown, field: string) => {
+    if (value === undefined) return null;
+    if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 60) throw invalid(`${field} must be whole hours a week, from 0 to 60.`);
+    return `${value} ${value === 1 ? 'hour' : 'hours'} a week`;
+  };
+  const owner = hours(terms.ownerHours, 'Your hours'), client = hours(terms.clientHours, "Your client's hours");
   const span = weeks === null ? '[2 to 6 weeks]' : `${weeks} weeks`;
   const from = start ?? '[the day it starts]';
-  const reference = typeof terms.reference === 'boolean' ? terms.reference : null;
+  const reference = (terms.reference as boolean | undefined) ?? null;
   return {
     startsOn: start,
     lines: [
       `A paid pilot of ${offerName} ${to === null ? `for ${span}, from ${from}.` : `for ${span}, from ${from} to ${to}.`}`,
-      `What we test: ${text(terms.hypothesis) ?? '[the one thing we expect to change]'}.`,
-      `Success: ${text(measure.what) ?? '[what we measure]'}, ${text(measure.target) ?? '[the number you agree on]'}, by ${by ?? '[the date, inside the pilot]'}.`,
-      `Time needed: ${hours(terms.clientHours) ?? '[hours a week from you]'} from you, ${hours(terms.ownerHours) ?? '[hours a week from us]'} from us.`,
+      `What we test: ${hypothesis ?? '[the one thing we expect to change]'}.`,
+      `Success: ${what ?? '[what we measure]'}, ${target ?? '[the number you agree on]'}, by ${by ?? '[the date, inside the pilot]'}.`,
+      `Time needed: ${client ?? '[hours a week from you]'} from you, ${owner ?? '[hours a week from us]'} from us.`,
       reference === null ? 'May we mention you as a client? [may we mention you as a client: yes or no]'
         : reference ? 'You agreed we may mention you as a client.' : 'You asked us not to mention you as a client.',
     ],
@@ -160,6 +194,7 @@ export class FakeKitSalesDesk {
     if (typeof p.offerId !== 'string' || !ID.test(p.offerId)) throw invalid('Send the offer id.');
     if (p.pilot !== undefined && typeof p.pilot !== 'boolean' && (typeof p.pilot !== 'object' || p.pilot === null)) throw invalid('Say whether it is a pilot with true or false.');
     const pilot = p.pilot !== undefined && p.pilot !== false;
+    const agreed = pilot ? pilotTerms(p.pilot) : null;
     const plan = this.host.ask('venture.blueprint.get', {}) as BlueprintViewLite | null;
     if (!plan) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first.');
     const offer = plan.blueprint.offers.find((o) => o.id === p.offerId);
@@ -196,7 +231,7 @@ export class FakeKitSalesDesk {
     // engine's figures-resolve lets the quote through, as here; the fake runs no kit playbook, so scope is never checked.
     const said = heard?.replace(/\s+/g, ' ').trim() ?? '';
     const heardLines = [heard ? `You asked: "${said.length > 300 ? `${said.slice(0, 297)}...` : said}"` : HEARD_PLACEHOLDER];
-    const page = pilot ? pilotLines(offer.name.value, p.pilot) : null;
+    const page = agreed ? pilotLines(offer.name.value, agreed) : null;
     const roadmap = page ? [intro, ...page.lines] : [intro, ...steps];
     const next = page
       ? [`Reply to say yes to the pilot, and we start on ${page.startsOn ?? '[the day it starts]'}.`, ...AFTER.map((ask) => `After the pilot: ${ask}`)]
@@ -212,7 +247,7 @@ export class FakeKitSalesDesk {
       const receipt = this.host.ask('venture.price.quote', { offerId: offer.id }) as ReceiptLite;
       const total = receipt.figures.find((f) => f.key === 'total') ?? receipt.figures[receipt.figures.length - 1]!;
       const per = UNIT[offer.pricing.quantityUnit];
-      investment = [{ kind: 'price', offerId: offer.id, offerName: offer.name.value, receiptId: receipt.id, totalMinor: offer.pricing.unitPriceMinor ?? '0', display: total.display, per }];
+      investment = [{ kind: 'price', offerId: offer.id, offerName: offer.name.value, receiptId: receipt.id, totalMinor: receipt.totalMinor!, display: total.display, per }];
       investmentLines = [`${label}: ${total.display} ${per}`, receipt.explanation];
     }
     const body: SalesProposalSection[] = [
@@ -283,6 +318,24 @@ export class FakeKitSalesDesk {
     return businesses.find((b) => b.id === this.host.current())?.name ?? this.host.current();
   }
 
+  /** Internal Forget/Undo hook: the removed person's proposals and Today rows go together, as in network/forget.ts. */
+  forgetPeople(people: { id: string; names: string[]; clientId: string | null }[], erase: boolean): void {
+    const ids = new Set(people.map(person => person.id));
+    const clients = new Set(people.flatMap(person => person.clientId ? [person.clientId] : []));
+    const parts = [...new Set(people.flatMap(person => person.names.flatMap(name => [name, ...name.split(/[\s,.]+/).filter(word => [...word].length >= 3)])))];
+    const escaped = parts.map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const names = escaped.length ? new RegExp(String.raw`(?<![\p{L}\p{N}])(?:${escaped.join('|')})(?![\p{L}\p{N}])`, 'iu') : null;
+    const gone = new Set<string>();
+    for (let index = this.proposals.length - 1; index >= 0; index--) {
+      const proposal = this.proposals[index]!;
+      if (proposal.business !== this.host.current()) continue;
+      if ((proposal.personId && ids.has(proposal.personId)) || (erase && ((proposal.clientId && clients.has(proposal.clientId)) || names?.test(proposal.view.to) || names?.test(proposal.text)))) {
+        gone.add(proposal.view.id!);
+        this.proposals.splice(index, 1);
+      }
+    }
+    this.host.setRows(this.host.rows().filter(row => !gone.has(row.viewRef?.id ?? '')));
+  }
   /** Approve on a proposal's Today row (fake.ts asks): the engine's words, or null for any other row. */
   decide(row: QueueRow, action: string): string | null {
     if (!row.id.startsWith('salesprop:') || action !== 'approve') return null;

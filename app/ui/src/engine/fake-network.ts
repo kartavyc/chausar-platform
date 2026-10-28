@@ -41,6 +41,10 @@ export class FakeNetworkDesk {
     return this.people.receipt(id) ?? this.pipeline.receipt(id);
   }
 
+  /** Internal hook for erasing proposals with their person or import. */
+  privacyFacts() {
+    return this.people.privacyFacts();
+  }
   /** 4E4: Today's follow-up and reply rows and "Add notes" notices, brought up to date before the queue is listed. */
   syncRows(): void {
     this.pipeline.syncRows();

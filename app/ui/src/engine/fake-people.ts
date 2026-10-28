@@ -242,6 +242,10 @@ export class FakePeopleDesk {
     };
   }
 
+  /** Internal privacy hook: identities needed to erase sales drafts, never sent to a screen. */
+  privacyFacts(): { id: string; names: string[]; clientId: string | null; emails: string[]; phones: string[]; urls:string[] }[] {
+    return this.network().people.map(person => ({ id: person.id, names: [person.name, ...person.facts.filter(fact => fact.field === 'Name').map(fact => fact.value)], clientId: person.clientId, emails: [...person.emails], phones: person.facts.filter(fact => fact.field === 'Phone').map(fact => fact.value), urls:[...new Set([person.linkedin,...person.facts.filter(fact=>fact.field==='LinkedIn').map(fact=>fact.value)].filter((value):value is string=>typeof value==='string'&&!!value))] }));
+  }
   /** The pipeline cards this desk made with venture.pipeline.add (4E4 builds the pipeline on them). */
   cards(): PipelineCardView[] {
     return structuredClone(this.network().cards);

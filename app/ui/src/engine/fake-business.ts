@@ -389,17 +389,29 @@ export class FakeBusinessDesk {
   }
 
   private quote(biz: string, p: Record<string, unknown>): ReceiptLite {
+    if (Object.keys(p).some(key => !['offerId', 'quantity'].includes(key))) throw invalid('Send the required fields and nothing else.');
     const view = this.planOf(biz);
     const offer = view.blueprint.offers.find((o) => o.id === p.offerId);
     if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
     if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
-    const display = this.prices[`${biz}:${offer.id}`] ?? rupees(offer.pricing.unitPriceMinor.slice(0, -2) || '0');
+    const quantityText = p.quantity === undefined ? offer.pricing.defaultQuantity : p.quantity;
+    if (typeof quantityText !== 'string' || !/^[1-9][0-9]{0,4}$/.test(quantityText) || BigInt(quantityText) > 10000n) throw invalid('Quantity must be a whole number from 1 to 10000.');
+    const quantity = BigInt(quantityText);
+    // The fake computes paise here, where the engine computes them, and sends both the raw total and its display.
+    // Tax follows the existing sample receipt only; other tax settings retain the explicit manual limitation below.
+    const showMinor = (minor: bigint) => rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`);
+    const readSampleMinor = (display: string) => BigInt(display.replace(/[^0-9]/g, ''));
+    const unit = BigInt(offer.pricing.unitPriceMinor);
+    const display = this.prices[`${biz}:${offer.id}`] ?? showMinor(unit);
     const taxed = view.blueprint.backOffice.taxRegistered.value;
     const sample = OFFER_RECEIPTS.find((r) => r.figures[0]?.display === display && taxed && r.figures.length > 2);
+    const total = sample ? readSampleMinor(sample.figures.find(figure => figure.key === 'total')!.display) * quantity : unit * quantity;
+    const sampleFigures = sample ? [...(sample.figures.some(figure => figure.key === 'unit') ? [] : [{ key: 'unit', label: offer.name.value, display }]), ...sample.figures] : [];
+    const figures = sample ? sampleFigures.map(figure => ({ ...figure, display: figure.key === 'unit' || quantity === 1n ? figure.display : showMinor(readSampleMinor(figure.display) * quantity) }))
+      : [{ key: 'unit', label: offer.name.value, display }, { key: 'total', label: taxed ? 'Total before GST' : 'Total', display: quantity === 1n ? display : showMinor(total) }];
     const receipt: ReceiptLite = {
-      id: this.host.receiptId(), at: this.host.now(), stale: false,
-      figures: sample ? clone(sample.figures) : [{ key: 'unit', label: offer.name.value, display }, { key: 'total', label: taxed ? 'Total before GST' : 'Total', display }],
-      explanation: sample ? sample.explanation : taxed
+      id: this.host.receiptId(), at: this.host.now(), stale: false, totalMinor: String(total), figures,
+      explanation: sample ? (quantity === 1n ? sample.explanation : `${quantityText} units of ${offer.name.value} at ${display}, with the sample GST: ${showMinor(total)}.`) : taxed
         ? `${offer.name.value} at ${display}. The sample engine does not work out GST; the real one does, with each step on this receipt.`
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
@@ -407,7 +419,6 @@ export class FakeBusinessDesk {
     view.offerReceipts[offer.id] = receipt;
     return clone(receipt);
   }
-
   // ---------------------------------------------------------------------------------------------------------------
   // Keeping the business: this computer's key, the recovery code, the optional passphrase, backups
   // ---------------------------------------------------------------------------------------------------------------
