@@ -36,6 +36,10 @@ export type SeoObservationBody = {
 };
 /** Findings remain a separate type for the refresh package; they never imply applied fixes. */
 export type SeoFindingBody = {
+    publication?: SeoPublication;
+    edge?: SeoEdgeBinding;
+    strategy?: SeoStrategy;
+    work?: import('./work-core.ts').SeoWorkBody;
     sourceUrl: string;
     ruleId: string;
     evidenceDigest: string;
@@ -44,6 +48,9 @@ export type SeoFindingBody = {
     website?: WebsiteCheckData;
     recheck?: WebsiteRecheck | null;
 };
+export type SeoPublication={runId:string;orderId:string;draftDigest:string;connectionDigest:string;outcome:'applied'|'not-sent'|'unknown';postId:number|null;link:string|null;at:string;acceptance:{url:string;checkedOn:string;receipt:string;articleDigest:string;pass:boolean}|null};
+export type SeoEdgeBinding={editId:string;runId:string;orderId:string;draftDigest:string;connectionDigest:string};
+export type SeoStrategy={workId:string;panelId:string;orderId:string;candidateDigest:string;fidelityDigest:string;experimentDigest:string;panelDigest:string;publicationId:string|null;publicationDigest:string|null;receiptDigest:string|null;state:'candidate'|'held'|'remembered'|'stopped';measurementReceipt:string|null;checkedAt:string|null;line:string};
 /** A website report stored without the original large JSON bundle. */
 export type WebsiteCheckData = {
     url: string;

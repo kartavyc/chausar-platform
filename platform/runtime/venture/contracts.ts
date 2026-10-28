@@ -1471,7 +1471,7 @@ export type ConnectorPorts = {
 /** A staged edit to one website file: applied only with the exact plan digest the owner reviewed, verified, reversible. */
 export type SiteEditState = 'staged' | 'applying' | 'applied' | 'rolled-back' | 'rejected' | 'needs-inspection';
 export type SiteEditRecord = RecordBase<'venture-site-edit'> & ChainStamp & {
-  target: { kind: 'local-folder' | 'github'; identity: string };
+  target: { kind: 'local-folder' | 'github' | 'cloudflare-kv'; identity: string };
   path: string;
   summary: string;
   before: string;
@@ -1554,6 +1554,7 @@ export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & {
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
+  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com', 'https://www.paddle.com', 'https://dodopayments.com',
@@ -2466,6 +2467,8 @@ export type SpendRate = {
 /** reserved: the charge record, written before the call. unknown: the answer never came, so it stays held. */
 export type SpendPhase = 'reserved' | 'settled' | 'unknown' | 'released' | 'refused';
 export type SpendRecord = RecordBase<'venture-spend'> & {
+  /** The delivery article sharing this atomic cost reservation. */
+  articleOrderId?: string;
   key: string; // the idempotency key: one per thing asked for, so a retry never pays twice
   item: string;
   label: string;
@@ -6281,6 +6284,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'SEO_INPUT_INVALID',
   'PRODUCT_PHOTO_REQUIRED',
 
   'STATEMENT_DOES_NOT_TIE',
@@ -6455,7 +6459,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

@@ -4,25 +4,10 @@
     "offers": [
       "visibility-check",
       "quarterly-remeasure",
-      "website-check"
-    ]
-  },
-  {
-    "id": "lead-generation",
-    "offers": [
-      "researched-pipeline",
-      "cold-email-month",
-      "linkedin-desk",
-      "community-report"
-    ]
-  },
-  {
-    "id": "bookkeeping-cfo",
-    "offers": [
-      "collections-desk",
-      "cfo-pack",
-      "decision-memo",
-      "money-checkup"
+      "website-check",
+      "content-retainer",
+      "fix-and-measure",
+      "local-seo"
     ]
   },
   {
@@ -40,6 +25,24 @@
     "offers": [
       "monthly-support",
       "help-pages"
+    ]
+  },
+  {
+    "id": "bookkeeping-cfo",
+    "offers": [
+      "collections-desk",
+      "cfo-pack",
+      "decision-memo",
+      "money-checkup"
+    ]
+  },
+  {
+    "id": "lead-generation",
+    "offers": [
+      "researched-pipeline",
+      "cold-email-month",
+      "linkedin-desk",
+      "community-report"
     ]
   }
 ]

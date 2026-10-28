@@ -26,7 +26,7 @@ async function openFold() {
   if (!fold.open) await act(async () => { fold.open = true; });
   return all;
 }
-/** One of the five, opened from its row (simple first: at rest only the names and their labels show). */
+/** One connector opened from its row (simple first: at rest only the names and their labels show). */
 async function tile(name: string) {
   await openFold();
   const row = await screen.findByRole('button', { name });
@@ -35,13 +35,14 @@ async function tile(name: string) {
 }
 
 describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => {
-  it('at rest one tile names the five with honest labels; a found app writes, the rest are planned with the manual path', async () => {
+  it('at rest one fold names six connectors with honest labels and keeps all five original connections', async () => {
     await start();
     const closed = await screen.findByRole('region', { name: 'More ways to connect' });
     expect(closed.querySelector('details')!.open).toBe(false);
     const all = await openFold();
     await settle();
-    expect(all.querySelectorAll('[data-kit-part]').length).toBe(5);
+    expect([...all.querySelectorAll('[data-kit-part]')].map(row => row.getAttribute('data-kit-part'))).toEqual(['seo-publishing', 'monitors', 'mail', 'apps', 'webhook', 'speech']);
+    expect(all.querySelector('[data-kit-part="seo-publishing"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="apps"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="speech"]')!.textContent).toMatch(/Planned/i);
     expect(all.querySelector('[role="region"]')).toBeNull();

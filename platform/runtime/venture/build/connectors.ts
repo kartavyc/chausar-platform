@@ -28,6 +28,7 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Reads the existing client override key before a reviewed change.'},
   // 5M: bounded, policy-checked lead research and one exact-approved paid network search.
   overpass: { qualification: 'fixture-tested', what: 'Reads bounded city prospects with OpenStreetMap attribution.' },
   nominatim: { qualification: 'fixture-tested', what: 'Looks up a city once, cached and serialised under its usage policy.' },
@@ -59,6 +60,8 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
+  'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Writes an exact reviewed existing key, journals the result and keeps its previous value for undo.'},
   // Ink v2 wave 5 (5A6, K24): one item you approve, exactly as shown, to your own webhook (build/webhook-handoff.ts).
   'n8n-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own n8n webhook. In this build that is the test item.' },
   'make-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own Make webhook. In this build that is the test item.' },

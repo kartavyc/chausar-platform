@@ -10,6 +10,9 @@ import type { PanelSpec, SeoPanelBody, SeoObservationBody } from '../../../../..
 import s from './SeoVisibilityDesk.module.css';
 import { SeoWebsiteChecks } from './SeoWebsiteChecks';
 import { SeoMonitors } from './SeoMonitors';
+import { SeoMonthlyWork } from './SeoMonthlyWork';
+import { SeoPublishingWork } from './SeoPublishingWork';
+import { SeoStrategyWork } from './SeoStrategyWork';
 type PanelRow = {
     id: string;
     state: 'draft' | 'approved';
@@ -119,6 +122,7 @@ export function SeoVisibilityDesk() {
     </Tile>}
     <SeoWebsiteChecks />
     <SeoMonitors />
+    <SeoMonthlyWork /><SeoPublishingWork /><SeoStrategyWork />
   </div>;
 }
 SeoVisibilityDesk.ready = true;

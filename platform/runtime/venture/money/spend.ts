@@ -1,3 +1,4 @@
+import { articleReservation } from '../playbooks/seo-visibility/article-budget.ts';
 // P2-spend: what paid calls cost, held before each call and settled after, in BigInt micro-USD.
 //
 // Every paid call (a keyed model call, a heavy-work run, a paid connector) goes the same way:
@@ -226,6 +227,8 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
   check(!records.some(record => record.key === request.key && HOLDS_KEY.includes(record.phase)), 'SPEND_ALREADY_CHARGED', SPEND_WORDS.alreadyCharged);
   const policy = latestPolicy(tx.list('venture-spend-policy'));
   const estimate = BigInt(request.estimateMicros);
+  const article = articleReservation(tx, request.ref);
+  if (article && article.used + estimate > BigInt(article.cap)) throw new SpendRefusal('ARTICLE_SPEND_CAP', 'This call would pass the article AI limit. Review the article limit before starting more work.', subjectOf(request), request.estimateMicros);
   if (policy && policy.capMicros !== null) {
     const after = monthTotal(records, monthOf(tx.now)) + estimate;
     if (after > BigInt(policy.capMicros)) {
@@ -240,7 +243,7 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
     ? spendQuote(tx, request, policy.askAboveMicros, base.id) : null;
   const subject = subjectOf(request);
   return tx.put({
-    ...base, key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
+    ...base, ...(article ? {articleOrderId:article.orderId} : {}), key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
     payer: subject.payer, draftDigest: subject.draftDigest, rate: structuredClone(request.rate), reservedMicros: request.estimateMicros,
     settledMicros: null, settledBy: null, phase: 'reserved', quoteId, ref: subject.ref ?? null, refusal: null, settledAt: null,
   } satisfies SpendRecord);

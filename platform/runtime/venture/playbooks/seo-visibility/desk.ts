@@ -5,6 +5,10 @@ import { digest, exactPayload, listRecords, readVenture, requireAppChannel, vent
 import type { DeskHandlers } from '../desk-types.ts';
 import { makePanel, editPanel, approvePanel, observePanel, panelMetrics } from './panel.ts';
 import type { SeoPanelBody, SeoObservationBody, SeoWebsiteItem } from './records.ts';
+import { SEO_WORK_DESK, type SeoWorkDeskTypes } from './work-desk.ts';
+import { SEO_PUBLISHING_DESK, type SeoPublishingDeskTypes } from './publishing-desk.ts';
+import { SEO_STRATEGY_DESK, type SeoStrategyDeskTypes } from './strategy-desk.ts';
+import { SEO_EDGE_DESK, type SeoEdgeDeskTypes } from './edge-desk.ts';
 import { SEO_WEBSITE_DESK } from './site-desk.ts';
 import { SEO_MONITOR_DESK } from './monitor-desk.ts';
 import type { SeoMonitorItem } from './monitor-core.ts';
@@ -23,7 +27,7 @@ export type SeoPanelItem = {
     metrics: ReturnType<typeof panelMetrics>;
     observations: SeoObservationBody[];
 };
-export type SeoVisibilityDeskTypes = {
+export type SeoVisibilityDeskTypes = SeoWorkDeskTypes & SeoPublishingDeskTypes & SeoEdgeDeskTypes & SeoStrategyDeskTypes & {
     monitor: { filter: null; row: SeoMonitorItem; item: SeoMonitorItem; actions: Record<string,{payload:any;result:SeoMonitorItem}> };
     website: {
         filter: null;
@@ -53,7 +57,7 @@ export function seoPanelItem(state: State, venture: VentureRecord, record: SeoPa
     return { id: record.id, panel, metrics, observations };
 }
 const panelIn = (state: State, venture: VentureRecord, id: string) => { const record = listRecords(state, 'venture-seo-panel', venture.id).find(record => record.id === id); check(record, 'PANEL_NOT_FOUND', 'That answer panel was not found.'); return record; };
-export const SEO_VISIBILITY_DESK: DeskHandlers = Object.freeze({ ...SEO_WEBSITE_DESK, ...SEO_MONITOR_DESK, panel: {
+export const SEO_VISIBILITY_DESK: DeskHandlers = Object.freeze({ ...SEO_EDGE_DESK, ...SEO_STRATEGY_DESK, ...SEO_PUBLISHING_DESK, ...SEO_WORK_DESK, ...SEO_WEBSITE_DESK, ...SEO_MONITOR_DESK, panel: {
         async list(deps, ctx, payload) {
             const p = exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']);
             check(p.filter === undefined || p.filter === null, 'INVALID_VENTURE_REQUEST', 'This panel list has no filters.');

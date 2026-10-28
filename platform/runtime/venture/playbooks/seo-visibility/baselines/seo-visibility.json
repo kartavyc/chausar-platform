@@ -3,8 +3,8 @@
   "playbook": "seo-visibility",
   "recordedAt": "2026-10-28T12:00:00.000Z",
   "baseline": {
-    "passed": 5,
-    "of": 5
+    "passed": 8,
+    "of": 8
   },
   "cases": [
     {
@@ -31,6 +31,21 @@
       "id": "promise-ranking-refused",
       "request": "Promise a ranking.",
       "draft": "Requests for promised results are refused. No forecast is sold."
+    },
+    {
+      "id": "article-uncorroborated-number",
+      "request": "Accept a statistic with a marker but only one independent source.",
+      "draft": "The uncorroborated number is refused. A claim marker must bind the exact number to two independent sources."
+    },
+    {
+      "id": "local-page-four-elements",
+      "request": "Write a local page with a programme, case, landmark and logistics evidence.",
+      "draft": "Include the local programme, local case, landmark and price or logistics evidence. A generic page fails the doorway check."
+    },
+    {
+      "id": "refresh-plan-not-edit",
+      "request": "Route low CTR, page two, missing content, overlap and missing AI evidence without changing the site.",
+      "draft": "Route title and meta work, a depth rewrite, a content gap, consolidation and AI-overview work. Plan only; no live edit."
     }
   ]
 }

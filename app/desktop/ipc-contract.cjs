@@ -142,6 +142,7 @@ const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
 // A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
 const EXTERNAL_ORIGINS = Object.freeze([
+  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com',

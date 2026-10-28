@@ -156,6 +156,10 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
   const own = await guardedPlaybookChecks(playbook.flagship, { deliverable, files: checkInput.files, tables: checkInput.tables, toolCalls: checkInput.toolCalls }, () => runFlagshipChecks(checkInput)) as PlaybookCheckResult[];
 
+  if (playbook.flagship === 'seo-visibility') {
+    const verified = await (await import('../playbooks/seo-visibility/verify-article.ts')).verifySeoArticle(checkInput, deps.net);
+    if (verified.length) return withVoiceCheck([...own.filter(row => !verified.some(check => check.check === row.check)), ...verified, ...contract], voice);
+  }
   return withVoiceCheck([...own, ...contract], voice);
 }
 
@@ -274,6 +278,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const context = orderContext(fresh.state, fresh.venture, orderId);
   const playbook = playbookForOrder(deps, ctx, fresh.state, fresh.venture, basePlaybook, context.order, context.offerKey);
   if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client');
+  if (playbook.flagship === 'seo-visibility' && ['content-retainer','local-seo'].includes(context.offerKey ?? '')) (await import('../playbooks/seo-visibility/article-budget.ts')).articleLimitMicros(context.order.intake?.fields?.articleLimitUsd);
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
   const socialGuard=await socialVoiceGuard();

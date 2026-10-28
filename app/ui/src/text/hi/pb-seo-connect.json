@@ -1,0 +1,20 @@
+{
+ "pb-seo-connect.title":"सर्च पब्लिशिंग कनेक्शन",
+ "pb-seo-connect.scope":"लॉगिन जानकारी इस खुले सेशन में रहती है। वर्डप्रेस सिर्फ़ ड्राफ़्ट सेव करता है; आप ख़ुद पब्लिश करते हैं।",
+ "pb-seo-connect.wordpress":"वर्डप्रेस जोड़ें",
+ "pb-seo-connect.url":"वर्डप्रेस साइट",
+ "pb-seo-connect.username":"वर्डप्रेस यूज़रनेम",
+ "pb-seo-connect.password":"ऐप्लिकेशन पासवर्ड",
+ "pb-seo-connect.removeWordpress":"वर्डप्रेस कनेक्शन हटाएँ",
+ "pb-seo-connect.edge":"एडवांस: क्लाउडफ़्लेयर बदलाव",
+ "pb-seo-connect.edgeScope":"अपने डेवलपर के बनाए वर्कर और केवी नेमस्पेस का इस्तेमाल करें। हर बदलाव की अलग समीक्षा होती है और पिछला मान वापस करने के लिए रखा जाता है।",
+ "pb-seo-connect.site":"क्लाइंट की वेबसाइट",
+ "pb-seo-connect.account":"क्लाउडफ़्लेयर अकाउंट ID",
+ "pb-seo-connect.namespace":"केवी नेमस्पेस ID",
+ "pb-seo-connect.token":"क्लाउडफ़्लेयर API टोकन",
+ "pb-seo-connect.connectEdge":"क्लाउडफ़्लेयर जोड़ें",
+ "pb-seo-connect.removeEdge":"क्लाउडफ़्लेयर कनेक्शन हटाएँ",
+ "pb-seo-connect.connected":"इस सेशन के लिए जुड़ गया। हर बदलाव पर फिर अनुमति माँगी जाएगी।",
+ "pb-seo-connect.removed":"कनेक्शन हटा दिया गया।",
+ "pb-seo-connect.failed":"कनेक्शन सेव नहीं हुआ। साइट और लॉगिन जानकारी जाँचें।"
+}

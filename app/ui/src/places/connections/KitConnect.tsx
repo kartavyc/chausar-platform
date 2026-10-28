@@ -2,7 +2,7 @@
  * Connections, the shared connectors of Ink v2 wave 5 (package 5A6; the engine's build/monitors.ts, mail-in.ts,
  * local-apps.ts, webhook-handoff.ts and speech-out.ts): pages you watch, mail files you import, apps on this computer,
  * your own n8n or Make, and speech from text. Simple first: at rest one closed fold, "More ways to connect" (Connections
- * was at its word budget, so only the fold's words show); open, it lists the five by name with their honest labels, and
+ * was at its word budget, so only the fold's words show); open, it lists connectors by name with their honest labels, and
  * opening one shows its line, its state and its one action, one at a time. The engine's refusals are worded here in
  * both languages by code (codeWords).
  */
@@ -19,6 +19,7 @@ import { MailIn } from './MailIn';
 import { LocalApps } from './LocalApps';
 import { Webhooks } from './Webhooks';
 import { SpeechOut } from './SpeechOut';
+import { SeoConnections } from './SeoConnections';
 import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
 
@@ -31,9 +32,11 @@ export function codeWords(error: unknown, t: T): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function SearchPublishing(){return <SeoConnections embedded/>;}
+
 type Part = { id: string; title: string; label: ConnectorLabelName; Body: ComponentType };
 
-/** The five, in the order the owner meets them; each opens below its row, one at a time. */
+/** Connectors in the order the owner meets them; each opens below its row, one at a time. */
 export function KitConnect() {
   const t = useT();
   const titleId = useId();
@@ -41,6 +44,7 @@ export function KitConnect() {
   const speech = useResource('venture.speechOut.providers', {});
   const [open, setOpen] = useState<string | null>(null);
   const parts: Part[] = [
+    { id: 'seo-publishing', title: t('pb-seo-connect.title'), label: 'write', Body: SearchPublishing },
     { id: 'monitors', title: t('kit-connect.monitors.title'), label: 'read', Body: Monitors },
     { id: 'mail', title: t('kit-connect.mail.title'), label: 'read', Body: MailIn },
     { id: 'apps', title: t('kit-connect.apps.title'), label: apps.data?.apps.some((app) => app.found) ? 'write' : 'planned', Body: LocalApps },

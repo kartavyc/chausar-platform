@@ -1,17 +1,11 @@
 // SEO tools. GEOHub (AGPL ideas only), seo-agent and lintapple (MIT); independent code, lazy imports avoid table cycles.
 import { ChausarError } from '../../../contracts.ts';
 import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
+import { SEO_MONTHLY_TOOLS } from './tools-seo-monthly.ts';
 import type { Field, Spec } from './tools.ts';
 type SeoVisibilityToolName = Extract<ToolName, 'seo.diagnose' | 'seo.aiAccess' | 'seo.panel' | 'seo.siteCheck' | 'seo.corroborate' | 'seo.lint' | 'seo.meta' | 'seo.impact' | 'seo.refresh' | 'seo.local'>;
 const line = (about: string, max = 500, required = true): Field => ({ type: 'text', required, max, about });
 export const SEO_VISIBILITY_TOOLS: Readonly<Record<SeoVisibilityToolName, Spec>> = Object.freeze({
-  'seo.corroborate': notBuiltTool('seo.corroborate', 'read', 'A second, independent source for each number an article states.'), // 5E2
-  'seo.lint': notBuiltTool('seo.lint', 'compute', 'An article checked for AI-tell words and doorway pages.'), // 5E2
-  'seo.meta': notBuiltTool('seo.meta', 'compute', 'Titles, descriptions and structured data from fields seen on the page.'), // 5E2
-  'seo.impact': notBuiltTool('seo.impact', 'compute', 'What a change did, read from the Search Console export after it settled.'), // 5E2
-  'seo.refresh': notBuiltTool('seo.refresh', 'compute', 'A plan of which pages to refresh and how, never an edit to a live post.'), // 5E2
-  'seo.local': notBuiltTool('seo.local', 'read', 'The business\'s name, address and phone checked across the listings you named.'), // 5E2
     'seo.diagnose': { name: 'seo.diagnose', effect: 'read', tier: 'code', endsTurn: false, summary: 'Checks a bounded client site on fixed dimensions; missing evidence stays unknown.', input: { url: line('The client public site URL.') }, async run(env, input) { const { diagnoseSite } = await import('../../playbooks/seo-visibility/diagnose.ts'); const data = await diagnoseSite(String(input.url), env.deps.net); const { seoCountReceipt } = await import('./tools-seo-receipts.ts'); return seoCountReceipt(env, data, { observed: data.confidence.observed, planned: data.confidence.planned, passed: data.rubric.passed }, data.pages.filter(page => page.sha256 !== null).map(page => ({ id: page.url, name: page.url, digest: page.sha256! }))); } },
     'seo.aiAccess': { name: 'seo.aiAccess', effect: 'read', tier: 'code', endsTurn: false, summary: 'Reads robots and raw HTML as Chausar, separating search access from training access.', input: { url: line('The client public page URL.') }, async run(env, input) {
             const { checkFetchPolicy, politeFetch, robotsSafe } = await import('../../build/fetch-policy.ts');
@@ -75,5 +69,5 @@ export const SEO_VISIBILITY_TOOLS: Readonly<Record<SeoVisibilityToolName, Spec>>
             const { seoCountReceipt } = await import('./tools-seo-receipts.ts');
             return seoCountReceipt(env, data, { findings: data.findings.length, checkedFrames: data.checkedFrames }, [{ id: data.url, name: 'Website checker report', digest: data.receipt }]);
         } },
-
+    ...SEO_MONTHLY_TOOLS,
 });
