@@ -18,10 +18,15 @@ import { applyEditOps, type EditDocument } from './edit-ops.ts';
 import { youtubeCaptions } from './captions.ts';
 import { scriptCoverage } from './coverage.ts';
 import type { HeldBackCase } from '../../delivery/judge/index.ts';
+import { checkClips } from './clip-rules.ts';
+import { finishingAdditions } from './finishing-extra.ts';
+import { planBroll } from './broll.ts';
 
 const unbacked = DRAFT_RULES.find(rule => rule.id === 'no-unbacked-claims')!;
 
 export const YOUTUBE_DRAFT_RULES: readonly JudgeRule[] = Object.freeze(validateRules([
+  { id: 'clip-stands-alone', question: 'Does every short clip make sense without the full video?', text: 'Each short clip must stand alone with a complete thought.', floor: { kind: 'share', percent: 75 } },
+  { id: 'broll-fits-claim', question: 'Does every added image support only what the speaker actually said?', text: 'Never use b-roll to imply a claim the speaker did not make.', floor: { kind: 'required-yes' } },
   { id: 'meaning-kept', question: 'Does the edit keep the qualifiers and what the speaker meant?', text: 'Keep the speaker meaning and every qualifier when cutting.', floor: { kind: 'share', percent: 75 } },
   { id: 'no-new-words', question: 'Is the edit free of invented speech?', text: 'Never put new words in the speaker mouth.', floor: { kind: 'required-yes' } },
   {
@@ -150,6 +155,19 @@ export async function runYoutubeBaseline(file: BaselineFile, draftFor: DraftMake
 /** Real deterministic checks behind the three word-edit held-back cases. */
 function wordEditBaselineFailures(item: HeldBackCase, draft: string): string[] {
   try {
+    if (item.id === 'short-clip-rules') {
+      const source = JSON.parse(item.sources[0].text);
+      return checkClips(source.words, source.picks, 'shorts').passed ? [] : ['The short clip fails its measured boundary checks.'];
+    }
+    if (item.id === 'compilation-commentary') {
+      const source = JSON.parse(item.sources[0].text);
+      return finishingAdditions(source).find(row => row.id === 'commentary-share')?.outcome === 'pass' ? [] : ['The compilation lacks its required commentary share.'];
+    }
+    if (item.id === 'broll-licensed') {
+      const source = JSON.parse(item.sources[0].text);
+      const plan = planBroll(source.words, source.beats, source.assets, []);
+      return plan.assetBindings.length === 1 ? [] : ['The b-roll needs its owned or licensed asset.'];
+    }
     if (item.id === 'cleanup-summary') {
       const source = JSON.parse(item.sources[0].text) as EditDocument;
       const made = applyEditOps(source, [{ kind: 'cut', from: 'w1', to: 'w1' }]);

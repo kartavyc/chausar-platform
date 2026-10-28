@@ -2097,6 +2097,9 @@ export interface EngineClient {
    * when that folder is there already. Absent on the web, the hosted app and the fake, where the page downloads files.
    */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
+  /** Desktop: save approved YouTube outputs and open the returned folder handle. */
+  saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
+  openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
   /**
    * Hosted only (W4 4J21, from 4J23): what the hosted server says about the signed-in person, read with the session
    * (GET /api/hosted/session's `me`): whether this server lets people start without an account, and the temporary

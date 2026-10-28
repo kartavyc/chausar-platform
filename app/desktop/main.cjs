@@ -226,6 +226,10 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
   ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();
+  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
+  ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

@@ -1,4 +1,6 @@
 /** Chausar 5B1 fake desk, matching the engine's validations and edit transaction shapes. No AI or outside writes. */
+import { fakeYoutubeBoard, fakeYoutubeStyle } from './fake-youtube-board';
+import type { YoutubeBoardBody } from '../../../../platform/runtime/venture/playbooks/youtube/board-core';
 import { bindFakeWordSource, requireFakeWordSource, type WordSourceBinding } from './fake-youtube-source';
 import { EngineError, type OrderLite } from './types';
 import type { W4DeskHost } from './fake-w4';
@@ -7,6 +9,7 @@ import { applyEditOps, editDigest, wordSource, cleanTranscript, wordsAfterTrim, 
   type EditDocument, type EditOp, type EditResult, type YoutubeWordSource, type CaptionCue, type CaptionProfileId, type TranscriptTier, type DictionaryFix } from './fake-youtube-core';
 
 export interface EditItem {
+  board?: YoutubeBoardBody;
   id: string; orderId: string; binding: WordSourceBinding; source: YoutubeWordSource; sourceDigest: string; document: EditDocument; history: EditDocument[];
   request: string | null; last: Omit<EditResult, 'undo' | 'document'> | null;
   pending: { ops: EditOp[]; digest: string; request: string; preview: Omit<EditResult, 'undo' | 'document'> } | null;
@@ -40,6 +43,8 @@ export function fakeYoutubeDesk(host: W4DeskHost): FakePlaybookDesk {
   };
   const changed = () => host.emit({ type: 'desk.changed', businessId: host.current(), at: host.now() });
   return { playbook: 'youtube', kinds: {
+    board: fakeYoutubeBoard(host, records, exact, orderRights, changed),
+    style: fakeYoutubeStyle(host, exact, records, orderRights),
     model: { list(p) { exact(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); exact(p.filter ?? {}, []); return { playbook: 'youtube', kind: 'model', rows: Object.entries(TRANSCRIPT_MODELS).map(([tier, model]) => ({ tier, ...model })), line: 'Local model downloads are handoffs you confirm. No model is downloaded automatically.' }; } },
     edit: {
       list(p) { exact(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); const filter = exact(p.filter ?? {}, ['orderId']); return { playbook: 'youtube', kind: 'edit', rows: [...records().values()].filter(item => filter.orderId === undefined || item.orderId === filter.orderId).map(item => { try { requireFakeWordSource(host, item); return view(item); } catch (error) { if (!(error instanceof EngineError) || error.code !== 'DERIVED_STALE') throw error; return { ...view(item), captions: null, captionFiles: null, stale: true }; } }), line: 'Edits from measured word times. No footage is overwritten.' }; },

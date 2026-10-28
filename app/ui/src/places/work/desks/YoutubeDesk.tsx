@@ -8,6 +8,7 @@ import { Field } from '../../../parts/Field';
 import { Tile, TileHead } from '../../../parts/Tile';
 import { Count } from '../../../parts/Figure';
 import s from './YoutubeDesk.module.css';
+import { YoutubeBoard } from './YoutubeBoard';
 
 type EditView = {
   id: string; digest: string; orderId: string; source: { label: string }; document: { words: { id: string; text: string }[] };
@@ -83,7 +84,7 @@ export function YoutubeDesk() {
       <ul className={s.list}>{rows.map(row => <li key={row.id} className={s.row}><span data-content="">{row.source.label}</span><Button onClick={() => setSelected(row.id)}>{t('pb-youtube.open')}</Button></li>)}</ul>
       {!rows.length && !edits.loading && <p className={s.line}>{t('pb-youtube.empty')}</p>}
     </Tile>
-    {selected && <EditPanel key={selected} id={selected} onChanged={edits.reload} />}
+    {selected && <><EditPanel key={selected} id={selected} onChanged={edits.reload} /><details><summary>{t('pb-youtube-board.title')}</summary><YoutubeBoard key={`board-${selected}`} editId={selected} /></details></>}
   </div>;
 }
 YoutubeDesk.ready = true;

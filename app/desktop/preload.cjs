@@ -30,6 +30,16 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The report could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  saveYoutubeProject: async (editId, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:youtube:saveProject', { editId: String(editId), digest: String(digest) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The project could not be saved.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
+  openYoutubeProject: async savedId => {
+    const reply = await ipcRenderer.invoke('chausar:youtube:openProject', { savedId: String(savedId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

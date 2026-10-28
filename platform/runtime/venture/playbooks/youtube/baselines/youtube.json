@@ -4,8 +4,8 @@
   "recordedAt": "2026-10-27",
   "recordedFrom": "Reference drafts written by hand for the held-back cases of the YouTube channel playbook. Every name and figure in a reference, chapter times included, comes from the case's own sources. Re-record from a real playbook run with raiseBaseline; the baseline only rises.",
   "baseline": {
-    "passed": 9,
-    "of": 9
+    "passed": 12,
+    "of": 12
   },
   "cases": [
     {
@@ -227,6 +227,78 @@
         "All passages covered"
       ],
       "reference": "Missing passage: Bring your cup."
+    },
+    {
+      "id": "short-clip-rules",
+      "title": "short-clip-rules",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"words\":[{\"id\":\"w1\",\"text\":\"A complete useful thought.\",\"startMs\":0,\"endMs\":30000}],\"picks\":[{\"from\":\"w1\",\"to\":\"w1\",\"hook\":\"Try a useful tip\",\"firstLine\":\"A fresh opening\",\"overlayMs\":2000,\"loopTo\":\"w1\"}]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The short clip passes its measured boundary checks."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The short clip passes its measured boundary checks."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The short clip passes its measured boundary checks."
+    },
+    {
+      "id": "compilation-commentary",
+      "title": "compilation-commentary",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"source\":{\"width\":1080,\"height\":1920},\"delivery\":{\"width\":1080,\"height\":1920},\"platform\":\"youtube\",\"boxes\":[],\"durationMs\":40000,\"compilation\":true,\"commentaryMs\":12000}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The compilation passes the house commentary check."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The compilation passes the house commentary check."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The compilation passes the house commentary check."
+    },
+    {
+      "id": "broll-licensed",
+      "title": "broll-licensed",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"words\":[{\"id\":\"w1\",\"text\":\"Coffee\",\"startMs\":1000,\"endMs\":1500}],\"beats\":[{\"id\":\"b1\",\"wordId\":\"w1\",\"assetId\":\"asset_a\",\"kind\":\"entity\",\"delayMs\":200,\"durationMs\":1200}],\"assets\":[{\"id\":\"asset_a\",\"source\":{\"kind\":\"licensed-stock\",\"licenceId\":\"L1\"},\"licence\":\"Recorded stock licence\",\"state\":\"ready\",\"fileDigest\":\"abc\",\"supersededBy\":null}]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The b-roll has a recorded stock licence."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The b-roll has a recorded stock licence."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The b-roll has a recorded stock licence."
     }
   ]
 }

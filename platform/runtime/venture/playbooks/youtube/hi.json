@@ -1,5 +1,5 @@
 {
-  "_review": "HINDI_REVIEW: machine-drafted, needs a native reviewer",
+  "_review": "machine-drafted, needs a native reviewer",
   "HINDI_REVIEW": "machine-drafted, needs a native reviewer",
   "Cutter": "वीडियो संपादक",
   "Propose typed edits, measured cleanup, captions and script coverage": "टाइप किए संपादन, मापी सफ़ाई, उपशीर्षक और स्क्रिप्ट मिलान सुझाएं",
@@ -68,5 +68,17 @@
   "Never put new words in the speaker mouth.": "वक्ता की ओर से नए शब्द कभी न गढ़ें।",
   "The measured word-edit tool did not complete. Its output has not passed.": "मापा शब्द संपादन साधन पूरा नहीं हुआ। परिणाम पास नहीं है।",
   "The measured word-edit output has findings to fix before this package goes out.": "यह पैकेज भेजने से पहले मापे शब्द संपादन की समस्याएं ठीक करें।",
-  "The measured word-edit output passes its code checks.": "मापा शब्द संपादन परिणाम कोड जांच में पास है।"
+  "The measured word-edit output passes its code checks.": "मापा शब्द संपादन परिणाम कोड जांच में पास है।",
+  "Does every short clip make sense without the full video?": "क्या हर छोटी क्लिप पूरे वीडियो के बिना समझ आती है?",
+  "Each short clip must stand alone with a complete thought.": "हर छोटी क्लिप में पूरा विचार अपने आप समझ आना चाहिए।",
+  "Does every added image support only what the speaker actually said?": "क्या हर जोड़ा चित्र केवल वक्ता की कही बात दिखाता है?",
+  "Never use b-roll to imply a claim the speaker did not make.": "अतिरिक्त चित्रों से ऐसी बात न दिखाएं जो वक्ता ने नहीं कही।",
+  "Finishing and commentary house targets": "अंतिम जांच और टिप्पणी के घरेलू लक्ष्य",
+  "Use the house loudness, peak, reading pace and commentary targets. These do not certify platform compliance.": "आवाज़, उच्चतम स्तर, पढ़ने की गति और टिप्पणी के घरेलू लक्ष्य रखें। ये प्लेटफ़ॉर्म के पालन का प्रमाण नहीं हैं।",
+  "Code compares completed local measurements and owner-labelled commentary with the dated targets.": "कोड पूरे स्थानीय माप और मालिक की दर्ज टिप्पणी को तारीख़ वाले लक्ष्य से मिलाता है।",
+  "Keep text outside the recorded house margin and inspect the platform preview before posting.": "टेक्स्ट दर्ज घरेलू सीमा के बाहर रखें और पोस्ट से पहले प्लेटफ़ॉर्म प्रीव्यू देखें।",
+  "The local box check uses this margin. It does not certify the complete platform safe area.": "स्थानीय बॉक्स जांच इसी सीमा को इस्तेमाल करती है। यह पूरे प्लेटफ़ॉर्म सुरक्षित क्षेत्र का प्रमाण नहीं है।",
+  "reels framing house check": "रील फ़्रेम की घरेलू जांच",
+  "stories framing house check": "स्टोरी फ़्रेम की घरेलू जांच",
+  "tiktok framing house check": "टिकटॉक फ़्रेम की घरेलू जांच"
 }

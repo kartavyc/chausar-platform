@@ -1,4 +1,6 @@
 // Chausar 5B1 YouTube desk. Tomada (AGPL), edit request/undo ideas only; original Chausar code.
+import { styleDesk, styleView } from './style-desk.ts';
+import { boardDesk, boardView } from './board-desk.ts';
 import { check, ChausarError, type Context, type State } from '../../../contracts.ts';
 import type { Json, VentureDeps, YoutubeEditRecord, YoutubeDictionaryRecord } from '../../contracts.ts';
 import type { DeskHandlers, DeskActPayload, DeskActView, DeskGetPayload } from '../desk-types.ts';
@@ -21,6 +23,8 @@ import { toSrt, toVtt, type CaptionProfileId } from '../kit/captions.ts';
 import type { YoutubeEditBody, YoutubeEditView } from './records.ts';
 
 export type YoutubeDeskTypes = {
+  style: { filter: Json; row: ReturnType<typeof styleView>; item: ReturnType<typeof styleView>; actions: Record<string, { payload: Json; result: ReturnType<typeof styleView> | Json }> };
+  board: { filter: Json; row: ReturnType<typeof boardView>; item: ReturnType<typeof boardView>; actions: Record<string, { payload: Json; result: ReturnType<typeof boardView> | Json }> };
   edit: { filter: Json; row: YoutubeEditView; item: YoutubeEditView; actions: Record<string, { payload: Json; result: YoutubeEditView | Json }> };
   model: { filter: Json; row: { tier: string; id: string; revision: string; sha256: string; bytes: number; licence: string }; item: never; actions: Record<string, never> };
   dictionary: { filter: Json; row: { id: string; terms: string[] }; item: { id: string; terms: string[] }; actions: Record<string, { payload: Json; result: { id: string; terms: string[] } }> };
@@ -160,6 +164,8 @@ async function actEdit(deps: VentureDeps, ctx: Context, payload: DeskActPayload)
   return { playbook: 'youtube', kind: 'edit', id: payload.id, result: item, line: 'The edit list is saved. No footage changed or published.' };
 }
 export const YOUTUBE_DESK: DeskHandlers = Object.freeze({
+  board: boardDesk,
+  style: styleDesk,
   model: { async list(deps, ctx, payload) { exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); exactPayload(payload.filter ?? {}, []); readAs(deps, ctx, 'read'); return { playbook: 'youtube', kind: 'model', rows: Object.entries(TRANSCRIPT_MODELS).map(([tier, model]) => ({ tier, ...model })), line: 'Local model downloads are handoffs you confirm. No model is downloaded automatically.' }; } },
   edit: {
     async list(deps, ctx, payload) { exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); const { state, venture } = readAs(deps, ctx, 'read'); const filter = exactPayload(payload.filter ?? {}, ['orderId']); return { playbook: 'youtube', kind: 'edit', rows: listRecords(state, 'venture-youtube-edit', venture.id).filter(item => filter.orderId === undefined || item.orderId === filter.orderId).map(item => { try { requireCurrentWordSource(state, item); return view(item); } catch (error) { if (!(error instanceof ChausarError) || error.code !== 'DERIVED_STALE') throw error; return { ...view(item), captions: null, captionFiles: null, stale: true }; } }), line: 'Edits from measured word times. No footage is overwritten.' }; },

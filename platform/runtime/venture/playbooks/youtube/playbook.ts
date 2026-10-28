@@ -143,7 +143,7 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
   {
     id: 'edit', kind: 'work', title: 'Propose typed edits, measured cleanup, captions and script coverage',
     role: agent('Cutter', 'Proposes whole edit operations on measured word ids only. Never invents speech or timings.'),
-    tier: 'actor', model: 'main', tools: ['files.list', 'files.read', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'handoff.owner'], checks: none, youtubeChecks: none,
+    tier: 'actor', model: 'main', tools: ['files.list', 'files.read', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'youtube.style', 'youtube.clips', 'youtube.broll', 'youtube.beats', 'youtube.export', 'handoff.owner'], checks: none, youtubeChecks: none,
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
   {

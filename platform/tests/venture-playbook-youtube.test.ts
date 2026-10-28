@@ -137,6 +137,8 @@ test('platform rules: dated, sourced, and they go stale visibly', () => {
   }
   for (const rule of PLATFORM_RULES) {
     if (rule.id === 'cleanup-thresholds') assert.equal(rule.sourceUrl, 'house:youtube-cleanup');
+    else if (rule.id === 'finishing-house') assert.equal(rule.sourceUrl, 'house:youtube-finishing');
+    else if (rule.id.startsWith('safe-zone-')) assert.equal(rule.sourceUrl, 'house:youtube-' + rule.id);
     else if (rule.id === 'caption-profile') assert.match(rule.sourceUrl, /^https:\/\/partnerhelp\.netflixstudios\.com\//, rule.id);
     else assert.match(rule.sourceUrl, /^https:\/\/(support\.google\.com|developers\.google\.com)\//, rule.id);
     assert.match(rule.checkedOn, /^\d{4}-\d{2}-\d{2}$/);

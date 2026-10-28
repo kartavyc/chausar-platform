@@ -17,6 +17,7 @@ import { transcriptCues, type FileLike } from './files.ts';
 import type { WorkedForWriter } from './loop.ts';
 import { computedTable, fail, fileOf, text, type Spec, type ToolEnv } from './tools.ts';
 import { notBuiltTool } from './tool-stub.ts';
+import { YOUTUBE_B2_TOOLS } from './tools-youtube-board.ts';
 import { YOUTUBE_EDIT_TOOLS } from './tools-youtube-edit.ts';
 
 type YoutubeToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
@@ -215,11 +216,7 @@ export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly
  */
 type YoutubeW5ToolName = Extract<ToolName, 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
 export const YOUTUBE_W5_TOOLS: Readonly<Record<YoutubeW5ToolName, Spec>> = Object.freeze({
-  'youtube.style': notBuiltTool('youtube.style', 'compute', 'The cut rate, shot length, loudness and pace of your own videos, measured by code.'), // 5B2
-  'youtube.clips': notBuiltTool('youtube.clips', 'compute', 'Clips that start and end on a sentence and fit the length rules, checked by code.'), // 5B2
-  'youtube.broll': notBuiltTool('youtube.broll', 'compute', 'A b-roll plan placed on the words, from owned or licensed footage only.'), // 5B2
-  'youtube.beats': notBuiltTool('youtube.beats', 'compute', 'Timecodes for the lines it wrote, set by code at the speaking rate.'), // 5B2
-  'youtube.export': notBuiltTool('youtube.export', 'compute', 'The edit list as files your editor opens, written to the order\'s folder.'), // 5B2
+  ...YOUTUBE_B2_TOOLS,
   'youtube.afterPublish': notBuiltTool('youtube.afterPublish', 'compute', 'What to change next, from the Studio export, with its receipts.'), // 5B3
   'youtube.outliers': notBuiltTool('youtube.outliers', 'compute', 'The videos that did best against the channel\'s own median, worked out by code.'), // 5B3
   'youtube.niche': notBuiltTool('youtube.niche', 'compute', 'Medians, ages and coverage for a niche report, worked out by code.'), // 5B3

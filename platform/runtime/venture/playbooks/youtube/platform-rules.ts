@@ -11,10 +11,12 @@ import type { IsoDate } from '../../contracts.ts';
 // playbook.ts loads nothing that reads these rules, so this import makes no cycle. Keep it so: playbook.ts must not
 // read these rules while it loads (inside a function is fine).
 import { YOUTUBE_STEPS } from './playbook.ts';
+import { FINISHING_RULES } from './finishing-rules.ts';
 
 export type PlatformRuleId =
   | 'api-upload-privacy' | 'altered-synthetic-disclosure' | 'reused-content' | 'inauthentic-content'
-  | 'chapters' | 'shorts-length' | 'metadata-limits' | 'paid-promotion' | 'caption-formats' | 'caption-profile' | 'cleanup-thresholds';
+  | 'chapters' | 'shorts-length' | 'metadata-limits' | 'paid-promotion' | 'caption-formats' | 'caption-profile' | 'cleanup-thresholds'
+  | 'finishing-house' | 'safe-zone-reels' | 'safe-zone-stories' | 'safe-zone-tiktok';
 
 export type PlatformRule = {
   id: PlatformRuleId;
@@ -48,6 +50,7 @@ const CHECKED_ON = '2026-10-21';
 const RECHECK_DAYS = 90;
 
 const RULES: PlatformRule[] = [
+  ...FINISHING_RULES,
   {
     id: 'caption-formats', needs: null, platform: 'youtube', title: 'Caption file formats',
     rule: 'YouTube accepts basic UTF-8 SubRip and WebVTT caption files.', effect: 'The caption step exports SRT and VTT. The owner uploads them.',
@@ -176,7 +179,7 @@ export function validatePlatformRules(rules: readonly PlatformRule[], targets: R
       throw new Error(`The platform rule ${rule.id} needs its limitations: at least one line on what it does not cover.`);
     }
     if (!rule.title?.trim() || !rule.rule?.trim() || !rule.effect?.trim()) throw new Error(`The platform rule ${rule.id} needs a title, its words and what it means here.`);
-    if (rule.sourceKind === 'house' && !/^house:youtube-cleanup$/.test(rule.sourceUrl) && !/^https:\/\/partnerhelp\.netflixstudios\.com\//.test(rule.sourceUrl)) throw new Error('A house rule needs its named house source or the dated secondary guide.');
+    if (rule.sourceKind === 'house' && !/^house:youtube-(?:cleanup|finishing|safe-zone-(?:reels|stories|tiktok))$/.test(rule.sourceUrl) && !/^https:\/\/partnerhelp\.netflixstudios\.com\//.test(rule.sourceUrl)) throw new Error('A house rule needs its named house source or the dated secondary guide.');
     if (rule.sourceKind !== 'house' && !SOURCE.test(rule.sourceUrl)) throw new Error(`The platform rule ${rule.id} needs its source page on the platform's own site.`);
     if (!validDate(rule.checkedOn)) throw new Error(`The platform rule ${rule.id} needs the date it was checked, like 2026-10-21.`);
     for (const date of [rule.sourceUpdated, rule.effectiveFrom]) if (date !== null && !validDate(date)) throw new Error(`The platform rule ${rule.id} has a date that is not a real date.`);

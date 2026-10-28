@@ -30,6 +30,8 @@ export interface ChausarBridge {
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /** Desktop only (5A5): makes a draft's client report and saves its files in a new folder where the owner picks. Null when cancelled. */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
+  saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
+  openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
   onEngineStatus?(callback: (status: { healthy: boolean; state: string }) => void): () => void;
   onEvent?(callback: (value: unknown) => void): () => void;
 }
@@ -205,6 +207,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // 5A5: a client report saved by the desktop through the atomic export, with its refusals as engine errors.
     ...(bridge?.saveReport ? { saveReport: (runId: string) => bridge.saveReport!(runId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.saveYoutubeProject ? { saveYoutubeProject: (editId: string, digest: string) => bridge.saveYoutubeProject!(editId, digest).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.openYoutubeProject ? { openYoutubeProject: (savedId: string) => bridge.openYoutubeProject!(savedId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
   };
   const feed = createEventFeed({
     onEvent: bridge?.onEvent ? (callback) => bridge.onEvent!(callback) : undefined,
