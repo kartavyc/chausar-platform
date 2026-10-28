@@ -5,7 +5,7 @@
  * "Not built yet". A business no playbook serves has no desk.
  */
 
-import { useId, type ComponentType } from 'react';
+import { useId, useState, type ComponentType } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { DeskPlaybook } from '../../engine/types';
@@ -25,6 +25,8 @@ export function deskReady(playbook: string | undefined): playbook is DeskPlayboo
 export function PlaybookDesk() {
   const t = useT();
   const id = useId();
+  const linked = new URLSearchParams(window.location.hash.split('?')[1] ?? '').has('socialOrder');
+  const [opened, setOpened] = useState(linked);
   const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'desk.changed' || event.type === 'queue.changed' });
   const pick = venture.data?.playbook;
   if (!deskReady(pick?.id)) return null;
@@ -32,7 +34,7 @@ export function PlaybookDesk() {
   return (
     <section aria-labelledby={id} className={s.block} data-desk={pick!.id}>
       <SectionHead id={id} title={t('kit-chain.desk')} meta={pick!.label} />
-      <Desk />
+<details className={s.whyMore} open={linked || undefined} onToggle={event => { if (event.currentTarget.open) setOpened(true); }}><summary>{t('kit-chain.openTools')}</summary>{opened && <Desk />}</details>
     </section>
   );
 }

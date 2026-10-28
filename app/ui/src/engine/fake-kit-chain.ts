@@ -34,6 +34,7 @@ export class FakeKitChainDesk {
     if (typeof p.orderId !== 'string' || !ID.test(p.orderId)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Order must be a known identifier.');
     const orders = this.host.ask('venture.order.list', {}) as { id: string }[];
     if (!orders.some((order) => order.id === p.orderId)) throw new EngineError('ORDER_NOT_FOUND', 'That order was not found.');
+    const social=this.host.socialChain?.(p.orderId);if(social)return social;
     throw new EngineError('INVALID_VENTURE_REQUEST', "This order's offer runs no stages of a playbook.");
   }
 }

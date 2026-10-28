@@ -1,3 +1,5 @@
+import { eraseSocialChainNaming } from '../playbooks/social/chain-privacy.ts';
+import { eraseScheduledNaming } from '../playbooks/social/scheduled-privacy.ts';
 import { eraseSupportNaming } from '../playbooks/support-desk/privacy.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): Forget, the DPDP erasure of one person, in one step.
 // The person goes, and so does everything kept about them: ties, evidence rows, pipeline cards and drafts, their place
@@ -277,6 +279,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
+    eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.

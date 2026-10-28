@@ -601,3 +601,8 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 ## 5C1 implementation and review closure
 
 Seven CA offers, dated citations and ITR choice, advance tax, source-backed questions and stored sign-off are recorded in NOTES-5C1 with independent spec and quality PASS. This isolated commit includes their live/fake owner paths; C2 working desks, health checks and data packs remain separate. Candidate verification does not claim a fresh visual pass or full batch gates.
+
+
+### 5D1 isolated commit checkpoint
+
+Social writing, client review, revisions and source-bound scheduling are included. LinkedIn remains copy-and-open. Details and the readiness regression are in NOTES-5D1.md. Later social production is excluded.

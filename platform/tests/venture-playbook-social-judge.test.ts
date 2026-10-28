@@ -11,7 +11,7 @@ import {
 test('judge rules: yes or no questions with a floor each; the disclosure and claim rules need every vote', () => {
   const rules = validateRules(SOCIAL_JUDGE_RULES);
   assert.deepEqual(rules.map(rule => rule.id), [
-    'on-brand-voice', 'fits-pillar', 'claims-backed', 'disclosure-clear', 'no-fake-customer', 'platform-conduct', 'client-comfortable',
+    'on-brand-voice', 'fits-pillar', 'claims-backed', 'disclosure-clear', 'no-fake-customer', 'platform-conduct', 'client-comfortable', 'source-faithful', 'one-goal',
   ]);
   for (const id of ['claims-backed', 'disclosure-clear', 'no-fake-customer', 'platform-conduct']) {
     assert.deepEqual(rules.find(rule => rule.id === id)!.floor, { kind: 'required-yes' }, id);

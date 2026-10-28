@@ -1,3 +1,4 @@
+import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
 // Chausar venture launcher: shared contracts.
 // Every type, record kind, RPC method name, payload and result shape used by the venture packages.
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
@@ -235,7 +236,7 @@ export const VENTURE_RECORD_KINDS = [
   // influencer cases.
   'venture-youtube-edit', 'venture-youtube-dictionary', 'venture-youtube-style',
   'venture-ca-citations', 'venture-ca-differential', 'venture-ca-data-pack',
-  'venture-social-inbox-item', 'venture-ad-ledger-entry', 'venture-influencer-case',
+  'venture-social-inbox-item', 'venture-social-scheduled', 'venture-ad-ledger-entry', 'venture-influencer-case',
   // The new playbooks (playbooks/<id>/records.ts): seo-visibility 5E1 and 5E2; online-seller 5F1 and 5F2; support-desk
   // 5G; recruiting-desk 5H; job-search-desk 5I; translation-studio 5J1; bookkeeping-cfo 5K1 and 5K2; podcast-to-article
   // 5L; lead-generation 5M; newsletter-studio 5N; tender-desk 5O; website-studio 5P; narration-studio 5Q;
@@ -926,6 +927,9 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  socialPostHistory?: import('./playbooks/social/slots-live.ts').SocialHookHistory[];
+  socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
+  socialChain?: import('./playbooks/social/chain.ts').SocialChainPin;
   internal?: true;
   clientId: string;
   offerId: string;
@@ -1270,6 +1274,7 @@ export type PostingOption = {
 /** Each post is its own journal entry: described, then approved, then applied, rejected or outcome_unknown. Never resent. */
 export type ConnectorPostState = 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown';
 export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
+  scheduled?: ScheduledPostBinding;
   connectorId: string;
   mode: Exclude<PostingModeName, 'handoff'>;
   account: string | null; // the owner's own account, as the owner named it
@@ -1760,6 +1765,7 @@ export type DeliveryWorkflow = {
   dictionary: { id: string; kind: 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept'; name: string; meaning: string; aliases: string[] }[];
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
+  socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
   /** Ink v2 wave 5 (5A1, playbooks/kit/chain.ts): the chain stage this run drafts, when the order is past its first; absent is stage 1. */
@@ -2078,6 +2084,7 @@ export type HarnessLimits = {
   deadlineMs?: number;
 };
 export type HarnessState = {
+  codePrerequisites?: {tool:'social.report';result:Json}[];
   version: 1;
   phase: 'act' | 'write' | 'needs-answer' | 'brief' | 'done' | 'stopped'; // 'brief': a heavy-work brief waits for the owner
   limits: HarnessLimits;
@@ -3899,8 +3906,9 @@ export type DraftEditRecord = RecordBase<'venture-draft-edit'> & {
  * started. checks: a fix's targets.
  */
 export type DraftRevision = {
+  socialPost?: { postId: string; n: number; posts: { channel: string; text: string }[]; prior: import('./playbooks/social/approvals.ts').GhostwritingState };
   by: 'send-back' | 'fix'; words: string; rowId: string | null; at: IsoTime; callId: string; base: string; previous?: string;
-  prior: { callId: string | null; phase: HarnessState['phase'] | null }; checks?: string[];
+  prior: { callId: string | null; phase: HarnessState['phase'] | null; status?: DeliveryRunStatus }; checks?: string[];
 };
 /** 4J2 (O6): one part of a landed revision's paragraph merge: paragraphs alike in all three, or one changed stretch. */
 export type DraftMergePart =
@@ -4998,6 +5006,7 @@ export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeSt
 export type CaCitationsRecord = RecordBase<'venture-ca-citations'> & CaCitationsBody;
 export type CaDifferentialRecord = RecordBase<'venture-ca-differential'> & CaDifferentialBody;
 export type CaDataPackRecord = RecordBase<'venture-ca-data-pack'> & CaDataPackBody;
+export type SocialScheduledRecord = RecordBase<'venture-social-scheduled'> & SocialScheduledBody;
 export type SocialInboxItemRecord = RecordBase<'venture-social-inbox-item'> & SocialInboxItemBody;
 export type AdLedgerEntryRecord = RecordBase<'venture-ad-ledger-entry'> & AdLedgerEntryBody;
 export type InfluencerCaseRecord = RecordBase<'venture-influencer-case'> & InfluencerCaseBody;
@@ -5093,7 +5102,7 @@ export type AnyVentureRecord =
   | GoNoGoRecord | SalesProposalRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord | LocalAppRecord
   | YoutubeEditRecord | YoutubeDictionaryRecord | YoutubeStyleRecord
   | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord
-  | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
+  | SocialScheduledRecord | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
   | SeoPanelRecord | SeoObservationRecord | SeoFindingRecord
   | SellerSkuRecord | SellerFeecardRecord | SellerStageRecord | SellerMovementRecord | SellerCaseRecord
   | SupportTicketRecord | SupportMessageRecord | SupportRequestRecord | SupportRatingRecord
@@ -6270,6 +6279,21 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'COMMUNITY_NO_GO',
+  'COMMUNITY_RULES_REQUIRED',
+  'OFFER_EXTRA_ROUND',
+  'SLOT_DESKTOP_ONLY',
+  'SLOT_FROZEN',
+  'SLOT_NOT_FOUND',
+  'SLOT_STALE',
+  'SLOT_TIME_INVALID',
+  'SOCIAL_INPUT_INVALID',
+  'SOCIAL_POST_REQUIRED',
+  'SOCIAL_REVISION_SHAPE',
+  'SOCIAL_SOURCE_INVALID',
+  'SOCIAL_VOICE_CHANGED',
+  'SOURCE_THIN',
+
   'EDIT_NOT_FOUND', 'SCRIPT_FILE_REQUIRED', 'WORD_TIMES_REQUIRED',
   'SUPPORT_THREAD_INVALID', 'SUPPORT_TICKET_NOT_FOUND',
   'INTERNAL_ORDER', 'SELLER_INPUT_INVALID',

@@ -1,3 +1,4 @@
+import { socialIntakeFields } from './social/intake-fields.ts';
 import { caIntakeFields } from './ca-firm/intake-fields.ts';
 // Chausar flagship playbooks: what each one puts on the plan (playbook wiring, design 7.8). When an idea picks a flagship
 // playbook (registry.ts), the instant plan, the template plan, the plan the AI rewrites and the plan the AI composes all
@@ -110,13 +111,13 @@ const YOUTUBE_PLAN = build(
 
 const SOCIAL_PLAN = build(
   registration(SOCIAL_AGENCY_ID),
-  SOCIAL_OFFERS.map(offer => ({ key: offer.id, name: offer.name, description: offer.description, model: offer.charge })),
+  SOCIAL_OFFERS.map(offer => ({ key: offer.id, name: offer.name, description: offer.description, model: offer.charge, intake: socialIntakeFields(offer.id) })),
   SOCIAL_APPROVALS.map(item => ({ key: item.id, words: item.when })),
   SOCIAL_CONNECTORS.map(item => item.id),
   {
     // The three things a client buys, then the monthly report as its own offer (Ink v2 wave 2), so an order for it runs
     // the report steps on the exports the client uploads. Fourth, so the other offers keep their refs.
-    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }, { key: 'monthly-report', block: 'retainer' }],
+    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }, { key: 'monthly-report', block: 'retainer' }, { key: 'repurpose-pack', block: 'retainer' }, { key: 'linkedin-ghostwriting', block: 'retainer' }],
     approvals: [
       { key: 'every-draft', block: 'each-draft' }, { key: 'spend-before-generation', block: 'prices-invoices' },
       { key: 'every-post', block: 'posts-in-your-name' }, { key: 'report-and-invoice', block: 'prices-invoices' },

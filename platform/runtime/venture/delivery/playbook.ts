@@ -18,6 +18,9 @@ import { acceptedBlueprint, latestPlaybook, readAs } from './shared.ts';
 import { DRAFT_CHECKS, VERIFY_CHECKS } from './check-lists.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
+import {POST_PLAN_GUIDANCE} from '../playbooks/social/post-plan.ts';
+import {ghostwritingSections} from '../playbooks/social/structures.ts';
+import { REPURPOSE_GUIDANCE } from '../playbooks/social/repurpose-coverage.ts';
 import { validateFlow } from './flow.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
@@ -314,5 +317,8 @@ export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps
   // Ink v2 wave 5 (5A1): a kit chain order drafts its stage's step (playbooks/kit/chain.ts).
   const id = own.draftStep(offerKey, stage);
   const step = playbook.steps.find(item => item.id === id && item.kind === 'write') ?? playbook.steps.find(item => item.kind === 'write');
-  return step && step.requiredSections.length ? { stepId: step.id, sections: playbook.flagship==='ca-firm'&&offerKey==='tax-question-desk'?[...step.requiredSections,'Supports','Conflicts','Unknowns','Coverage']:[...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake)] } : null;
+  if (step && playbook.flagship === 'social-agency' && offerKey === 'repurpose-pack' && step.id === 'drafts') {
+    return { stepId: step.id, sections: [...step.requiredSections, 'Newsletter blurb'], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake), POST_PLAN_GUIDANCE, REPURPOSE_GUIDANCE, 'Selected channels: ' + (Array.isArray(intake?.fields?.channels) ? intake.fields.channels.join(', ') : '')] };
+  }
+  return step && step.requiredSections.length ? { stepId: step.id, sections: playbook.flagship==='social-agency'&&offerKey==='linkedin-ghostwriting'&&step.id==='drafts'?[...ghostwritingSections(intake),'Post plan']:playbook.flagship==='ca-firm'&&offerKey==='tax-question-desk'?[...step.requiredSections,'Supports','Conflicts','Unknowns','Coverage']:[...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake),...(playbook.flagship==='social-agency'&&['drafts','creative-briefs'].includes(step.id)?[POST_PLAN_GUIDANCE]:[])] } : null;
 }

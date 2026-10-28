@@ -1,3 +1,5 @@
+import { fakeSocialForIdea, fakeSocialPlan } from './fake-social-plan';
+import { fakeSocialRevisionDueRows } from './fake-social-revision-due';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine for `npm run dev:ui` and for tests. It answers the same methods with the same shapes and keeps the
@@ -139,6 +141,7 @@ export class FakeEngine {
   private journal = clone(JOURNAL);
   private clientSeq = 1;
   private current = 'lumen';
+  private scheduledSession = 0;
   private receiptSeq = 421;
   private seq = 40;
   private listeners = new Set<(event: VentureRunEvent) => void>();
@@ -217,6 +220,7 @@ export class FakeEngine {
       hosted: () => this.hosted,
     }, { fresh });
     this.work = new FakeWorkDesk({
+      rows:()=>this.rows,setRows:rows=>{this.rows=rows;}, hosted:()=>this.hosted,
       fingerprint: digestOf,
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
       plan: () => this.desk.request('venture.blueprint.get', {}) as BlueprintViewLite | null,
@@ -235,12 +239,24 @@ export class FakeEngine {
       ask: (method, p) => this.answerNow(method, p),
     });
     this.extras = new FakeExtrasDesk({
+      draftText: id=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
       digest: digestOf,
       current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       playbook: (id) => this.desk.playbook(id), owed: () => this.money.owed(), hosted: () => this.hosted, emit: (event) => this.emit(event),
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      draftText: (id:string)=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
+      sharedDraftDigest:(id:string)=>this.extras.sharedDraftDigest(this.current,id),
+      socialClientAnswer:(id:string)=>this.posting.socialClientAnswer(id),
+      scheduledPost: (id:string) => this.posting.scheduledSnapshot(id),
+      moveScheduledPost: (id:string,binding:import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostBinding) => this.posting.moveScheduled(id,binding),
+      scheduledSession:()=>this.scheduledSession,
+      scheduledBusy:(id:string)=>this.posting.scheduledBusy(id),
+      eraseScheduledPost:(id:string)=>this.posting.eraseScheduled(id),
+      decideScheduledPost: (id:string,state:'approved'|'rejected'|'applied') => this.posting.decideScheduled(id,state),
+      socialChain:(orderId:string)=>this.work.socialChain.view(orderId),
+      workReceipt:(id:string)=>this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.workReceipt(id),
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
       uploadFingerprint: (id: string) => this.work.uploadFingerprint(this.current, id),
@@ -323,7 +339,6 @@ export class FakeEngine {
     const p = (params ?? {}) as Record<string, unknown>;
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
     this.guardInternalShare(method, p);
-    this.guardInternalShare(method, p);
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
     // Invoices and payments answer from one desk.
@@ -333,7 +348,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -366,13 +381,7 @@ export class FakeEngine {
       case 'venture.client.list': return clone(this.clients[this.current] ?? []);
       case 'venture.client.add': return this.addClient(p);
       case 'venture.events': return { events: [], lastSeq: this.seq, firstSeq: 0, frames: [] };
-      case 'venture.get': {
-        const venture = this.ventures.get(this.current);
-        const playbook = this.desk.playbook(this.current);
-        // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
-        // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
-        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, country: venture.countryCode ? { code: venture.countryCode, currency: 'INR' } : null }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
-      }
+      case 'venture.get': return this.ventureView();
       case 'venture.playbooks.list': {
         // 4J8: the ways to earn; the open business is "You run this" on its own way.
         const venture = this.open ? this.ventures.get(this.current) : undefined;
@@ -400,7 +409,7 @@ export class FakeEngine {
         // A typed passphrase opens only a business locked with that passphrase, as Vault.open checks it.
         if (typed && (business.opens !== 'needs-passphrase' || (business.passphrase !== undefined && p.passphrase !== business.passphrase))) throw new EngineError('UNLOCK_FAILED', UNLOCK_FAILED);
         if (business.opens === 'key-missing') throw new EngineError('DEVICE_KEY_FAILED', CUSTODY_ERROR_WORDS.DEVICE_KEY_FAILED);
-        this.current = business.id;
+        this.scheduledSession++; this.current = business.id;
         this.open = true;
         this.closedByOwner = false;
         this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
@@ -423,7 +432,7 @@ export class FakeEngine {
   /** Another desk's answer at once, with no latency: what the wave 2 desks read (orders, runs, files, invoices). */
   /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
   private findReceipt(id: string): ReceiptLite | undefined {
-    return RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
+    return this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.receipt(id) ?? RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
       ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
   }
 
@@ -469,7 +478,17 @@ export class FakeEngine {
   }
 
 
+  private ventureView() {
+        const venture = this.ventures.get(this.current);
+        const playbook = this.desk.playbook(this.current);
+        // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
+        // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
+        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, country: venture.countryCode ? { code: venture.countryCode, currency: COUNTRIES.find(country=>country.code===venture.countryCode)?.currency??'INR' } : null }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
+        }
+
   private answerNow(method: string, p: Record<string, unknown>): unknown {
+    if (method === 'venture.get') return this.ventureView();
+    this.guardInternalShare(method,p);
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     if (method === 'venture.connectors.list') return withTruth(clone(CONNECTORS), this.hosted);
     // 4B3: agent chat reads the team (whose steps an agent owns) and the clients (whom a note is about).
@@ -494,6 +513,8 @@ export class FakeEngine {
     const kept = new Set(this.network.privacyFacts().map(person => person.id));
     const gone = before.filter(person => !kept.has(person.id));
     if (gone.length) {
+      this.posting.forgetPeople(gone);
+      this.work.socialChain.forgetPeople(gone, method === 'venture.network.forget');
       this.kitSales()?.forgetPeople(gone, method === 'venture.network.forget');
       for (const desk of this.w5 ?? []) if (desk instanceof FakePlaybooksDesk || desk instanceof FakeKitConnectDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
     }
@@ -513,6 +534,13 @@ export class FakeEngine {
     this.network.syncRows(); // 4E4: follow-ups come due as the clock moves; replies and calls wait as the engine lists them
     this.chief.syncRows(); // 4C2: a proposal's card is made again from what it acts on now (only Dismiss once its gate fails)
     if (this.open && this.current) this.kitRules()?.syncRows(); // 5A3: a published idea's grade row comes due as the clock moves
+    this.rows = this.rows.filter(row => !row.id.startsWith('social-revision:'));
+    for (const business of this.businesses) {
+      if (business.opens !== 'with-this-computer' && !(this.open && business.id === this.current)) continue;
+      const plan = this.desk.blueprintFor(business.id);
+      this.rows.push(...fakeSocialRevisionDueRows({countryCode:this.ventures.get(business.id)?.countryCode??'IN',businessId: business.id, businessName: business.name, now: this.now(), orders: this.work.ordersFor(business.id), offers: plan?.blueprint.offers ?? [], digest: digestOf}));
+    }
+
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
@@ -532,6 +560,9 @@ export class FakeEngine {
     if (action.id === 'answer' && !(p.answer ?? '').trim()) return { outcome: 'refused', line: 'Write an answer first.', reason: 'ANSWER_REQUIRED' };
     // 4E4: a next step from meeting notes with no day takes the day as Approve's answer (chief/proposals.ts).
     if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
+    if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
+    const social=this.work.socialChain.decide(row,action.id);
+    if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     this.decided.add(row.id);
     // 4J5: Issue or Cancel on a credit note's card does what the engine does, and says it in the engine's words.
     const credited = row.id.startsWith('credit:') ? this.money.decideCredit(row.id, action.id) : null;
@@ -788,7 +819,7 @@ export class FakeEngine {
     const id = this.freeId(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business');
     const shown = typed || this.hosted;
     this.businesses.push({ id, name, serviceType: 'other', opens: typed ? 'needs-passphrase' : 'with-this-computer', recovery: shown ? 'made' : 'not-made', ...(typed ? { passphrase: p.passphrase as string } : {}) });
-    this.current = id;
+    this.scheduledSession++; this.current = id;
     this.open = true;
     this.closedByOwner = false;
     const code = shown ? SAMPLE_RECOVERY_CODE : null;
@@ -823,7 +854,7 @@ export class FakeEngine {
   }
 
   private openHere(business: HeldBusiness): { workspace: { id: string; name: string } } {
-    this.current = business.id;
+    this.scheduledSession++; this.current = business.id;
     this.open = true;
     this.closedByOwner = false;
     this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
@@ -1000,7 +1031,7 @@ export class FakeEngine {
       starterConnectorIds: [],
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
-    const view = kit ? fakeKitPlan(kit, templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : templateView;
+    const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : templateView;
     this.desk.putBlueprint(business.id, view);
     return view;
   }

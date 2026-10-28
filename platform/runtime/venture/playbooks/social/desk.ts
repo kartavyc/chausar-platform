@@ -1,10 +1,11 @@
-// Chausar flagship playbook: Social media agency (Ink v2 wave 5, packages 5D1, 5D2, 5D3). Its desk: the handlers
-// venture.desk.list, .get and .act reach for its own record kinds (playbooks/desks.ts), and their types
-// (playbooks/desk-types.ts). Package 5-0 left it empty, so every desk method for this playbook answers NOT_BUILT_YET.
-// Written for Chausar; nothing here is learned from an outside source.
+// Original Chausar social work desk. Load stateful handlers only when called, avoiding flagship import cycles.
 import type { DeskHandlers } from '../desk-types.ts';
-
-/** This desk's record kinds, each a DeskKindTypes (desk-types.ts) by kind; none until a package adds one. */
-export type SocialAgencyDeskTypes = Record<never, never>;
-/** This desk's handlers by record kind; none until a package adds one. */
-export const SOCIAL_AGENCY_DESK: DeskHandlers = Object.freeze({});
+import type { SocialCanvasDeskTypes } from './canvas-desk.ts';
+import type { SocialRevisionDeskTypes } from './revision-desk.ts';
+import type { ScheduledDeskTypes } from './scheduled-desk.ts';
+export type SocialAgencyDeskTypes = SocialCanvasDeskTypes & SocialRevisionDeskTypes & ScheduledDeskTypes;
+export const SOCIAL_AGENCY_DESK: DeskHandlers = Object.freeze({
+ canvas:{async list(...args){return (await import('./canvas-desk.ts')).SOCIAL_CANVAS_DESK.canvas.list!(...args);},async get(...args){return (await import('./canvas-desk.ts')).SOCIAL_CANVAS_DESK.canvas.get!(...args);}},
+ revision:{async list(...args){return (await import('./revision-desk.ts')).SOCIAL_REVISION_DESK.revision.list!(...args);},async get(...args){return (await import('./revision-desk.ts')).SOCIAL_REVISION_DESK.revision.get!(...args);},async act(...args){return (await import('./revision-desk.ts')).SOCIAL_REVISION_DESK.revision.act!(...args);}},
+ scheduled:{async list(...args){return (await import('./scheduled-desk.ts')).SCHEDULED_DESK.scheduled.list!(...args);},async get(...args){return (await import('./scheduled-desk.ts')).SCHEDULED_DESK.scheduled.get!(...args);},async act(...args){return (await import('./scheduled-desk.ts')).SCHEDULED_DESK.scheduled.act!(...args);}},
+});

@@ -105,7 +105,7 @@ describe('Connections in the Ink v2 look', () => {
 
   it('a way to post that works makes the chip say Writes; the bank reads the statements you import, with Planned only on reading the bank directly', async () => {
     start();
-    const linkedin = await tile('LinkedIn');
+    const linkedin = await tile('X');
     expect(linkedin.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('write');
     // The planned API keeps its own line, apart from the chip.
     const api = linkedin.querySelector('[data-posting-planned="api"]') as HTMLElement;
@@ -139,14 +139,14 @@ describe('Connections in the Ink v2 look', () => {
     }
     // A connector that works keeps its real action.
     expect(within(await tile('Lovable')).getByRole('button', { name: 'Open Lovable' })).toBeTruthy();
-    expect(within(await tile('LinkedIn')).getByRole('button', { name: 'Sign in to LinkedIn' })).toBeTruthy();
+    expect(within(await tile('X')).getByRole('button', { name: 'Sign in to X' })).toBeTruthy();
     expect(within(await tile('Bank account (read only)')).getByRole('button', { name: 'Import a statement' })).toBeTruthy();
   });
 
   it("the connector sheet lists what each way of posting needs, numbered in the engine's order: setup steps for a way that works, what it needs first for a planned one", async () => {
-    start('#/connections?sheet=connector:linkedin');
-    const sheet = await sheetNamed('LinkedIn');
-    const linkedin = CONNECTORS.find((card) => card.id === 'linkedin')!;
+    start('#/connections?sheet=connector:x');
+    const sheet = await sheetNamed('X');
+    const linkedin = CONNECTORS.find((card) => card.id === 'x')!;
     for (const option of linkedin.postingOptions) {
       const block = sheet.querySelector(`[data-posting-option="${option.mode}"]`) as HTMLElement;
       const steps = block.querySelector('ol');
@@ -156,7 +156,7 @@ describe('Connections in the Ink v2 look', () => {
       const heading = document.getElementById(steps!.getAttribute('aria-labelledby') ?? '');
       expect(heading?.textContent, option.mode).toBe(option.status === 'available' ? 'To set it up' : 'What it needs first');
     }
-    expect(sheet.textContent).toContain('Sign-in: LinkedIn sign-in');
+    expect(sheet.textContent).toContain('Sign-in: X sign-in');
     assertInkRules(document.body);
   });
 
@@ -285,8 +285,8 @@ describe('Connections in the Ink v2 look', () => {
   });
 
   it('speaks Hindi everywhere on the page and in the sheets, with no key showing', async () => {
-    start('#/connections?sheet=connector:linkedin', { language: 'hi' });
-    const sheet = await sheetNamed('LinkedIn');
+    start('#/connections?sheet=connector:x', { language: 'hi' });
+    const sheet = await sheetNamed('X');
     await screen.findByText('कनेक्शन', { selector: 'h1' });
     await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('li').length).toBeGreaterThan(10));
     expect(keyLikeText(document.querySelector('main')!)).toEqual([]);

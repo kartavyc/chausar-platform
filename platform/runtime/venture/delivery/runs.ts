@@ -1,6 +1,4 @@
 import { caNamedTokens } from '../playbooks/ca-firm/draft-references.ts';
-import { citationUseFor } from '../playbooks/ca-firm/citations.ts';
-import { playbookForOrder, playbookForRun, type RunPlaybook } from './workflow.ts';
 // Chausar venture launcher, delivery package (P5): draft replies for real orders.
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
 // exact text first and is sent once, only after the owner approves it. Nothing here sends anything to a client.
@@ -8,6 +6,7 @@ import { playbookForOrder, playbookForRun, type RunPlaybook } from './workflow.t
 // approval of its exact text. Tools run on this computer between turns and send nothing anywhere. An agent may ask for
 // heavy work by the owner's own Claude Code or Codex: the run then waits for the owner to approve the exact brief, and
 // the tool starts only after that, on this computer.
+import {socialSlotContext,keepSocialPostPlan} from '../playbooks/social/slots-live.ts';
 import { ChausarError, check, newId, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
@@ -18,6 +17,7 @@ import type {
   VentureDeps, VentureRecord, VentureRecordKind, WorkReceiptRecord, WorkTableRecord,
   MicroString, ToolName,
 } from '../contracts.ts';
+import { preserveOtherPosts } from '../playbooks/social/ghostwriting.ts';
 import { correctDraft, firstFailedCheck, knownNames, runChecks, withDraftChecks, type CheckInput } from './checks.ts';
 import type { ReceiptCorrection } from './judge/claim-check.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs, type DraftTimes } from './deliverable.ts';
@@ -39,13 +39,15 @@ import { recheckRun, recheckSend } from './harness/recheck.ts';
 import { storeRunEvidence } from './harness/tools-evidence.ts';
 import { mediaAcceptBlock, recordHandedOverFiles, storeRunAssets } from '../playbooks/kit/assets.ts';
 import { requireOrderPeopleConsent, todayOf } from '../playbooks/kit/voice-consent.ts';
-import { brandKitPart } from '../playbooks/kit/brand-kit.ts';
+import { brandKitPart, resolveKit } from '../playbooks/kit/brand-kit.ts';
+import {pinSocialOrder,socialVoicePart,socialVoiceGuard} from '../playbooks/social/chain.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits, verifyChecks } from './playbook.ts';
 import { failedPlaybookCheck, runFlagshipChecks, voiceDraftCheck, withQuoteFixes, withVoiceCheck } from '../playbooks/draft-checks.ts';
 import { voicePart, voiceRules } from '../agents/voice.ts';
 import { personaInputs, personaPart, writingStyle } from '../agents/persona.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import { caOfferFor, caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { citationUseFor } from '../playbooks/ca-firm/citations.ts';
 import { diffExplanations } from '../playbooks/ca-firm/signoff.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, previewShownWhole, readAs, todayIso, ventureReceipts } from './shared.ts';
@@ -67,6 +69,7 @@ import { unconfirmedActions } from './harness/hygiene.ts';
 import { questionWindowMs, refuseExpiredQuestion, withQuestionExpiry } from './timed-questions.ts';
 import { withRunLease } from './leases.ts';
 import { withReport } from './report-back.ts';
+import { playbookForOrder, playbookForRun, type RunPlaybook } from './workflow.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { landRevision, withRevision } from './revise.ts';
 
@@ -131,24 +134,27 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
  * tables the run's tools made and its tool calls go too, for the checks that read them. An order whose signed contract
  * protects anything gets the contract's check last, on the eight fixed steps too (4J12).
  */
-async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
+async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { runId?: string; work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
   // Ink v2 wave 4 (4J12, H24): a signed order contract's protected items, on every playbook's drafts, after its own.
   const contract = contractChecks(deps.store.read(), context.venture, context.order.id, { text: draftWords(deliverable), ...(extras.files ? { files: extras.files.map(file => ({ name: file.name, digest: file.digest })) } : {}) });
   // Ink v2 wave 4 (4J17, A8): the owner's voice, by code, on every playbook's drafts; it only ever adds a result.
   const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(deps.store.read(), context.venture), playbook.flagship ?? null);
   if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
   const checkInput = {
-    flagship: playbook.flagship, offerKey: context.offerKey, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
+    flagship: playbook.flagship, offerKey: context.offerKey, stageId:flagshipDraft(playbook,context.offerKey,context.order.intake??null,context.order.chainStage??null)?.stepId, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
+    brandKit: resolveKit(deps.store.read(), context.venture, context.order.clientId),
+    socialSlotContext: socialSlotContext(deps.store.read(), context.venture, context.order, deps.clock().toISOString(), extras.runId ?? null),
     files: extras.files ?? [], receipts: [...context.receipts, ...(extras.work ?? [])], known: context.known, mode: 'client' as const,
     today: todayIso(deps, context.venture), dateOrder: context.venture.country.dateOrder, ...(deps.host === 'hosted-web' ? { finishing: null } : {}),
     refusals: refusalsOf(extras.harness?.toolCalls ?? []),
     tables: extras.tables ?? [], toolCalls: extras.harness?.toolCalls ?? [],
     // The CA's explanations of portal differences, so one recorded while the run waited counts now (Ink v2 2A2).
-    caCitationUse: citationUseFor(deps.store.read(), context.venture.id, 'client'),
     caExplanations: diffExplanations(deps.store.read(), context.venture.id),
+    caCitationUse: citationUseFor(deps.store.read(), context.venture.id, 'client'),
   };
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
   const own = await guardedPlaybookChecks(playbook.flagship, { deliverable, files: checkInput.files, tables: checkInput.tables, toolCalls: checkInput.toolCalls }, () => runFlagshipChecks(checkInput)) as PlaybookCheckResult[];
+
   return withVoiceCheck([...own, ...contract], voice);
 }
 
@@ -236,6 +242,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const body = exactPayload(payload, ['orderId', 'useTemplate'], ['orderId']);
   const orderId = identifier(body.orderId, 'Order');
   const useTemplate = optionalFlag(body.useTemplate, 'useTemplate');
+  await pinSocialOrder(deps,ctx,orderId);
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
@@ -247,6 +254,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // 4J12 (H24): an order whose contract waits for the owner's signature starts nothing, before any preview.
   refuseUnsignedContract(state, venture, order);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, order);
+  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
@@ -256,6 +264,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
   const template = useTemplate || status!.tiers.main.presetId === 'built-in-templates';
+  check(!template||!order.socialChain,'NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const basePlaybook = await ensurePlaybook(deps, ctx);
   // 4F1 (O21): an agent step that needs a connector only planned refuses the run; nothing is put in its place.
@@ -263,22 +272,33 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
   const playbook = playbookForOrder(deps, ctx, fresh.state, fresh.venture, basePlaybook, context.order, context.offerKey);
+  if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
+  const socialGuard=await socialVoiceGuard();
+  const socialSnapshot=(state:State,venture:VentureRecord)=>JSON.stringify({order:findRecord(state,'venture-order',orderId),uploads:orderUploads(state,venture.id,orderId)});
+  const socialBefore=context.order.socialChain?socialSnapshot(fresh.state,fresh.venture):null;
+  const fenceSocialPreview=(tx:VentureTx)=>{if(socialBefore===null)return;check(socialBefore===socialSnapshot(tx.state,tx.venture!),'APPROVAL_STALE','The order or its sources changed. Start again and read the new preview.');socialGuard(tx.state,tx.venture!,tx.find('venture-order',orderId)!);};
+  const socialReport = !template ? await (await import('../playbooks/social/report-run.ts')).prepareSocialReport(deps,ctx,fresh.state,fresh.venture,playbook,context.order,uploads) : null;
+  const codeReport = socialReport;
 
-  if (!template && uploads.length && playbookGrant(playbook).length) {
+  if (!template && (codeReport || uploads.length && playbookGrant(playbook).length)) {
     let harness = newHarnessState(playbookGrant(playbook), playbookLimits(playbook), uploads.map(upload => upload.id));
-    if (status!.tiers.fast.presetId === 'built-in-templates') harness = skipActs(harness, NO_QUICK_AI);
+    if (codeReport) harness={...harness,phase:'write',codePrerequisites:[{tool:'social.report',result:codeReport.result}],workReceiptIds:codeReport.receipts.map(r=>r.id),proofs:codeReport.receipts.map(r=>({kind:'totals' as const,toolCallId:'code:'+r.id,receiptId:r.id,tableId:null}))};
+    else if (status!.tiers.fast.presetId === 'built-in-templates') harness = skipActs(harness, NO_QUICK_AI);
     const loop = loopContext(deps, ctx, fresh.state, context, playbook, offer, uploads, [], harness.phase === 'act' ? await delegateOffer(deps) : []);
-    const preview = await deps.models.preview(ctx, nextTask(loop, context, refs, harness, [], uploads, []));
+    const preview = await deps.models.preview(ctx, nextTask(loop, context, refs, harness, codeReport?.receipts??[], uploads, []));
     check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
+      fenceSocialPreview(tx);
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       const run: DeliveryRunRecord = {
         ...baseRun(tx, context.order, playbook, harness.grant, harness.limits.maxCostMicros), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
         preview, deliverable: null, renderedText: null, checks: [], harness, uploadIds: uploads.map(upload => upload.id),
+        ...(codeReport?{id:codeReport.runId}:{}),
       };
+      if(codeReport)for(const receipt of codeReport.receipts)tx.put(receipt);
       tx.put(run);
       tx.emit('run.started', { runId: run.id });
       tx.emit('delivery-waiting', { runId: run.id, orderId: run.orderId, practice: run.practice });
@@ -295,7 +315,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     // 4J18: the sources that share words with the draft's work, as the writing turn's (agents/knowledge-recall.ts).
     knowledge: oneStepKnowledge(fresh.state, context, playbook, offer, draft),
     // 4J17: the writer's persona and the owner's voice, as the writing turn's.
-    style: { ...writingStyle(fresh.state, context.venture, playbook), ...brandKitPart(fresh.state, context.venture, context.order.clientId) }, // 5A4: the client's kit
+    style: { ...writingStyle(fresh.state, context.venture, playbook), ...brandKitPart(fresh.state, context.venture, context.order.clientId), ...socialVoicePart(context.order) }, // 5A4: the client's kit
   }));
 
   if (!preview) {
@@ -304,6 +324,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     const checks = checkDraft(context, playbook, deliverable, renderedText);
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
+      fenceSocialPreview(tx);
       const run: DeliveryRunRecord = {
         ...baseRun(tx, context.order, playbook, [], '0'), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
         deliverable, renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}),
@@ -318,6 +339,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   }
 
   return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
+      fenceSocialPreview(tx);
     const stage = tx.venture!.launchStage;
     check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
     const run: DeliveryRunRecord = {
@@ -358,7 +380,7 @@ function loopContext(deps: VentureDeps, ctx: Context, state: State, context: Ord
     writePersonas: personaPart(personaInputs(state, context.venture, playbook, 'write')),
     voice: voicePart(state, context.venture, playbook.flagship ?? null),
     // 5A4 (P7): the client's brand kit, for the writing turn.
-    brandKit: brandKitPart(state, context.venture, context.order.clientId),
+    brandKit: {...brandKitPart(state, context.venture, context.order.clientId),...socialVoicePart(context.order)},
   };
 }
 
@@ -416,6 +438,8 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, context.order);
+  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, context.order, deps.clock().toISOString().slice(0,10));
+  (await socialVoiceGuard())(deps.store.read(),venture,context.order);
   const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
@@ -450,10 +474,12 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     refuseUnsignedRun(deps.store.read(), venture, run);
     const latestSupport=deps.store.read();
     (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
+  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order, deps.clock().toISOString().slice(0,10));
+  (await socialVoiceGuard())(deps.store.read(),venture,orderContext(deps.store.read(),venture,run.orderId).order);
     recheckSend(deps, venture.id, runId, callId, approved);
     if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending, answered: () => { went.out = true; } });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
-    const draft = flagshipDraft(playbook, context.offerKey, null, context.order.chainStage ?? null);
+    const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
     // 4J18: a source this draft's text carries that was removed, changed or held since never goes; it is made again.
     await refuseStaleSources(deps, ctx, { run, callId, context, harness: null });
     const knowledge = sourcesCarried(state, venture, run.preview?.payloadText ?? '');
@@ -467,10 +493,10 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
       throw error;
     }
     const corrected = correctOrderDraft(context, playbook, deliverable);
-    deliverable = corrected.deliverable;
+    deliverable = preserveOtherPosts(run,corrected.deliverable);
     const renderedText = renderDeliverable(deliverable, context.receipts, context.venture.country);
     const checks = checkDraft(context, playbook, deliverable, renderedText, { ...(draft ? { sections: draft.sections } : {}), corrections: corrected.corrections });
-    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model');
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', {runId:run.id});
     try {
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', runId);
@@ -652,15 +678,17 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     // 4J18: the sources the writing turn read, from the exact text the owner approved (agents/knowledge-recall.ts).
     const done = finishWrite(harness, { by, callId, costMicros, knowledge: sourcesCarried(a.state, context.venture, run.preview?.payloadText ?? '') });
     const answers = harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
-    const { deliverable, corrections } = correctOrderDraft(context, playbook, value as Deliverable, { work: made.receipts, answers, harness: done, files });
+    const corrected = correctOrderDraft(context, playbook, value as Deliverable, { work: made.receipts, answers, harness: done, files });
+    const deliverable = preserveOtherPosts(run,corrected.deliverable);
+    const corrections = corrected.corrections;
     const receipts: AnyReceipt[] = [...context.receipts, ...made.receipts];
     const renderedText = renderDeliverable(deliverable, receipts, context.venture.country);
-    const draft = flagshipDraft(playbook, context.offerKey, null, context.order.chainStage ?? null);
+    const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
     const checks = checkDraft(context, playbook, deliverable, renderDeliverable(deliverable, receipts, context.venture.country, { attachments: false }), {
       work: made.receipts, proofs: harness.proofs, answers, harness: done, files, corrections, times: youtubeWorked(harness.toolCalls, made.tables).times,
       sections: draft?.sections ?? (harness.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]),
     });
-    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { work: made.receipts, tables: made.tables, files, harness: done });
+    const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { runId:run.id, work: made.receipts, tables: made.tables, files, harness: done });
     return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
       const current = tx.find('venture-delivery-run', run.id);
       // 4F1: a force stop cut this write turn's call: the draft is thrown away; only what its call cost is kept.
@@ -819,7 +847,7 @@ export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: St
       serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
       containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
       knowledge: oneStepKnowledge(state, context, playbook, offer, draft), // 4J18
-      style: { ...writingStyle(state, context.venture, playbook), ...brandKitPart(state, context.venture, context.order.clientId) }, // 4J17; 5A4 the client's kit
+      style: { ...writingStyle(state, context.venture, playbook), ...brandKitPart(state, context.venture, context.order.clientId), ...socialVoicePart(context.order) }, // 4J17; 5A4 the client's kit
     }), run.revision));
     check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
     return { preview, harness: null };
@@ -1147,11 +1175,13 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
   if (verdict === 'rejected') check(reason !== null, 'INVALID_VENTURE_REQUEST', 'Choose why you reject this draft.');
   if (verdict === 'accepted') check(reason === null, 'INVALID_VENTURE_REQUEST', 'An accepted draft needs no reason.');
   readAs(deps, ctx, 'approve');
+  const voiceGuard=await socialVoiceGuard();
   let chainNext: string | null = null;
-  const reviewed = await ventureAction(deps, ctx, 'approve', 'delivery.review', tx => {
+  const reviewed = await ventureAction(deps, ctx, 'approve', 'delivery.review', async tx => {
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
+    if(verdict!=='rejected'){const order=tx.find('venture-order',run.orderId);if(order)voiceGuard(tx.state,tx.venture!,order);}
     // An agent draft is a practice draft unless the business is at approve each now: moving down is the owner's
     // safety lever, so a draft approved earlier can't be accepted, and an edit made now can't be copied.
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
@@ -1176,6 +1206,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
       ...(manifest ? { manifest } : {}),
     };
     tx.replace(next);
+    keepSocialPostPlan(tx,next);
     // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
     recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: REVIEW_DECISION_WORDS[verdict], rowId: null });
     if (verdict !== 'accepted') {
@@ -1262,4 +1293,3 @@ export async function deliveryListHandler(deps: VentureDeps, ctx: Context, paylo
   const nowMs = deps.clock().getTime();
   return newestFirst(listRecords(state, 'venture-delivery-run', venture.id)).map(run => runView(run, venture, nowMs, state));
 }
-

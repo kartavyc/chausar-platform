@@ -7,9 +7,9 @@
 import type { BlueprintViewLite, BuildStatusView, ConnectorCardLite, ModelPresetLite, ModelStatusLite, PlaybookPick, PostingOptionLite, ReceiptLite } from './types';
 
 // ---------------------------------------------------------------------------------------------------------------
-// Connectors: 17 of the 66 catalogue cards, in the engine's order (starters first, then by category, then by name).
+// Connectors: a representative subset of the catalogue cards, in the engine's order (starters first, then by category, then by name).
 // The posting environment is a desktop with Playwright and Chromium present and no app review recorded: a text post
-// (LinkedIn) can go through the owner's own browser; Instagram and YouTube stay planned because picture and video
+// on X can go through the owner's own browser; Instagram and YouTube stay planned because picture and video
 // upload is not built; every API mode and every posting handoff is planned.
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -24,7 +24,7 @@ function postingOptionsFor(name: string, apiRequires: string[], media: boolean, 
     { mode: 'api', status: 'planned', qualification: 'unqualified', what: `Posts through the ${name} API after you approve each post.`, risk: null, requires: apiRequires, reason: "Planned until the platform's review of the app is done." },
     {
       mode: 'owner-browser-session', status: media ? 'planned' : 'available', qualification: 'unqualified',
-      what: `Posts from your own signed-in ${name} account in a browser on this computer, after you approve each post. Not yet checked against the live site.`,
+      what: `Posts approved text through your signed-in ${name} browser. Not yet checked against the live site.`,
       risk: OWNER_SESSION_RISK, requires: ['Playwright with Chromium on this computer', `You sign in to ${name} yourself, once, in the Chausar browser window`],
       reason: media ? 'Posting a picture or video through the browser is not built yet.' : null,
     },
@@ -109,8 +109,12 @@ export const CONNECTORS: ConnectorCardLite[] = [
     id: 'linkedin', name: 'LinkedIn', category: 'marketing', categoryLabel: 'Marketing and social',
     modes: [PLANNED_HANDOFF, plannedWrite('LinkedIn')],
     chips: ['planned: handoff', 'planned: write'], regions: GI, regionNote: null, auth: 'LinkedIn sign-in', vendorUrl: 'https://www.linkedin.com/',
-    note: 'Posting to your own profile is planned.', starter: false,
-    ...posting(postingOptionsFor('LinkedIn', ['LinkedIn app review for posting'], false, 'Copies your post and opens LinkedIn. You paste it and press Post there.')),
+    note: 'Copy approved posts; open LinkedIn yourself.', starter: false,
+    ...posting(postingOptionsFor('LinkedIn', ['LinkedIn app review for posting'], false, 'Copies your post and opens LinkedIn. You paste it and press Post there.').map(option=>option.mode==='handoff'?option:{...option,status:'planned' as const,what:'LinkedIn is copy-and-open only.',risk:null,requires:[],reason:'LinkedIn is copy-and-open only.'})),
+  },
+  {
+    id:'x',name:'X',category:'marketing',categoryLabel:'Marketing and social',modes:[PLANNED_HANDOFF,plannedWrite('X')],chips:['planned: handoff','planned: write'],regions:GI,regionNote:null,auth:'X sign-in',vendorUrl:'https://x.com/',note:'Posts approved text through your signed-in browser.',starter:false,
+    ...posting(postingOptionsFor('X',['An X API client, which this build does not ship'],false,'Copies your approved post and opens X. You post there.')),
   },
   {
     id: 'youtube', name: 'YouTube', category: 'marketing', categoryLabel: 'Marketing and social',

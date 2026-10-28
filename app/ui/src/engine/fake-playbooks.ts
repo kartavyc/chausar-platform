@@ -1,3 +1,4 @@
+import type { ReceiptLite, WorkReceiptLite } from './types';
 /**
  * The fake engine's playbook desks (Ink v2 wave 5, package 5-0): one fake per playbook, each in its own file, joined
  * here. Never edited after 5-0: a package fills only its own fake-<id>.ts. venture.desk.list, .get and .act find the
@@ -41,6 +42,8 @@ export interface FakeDeskKind {
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
 export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
 export interface FakePlaybookDesk {
+  workReceipt?(id:string):WorkReceiptLite|undefined;
+  receipt?(id:string):ReceiptLite|undefined;
   importSupportMail?(mail:SupportImportedMail):void;
   forgetPeople?(people: readonly FakeForgottenPerson[], removeClient: boolean): void;
   readonly playbook: string;
@@ -88,6 +91,10 @@ export class FakePlaybooksDesk {
   }
 
   importSupportMail(mail:SupportImportedMail):void { for(const desk of this.desks)desk.importSupportMail?.(mail); }
+
+  receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }
+
+  workReceipt(id:string):WorkReceiptLite|undefined {for(const desk of this.desks){const receipt=desk.workReceipt?.(id);if(receipt)return receipt;}return undefined;}
 
   handles(method: string): boolean {
     return DESK_METHODS.has(method) || this.desks.some((desk) => desk.methods !== undefined && Object.hasOwn(desk.methods, method));

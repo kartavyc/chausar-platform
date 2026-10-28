@@ -142,15 +142,15 @@ test("with the client's approval: one row per slot, in date order, each post on 
   assert.doesNotMatch(file.csv, /Z\b|T\d\d:\d\d:\d\d/);
 });
 
-test('a draft edited after the client approved: the file and posting give the same answer for every post', async () => {
+test('a draft edited after client approval leaves the export empty and LinkedIn posting stays manual', async () => {
   const env = await setup();
   const browser = { async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; }, async post() { return { outcome: 'posted' as const, line: 'Posted.', url: null }; } };
   env.deps = { ...env.deps, connectors: { browser, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
   const { run } = await socialDraft(env);
   await clientApproves(env, run);
-  // Approved as it is: post-1 is in the file, and posting takes it.
+  // Approved as it is: post-1 is in the file; LinkedIn remains a manual handoff.
   assert.equal((await calendarOf(env, run.id)).rows, 6);
-  assert.equal((await call<{ draftId: string }>(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-1` })).draftId, `${run.id}.post-1`);
+  await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-1` }), error=>error instanceof ChausarError&&error.code==='NOT_BUILT_YET'&&/copy-and-open only/.test(error.message));
 
   // The owner then changes one post (post-3). The client approved other words, so no post of this draft goes anywhere.
   const changed = DRAFTS.map(line => (line === LINKEDIN[1] ? 'LinkedIn: Breathe first, then move, then rest.' : line));
@@ -165,7 +165,7 @@ test('a draft edited after the client approved: the file and posting give the sa
   assert.deepEqual(file.blocked.map(item => item.draftId), [1, 2, 3, 4, 5, 6].map(n => `${run.id}.post-${n}`));
   for (const item of file.blocked) assert.match(item.line, /^The draft changed after it was approved\./);
   for (const n of [1, 3]) {
-    await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-${n}` }), code('POST_DRAFT_CHANGED'), `post-${n}`);
+    await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-${n}` }), code('NOT_BUILT_YET'), `post-${n}`);
   }
 });
 
@@ -342,8 +342,10 @@ test('through a real run: the drafted posts reach the file by their numbers, eac
   const env = await socialBusiness();
   assert.equal(env.offers[0].playbookOffer, 'content-calendar');
   const order = await env.run('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa this month.', intake: { calendar: CALENDAR } });
-  const waiting = await env.run('venture.delivery.run', { orderId: order.id });
-  const sections = [{ heading: 'Drafts', lines: DRAFTS }, { heading: 'Alt text', lines: [ALT] }, { heading: 'Hashtags', lines: ['Use #yoga and #goa on every post.'] }];
+  let waiting = await env.run('venture.delivery.run', { orderId: order.id });
+  for(const headings of [['Voice','Pillars','Words to avoid'],['Calendar','Topics and hooks']]){env.models.drafts.push({title:'Studio guidance',questionsForClient:[],sections:headings.map(heading=>({heading,parts:[{kind:'text',text:'Clear useful studio guidance.',ref:''}]}))});const ready=await env.run('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview.digest});await env.run('venture.delivery.review',{runId:ready.id,verdict:'accepted'});waiting=(env.deps.store.read().conversations as any[]).filter(r=>r.kind==='venture-delivery-run'&&r.orderId===order.id).at(-1)!;}
+
+  const sections = [{ heading: 'Post plan', lines: ['Question','Contrast','Lesson','Story','How to','Mistake'].map((hook,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${hook}`) },{ heading: 'Drafts', lines: DRAFTS }, { heading: 'Alt text', lines: [ALT] }, { heading: 'Hashtags', lines: ['Use #yoga and #goa on every post.'] }];
   env.models.drafts.push({
     title: 'Posts for November', questionsForClient: [],
     sections: sections.map(section => ({ heading: section.heading, parts: section.lines.map(text => ({ kind: 'text', text, ref: '' })) })),

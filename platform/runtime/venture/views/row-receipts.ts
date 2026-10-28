@@ -1,3 +1,4 @@
+import { socialRevisionReceipt } from '../playbooks/social/revision-receipt.ts';
 // Chausar venture launcher, views (Ink v2 wave 4, package 4J1): receipts for the figures Today's rows state. A row's
 // line, change and price beside Approve carry amounts code worked out from stored records: the most the next call to
 // the owner's AI can cost (from the price table, before anything is sent), the most the judge's check can cost, the
@@ -192,6 +193,7 @@ function monthSpend(state: State, venture: VentureRecord, id: string, month: str
  */
 export function rowFigureReceipt(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, id: string): RowFigureReceipt | null {
   if (!id.startsWith('fig:')) return null;
+  if (id.startsWith('fig:revision:')) return socialRevisionReceipt(state,venture,id);
   const [, kind, first, second] = id.split(':');
   const now = deps.clock().toISOString();
   if (kind === 'cost' && first && second) return callCost(state, venture, id, first, second);

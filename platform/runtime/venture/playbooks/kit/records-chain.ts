@@ -28,4 +28,6 @@ export type OrderChainView = {
   since: IsoTime | null;
   stages: ChainStageView[];
   note: string | null;
+  prerequisites?: {stepId:string;title:string;state:ChainStageState}[];
+  approval?: {stepId:string;title:string;state:ChainStageState};
 };

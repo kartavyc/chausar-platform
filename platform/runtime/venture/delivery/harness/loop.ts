@@ -683,6 +683,7 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
     requiredSections: [...sections],
     clientRequest: ctx.clientRequest,
     proven: ctx.proven,
+    ...(state.codePrerequisites?{codePrerequisites:state.codePrerequisites}:{}),
     agentNotes: state.turns.filter(turn => turn.step === 'act').map(turn => turn.note),
     answers: state.handoffs.filter(handoff => handoff.answer !== null).map(handoff => ({ question: handoff.question, answer: handoff.answer })),
     figures: refs.figures.map(figure => ({ ref: figure.ref, label: figure.label })),

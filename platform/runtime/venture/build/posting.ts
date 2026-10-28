@@ -1,3 +1,4 @@
+import { actualSocialPosts } from '../playbooks/social/post-label.ts';
 // Chausar venture launcher: posting to social and video platforms (package P2-connectors).
 // Three modes per platform, each labelled with what the code does today:
 // - 'api' needs the platform's app review and a posting client. No client ships in this build, so it stays planned.
@@ -34,9 +35,10 @@ import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
 import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
 import { SOCIAL_CHANNELS, channelCapability, type SocialChannel } from '../playbooks/social/channels.ts';
-import { postOfLine, socialPostBlocks } from '../playbooks/social/post-lines.ts';
+import { socialPostBlocks } from '../playbooks/social/post-lines.ts';
 import { countCharacters } from '../playbooks/social/checks.ts';
 import { draftApprovalsOfRun, needsClientApproval, parsePostId, scheduleReasons } from '../playbooks/social/run-approvals.ts';
+import { resolveKit } from '../playbooks/kit/brand-kit-read.ts';
 import { postPrint, postingRisk, type RiskResult, type SentPost } from '../playbooks/social/risk-gate.ts';
 import { diskPostLog } from './post-log.ts';
 import { gateUnits, tightenedLimits, type OwnerPostingLimits } from '../playbooks/social/post-limits.ts';
@@ -44,7 +46,7 @@ import type { FileLike } from '../delivery/harness/files.ts';
 import {
   currentVenture, digest, exactPayload, houseStyleFindings, identifier, isAppChannel, listRecords, requireAppChannel, singleLine, ventureAction,
 } from '../records.ts';
-import { AGENT_WINDOW_MS, JOURNAL_ACTIONS, applyAction, approveAction, rejectAction, resolveUnknown, sweepJournal } from '../journal/journal.ts';
+import { AGENT_WINDOW_MS, JOURNAL_ACTIONS, applyAction, approveAction, approveIn, rejectAction, resolveUnknown, sweepJournal } from '../journal/journal.ts';
 import { refuseCorrupt } from '../journal/chain.ts';
 import { fenceAccount } from '../journal/action-extras.ts';
 import { reportEndState } from '../journal/end-states.ts';
@@ -54,9 +56,11 @@ import { clientDraft } from './draft-text.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { changedFiles, checkManifest, FILE_CHANGED_WORDS, refuseChangedFiles } from '../delivery/file-manifest.ts';
-import { findRecord } from '../records.ts';
+import { findRecord, type VentureTx } from '../records.ts';
+import type { ScheduledPostBinding } from '../playbooks/social/scheduled-core.ts';
 import { checkConnectorFields } from './connector-truth.ts';
 
+export const LINKEDIN_HANDOFF_ONLY = 'LinkedIn is copy-and-open only.';
 export const OWNER_SESSION_RISK = 'The platform may restrict this account.';
 /** The task-scoped consent line a browser post's Today row starts with (spec K1). */
 export const POSTING_CONSENT_LINE = "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done.";
@@ -167,7 +171,7 @@ function apiOption(profile: PostingProfile, env: PostingEnvironment): PostingOpt
 }
 
 function browserOption(profile: PostingProfile, env: PostingEnvironment): PostingOption {
-  const what = `Posts from your own signed-in ${profile.name} account in a browser on this computer, after you approve each post. Not yet checked against the live site.`;
+  const what = `Posts approved text through your signed-in ${profile.name} browser. Not yet checked against the live site.`;
   const requires = ['Playwright with Chromium on this computer', `You sign in to ${profile.name} yourself, once, in the Chausar browser window`];
   const base = { mode: 'owner-browser-session' as const, what, risk: OWNER_SESSION_RISK, requires };
   if (profile.browser === 'media') return { ...base, status: 'planned', qualification: 'unqualified', reason: MEDIA_LINE };
@@ -185,7 +189,8 @@ function handoffOption(profile: PostingProfile): PostingOption {
 export function postingOptions(connectorId: string, env: PostingEnvironment = NOT_PROBED): PostingOption[] {
   const profile = PROFILES[connectorId];
   if (!profile) return [];
-  return [apiOption(profile, env), browserOption(profile, env), handoffOption(profile)];
+  const options = [apiOption(profile, env), browserOption(profile, env), handoffOption(profile)];
+  return connectorId === 'linkedin' ? options.map(option => option.mode === 'handoff' ? option : { ...option, status: 'planned', qualification: 'unqualified', what: LINKEDIN_HANDOFF_ONLY, risk: null, requires: [], reason: LINKEDIN_HANDOFF_ONLY }) : options;
 }
 
 /** The link and the text for posting by hand. Built here; no screen opens it yet (the handoff mode is planned). */
@@ -215,10 +220,7 @@ type DraftPost = { channel: SocialChannel; text: string };
 
 /** The posts a draft's text holds for one connector, in order, read with the social checks' own line parser. */
 function draftPosts(text: string, connectorId: string): DraftPost[] {
-  return text.split(/\r?\n/).flatMap(line => {
-    const post = postOfLine(line);
-    return post && channelCapability(post.channel).connectorId === connectorId ? [post] : [];
-  });
+  return actualSocialPosts(text).filter(post => channelCapability(post.channel).connectorId === connectorId);
 }
 
 /** The words of each post a draft's text holds for one connector, in order. */
@@ -244,7 +246,7 @@ function ownerEdited(run: DeliveryRunRecord): boolean {
  * The code checks again, on the exact post the owner edited: house style, and for the social agency its post checks
  * with the order's message and files as proof.
  */
-function editedPostLines(state: State, run: DeliveryRunRecord, post: DraftPost, flagship: string | null): string[] {
+function editedPostLines(state: State, run: DeliveryRunRecord, post: DraftPost, flagship: string | null, wordsOnly = false): string[] {
   const lines = houseStyleFindings(post.text).map(item => (item.rule === 'em-dash' ? 'The post uses a long dash. Use a comma or a full stop.' : `The post uses "${item.match}", a word on the house avoid list.`));
   if (flagship !== SOCIAL_AGENCY_ID) return lines;
   const venture = currentVenture(state);
@@ -254,11 +256,12 @@ function editedPostLines(state: State, run: DeliveryRunRecord, post: DraftPost, 
   const known = [client?.name, venture?.workingName].filter((name): name is string => !!name);
   const intake = order?.intake;
   return [...lines, ...socialPostBlocks({
-    channel: post.channel, text: post.text, request: order?.request ?? '', files, known,
+    wordsOnly, channel: post.channel, text: post.text, request: order?.request ?? '', files, known,
     dateOrder: (venture?.country as { dateOrder?: 'day-month-year' | 'month-day-year' } | null | undefined)?.dateOrder ?? 'day-month-year',
     paid: !!intake?.paidPromotion, ai: { person: !!intake?.aiPresenter, voice: !!intake?.aiVoice },
     // The client's own banned words and topics and competitors (S1) apply to the owner's words too.
     clientRules: intake?.clientRules ?? null,
+    ...(venture && order ? { brandKit: resolveKit(state, venture, order.clientId) } : {}),
   })];
 }
 
@@ -285,6 +288,8 @@ function checkFindings(state: State, run: DeliveryRunRecord, post: DraftPost): C
       if (own) found.push({ kind: 'failed', line: `The draft failed a check: ${own.detail}` });
     }
   }
+  // Current client rules may have changed after the stored check, even when the post text did not.
+  if (flagship === SOCIAL_AGENCY_ID && !ownerEdited(run)) found.push(...editedPostLines(state, run, post, flagship, true).map(line => ({ kind: 'failed' as const, line })));
   const leak = promptLeakLine(promptLeaks(post.text, 'post'), 'post');
   if (leak) found.push({ kind: 'failed', line: leak });
   return found;
@@ -419,7 +424,7 @@ function postRisk(state: State, input: { connectorId: string; channel: SocialCha
   const posts = listRecords(state, 'venture-connector-post');
   const own = new Set(posts.map(post => post.id));
   const history: SentPost[] = posts
-    .filter(post => post.id !== except && post.connectorId === input.connectorId && SENT_STATES.includes(post.state))
+    .filter(post => post.id !== except && post.connectorId === input.connectorId && SENT_STATES.includes(post.state) && !(post.scheduled && post.state === 'approved' && !post.claimedAt))
     .map(post => ({ id: post.id, text: post.text, at: sentAt(post) }));
   let logged: SentPost[] = [];
   try {
@@ -510,10 +515,11 @@ export async function clearChannelHold(deps: VentureDeps, ctx: Context, payload:
 // Proposing, deciding and settling one post
 // ---------------------------------------------------------------------------
 
-function postDigest(post: Pick<ConnectorPostRecord, 'id' | 'connectorId' | 'mode' | 'account' | 'text' | 'draftId' | 'draftDigest' | 'part'>): string {
+function postDigest(post: Pick<ConnectorPostRecord, 'id' | 'connectorId' | 'mode' | 'account' | 'text' | 'draftId' | 'draftDigest' | 'part' | 'scheduled'>): string {
   return digest({
     id: post.id, connectorId: post.connectorId, mode: post.mode, account: post.account, text: post.text,
     draftId: post.draftId ?? null, draftDigest: post.draftDigest ?? null, part: post.part ?? null,
+    ...(post.scheduled ? {scheduled:post.scheduled} : {}),
   });
 }
 
@@ -555,6 +561,7 @@ export async function proposePost(deps: VentureDeps, ctx: Context, payload: unkn
   check(body.descriptionComplete === undefined || typeof body.descriptionComplete === 'boolean', 'INVALID_VENTURE_REQUEST', 'descriptionComplete must be true or false.');
   const profile = typeof body.connectorId === 'string' ? PROFILES[body.connectorId] : undefined;
   check(profile, 'INVALID_VENTURE_REQUEST', 'Posting works only on LinkedIn, X, Instagram and YouTube.');
+  check(profile.id !== 'linkedin', 'NOT_BUILT_YET', LINKEDIN_HANDOFF_ONLY);
   const draftId = identifier(body.draftId, 'draftId');
   check(body.part === undefined || (Number.isInteger(body.part) && (body.part as number) >= 1 && (body.part as number) <= 100), 'INVALID_VENTURE_REQUEST', 'part is a whole number from 1.');
   const part = body.part === undefined ? null : body.part as number;
@@ -636,6 +643,7 @@ function timeouts(deps: VentureDeps): { step: number; whole: number } {
 
 /** Runs the post once. Never throws: a crash, a timeout or an odd answer is 'unknown'. */
 async function runPost(deps: VentureDeps, post: ConnectorPostRecord): Promise<BrowserPostResult> {
+  if (post.connectorId === 'linkedin') return { outcome: 'not-sent', line: LINKEDIN_HANDOFF_ONLY };
   const ports = portsOf(deps);
   const runner: Pick<BrowserPort, 'post'> | undefined = post.mode === 'api' ? ports.api?.[post.connectorId] : ports.browser;
   if (!runner) return { outcome: 'not-sent', line: 'No posting client is on this computer, so nothing was posted.' };
@@ -648,7 +656,7 @@ async function runPost(deps: VentureDeps, post: ConnectorPostRecord): Promise<Br
       // clickBy: the browser never presses post once the race below may have closed this post as unknown (2B2).
       runner.post({
         postId: post.id, connectorId: post.connectorId, text: post.text, timeoutMs: limits.step,
-        clickBy: Date.now() + limits.whole - limits.step * AFTER_CLICK_STEPS, ...ownPicks(deps, post.connectorId),
+        clickBy: Date.now() + Math.min(limits.whole - limits.step * AFTER_CLICK_STEPS, post.scheduled ? Math.max(0, Date.parse(post.scheduled.deadlineAt) - deps.clock().getTime()) : Infinity), ...ownPicks(deps, post.connectorId),
       }),
       new Promise<BrowserPostResult>(resolve => { timer = setTimeout(() => resolve(late), limits.whole); }),
     ]);
@@ -711,7 +719,6 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
   // 4J1 (J2): the draft's files again, at the approval: one changed since Accept clears it and nothing is posted.
   if (waiting.draftId) await refuseChangedFiles(deps, ctx, waiting.draftId);
 
-  const met: { hold?: BrowserSiteHold; worked?: Extract<BrowserPostResult, { outcome: 'posted' }>['checked'] } = {};
   // 4J10 (H28): the account fence before anything is approved: a post for a named account that is not the one signed in
   // here, or where Chausar cannot see which is, is turned down with the reason, and nothing is posted.
   const running = waiting.account ? await signedInAccount(deps, waiting) : undefined;
@@ -724,8 +731,57 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
     }
   }
   const { token } = await approveAction(deps, ctx, { entryId: postId, digest: seen, line: 'You approved this post.' });
+  return applyApprovedPost(deps, ctx, postId, token);
+}
+
+/** Scheduled posts name a verified signed-in account before their exact review. */
+export async function scheduledPostingAccount(deps:VentureDeps,post:ConnectorPostRecord):Promise<string>{
+ const current=await signedInAccount(deps,post);
+ check(current,'ACCOUNT_FENCE','Chausar cannot identify the signed-in account. Sign in and review this slot again.');
+ if(post.account)fenceAccount(post,current);
+ return current;
+}
+/** Same final decision validity checks for immediate and scheduled approvals. */
+export async function validateScheduledPost(deps:VentureDeps, post:ConnectorPostRecord):Promise<void>{
+ check(post.connectorId !== 'linkedin','NOT_BUILT_YET',LINKEDIN_HANDOFF_ONLY);
+ check(post.account,'ACCOUNT_FENCE','This slot needs a known account before approval.');
+ requireChannelOpen(deps.store.read(),post.connectorId,deps.clock().toISOString());
+ recheckDraft(deps.store.read(),post);
+ requireRiskClear(riskOfPost(deps.store.read(),post,deps.clock().toISOString(),postLogOf(deps)));
+ const option=postingOptions(post.connectorId,await postingEnvironment(deps)).find(item=>item.mode===post.mode);
+ check(option?.status==='available','NOT_BUILT_YET',option?.reason??'This way of posting is not in this build.');
+ if(post.account)fenceAccount(post,await signedInAccount(deps,post));
+}
+/** A new scheduled proposal keeps the original journal header immutable. */
+export function scheduledPostProposalIn(tx:VentureTx,postId:string,seen:string,binding:ScheduledPostBinding,account:string):ConnectorPostRecord{
+ const post=requireWaiting(tx.find('venture-connector-post',postId),seen);
+ check(!post.scheduled,'POST_ALREADY_DECIDED','This post already belongs to a scheduled slot.');
+ const line='This post moved to an exact scheduled slot for your review.';
+ tx.replace({...post,state:'rejected',outcome:{by:'owner',line,url:null},journal:[...post.journal,{state:'rejected',at:tx.now,by:'owner',line}]});
+ const next:ConnectorPostRecord={...tx.base('venture-connector-post'),connectorId:post.connectorId,mode:post.mode,account,text:post.text,agent:post.agent,digest:'',state:'described',describe:post.describe,risk:post.risk,claimedAt:null,decidedBy:null,outcome:null,journal:[{state:'described',at:tx.now,by:post.memberId,line:post.describe}],approval:null,expiresAt:binding.deadlineAt,draftId:post.draftId,draftDigest:post.draftDigest,part:post.part,descriptionComplete:post.descriptionComplete,warnings:post.warnings,scheduled:binding};
+ next.digest=postDigest(next);return tx.put(next);
+}
+/** Atomic exact slot approval, called only from the app's approve-level desk action. */
+export function approveScheduledPostIn(tx:VentureTx,ctx:Context,store:object,postId:string,seen:string,binding:ScheduledPostBinding){
+ check(isAppChannel(ctx),'APP_APPROVAL_REQUIRED','Approve this post inside the Chausar app.');
+ const post=requireWaiting(tx.find('venture-connector-post',postId),seen);
+ check(post.connectorId!=='linkedin','NOT_BUILT_YET',LINKEDIN_HANDOFF_ONLY);
+ recheckDraft(tx.state,post);
+ check(digest(post.scheduled)===digest(binding),'APPROVAL_STALE','This scheduled time or its source files changed.');
+ return approveIn(tx,ctx,store,{entryId:post.id,digest:post.digest,line:'You approved this exact post and its scheduled time.'});
+}
+
+/** Executes the original in-memory approval. Scheduling never creates an owner approval on a tick. */
+export async function applyApprovedPost(deps: VentureDeps, ctx: Context, postId: string, token: string): Promise<PostDecision> {
+  const waiting = findPost(deps.store.read(), postId);
+  check(waiting && waiting.state === 'approved', 'POST_ALREADY_DECIDED', 'This post is not approved to run.');
+  const seen = waiting.digest;
+  check(postDigest(waiting) === seen, 'APPROVAL_STALE', 'This post changed since you approved it.');
+  const running = waiting.account ? await signedInAccount(deps, waiting) : undefined;
+  const met: { hold?: BrowserSiteHold; worked?: Extract<BrowserPostResult, { outcome: 'posted' }>['checked'] } = {};
   const done = await applyAction(deps, ctx, { entryId: postId, token, idempotencyKey: `${postId}.post`, ...(waiting.account ? { account: running ?? null } : {}) }, async handle => {
     const post = handle.entry as ConnectorPostRecord;
+
     // The policy gate before anything leaves: posting is on the always-ask floor, so only the owner's approval sealed on
     // this post, bound to the digest the owner saw, lets it through. A refusal here is known to have sent nothing.
     gateEffect({ name: 'connector.post', digest: seen }, sealApproval(post, post.digest));
@@ -737,6 +793,12 @@ export async function decidePost(deps: VentureDeps, ctx: Context, payload: unkno
     // Logged for this computer before the browser starts: a crash from here on still counts for the other businesses.
     // 4J10 (H28): and the fence once more right before the browser, in case the account changed since the approval.
     if (post.account) handle.fence(await signedInAccount(deps, post));
+    if(post.scheduled){
+      const {scheduledFilesDigest}=await import('../playbooks/social/scheduled-source.ts');
+      const current=findPost(deps.store.read(),post.id);
+      const valid=current&&postDigest(current)===post.digest&&Date.parse(deps.clock().toISOString())>=Date.parse(post.scheduled.dueAt)&&Date.parse(deps.clock().toISOString())<=Date.parse(post.scheduled.deadlineAt)&&post.draftId&&scheduledFilesDigest(deps.store.read(),post.draftId)===post.scheduled.filesDigest;
+      if(!valid)return {outcome:'not-sent',line:'This scheduled post or its source changed, or its time window ended. Nothing was posted.',by:'engine',value:'This scheduled post or its source changed, or its time window ended. Nothing was posted.'};
+    }
     logPost(deps, post);
     const result = await runPost(deps, post);
     if (result.outcome !== 'posted' && result.hold) met.hold = result.hold;
@@ -887,6 +949,7 @@ export async function postingPropose(deps: VentureDeps, ctx: Context, payload: u
   check(post.connectorId && PROFILES[post.connectorId], 'NOT_BUILT_YET',
     `Chausar has no posting connector for ${capability.name} in this build. Post it yourself from the calendar file.`);
   const connectorId = post.connectorId;
+  check(connectorId !== 'linkedin', 'NOT_BUILT_YET', LINKEDIN_HANDOFF_ONLY);
   check(!(capability.thread && countCharacters(post.text, post.channel) > capability.maxChars), 'POST_THREAD_NOT_BUILT', THREAD_LINE);
   requireChannelOpen(state, connectorId, deps.clock().toISOString());
   const options = postingOptions(connectorId, await postingEnvironment(deps)).filter(option => option.mode !== 'handoff');
@@ -959,7 +1022,7 @@ export type ConnectorQueueRow = {
 export function connectorQueueRows(state: State): ConnectorQueueRow[] {
   const venture = currentVenture(state);
   if (!venture) return [];
-  return listRecords(state, 'venture-connector-post', venture.id).filter(post => post.state === 'described').map(post => {
+  return listRecords(state, 'venture-connector-post', venture.id).filter(post => post.state === 'described' && !post.scheduled).map(post => {
     const name = nameOf(post.connectorId);
     // A browser post starts with the task-scoped consent line (K1); the risk gate's warnings follow it, then the risk line.
     const how = post.mode === 'api' ? `Through the ${name} API.` : POSTING_CONSENT_LINE;

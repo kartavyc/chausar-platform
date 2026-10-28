@@ -14,8 +14,10 @@ import m from './ManualPaths.module.css';
 export function ManualPaths({ orderId }: { orderId: string }) {
   const t = useT();
   const headingId = useId();
-  const chain = useResource('venture.order.chain', { orderId }, { refreshOn: (event) => event.type === 'chain.changed' });
+  const chain = useResource('venture.order.chain', { orderId }, { refreshOn: (event) => ['chain.changed','run.started','delivery-reviewed'].includes(event.type) });
   const stages = (chain.data?.stages ?? []).filter((stage) => stage.manualPath !== null);
+  const social=chain.data?.playbook==='social-agency'?chain.data:null;
+  if(social){const items=[...(social.prerequisites??[]),...social.stages,...(social.approval?[social.approval]:[])];return <Tile as="section" labelledBy={headingId}><TileHead id={headingId} title={t('kit-rules.chain.heading')} /><p className={m.line}>{t('kit-rules.chain.progress',{stage:social.stage,total:social.of})}</p><ol className={m.list}>{items.map(item=><li key={item.stepId} className={m.item}><span className={m.title}>{t('kit-rules.chain.'+item.stepId)}</span><span className={m.line}>{t('kit-rules.chain.state.'+item.state)}</span></li>)}</ol><p className={m.line}>{t('kit-rules.chain.boundary')}</p></Tile>;}
   if (!stages.length) return null;
   return (
     <Tile as="section" labelledBy={headingId}>

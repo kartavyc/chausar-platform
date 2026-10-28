@@ -1,3 +1,5 @@
+import { socialContentChecks } from './social/content-checks.ts';
+import { ghostwritingChecks } from './social/structures.ts';
 import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
 import { questionNoteFromDraft } from './ca-firm/question-desk.ts';
 // Chausar flagship playbooks: their own checks on a draft (playbook wiring, design 7.5 and 7.8). Code only, no model.
@@ -60,6 +62,9 @@ import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
+  socialSlotContext?: import('./social/slots-live.ts').SocialSlotContext;
+  stageId?: string;
+  brandKit?: import('./kit/records-media.ts').ResolvedKit;
   flagship: string;
   /** The playbook offer the order is (Offer.playbookOffer), or null. */
   offerKey: string | null;
@@ -582,9 +587,18 @@ function companionLines(deliverable: Deliverable): string[] {
 function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; exports: string[]; quoted: string[] }): SocialResult[] {
   // The client's own word lists from intake (banned words and topics, competitors, phrases never flagged) join the proof.
   const client = socialRules({ ...input, clientRules: input.intake?.clientRules ?? null });
+  const ownRules = input.intake?.clientRules;
+  const usesKit = input.brandKit && (!ownRules || ![ownRules.bannedWords, ownRules.bannedTopics, ownRules.competitors, ownRules.protectedPhrases].some(list => list.length));
+  const withOrigin = (result: SocialResult): SocialResult => usesKit ? { ...result, detail: result.detail + ' Rule source: ' + [...new Set([input.brandKit!.bannedWords.source, input.brandKit!.bannedTopics.source, input.brandKit!.competitors.source])].join(', ') + '.' } : result;
   const paid = input.offerKey === 'ugc-ads' || !!input.intake?.paidPromotion;
   const ai = { person: !!input.intake?.aiPresenter, voice: !!input.intake?.aiVoice };
   const style = input.offerKey === 'community-replies' ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
+  if (input.stageId === 'voice' || input.stageId === 'calendar') {
+    const stageDraft: PostDraft = { id: input.stageId, channel: 'linkedin', text: deliverableWords(input.deliverable), style: 'post' };
+    const claims = checkDraftClaims(stageDraft, client).findings, words = checkWords(stageDraft, client);
+    if (scope) Object.assign(scope, { channels: [], exports: [], quoted: [...claims, ...words].flatMap(item => item.ruleId ?? []) });
+    return [grouped('claims', claims, GROUPS[1].pass), withOrigin(grouped('words', words, GROUPS[3].pass))];
+  }
   // The ids count the post lines (social/draft-posts.ts), the count posting and the calendar file use, so all name the same posts.
   const posts: PostDraft[] = socialDraftPosts(input.deliverable).map(post => {
     // A post longer than one on a channel with threads goes out as the thread code splits it (social/post-lines.ts).
@@ -593,7 +607,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
     return { id: post.id, channel: post.channel, text: post.text, paid, ai, style, platformLabels: { paidPartnership: paid, aiGenerated: ai.person || ai.voice }, ...(thread ? { thread } : {}) };
   });
   const media = { check: 'channel-media', outcome: 'not-run' as const, detail: 'not run: pictures and video come with the briefs; this draft holds text only.' };
-  const extra = [calendarResult(input), narrativeResult(input)].filter((item): item is SocialResult => item !== null);
+  const extra = [...socialContentChecks(input), ...ghostwritingChecks(input), ...[calendarResult(input), narrativeResult(input)].filter((item): item is SocialResult => item !== null)];
   const scoped = (found: readonly Finding[]) => {
     if (scope) Object.assign(scope, { channels: posts.map(post => post.channel), exports: reportPlatforms(input.receipts), quoted: found.flatMap(item => item.ruleId ?? []) });
   };
@@ -607,7 +621,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
       { check: 'channel-limits', outcome: 'not-run', detail: 'not run: the draft has no post that names its channel.' }, media,
       grouped('claims', claimFindings, GROUPS[1].pass),
       { check: 'disclosure', outcome: 'not-run', detail: 'not run: the draft has no post that names its channel.' },
-      grouped('words', wordFindings, GROUPS[3].pass),
+      withOrigin(grouped('words', wordFindings, GROUPS[3].pass)),
       ...extra,
     ];
   }
@@ -620,7 +634,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
   scoped(findings);
   const threads = posts.flatMap(post => threadNote(post) ?? []);
   const [limits, claims, disclosure, words] = GROUPS.map(group => grouped(group.id, findings.filter(item => group.checks.includes(item.check)), group.pass, group.id === 'channel-limits' ? threads : []));
-  return [limits, media, claims, disclosure, words, ...extra];
+  return [limits, media, claims, disclosure, withOrigin(words), ...extra];
 }
 
 // ---------------------------------------------------------------------------

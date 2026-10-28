@@ -43,7 +43,7 @@ describe('fake engine connectors match the engine', () => {
     expect(instagram.postingOptions.every((o) => o.status === 'planned')).toBe(true);
     expect(instagram.posting).toMatchObject({ mode: 'owner-browser-session', status: 'planned', risk: 'The platform may restrict this account.', reason: 'Posting a picture or video through the browser is not built yet.' });
     expect(instagram.modes.every((m) => m.status === 'planned')).toBe(true);
-    expect(cards.find((c) => c.id === 'linkedin')!.posting).toMatchObject({ mode: 'owner-browser-session', status: 'available', reason: null });
+    expect(cards.find((c) => c.id === 'x')!.posting).toMatchObject({ mode: 'owner-browser-session', status: 'available', reason: null });
     // W4 4J21: the list adds each connector's truth (4J7): the ladder on every mode, the capability set and the guide.
     const plain = cards.map(({ guide: _g, capabilities: _c, ...card }) => ({
       ...card,
@@ -70,7 +70,7 @@ describe('Connections', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Marketing and social' })).toBeTruthy();
   });
 
-  it('shows posting as the engine says it: Instagram planned with its risk and reason, LinkedIn through your browser', async () => {
+  it('shows posting as the engine says it: Instagram planned with its risk and reason, X through your browser', async () => {
     start();
     const instagram = await row('Instagram');
     const posting = instagram.querySelector('[data-posting]')!;
@@ -80,7 +80,7 @@ describe('Connections', () => {
     expect(posting.textContent).not.toContain('Through your own browser session');
     expect(posting.textContent).not.toContain('The platform may restrict this account.');
     expect(posting.textContent).toContain('Posting a picture or video through the browser is not built yet.');
-    const linkedin = (await row('LinkedIn')).querySelector('[data-posting]')!;
+    const linkedin = (await row('X')).querySelector('[data-posting]')!;
     expect(linkedin.querySelector('[data-label]')!.getAttribute('data-label')).toBe('write');
     expect(linkedin.textContent).toContain('The platform may restrict this account.');
     expect((await row('GitHub')).querySelector('[data-posting]')).toBeNull();

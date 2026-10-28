@@ -24,6 +24,7 @@ const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
 export interface ExtrasHost {
+  draftText?(id:string):string|null;
   digest(value: unknown): string;
   current(): string;
   now(): string;
@@ -100,7 +101,7 @@ const MAIL_DOMAINS = new Set(['pocketaudio.in', 'boataudio.in', 'mehtatraders.in
 /** The engine's lead stage ranks: open stages move up only; won and lost close a lead; blocked comes from anywhere. */
 const STAGE_RANK: Partial<Record<LeadView['status'], number>> = { new: 0, drafted: 1, contacted: 2, replied: 3, won: 4, lost: 4 };
 
-interface HeldShare extends ShareLink { businessId: string; deliveryId: string }
+interface HeldShare extends ShareLink { businessId: string; deliveryId: string; draftDigest?:string }
 
 export class FakeExtrasDesk {
   private readonly host: ExtrasHost;
@@ -647,6 +648,8 @@ export class FakeExtrasDesk {
     return { ...this.link(held), url: null, ...(reason ? { reason } : {}) };
   }
 
+  sharedDraftDigest(biz:string,id:string):string|null { return this.shares.find(share=>share.businessId===biz&&share.deliveryId===id)?.draftDigest??null; }
+
   private share(biz: string, p: Record<string, unknown>): ShareLink {
     // 4J20: a month of books for the owner's accountant (build/share-links.ts kind 'books'): read only, revocable.
     const books = p.kind === 'books';
@@ -663,6 +666,7 @@ export class FakeExtrasDesk {
       ? { id, businessId: biz, deliveryId, url: `https://share.chausar.test/s/${id}`, expiresAt, ...kind }
       : { id, businessId: biz, deliveryId, url: null, reason: 'Share links open only on the hosted Chausar with a public address. Send your client the draft yourself and record their answer.', expiresAt, ...kind };
     // Kept with or without an address, as the engine keeps a link it does not serve: the owner records the answer on it.
+    if(!books&&this.host.draftText){const text=this.host.draftText(deliveryId);if(text!==null)held.draftDigest=this.host.digest(text);}
     this.shares.unshift(held);
     return this.link(held);
   }

@@ -60,8 +60,7 @@ test('posting takes a draft id, never free text; the post is the draft line for 
   assert.equal(second.text, 'Filter coffee all day.');
   assert.equal(second.draftId, run.id);
   assert.equal(second.draftDigest, clientDigest(run));
-  const linkedin = await proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id });
-  assert.equal(linkedin.text, 'Our bakery opens at 8 every weekday.');
+  await assert.rejects(proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id }), error => code('NOT_BUILT_YET')(error) && /copy-and-open only/.test((error as Error).message));
 
   const only = await seedPostDraft(deps, ['LinkedIn: Our bakery opens at 8.']);
   await assert.rejects(proposePost(deps, agent, { connectorId: 'x', draftId: only.id }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST' && /no post for X/.test(error.message));
@@ -356,7 +355,7 @@ test('a challenge stops automatic actions on that channel until the owner clears
   const { env, deps, browser } = await posting([
     { outcome: 'not-sent', line: 'X showed a security check. Nothing was posted.', hold: { kind: 'challenge', site: 'x.com' } },
   ]);
-  const run = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'LinkedIn: Fresh pastries at 8.']);
+  const run = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'LinkedIn: Fresh pastries at 8.', 'Instagram: Fresh pastries at 8.']);
   const first = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id });
   const waiting = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id });
   const decided = await decidePost(deps, owner, { postId: first.id, digest: first.digest, action: 'approve' });
@@ -370,7 +369,10 @@ test('a challenge stops automatic actions on that channel until the owner clears
   await assert.rejects(decidePost(deps, owner, { postId: waiting.id, digest: waiting.digest, action: 'approve' }), code('CHANNEL_CHALLENGED'));
   assert.equal((await decideConnectorRow(deps, owner, { id: waiting.id, digest: waiting.digest, action: 'approve' })).reason, 'CHANNEL_CHALLENGED');
   assert.equal(browser.jobs.length, 1, 'nothing else ran on X');
-  await proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id });
+  await assert.rejects(proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id }), code('NOT_BUILT_YET'));
+  const otherChannel = { ...deps, connectors: { ...deps.connectors, appReviewed: ['instagram'], api: { instagram: { async post() { return { outcome: 'posted' as const, line: 'Posted.', url: null }; } } } } } as VentureDeps;
+  await proposePost(otherChannel, agent, { connectorId: 'instagram', draftId: run.id, mode: 'api' });
+  assert.equal(channelHold(deps.store.read(), 'instagram', env.now()), null, 'X holds only its own channel');
   const cards = await (build as Record<string, (d: VentureDeps, c: Context, p: unknown) => Promise<ConnectorCard[]>>)['venture.connectors.list'](deps, owner, {});
   const xBrowser = cards.find(card => card.id === 'x')!.postingOptions.find(option => option.mode === 'owner-browser-session')!;
   assert.equal(xBrowser.status, 'planned');
@@ -414,7 +416,7 @@ test('a text post shows its whole exact text, so it is described completely; a p
   const post = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id });
   assert.equal(post.descriptionComplete, true);
   assert.equal(connectorQueueRows(deps.store.read()).find(row => row.id === post.id)?.descriptionComplete, true);
-  const said = await proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id, descriptionComplete: false });
+  const said = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id, descriptionComplete: false });
   assert.equal(said.descriptionComplete, false, 'a proposer may say part is not shown');
   await assert.rejects(proposePost(deps, agent, { connectorId: 'x', draftId: run.id, descriptionComplete: 'yes' }), code('INVALID_VENTURE_REQUEST'));
 
@@ -446,11 +448,12 @@ test('the same post is never proposed again while it may have gone out or after 
   await assert.rejects(proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 1 }), code('POST_ALREADY_DECIDED'));
 
   // It may have gone out, and the owner found that it did: never again.
-  const only = await seedPostDraft(deps, ['LinkedIn: Our bakery opens at 8.']);
-  const unsure = await proposePost(deps, agent, { connectorId: 'linkedin', draftId: only.id });
+  nextDay();
+  const only = await seedPostDraft(deps, ['X: Our bakery opens at 8.']);
+  const unsure = await proposePost(deps, agent, { connectorId: 'x', draftId: only.id });
   await decidePost(deps, owner, { postId: unsure.id, digest: unsure.digest, action: 'approve' });
   await resolve(unsure.id, 'sent');
-  await assert.rejects(proposePost(deps, agent, { connectorId: 'linkedin', draftId: only.id, part: 1 }), code('POST_ALREADY_DECIDED'));
+  await assert.rejects(proposePost(deps, agent, { connectorId: 'x', draftId: only.id, part: 1 }), code('POST_ALREADY_DECIDED'));
   assert.equal(browser.jobs.length, 3);
 
   // Two proposals of one post, both waiting: once one goes out, the other is refused when approved and never runs.
@@ -468,22 +471,22 @@ test('the client approves the words they saw, and exactly those words go out: on
   const social = await seedPostPlaybook(deps, 'social-agency');
   const fields = { playbookId: social.id, playbookChecks: [{ playbook: 'social-agency', check: 'claims', outcome: 'pass' as const, detail: 'ok' }] };
   const secret = `sk-${''}ant-api03-${'Q7x9Lm2Kp4Rt8Vw1Zy6B'.repeat(2)}`;
-  const run = await seedPostDraft(deps, ['X: Filter coffee from 7. #PuneCafes #FilterCoffee', `LinkedIn: Our booking page key is ${secret}`], fields);
+  const run = await seedPostDraft(deps, ['X: Filter coffee from 7. #PuneCafes #FilterCoffee', `X: Our booking page key is ${secret}`], fields);
   const hosted = { ...deps, host: 'hosted-web', publicUrl: 'https://app.example.com' } as VentureDeps;
   const made = await (build as Record<string, (d: VentureDeps, c: Context, p: unknown) => Promise<ShareLinkView>>)['venture.share.create'](hosted, owner, { deliveryId: run.id });
   const token = /\/share\/([A-Za-z0-9_-]{32})$/.exec(made.url ?? '')![1];
   const page = (await sharePage(hosted, owner, token))!;
   await shareDecide(hosted, owner, token, { decision: 'approved', digest: page.digest });
-  const seen = (channel: string) => page.text.split('\n').find(line => line.startsWith(`${channel}: `))!.slice(channel.length + 2);
+  const seen = (part: number) => page.text.split('\n').filter(line => line.startsWith('X: '))[part - 1].slice(3);
 
-  const x = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id });
+  const x = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 1 });
   assert.equal(x.draftDigest, page.digest, 'the post is bound to the digest the client approved');
-  assert.equal(x.text, seen('X'));
-  const linkedin = await proposePost(deps, agent, { connectorId: 'linkedin', draftId: run.id });
-  assert.equal(linkedin.text, seen('LinkedIn'), 'the post carries the screened words the client saw');
-  assert.ok(!linkedin.text.includes(secret), 'a key in a draft never goes out');
+  assert.equal(x.text, seen(1));
+  const screened = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 2 });
+  assert.equal(screened.text, seen(2), 'the post carries the screened words the client saw');
+  assert.ok(!screened.text.includes(secret), 'a key in a draft never goes out');
   await decidePost(deps, owner, { postId: x.id, digest: x.digest, action: 'approve' });
-  assert.equal(browser.jobs[0].text, seen('X'));
+  assert.equal(browser.jobs[0].text, seen(1));
 });
 
 test("an owner's edit is checked again on the exact post, instead of the checks the agent's version got", async () => {

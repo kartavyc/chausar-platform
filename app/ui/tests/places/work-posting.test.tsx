@@ -5,7 +5,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type DeliveryLite, type DraftPostLite, type MethodName, type ShareLink } from '../../src/engine/types';
 
 // Work, Ink v2 wave 2 package 2B1: the client's answer the owner records on this computer (venture.share.recordAnswer)
-// and posting a checked, approved draft's LinkedIn or X line (venture.posting.propose). The engine decides; the screen
+// and posting a checked, approved draft's X or X line (venture.posting.propose). The engine decides; the screen
 // shows its words.
 
 type Call = { method: string; params: unknown };
@@ -33,7 +33,7 @@ const SOCIAL: DeliveryLite = {
   deliverable: { title: 'Posts for October' }, verdict: { choice: 'accepted', at: '2026-10-21T09:10:00.000Z' },
 };
 const POSTS: DraftPostLite[] = [
-  { draftId: 'd-social.post-1', channel: 'linkedin', name: 'LinkedIn', connectorId: 'linkedin', text: 'Our cafe opens at 8 every weekday.' },
+  { draftId: 'd-social.post-1', channel: 'x', name: 'X', connectorId: 'x', text: 'Our cafe opens at 8 every weekday.' },
   { draftId: 'd-social.post-2', channel: 'instagram', name: 'Instagram', connectorId: 'instagram', text: 'Fresh pastries at 8.' },
   { draftId: 'd-social.post-3', channel: 'threads', name: 'Threads', connectorId: null, text: 'Filter coffee all day.' },
 ];
@@ -83,13 +83,13 @@ describe("Work: the client's answer, recorded on this computer", () => {
 });
 
 describe('Work: posting an approved draft', () => {
-  it("shows Post to LinkedIn for each line a browser can post, only once the client approved; the line then waits on Today", async () => {
+  it("shows Post to X for each line a browser can post, only once the client approved; the line then waits on Today", async () => {
     const { calls } = await start('#/work?order=o-boat-14', {
       intercept: {
         'venture.delivery.list': deliveries, 'venture.share.list': shareList(approved),
         'venture.posting.propose': () => ({
-          postId: 'post_1', connectorId: 'linkedin', draftId: 'd-social.post-1', part: 1, state: 'described', line: 'Waiting on Today for your approval.',
-          warnings: ['This post is 61% the same as one of the last 5 posts on LinkedIn. Platforms may show near repeats to fewer people. (rule house-near-duplicate-warn)'],
+          postId: 'post_1', connectorId: 'x', draftId: 'd-social.post-1', part: 1, state: 'described', line: 'Waiting on Today for your approval.',
+          warnings: ['This post is 61% the same as one of the last 5 posts on X. Platforms may show near repeats to fewer people. (rule house-near-duplicate-warn)'],
         }),
       },
     });
@@ -98,43 +98,43 @@ describe('Work: posting an approved draft', () => {
     // Instagram (pictures not built) and Threads (no connector) get no button.
     expect(within(posting).queryByText('Fresh pastries at 8.')).toBeNull();
     expect(within(posting).queryByText('Filter coffee all day.')).toBeNull();
-    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Post to LinkedIn' })); });
+    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Post to X' })); });
     expect(calls.find((c) => c.method === 'venture.posting.propose')?.params).toEqual({ draftId: 'd-social.post-1' });
     await waitFor(() => expect(within(line).getByText('Waiting on Today')).toBeTruthy());
     expect(line.textContent).toContain('61% the same');
-    expect(within(line).queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(within(line).queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 
   it("says the engine's refusal in its words", async () => {
     await start('#/work?order=o-boat-14', {
       intercept: {
         'venture.delivery.list': deliveries, 'venture.share.list': shareList(approved),
-        'venture.posting.propose': () => { throw new EngineError('POST_RISK_BLOCKED', 'The last post on LinkedIn went out 5 minutes ago; Chausar waits at least 60 minutes between posts on one channel. (rule house-post-min-gap)'); },
+        'venture.posting.propose': () => { throw new EngineError('POST_RISK_BLOCKED', 'The last post on X went out 5 minutes ago; Chausar waits at least 60 minutes between posts on one channel. (rule house-post-min-gap)'); },
       },
     });
     const line = await rowOf('Our cafe opens at 8 every weekday.', await screen.findByRole('region', { name: 'Post' }));
-    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Post to LinkedIn' })); });
-    await waitFor(() => expect(within(line).getByRole('alert').textContent).toBe("Couldn't propose this post: The last post on LinkedIn went out 5 minutes ago; Chausar waits at least 60 minutes between posts on one channel. (rule house-post-min-gap)"));
+    await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Post to X' })); });
+    await waitFor(() => expect(within(line).getByRole('alert').textContent).toBe("Couldn't propose this post: The last post on X went out 5 minutes ago; Chausar waits at least 60 minutes between posts on one channel. (rule house-post-min-gap)"));
   });
 
   it('no Post button before the client approved', async () => {
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': deliveries, 'venture.share.list': shareList({ ...approved!, decision: 'changes', comment: 'Shorter.' }) } });
     await screen.findByText("Your client's answer: Asked for changes. Shorter.");
     expect(screen.queryByRole('region', { name: 'Post' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 
   it('no Post button for a draft the owner has not accepted', async () => {
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [{ ...SOCIAL, status: 'ready-for-review', verdict: null }], 'venture.share.list': shareList(approved) } });
     await screen.findByText("Your client's answer: Approved");
     expect(screen.queryByRole('region', { name: 'Post' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 
   it('in Hindi too', async () => {
     await start('#/work?order=o-boat-14', { language: 'hi', intercept: { 'venture.delivery.list': deliveries, 'venture.share.list': shareList(approved) } });
     const line = (await screen.findByText('Our cafe opens at 8 every weekday.')).closest('li')!;
-    expect(within(line).getByRole('button').textContent).not.toBe('Post to LinkedIn');
+    expect(within(line).getByRole('button').textContent).not.toBe('Post to X');
   });
 });
 
@@ -153,12 +153,12 @@ describe('the fake engine posts by the engine rules', () => {
 });
 
 describe('Work: posting a draft that needs no client approval', () => {
-  it("shows Post to LinkedIn once the owner accepted the draft, when the engine says the client's approval is not needed", async () => {
+  it("shows Post to X once the owner accepted the draft, when the engine says the client's approval is not needed", async () => {
     await start('#/work?order=o-boat-14', {
       intercept: { 'venture.delivery.list': deliveries, 'venture.share.list': () => ({ links: [], shares: [], posts: POSTS, clientApproval: false }) },
     });
     const line = await rowOf('Our cafe opens at 8 every weekday.', await screen.findByRole('region', { name: 'Post' }));
-    expect(within(line).getByRole('button', { name: 'Post to LinkedIn' })).toBeTruthy();
+    expect(within(line).getByRole('button', { name: 'Post to X' })).toBeTruthy();
   });
 
   it('still waits for the client where the engine says the client must approve', async () => {
@@ -166,7 +166,7 @@ describe('Work: posting a draft that needs no client approval', () => {
       intercept: { 'venture.delivery.list': deliveries, 'venture.share.list': () => ({ links: [], shares: [], posts: POSTS, clientApproval: true }) },
     });
     await screen.findAllByText('Posts for October');
-    expect(screen.queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 });
 
@@ -179,7 +179,7 @@ describe('Work: the answer the engine counts is the one the screen shows', () =>
     const line = await rowOf('Posts for October', await screen.findByRole('region', { name: 'Preview for the client' }));
     await waitFor(() => expect(within(line).getByText("Your client's answer: Approved")).toBeTruthy());
     expect(within(line).queryByRole('group', { name: "Your client's answer" })).toBeNull();
-    expect(await screen.findByRole('button', { name: 'Post to LinkedIn' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Post to X' })).toBeTruthy();
   });
 
   it('an answer on a link the engine no longer counts (the draft changed) is not shown: the record control is', async () => {
@@ -189,7 +189,7 @@ describe('Work: the answer the engine counts is the one the screen shows', () =>
     const line = await rowOf('Posts for October', await screen.findByRole('region', { name: 'Preview for the client' }));
     await within(line).findByRole('group', { name: "Your client's answer" });
     expect(within(line).queryByText("Your client's answer: Approved")).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 
   it('recording "Approved" makes Post appear at once, with no reload', async () => {
@@ -202,9 +202,9 @@ describe('Work: the answer the engine counts is the one the screen shows', () =>
       },
     });
     const line = await rowOf('Posts for October', await screen.findByRole('region', { name: 'Preview for the client' }));
-    expect(screen.queryByRole('button', { name: 'Post to LinkedIn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
     const group = await within(line).findByRole('group', { name: "Your client's answer" });
     await act(async () => { fireEvent.click(within(group).getByRole('button', { name: 'Approved' })); });
-    expect(await screen.findByRole('button', { name: 'Post to LinkedIn' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Post to X' })).toBeTruthy();
   });
 });

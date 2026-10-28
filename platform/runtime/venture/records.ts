@@ -75,7 +75,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-go-no-go': 'gonogo', 'venture-sales-proposal': 'salesprop', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
   'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-local-app': 'localapp', 'venture-youtube-edit': 'ytedit',
   'venture-youtube-dictionary': 'ytdict', 'venture-youtube-style': 'ytstyle', 'venture-ca-citations': 'cacite', 'venture-ca-differential': 'cadiff',
-  'venture-ca-data-pack': 'cadatapack', 'venture-social-inbox-item': 'inboxitem', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
+  'venture-ca-data-pack': 'cadatapack', 'venture-social-inbox-item': 'inboxitem', 'venture-social-scheduled': 'socialslot', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
   'venture-seo-panel': 'seopanel', 'venture-seo-observation': 'seoobs', 'venture-seo-finding': 'seofinding', 'venture-seller-sku': 'sku',
   'venture-seller-feecard': 'feecard', 'venture-seller-stage': 'sellerstage', 'venture-seller-movement': 'movement', 'venture-seller-case': 'sellercase',
   'venture-support-ticket': 'ticket', 'venture-support-message': 'supportmsg', 'venture-support-request': 'supportreq', 'venture-support-rating': 'rating',

@@ -43,8 +43,8 @@ test('social playbook: registered as the social media agency, picked by the phra
   assert.equal(pickPlaybook('A bakery that sells bread'), null);
 });
 
-test('social playbook: four offers, each priced by the owner, each naming the steps it uses', () => {
-  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads']);
+test('social playbook: six offers, each priced by the owner, each naming the steps it uses', () => {
+  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads', 'repurpose-pack','linkedin-ghostwriting']);
   const stepIds = new Set(SOCIAL_STEPS.map(step => step.id));
   for (const offer of SOCIAL_OFFERS) {
     assert.equal(offer.price, 'owner-sets');
@@ -122,9 +122,10 @@ test('channels: a capability table per platform, with limits tied to dated rules
 test('channels: what each mode can do comes from the posting connector; channels without one are planned', () => {
   const env = { ...NOT_PROBED, browser: { present: true, reason: 'Playwright with Chromium is here.' } };
   const linkedin = channelModes('linkedin', env);
-  assert.deepEqual(linkedin.map(mode => [mode.mode, mode.status]), [['api', 'planned'], ['owner-browser-session', 'available'], ['handoff', 'planned']]);
-  assert.equal(linkedin[1].risk, OWNER_SESSION_RISK);
-  assert.ok(linkedin[1].can.length > 0);
+  assert.deepEqual(linkedin.map(mode => [mode.mode, mode.status]), [['api', 'planned'], ['owner-browser-session', 'planned'], ['handoff', 'planned']]);
+  assert.equal(linkedin[1].risk, null, 'No automated LinkedIn posting is offered');
+  assert.equal(linkedin[0].can.length, 0, 'LinkedIn API has no automated publish capability');
+  assert.equal(linkedin[1].can.length, 0, 'LinkedIn stays manual');
   const instagram = channelModes('instagram', env);
   assert.equal(instagram[1].status, 'planned', 'a picture through the browser is not built');
   const threads = channelModes('threads', env);

@@ -24,6 +24,7 @@ const PLAIN = new Set([
 
 /** The refusal in plain words: Ink's own for the codes above, the engine's for the rest. */
 export function refusalWords(error: unknown, t: T): string {
+  if(error instanceof EngineError&&['SOCIAL_VOICE_CHANGED','SOCIAL_REPORT_MONTH_REQUIRED','SOCIAL_EXPORTS_REQUIRED'].includes(error.code))return t('pb-social.error.'+error.code);
   if (error instanceof EngineError && PLAIN.has(error.code)) return t(`custody.refused.${error.code}`);
   return error instanceof Error ? error.message : String(error);
 }

@@ -48,7 +48,7 @@ const ALL_SOCIAL_CHECKS = [...SOCIAL_CHECK_IDS];
 export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
   {
     id: 'intake', kind: 'gather', role: 'intake', title: "Read the client's onboarding form, brand files and proof files",
-    tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS, 'social.report'],
+    tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS, 'social.report', 'social.inventory', 'social.formats', 'social.slots'],
     guidance: ["When the client sent the month's platform exports, call social.report on them. The report cites the figure refs it returns, never a figure of its own."],
     produces: 'A list of channels, audience, competitors, banned words and topics, and the claims the client can prove with a file.',
   },
@@ -137,7 +137,7 @@ export function socialPlaybookSteps(): PlaybookStep[] {
 }
 
 export type SocialOffer = {
-  id: 'content-calendar' | 'community-replies' | 'monthly-report' | 'ugc-ads';
+  id: 'content-calendar' | 'community-replies' | 'monthly-report' | 'ugc-ads' | 'repurpose-pack' | 'linkedin-ghostwriting';
   name: string;
   description: string;
   charge: 'monthly' | 'project';
@@ -178,6 +178,8 @@ export const SOCIAL_OFFERS: readonly SocialOffer[] = Object.freeze([
       'You see the cost from code before any paid generation',
     ],
   },
+  { id: 'repurpose-pack', name: 'One source, a week of posts', charge: 'monthly', price: 'owner-sets', disclosure: [], description: 'A client source becomes drafts for three to five channels and a newsletter blurb. Every fact stays in the source.', steps: ['intake','voice','approve-voice','drafts','check','approve-drafts','publish'], includes: ['Source inventory with counts', 'A format and rule trace for each channel', 'Client approval before copy and open'] },
+  { id: 'linkedin-ghostwriting', name: 'LinkedIn ghostwriting', charge: 'monthly', price: 'owner-sets', disclosure: [], description: 'Eight or twelve posts each month, with two revision rounds per post. You or your client copy and post the approved words.', steps: ['intake','voice','approve-voice','calendar','drafts','check','approve-drafts','publish'], includes: ['Five writing structures', 'Two revision rounds per post', 'Your price and approval for each extra round', 'LinkedIn is copy-and-open only'] },
 ] satisfies SocialOffer[]);
 
 export type ApprovalPoint = { id: string; when: string; who: ('owner' | 'client')[]; stepId: string; floor: boolean };
@@ -212,7 +214,7 @@ export const SOCIAL_CONNECTORS: readonly SocialConnector[] = Object.freeze([
   { id: 'client-files', name: 'Client files', label: 'read', note: 'Brand kit, proof files and platform exports, through the order files.' },
   { id: 'mail-app', name: 'Your mail app', label: 'handoff', note: 'Client emails and invoices are drafted; you send them.' },
   { id: 'calendar-export', name: 'Calendar file', label: 'handoff', note: 'Approved posts written to a file you import into your scheduler or copy from.' },
-  { id: 'posting', name: 'Posting', label: 'planned: write', note: 'Per channel and mode, from the posting connector. The API waits for app review. Text posts on LinkedIn and X can go from your own browser session when Playwright is on this computer, after you approve each post, with the risk line. Pictures and video are planned.' },
+  { id: 'posting', name: 'Posting', label: 'planned: write', note: 'Per channel and mode, from the posting connector. The API waits for app review. LinkedIn is copy-and-open only. Text posts on X can go from your own browser session when Playwright is on this computer, after you approve each post, with the risk line. Pictures and video are planned.' },
   { id: 'share-link-page', name: 'Client share page', label: 'planned', note: 'The share link record and its rules exist; no page serves it yet.' },
   { id: 'scheduler-tools', name: 'Buffer, Later and other schedulers', label: 'planned: handoff', note: 'Until then, import the calendar file.' },
   { id: 'generators', name: 'Image and video generators', label: 'planned: handoff', note: 'Briefs go out and files come back; the cost is shown by code before any paid call.' },

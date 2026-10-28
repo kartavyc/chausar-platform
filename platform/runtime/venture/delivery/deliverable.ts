@@ -372,7 +372,7 @@ function renderParts(parts: readonly TextPart[], figure: (part: Extract<TextPart
 
 function renderWith(d: Deliverable, figure: (part: Extract<TextPart, { kind: 'figure' }>) => string, date: (part: Extract<TextPart, { kind: 'date' }>) => string, attachment: ((receiptId: string) => string) | null): string {
   const blocks = [`# ${d.title}`];
-  for (const section of d.sections) blocks.push(`## ${section.heading}\n${renderParts(section.parts, figure, date)}`);
+  for (const section of d.sections) blocks.push(`## ${section.heading}\n${section.heading.trim().toLowerCase() === 'post plan' ? section.parts.map(part => renderParts([part], figure, date)).join('\n') : renderParts(section.parts, figure, date)}`);
   if (d.questionsForClient.length) blocks.push(['Questions for you:', ...d.questionsForClient.map(question => `- ${question}`)].join('\n'));
   if (attachment) for (const item of d.attachments ?? []) blocks.push(attachment(item.receiptId));
   return blocks.join('\n\n');

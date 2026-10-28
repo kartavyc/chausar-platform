@@ -47,7 +47,12 @@ const FIELDS_READ: Readonly<Record<string, readonly OfferIntakeAsk['fields'][num
  */
 export function offerIntakeAsk(playbookId: string, offer: Pick<FlagshipOffer, 'rights' | 'intake'> & { key?: string }, host: VentureHostKind): OfferIntakeAsk | null {
   // Ink v2 wave 5 (5A1): a kit offer asks its own fields (playbooks/kit/intake.ts).
-  if (offer.intake) return kitIntakeAsk({ rights: offer.rights, intake: offer.intake });
+  if (offer.intake) {
+    const own = kitIntakeAsk({ rights: offer.rights, intake: offer.intake });
+    if (playbookId !== SOCIAL_AGENCY_ID) return own;
+    const common = offerIntakeAsk(playbookId, { ...offer, intake: undefined }, host);
+    return own || common ? { rights: [...offer.rights], fields: common?.fields ?? [], kit: own?.kit ?? [] } : null;
+  }
   const key = offer.key ?? '';
   const fields = (FIELDS_READ[playbookId] ?? []).filter(field => (field !== 'cutFile' || host !== 'hosted-web') && (field !== 'calendar' || CALENDAR_OFFERS.includes(key))
     && !(playbookId === SOCIAL_AGENCY_ID && NO_POST_OFFERS.includes(key) && POST_DISCLOSURES.includes(field)));
@@ -131,7 +136,14 @@ export function orderIntake(raw: unknown, offer: { key?: string; name: string; r
     return null;
   }
   // Ink v2 wave 5 (5A1): a kit offer keeps its own fields under intake.fields (playbooks/kit/intake.ts).
-  if (offer.intake) return kitOrderIntake(raw, { ...offer, intake: offer.intake }, meta);
+  if (offer.intake && !isSocialOffer(offer.key)) return kitOrderIntake(raw, { ...offer, intake: offer.intake }, meta);
+  if (offer.intake && isSocialOffer(offer.key)) {
+    check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
+    const { fields, moneyRupees, ...base } = (raw ?? {}) as Record<string, unknown>;
+    const own = kitOrderIntake({ fields, ...(moneyRupees === undefined ? {} : { moneyRupees }) }, { ...offer, rights: [], intake: offer.intake }, meta);
+    const common = orderIntake(Object.keys(base).length ? base : undefined, { ...offer, intake: undefined }, meta);
+    return own || common ? { ...(own ?? common!), ...(common ?? {}), fields: own?.fields ?? {} } : null;
+  }
   check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
   const body = (raw ?? {}) as Record<string, unknown>;
   const extra = Object.keys(body).filter(key => !(KEYS as readonly string[]).includes(key));

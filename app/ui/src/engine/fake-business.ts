@@ -111,6 +111,8 @@ export class FakeBusinessDesk {
     return pick ? clone(pick) : undefined;
   }
 
+  blueprintFor(businessId: string): BlueprintViewLite | null { return this.blueprints[businessId] ? clone(this.blueprints[businessId]!) : null; }
+
   /** A plan written elsewhere in the fake (onboarding) becomes this business's plan. */
   putBlueprint(businessId: string, view: BlueprintViewLite): void {
     this.blueprints[businessId] = clone(view);

@@ -80,6 +80,8 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'no-filing-claims': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Never say a return was filed, signed or verified; the CA or the client does that on the portal.' },
   // The social agency's judge rules (playbooks/social/judge.ts): its posts are written on the drafts step.
   'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
+  'source-faithful': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'For a repurposed post use only facts from its bound source, even if other proof files contain more.' },
+  'one-goal': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Give each post one clear goal and one audience action.' },
   'fits-pillar': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Tie each post to one of the approved content pillars.' },
   'claims-backed': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: "Make only claims the client's proof files or brand sheet back, in any wording." },
   'disclosure-clear': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Begin a paid post with Ad, and say Made with AI in the first line when an AI person, voice or scene is in it.' },

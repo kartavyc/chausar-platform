@@ -15,6 +15,7 @@
 import { EngineError, type ConnectorCardLite, type ConnectorCheckRow, type ConnectorGuideLite, type ConnectorLadder, type ConnectorChecksView, type FileRequestView, type ModelStatusLite, type OwnerView, type SettingsDraftView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import GUIDES from './fixtures-guides.json';
+import { POSTING_WORDS } from './fake-posting';
 
 export const FAKE_4J21_METHODS: readonly string[] = [
   'venture.owner.get', 'venture.owner.set', 'venture.connectors.check', 'venture.share.request', 'venture.settings.draft', 'venture.settings.drafts',
@@ -254,7 +255,8 @@ export function withTruth(cards: ConnectorCardLite[], hosted: boolean): Connecto
       ...mode,
       ladder: (mode.status === 'planned' ? 'documented' : hosted && mode.mode === 'read' && DESKTOP_ONLY_READS.has(card.id) ? 'unavailable' : 'discovered') as ConnectorLadder,
     }));
-    const posting = card.postingOptions.map((option) => ({
+    const sourcePosting = card.id === 'linkedin' ? card.postingOptions.map(option => option.mode === 'handoff' ? option : { ...option, status: 'planned' as const, qualification: 'unqualified' as const, what: POSTING_WORDS.linkedin, risk: null, requires: [], reason: POSTING_WORDS.linkedin }) : card.postingOptions;
+    const posting = sourcePosting.map((option) => ({
       ...option,
       ladder: (option.status === 'available' ? 'discovered' : option.mode === 'owner-browser-session' && (hosted || /not built yet/i.test(option.reason ?? '')) ? 'unavailable' : 'documented') as ConnectorLadder,
     }));

@@ -6,8 +6,11 @@
  * an order adds a run the run sheet can show and says so with a `run.started` event.
  */
 
+import { FakeSocialChain } from './fake-social-chain';
 import { DELIVERIES, ORDERS, UPLOADS } from './fixtures';
 import { fakeKitIntake } from './fake-kit-intake';
+import { fakeSocialIntake, fakeSocialPreflight } from './fake-social-intake';
+import { fakeSocialOfferIntake } from './fake-social-plan';
 import { fakeKitOfferIntake } from './fake-kit-plans';
 import { withFakeOrderSteps } from './fake-previews';
 import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
@@ -22,7 +25,9 @@ const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', 
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
 export interface WorkHost {
-  fingerprint?(bytes: string): string;
+  rows?(): import('./types').QueueRow[];
+  setRows?(rows:import('./types').QueueRow[]):void;
+  hosted?(): boolean;
   current(): string;
   now(): string;
   /** The open business's clients and plan. */
@@ -35,11 +40,12 @@ export interface WorkHost {
   /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
   invoices?(): InvoiceLite[];
   ask?(method: string, params: Record<string, unknown>): unknown;
+  fingerprint?(bytes: string): string;
 }
 
 const WORK_METHODS = new Set([
   'venture.order.list', 'venture.order.create', 'venture.order.deliver', 'venture.delivery.list', 'venture.delivery.run',
-  'venture.files.list', 'venture.files.add',
+  'venture.files.list', 'venture.files.add', 'venture.delivery.approve', 'venture.delivery.review',
 ]);
 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -65,6 +71,7 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 
 export class FakeWorkDesk {
   private readonly host: WorkHost;
+  readonly socialChain: FakeSocialChain;
   private orders: Record<string, OrderLite[]>;
   private deliveries: Record<string, DeliveryLite[]>;
   private uploads: Record<string, UploadLite[]>;
@@ -74,10 +81,16 @@ export class FakeWorkDesk {
 
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.socialChain=new FakeSocialChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},eraseFiles:ids=>{const biz=host.current();this.uploads[biz]=(this.uploads[biz]??[]).filter(f=>!ids.has(f.id));for(const id of ids){this.fileContents.delete(biz+':'+id);this.fileFingerprints.delete(biz+':'+id);}},next:orderId=>{this.start(host.current(),{orderId});}});
     this.orders = options.fresh ? {} : clone(ORDERS);
     this.deliveries = options.fresh ? {} : clone(DELIVERIES);
     this.uploads = options.fresh ? {} : clone(UPLOADS);
   }
+
+  /** Internal queue projection, scoped by business and returned without mutable references. */
+  ordersFor(biz: string): OrderLite[] { return clone(this.orders[biz] ?? []); }
+  /** Seller Forget takes the source bytes and fingerprints as well as their upload rows. */
+  /** Exact tender Forget clears order intake after the owner approves erasure. */
 
   /** Internal byte fingerprint for source-bound fake media; file metadata is never a substitute. */
   uploadFingerprint(biz: string, id: string): string | null {
@@ -103,6 +116,7 @@ export class FakeWorkDesk {
     const index = list.findIndex((run) => run.id === runId);
     if (index < 0) throw new EngineError('DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     list[index] = clone(revise(clone(list[index]!)));
+    if((list[index] as DeliveryLite & {chainStage?:number}).chainStage)this.socialChain.refreshRevision(list[index]!);
     return clone(list[index]!);
   }
 
@@ -129,6 +143,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': return this.addFile(biz, p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
@@ -142,6 +157,7 @@ export class FakeWorkDesk {
   }
 
   private create(biz: string, p: Record<string, unknown>): OrderLite {
+
     const plan = this.host.plan();
     if (!plan) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first.');
     const offer = plan.blueprint.offers.find((o) => o.id === p.offerId);
@@ -153,7 +169,7 @@ export class FakeWorkDesk {
     if (!internal && client?.self) throw new EngineError('INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
     const request = text(p.request);
     if (request.length < 3 || request.length > 4000) throw invalid('The request must be between 3 and 4000 characters.');
-    const ask = plan.intake?.[offer.id] ?? fakeKitOfferIntake(plan.playbook?.id, offer.playbookOffer);
+    const ask = plan.intake?.[offer.id] ?? (plan.playbook?.id === 'social-agency' ? fakeSocialOfferIntake(offer.playbookOffer) : fakeKitOfferIntake(plan.playbook?.id, offer.playbookOffer));
     checkIntake(p.intake, ask ?? null, offer.name.value);
     const staged: { field: string; id: string; name: string; contentBase64: string }[] = [];
     let rawIntake = p.intake;
@@ -182,7 +198,7 @@ export class FakeWorkDesk {
       }
       rawIntake = { ...body, fields };
     }
-    const keptIntake = ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    const keptIntake = ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
     if (ask?.kit && keptIntake && typeof keptIntake === 'object') {
       const values = (keptIntake as NonNullable<OrderLite['intake']>).fields;
       for (const field of ask.kit.filter(field => field.kind === 'file')) {
@@ -211,6 +227,7 @@ export class FakeWorkDesk {
     } catch (error) {
       this.orders[biz] = previousOrders;
       this.uploads[biz] = previousUploads;
+      for (const file of staged) { this.fileContents.delete(biz + ':' + file.id); this.fileFingerprints.delete(biz + ':' + file.id); }
       throw error;
     }
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
@@ -236,8 +253,12 @@ export class FakeWorkDesk {
     const support = this.host.ask?.('venture.desk.list', { playbook: 'support-desk', kind: 'ticket', filter: { queue: 'all' } }) as { rows?: { id: string; paused: boolean; status: string }[] } | undefined;
     const paused = support?.rows?.some(row => row.paused && !['resolved', 'closed'].includes(row.status) && (this.host.ask?.('venture.desk.get', { playbook: 'support-desk', kind: 'ticket', id: row.id }) as { item?: { serviceOrderId?: string } } | undefined)?.item?.serviceOrderId === order.id);
     if (named || paused) throw new EngineError('SUPPORT_PERSON_REQUIRED', 'A person is handling this customer. Automatic drafts are paused. Open the support desk.');
+    fakeSocialPreflight(this.host.plan(), order, this.orderFiles(biz, order.id));
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
+    if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}
+    const social=this.socialChain.start(order,runId);
+    if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({

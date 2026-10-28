@@ -140,8 +140,10 @@ describe('Business: platform rules (2H)', () => {
     expect(social.rules.find((rule) => rule.id === 'linkedin-3000')?.usedBy).toContain('publish');
     expect(social.summary).toMatch(/^\d+ current, 0 to recheck, \d+ not confirmed against a source yet\.$/);
     const later = rulesListFor({ id: 'social-agency', label: 'Social media agency' }, '2027-01-25');
-    expect(later.summary).toBe(`0 current, ${later.rules.length} to recheck.`);
-    expect(later.rules[0]!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
+    const newer = later.rules.filter(rule => rule.checkedOn === '2026-10-27');
+    expect(newer.every(rule => !rule.stale)).toBe(true);
+    expect(later.summary).toBe(`${newer.length} current, ${later.rules.length - newer.length} to recheck.`);
+    expect(later.rules.find(rule => rule.id === 'x-weighted-280')!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
     for (const id of ['social-agency', 'youtube']) expect(rulesListFor({ id, label: id }, '2026-10-23').summary).not.toMatch(/rests on no dated platform rules/);
   });
 

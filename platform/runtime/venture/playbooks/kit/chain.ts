@@ -20,6 +20,8 @@ import type { W4RowItem } from '../../views/queue-w4.ts';
 import { pickPlaybook } from '../registry.ts';
 import type { KitOffer, KitStep, PlaybookDefinition } from './define.ts';
 import { kitDefinition } from './installed.ts';
+import {socialChainDefinition,keepSocialVoice} from '../social/chain.ts';
+
 import { manualPathFor } from './manual-path.ts';
 import type { ChainStageState, OrderChainView } from './records-chain.ts';
 
@@ -28,18 +30,21 @@ export const DEFAULT_MAX_LOOPS = 2;
 const DAY_MS = 86_400_000;
 
 /** A kit order's chain: its definition, offer and stage steps, in order. */
-export type KitChain = { definition: PlaybookDefinition; offer: KitOffer; steps: KitStep[] };
+export type ChainDefinition=Pick<PlaybookDefinition,'registration'|'offers'|'steps'|'rules'|'checkIds'|'connectors'>;
+export type KitChain = { definition: ChainDefinition; offer: KitOffer; steps: KitStep[] };
 
 /** The chain a kit offer is, or null when the playbook has no such offer. A one-stage offer is a chain of one. */
-export function kitChainOf(definition: PlaybookDefinition | null, offerKey: string | null | undefined): KitChain | null {
+export function kitChainOf(definition: ChainDefinition | null, offerKey: string | null | undefined): KitChain | null {
   const offer = definition?.offers.find(item => item.id === offerKey);
   if (!definition || !offer) return null;
-  return { definition, offer, steps: offer.stages.map(id => definition.steps.find(step => step.id === id)!) };
+  const stages = offer.stages;
+  return { definition, offer: { ...offer, stages }, steps: stages.map(id => definition.steps.find(step => step.id === id)!) };
 }
 
 /** The chain of one order of this business, from the playbook its idea picks and the plan offer the order is. */
-export function orderChain(state: State, venture: VentureRecord, order: Pick<OrderRecord, 'offerId'>): KitChain | null {
-  const definition = kitDefinition(pickPlaybook(venture.idea)?.id ?? null);
+export function orderChain(state: State, venture: VentureRecord, order: Pick<OrderRecord, 'offerId'|'socialChain'>): KitChain | null {
+  const id=pickPlaybook(venture.idea)?.id;
+  const definition = id==='social-agency'?socialChainDefinition(order.socialChain):kitDefinition(id ?? null);
   const offerKey = acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null;
   return kitChainOf(definition, offerKey);
 }
@@ -96,10 +101,11 @@ function replaceOrder(tx: VentureTx, order: OrderRecord, patch: Pick<OrderRecord
  * stop after a rejection. Returns the order id when the next stage's run should start now (after the commit); else null.
  */
 export function chainOnReview(tx: VentureTx, run: DeliveryRunRecord, verdict: 'accepted' | 'edited' | 'rejected'): string | null {
+  keepSocialVoice(tx,run,verdict);
   const order = tx.find('venture-order', run.orderId);
   if (!order || !tx.venture || run.practice) return null;
   const chain = orderChain(tx.state, tx.venture, order);
-  if (!chain || chain.steps.length < 2 || order.chainState === 'done') return null;
+  if (!chain || order.chainState === 'done' || chain.steps.length < 2 && !order.socialChain) return null;
   const stage = runStageOf(run);
   if (stage !== stageOf(order)) return null;
   // A stopped chain stays stopped until the owner accepts that stage's draft (after talking to the client): then it
@@ -143,6 +149,7 @@ export function chainView(state: State, venture: VentureRecord, order: OrderReco
   const stopped = state_ === 'stopped'
     ? listRecords(state, 'venture-delivery-run', venture.id).filter(item => item.orderId === order.id && runStageOf(item) === stage && item.status === 'rejected').length : 0;
   return {
+    ...(chain.definition.registration.id==='social-agency'&&chain.offer.id==='monthly-report'?{prerequisites:[{stepId:'collect-exports',title:'Client exports',state:listRecords(state,'venture-upload',venture.id).some(f=>f.scope.kind==='order'&&f.scope.orderId===order.id)?'done' as const:'waiting' as const},{stepId:'figures',title:'Figures from code receipts',state:listRecords(state,'venture-work-receipt',venture.id).some(r=>r.operation==='social.report'&&r.runRef.kind==='delivery'&&listRecords(state,'venture-delivery-run',venture.id).filter(run=>run.orderId===order.id).map(run=>run.id).includes(r.runRef.runId))?'done' as const:'waiting' as const}],approval:{stepId:'approve-report',title:'Owner approval',state:state_==='done'?'done' as const:'waiting' as const}}:{}),
     orderId: order.id, playbook: chain.definition.registration.id, offerKey: chain.offer.id, stage, of: chain.steps.length,
     line: `Stage ${stage} of ${chain.steps.length}`, state: state_, since: order.chainSince ?? null,
     stages: chain.steps.map((step, index) => ({

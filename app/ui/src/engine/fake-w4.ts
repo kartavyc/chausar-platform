@@ -36,6 +36,15 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  workReceipt?(id:string):import('./types').WorkReceiptLite|undefined;
+  socialClientAnswer?(runId:string):{answer:import('./types').ShareAnswer;packDigest:string}|null;
+  socialChain?(orderId:string):import('./types').OrderChainView|null;
+  scheduledPost?(id:string):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot|null;
+  moveScheduledPost?(id:string,binding:import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostBinding):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot;
+  decideScheduledPost?(id:string,state:'approved'|'rejected'|'applied'):void;
+  scheduledSession?():number;
+  scheduledBusy?(exceptId:string):boolean;
+  eraseScheduledPost?(id:string):void;
   uploadFingerprint?(id: string): string | null;
   orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
   supportImported?(mail:SupportImportedMail):void;

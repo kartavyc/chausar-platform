@@ -145,7 +145,7 @@ const report = (whatShows: unknown[]) => ({
 });
 
 async function reportOrder(env: Env, name = 'instagram-november.csv', content = INSTAGRAM_NOVEMBER) {
-  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: REPORT_OFFER, request: REQUEST });
+  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: REPORT_OFFER, request: REQUEST, intake: {fields:{reportMonth:'2026-11'}} });
   await env.call('venture.files.add', { orderId: order.id, name, contentBase64: b64(content) });
   return order;
 }
@@ -162,15 +162,8 @@ test('report figures: social.report works out every figure from the export by co
   env.models.respond['agent-turn'] = () => REPORT_CALL;
   env.models.respond.delivery = () => report([part('The people your posts reached in the month:'), fig('w1.reach'), part('How many of them liked, commented, shared or saved:'), fig('w1.engagement-rate'), part('The post they took to most:'), fig('w1.top-post')]);
   let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(run.harness!.phase, 'act');
-  run = await approve(env, run);
-  const callRecord = run.harness!.toolCalls.find(item => item.tool === 'social.report')!;
-  assert.equal(callRecord.outcome, 'succeeded', JSON.stringify(callRecord.envelope));
-  const result = (callRecord.envelope as { ok: true; result: any }).result;
-  assert.equal(result.receipt, 'w1');
-  assert.ok(result.figures.some((item: any) => item.ref === 'w1.reach'), 'the agent reads figure refs, never computes a figure');
-  assert.ok(run.harness!.rounds!.at(-1)!.steps.every(step => step.audited), 'the auditor checked the receipt the step made');
-
+  assert.equal(run.harness!.phase, 'write');
+  assert.equal(env.models.previewed.filter(task=>task.purpose==='agent-turn').length,0,'export figures are code work, not a model turn');
   const receipts = listRecords(env.store.read(), 'venture-work-receipt');
   assert.equal(receipts.length, 1);
   const receipt = receipts[0] as WorkReceiptRecord;
@@ -219,30 +212,9 @@ test('report figures: social.report works out every figure from the export by co
   assert.equal((await env.call('venture.work.get', { id: receipt.id })).operation, 'social.report');
 });
 
-test('report figures: an export of another shape answers the engine\'s refusal and makes no receipt', async () => {
-  const env = await business();
-  const order = await reportOrder(env, 'linkedin-november.csv', LINKEDIN_NOVEMBER);
-  env.models.respond['agent-turn'] = () => REPORT_CALL;
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  const refused = run.harness!.toolCalls.find(item => item.tool === 'social.report')!;
-  assert.equal(refused.outcome, 'failed');
-  assert.ok(!refused.envelope.ok);
-  assert.equal(refused.envelope.error.code, 'EXPORT_NOT_RECOGNISED');
-  assert.match(refused.envelope.error.message, /does not look like an Instagram content export/);
-  assert.deepEqual(listRecords(env.store.read(), 'venture-work-receipt'), []);
-
-  // Two exports of one platform, and a file that is not a CSV, are refused before anything is worked out.
-  const twice = await env.call('venture.order.create', { clientId: env.client.id, offerId: REPORT_OFFER, request: REQUEST });
-  await env.call('venture.files.add', { orderId: twice.id, name: 'a.csv', contentBase64: b64(INSTAGRAM_NOVEMBER) });
-  await env.call('venture.files.add', { orderId: twice.id, name: 'b.csv', contentBase64: b64(INSTAGRAM_NOVEMBER) });
-  env.models.respond['agent-turn'] = () => turnOf('Work out the figures', [['social.report', { month: '2026-11', files: [{ file: 'f1', platform: 'instagram' }, { file: 'f2', platform: 'instagram' }] }]], true);
-  let second: DeliveryRunView = await env.call('venture.delivery.run', { orderId: twice.id });
-  second = await approve(env, second);
-  const doubled = second.harness!.toolCalls.find(item => item.tool === 'social.report')!;
-  assert.ok(!doubled.envelope.ok);
-  assert.equal(doubled.envelope.error.code, 'TOOL_FAILED');
-  assert.match(doubled.envelope.error.message, /one export for each platform/);
+test('report prerequisites refuse unknown export shapes and duplicate platform exports before a preview',async()=>{
+ const env=await business();const order=await reportOrder(env,'unknown.csv','Other,Columns\na,b');await assert.rejects(env.call('venture.delivery.run',{orderId:order.id}),code('SOCIAL_EXPORTS_REQUIRED'));assert.deepEqual(listRecords(env.store.read(),'venture-work-receipt'),[]);assert.equal(env.models.previewed.length,0);
+ const twice=await reportOrder(env);await env.call('venture.files.add',{orderId:twice.id,name:'second.csv',contentBase64:b64(INSTAGRAM_NOVEMBER)});await assert.rejects(env.call('venture.delivery.run',{orderId:twice.id}),code('TOOL_FAILED'));assert.equal(env.models.previewed.length,0);
 });
 
 test('narrative: a figure in the words with no receipt fails the check and blocks Accept; in a run with tools the AI cannot write one at all', async () => {
@@ -252,40 +224,11 @@ test('narrative: a figure in the words with no receipt fails the check and block
   env.models.respond['agent-turn'] = () => REPORT_CALL;
   env.models.respond.delivery = () => report([part('Reach went up 40% this month:'), fig('w1.reach')]);
   let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
   await assert.rejects(approve(env, run), code('MODEL_OUTPUT_REJECTED'));
 
-  // Without an export there is no tool run: the words reach the checks, and the narrative check fails them.
-  const bare = await env.call('venture.order.create', { clientId: env.client.id, offerId: REPORT_OFFER, request: REQUEST });
-  env.models.respond.delivery = () => report([part('Reach went up 40% this month.')]);
-  const waiting: DeliveryRunView = await env.call('venture.delivery.run', { orderId: bare.id });
-  assert.equal(waiting.harness, undefined, 'no file, no tools: one drafting call');
-  const draft = await approve(env, waiting);
-  assert.equal(draft.status, 'ready-for-review');
-  const narrative = checksOf(draft)['narrative-receipted'];
-  assert.equal(narrative.outcome, 'fail');
-  assert.match(narrative.detail, /^This report has no figures worked out from the client's exports\./);
-  assert.match(narrative.detail, /These figures have no receipt: "40%"\. Report figures come from the client's exports, computed by code\.$/);
-  assert.equal(draft.canAccept, false);
-  await assert.rejects(env.call('venture.delivery.review', { runId: draft.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
-
-  // Multipliers, number words and change words are figures too.
-  const oneShot = async (line: string) => {
-    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: REPORT_OFFER, request: REQUEST });
-    env.models.respond.delivery = () => report([part(line)]);
-    const ready = await approve(env, await env.call('venture.delivery.run', { orderId: order.id }));
-    assert.equal(ready.status, 'ready-for-review');
-    return { run: ready, check: checksOf(ready)['narrative-receipted'] };
-  };
-  const grew = await oneShot('Reach grew 3x and follows doubled, about forty per cent more than before.');
-  assert.equal(grew.check.outcome, 'fail');
-  for (const phrase of ['"3x"', '"doubled"', '"forty per cent"']) assert.ok(grew.check.detail.includes(phrase), `${phrase}: ${grew.check.detail}`);
-  assert.equal(grew.run.canAccept, false);
-  // A report with no receipt at all fails even when its words hold no figure: it reports nothing from the exports.
-  const empty = await oneShot('Your posts reached more people this month.');
-  assert.equal(empty.check.outcome, 'fail', empty.check.detail);
-  assert.equal(empty.check.detail, "This report has no figures worked out from the client's exports. Upload them to the order, and the figures come from social.report.");
-  assert.equal(empty.run.canAccept, false);
+  // Without exports, no model is allowed to write a report at all.
+  const bare=await env.call('venture.order.create',{clientId:env.client.id,offerId:REPORT_OFFER,request:REQUEST,intake:{fields:{reportMonth:'2026-11'}}});
+  const before=env.models.previewed.length;await assert.rejects(env.call('venture.delivery.run',{orderId:bare.id}),code('SOCIAL_EXPORTS_REQUIRED'));assert.equal(env.models.previewed.length,before);
 
   // The same words against a real receipt fail the same way: only the receipt's own figures pass.
   const receipt = { id: 'work_1', operation: 'social.report', figures: [{ key: 'reach', label: 'Reach', minor: '10162', display: '10,162', currency: 'INR', unit: 'count' }], report: [{ month: '2026-11' }] };

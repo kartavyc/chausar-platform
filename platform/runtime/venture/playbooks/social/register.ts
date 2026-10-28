@@ -17,12 +17,15 @@ import { SOCIAL_CHECK_IDS, SOCIAL_RUN_CHECK_IDS } from './check-ids.ts';
 import { SOCIAL_STEPS } from './playbook.ts';
 // post-limits.ts imports only types from this file, so it loads first and makes no cycle.
 import { HOUSE_POSTING_RULES } from './post-limits.ts';
+import { socialLegalStatus } from './legal-confirmation.ts';
 
 export type RuleScope = 'instagram' | 'facebook' | 'linkedin' | 'x' | 'threads' | 'tiktok' | 'youtube-shorts' | 'meta' | 'india' | 'united-states' | 'all';
 export type RuleTopic = 'limit' | 'media' | 'disclosure' | 'conduct' | 'export';
 export type RuleReading = 'official' | 'secondary' | 'house' | 'unconfirmed';
 export type RuleSource = { title: string; url: string };
 export type PlatformRule = {
+  needs: 'ca' | 'lawyer' | null;
+  confirmedBy?: { name: string; on: string } | null;
   id: string;
   scope: RuleScope;
   topic: RuleTopic;
@@ -63,8 +66,12 @@ const US_LIMIT = 'United States law: it applies when the client or the audience 
 const r = (rule: Omit<PlatformRule, 'checkedOn' | 'note'> & { note?: string }): PlatformRule => ({ ...rule, checkedOn: CHECKED, note: rule.note ?? null });
 
 export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
+ {id:'linkedin-manual-only',needs:null,scope:'linkedin',topic:'conduct',title:'LinkedIn copy and open',value:null,read:'official',checkedOn:'2026-10-27',note:null,how:'Read the official User Agreement and prohibited software help page on 27 October 2026. Chausar applies its stricter copy-and-open boundary.',usedBy:['publish'],limitations:['Chausar offers no automated LinkedIn post or message. The owner posts manually.'],rule:'LinkedIn prohibits unauthorized automated access and activity. LinkedIn is copy-and-open only in Chausar; the owner approves the words and posts them manually.',sources:[{title:'LinkedIn User Agreement',url:'https://www.linkedin.com/legal/user-agreement'},{title:'LinkedIn prohibited software',url:'https://www.linkedin.com/help/linkedin/answer/a1341387/prohibited-software-and-extensions?lang=en'}]},
+ {id:'selling-share-house',needs:null,scope:'all',topic:'conduct',title:'Selling share',value:20,read:'house',checkedOn:'2026-10-27',note:null,how:'Checked against socialSlots and the social intake default on 27 October 2026.',usedBy:['calendar','drafts'],limitations:[HOUSE_LIMIT,'The owner can choose a different cap at intake.'],rule:'The default selling share is twenty percent of the planned slots. Every slot has one goal and one audience action.',sources:[]},
+ {id:'revision-rounds-house',needs:null,scope:'linkedin',topic:'conduct',title:'Included revision rounds',value:2,read:'house',checkedOn:'2026-10-27',note:null,how:'Checked against the per-post revision desk on 27 October 2026.',usedBy:['approve-drafts'],limitations:[HOUSE_LIMIT,'Applies to the LinkedIn ghostwriting offer. Every extra-round price is owner-set.'],rule:'Two revision rounds are included per ghostwritten post. A later round needs the exact owner-set quote approved before work starts.',sources:[]},
   // Text limits
   r({
+    needs: null,
     id: 'x-weighted-280', scope: 'x', topic: 'limit', value: 280, read: 'official', how: 'Read on the X developer page and the twitter-text configuration on 21 October 2026.',
     title: 'X post length',
     usedBy: ['channel-length', 'drafts', 'publish'],
@@ -76,6 +83,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     ],
   }),
   r({
+    needs: null,
     id: 'x-url-23', scope: 'x', topic: 'limit', value: 23, read: 'official', how: 'Read on the X developer page on 21 October 2026.',
     title: 'X link length',
     usedBy: ['channel-length', 'drafts', 'publish'],
@@ -84,6 +92,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'X developer docs: counting characters', url: 'https://docs.x.com/fundamentals/counting-characters' }],
   }),
   r({
+    needs: null,
     id: 'ig-caption-2200', scope: 'instagram', topic: 'limit', value: 2200, read: 'secondary', how: SEARCH,
     title: 'Instagram caption length',
     usedBy: ['channel-length', 'publish'],
@@ -92,6 +101,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Publora: Instagram API guide', url: 'https://docs.publora.com/platforms/instagram' }],
   }),
   r({
+    needs: null,
     id: 'ig-caption-fold-125', scope: 'instagram', topic: 'limit', value: 125, read: 'secondary', how: SEARCH,
     title: 'Instagram caption fold',
     usedBy: ['disclosure-paid', 'disclosure-ai'],
@@ -100,6 +110,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Publora: Instagram API guide', url: 'https://docs.publora.com/platforms/instagram' }],
   }),
   r({
+    needs: null,
     id: 'ig-hashtags-5', scope: 'instagram', topic: 'limit', value: 5, read: 'secondary', how: SEARCH,
     title: 'Instagram hashtag cap',
     usedBy: ['channel-hashtags', 'publish'],
@@ -111,6 +122,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     ],
   }),
   r({
+    needs: null,
     id: 'facebook-63206', scope: 'facebook', topic: 'limit', value: 63206, read: 'secondary', how: SEARCH,
     title: 'Facebook post length',
     usedBy: ['channel-length'],
@@ -119,6 +131,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Metricool: character limits by network', url: 'https://metricool.com/characters-social-media/' }],
   }),
   r({
+    needs: null,
     id: 'linkedin-3000', scope: 'linkedin', topic: 'limit', value: 3000, read: 'secondary', how: SEARCH,
     title: 'LinkedIn post length',
     usedBy: ['channel-length', 'publish'],
@@ -127,6 +140,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'NapoleonCat: character limits for social platforms', url: 'https://brain.napoleoncat.com/en/articles/11829254-character-limits-for-different-social-media-platforms' }],
   }),
   r({
+    needs: null,
     id: 'threads-500', scope: 'threads', topic: 'limit', value: 500, read: 'secondary', how: SEARCH,
     title: 'Threads post length',
     usedBy: ['channel-length', 'drafts'],
@@ -135,6 +149,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'TechCrunch: Threads offers support for up to 10k characters', url: 'https://techcrunch.com/2025/09/04/threads-challenges-x-by-offering-free-support-for-up-to-10k-characters-plus-prominent-links' }],
   }),
   r({
+    needs: null,
     id: 'threads-topic-1', scope: 'threads', topic: 'limit', value: 1, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'Threads topic tag',
     usedBy: ['channel-hashtags', 'publish'],
@@ -143,6 +158,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Threads help centre', url: 'https://help.instagram.com/' }],
   }),
   r({
+    needs: null,
     id: 'tiktok-caption-2200', scope: 'tiktok', topic: 'limit', value: 2200, read: 'secondary', how: SEARCH,
     title: 'TikTok caption length',
     usedBy: ['channel-length', 'channel-media'],
@@ -152,6 +168,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'NapoleonCat: character limits for social platforms', url: 'https://brain.napoleoncat.com/en/articles/11829254-character-limits-for-different-social-media-platforms' }],
   }),
   r({
+    needs: null,
     id: 'yt-title-100', scope: 'youtube-shorts', topic: 'limit', value: 100, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'YouTube title length',
     usedBy: ['channel-length'],
@@ -160,6 +177,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'YouTube Help', url: 'https://support.google.com/youtube/' }],
   }),
   r({
+    needs: null,
     id: 'yt-description-5000', scope: 'youtube-shorts', topic: 'limit', value: 5000, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'YouTube description length',
     usedBy: ['publish'],
@@ -169,6 +187,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
   }),
   // Media
   r({
+    needs: null,
     id: 'ig-carousel-app-20', scope: 'instagram', topic: 'media', value: 20, read: 'secondary', how: SEARCH,
     title: 'Instagram carousel in the app',
     usedBy: ['channel-media'],
@@ -177,6 +196,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Social Media Today: Instagram expands carousels to 20 frames', url: 'https://www.socialmediatoday.com/news/instagram-expands-carousels-to-20-frames/723792/' }],
   }),
   r({
+    needs: null,
     id: 'ig-carousel-api-10', scope: 'instagram', topic: 'media', value: 10, read: 'official', how: SEARCH,
     title: 'Instagram carousel by API',
     usedBy: ['channel-media'],
@@ -185,6 +205,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Meta for Developers: Instagram content publishing', url: 'https://developers.facebook.com/docs/instagram-platform/content-publishing' }],
   }),
   r({
+    needs: null,
     id: 'ig-image-aspect', scope: 'instagram', topic: 'media', value: null, read: 'secondary', how: SEARCH,
     title: 'Instagram image shape',
     usedBy: ['channel-media'],
@@ -193,6 +214,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Plannthat: auto post restrictions for Instagram', url: 'https://help.plannthat.com/en/articles/10029624-auto-post-restrictions-for-instagram' }],
   }),
   r({
+    needs: null,
     id: 'ig-reels-180', scope: 'instagram', topic: 'media', value: 180, read: 'secondary', how: SEARCH,
     title: 'Instagram reel length',
     usedBy: ['channel-media'],
@@ -202,6 +224,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Buffer: how long can Instagram reels be', url: 'https://buffer.com/resources/instagram-reels-length' }],
   }),
   r({
+    needs: null,
     id: 'yt-shorts-180', scope: 'youtube-shorts', topic: 'media', value: 180, read: 'official', how: SEARCH,
     title: 'YouTube Short length',
     usedBy: ['channel-media'],
@@ -210,6 +233,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'YouTube Help: understand three-minute YouTube Shorts', url: 'https://support.google.com/youtube/answer/15424877' }],
   }),
   r({
+    needs: null,
     id: 'x-media-4', scope: 'x', topic: 'media', value: 4, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'X media count',
     usedBy: ['channel-media'],
@@ -218,6 +242,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'X Help Center', url: 'https://help.x.com/' }],
   }),
   r({
+    needs: null,
     id: 'linkedin-images-20', scope: 'linkedin', topic: 'media', value: 20, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'LinkedIn image count',
     usedBy: ['channel-media'],
@@ -226,6 +251,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'LinkedIn Help', url: 'https://www.linkedin.com/help/linkedin' }],
   }),
   r({
+    needs: null,
     id: 'threads-media-20', scope: 'threads', topic: 'media', value: 20, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'Threads media count',
     usedBy: ['channel-media'],
@@ -234,6 +260,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Threads help centre', url: 'https://help.instagram.com/' }],
   }),
   r({
+    needs: null,
     id: 'tiktok-video-600', scope: 'tiktok', topic: 'media', value: 600, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'TikTok video length',
     usedBy: ['channel-media'],
@@ -242,6 +269,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'TikTok Support', url: 'https://support.tiktok.com/' }],
   }),
   r({
+    needs: null,
     id: 'alt-text-house', scope: 'all', topic: 'media', value: null, read: 'house', how: 'Chausar house rule.',
     title: 'Alt text on images',
     usedBy: ['alt-text', 'drafts'],
@@ -251,6 +279,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
   }),
   // Disclosure
   r({
+    needs: null,
     id: 'meta-paid-partnership', scope: 'meta', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'Meta paid partnership label',
     usedBy: ['disclosure-paid', 'publish'],
@@ -259,6 +288,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'JoinBrands: paid partnership guide', url: 'https://joinbrands.com/blog/paid-partnership-ig/' }],
   }),
   r({
+    needs: null,
     id: 'meta-ai-label', scope: 'meta', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'Meta AI label',
     usedBy: ['disclosure-ai', 'publish'],
@@ -267,6 +297,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'ContentGrip: Meta adds AI ad labels', url: 'https://www.contentgrip.com/meta-ai-ad-labels/' }],
   }),
   r({
+    needs: null,
     id: 'tiktok-ai-label', scope: 'tiktok', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'TikTok AI label',
     usedBy: ['disclosure-ai', 'publish'],
@@ -275,6 +306,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Social Media Today: TikTok adds required labels for AI-generated content', url: 'https://www.socialmediatoday.com/news/tiktok-adds-new-required-labels-for-ai-generated-content/690454/' }],
   }),
   r({
+    needs: null,
     id: 'tiktok-branded-content', scope: 'tiktok', topic: 'disclosure', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'TikTok branded content',
     usedBy: ['disclosure-paid', 'publish'],
@@ -283,6 +315,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'TikTok Support', url: 'https://support.tiktok.com/' }],
   }),
   r({
+    needs: null,
     id: 'yt-synthetic-disclosure', scope: 'youtube-shorts', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'YouTube synthetic content',
     usedBy: ['disclosure-ai', 'publish'],
@@ -291,6 +324,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Lindsey Gamble: YouTube requirements for AI-generated content', url: 'https://www.lindseygamble.com/blog/youtube-introduces-requirements-for-ai-generated-content' }],
   }),
   r({
+    needs: null,
     id: 'yt-paid-promotion', scope: 'youtube-shorts', topic: 'disclosure', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'YouTube paid promotion',
     usedBy: ['disclosure-paid', 'publish'],
@@ -299,6 +333,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'YouTube Help', url: 'https://support.google.com/youtube/' }],
   }),
   r({
+    ...socialLegalStatus('ftc-endorsement-guides'),
     id: 'ftc-endorsement-guides', scope: 'united-states', topic: 'disclosure', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'FTC endorsement guides',
     usedBy: ['disclosure-paid'],
@@ -307,6 +342,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'FTC: Guides concerning the use of endorsements and testimonials in advertising (16 CFR Part 255)', url: 'https://www.ftc.gov/legal-library/browse/rules/guides-concerning-use-endorsements-testimonials-advertising' }],
   }),
   r({
+    ...socialLegalStatus('ftc-reviews-rule'),
     id: 'ftc-reviews-rule', scope: 'united-states', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'FTC reviews rule',
     usedBy: ['synthetic-testimonial'],
@@ -315,6 +351,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Goodwin: FTC finalizes rule on consumer reviews and testimonials (16 CFR Part 465)', url: 'https://www.goodwinlaw.com/en/insights/publications/2024/09/alerts-practices-cldr-ftc-finalizes-rule-on-consumer-reviews' }],
   }),
   r({
+    ...socialLegalStatus('asci-influencer-label'),
     id: 'asci-influencer-label', scope: 'india', topic: 'disclosure', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'ASCI influencer label',
     usedBy: ['disclosure-paid'],
@@ -323,6 +360,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'ASCI: guidelines for influencer advertising in digital media', url: 'https://www.ascionline.in/' }],
   }),
   r({
+    ...socialLegalStatus('asci-ai-draft-2026'),
     id: 'asci-ai-draft-2026', scope: 'india', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'ASCI AI draft guideline',
     usedBy: ['disclosure-ai'],
@@ -332,6 +370,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Mondaq: AI in advertising, ASCI draft disclosure guidelines', url: 'https://www.mondaq.com/india/advertising-marketing-branding/1790884/ai-in-advertising-ascis-new-draft-disclosure-guidelines' }],
   }),
   r({
+    ...socialLegalStatus('india-it-rules-sgi-2026'),
     id: 'india-it-rules-sgi-2026', scope: 'india', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'India AI content label',
     usedBy: ['disclosure-ai'],
@@ -341,6 +380,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
   }),
   // Conduct
   r({
+    needs: null,
     id: 'meta-engagement-bait', scope: 'meta', topic: 'conduct', value: null, read: 'secondary', how: SEARCH,
     title: 'Meta engagement bait',
     usedBy: ['engagement-bait', 'publish'],
@@ -350,14 +390,16 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Search Engine Journal: Facebook demoting engagement bait', url: 'https://www.searchenginejournal.com/facebook-demoting-engagement-bait/228071' }],
   }),
   r({
+    needs: null,
     id: 'owner-session-house', scope: 'all', topic: 'conduct', value: null, read: 'house', how: 'Chausar house rule, from the founder decision of 21 October 2026.',
     title: 'Your own browser session',
     usedBy: ['publish'],
     limitations: [HOUSE_LIMIT, 'Lowers the risk without removing it: a platform may still limit an account that posts from a browser session.'],
-    rule: 'Posting from a browser session uses the account the owner signed in to, after the owner approves each post, labelled with the risk that the platform may restrict the account.',
+    rule: 'LinkedIn is copy-and-open only. On supported channels, posting from a browser session uses the account the owner signed in to, after the owner approves each post, labelled with the risk that the platform may restrict the account.',
     sources: [],
   }),
   r({
+    needs: null,
     id: 'no-evasion-house', scope: 'all', topic: 'conduct', value: null, read: 'house', how: 'Chausar house rule.',
     title: 'No evasion',
     usedBy: ['publish'],
@@ -366,6 +408,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [],
   }),
   r({
+    needs: null,
     id: 'claims-house', scope: 'all', topic: 'conduct', value: null, read: 'house', how: 'Chausar house rule.',
     title: 'Claims from proof',
     usedBy: ['claims'],
@@ -376,6 +419,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
   // Exports the monthly report reads: social.report works the figures out of them for the report step, and the
   // narrative check holds the report's words to those figures (Ink v2 wave 2, 2F1).
   r({
+    needs: null,
     id: 'export-meta-content', scope: 'instagram', topic: 'export', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'Meta content export',
     usedBy: ['narrative-receipted', 'intake', 'collect-exports', 'figures', 'report'],
@@ -384,6 +428,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     sources: [{ title: 'Meta Business Suite Help', url: 'https://www.facebook.com/business/help' }],
   }),
   r({
+    needs: null,
     id: 'export-linkedin-updates', scope: 'linkedin', topic: 'export', value: null, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'LinkedIn updates export',
     usedBy: ['narrative-receipted', 'intake', 'collect-exports', 'figures', 'report'],
@@ -413,6 +458,8 @@ export function socialRuleTargets(): ReadonlySet<string> {
 export function validateRulesRegister(rules: readonly PlatformRule[] = SOCIAL_RULES_REGISTER, targets: ReadonlySet<string> = socialRuleTargets()): void {
   const seen = new Set<string>();
   for (const rule of rules) {
+    check(['ca','lawyer',null].includes(rule.needs), 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} must say who needs to confirm it.`);
+    check(rule.needs === null || rule.confirmedBy === null || !!rule.confirmedBy?.name && !!rule.confirmedBy?.on, 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs its professional confirmation state.`);
     check(Array.isArray(rule.usedBy) && rule.usedBy.length > 0 && rule.usedBy.every(id => typeof id === 'string'),
       'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs the steps or checks of the playbook that use it.`);
     const unknown = rule.usedBy.filter(id => !targets.has(id));

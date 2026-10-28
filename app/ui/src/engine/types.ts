@@ -648,7 +648,7 @@ export interface OrderLite {
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
   /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
-  intake?: { rights?: { basis: RightsBasisLite; holder: string; reference: string | null; scope: string | null; expiresOn: string | null; recordedAt: string; recordedBy: string } | null; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; format?: 'long' | 'short'; cutFile?: string | null; fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null> };
+  intake?: { calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite; rights?: { basis: RightsBasisLite; holder: string; reference: string | null; scope: string | null; expiresOn: string | null; recordedAt: string; recordedBy: string } | null; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; format?: 'long' | 'short'; cutFile?: string | null; fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null> };
   /** 4J3: the order's stage steps from the records, and what waits on the owner ("2 wait on you: ..."), or null. */
   stages?: OrderStageView[];
   waitsOnYou?: OrderWaitsOnYou | null;
@@ -1445,6 +1445,8 @@ export interface OrderChainView {
     manualPath: { step: string; connector: string; waitsOn: string; line: string } | null;
   }[];
   note: string | null;
+  prerequisites?: {stepId:string;title:string;state:'done'|'now'|'waiting'|'not-started'|'stopped'}[];
+  approval?: {stepId:string;title:string;state:'done'|'now'|'waiting'|'not-started'|'stopped'};
 }
 /** 5A2: inputs by name, money as the owner typed it in rupees, null for an input the owner does not know. */
 export type GoNoGoInputs = Readonly<Record<string, string | null>>;

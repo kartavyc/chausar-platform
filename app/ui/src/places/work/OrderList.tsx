@@ -12,7 +12,7 @@ import { Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
 import type { ClientLite } from '../../engine/types';
 import type { OrderAction, OrderView } from './orders';
-import { messageOf } from './PreviousRuns';
+import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
 import { OrderSteps } from './OrderSteps';
 import s from './Work.module.css';
@@ -107,7 +107,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       else await client.request('venture.delivery.run', { orderId: order.id });
       onChanged();
     } catch (error) {
-      setProblem(t(ACTION_FAILED[kind], { message: messageOf(error) }));
+      setProblem(t(ACTION_FAILED[kind], { message: refusalWords(error, t) }));
     } finally {
       setPhase('idle');
     }

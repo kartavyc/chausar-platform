@@ -14,8 +14,11 @@ import { YOUTUBE_STEPS, youtubeEngineSteps } from './youtube/playbook.ts';
 import { YOUTUBE_ID, YOUTUBE_LABEL } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_ROLES, SOCIAL_STEPS, socialPlaybookSteps, type SocialRoleId } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID, SOCIAL_AGENCY_LABEL } from './social/registration.ts';
+import {socialStages} from './social/stages.ts';
+import {LINKEDIN_GUIDANCE} from './social/structures.ts';
 import { calendarGuidance, calendarSlotsOrNone } from './social/draft-posts.ts';
 import { kitEngineSteps, type PlaybookDefinition } from './kit/define.ts';
+
 import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 
 /**
@@ -145,17 +148,17 @@ function socialAgency(): FlagshipDelivery {
   }));
   const floor: Record<string, string> = {};
   for (const point of SOCIAL_APPROVALS) if (point.floor && !floor[point.stepId]) floor[point.stepId] = `${point.when}. This asks you at every posture.`;
-  const steps = withGuidance(socialPlaybookSteps(), 'drafts', SOCIAL_POST_GUIDANCE);
+  const steps = withGuidance(socialPlaybookSteps(), 'drafts', SOCIAL_POST_GUIDANCE).map(step=>['drafts','creative-briefs'].includes(step.id)?{...step,requiredSections:[...step.requiredSections,'Post plan']}:step);
   const doers = new Map(SOCIAL_STEPS.map(step => {
     const role = SOCIAL_ROLES[step.role as SocialRoleId];
     return [step.id, { doneBy: role.kind === 'person' ? (step.role === 'owner' ? 'you' as const : 'person' as const) : role.kind, who: role.name }];
   }));
   return {
     id: SOCIAL_AGENCY_ID, label: SOCIAL_AGENCY_LABEL, steps, plan: planOf(steps, doers), roles, roleOf, floor,
-    draftStep: offerKey => SOCIAL_DRAFT_STEP[offerKey ?? ''] ?? 'drafts',
+    draftStep: (offerKey,stage) => socialStages(offerKey)[(stage??1)-1]??SOCIAL_DRAFT_STEP[offerKey??'']??'drafts',
     // A content calendar's slots, planned by code from the intake: the drafting task lists them, so dates never come from a
     // model. A calendar that can no longer be planned adds nothing here; the calendar check says why.
-    orderGuidance: (offerKey, intake) => ((SOCIAL_DRAFT_STEP[offerKey ?? ''] ?? 'drafts') === 'drafts' ? calendarGuidance(calendarSlotsOrNone(intake)) : []),
+    orderGuidance: (offerKey, intake) => ((SOCIAL_DRAFT_STEP[offerKey ?? ''] ?? 'drafts') === 'drafts' ? [...calendarGuidance(calendarSlotsOrNone(intake)),...(offerKey==='linkedin-ghostwriting'?[LINKEDIN_GUIDANCE]:[])] : []),
   };
 }
 

@@ -138,6 +138,10 @@ export function actionWords(label: string, t: T): string {
  * buttons are worded from the engine's fixed labels (4Z2).
  */
 export function wordedRow(row: QueueRow, t: T): QueueRow {
+  if (row.kind === 'notice' && row.id.includes('social-revision:')) {
+    return { ...row, title: t('pb-social-due.title'), line: t('pb-social-due.line'), actions: row.actions.map(action => ({ ...action, label: action.id === 'open' ? t('pb-social-due.open') : action.id === 'later' ? t('pb-social-due.later') : action.label })) };
+  }
+
   if (row.kind === 'followup' && row.followup) {
     const { name, company, daysLate, channel, draftId } = row.followup;
     const who = company ? t('today.followup.who', { name, company }) : name;

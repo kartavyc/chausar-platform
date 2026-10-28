@@ -18,6 +18,7 @@
 // A checked no blocks Accept with the judge's reason (runs.ts failedCheckReason) and records the first failed rule as
 // a signal for the improvement loop; a vote code could not check settles nothing and blocks nothing; a refused answer
 // leaves every rule unsettled, never a pass.
+import { playbookForRun } from './workflow.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import type {
@@ -42,6 +43,7 @@ import { budgetPressure, listRateOfTable, modelTableOf, monthSpendNow, resolveRa
 import { flagshipJudgeRules } from '../playbooks/draft-checks.ts';
 import { caOfferFor } from '../playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
+import { boundSocialSource } from '../playbooks/social/bound-source.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
 import { kitDefinition } from '../playbooks/kit/installed.ts';
 import { scanRun } from './trace-scan.ts';
@@ -142,16 +144,18 @@ function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunReco
 function judgeInput(state: State, venture: VentureRecord, run: DeliveryRunRecord, draft?: string): { asked: RulesInput; client: string } {
   const order = findRecord(state, 'venture-order', run.orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const made = run.harness ? madeSoFar(state, run.harness) : { tables: [], receipts: [] };
   const receipts = [...ventureReceipts(state, venture.id), ...made.receipts];
   const client = findRecord(state, 'venture-client', order.clientId);
   const offer = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.name.value ?? 'a service';
   const goesTo = judgeAudience(state, venture, run) === 'public' ? 'It goes to the client, then out in public.' : 'It goes to the client.';
+  const offerKey = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.playbookOffer;
+  const socialEvidence = offerKey === 'repurpose-pack' ? '\nOnly this bound source can establish repurposed facts, including facts said in other words:\n' + boundSocialSource(state, venture, order) : offerKey === 'community-replies' ? '\nCommunity rules pasted by the owner:\n' + String(order.intake?.fields?.communityRules ?? '') : '';
   const asked = draftRulesInput({
     draft: draft ?? renderForJudge(run.deliverable!, receipts), clientRequest: order.request, harness: run.harness ?? null, receipts: made.receipts,
-    context: `A draft for a real client's order of ${quote(offer, 120)} from this business. ${goesTo}`,
+    context: `A draft for a real client's order of ${quote(offer, 120)} from this business. ${goesTo}${socialEvidence}`,
     containsClientData: true, rules: flagshipJudgeRules(playbook.flagship),
   });
   return { asked, client: client && client.ventureId === venture.id ? client.name : 'your client' };

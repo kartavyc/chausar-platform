@@ -8,6 +8,9 @@ import { check } from '../../../contracts.ts';
 import { loadBaseline, type BaselineFile, type CaseResult, type DraftMaker, type HeldBackCase, type SuiteResult } from '../../delivery/judge/baseline.ts';
 import type { JudgeRule, RulesInput } from '../../delivery/judge/rules.ts';
 import type { JudgeTrace, TraceEvent } from '../../delivery/judge/trace.ts';
+import { repurposeSource } from './repurpose.ts';
+import { ghostwritingChecks } from './structures.ts';
+import { socialSlots, type SocialSlotKind } from './slot-kinds.ts';
 import { SOCIAL_CHANNELS, type SocialChannel } from './channels.ts';
 import { checkSocialDraft, type AiUse, type ClientRules, type Finding, type PostDraft, type SocialMedia } from './checks.ts';
 
@@ -40,6 +43,8 @@ export const SOCIAL_JUDGE_RULES: readonly JudgeRule[] = Object.freeze([
     id: 'client-comfortable', question: 'Would the client be comfortable seeing this under their name?',
     text: 'The client must be comfortable seeing this under their name.', floor: { kind: 'share', percent: 75 },
   },
+  { id: 'source-faithful', question: 'For a repurposed post, is every fact in the bound source alone, including facts said in other words?', text: 'Repurposed posts add no fact outside the bound source. Other proof files do not count. For other offers, use their approved evidence.', floor: { kind: 'required-yes' } },
+  { id: 'one-goal', question: 'Does each post have one clear goal and one audience action?', text: 'Each post has one goal and one audience action.', floor: { kind: 'share', percent: 75 } },
 ] satisfies JudgeRule[]);
 
 const SUMMARY = 300;
@@ -77,6 +82,7 @@ export const SOCIAL_BASELINE_NAME = 'social-agency';
 
 /** The social facts of a held-back case: the channel and what the post is, so the code checks can run on it. */
 export type SocialCaseMeta = {
+  scenario?: {kind:'repurpose-thin-source'} | {kind:'ghostwriting-structure';postCount:8|12} | {kind:'selling-share-cap';capPercent:number};
   channel: SocialChannel;
   media?: SocialMedia[];
   paid?: boolean;
@@ -106,6 +112,25 @@ export function scoreSocialCase(item: HeldBackCase, meta: SocialCaseMeta, draft:
   const failures: string[] = [];
   for (const phrase of item.mustMention ?? []) if (!has(draft, phrase)) failures.push(`It never mentions "${phrase}".`);
   for (const phrase of item.mustNotMention ?? []) if (has(draft, phrase)) failures.push(`It mentions "${phrase}", which it must not.`);
+  if(meta.scenario){
+    try {
+      check(draft.length<=100000,'SOCIAL_INPUT_INVALID','The baseline draft is too long.');
+      const value:unknown=JSON.parse(draft);check(value&&typeof value==='object'&&!Array.isArray(value),'SOCIAL_INPUT_INVALID','Send one structured baseline draft.');
+      const body=value as Record<string,unknown>;
+      if(meta.scenario.kind==='repurpose-thin-source'){
+        let thin=false;try{repurposeSource(item.sources.map(source=>source.text).join('\n'));}catch(error){if(error&&typeof error==='object'&&'code' in error&&error.code==='SOURCE_THIN')thin=true;else throw error;}
+        if(!thin||body.outcome!=='request-source'||typeof body.message!=='string'||!/(longer piece|voice note)/i.test(body.message))failures.push('A thin source must request a longer piece or voice note before drafting.');
+      }else if(meta.scenario.kind==='selling-share-cap'){
+        const result=socialSlots(body.slots as SocialSlotKind[],meta.scenario.capPercent);failures.push(...result.findings.map(finding=>finding.line));
+      }else{
+        check(Array.isArray(body.posts)&&body.posts.length<=12&&body.posts.every(post=>post&&typeof post==='object'&&typeof post.heading==='string'&&typeof post.text==='string'),'SOCIAL_INPUT_INVALID','Send the bounded structured post pack.');
+        const posts=body.posts as {heading:string;text:string}[];
+        const checks=ghostwritingChecks({flagship:'social-agency',offerKey:'linkedin-ghostwriting',servedBy:'template',deliverable:{title:item.title,sections:posts.map(post=>({heading:post.heading,parts:[{kind:'text',text:post.text}]})),questionsForClient:[]},request:item.clientRequest,intake:{rights:null,format:'long',aiVoice:false,aiPresenter:false,paidPromotion:false,cutFile:null,fields:{postCount:String(meta.scenario.postCount)}},files:[],receipts:[],known:[],mode:'rehearsal',today:'2026-10-27',dateOrder:'day-month-year'});
+        failures.push(...checks.filter(result=>result.outcome!=='pass').map(result=>result.detail));
+      }
+    }catch(error){failures.push(error instanceof Error?error.message:'The structured baseline draft is invalid.');}
+    return {id:item.id,passed:failures.length===0,failures};
+  }
   const client: ClientRules = {
     ...(meta.client ?? {}),
     known: [...(meta.client?.known ?? []), ...(item.known ?? [])],

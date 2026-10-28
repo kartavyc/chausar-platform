@@ -589,6 +589,7 @@ function bankRows(state: State, venture: VentureRecord, business: Business, ctx:
 // ---------------------------------------------------------------------------
 
 const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/social/revision-due.ts')).revisionDueRows(deps, ctx, state, venture)],
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead

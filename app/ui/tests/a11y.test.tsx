@@ -275,7 +275,7 @@ const OPENED: Case[] = [
   { name: 'Welcome back, open by folder name on a new computer', hash: '#/today', options: { fresh: true }, openFolds: true, press: ['Open a business you already have', 'Open by folder name'] },
   // w3 3G1: Connections with every AI choice and a channel's posting limits open, an AI being connected, and the
   // simple-first folds of Business open for a GST-registered business (tax details, a price's working).
-  { name: 'Connections, every AI choice and the posting limits open', hash: '#/connections', openFolds: true, press: [/^Posting limits for LinkedIn$/] },
+  { name: 'Connections, every AI choice and the posting limits open', hash: '#/connections', openFolds: true, press: [/^Posting limits for X$/] },
   { name: 'Connections, connecting an AI', hash: '#/connections/ai', press: ['Connect'] },
   { name: 'Business, plan for a CA firm with its tax details open', hash: '#/business/plan', before: ledgerline, openFolds: true },
   { name: 'Business, prices for a CA firm with the working open', hash: '#/business/prices', before: ledgerline, openFolds: true },

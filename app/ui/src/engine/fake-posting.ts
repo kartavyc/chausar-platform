@@ -1,3 +1,4 @@
+import type {FakeForgottenPerson} from './fake-playbooks';
 /**
  * The fake engine's answers for posting (Ink v2 wave 2, packages 2B1 and 2B2): a post proposed from a checked draft
  * (venture.posting.propose), signing in to a platform (venture.posting.signIn), checking the browser steps
@@ -14,7 +15,11 @@ import {
   type PostingStepsView, type VentureRunEvent,
 } from './types';
 
+import type { ScheduledPostSnapshot, ScheduledPostBinding } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core';
 export interface PostingHost {
+  draftText?(id:string):string|null;
+  sharedDraftDigest?(id:string):string|null;
+  uploadFingerprint?(id:string):string|null;
   current(): string;
   now(): string;
   emit(event: VentureRunEvent): void;
@@ -42,6 +47,7 @@ const LIMITS_LINE = "Chausar's own posting limits are the loosest it posts at. Y
 
 /** The engine's words (build/posting.ts, build/share-links.ts). */
 export const POSTING_WORDS = Object.freeze({
+  linkedin: 'LinkedIn is copy-and-open only.',
   consent: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done.",
   risk: 'The platform may restrict this account.',
   proposed: 'Waiting on Today for your approval.',
@@ -60,7 +66,42 @@ export class FakePostingDesk {
   private readonly fresh: boolean;
   /** The client's answers the owner recorded, by business and draft. */
   private answers: Record<string, Record<string, ShareAnswer>> = {};
+  private answerPacks:Record<string,Record<string,string>>={};
+  forgetPeople(people:readonly FakeForgottenPerson[]):void {
+    const tokens=people.flatMap(person=>[...person.names.flatMap(name=>[name,...name.split(/[\s,.]+/).filter(word=>[...word].length>=3)]),...person.emails,...person.phones]).filter(Boolean).map(value=>value.toLowerCase());
+    for(const answer of Object.values(this.answers[this.host.current()]??{}))if(tokens.some(token=>(answer.comment??'').toLowerCase().includes(token)))answer.comment=null;
+  }
+  socialClientAnswer(runId:string):{answer:ShareAnswer;packDigest:string}|null {const biz=this.host.current(),answer=this.answers[biz]?.[runId],packDigest=this.answerPacks[biz]?.[runId];return answer&&packDigest?{answer:{...answer},packDigest}:null;}
   private seq = 0;
+  private scheduledPosts=new Map<string,{post:ScheduledPostSnapshot;runId:string;sourcePostId:string;binding?:ScheduledPostBinding}>();
+  private fileDigest(runId:string):string{
+    const runs=this.host.ask('venture.delivery.list',{}) as {id:string;orderId:string}[];
+    const orderId=Array.isArray(runs)?runs.find(run=>run.id===runId)?.orderId:undefined;
+    if(!orderId)return this.host.digest({files:[]});
+    const listed=this.host.ask('venture.files.list',{orderId}) as {id:string}[];const files=Array.isArray(listed)?listed.map(file=>({id:file.id,digest:this.host.uploadFingerprint?.(file.id)??null})):[];
+    const assets=this.host.ask('venture.assets.list',{orderId});
+    return this.host.digest({files,assets});
+  }
+  scheduledSnapshot(id:string):ScheduledPostSnapshot|null{
+    const entry=this.scheduledPosts.get(this.host.current()+':'+id);if(!entry)return null;
+    const shared=this.shareList(entry.runId);const answer=this.answers[this.host.current()]?.[entry.runId]??shared.links.find(link=>link.answer)?.answer;
+    const blocked=answer?.decision==='approved'?null:{code:'POST_CLIENT_NOT_APPROVED',line:'Your client has not approved this draft.'};
+    const live=shared.posts.find(post=>post.draftId===entry.sourcePostId);
+    const filesDigest=this.fileDigest(entry.runId);
+    const state=!entry.post.scheduled&&!this.host.rows().some(row=>row.id===id)?'rejected':entry.post.state;
+    return {...entry.post,state,blocked,liveAccount:entry.post.account,text:live?.text??'',filesDigest,digest:this.host.digest({id,connectorId:entry.post.connectorId,text:live?.text??'',draftId:entry.post.draftId,...(entry.binding?{scheduled:entry.binding}:{})})};
+  }
+  moveScheduled(id:string,binding:ScheduledPostBinding):ScheduledPostSnapshot{
+    const key=this.host.current()+':'+id;const entry=this.scheduledPosts.get(key);const live=this.scheduledSnapshot(id);
+    if(!entry||!live||live.state!=='described'||live.scheduled)throw new EngineError('POST_NOT_FOUND','Choose a waiting post in this business and channel.');
+    const nextId='post-fake-'+(++this.seq);entry.post.state='rejected';this.host.setRows(this.host.rows().filter(row=>row.id!==id));
+    this.scheduledPosts.set(this.host.current()+':'+nextId,{...entry,binding,post:{...live,id:nextId,state:'described',scheduled:true}});
+    return this.scheduledSnapshot(nextId)!;
+  }
+  decideScheduled(id:string,state:'approved'|'rejected'|'applied'):void{const entry=this.scheduledPosts.get(this.host.current()+':'+id),live=this.scheduledSnapshot(id);if(!entry||!live)throw new EngineError('POST_NOT_FOUND','That post is no longer available.');if(live.claimedAt)throw new EngineError('SLOT_FROZEN','This post has already started.');if(state!=='rejected'){if(live.blocked)throw new EngineError(live.blocked.code,live.blocked.line);if(!live.account)throw new EngineError('ACCOUNT_FENCE','This slot needs a known account before approval.');}entry.post.state=state;}
+  scheduledBusy(exceptId:string):boolean{return [...this.scheduledPosts.entries()].some(([key,entry])=>key.startsWith(this.host.current()+':')&&entry.post.id!==exceptId&&entry.post.state==='approved'&&!!entry.post.claimedAt);}
+  eraseScheduled(id:string):void{this.scheduledPosts.delete(this.host.current()+':'+id);}
+
 
   constructor(host: PostingHost, options: { fresh?: boolean } = {}) {
     this.host = host;
@@ -128,9 +169,12 @@ export class FakePostingDesk {
     if (p.comment !== undefined && (typeof p.comment !== 'string' || p.comment.length > 1000)) throw new EngineError('INVALID_VENTURE_REQUEST', 'A comment is text of at most a thousand characters.');
     if (this.shareList(draftId).links.length === 0) throw new EngineError('SHARE_NOT_FOUND', POSTING_WORDS.noShare);
     const mine = (this.answers[biz] ??= {});
-    if (mine[draftId]) throw new EngineError('ALREADY_DECIDED', 'Your client already answered on this draft.');
+    const pack=this.host.draftText?this.host.digest(this.host.draftText(draftId)??''):null;
+    if(pack&&this.host.sharedDraftDigest?.(draftId)!==pack)throw new EngineError('APPROVAL_STALE','This draft changed since it was shared. Share the current text first.');
+    if (mine[draftId]&&(!pack||this.answerPacks[biz]?.[draftId]===pack)) throw new EngineError('ALREADY_DECIDED', 'Your client already answered on this draft.');
     const comment = typeof p.comment === 'string' && p.comment.trim() ? p.comment.trim() : null;
     mine[draftId] = { draftId, decision: p.answer, comment, at: this.host.now(), via: 'owner-recorded' };
+    if(pack)(this.answerPacks[biz]??={})[draftId]=pack;
     return { answer: { ...mine[draftId]! } };
   }
 
@@ -141,6 +185,7 @@ export class FakePostingDesk {
     const { links, posts } = this.shareList(runId);
     const post = posts.find((item) => item.draftId === p.draftId);
     if (!post) throw new EngineError('POST_NOT_A_POST', POSTING_WORDS.notAPost);
+    if (post.connectorId === 'linkedin') throw new EngineError('NOT_BUILT_YET', POSTING_WORDS.linkedin);
     const name = post.connectorId ? TEXT_PLATFORMS[post.connectorId] : undefined;
     if (!post.connectorId || !name) throw new EngineError('NOT_BUILT_YET', post.connectorId && MEDIA_PLATFORMS.has(post.connectorId) ? POSTING_WORDS.media : `Chausar has no posting connector for ${post.name} in this build. Post it yourself from the calendar file.`);
     if (this.host.hosted()) throw new EngineError('NOT_BUILT_YET', POSTING_WORDS.hosted);
@@ -162,6 +207,7 @@ export class FakePostingDesk {
     this.host.setRows([...this.host.rows(), { ...seed, digest: this.host.digest(seed) }]);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     const part = posts.filter((item) => item.connectorId === post.connectorId).findIndex((item) => item.draftId === post.draftId) + 1;
+    this.scheduledPosts.set(biz+':'+postId,{runId,sourcePostId:post.draftId,post:{id:postId,connectorId:post.connectorId,draftId:runId,text:post.text,account:'@sample-owner',mode:'owner-browser-session',digest:'',filesDigest:this.fileDigest(runId),state:'described',scheduled:false}});
     return { postId, connectorId: post.connectorId, draftId: post.draftId, part, state: 'described', line: POSTING_WORDS.proposed, warnings: [] };
   }
 
