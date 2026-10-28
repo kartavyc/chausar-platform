@@ -484,7 +484,7 @@ export class VentureHost {
       },
       async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
       async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' }) {
+      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }) {
         return port().runPreview(ctx, callId, approvedDigest, validate, options);
       },
     });

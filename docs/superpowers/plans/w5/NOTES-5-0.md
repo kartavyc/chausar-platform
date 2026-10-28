@@ -641,3 +641,8 @@ Adds the independently reviewed recruiting desk, professional evidence screening
 ## Earlier package integration corrections
 
 The isolated recruiting guide check exposed missing setup guides for the already committed M/E2 connectors: Overpass, Nominatim, own-site, Happenstance, WordPress drafts and Cloudflare KV. Their real and rehearsal guides now match, with EN/HI text. The Start gallery snapshot is recomputed from this exact committed engine so every implemented service and category count is visible. No future playbook data is copied.
+
+## 5J1 isolated package closure
+
+- Source-bound translation and subtitle review, glossary versions, exact AI previews and client review tokens are integrated. External client sharing waits for named rights review; private remote models remain refused. J2 stays stubbed.
+- Independent spec/quality PASS and final dispatch-race repairs are recorded in NOTES-5J1.md. Includes the reviewed common synchronous ModelPort guard and its four no-send tests.

@@ -4,8 +4,10 @@
 // from an outside source.
 
 /** venture-translation-job: a placeholder until package 5J1 lands. */
-export type TranslationJobBody = { placeholder: true };
+import type {TranslationState} from './state.ts';
+import type {TranslationSegment} from './core.ts';
+export type TranslationJobBody = {orderId:string;clientId:string;state:TranslationState};
 /** venture-translation-segment: a placeholder until package 5J1 lands. */
-export type TranslationSegmentBody = { placeholder: true };
+export type TranslationSegmentBody = Omit<TranslationSegment,'id'> & {jobId:string;sourceId:string};
 /** venture-glossary: a placeholder until package 5J1 lands. */
-export type GlossaryBody = { placeholder: true };
+export type GlossaryBody = TranslationState['glossary'] & {jobId:string;clientId:string};

@@ -46,6 +46,13 @@
     ]
   },
   {
+    "id": "translation-studio",
+    "offers": [
+      "document-translation",
+      "subtitles"
+    ]
+  },
+  {
     "id": "bookkeeping-cfo",
     "offers": [
       "collections-desk",

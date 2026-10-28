@@ -750,7 +750,7 @@ export interface ModelPort {
    * recorded as that and never as the owner's approval of the call. 'owner-file-drop' (4J8): a call that carries a file
    * the owner dropped with their own words, recorded as that, again never as an approval.
    */
-  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' }): Promise<ModelOutcome<T>>;
+  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }): Promise<ModelOutcome<T>>;
   /**
    * Ink v2 wave 4 (4H1): looks at the owner's Claude Code or Codex on this computer through the transport (version,
    * help and, when its help lists one, its own sign-in status command) and keeps what it found for availability. Never
@@ -3096,6 +3096,7 @@ export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
  * (playbooks/social/approvals.ts): decide-once, on the digest shown, before the link ends.
  */
 export type ShareLinkStoredRecord = RecordBase<'venture-share-link'> & {
+  translation?: { jobId: string; approvalDigest: string };
   deliveryId: string;
   clientId: string | null;
   tokenHash: string;
@@ -6284,6 +6285,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'PRIVATE_NEEDS_LOCAL', 'TRANSLATION_GLOSSARY_REQUIRED', 'TRANSLATION_NOT_FOUND', 'TRANSLATION_REPAIR_LOSS',
   'RECRUIT_NOT_FOUND',
   'RECRUIT_ROLE_REQUIRED',
 

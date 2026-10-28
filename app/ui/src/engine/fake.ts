@@ -426,6 +426,8 @@ export class FakeEngine {
       default:
         if (this.desk.handles(method)) return this.desk.request(method, p);
         if (this.work.handles(method)) return this.work.request(method, p);
+        if(method==='venture.share.list'){const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra]};}
+        if(method==='venture.share.revoke'&&typeof p.id==='string'){const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.revokeShare(p.id);if(extra)return extra;}
         if (this.extras.handles(method)) return this.extras.request(method, p);
         if (this.posting.handles(method)) return this.posting.request(method, p);
         if (this.practice.handles(method)) return this.practice.request(method, p);

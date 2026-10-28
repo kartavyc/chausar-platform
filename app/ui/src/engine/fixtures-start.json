@@ -426,6 +426,63 @@
         }
       },
       {
+        "id": "translation-studio",
+        "playbook": "translation-studio",
+        "label": "Translation and subtitles",
+        "category": "content",
+        "department": "production",
+        "line": "Documents and subtitles with source checks and review.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review meaning and talk to clients.",
+        "team": [
+          {
+            "role": "Translator",
+            "initials": "TR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Drafts translations, checks terms and prepares files.",
+        "clientsPay": {
+          "text": "₹100 to ₹400",
+          "per": "per video minute",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Source text and Your AI."
+        },
+        "starter": "Translation service: Documents and subtitles with source checks and review.",
+        "yours": [],
+        "hi": {
+          "label": "अनुवाद और सबटाइटल",
+          "line": "मूल पाठ की जाँच और समीक्षा के साथ दस्तावेज़ और सबटाइटल।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "अर्थ की समीक्षा करें और क्लाइंट से बात करें।",
+          "team": [
+            "अनुवादक",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "अनुवाद ड्राफ़्ट करता है, शब्द जाँचता है और फ़ाइलें तैयार करता है।",
+          "pay": "₹100 से ₹400",
+          "per": "प्रति वीडियो मिनट",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Translation service: मूल पाठ की जाँच और समीक्षा के साथ दस्तावेज़ और सबटाइटल।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "मूल पाठ और आपका AI के साथ काम करता है।"
+          }
+        }
+      },
+      {
         "id": "bookkeeping-cfo",
         "playbook": "bookkeeping-cfo",
         "label": "Bookkeeping and CFO help",
@@ -545,7 +602,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 1
+        "count": 2
       },
       {
         "id": "marketing",

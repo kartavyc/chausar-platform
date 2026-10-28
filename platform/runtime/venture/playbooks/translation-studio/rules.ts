@@ -1,0 +1,5 @@
+// Original Chausar dated adaptation rule. House reading only; a named lawyer must confirm client use.
+import {check} from '../../../portable.ts';
+export const TRANSLATION_RIGHTS_RULE={id:'adaptation-rights',scope:'translation-studio',topic:'Translation rights review',rule:'A licence must cover the intended translation and adaptation.',sources:[{title:'Translation rights review',url:'https://copyright.gov.in/Copyright_Act_1957/'}],checkedOn:'2026-10-28',read:'unconfirmed' as const,how:'Read the published source and record its limits.',usedBy:['check'],limitations:'Checks cannot certify meaning, legal advice or provider availability.',needs:'lawyer' as const,confirmedBy:null as {name:string;on:string}|null};
+/** Client sharing and export stay planned until the register has genuine external confirmation. */
+export function requireTranslationClientRule(){check(TRANSLATION_RIGHTS_RULE.confirmedBy,'RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Translation rights review" yet. It works in practice runs only until they do.');}

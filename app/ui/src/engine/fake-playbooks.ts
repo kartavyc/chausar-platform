@@ -42,6 +42,8 @@ export interface FakeDeskKind {
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
 export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
 export interface FakePlaybookDesk {
+  sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
+  revokeShare?(id:string):import('./types').ShareLink|null;
   workReceipt?(id:string):WorkReceiptLite|undefined;
   receipt?(id:string):ReceiptLite|undefined;
   importSupportMail?(mail:SupportImportedMail):void;
@@ -95,6 +97,9 @@ export class FakePlaybooksDesk {
   receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }
 
   workReceipt(id:string):WorkReceiptLite|undefined {for(const desk of this.desks){const receipt=desk.workReceipt?.(id);if(receipt)return receipt;}return undefined;}
+
+  sharedLinks(deliveryId?:string):import('./types').ShareLink[]{return this.desks.flatMap(d=>d.sharedLinks?.(deliveryId)??[]);}
+  revokeShare(id:string):import('./types').ShareLink|null{for(const desk of this.desks){const found=desk.revokeShare?.(id);if(found)return found;}return null;}
 
   handles(method: string): boolean {
     return DESK_METHODS.has(method) || this.desks.some((desk) => desk.methods !== undefined && Object.hasOwn(desk.methods, method));

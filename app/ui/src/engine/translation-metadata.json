@@ -1,0 +1,142 @@
+{
+  "registration": {
+    "id": "translation-studio",
+    "label": "Translation and subtitles",
+    "serviceType": "studio",
+    "picks": [
+      "translation service",
+      "translation agency",
+      "subtitling",
+      "subtitles for",
+      "hindi subtitles",
+      "dubbing service",
+      "localisation service",
+      "localization service",
+      "translation studio"
+    ],
+    "summary": "Agents translate documents and subtitle videos with your client's locked glossary; code checks every term and format, and you approve every deliverable.",
+    "riskLevel": "medium",
+    "lastReviewed": "2026-10-28"
+  },
+  "offers": [
+    {
+      "id": "document-translation",
+      "name": "Document translation",
+      "description": "A faithful document with source checks and owner review.",
+      "pricing": "project",
+      "unit": "per page or word",
+      "price": "owner-sets",
+      "stages": [
+        "translate"
+      ],
+      "workflow": [
+        "intake",
+        "glossary",
+        "approve-glossary",
+        "translate",
+        "check",
+        "owner-review",
+        "client-approval",
+        "deliver"
+      ],
+      "includes": [
+        "Source text",
+        "Client glossary",
+        "Bilingual review"
+      ],
+      "pilotable": true,
+      "rights": [
+        "own-footage",
+        "licence"
+      ],
+      "intake": [
+        "rights",
+        "languagePair",
+        "glossary",
+        "format",
+        "private"
+      ],
+      "audience": "client"
+    },
+    {
+      "id": "subtitles",
+      "name": "Subtitles",
+      "description": "Timed translated sentences checked before export.",
+      "pricing": "project",
+      "unit": "per video minute",
+      "price": "owner-sets",
+      "stages": [
+        "translate"
+      ],
+      "workflow": [
+        "intake",
+        "glossary",
+        "approve-glossary",
+        "translate",
+        "check",
+        "owner-review",
+        "client-approval",
+        "deliver"
+      ],
+      "includes": [
+        "Source text",
+        "Client glossary",
+        "Bilingual review"
+      ],
+      "pilotable": false,
+      "rights": [
+        "own-footage",
+        "licence"
+      ],
+      "intake": [
+        "rights",
+        "languagePair",
+        "glossary",
+        "format",
+        "private"
+      ],
+      "audience": "client"
+    }
+  ],
+  "intakeFields": [
+    {
+      "id": "rights",
+      "label": "Rights to translate",
+      "help": "Own the text or hold a licence allowing translation and adaptation.",
+      "kind": "rights",
+      "required": true
+    },
+    {
+      "id": "languagePair",
+      "label": "Source and target languages",
+      "help": "Name both languages before starting.",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "glossary",
+      "label": "Client glossary",
+      "help": "An optional glossary file from the client.",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "id": "format",
+      "label": "Document or subtitles",
+      "help": "Choose the output the client needs.",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "document",
+        "subtitles"
+      ]
+    },
+    {
+      "id": "private",
+      "label": "Private source",
+      "help": "Private source text must never reach a remote model.",
+      "kind": "yes-no",
+      "required": true
+    }
+  ]
+}

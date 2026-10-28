@@ -109,7 +109,7 @@ const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships
 const PKG = 'http://schemas.openxmlformats.org/package/2006/relationships';
 const TYPES = 'http://schemas.openxmlformats.org/package/2006/content-types';
 const DEFAULTS = '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>';
-function docx(title: string, lines: string[]): Uint8Array {
+export function docx(title: string, lines: string[]): Uint8Array {
   const para = (text: string) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
   return storedZip([
     { name: '[Content_Types].xml', text: `${HEAD}<Types xmlns="${TYPES}">${DEFAULTS}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>` },
