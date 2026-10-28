@@ -1,3 +1,4 @@
+import { playbookForOrder, playbookForRun, type RunPlaybook } from './workflow.ts';
 // Chausar venture launcher, delivery package (P5): draft replies for real orders.
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
 // exact text first and is sent once, only after the owner approves it. Nothing here sends anything to a client.
@@ -220,6 +221,7 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
   refuseUnsignedContract(tx.state, tx.venture!, order);
   return {
     ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null,
+    ...((playbook as RunPlaybook).runWorkflow ? { workflow: (playbook as RunPlaybook).runWorkflow } : {}),
     scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
     // Ink v2 wave 5 (5A1): the chain stage this run drafts, once a kit chain order is past its first (playbooks/kit/chain.ts).
     ...(order.chainStage ? { chainStage: order.chainStage } : {}),
@@ -251,11 +253,12 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const status = useTemplate ? null : deps.models.status(ctx);
   const template = useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-  const playbook = await ensurePlaybook(deps, ctx);
+  const basePlaybook = await ensurePlaybook(deps, ctx);
   // 4F1 (O21): an agent step that needs a connector only planned refuses the run; nothing is put in its place.
-  await refuseMissingCapability(playbook);
+  await refuseMissingCapability(basePlaybook);
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
+  const playbook = playbookForOrder(deps, ctx, fresh.state, fresh.venture, basePlaybook, context.order, context.offerKey);
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
 
@@ -330,7 +333,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
  * delegate: the owner's command-line tools found and checked now; agent.delegate is offered only with one.
  */
 function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[], delegate: readonly DelegateAvailability[] = []): LoopContext {
-  const entries = dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
+  const entries = (playbook as RunPlaybook).runWorkflow?.dictionary ?? dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
   const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
@@ -408,7 +411,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   refuseUnsignedRun(state, venture, run);
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   // The model port's own refusals, made first, so a stale or run-out approval never reaches the journal.
@@ -799,7 +802,7 @@ function keepCutBrief(tx: VentureTx, current: DeliveryRunRecord, record: Delegat
  */
 export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, run: DeliveryRunRecord, harness: HarnessState | null): Promise<{ preview: ModelPreview; harness: HarnessState | null }> {
   const context = orderContext(state, venture, run.orderId);
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, venture));
   if (!harness) {
@@ -846,7 +849,7 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
   // 4J12: nor one whose order contract waits for the owner's signature (again in the commit).
   refuseUnsignedRun(state, venture, run);
   const context = orderContext(state, venture, run.orderId);
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const files = uploadsById(state, venture.id, run.harness.uploadIds);
@@ -917,7 +920,7 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   if (decision === 'approve') refuseUnsignedRun(state, venture, run);
   const harness = run.harness!;
   const context = orderContext(state, venture, run.orderId);
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const files = uploadsById(state, venture.id, harness.uploadIds);

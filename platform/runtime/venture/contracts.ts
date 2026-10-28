@@ -1751,7 +1751,14 @@ export type DeliveryReason = typeof DELIVERY_REASONS[number];
  */
 /** 'stopped': the owner stopped it, or a breaker did (Ink v2 wave 4, 4F1 and 4F2); finished steps are kept and Resume goes on. */
 export type DeliveryRunStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed' | 'stopped';
+/** A run's immutable selected workflow, bound to its original base and intake. */
+export type DeliveryWorkflow = {
+  orderId: string; offerId: string; baseHash: string; intakeDigest: string; hash: string;
+  steps: PlaybookStep[]; limits: HarnessLimits; aliases: Record<string, string[]>;
+  dictionary: { id: string; kind: 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept'; name: string; meaning: string; aliases: string[] }[];
+};
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
+  workflow?: DeliveryWorkflow;
   orderId: string;
   /** Ink v2 wave 5 (5A1, playbooks/kit/chain.ts): the chain stage this run drafts, when the order is past its first; absent is stage 1. */
   chainStage?: number;
@@ -6261,6 +6268,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'CLIENT_BALANCE_REQUIRED', 'CLIENT_LEDGER_REQUIRED', 'PLAYBOOK_ROUTE_INVALID', 'PLAYBOOK_WORKFLOW_CHANGED',
   'PANEL_APPROVAL_REQUIRED', 'PANEL_NOT_FOUND', 'PANEL_ORDER_REQUIRED', 'SITE_CHECK_DESKTOP_ONLY', 'SITE_CHECK_INVALID',
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',

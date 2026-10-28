@@ -15,5 +15,14 @@
       "linkedin-desk",
       "community-report"
     ]
+  },
+  {
+    "id": "bookkeeping-cfo",
+    "offers": [
+      "collections-desk",
+      "cfo-pack",
+      "decision-memo",
+      "money-checkup"
+    ]
   }
 ]

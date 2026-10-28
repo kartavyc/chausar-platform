@@ -22,6 +22,7 @@ const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', 
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
 export interface WorkHost {
+  fingerprint?(bytes: string): string;
   current(): string;
   now(): string;
   /** The open business's clients and plan. */
@@ -68,12 +69,28 @@ export class FakeWorkDesk {
   private deliveries: Record<string, DeliveryLite[]>;
   private uploads: Record<string, UploadLite[]>;
   private seq = 0;
+  private readonly fileFingerprints = new Map<string, string>();
+  private readonly fileContents = new Map<string, string>();
 
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
     this.orders = options.fresh ? {} : clone(ORDERS);
     this.deliveries = options.fresh ? {} : clone(DELIVERIES);
     this.uploads = options.fresh ? {} : clone(UPLOADS);
+  }
+
+  /** Internal byte fingerprint for source-bound fake media; file metadata is never a substitute. */
+  uploadFingerprint(biz: string, id: string): string | null {
+    return this.uploads[biz]?.some(file => file.id === id) ? this.fileFingerprints.get(biz + ':' + id) ?? null : null;
+  }
+
+  /** Internal source bytes scoped to an existing order. Public file views never expose these words. */
+  orderFiles(biz: string, orderId: string): { id: string; name: string; format: UploadLite['format']; contentBase64: string; digest: string }[] {
+    if (!this.orders[biz]?.some(order => order.id === orderId && this.host.clients().some(client => client.id === order.clientId))) return [];
+    return (this.uploads[biz] ?? []).filter(file => (file.scope.kind === 'order' || file.scope.kind === 'media') && file.scope.orderId === orderId).flatMap(file => {
+      const contentBase64 = this.fileContents.get(biz + ':' + file.id);
+      return contentBase64 === undefined ? [] : [{ id: file.id, name: file.name, format: file.format, contentBase64, digest: this.uploadFingerprint(biz, file.id) ?? contentBase64 }];
+    });
   }
 
   handles(method: string): boolean {
@@ -250,11 +267,15 @@ export class FakeWorkDesk {
       if (!real) throw new EngineError('UNSUPPORTED_UPLOAD', media === 'image' ? `${name} is not a photo Chausar can read. Export it again as JPEG, PNG or WebP.` : `${name} is not a recording Chausar can keep. Add a WAV, MP3, M4A or Ogg file.`);
       if (list.filter((u) => u.scope.kind === 'media' && u.scope.orderId === order.id).length >= 10) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most 10 photos and recordings.');
       const kept: UploadLite = { id: intakeId ?? `u-new-${++this.seq}`, at: this.host.now(), name, format: media, bytes, scope: { kind: 'media', orderId: order.id }, clientData: true };
+      this.fileContents.set(biz + ':' + kept.id, encoded);
+      if (this.host.fingerprint) this.fileFingerprints.set(biz + ':' + kept.id, this.host.fingerprint(atob(encoded)));
       list.unshift(kept);
       return clone(kept);
     }
     if (list.filter((u) => u.scope.kind === 'order' && u.scope.orderId === order.id).length >= MAX_UPLOADS_PER_ORDER) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most ten files.');
     const upload: UploadLite = { id: intakeId ?? `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true, ...(origin ? { origin } : {}) };
+    this.fileContents.set(biz + ':' + upload.id, encoded);
+    if (this.host.fingerprint) this.fileFingerprints.set(biz + ':' + upload.id, this.host.fingerprint(atob(encoded)));
     list.unshift(upload);
     return clone(upload);
   }

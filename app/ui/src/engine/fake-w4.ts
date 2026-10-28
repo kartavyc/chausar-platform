@@ -35,6 +35,7 @@ import { FAKE_4J2_METHODS, FakeSets, fakeDeliveryCopy } from './fake-4j2';
 import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19';
 
 export interface W4DeskHost {
+  orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
   current(): string;
   now(): string;
   emit(event: VentureRunEvent): void;

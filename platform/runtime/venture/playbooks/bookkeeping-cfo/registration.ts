@@ -1,7 +1,8 @@
-// Chausar playbook: Bookkeeping and CFO help (Ink v2 wave 5, package 5K1). The registry entry, with no runtime imports.
-// Package 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id
-// ('bookkeeping-cfo'), label, service type, picks, summary, risk level and review day (the plan's "Registration" line).
-// Written for Chausar; nothing here is learned from an outside source.
+// Registration for finance-skills, cfo and bankmcp inspired work (MIT ideas); original Chausar data.
 import type { PlaybookRegistration } from '../registry.ts';
-
-export const BOOKKEEPING_CFO_REGISTRATION: PlaybookRegistration | null = null;
+export const BOOKKEEPING_CFO_REGISTRATION: PlaybookRegistration = {
+  id: 'bookkeeping-cfo', label: 'Bookkeeping and CFO help', serviceType: 'consulting',
+  picks: ['bookkeeping service', 'collections desk', 'cfo on demand', 'bookkeeping and cfo', 'monthly finance pack'],
+  summary: 'Agents prepare collections drafts, cash packs and spending checks from client files; you approve each report and your client sends every reminder.',
+  riskLevel: 'high', lastReviewed: '2026-10-27',
+};

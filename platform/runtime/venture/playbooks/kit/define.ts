@@ -8,7 +8,7 @@
 // here is learned from an outside source.
 import { ChausarError } from '../../../contracts.ts';
 import { DEPARTMENT_IDS, TOOL_NAMES } from '../../contracts.ts';
-import type { DepartmentId, IsoDate, PlaybookCheckResult, PlaybookStep, PricingModel, WayCategory } from '../../contracts.ts';
+import type { DepartmentId, IsoDate, OrderIntake, PlaybookCheckResult, PlaybookStep, PricingModel, WayCategory } from '../../contracts.ts';
 import type { ApprovalBlockId } from '../../onboarding-contracts.ts';
 import type { RightsBasis } from '../../delivery/rights.ts';
 import type { RuleFloor } from '../../delivery/judge/rules.ts';
@@ -47,6 +47,8 @@ export type KitOffer = {
   price: 'owner-sets';
   /** The step ids the offer runs, in order; with more than one run, the chain (5A1 kit/chain.ts) carries them across runs. */
   stages: readonly string[];
+  /** Allowed typed work inside each run, separate from its chain of writing artifacts. */
+  workflow?: readonly string[];
   includes: readonly string[];
   /** At least one offer of every kit playbook can be offered as a paid pilot (5A2 pilotOf). */
   pilotable: boolean;
@@ -237,6 +239,8 @@ export type PlaybookDefinition = {
   planPicks: KitPlanPicks;
   /** The writing step for an order on this offer. */
   draftStep(offerId: string | null): string;
+  /** Optional typed workflow selector, evaluated once at run start and pinned with its approvals. */
+  routeSteps?(offerId: string, intake: OrderIntake | null): readonly string[];
   startTile: StartTile;
   scope: KitScope;
   /** What is never built for this playbook, in plain words. */

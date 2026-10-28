@@ -216,6 +216,7 @@ export class FakeEngine {
       hosted: () => this.hosted,
     }, { fresh });
     this.work = new FakeWorkDesk({
+      fingerprint: digestOf,
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
       plan: () => this.desk.request('venture.blueprint.get', {}) as BlueprintViewLite | null,
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
@@ -238,6 +239,7 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
       ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),

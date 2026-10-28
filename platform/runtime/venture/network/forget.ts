@@ -327,6 +327,11 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
       case 'venture-proposal': return options.erase && (mentionsId(JSON.stringify(record.input ?? null)) || mentionsName(record.title) || mentionsName(record.line));
       // Ink v2 wave 5 (5A2): a sales proposal drafted for them (playbooks/kit/proposal.ts) goes as their drafts do, on an
       // Undo too; Forget also takes one drafted for their client and any whose words name them.
+      // 5K1: client-linked promises retain contact words and disappear on Forget.
+      case 'venture-promise-to-pay': case 'venture-collection-stage': return options.erase
+        && ((typeof record.clientId === 'string' && people.some(person => person.clientId === record.clientId))
+          || mentionsName(record.statedBy) || mentionsName(JSON.stringify(record.ladder ?? null))
+          || (typeof record.statedBy === 'string' && [...emails, ...phones].some(contact => String(record.statedBy).toLowerCase().includes(contact.toLowerCase()))));
       case 'venture-sales-proposal': return (typeof record.personId === 'string' && ids.has(record.personId))
         || (options.erase && ((typeof record.clientId === 'string' && people.some(person => person.clientId === record.clientId))
           || mentionsName(record.toName) || mentionsName(record.text)));

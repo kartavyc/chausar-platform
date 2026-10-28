@@ -577,3 +577,8 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 
 - Registers seo-visibility with visibility-check, quarterly-remeasure and website-check offers, owner-set prices, report delivery, diagnosis, separate search/training crawler access, source-bound frozen answer panels, website report approval and bounded monitoring. Count receipts, missing-evidence denominators, honest installed-checker/manual paths and English/Hindi owner screens are included. Monthly article, publishing, strategy and local SEO work remain for 5E2.
 - Prior independent spec and quality PASS was recorded in the takeover checkpoint. The isolated HEAD plus 5E1 reconstruction passes both typechecks and 26 focused engine tests. The commit candidate preserves only its five baseline cases, E1 metadata and shared intake words. This reconstruction is not a fresh whole-package review, visual PASS or batch gate.
+
+## 5K1 implementation and review closure
+
+- Registers monthly books, collections, CFO packs, decision memos and spending-only checkups. Client debtor ledgers remain isolated from the service business; promises and owner-edited ladders use code, reminders stay with the client, all calculated money has receipts. Dynamic question workflows are pinned per run without changing the business playbook. English/Hindi collections screens and exact fake onboarding are included. Accounting posting and setup remain for 5K2.
+- Earlier independent spec and quality PASS is recorded in the takeover checkpoint. The isolated commit reconstruction retains the five K1 source-executed baseline cases and their adversarial source tests. This staging validation does not claim a new whole-package, visual or batch acceptance.

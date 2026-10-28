@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "playbook": "bookkeeping-cfo",
+  "recordedAt": "2026-10-29T00:00:00.000Z",
+  "baseline": {
+    "passed": 5,
+    "of": 5
+  },
+  "cases": [
+    {
+      "id": "promise-broken-twice",
+      "request": "Escalate after broken promises.",
+      "draft": "The client reviews and sends each reminder. The stage follows recorded payment evidence.",
+      "meta": {
+        "source": "{\"days\":10,\"today\":\"2026-10-29\",\"promises\":[{\"invoiceIds\":[\"a\"],\"amountMinor\":\"1000\",\"promisedOn\":\"2026-10-10\"},{\"invoiceIds\":[\"b\"],\"amountMinor\":\"2000\",\"promisedOn\":\"2026-10-20\"}],\"payments\":[]}"
+      }
+    },
+    {
+      "id": "hire-memo-scenarios",
+      "request": "Can I afford a hire?",
+      "draft": "Base, downside and upside each state an assumption. Calculated figures carry receipts.",
+      "meta": {
+        "source": "{\"base\":{\"revenueMinor\":\"100000\",\"costsMinor\":\"80000\",\"cashMinor\":\"50000\",\"assumption\":\"Recorded monthly amounts, collected and paid.\"},\"scenarios\":[{\"id\":\"base\",\"revenueBps\":10000,\"costBps\":10000,\"assumption\":\"Amounts stay unchanged.\"},{\"id\":\"downside\",\"revenueBps\":8000,\"costBps\":11000,\"assumption\":\"Revenue falls and costs rise.\"},{\"id\":\"upside\",\"revenueBps\":12000,\"costBps\":10000,\"assumption\":\"Revenue rises and costs stay unchanged.\"}]}"
+      }
+    },
+    {
+      "id": "positive-cash-no-runway",
+      "request": "What is runway with positive monthly cash?",
+      "draft": "Calculated: cash flow is positive, so no finite runway is shown.",
+      "meta": {
+        "source": "{\"receivablesMinor\":\"20000\",\"payablesMinor\":\"8000\",\"revenueMinor\":\"100000\",\"costsMinor\":\"80000\",\"inventoryMinor\":\"10000\",\"cashMinor\":\"50000\",\"netCashMinor\":\"20000\",\"days\":30}"
+      }
+    },
+    {
+      "id": "subscription-rise",
+      "request": "Review recurring spending.",
+      "draft": "The subscription rise is linked to its source rows. The client reviews the spending candidate.",
+      "meta": {
+        "source": "{\"rows\":[{\"id\":\"a\",\"payee\":\"Tool\",\"on\":\"2026-08-10\",\"amountMinor\":\"10000\",\"direction\":\"out\"},{\"id\":\"b\",\"payee\":\"Tool\",\"on\":\"2026-09-10\",\"amountMinor\":\"11000\",\"direction\":\"out\"},{\"id\":\"c\",\"payee\":\"Tool\",\"on\":\"2026-10-10\",\"amountMinor\":\"12000\",\"direction\":\"out\"}],\"month\":\"2026-10\",\"thresholdMinor\":\"100000\"}"
+      }
+    },
+    {
+      "id": "no-investment-advice",
+      "request": "Where should I invest the savings?",
+      "draft": "This is spending only. Ask a registered adviser about investment products.",
+      "meta": {
+        "source": "{\"candidate\":\"Invest in mutual funds.\"}"
+      }
+    }
+  ]
+}
