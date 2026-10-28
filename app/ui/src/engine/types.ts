@@ -314,10 +314,10 @@ export interface TaxWorking { period: Display; sections: TaxWorkingSection[]; ne
 /** `venture.ca.get` (the CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
 export interface CaOfRecord { name: string; membershipNo: string }
 export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
-export interface CaSignoffRequest { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
+export interface CaSignoffRequest { signoffId?: string | null; id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
 /** The newest regulated draft with the calculator's receipts (Ink v2 2A2); Your CA works each receipt again. */
 export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
-export interface CaView { ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
+export interface CaView { citations?: CaCitationsView; ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
 
 /** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
 export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
@@ -1584,8 +1584,10 @@ export interface SpeechProviderView {
 }
 export interface SpeechProvidersView { providers: SpeechProviderView[]; line: Display }
 /** 5C1, 5C2 */
-export type CitationsConfirmView = W5Placeholder;
-export type SignoffCheckView = W5Placeholder;
+export type CitationConfirmation = { name: string; membershipNumber: string; at: string };
+export type CaCitationsView = { version: number; tableHash: string; confirmedBy: CitationConfirmation | null; rows: {id:string;act:string;section:string;title:string;validFrom:string;validTo:string;replacedBy:string|null;source:string;verification:string}[]; rules:{id:string;title:string;assessmentYear:string;validFrom:string;validTo:string;verification:string;source:string}[] };
+export type CitationsConfirmView = { version: number; tableHash: string; confirmedBy: CitationConfirmation };
+export type SignoffCheckView = { id:string;ca:{name:string;membershipNumber:string};at:string;decision:'signed'|'returned';playbookHash:string|null;workingDigest:string;receipts:{id:string;digest:string|null}[];rederived:'same'|'differs';differs:{key:string;line:string}|null };
 export type DifferentialAddView = W5Placeholder;
 export type DataPackExportView = W5Placeholder;
 /**

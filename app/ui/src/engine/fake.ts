@@ -1,3 +1,4 @@
+import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine for `npm run dev:ui` and for tests. It answers the same methods with the same shapes and keeps the
  * same rules the real engine keeps: decide once, refuse a stale digest and hand back the new version, refuse an
@@ -234,6 +235,7 @@ export class FakeEngine {
       ask: (method, p) => this.answerNow(method, p),
     });
     this.extras = new FakeExtrasDesk({
+      digest: digestOf,
       current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       playbook: (id) => this.desk.playbook(id), owed: () => this.money.owed(), hosted: () => this.hosted, emit: (event) => this.emit(event),
     }, { fresh });
@@ -998,7 +1000,7 @@ export class FakeEngine {
       starterConnectorIds: [],
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
-    const view = kit ? fakeKitPlan(kit, templateView) : templateView;
+    const view = kit ? fakeKitPlan(kit, templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : templateView;
     this.desk.putBlueprint(business.id, view);
     return view;
   }

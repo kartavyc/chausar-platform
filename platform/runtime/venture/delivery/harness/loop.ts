@@ -1,3 +1,4 @@
+import { caNamedTokens } from '../../playbooks/ca-firm/draft-references.ts';
 // Chausar delivery harness: the bounded agent loop. Act turns on the cheap tier call tools; a write step on the main
 // tier writes the reply with tools off. Limits: turns, tool calls, calls per turn and spend. Older tool results
 // shrink to stubs so each turn costs about the same. When a limit is reached the write step is forced and must say
@@ -696,11 +697,13 @@ export function writeTask(ctx: WriteContext, state: HarnessState, receipts: read
   };
   const guidance = ctx.draft ? [...ctx.draft.guidance] : writeGuidance(ctx.playbook);
   if (guidance.length) input.guidance = guidance;
+  if(ctx.playbook.steps.some(step=>step.tools?.includes('tax.formChooser')))input.namedReferences=caNamedTokens(state.toolCalls,ctx.files);
   if (forced) input.stopped = state.stopReason;
   if (ctx.worked?.tables.length) input.worked = { note: WORKED_NOTE, tables: ctx.worked.tables };
   // Counts and amounts from the client's files have work receipts, so here a model number is still refused. Only a
   // chapter time code worked out in this run may begin a text part, under the chapters heading.
-  const context = { serviceType: ctx.serviceType, refs, allowed: ctx.allowed, sections, numbers: 'refuse' as const, times: ctx.worked?.times ?? null };
+  const caNames=ctx.playbook.steps.some(step=>step.tools?.includes('tax.formChooser'))?caNamedTokens(state.toolCalls,ctx.files):[];
+  const context = { serviceType: ctx.serviceType, refs, allowed: [...ctx.allowed,...caNames], sections, numbers: 'refuse' as const, times: ctx.worked?.times ?? null };
   return {
     purpose: 'delivery', instructions: withOwnerWords(withAwaiting(withKnowledge(instructions, { knowledge: ctx.writeKnowledge }), state, input), state, input), input, schemaName: 'venture-delivery', schema: deliverySchema(ctx.serviceType, sections),
     validate: raw => withAttachments(validateDraft(raw, context), attached),

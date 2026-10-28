@@ -1,3 +1,4 @@
+import { caIntakeFields } from './ca-firm/intake-fields.ts';
 // Chausar flagship playbooks: what each one puts on the plan (playbook wiring, design 7.8). When an idea picks a flagship
 // playbook (registry.ts), the instant plan, the template plan, the plan the AI rewrites and the plan the AI composes all
 // take these words instead of the base service type's template words: the playbook's label, its summary as the one
@@ -46,7 +47,7 @@ export type FlagshipPlan = {
   connectors: readonly string[];
 };
 
-type Source = { key: string; name: string; description: string; model: PricingModel; rights?: readonly RightsBasis[] };
+type Source = { key: string; name: string; description: string; model: PricingModel; rights?: readonly RightsBasis[]; intake?: readonly KitIntakeField[] };
 type Picks = {
   offers: readonly { key: string; block: OfferBlockId }[];
   approvals: readonly { key: string; block: ApprovalBlockId }[];
@@ -64,7 +65,7 @@ function build(registration: PlaybookRegistration, offers: readonly Source[], ap
     oneLiner: registration.summary,
     offers: Object.freeze(picks.offers.map(pick => {
       const offer = offers.find(item => item.key === pick.key) ?? fail(`The ${registration.id} playbook has no offer ${pick.key}.`);
-      return Object.freeze({ key: offer.key, name: offer.name, description: offer.description, model: offer.model, block: pick.block, rights: Object.freeze([...(offer.rights ?? [])]) });
+      return Object.freeze({ key: offer.key, name: offer.name, description: offer.description, model: offer.model, block: pick.block, rights: Object.freeze([...(offer.rights ?? [])]), ...(offer.intake ? { intake: offer.intake } : {}) });
     })),
     approvals: Object.freeze(picks.approvals.map(pick => {
       const approval = approvals.find(item => item.key === pick.key) ?? fail(`The ${registration.id} playbook has no approval ${pick.key}.`);
@@ -78,12 +79,12 @@ const registration = (id: string) => PLAYBOOK_REGISTRY.find(entry => entry.id ==
 
 const CA_FIRM_PLAN = build(
   registration(CA_FIRM_ID),
-  CA_OFFERS.map(offer => ({ key: offer.id, name: offer.name, description: offer.description, model: offer.pricing })),
+  CA_OFFERS.map(offer => ({ key: offer.id, name: offer.name, description: offer.description, model: offer.pricing, intake: caIntakeFields(offer.id) })),
   CA_APPROVALS.map(item => ({ key: item.id, words: item.words })),
   CA_CONNECTORS.map(item => item.id),
   {
     // The three offers a new firm starts with; the other regulated offers and the CA's own work are added later.
-    offers: [{ key: 'monthly-books', block: 'retainer' }, { key: 'gst-working', block: 'retainer' }, { key: 'itr-salaried', block: 'one-off-project' }],
+    offers: [{ key: 'monthly-books', block: 'retainer' }, { key: 'gst-working', block: 'retainer' }, { key: 'itr-salaried', block: 'one-off-project' }, ...CA_OFFERS.filter(offer => ['itr-form-and-regime','itr-computation-only','itr-check-draft','itr-checklist','check-return-elsewhere','advance-tax-freelancer','tax-question-desk'].includes(offer.id)).map(offer => ({key:offer.id,block:(offer.pricing==='monthly'?'retainer':'one-off-project') as OfferBlockId}))],
     approvals: [
       { key: 'owner-approves-draft', block: 'each-draft' }, { key: 'ca-signs-regulated', block: 'each-draft' },
       { key: 'ca-confirms-rates', block: 'prices-invoices' }, { key: 'human-files', block: 'posts-in-your-name' },

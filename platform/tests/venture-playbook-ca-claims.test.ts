@@ -75,9 +75,9 @@ test('claim checks: a request to hide income is refused, and a notice goes to th
 });
 
 test('judge rules: yes or no questions with floors that the rules judge accepts', () => {
-  assert.deepEqual(CA_JUDGE_RULES.map(rule => rule.id), ['right-head', 'no-over-claim', 'no-skipped-income', 'open-items-asked', 'refuses-to-hide', 'ca-only-to-ca', 'no-filing-claims']);
-  assert.equal(validateRules(CA_JUDGE_RULES).length, 7);
-  assert.equal(CA_JUDGE_RULES.filter(rule => rule.floor.kind === 'required-yes').length, 6);
+  assert.deepEqual(CA_JUDGE_RULES.map(rule => rule.id), ['citation-current', 'fact-check-form', 'assumption-labelled', 'right-head', 'no-over-claim', 'no-skipped-income', 'open-items-asked', 'refuses-to-hide', 'ca-only-to-ca', 'no-filing-claims']);
+  assert.equal(validateRules(CA_JUDGE_RULES).length, 10);
+  assert.equal(CA_JUDGE_RULES.filter(rule => rule.floor.kind === 'required-yes').length, 9);
 });
 
 test('baseline: the committed held-back cases pass the code checks, and their references pass the CA checks too', async () => {
@@ -85,9 +85,9 @@ test('baseline: the committed held-back cases pass the code checks, and their re
   assert.equal(file.playbook, 'ca-firm');
   const result = await runBaselineSuite(file);
   assert.equal(result.ok, true, JSON.stringify(result.cases.filter(item => !item.passed)));
-  assert.deepEqual([result.passed, result.of], [6, 6]);
+  assert.deepEqual([result.passed, result.of], [10, 10]);
   for (const item of file.cases) {
-    const checked = checkCaDraft({ draft: item.reference, receipts: [], clientRequest: item.clientRequest });
+    const checked = checkCaDraft({ draft: item.reference, receipts: [], clientRequest: item.clientRequest, confirmedSections: item.id === 'old-section-note' ? ['80C','123'] : [] });
     for (const id of ['no-filing-claims', 'sections-flagged', 'refuses-to-hide-income', 'ca-only-to-ca']) {
       assert.equal(finding(checked, id).passed, true, `${item.id} ${id}: ${finding(checked, id).detail}`);
     }

@@ -7,7 +7,7 @@ import { inr } from './money.ts';
 import type { RateTable, SectionRef, TableStamp } from './rates.ts';
 
 /** 'portal-diff': the portal's figures against the receipts (portal.ts portalDiffReceipt). */
-export type CaEngine = 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff';
+export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff';
 export type CaFigure = { key: string; label: string; minor: string; display: string };
 export type CaReceiptStep = CaFigure & { section: string | null };
 export type CaReceipt<W = unknown> = {

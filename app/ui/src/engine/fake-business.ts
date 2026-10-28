@@ -1,3 +1,4 @@
+import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine's answers for Connections and the business menu: Your AI (venture.models.* in a business,
  * venture.ai.* before one exists), plan and playbook (venture.blueprint.get and .update), prices (venture.price.quote)
@@ -90,6 +91,7 @@ export class FakeBusinessDesk {
     this.draftAi = clone(DRAFT_AI_STATUS);
     this.blueprints = options.fresh ? {} : clone(BLUEPRINTS);
     for (const [id, view] of Object.entries(this.blueprints)) if (view.blueprint.status === 'accepted') this.keepAccepted(id, view.blueprint);
+    for (const [id, view] of Object.entries(this.blueprints)) if (view.playbook?.id === 'ca-firm') this.blueprints[id] = fakeCaPlan(view, true);
     this.builds = options.fresh ? {} : clone(BUILDS);
     this.receipts = clone(OFFER_RECEIPTS);
   }

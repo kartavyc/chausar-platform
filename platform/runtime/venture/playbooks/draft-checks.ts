@@ -1,3 +1,5 @@
+import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
+import { questionNoteFromDraft } from './ca-firm/question-desk.ts';
 // Chausar flagship playbooks: their own checks on a draft (playbook wiring, design 7.5 and 7.8). Code only, no model.
 // The delivery run and the rehearsal run these after the harness checks (delivery/runs.ts, delivery/simulate.ts) and
 // keep the results on the run as playbookChecks; a failed one blocks Accept and fails a practice episode. A check that
@@ -28,7 +30,7 @@ import { transcriptCues, type FileLike } from '../delivery/harness/files.ts';
 import { deliverableWords } from '../delivery/judge/claim-check.ts';
 import type { JudgeRule } from '../delivery/judge/rules.ts';
 import { CA_DRAFT_SECTIONS, CA_OFFERS } from './ca-firm/playbook.ts';
-import { checkCaDraft, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
+import { checkCaDraft, citedSections, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
 import type { CaReceipt } from './ca-firm/receipt.ts';
 import type { Difference, ReconcileWorking, Tie } from './ca-firm/reconcile.ts';
 import { portalDiffExplained } from './ca-firm/stored-receipt.ts';
@@ -85,6 +87,7 @@ export type FlagshipCheckInput = {
   /** The run's tool calls with their envelopes, for checks that read what a tool refused (NOT_MODELLED). */
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
+  caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
 };
 
@@ -434,6 +437,50 @@ function caChecks(input: FlagshipCheckInput): CaResult[] {
   const results: CaResult[] = findings.map(item => (!usesTables && (item.check === 'rates-confirmed' || item.check === 'rates-in-window')
     ? { check: item.check, outcome: 'not-run' as const, detail: 'not run: the draft rests on no tax working with a rate table.' }
     : { check: item.check, outcome: item.passed ? 'pass' as const : 'fail' as const, detail: item.detail }));
+  const words = caDraftWords(input);
+  const citationCall = [...(input.toolCalls ?? [])].reverse().find(call => call.tool === 'tax.citations' && call.envelope.ok);
+  const citationResult = citationCall?.envelope.ok ? citationCall.envelope.result as Record<string, unknown> : null;
+  const hasReferences = citationReferences(words).length > 0;
+  const incomeDate = typeof input.intake?.fields?.incomeDate === 'string' ? input.intake.fields.incomeDate : receipts.flatMap(receipt=>receipt.tables).find(table=>table.id.includes('income'))?.validFrom;
+  let citationPassed = !hasReferences;
+  let citationDetail = 'Check this exact draft against the current CA-confirmed citations table, including the dated renumbering note.';
+  if (hasReferences && incomeDate) try {
+    const checked=checkCitations({draft:words,incomeDate},input.caCitationUse??{mode:input.mode,confirmedBy:null});
+    citationPassed=checked.passed;citationDetail=checked.findings.filter(row=>!row.passed).map(row=>row.detail).join(' ');
+  } catch(error) { citationDetail=error instanceof Error?error.message:citationDetail; }
+  const previousSectionCheck = results.find(row=>row.check==='sections-flagged');
+  if(previousSectionCheck){previousSectionCheck.outcome=citationPassed?'pass':'fail';previousSectionCheck.detail=citationPassed?'Every section passed the dated citation register.':citationDetail;}
+  results.push({check:'citations-current',outcome:citationPassed?'pass':'fail',detail:citationPassed?'No unchecked section references remain.':citationDetail});
+  if(input.offerKey==='itr-form-and-regime'){
+    const call=[...(input.toolCalls??[])].reverse().find(row=>row.tool==='tax.formChooser'&&row.envelope.ok);
+    const choice=call?.envelope.ok?call.envelope.result as Record<string,any>:null;
+    const passed=!!choice&&typeof choice.form==='string'&&words.includes(choice.form)&&choice.regime?.allowed===true;
+    results.push({check:'form-choice',outcome:passed?'pass':'fail',detail:passed?'The draft uses the dated form choice and an allowed regime.':'Run the dated form chooser and show its form with an allowed regime.'});
+  }
+  if (input.offerKey === 'tax-question-desk') {
+    const sources = input.files.flatMap((file,index)=> /law|act|statute|notification/i.test(file.name) ? [file.id, 'f'+(index+1)] : []);
+    if (input.mode === 'rehearsal' || input.caCitationUse?.confirmedBy) sources.push(...CITATION_TABLE.rows.map(row=>row.id));
+    const note = questionNoteFromDraft(input.deliverable,sources);
+    results.push({check:'fact-check-form',outcome:note.passed?'pass':'fail',detail:note.passed?'Each claim has a source and all fact-check sections are present.':note.problems.join(' ')});
+  }
+  if (input.offerKey === 'advance-tax-freelancer' || receipts.some(receipt=>receipt.engine==='advance-tax')) {
+    const labelled = /client.?s? (?:own )?(?:tax )?estimate|client-estimate/i.test(words) && /assumption|based on/i.test(words);
+    results.push({check:'assumption-labelled',outcome:labelled?'pass':'fail',detail:labelled?'The client estimate is explicitly an assumption.':'Label these instalments as based on the client estimate, an assumption rather than a fact.'});
+  }
+  if (input.offerKey === 'check-return-elsewhere' || input.offerKey === 'itr-check-draft') {
+    const comparisons=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='portal-diff');
+    const latest=comparisons.at(-1) as any;
+    const income=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='income-tax');
+    const rows=(latest?.ca?.working?.rows??[]) as {key:string;state:string;oursMinor:string|null;portalMinor:string|null;receiptId:string|null;rule?:string}[];
+    const fresh=!!latest?.ca?.inputs?.includeBothSides&&income.some(receipt=>rows.some(row=>row.receiptId===receipt.id));
+    const absent=rows.filter(row=>row.state!=='same').filter(row=>!input.deliverable.sections.some(section=>{
+      const text=section.parts.filter(part=>part.kind==='text').map(part=>part.text).join(' ');
+      const quoted=(key:string)=>section.parts.some(part=>part.kind==='figure'&&part.receiptId===latest.id&&part.figureKey===key);
+      return text.includes(row.rule??'No matching computed line. Ask the CA to identify the applicable rule.')&&(row.oursMinor===null?/missing|no matching/i.test(text):quoted('ours.'+row.key))&&(row.portalMinor===null?/missing|not supplied/i.test(text):quoted('return.'+row.key));
+    }));
+    const check=results.find(row=>row.check==='differences-listed')!;
+    if(!fresh||absent.length){check.outcome='fail';check.detail=!fresh?'Run a fresh income-tax computation and compare every typed return line.':'Show both receipt figures and the calculator rule for each return difference: '+absent.map(row=>row.key).join(', ')+'.';}
+  }
   results.push(notModelledRefused(input), gapsTie(matches));
   // The portal's figures against the receipts (tax.portal), each key as its newest comparison left it, with the CA's
   // explanations recorded so far; venture.ca.explainDiff works this check again on the run (ca-firm/signoff.ts).

@@ -1,0 +1,13 @@
+{
+  "pb-ca-firm.rules": "Tax rules to confirm",
+  "pb-ca-firm.review": "Review rules",
+  "pb-ca-firm.hold": "Your CA checks these dated rules before client work.",
+  "pb-ca-firm.confirmed": "Confirmed",
+  "pb-ca-firm.act": "Act {act}",
+  "pb-ca-firm.source": "Official source",
+  "pb-ca-firm.confirm": "Confirm these rules",
+  "pb-ca-firm.changed": "These rules changed. Review the current version.",
+  "pb-ca-firm.signature": "Stored sign-off",
+  "pb-ca-firm.same": "The signed receipts still agree.",
+  "pb-ca-firm.differs": "The signed receipts differ: {line}"
+}

@@ -18,6 +18,13 @@ import { caOfRecord, sentTo, signoffFor, signoffRequests, type SignoffSubject } 
 
 /** The words in an offer's name or description that make it one of the playbook's offers, in CA_OFFERS order. */
 const OFFER_WORDS: Readonly<Record<CaOfferId, RegExp>> = Object.freeze({
+  'itr-form-and-regime': /form and regime/i,
+  'itr-computation-only': /computation only/i,
+  'itr-check-draft': /check.*draft.*itr/i,
+  'itr-checklist': /itr checklist/i,
+  'check-return-elsewhere': /return prepared elsewhere/i,
+  'advance-tax-freelancer': /advance tax.*freelancer/i,
+  'tax-question-desk': /tax question/i,
   'monthly-books': /\b(books|bookkeeping|month close)\b/i,
   'gst-working': /\bgst(r)?\b/i,
   'itr-salaried': /\b(itr|income[ -]tax)\b/i,
@@ -28,11 +35,12 @@ const OFFER_WORDS: Readonly<Record<CaOfferId, RegExp>> = Object.freeze({
 });
 /** What each regulated offer's papers are, for the sign-off record. Every regulated offer has one. */
 const SUBJECT_OF: Partial<Record<CaOfferId, SignoffSubject>> = Object.freeze({
+  'itr-form-and-regime':'itr-data-pack', 'itr-computation-only':'itr-data-pack', 'itr-check-draft':'itr-data-pack', 'itr-checklist':'itr-data-pack', 'check-return-elsewhere':'itr-data-pack', 'advance-tax-freelancer':'itr-data-pack', 'tax-question-desk':'letter',
   'gst-working': 'gst-working', 'tds-working': 'tds-working', 'itr-salaried': 'itr-data-pack', 'itr-small-business': 'itr-data-pack',
   'notice-replies': 'letter', 'audit-support': 'audit-papers',
 });
 /** Which regulated offer wins when an offer's words match several: the CA's own work first, then the narrower one. */
-const PRIORITY: readonly CaOfferId[] = ['notice-replies', 'audit-support', 'tds-working', 'gst-working', 'itr-small-business', 'itr-salaried', 'monthly-books'];
+const PRIORITY: readonly CaOfferId[] = ['itr-form-and-regime', 'itr-computation-only', 'itr-check-draft', 'itr-checklist', 'check-return-elsewhere', 'advance-tax-freelancer', 'tax-question-desk', 'notice-replies', 'audit-support', 'tds-working', 'gst-working', 'itr-small-business', 'itr-salaried', 'monthly-books'];
 
 /** The CA firm offer an order's offer is, from its own words; null when none fits. */
 export function caOfferOf(offer: { name: string; description: string }): CaOffer | null {

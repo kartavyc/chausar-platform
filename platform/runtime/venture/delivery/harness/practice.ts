@@ -1,3 +1,4 @@
+import { CA_PRACTICE } from '../../playbooks/ca-firm/practice.ts';
 // Chausar delivery harness: made-up files for rehearsal. Chausar wrote them; no client sent them, so rehearsals stay
 // free of client data and run under standing consent. Bookkeeping has a clean month that balances and a messy one
 // (newest row first, two payments with no bill, one bill not paid); the clean month also has a sales register for a CA
@@ -75,6 +76,7 @@ function sourceScenario(scenario: Pick<Scenario, 'id' | 'serviceType' | 'source'
 
 /** A scenario's practice files: the service type's, or (Ink v2 wave 5, 5A1) a kit playbook's practice client's. */
 function filesOf(key: string): readonly PracticeFile[] {
+  if (key.startsWith('ca-firm-')) return CA_PRACTICE.find(row=>'ca-firm-'+row.id===key)?.files.map(file=>({name:file.name,content:file.text}))??[];
   if (Object.hasOwn(PRACTICE_FILES, key)) return PRACTICE_FILES[key];
   return kitPracticeClient(key)?.client.files.map(file => ({ name: file.name, content: file.text })) ?? [];
 }

@@ -32,13 +32,13 @@ test('registry: the CA firm is picked for its phrases and shows its human label,
 test('offers: monthly books need no CA; regulated offers wait for a CA of record; audit and notices stay with the CA', () => {
   assert.deepEqual(CA_OFFERS.map(offer => [offer.id, offer.regulated, offer.caOnly]), [
     ['monthly-books', false, false], ['gst-working', true, false], ['itr-salaried', true, false], ['itr-small-business', true, false],
-    ['tds-working', true, false], ['audit-support', true, true], ['notice-replies', true, true],
+    ['tds-working', true, false], ['audit-support', true, true], ['notice-replies', true, true], ['itr-form-and-regime', true, false], ['itr-computation-only', true, false], ['itr-check-draft', true, false], ['itr-checklist', true, false], ['check-return-elsewhere', true, false], ['advance-tax-freelancer', true, false], ['tax-question-desk', true, false],
   ]);
   const without = offersFor(null);
   assert.deepEqual(without.filter(item => item.available).map(item => item.offer.id), ['monthly-books']);
   assert.match(without.find(item => item.offer.id === 'gst-working')!.reason!, /CA of record/);
   const withCa = offersFor(validateCaOfRecord(CA));
-  assert.deepEqual(withCa.filter(item => item.available).map(item => item.offer.id), ['monthly-books', 'gst-working', 'itr-salaried', 'itr-small-business', 'tds-working', 'audit-support', 'notice-replies']);
+  assert.deepEqual(withCa.filter(item => item.available).map(item => item.offer.id), ['monthly-books', 'gst-working', 'itr-salaried', 'itr-small-business', 'tds-working', 'audit-support', 'notice-replies', 'itr-form-and-regime', 'itr-computation-only', 'itr-check-draft', 'itr-checklist', 'check-return-elsewhere', 'advance-tax-freelancer', 'tax-question-desk']);
   assert.match(withCa.find(item => item.offer.id === 'notice-replies')!.reason!, /only gather/);
   for (const offer of CA_OFFERS.filter(item => item.regulated)) assert.ok(offer.filedBy && !/chausar|agent/i.test(offer.filedBy), offer.id);
 });

@@ -3,15 +3,16 @@
 // Chausar; nothing here is learned from an outside source.
 
 /** venture-ca-citations: the citations table and its confirmation, a placeholder until 5C1 lands. */
-export type CaCitationsBody = { placeholder: true };
+export type CaCitationsView = { version: number; tableHash: string; rows: import('./citations.ts').CitationRow[]; rules: { id: string; title: string; assessmentYear: string; validFrom: string; validTo: string; verification: string; source: string }[]; confirmedBy: import('./citations.ts').CitationConfirmation | null };
+export type CaCitationsBody = { version: number; tableHash: string; confirmedBy: { name: string; membershipNumber: string; at: string } };
 /** venture-ca-differential: one case captured from the department's calculator, a placeholder until 5C2 lands. */
 export type CaDifferentialBody = { placeholder: true };
 /** venture-ca-data-pack: the ITR data pack, held encrypted, a placeholder until 5C2 lands. */
 export type CaDataPackBody = { placeholder: true };
 /** venture.ca.confirmCitations's answer (5C1). */
-export type CitationsConfirmView = { placeholder: true };
+export type CitationsConfirmView = CaCitationsBody;
 /** venture.ca.signoff.get's answer: same, or the first difference (5C1). */
-export type SignoffCheckView = { placeholder: true };
+export type SignoffCheckView = { id: string; ca: { name: string; membershipNumber: string }; at: string; decision: 'signed' | 'returned'; playbookHash: string | null; workingDigest: string; receipts: { id: string; digest: string | null }[]; rederived: 'same' | 'differs'; differs: { key: string; line: string } | null };
 /** venture.ca.differential.add's answer (5C2). */
 export type DifferentialAddView = { placeholder: true };
 /** venture.ca.dataPack.export's answer (5C2). */

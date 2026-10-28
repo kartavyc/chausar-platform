@@ -1,0 +1,13 @@
+{
+  "pb-ca-firm.rules": "पुष्टि के लिए कर नियम",
+  "pb-ca-firm.review": "नियम देखें",
+  "pb-ca-firm.hold": "क्लाइंट का काम शुरू करने से पहले आपके सीए इन तारीख़ वाले नियमों की जाँच करते हैं।",
+  "pb-ca-firm.confirmed": "पुष्ट",
+  "pb-ca-firm.act": "अधिनियम {act}",
+  "pb-ca-firm.source": "आधिकारिक स्रोत",
+  "pb-ca-firm.confirm": "इन नियमों की पुष्टि करें",
+  "pb-ca-firm.changed": "नियम बदल गए हैं। नया वर्ज़न देखें।",
+  "pb-ca-firm.signature": "सेव की हुई मंज़ूरी",
+  "pb-ca-firm.same": "मंज़ूर रसीदें अब भी मेल खाती हैं।",
+  "pb-ca-firm.differs": "मंज़ूर रसीदों में अंतर है: {line}"
+}

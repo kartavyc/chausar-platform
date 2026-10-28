@@ -2992,10 +2992,10 @@ export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorki
 export interface TaxWorkingView { period: Display; sections: TaxWorkingSection[]; needsCaConfirmation: boolean }
 /** venture.ca.get (the AI-native CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
 export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
-export interface CaRequestView { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
+export interface CaRequestView { signoffId?: string | null; id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
 /** The newest regulated draft a run made with the calculator's receipts (Ink v2 2A2): its run, its title and those receipts. */
 export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
-export interface CaFirmView { ca: { name: string; membershipNo: string } | null; pendingRates: CaPendingRate[]; requests: CaRequestView[]; latestPapers: CaLatestPapers | null }
+export interface CaFirmView { citations?: import('./playbooks/ca-firm/records.ts').CaCitationsView; ca: { name: string; membershipNo: string } | null; pendingRates: CaPendingRate[]; requests: CaRequestView[]; latestPapers: CaLatestPapers | null }
 /**
  * venture.share.*: a read-only preview link for a client. url is null when no public address is set; reason says why.
  * answer: the client's answer on this link, given through it or recorded by the owner (Ink v2 wave 2); absent until one.
@@ -5116,7 +5116,7 @@ export type CaFirmRecord = RecordBase<'venture-ca-firm'> & (
   | { entry: 'ca-of-record'; name: string; membershipNumber: string; firmName: string | null; firmRegistrationNumber: string | null }
   | { entry: 'signoff-request'; subjectKind: 'gst-working' | 'tds-working' | 'itr-data-pack' | 'letter' | 'audit-papers'; title: string; clientName: string | null; workingDigest: string; receiptIds: string[]; playbookHash: string | null; /** The delivery run whose draft the papers are; absent on requests made outside a run. */ deliveryId?: string | null }
   | { entry: 'sent-to-ca'; itemKey: string; caName: string; membershipNumber: string; sentBy: string }
-  | { entry: 'signoff'; requestId: string; decision: 'signed' | 'returned'; caName: string; membershipNumber: string; workingDigest: string; receiptIds: string[]; playbookHash: string | null; note: string | null; recordedBy: string }
+  | { entry: 'signoff'; receiptDigests?: { id: string; digest: string | null }[]; requestId: string; decision: 'signed' | 'returned'; caName: string; membershipNumber: string; workingDigest: string; receiptIds: string[]; playbookHash: string | null; note: string | null; recordedBy: string }
   | { entry: 'rate-confirmation'; tableId: string; tableVersion: number; tableHash: string; caName: string; membershipNumber: string; recordedBy: string }
   /** The CA of record's explanation of one portal difference on a stored portal-diff receipt (Ink v2 2A2); the newest per key wins. */
   | { entry: 'diff-explanation'; receiptId: string; key: string; note: string; caName: string; membershipNumber: string; recordedBy: string }

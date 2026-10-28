@@ -314,5 +314,5 @@ export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps
   // Ink v2 wave 5 (5A1): a kit chain order drafts its stage's step (playbooks/kit/chain.ts).
   const id = own.draftStep(offerKey, stage);
   const step = playbook.steps.find(item => item.id === id && item.kind === 'write') ?? playbook.steps.find(item => item.kind === 'write');
-  return step && step.requiredSections.length ? { stepId: step.id, sections: [...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake)] } : null;
+  return step && step.requiredSections.length ? { stepId: step.id, sections: playbook.flagship==='ca-firm'&&offerKey==='tax-question-desk'?[...step.requiredSections,'Supports','Conflicts','Unknowns','Coverage']:[...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake)] } : null;
 }

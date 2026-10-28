@@ -1,0 +1,653 @@
+[
+  {
+    "id": "monthly-books",
+    "name": "Monthly books",
+    "pricing": "monthly",
+    "unit": "per month",
+    "regulated": false,
+    "caOnly": false,
+    "description": "Bank and card statements and bills in; a month that ties to the statement, a short note and a list of open items out.",
+    "engines": [
+      "books-close",
+      "reconcile"
+    ],
+    "deliverables": [
+      "Month close against the statement",
+      "A short note for the client",
+      "Open items with their amounts"
+    ],
+    "filedBy": null,
+    "intake": null
+  },
+  {
+    "id": "gst-working",
+    "name": "GST working papers",
+    "pricing": "monthly",
+    "unit": "per return period",
+    "regulated": true,
+    "caOnly": false,
+    "description": "GSTR-1 and GSTR-3B working papers from the sales and purchase registers, with the GSTR-2B match and the cash to pay.",
+    "engines": [
+      "gst-working"
+    ],
+    "deliverables": [
+      "Output tax by rate and by head",
+      "B2B, B2CL and B2CS sections and the HSN summary",
+      "Credit found in GSTR-2B and credit held",
+      "Cash to pay by head"
+    ],
+    "filedBy": "The CA or the client, on the GST portal",
+    "intake": null
+  },
+  {
+    "id": "itr-salaried",
+    "name": "Income tax return preparation, salaried",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "description": "Form 16, AIS and 26AS to a computation under both regimes, a list of differences, and a data pack for the return.",
+    "engines": [
+      "income-tax",
+      "interest-234",
+      "reconcile"
+    ],
+    "deliverables": [
+      "Computation under the old and the new regime",
+      "AIS, 26AS and Form 16 against the books",
+      "Interest if the return is late",
+      "Data pack and checklist"
+    ],
+    "filedBy": "The client or the CA, on the income tax portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "itr-form-and-regime",
+    "name": "ITR form and regime",
+    "description": "Choose the return form and review the regime history.",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "income-tax"
+    ],
+    "deliverables": [
+      "Choose the return form and review the regime history."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "itr-computation-only",
+    "name": "ITR computation only",
+    "description": "Compute the return figures from typed client inputs.",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "income-tax"
+    ],
+    "deliverables": [
+      "Compute the return figures from typed client inputs."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "itr-check-draft",
+    "name": "Check a drafted ITR",
+    "description": "Recompute and compare a typed draft return, line by line.",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "income-tax",
+      "portal-diff"
+    ],
+    "deliverables": [
+      "Recompute and compare a typed draft return, line by line."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "itr-checklist",
+    "name": "ITR checklist",
+    "description": "Prepare the document and filing checklist for the CA. ",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [],
+    "deliverables": [
+      "Prepare the document and filing checklist for the CA. "
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "check-return-elsewhere",
+    "name": "Check a return prepared elsewhere",
+    "description": "Compare the typed external return with fresh calculator receipts and explain every difference.",
+    "pricing": "project",
+    "unit": "per return",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "income-tax",
+      "portal-diff"
+    ],
+    "deliverables": [
+      "Compare the typed external return with fresh calculator receipts and explain every difference."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "advance-tax-freelancer",
+    "name": "Advance tax working for freelancers",
+    "description": "Prepare dated cumulative instalments from the client estimate.",
+    "pricing": "project",
+    "unit": "per year",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "advance-tax"
+    ],
+    "deliverables": [
+      "Prepare dated cumulative instalments from the client estimate."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "tax-question-desk",
+    "name": "Tax question desk",
+    "description": "Prepare a source-backed Supports, Conflicts, Unknowns and Coverage note for the CA to sign.",
+    "pricing": "monthly",
+    "unit": "per month",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [],
+    "deliverables": [
+      "Prepare a source-backed Supports, Conflicts, Unknowns and Coverage note for the CA to sign."
+    ],
+    "filedBy": "The client or CA on the official portal",
+    "intake": [
+      {
+        "id": "incomeKinds",
+        "kind": "list",
+        "label": "Income sources",
+        "help": "Choose every source. The return form depends on the combination.",
+        "required": false,
+        "options": [
+          "salary",
+          "house-property",
+          "business",
+          "capital-gains",
+          "other"
+        ]
+      },
+      {
+        "id": "residency",
+        "kind": "choice",
+        "label": "Residency",
+        "help": "Simple return forms are limited to ordinarily resident taxpayers.",
+        "required": false,
+        "options": [
+          "resident",
+          "rnor",
+          "non-resident"
+        ]
+      },
+      {
+        "id": "regimeLastYear",
+        "kind": "choice",
+        "label": "Last year tax regime",
+        "help": "Past choices can limit how a business taxpayer switches regimes.",
+        "required": false,
+        "options": [
+          "old",
+          "new"
+        ]
+      },
+      {
+        "id": "hasBusinessIncome",
+        "kind": "yes-no",
+        "label": "Business or professional income",
+        "help": "Business income changes the form and regime switching rules.",
+        "required": false
+      },
+      {
+        "id": "incomeDate",
+        "kind": "date",
+        "label": "Income date",
+        "help": "The date decides which Act and section numbers apply.",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "text",
+        "label": "Further tax questions",
+        "help": "Second round: add technical facts or questions with the reason each matters. Leave facts already in your typed tables out.",
+        "required": false
+      }
+    ]
+  }
+]

@@ -20,7 +20,7 @@ import { screenUntrusted } from '../../policy/untrusted.ts';
 export const HINDI_REVIEW = 'machine-drafted, needs a native reviewer';
 
 /** The facts a CA calculator may be short of, in the order they are asked. */
-export const FACT_FIELDS = ['regime', 'residency', 'ageBand', 'income', 'filedOn', 'gstin', 'period', 'payeeKind', 'paymentDate'] as const;
+export const FACT_FIELDS = ['regime', 'residency', 'ageBand', 'income', 'filedOn', 'gstin', 'period', 'payeeKind', 'paymentDate', 'entity', 'houseProperties', 'presumptive', 'capitalGains', 'agriculture', 'formExclusions', 'regimeHistory', 'totalIncome', 'taxEstimate', 'taxCredits', 'businessIncome'] as const;
 export type FactField = typeof FACT_FIELDS[number];
 /** One missing fact; about: whom or what it is about, such as a payee's name, when there are several. */
 export type MissingFact = { field: FactField; about?: string };
@@ -28,6 +28,17 @@ export type FactsLanguage = 'en' | 'hi';
 
 /** How each fact is asked, as part of one sentence to the client. {about} is the payee it is about. No digits. */
 const ASK: Readonly<Record<FactField, Record<FactsLanguage, string>>> = Object.freeze({
+  entity: {"en":"whether you file as an individual, family or firm, to choose the return","hi":"रिटर्न चुनने के लिए आप व्यक्ति, परिवार या फर्म के रूप में दाखिल करते हैं"},
+  houseProperties: {"en":"how many house properties you own, because the form has a limit","hi":"आपके पास कितने मकान हैं, क्योंकि फॉर्म में इसकी सीमा है"},
+  presumptive: {"en":"whether your CA confirmed presumptive eligibility, which changes the form","hi":"आपके सीए ने अनुमानित कर पात्रता की पुष्टि की है या नहीं, इससे फॉर्म बदलता है"},
+  capitalGains: {"en":"the kind and total of capital gains, because simple forms have limits","hi":"पूंजीगत लाभ का प्रकार और कुल रकम, क्योंकि सरल फॉर्म में सीमा है"},
+  agriculture: {"en":"your agricultural income total, because the form has a limit","hi":"कृषि आय की कुल रकम, क्योंकि फॉर्म में सीमा है"},
+  formExclusions: {"en":"which form exclusions your CA checked, to avoid the wrong return","hi":"आपके सीए ने कौन से फॉर्म अपवाद जांचे, ताकि गलत रिटर्न न चुना जाए"},
+  regimeHistory: {"en":"last and wanted regimes and any switch back, because switching is limited","hi":"पिछली और चुनी कर व्यवस्था और वापस बदलाव का इतिहास, क्योंकि बदलाव सीमित हैं"},
+  totalIncome: {"en":"your total income, because simple forms have an income limit","hi":"आपकी कुल आय, क्योंकि सरल फॉर्म में आय की सीमा है"},
+  taxEstimate: {"en":"your annual tax estimate, to work out advance instalments","hi":"अग्रिम किस्त निकालने के लिए सालाना कर का अनुमान"},
+  taxCredits: {"en":"expected tax deductions, collections and relief, to avoid paying twice","hi":"अनुमानित कर कटौती, संग्रह और राहत, ताकि दोहरा भुगतान न हो"},
+  businessIncome: {"en":"whether you have business income, which changes the form and advance tax","hi":"कारोबार से आय है या नहीं, जिससे फॉर्म और अग्रिम कर बदलते हैं"},
   regime: { en: 'whether you chose the new tax regime or the old one for the year', hi: 'इस साल के लिए आपने नई टैक्स व्यवस्था चुनी या पुरानी' },
   residency: { en: 'whether you were resident in India for the year', hi: 'क्या इस साल आप भारत के निवासी थे' },
   ageBand: { en: 'your date of birth, so the right age band is used', hi: 'आपकी जन्मतिथि, ताकि सही उम्र वर्ग लगे' },
@@ -146,7 +157,18 @@ export function needsFactsHandoff(error: { code: string; message: string; detail
 
 /** The tool input fields that give each fact. A fact read from a table column (a payee's kind, a date) is the client's file. */
 export const FACT_INPUTS: Readonly<Partial<Record<FactField, readonly string[]>>> = Object.freeze({
-  regime: ['regime'], residency: ['residency'], ageBand: ['ageBand'], income: ['salary', 'otherIncome', 'businessIncome', 'presumptive'],
+  entity: ["facts.entity"],
+  houseProperties: ["facts.houseProperties"],
+  presumptive: ["facts.presumptive","estimate.presumptive"],
+  capitalGains: ["facts.capitalGains","facts.capitalGainsAmount"],
+  agriculture: ["facts.agriculture"],
+  formExclusions: ["facts.exclusions"],
+  regimeHistory: ["facts.regimeLastYear","facts.wantedRegime","facts.switchedBack"],
+  totalIncome: ["facts.totalIncome"],
+  taxEstimate: ["estimate.tax"],
+  taxCredits: ["estimate.tds","estimate.tcs","estimate.relief"],
+  businessIncome: ["facts.hasBusinessIncome","estimate.hasBusinessIncome"],
+  regime: ['regime'], residency: ['residency','facts.residency','estimate.residency'], ageBand: ['ageBand','estimate.ageBand'], income: ['salary', 'otherIncome', 'businessIncome', 'presumptive'],
   filedOn: ['filedOn'], gstin: ['gstin'], period: ['period'],
   // A payee's kind and a payment's date are read from table columns (tax.tds payments.payeeKind, payments.date).
   payeeKind: ['payments.payeeKind'], paymentDate: ['payments.date'],

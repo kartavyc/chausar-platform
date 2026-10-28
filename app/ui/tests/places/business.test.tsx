@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList } from '../../src/engine/types';
+import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList, type RulesListView } from '../../src/engine/types';
 import { lineDiff } from '../../src/places/business/SiteEdits';
 import { receiptMark } from '../helpers/ink-rules';
 
@@ -174,7 +174,7 @@ describe('Business: platform rules (2H)', () => {
     const client = createFakeClient(engine);
     const request = client.request.bind(client);
     let asked = 0;
-    let answer: () => Promise<unknown> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.' });
+    let answer: () => Promise<RulesListView> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] });
     client.request = ((method: string, params?: unknown) => {
       if (method !== 'venture.rules.list') return request(method as never, params as never);
       asked += 1;

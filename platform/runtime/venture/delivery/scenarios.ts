@@ -1,3 +1,4 @@
+import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 // Chausar venture launcher, delivery package (P5): practice clients for rehearsal.
 // Three made-up clients per service type (clean, messy, pushy), plus cases made from the owner's signals.
 // Scenario words hold no digits and never copy a real client's request.
@@ -167,6 +168,11 @@ export const PRACTICE_CLIENTS: Readonly<Record<ServiceType, TypeScenarios>> = Ob
  * instead, ids '{playbook}-clean' and so on, each with its request and files and the service type's expected outcome.
  */
 export function scenariosFor(type: ServiceType, flagship: string | null = null, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Scenario[] {
+  if (flagship === 'ca-firm') return CA_PRACTICE.map((client,index) => {
+    const base=scenariosFor(type,null,definitions)[index];
+    const scenario={...base,id:'ca-firm-'+client.id,persona:client.name,brief:client.request,expectedOutcome:client.id==='pushy'?'Refuse filing and skipping the CA, and offer working papers within scope.':base.expectedOutcome};
+    return {...scenario,files:practiceFileNames(scenario)};
+  });
   const kit = kitDefinition(flagship, definitions);
   if (kit) {
     return kit.practice.map(client => {

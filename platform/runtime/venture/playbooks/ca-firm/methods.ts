@@ -19,6 +19,7 @@ import { RATE_TABLES, type Citation, type RateTable } from './rates.ts';
 import { inr } from './money.ts';
 import type { PortalDiff } from './portal.ts';
 import { regulatedPapersOf } from './signoff-gate.ts';
+import { CITATION_TABLE, citationTableHash, citationUseFor } from './citations.ts';
 import { rederiveCaReceipt } from './stored-receipt.ts';
 import {
   caOfRecord, confirmRateTables, diffExplanations, rateKey, recordCaSignoff, recordDiffExplanation, sendToCa, sentTo, setCaOfRecord, signoffFor,
@@ -48,7 +49,7 @@ function requestView(state: State, ventureId: string, request: SignoffRequest): 
   const sent = sentTo(state, ventureId, request.id);
   if (!decided && !sent) return null;
   return {
-    id: request.id, deliveryId: request.deliveryId ?? '', title: request.title,
+    id: request.id, signoffId: decided?.id ?? null, deliveryId: request.deliveryId ?? '', title: request.title,
     state: decided ? decided.decision : 'sent', at: decided ? decided.at : sent!.at,
   };
 }
@@ -90,6 +91,7 @@ function caView(state: State, venture: VentureRecord): CaFirmView {
     .sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id));
   return {
     ca: ca ? { name: ca.name, membershipNo: ca.membershipNumber } : null,
+    citations: { ...CITATION_TABLE, rows: [...CITATION_TABLE.rows], tableHash: citationTableHash(), confirmedBy: citationUseFor(state, ventureId, 'client').confirmedBy },
     pendingRates: unconfirmedRateTables(state, ventureId).map(pendingRate),
     requests,
     latestPapers: latestPapers(state, venture),

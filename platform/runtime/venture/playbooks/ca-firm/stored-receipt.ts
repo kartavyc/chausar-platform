@@ -8,6 +8,7 @@
 import { ChausarError } from '../../../contracts.ts';
 import { digest } from '../../records.ts';
 import type { WorkReceiptRecord } from '../../contracts.ts';
+import { advanceTax, type AdvanceInput } from './advance-tax.ts';
 import { computeIncomeTax, type IncomeTaxInput } from './income-tax.ts';
 import { computeInterest234, type InterestInput } from './interest.ts';
 import { gstWorking, type GstWorkingInput } from './gst.ts';
@@ -22,6 +23,7 @@ export type Rederived = { rederived: 'same' | 'differs' | 'table-gone'; differs:
 
 /** Each engine, run on a stored receipt's inputs. The reconcile, month close and portal diff use no rate table. */
 const ENGINES: Readonly<Record<CaEngine, (inputs: unknown, use: RateUse) => CaReceipt>> = Object.freeze({
+  'advance-tax': (inputs, use) => advanceTax(inputs as AdvanceInput, use),
   'income-tax': (inputs, use) => computeIncomeTax(inputs as IncomeTaxInput, use),
   'interest-234': (inputs, use) => computeInterest234(inputs as InterestInput, use),
   'gst-working': (inputs, use) => gstWorking(inputs as GstWorkingInput, use),

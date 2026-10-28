@@ -1,3 +1,5 @@
+import { FAKE_CA_RULES } from './fake-ca-rules';
+import type { SignoffCheckView } from './types';
 /**
  * The fake engine's answers for the last screens, kept per business: Money at a glance (venture.money.overview), the
  * tax working (venture.tax.working), spend settings (venture.spend.policy.*), the CA firm page (venture.ca.*), leads
@@ -22,6 +24,7 @@ const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
 export interface ExtrasHost {
+  digest(value: unknown): string;
   current(): string;
   now(): string;
   businessName(id: string): string;
@@ -35,7 +38,7 @@ export interface ExtrasHost {
 
 const EXTRA_METHODS = new Set([
   'venture.money.overview', 'venture.tax.working', 'venture.spend.policy.get', 'venture.spend.policy.set',
-  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates', 'venture.ca.receipt', 'venture.ca.explainDiff',
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates', 'venture.ca.receipt', 'venture.ca.explainDiff',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend', 'venture.leads.block',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.share.create', 'venture.share.list', 'venture.share.revoke',
@@ -140,6 +143,8 @@ export class FakeExtrasDesk {
       case 'venture.tax.working': return this.taxWorking(biz);
       case 'venture.spend.policy.get': return this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz))));
       case 'venture.spend.policy.set': return this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p)));
+      case 'venture.ca.confirmCitations': return this.confirmCitations(biz,p);
+      case 'venture.ca.signoff.get': return this.storedSignoff(biz,p);
       case 'venture.ca.get': return clone(this.caOf(biz));
       case 'venture.ca.setOfRecord': return this.setCa(biz, p);
       case 'venture.ca.recordSignoff': return this.signoff(biz, p);
@@ -304,9 +309,28 @@ export class FakeExtrasDesk {
   // The CA firm
   // ---------------------------------------------------------------------------------------------------------------
 
+  private caSignatures: Record<string, Record<string, SignoffCheckView>> = {};
+  private confirmCitations(biz: string, p: Record<string, unknown>) {
+    if (Object.keys(p).some(key => !['version','membershipNo'].includes(key)) || p.version === undefined || p.membershipNo === undefined) throw invalid('Send only the version and CA membership number.');
+    if (p.version !== FAKE_CA_RULES.version) throw new EngineError('CITATIONS_STALE','Review the current citations table before confirming it.');
+    const view = this.caOf(biz);
+    if (!view.ca) throw new EngineError('CA_OF_RECORD_REQUIRED','Name your CA of record first.');
+    if (typeof p.membershipNo !== 'string' || p.membershipNo.replace(/\s+/g,'') !== view.ca.membershipNo) throw new EngineError('CA_NOT_OF_RECORD','Only your CA of record confirms this table.');
+    const confirmedBy={name:view.ca.name,membershipNumber:view.ca.membershipNo,at:this.host.now()};
+    view.citations={...clone(FAKE_CA_RULES),confirmedBy};
+    return {version:FAKE_CA_RULES.version,tableHash:FAKE_CA_RULES.tableHash,confirmedBy};
+  }
+  private storedSignoff(biz:string,p:Record<string,unknown>) {
+    if(Object.keys(p).some(key=>key!=='id') || (typeof p.id!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(p.id)))throw invalid('Send the stored sign-off id.');
+    const signed=this.caSignatures[biz]?.[p.id];
+    if(!signed)throw new EngineError('SIGNOFF_NOT_FOUND','That stored CA sign-off was not found.');
+    const differs=signed.receipts.map(snapshot=>{const current=this.caReceipts[biz]?.[snapshot.id];return !current||!snapshot.digest||this.host.digest(current)!==snapshot.digest?{key:snapshot.id,line:'This receipt is missing, changed or has no digest captured at signing.'}:current.rederived!=='same'?{key:snapshot.id,line:current.differs?.line??'This calculator receipt could not be re-derived.'}:null;}).find(Boolean)??null;
+    return clone({...signed,rederived:differs?'differs':'same',differs});
+  }
   private caOf(biz: string): CaView {
     if (this.host.playbook(biz)?.id !== 'ca-firm') return { ca: null, pendingRates: [], requests: [] };
     this.ca[biz] ??= { ca: null, pendingRates: [], requests: [] };
+    this.ca[biz].citations ??= clone(FAKE_CA_RULES);
     return this.ca[biz];
   }
 
@@ -346,6 +370,10 @@ export class FakeExtrasDesk {
     if (note.length > 500) throw invalid('A note is up to 500 characters.');
     request.state = 'signed';
     request.at = this.host.now();
+    request.signoffId = request.id + '_signed';
+    this.caSignatures[biz] ??= {};
+    const receiptIds=view.latestPapers?.deliveryId===request.deliveryId?view.latestPapers.receiptIds:[];
+    this.caSignatures[biz][request.signoffId] = {id:request.signoffId,ca:{name:view.ca!.name,membershipNumber:view.ca!.membershipNo},at:request.at,decision:'signed',playbookHash:null,workingDigest:this.host.digest(request),receipts:receiptIds.map(id=>({id,digest:this.caReceipts[biz]?.[id]?this.host.digest(this.caReceipts[biz][id]):null})),rederived:'same',differs:null};
     this.host.emit({ type: 'queue.changed', businessId: biz, at: request.at });
     return { request: clone(request) };
   }

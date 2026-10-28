@@ -597,3 +597,7 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 
 - Measured word editing, cleanup, captions, script coverage, dictionary corrections and pinned local transcription extend the YouTube playbook with the Cutter step. Edit transactions retain exact source bindings, refusal reasons, undo and the second ask for large removals. English/Hindi edit desk and fake parity are included; later board/style/finishing/export features remain for 5B2.
 - Independent spec and quality PASS and killed mutants are recorded in NOTES-5B1. This isolated commit reconstruction is not a fresh screenshot PASS or the full batch gate.
+
+## 5C1 implementation and review closure
+
+Seven CA offers, dated citations and ITR choice, advance tax, source-backed questions and stored sign-off are recorded in NOTES-5C1 with independent spec and quality PASS. This isolated commit includes their live/fake owner paths; C2 working desks, health checks and data packs remain separate. Candidate verification does not claim a fresh visual pass or full batch gates.

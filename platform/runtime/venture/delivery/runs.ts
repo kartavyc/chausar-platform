@@ -1,3 +1,5 @@
+import { caNamedTokens } from '../playbooks/ca-firm/draft-references.ts';
+import { citationUseFor } from '../playbooks/ca-firm/citations.ts';
 import { playbookForOrder, playbookForRun, type RunPlaybook } from './workflow.ts';
 // Chausar venture launcher, delivery package (P5): draft replies for real orders.
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
@@ -142,6 +144,7 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
     refusals: refusalsOf(extras.harness?.toolCalls ?? []),
     tables: extras.tables ?? [], toolCalls: extras.harness?.toolCalls ?? [],
     // The CA's explanations of portal differences, so one recorded while the run waited counts now (Ink v2 2A2).
+    caCitationUse: citationUseFor(deps.store.read(), context.venture.id, 'client'),
     caExplanations: diffExplanations(deps.store.read(), context.venture.id),
   };
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
@@ -191,7 +194,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
     // A playbook stored before the receipts and prompt-leak checks never lists them; every draft runs them anyway.
     checks: withDraftChecks(verifyChecks(playbook)), deliverable, renderedText, serviceType: context.blueprint.serviceType, flagship: playbook.flagship ?? null,
     ...(extras.corrections?.length ? { corrections: extras.corrections } : {}),
-    allowed: copiedTokens(context.order.request, context.venture.idea, ...(extras.answers ?? [])), receipts: [...context.receipts, ...(extras.work ?? [])], ventureId: context.venture.id,
+    allowed: [...copiedTokens(context.order.request, context.venture.idea, ...(extras.answers ?? [])),...(playbook.flagship==='ca-firm'?caNamedTokens(extras.harness?.toolCalls??[],extras.files??[]):[])], receipts: [...context.receipts, ...(extras.work ?? [])], ventureId: context.venture.id,
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: deliverable.questionsForClient.length > 0,
     ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}), ...(extras.times ? { times: extras.times } : {}),
     grounding: {

@@ -32,6 +32,7 @@ import {
 } from '../../playbooks/ca-firm/tool-inputs.ts';
 import { fail, receiptOut, refusal, text, type Field, type Spec, type ToolEnv, type ToolResult } from './tools.ts';
 import { pdfPages, tablesOfFile } from './files.ts';
+import { CITATIONS, FORM_CHOOSER, ADVANCE } from './tools-ca-rules.ts';
 import { notBuiltTool } from './tool-stub.ts';
 import type { WorkReceiptDraft } from './work.ts';
 
@@ -81,9 +82,9 @@ function factsLanguage(env: ToolEnv): 'en' | 'hi' {
  * was refused NEEDS_FACTS for may be filled in only once a question to the client since then was really answered (not
  * a timeout); else it is asked again. A NEEDS_FACTS refusal carries the client's language for the question.
  */
-async function askingClient<T>(env: ToolEnv, tool: CaToolName, input: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
+export async function askingClient<T>(env: ToolEnv, tool: CaToolName | 'tax.formChooser' | 'tax.advance', input: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   try {
-    requireFacts(ENGINE_WORDS[tool], guessedFacts(env.calls ?? [], env.handoffs ?? [], tool, input));
+    requireFacts(tool === 'tax.formChooser' ? 'ITR form choice' : tool === 'tax.advance' ? 'advance tax' : ENGINE_WORDS[tool], guessedFacts(env.calls ?? [], env.handoffs ?? [], tool, input));
     return await work();
   } catch (error) {
     if (error instanceof ChausarError && error.code === 'NEEDS_FACTS') {
@@ -438,9 +439,9 @@ export const CA_TOOLS: Readonly<Record<CaToolName, Spec>> = Object.freeze({ 'tax
  */
 type CaW5ToolName = Extract<ToolName, 'tax.citations' | 'tax.formChooser' | 'tax.advance' | 'tax.whatIf' | 'books.healthCheck' | 'docs.entry'>;
 export const CA_W5_TOOLS: Readonly<Record<CaW5ToolName, Spec>> = Object.freeze({
-  'tax.citations': notBuiltTool('tax.citations', 'compute', 'Each section a draft cites, checked against the citations table your CA confirmed.'), // 5C1
-  'tax.formChooser': notBuiltTool('tax.formChooser', 'compute', 'The ITR form for the year, picked by dated rules from the client\'s facts.'), // 5C1
-  'tax.advance': notBuiltTool('tax.advance', 'compute', 'Advance tax instalment dates and shares from a dated table, the estimate labelled as the client\'s.'), // 5C1
+  'tax.citations': CITATIONS,
+  'tax.formChooser': FORM_CHOOSER,
+  'tax.advance': ADVANCE,
   'tax.whatIf': notBuiltTool('tax.whatIf', 'compute', 'Tax under the other regime, at a cliff or for a target, worked out by the calculator.'), // 5C2
   'books.healthCheck': notBuiltTool('books.healthCheck', 'compute', 'Every ledger and bank line read for duplicates, missing GSTINs and cash limits.'), // 5C2
   'docs.entry': notBuiltTool('docs.entry', 'compute', 'A bank statement or bill read into entries that must tie, page by page.'), // 5C2
