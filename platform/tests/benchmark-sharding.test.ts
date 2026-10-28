@@ -382,7 +382,8 @@ test('CI requires all six planned shards on both operating systems with twelve u
   const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4, 5, 6].map(shard => `open-test-report-${os}-shard-${shard}-of-6`));
   assert.equal(new Set(artifacts).size, 12);
   const script = await readFile(new URL('../../scripts/bench.mjs', import.meta.url), 'utf8');
-  assert.match(script, /10 \* 60 \* 1000/);
+  assert.match(script, /15 \* 60 \* 1000/);
+  assert.match(workflow.slice(0, workflow.search(/^  ui:$/m)), /timeout-minutes: 25/);
   assert.match(script, /16 \* 1024 \* 1024/);
   assert.doesNotMatch(workflow, /continue-on-error: true|--test-name-pattern|--test-skip-pattern/);
 });
