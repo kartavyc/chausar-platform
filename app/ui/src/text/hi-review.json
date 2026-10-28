@@ -2576,6 +2576,7 @@
     "kit-sales.error.INVALID_AMOUNT",
     "kit-sales.error.SHARE_BASE_MISSING",
     "kit-sales.error.SHARE_BASE_UNPROVEN",
-    "kit-sales.error.APP_APPROVAL_REQUIRED"
+    "kit-sales.error.APP_APPROVAL_REQUIRED",
+    "kit-report.error.EXPORT_NOT_SAVED"
   ]
 }

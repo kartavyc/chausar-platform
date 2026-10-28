@@ -6,6 +6,7 @@
 // exist without a source comes from beyondseo's report renderer (MIT), catalogue row P11; no code of it was read or
 // copied. Written for Chausar.
 import { ChausarError } from '../../../../contracts.ts';
+import { redactSecrets } from '../../../core/secrets.ts';
 import type { Deliverable, IsoDate, PriceReceiptRecord, WorkReceiptRecord } from '../../../contracts.ts';
 import { modelNumbers } from '../../../records.ts';
 import type { BlockScope, ReportBar, ReportBlock } from '../records-report.ts';
@@ -37,7 +38,7 @@ function unsourced(): never {
 
 function words(value: unknown, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new ChausarError('INVALID_VENTURE_REQUEST', 'A report block needs its words, not too long.');
-  return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
+  return redactSecrets(value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim());
 }
 
 /** The figure a reference names, among the run's receipts, or a refusal. */
@@ -99,7 +100,7 @@ export function resolveBlocks(inputs: readonly ReportBlockInput[], receipts: rea
       }
       case 'metric': {
         const figure = figureOf(input, receipts);
-        return { kind: 'metric', label: words(input.label, 200), display: figure.display, unit: figure.unit, receiptId: input.receiptId!, key: input.key!, ...scopeOf(input, figure.scope) };
+        return { kind: 'metric', label: words(input.label, 200), display: redactSecrets(figure.display), unit: figure.unit, receiptId: input.receiptId!, key: input.key!, ...scopeOf(input, figure.scope) };
       }
       case 'bars': {
         const given: readonly ({ label: string } & Ref)[] = input.bars;
@@ -108,7 +109,7 @@ export function resolveBlocks(inputs: readonly ReportBlockInput[], receipts: rea
         const size = (minor: string) => { const value = /^-?\d+$/.test(minor) ? BigInt(minor) : 0n; return value < 0n ? -value : value; };
         const longest = found.reduce((max, item) => (size(item.figure.minor) > max ? size(item.figure.minor) : max), 0n);
         const bars: ReportBar[] = found.map(({ bar, figure }) => ({
-          label: words(bar.label, 200), display: figure.display, receiptId: bar.receiptId!, key: bar.key!,
+          label: words(bar.label, 200), display: redactSecrets(figure.display), receiptId: bar.receiptId!, key: bar.key!,
           width: longest === 0n ? 0 : Number((size(figure.minor) * 100n) / longest),
         }));
         return { kind: 'bars', label: words(input.label, 200), bars, ...scopeOf(input, joinScopes(found.map(item => item.figure.scope))) };

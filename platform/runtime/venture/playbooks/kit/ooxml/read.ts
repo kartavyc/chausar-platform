@@ -8,8 +8,8 @@ import { ChausarError } from '../../../../contracts.ts';
 import { xmlUnescape } from './xml.ts';
 import { unzip, type ZipEntry } from './zip.ts';
 
-/** The most a sheet is read to: rows, columns, and cells counted as laid out (empty ones before a filled one count). */
-const MAX_ROWS = 100_000, MAX_COLUMNS = 1_000, MAX_CELLS = 200_000;
+/** Whole-workbook allocation budgets; row and column gaps and repeated worksheet targets count too. */
+const MAX_SHEETS = 32, MAX_ROWS = 100_000, MAX_COLUMNS = 1_000, MAX_CELLS = 200_000;
 const UNREADABLE = 'Chausar could not read this file as a Word or Excel document. Save it again from Word or Excel and add it once more.';
 
 function unreadable(): never {
@@ -89,22 +89,29 @@ export function readXlsx(bytes: Uint8Array): { sheets: { name: string; rows: str
     if (id && target) targets.set(id, targetPath(target, 'xl'));
   }
   const sheets: { name: string; rows: string[][] }[] = [];
+  let rowsLaidOut = 0, cellsLaidOut = 0;
   for (const match of workbook.matchAll(/<sheet\b[^>]*>/g)) {
+    if (sheets.length >= MAX_SHEETS) unreadable();
     const name = attribute(match[0], 'name'), id = attribute(match[0], 'r:id');
     const path = id ? targets.get(id) : undefined;
     if (name === null || !path) unreadable();
     const xml = part(entries, path)!;
     const rows: string[][] = [];
-    let cellsLaidOut = 0;
     for (const row of xml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
       const number = Number(attribute(row[0], 'r') ?? rows.length + 1);
       if (!Number.isInteger(number) || number < 1 || number > MAX_ROWS) unreadable();
+      const addedRows = Math.max(0, number - rows.length);
+      if (rowsLaidOut + addedRows > MAX_ROWS || cellsLaidOut + addedRows > MAX_CELLS) unreadable();
+      rowsLaidOut += addedRows;
+      cellsLaidOut += addedRows;
       while (rows.length < number - 1) rows.push([]);
       const cells: string[] = [];
       for (const found of (row[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
         const tag = `<c${found[1]}>`;
         const column = columnOf(attribute(tag, 'r')) ?? cells.length;
-        if (column >= MAX_COLUMNS) unreadable();
+        const addedCells = Math.max(0, column + 1 - cells.length);
+        if (column >= MAX_COLUMNS || cellsLaidOut + addedCells > MAX_CELLS) unreadable();
+        cellsLaidOut += addedCells;
         const type = attribute(tag, 't');
         const inner = found[2] ?? '';
         const value = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(inner)?.[1];
@@ -117,8 +124,6 @@ export function readXlsx(bytes: Uint8Array): { sheets: { name: string; rows: str
         cells[column] = text;
       }
       while (cells.length && cells[cells.length - 1] === '') cells.pop();
-      cellsLaidOut += cells.length + Math.max(0, number - rows.length);
-      if (cellsLaidOut > MAX_CELLS) unreadable();
       rows[number - 1] = cells;
     }
     sheets.push({ name, rows });

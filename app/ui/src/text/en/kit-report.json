@@ -52,5 +52,6 @@
   "kit-report.error.REPORT_NOT_FOUND": "That report is no longer here. Make the report again.",
   "kit-report.error.REPORT_SHARE_NOT_FOUND": "That link is no longer here. Make a new one.",
   "kit-report.error.EXPORT_EXISTS": "A folder with this report's name is already there, so Chausar left it alone. Choose another place.",
-  "kit-report.error.channel": "This report has nothing from that channel. Choose from the channels listed."
+  "kit-report.error.channel": "This report has nothing from that channel. Choose from the channels listed.",
+  "kit-report.error.EXPORT_NOT_SAVED": "The files could not be saved. Choose another folder, or free some space and try again."
 }

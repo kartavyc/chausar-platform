@@ -14,7 +14,7 @@ import { clientDraft } from '../../../build/draft-text.ts';
 import { todayIso, ventureReceipts } from '../../../delivery/shared.ts';
 import { writeDocx } from '../ooxml/docx.ts';
 import { writeXlsx, type XlsxCell } from '../ooxml/xlsx.ts';
-import { blocksOfDraft, coverageOf, sourcesOf, titleEstimate } from './blocks.ts';
+import { blocksOfDraft, coverageOf, resolveBlocks, sourcesOf, titleEstimate } from './blocks.ts';
 import { manifestOf } from './manifest.ts';
 import { pdfOf } from './pdf.ts';
 import { reportShareView } from './share.ts';
@@ -91,8 +91,12 @@ export async function reportRender(deps: VentureDeps, ctx: Context, payload: unk
   // Numbers the owner wrote (the order's request, the business idea) are the owner's, not a model's.
   const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === run.orderId);
   const allowed = copiedTokens(order?.request ?? '', venture.idea);
-  const blocks = blocksOfDraft(run.deliverable, sources, allowed);
   const draft = clientDraft(run);
+  // An owner edit is plain text, not the old typed sections. Never revive superseded words or figure bindings.
+  const edited = (run.status === 'edited' || run.status === 'accepted') && !!run.editedText;
+  const blocks = edited
+    ? resolveBlocks((draft.text ?? '').split(/\n\s*\n/).map(text => text.trim()).filter(Boolean).map(text => ({ kind: 'prose' as const, text })), [], allowed)
+    : blocksOfDraft(run.deliverable, sources, allowed);
   const titleNumbers = titleEstimate(draft.title, allowed);
   const today = todayIso(deps, venture);
   const asOf = venture.country ? formatVentureDate(today, venture.country.dateOrder) : today;

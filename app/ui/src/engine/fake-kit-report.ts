@@ -10,6 +10,7 @@
  */
 
 import { EngineError } from './types';
+import { reportNumberEstimate } from './fake-report-numbers';
 import type { CaView, DeliveryLite, ReportFileView, ReportFormat, ReportListItem, ReportListView, ReportShareView, ReportView } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -192,12 +193,13 @@ export class FakeKitReportDesk {
     const run = this.draft(runId);
     if (run.practice) throw new EngineError('PRACTICE_DRAFT', WORDS.practice);
     if (!run.deliverable) throw new EngineError('REPORT_NOT_READY', WORDS.notReady);
-    const figures = FIGURES[runId] ?? [];
+    const edited = (run.status === 'edited' || run.status === 'accepted') && !!run.editedText;
+    const figures = edited ? [] : FIGURES[runId] ?? [];
     if (figures.some((figure) => figure.receiptId === null)) throw new EngineError('REPORT_BLOCK_UNSOURCED', WORDS.unsourced);
     const title = run.deliverable.title;
     const words = this.wordsOf(run);
     const paragraphs = words.split(/\n\s*\n/).map((line) => line.trim()).filter(Boolean);
-    const estimate = (line: string) => /\p{Nd}|%/u.test(line);
+    const estimate = reportNumberEstimate;
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><main><h1>${escapeHtml(title)}</h1>`
       + (estimate(title) ? '<p class="note">Model estimate</p>' : '')
       + paragraphs.map((line) => `<p>${escapeHtml(line)}</p>${estimate(line) ? '<p class="note">Model estimate</p>' : ''}`).join('')
@@ -206,7 +208,7 @@ export class FakeKitReportDesk {
     const name = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'report';
     const made: { format: ReportFormat; bytes: Uint8Array }[] = [{ format: 'html', bytes: utf8(html) }];
     const notes: string[] = formats.includes('pdf') ? [WORDS.hosted] : [];
-    if (formats.includes('docx')) made.push({ format: 'docx', bytes: docx(title, [...paragraphs, ...figures.map((figure) => `${figure.label}: ${figure.display} (receipt ${figure.receiptId ?? ''})`)]) });
+    if (formats.includes('docx')) made.push({ format: 'docx', bytes: docx(estimate(title) ? `${title} (model estimate)` : title, [...paragraphs.map(line => estimate(line) ? `${line} (model estimate)` : line), ...figures.map((figure) => `${figure.label}: ${figure.display} (receipt ${figure.receiptId ?? ''})`)]) });
     if (formats.includes('xlsx')) made.push({ format: 'xlsx', bytes: xlsx(figures) });
     const files: ReportFileView[] = made.map((file) => {
       const content = base64(file.bytes);

@@ -193,7 +193,7 @@ function pageOf(state: State, venture: VentureRecord, record: ReportShareRecord)
   const dates = (iso: string) => (order ? formatVentureDate(iso.slice(0, 10), order) : iso.slice(0, 10));
   const text = reportPageText(report.blocks, record, dates);
   return {
-    businessName: venture.workingName, title: report.title, text, expires: dates(record.expiresAt), digest: sha256(text),
+    businessName: venture.workingName, title: report.titleEstimate ? `${report.title} (model estimate)` : report.title, text, expires: dates(record.expiresAt), digest: sha256(text),
     decision: null, kind: 'report', canAnswer: false, items: [], comments: [],
   };
 }

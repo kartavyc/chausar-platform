@@ -25,7 +25,7 @@ const FORMATS = ['html', 'pdf', 'docx', 'xlsx'] as const;
 /** The engine codes this screen words itself, in both languages. */
 const WORDED = new Set([
   'REPORT_BLOCK_UNSOURCED', 'REPORT_NOT_READY', 'REPORT_STALE', 'REPORT_TOO_LARGE', 'DELIVERY_NOT_READY', 'PRACTICE_DRAFT', 'REPORT_SHARE_DISABLED',
-  'APP_APPROVAL_REQUIRED', 'TRIAL_LIMIT', 'CA_SIGNOFF_REQUIRED', 'REPORT_NOT_FOUND', 'REPORT_SHARE_NOT_FOUND', 'EXPORT_EXISTS',
+  'APP_APPROVAL_REQUIRED', 'TRIAL_LIMIT', 'CA_SIGNOFF_REQUIRED', 'REPORT_NOT_FOUND', 'REPORT_SHARE_NOT_FOUND', 'EXPORT_EXISTS', 'EXPORT_NOT_SAVED',
 ]);
 /** The engine's own lines this screen words itself: why no PDF, and why a link shows no address. */
 const LINES: Readonly<Record<string, string>> = Object.freeze({

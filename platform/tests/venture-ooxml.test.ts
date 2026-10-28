@@ -159,3 +159,19 @@ test('a replace that fails part way puts the old files back', async () => {
     assert.equal(await readFile(join(folder, 'b.txt'), 'utf8'), 'old b');
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
+
+
+test('workbook limits count sheets, rows and cells across reused worksheet targets', async t => {
+  const book = (count: number, rows: string) => zip([
+    { name: 'xl/workbook.xml', bytes: Buffer.from('<workbook><sheets>' + Array.from({ length: count }, (_, i) => '<sheet name="S' + i + '" r:id="rId1"/>').join('') + '</sheets></workbook>') },
+    { name: 'xl/_rels/workbook.xml.rels', bytes: Buffer.from('<Relationships><Relationship Id="rId1" Target="worksheets/shared.xml"/></Relationships>') },
+    { name: 'xl/worksheets/shared.xml', bytes: Buffer.from('<worksheet><sheetData>' + rows + '</sheetData></worksheet>') },
+  ]);
+  await t.test('the sheet cap counts references, not just unique targets', () => assert.throws(() => readXlsx(book(33, '')), code('OOXML_UNREADABLE')));
+  await t.test('row gaps count across sheets', () => assert.throws(() => readXlsx(book(2, '<row r="60000"><c r="A60000"><v>1</v></c></row>')), code('OOXML_UNREADABLE')));
+  const wide = Array.from({ length: 101 }, (_, i) => '<row r="' + (i + 1) + '"><c r="ALL' + (i + 1) + '"><v>1</v></c></row>').join('');
+  await t.test('laid-out cells count across sheets', () => assert.throws(() => readXlsx(book(2, wide)), code('OOXML_UNREADABLE')));
+  assert.deepEqual(readXlsx(book(2, '<row r="3"><c r="C3"><v>7</v></c></row>')).sheets.map(sheet => sheet.rows), [
+    [[], [], ['', '', '7']], [[], [], ['', '', '7']],
+  ]);
+});

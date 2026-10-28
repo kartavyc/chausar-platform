@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import hiReport from '../../src/text/hi/kit-report.json';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type MethodName, type ReportView } from '../../src/engine/types';
@@ -129,4 +130,15 @@ describe('Work: the client report', () => {
     await press(within(region).getByRole('button', { name: 'रिपोर्ट बनाएं' }));
     expect(within(region).getByRole('alert').textContent).toContain('इस ड्राफ़्ट के एक आंकड़े की रसीद नहीं है');
   });
+});
+
+
+it('words a desktop save failure in Hindi instead of showing its English fallback', async () => {
+  const saveReport = vi.fn(async () => { throw new EngineError('EXPORT_NOT_SAVED', 'Chausar could not write there. Choose another folder.'); });
+  start(ORDER, { language: 'hi', saveReport });
+  const region = await screen.findByRole('region', { name: hiReport['kit-report.heading'] }, { timeout: 5000 });
+  await press(within(region).getByRole('button', { name: hiReport['kit-report.make'] }));
+  await press(within(region).getByRole('button', { name: hiReport['kit-report.saveAll'] }));
+  expect(within(region).getByRole('alert').textContent).toContain('फ़ाइलें सेव नहीं हो सकीं। कोई दूसरा फ़ोल्डर चुनें या जगह खाली करके फिर कोशिश करें।');
+  expect(within(region).getByRole('alert').textContent).not.toContain('Choose another folder');
 });

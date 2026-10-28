@@ -15,7 +15,7 @@ function desk(drafts: DeliveryLite[], ca: CaView | null = null, hosted = false) 
   const host: W4DeskHost = {
     current: () => 'lumen', now: () => '2026-10-27T10:00:00.000Z', emit: () => {}, hosted: () => hosted, rows: () => [], setRows: () => {},
     digest: (value) => `digest-${JSON.stringify(value).length}-${++n}`,
-    ask: (method) => (method === 'venture.delivery.list' ? drafts : method === 'venture.ca.get' ? (ca ?? { ca: null, pendingRates: [], requests: [] }) : null),
+    ask: (method) => (method === 'venture.order.list' ? [{ id: 'o-boat-12', internal: false }] : method === 'venture.delivery.list' ? drafts : method === 'venture.ca.get' ? (ca ?? { ca: null, pendingRates: [], requests: [] }) : null),
   };
   return new FakeKitReportDesk(host);
 }
@@ -57,4 +57,25 @@ describe('fake client reports', () => {
     expect(code(() => changing.request('venture.report.shareRotate', { shareId: link.id }))).toBe('REPORT_STALE');
     expect((changing.request('venture.report.shareDisable', { shareId: link.id }) as ReportShareView).state).toBe('disabled');
   });
+});
+
+
+it('labels English and Hindi number words in HTML and DOCX, including the title', () => {
+  const draft = { ...ACCEPTED, deliverable: { title: 'Reach may double' }, renderedText: 'About twenty enquiries.\n\nदो सौ नए ग्राहक।' };
+  const report = desk([draft]).request('venture.report.render', { runId: draft.id, formats: ['html', 'docx'] }) as ReportView;
+  expect(report.estimates).toBe(3);
+  const html = new TextDecoder().decode(Uint8Array.from(atob(report.files[0]!.contentBase64), ch => ch.charCodeAt(0)));
+  expect((html.match(/Model estimate/g) ?? []).length).toBe(3);
+  const docx = Uint8Array.from(atob(report.files[1]!.contentBase64), ch => ch.charCodeAt(0));
+  expect(new TextDecoder().decode(docx)).toContain('Reach may double (model estimate)');
+  expect(new TextDecoder().decode(docx)).toContain('About twenty enquiries. (model estimate)');
+  expect(new TextDecoder().decode(docx)).toContain('दो सौ नए ग्राहक। (model estimate)');
+});
+
+it('an owner edit removes the previous structured figures from report exports', () => {
+  const draft = { ...ACCEPTED, status: 'edited' as const, editedText: 'Corrected owner words.' };
+  const report = desk([draft]).request('venture.report.render', { runId: draft.id, formats: ['html', 'xlsx'] }) as ReportView;
+  expect(atob(report.files[0]!.contentBase64)).toContain('Corrected owner words.');
+  expect(atob(report.files[0]!.contentBase64)).not.toContain('12,400');
+  expect(report.channels).toEqual([]);
 });

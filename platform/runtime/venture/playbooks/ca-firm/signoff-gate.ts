@@ -64,8 +64,8 @@ export function regulatedPapersOf(state: State, venture: VentureRecord, orderId:
 
 type PapersRun = Pick<DeliveryRunRecord, 'id' | 'status' | 'renderedText' | 'deliverable' | 'editedText'>;
 
-/** The owner's own words for the papers, when the owner edited them. */
-const editOf = (run: Pick<DeliveryRunRecord, 'status' | 'editedText'>): string | null => (run.status === 'edited' && run.editedText ? run.editedText : null);
+/** The owner's paper edits, including those kept when Accept preserves their exact words (clientDraft). */
+const editOf = (run: Pick<DeliveryRunRecord, 'status' | 'editedText'>): string | null => ((run.status === 'edited' || run.status === 'accepted') && run.editedText ? run.editedText : null);
 
 /** The digest the CA signs: the run's papers as they would go out. The owner's edit has a digest of its own. */
 export function papersDigest(run: PapersRun): string {

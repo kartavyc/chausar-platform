@@ -20,6 +20,7 @@ import { PDF_WORDS, type PrintPort, type PrintRequest } from '../runtime/venture
 import { REPORT_SHARE_WORDS, reportSharePage } from '../runtime/venture/playbooks/kit/report/share.ts';
 import { readDocx, readXlsx } from '../runtime/venture/playbooks/kit/ooxml/read.ts';
 import type { ReportListView, ReportShareView, ReportView } from '../runtime/venture/playbooks/kit/records-report.ts';
+import { papersDigest } from '../runtime/venture/playbooks/ca-firm/signoff-gate.ts';
 import { code, owner, phone, seedBlueprint, seedOrder, seedRun, setup, type Env } from './venture-views-env.ts';
 
 type Handler = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
@@ -357,4 +358,126 @@ test('writeReportFolder writes every file and manifest.json together, or nothing
     await assert.rejects(writeReportFolder(folder, files), code('EXPORT_EXISTS'));
     assert.deepEqual((await readdir(folder)).sort(), ['manifest.json', 'report.html', 'report.xlsx']);
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+
+test('a report rendered after an owner edit uses only the current words, without superseded figures', async () => {
+  const env = await setup();
+  const { run } = await reportRun(env, 'Superseded model words.');
+  await ventureAction(env.deps, owner, 'prepare', 'seed.edit', tx => tx.replace<DeliveryRunRecord>({
+    ...tx.find('venture-delivery-run', run.id)!, status: 'edited', editedText: 'Corrected owner words.\n\nReach may double.',
+  }));
+  const deps = hosted(env);
+  const report = await call<ReportView>(deps, 'venture.report.render', { runId: run.id, formats: ['html', 'docx', 'xlsx'] });
+  const html = Buffer.from(bytesOf(report.files[0])).toString('utf8');
+  assert.ok(html.includes('Corrected owner words.'));
+  assert.ok(!html.includes('Superseded model words.') && !html.includes('12,400'));
+  assert.match(html, /Reach may double\.<\/p><p class="note">Model estimate<\/p>/);
+  assert.ok(readDocx(bytesOf(report.files[1])).paragraphs.includes('Corrected owner words.'));
+  assert.deepEqual(readXlsx(bytesOf(report.files[2])).sheets[0].rows, [
+    ['Figure', 'Value', 'Channel', 'From', 'To', 'Receipt'], ['This report has no figures.'],
+  ]);
+  assert.deepEqual(report.channels, []);
+  const link = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' });
+  const page = await reportSharePage(deps, owner, link.url!.slice(-32));
+  assert.ok(page?.text.includes('Corrected owner words.'));
+  assert.ok(!page?.text.includes('Superseded model words.') && !page?.text.includes('12,400'));
+});
+
+test('a public report title keeps its model estimate label', async () => {
+  const env = await setup();
+  const { run } = await reportRun(env);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.title', tx => tx.replace<DeliveryRunRecord>({
+    ...run, deliverable: { ...run.deliverable!, title: 'Reach may double' },
+  }));
+  const deps = hosted(env);
+  const report = await call<ReportView>(deps, 'venture.report.render', { runId: run.id, formats: ['html'] });
+  const link = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' });
+  assert.equal((await reportSharePage(deps, owner, link.url!.slice(-32)))?.title, 'Reach may double (model estimate)');
+});
+
+test('the report character cap applies across blocks, before any files are made', () => {
+  assert.throws(() => resolveBlocks(Array.from({ length: 11 }, () => ({ kind: 'prose' as const, text: 'x'.repeat(19_000) })), []), code('REPORT_TOO_LARGE'));
+  assert.equal(resolveBlocks(Array.from({ length: 10 }, () => ({ kind: 'prose' as const, text: 'x'.repeat(19_000) })), []).length, 10);
+});
+
+test('a live report link closes as soon as the CA signoff is withdrawn', async () => {
+  const env = await setup();
+  const { run, order } = await reportRun(env);
+  const signed = await ventureAction(env.deps, owner, 'admin', 'seed.ca', tx => {
+    tx.touch({ idea: 'An AI-native CA firm for GST filing and income tax returns in Pune.' });
+    const plan = tx.list('venture-blueprint').find(item => item.status === 'accepted')!;
+    tx.replace({ ...plan, offers: plan.offers.map(offer => offer.id === order.offerId ? { ...offer, playbookOffer: 'gst-working' } : offer) });
+    const request = tx.put({ ...tx.base('venture-ca-firm'), entry: 'signoff-request' as const, subjectKind: 'gst-working' as const,
+      title: 'GST working', clientName: null, workingDigest: papersDigest(run), receiptIds: [], playbookHash: null, deliveryId: run.id });
+    return tx.put({ ...tx.base('venture-ca-firm'), entry: 'signoff' as const, requestId: request.id, decision: 'signed' as const,
+      caName: 'CA Meera Joshi', membershipNumber: '123456', workingDigest: request.workingDigest, receiptIds: [], playbookHash: null, recordedBy: 'owner', note: null });
+  });
+  const deps = hosted(env);
+  const report = await call<ReportView>(deps, 'venture.report.render', { runId: run.id, formats: ['html'] });
+  const link = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' });
+  const token = link.url!.slice(-32);
+  assert.ok(await reportSharePage(deps, owner, token));
+  await ventureAction(env.deps, owner, 'admin', 'seed.withdraw-signoff', tx => { tx.replace({ ...signed, decision: 'returned', note: 'Recheck these papers.' }); });
+  assert.equal(await reportSharePage(deps, owner, token), null);
+  assert.equal(await reportSharePage(deps, owner, token, { preview: true }), null);
+  assert.equal(listRecords(env.store.read(), 'venture-report-share')[0].views, 1);
+});
+
+
+test('report blocks never restore secrets screened from the current client draft', async () => {
+  const secret = ['synthetic', 'only'].join('-');
+  const env = await setup();
+  const { run } = await reportRun(env, 'Client password=' + secret);
+  const report = await call<ReportView>(hosted(env), 'venture.report.render', { runId: run.id, formats: ['html', 'docx'] });
+  for (const file of report.files) {
+    const text = file.format === 'docx' ? readDocx(bytesOf(file)).paragraphs.join('\n') : Buffer.from(bytesOf(file)).toString('utf8');
+    assert.ok(!text.includes(secret), file.format);
+  }
+  const blocks = resolveBlocks([
+    { kind: 'heading', text: 'password=' + secret },
+    { kind: 'quote', text: 'password=' + secret, by: 'password=' + secret },
+    { kind: 'metric', label: 'password=' + secret, receiptId: 'receipt_a', key: 'total' },
+  ], SOURCES);
+  assert.ok(!JSON.stringify(blocks).includes(secret));
+  assert.ok(JSON.stringify(blocks).includes('[redacted secret]'));
+});
+
+
+/** A regulated report's exact-paper signoff, without sending anything outside Chausar. */
+async function signReportPapers(env: Env, run: DeliveryRunRecord, workingDigest = papersDigest(run)) {
+  return ventureAction(env.deps, owner, 'admin', 'seed.ca-report-signoff', tx => {
+    tx.touch({ idea: 'An AI-native CA firm for GST filing and income tax returns in Pune.' });
+    const plan = tx.list('venture-blueprint').find(item => item.status === 'accepted')!;
+    const order = tx.find('venture-order', run.orderId)!;
+    tx.replace({ ...plan, offers: plan.offers.map(offer => offer.id === order.offerId ? { ...offer, playbookOffer: 'gst-working' } : offer) });
+    const request = tx.put({ ...tx.base('venture-ca-firm'), entry: 'signoff-request' as const, subjectKind: 'gst-working' as const,
+      title: 'GST working', clientName: null, workingDigest, receiptIds: [], playbookHash: null, deliveryId: run.id });
+    return tx.put({ ...tx.base('venture-ca-firm'), entry: 'signoff' as const, requestId: request.id, decision: 'signed' as const,
+      caName: 'CA Meera Joshi', membershipNumber: '123456', workingDigest, receiptIds: [], playbookHash: null, recordedBy: 'owner', note: null });
+  });
+}
+
+test('CA signoff never authorizes an accepted owner edit it did not cover', async () => {
+  const env = await setup();
+  const { run } = await reportRun(env);
+  await signReportPapers(env, run);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.accepted-edit', tx => tx.replace<DeliveryRunRecord>({
+    ...run, status: 'accepted', editedText: 'Unsigned changed owner words.',
+  }));
+  const deps = hosted(env);
+  const report = await call<ReportView>(deps, 'venture.report.render', { runId: run.id, formats: ['html'] });
+  await assert.rejects(call(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' }), code('CA_SIGNOFF_REQUIRED'));
+});
+
+test('CA signature on an owner edit stays valid when Accept preserves its words', async () => {
+  const env = await setup();
+  const { run } = await reportRun(env, 'Original model papers.', { status: 'edited', editedText: 'Owner checked papers.' });
+  await signReportPapers(env, run);
+  const accepted = await ventureAction(env.deps, owner, 'prepare', 'seed.accepted-edit', tx => tx.replace<DeliveryRunRecord>({ ...run, status: 'accepted' }));
+  const deps = hosted(env);
+  const report = await call<ReportView>(deps, 'venture.report.render', { runId: run.id, formats: ['html'] });
+  const link = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' });
+  assert.ok((await reportSharePage(deps, owner, link.url!.slice(-32)))?.text.includes('Owner checked papers.'));
+  assert.equal(papersDigest(accepted), papersDigest(run), 'the CA signed the same owner words before and after Accept');
 });
