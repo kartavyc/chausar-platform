@@ -10,9 +10,9 @@
 // own field. Secrets and ids go through the shared rule set (core/secrets.ts screenReadback), once per string.
 // The screen follows recruitops-agent recruitment_mail/sanitization.py and the observe-then-enforce rollout of
 // yc-software/qm security-posture.ts; this is a rewrite, not a copy.
-import { check, hash, type Context } from '../../contracts.ts';
-import type { Json, ScreenNote } from '../contracts.ts';
-import { isAppChannel } from '../records.ts';
+import {check,hash,isAppChannel} from '../../portable.ts';
+import type {Json,ScreenNote} from '../../portable.ts';
+
 import { screenReadback, type ReadbackKind } from '../core/secrets.ts';
 
 export const SCREEN_MODES = ['observe', 'enforce'] as const;
@@ -140,7 +140,7 @@ function screenText(input: string, keep: readonly IdKind[], checks: ScreenOption
   if (copies.some(copy => INJECTION.some(pattern => pattern.test(copy)))) findings.push({ kind: 'injection', what: WHAT.injection });
   if (copies.some(copy => CHECKER.some(pattern => pattern.test(copy)))) findings.push({ kind: 'checker', what: WHAT.checker });
   for (const rule of checks ?? []) {
-    for (const finding of rule(copies[0])) {
+    for (const finding of rule(copies[0]!)) {
       check(finding && typeof finding.what === 'string' && (FLAGS as readonly string[]).concat('active-content', 'secret', 'id').includes(finding.kind), 'SCREEN_FAILED', 'A screen rule answered something unknown.');
       findings.push({ kind: finding.kind, what: finding.what.slice(0, 200) });
     }
@@ -286,7 +286,7 @@ export function screenJson(item: { source: UntrustedSource; value: Json }, optio
  * The owner releases one held item, inside the app: the release binds to that exact content's digest, so changed
  * content is held again. What was released stays untrusted; the taint latch still applies to the run that reads it.
  */
-export function releaseItem(result: Pick<ScreenResult, 'status' | 'digest'>, ctx: Context): { digest: string; by: string } {
+export function releaseItem(result: Pick<ScreenResult, 'status' | 'digest'>, ctx: {channel?:string;sourceTainted?:boolean;role:string;memberId:string}): { digest: string; by: string } {
   check(isAppChannel(ctx) && (ctx.role === 'owner' || ctx.role === 'cofounder'), 'APP_APPROVAL_REQUIRED', 'Only you release held content, inside the Chausar app.');
   check(result.status === 'quarantined' && result.digest.length > 0, 'UNTRUSTED_NOT_HELD', 'This content is not held.');
   return { digest: result.digest, by: ctx.memberId };

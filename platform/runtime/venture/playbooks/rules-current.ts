@@ -12,6 +12,7 @@
 //
 // Idea taken, code written here: xjli360/sealeap-ecommerce-skills (MIT), whose rule refresh lists, per rule, the
 // skills it is used by and its limitations, and whose catalogue gives each skill a risk level and a last review date.
+import {caDatedRules} from './ca-firm/register.ts';
 import type { IsoDate, PlaybookCheckResult } from '../contracts.ts';
 import { RULE_STALE_AFTER_DAYS, SOCIAL_RULES_REGISTER, daysBetween, rulesFreshness } from './social/register.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
@@ -114,6 +115,7 @@ function kitRules(definition: PlaybookDefinition, today: IsoDate): DatedRule[] {
  * firm dates its rate tables instead).
  */
 export function playbookRules(flagship: string | null | undefined, today: IsoDate, definitions: readonly PlaybookDefinition[] = kitDefinitions()): DatedRule[] {
+  if(flagship==='ca-firm')return caDatedRules(today);
   if (flagship === SOCIAL_AGENCY_ID) return socialRules(today);
   if (flagship === YOUTUBE_ID) return youtubeRules(today);
   const kit = flagship ? definitions.find(definition => definition.registration.id === flagship) : undefined;

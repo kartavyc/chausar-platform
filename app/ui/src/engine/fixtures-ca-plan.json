@@ -121,6 +121,64 @@
     ]
   },
   {
+    "id": "books-health-check",
+    "name": "Quarterly books health check",
+    "description": "Every supplied ledger and bank row read, evidence-backed findings reviewed by your CA, then a read-only client report.",
+    "pricing": "project",
+    "unit": "per quarter",
+    "regulated": true,
+    "caOnly": false,
+    "engines": [
+      "books-health"
+    ],
+    "deliverables": [
+      "Source coverage worklist",
+      "CA decisions with evidence",
+      "Read-only quarterly report"
+    ],
+    "filedBy": null,
+    "intake": [
+      {
+        "id": "tdsHistoryComplete",
+        "kind": "yes-no",
+        "label": "Complete prior TDS history",
+        "help": "Confirm that every earlier payment relevant to this year TDS threshold is included, or that there were none.",
+        "required": false
+      },
+      {
+        "id": "quarter",
+        "kind": "text",
+        "label": "Calendar quarter",
+        "help": "For example 2026-Q4. It limits the source dates checked.",
+        "required": true
+      },
+      {
+        "id": "financialYear",
+        "kind": "choice",
+        "label": "Financial year",
+        "help": "The year selects the dated tax tables your CA confirms.",
+        "required": true,
+        "options": [
+          "2026-27"
+        ]
+      },
+      {
+        "id": "coverage",
+        "kind": "text",
+        "label": "Source coverage and missing files",
+        "help": "Name each ledger or bank export and any known gaps. Only supplied lines can be checked.",
+        "required": true
+      },
+      {
+        "id": "reviewThreshold",
+        "kind": "text",
+        "label": "Purchase review threshold source",
+        "help": "Identify the source cell holding the owner threshold. The agent cannot invent an amount.",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "itr-form-and-regime",
     "name": "ITR form and regime",
     "description": "Choose the return form and review the regime history.",

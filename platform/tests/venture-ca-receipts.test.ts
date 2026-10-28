@@ -584,7 +584,7 @@ test('the reconcile step holds tax.statements beside its old tools, and the comp
   const reconcile = CA_STEPS.find(step => step.id === 'reconcile')!;
   assert.deepEqual([...reconcile.tools], ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'tax.statements', 'handoff.client', 'handoff.owner']);
   const compute = CA_STEPS.find(step => step.id === 'compute')!;
-  assert.deepEqual([...compute.tools], ['files.read', 'tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance', 'handoff.owner']);
+  assert.deepEqual([...compute.tools], ['files.read', 'tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance', 'tax.whatIf', 'books.healthCheck', 'docs.entry', 'handoff.owner']);
   const portal = CA_STEPS.find(step => step.id === 'portal-diff')!;
   assert.deepEqual([portal.tier, portal.tools.length, portal.gate], ['code', 0, 'ca-accepts-portal-diff']);
   assert.equal(validatePlaybook(caFirmPlaybookSteps()).validated, true);

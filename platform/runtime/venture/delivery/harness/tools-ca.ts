@@ -1,3 +1,4 @@
+import {HEALTH_CHECK} from './tools-ca-health.ts';
 // Chausar delivery harness: the AI-native CA firm's tax engines as agent tools (Ink v2 wave 2, package 2A1): income
 // tax, interest on late tax, the GST working and the TDS working. The agent picks the rule, the table columns and the
 // amount ids; code reads the cells (playbooks/ca-firm/tool-inputs.ts) and the engine gives every number with its CA
@@ -33,6 +34,8 @@ import {
 import { fail, receiptOut, refusal, text, type Field, type Spec, type ToolEnv, type ToolResult } from './tools.ts';
 import { pdfPages, tablesOfFile } from './files.ts';
 import { CITATIONS, FORM_CHOOSER, ADVANCE } from './tools-ca-rules.ts';
+import { WHAT_IF } from './tools-ca-what-if.ts';
+import { DOC_ENTRY } from './tools-ca-entry.ts';
 import { notBuiltTool } from './tool-stub.ts';
 import type { WorkReceiptDraft } from './work.ts';
 
@@ -442,7 +445,7 @@ export const CA_W5_TOOLS: Readonly<Record<CaW5ToolName, Spec>> = Object.freeze({
   'tax.citations': CITATIONS,
   'tax.formChooser': FORM_CHOOSER,
   'tax.advance': ADVANCE,
-  'tax.whatIf': notBuiltTool('tax.whatIf', 'compute', 'Tax under the other regime, at a cliff or for a target, worked out by the calculator.'), // 5C2
-  'books.healthCheck': notBuiltTool('books.healthCheck', 'compute', 'Every ledger and bank line read for duplicates, missing GSTINs and cash limits.'), // 5C2
-  'docs.entry': notBuiltTool('docs.entry', 'compute', 'A bank statement or bill read into entries that must tie, page by page.'), // 5C2
+  'tax.whatIf': WHAT_IF,
+  'books.healthCheck': HEALTH_CHECK,
+  'docs.entry': DOC_ENTRY,
 });

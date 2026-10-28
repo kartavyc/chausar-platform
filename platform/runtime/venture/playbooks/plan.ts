@@ -85,7 +85,7 @@ const CA_FIRM_PLAN = build(
   CA_CONNECTORS.map(item => item.id),
   {
     // The three offers a new firm starts with; the other regulated offers and the CA's own work are added later.
-    offers: [{ key: 'monthly-books', block: 'retainer' }, { key: 'gst-working', block: 'retainer' }, { key: 'itr-salaried', block: 'one-off-project' }, ...CA_OFFERS.filter(offer => ['itr-form-and-regime','itr-computation-only','itr-check-draft','itr-checklist','check-return-elsewhere','advance-tax-freelancer','tax-question-desk'].includes(offer.id)).map(offer => ({key:offer.id,block:(offer.pricing==='monthly'?'retainer':'one-off-project') as OfferBlockId}))],
+    offers: [{ key: 'monthly-books', block: 'retainer' }, { key: 'gst-working', block: 'retainer' }, { key: 'itr-salaried', block: 'one-off-project' }, ...CA_OFFERS.filter(offer => ['books-health-check','itr-form-and-regime','itr-computation-only','itr-check-draft','itr-checklist','check-return-elsewhere','advance-tax-freelancer','tax-question-desk'].includes(offer.id)).map(offer => ({key:offer.id,block:(offer.pricing==='monthly'?'retainer':'one-off-project') as OfferBlockId}))],
     approvals: [
       { key: 'owner-approves-draft', block: 'each-draft' }, { key: 'ca-signs-regulated', block: 'each-draft' },
       { key: 'ca-confirms-rates', block: 'prices-invoices' }, { key: 'human-files', block: 'posts-in-your-name' },

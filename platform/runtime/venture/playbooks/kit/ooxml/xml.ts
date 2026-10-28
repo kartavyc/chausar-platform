@@ -18,7 +18,7 @@ export function xmlUnescape(value: string): string {
       const point = name[1] === 'x' ? Number.parseInt(name.slice(2), 16) : Number.parseInt(name.slice(1), 10);
       return point <= 0x10ffff ? String.fromCodePoint(point) : '';
     }
-    return ({ lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" } as Record<string, string>)[name];
+    return ({ lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" } as Record<string, string>)[name]!;
   });
 }
 

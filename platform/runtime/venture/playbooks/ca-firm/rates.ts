@@ -14,8 +14,8 @@
 // Ideas taken, code written here: Invaro/opentax-engine (AGPL-3.0, ideas only) for rules with a version, a citation and
 // a half-open validity window; NidheeshJain/itr-prep-skill (MIT) for the rules-verification idea, reshaped as rows a
 // CA confirms rather than numbers a model looks up.
-import { ChausarError } from '../../../contracts.ts';
-import { digest } from '../../records.ts';
+import { ChausarError } from '../../../portable.ts';
+import { digest } from '../../../portable.ts';
 import type { IsoDate } from './money.ts';
 
 export const RENUMBERING_QUESTION = 'Open question for the CA: does the Income-tax Act, 2025 renumber these sections from 1 April 2026? '
@@ -31,7 +31,7 @@ export const OPEN_QUESTIONS: readonly string[] = Object.freeze([RENUMBERING_QUES
 /** What a citation says for a figure or section number no official page gave: last year's, unchecked. */
 export const CARRIED_FORWARD = 'carried forward from FY 2025-26, not verified, needs CA confirmation';
 
-export type RateTableKind = 'income-tax' | 'income-tax-interest' | 'gst-rates' | 'tds-sections';
+export type RateTableKind = 'income-tax' | 'income-tax-interest' | 'gst-rates' | 'tds-sections' | 'books-health';
 /** checkedOn stays null until a CA checks the source; the URL is where to look, not proof that anyone looked. */
 export type Citation = { source: string; part: string | null; url: string | null; checkedOn: null; note: string | null };
 export type SectionRef = { key: string; act: string; section: string; title: string; needsCaConfirmation: true };
@@ -525,9 +525,19 @@ const INTEREST_AY_2027_28: RateTable<InterestPayload> = {
   },
 };
 
+/** CA6 review thresholds. Source search and section 186 read 28 Oct; applicability and exceptions still need the CA. */
+export const BOOKS_HEALTH_FY_2026_27:RateTable<{cashPaymentMinor:string;cashReceiptMinor:string}>&{needs:'ca'}={
+ id:'in-books-health-fy-2026-27',kind:'books-health',title:'Books health review thresholds for FY 2026-27',version:1,validFrom:'2026-04-01',validTo:'2027-04-01',appliesTo:'Review flags only; the CA confirms applicability and all exceptions.',needsCaConfirmation:true,needs:'ca',
+ citations:[
+  {source:IT_2025,part:'Section 36(4)-(7), earlier section 40A(3)/(3A)',url:'https://www.incometaxindia.gov.in/w/section-36-178',checkedOn:null,note:'Official search extract read on 28 October 2026; full page unavailable. Exceptions need the CA.'},
+  {source:IT_2025,part:'Section 186, earlier section 269ST',url:'https://www.incometaxindia.gov.in/w/section-186-41',checkedOn:null,note:'Official section read on 28 October 2026. Per-day, transaction and event aggregation; exceptions need the CA.'},
+  {source:'CGST Rules 2017',part:'Rule 46',url:'https://cbic-gst.gov.in/pdf/CGST-Rules-2017-Part-A-Rules.pdf',checkedOn:null,note:'Official compilation stops at October 2018; CA must verify later amendments. Missing GSTIN is a review flag, not a tax conclusion.'},
+ ],sections:[section('cash-payment',IT_2025,'36','Cash expenditure review'),section('cash-receipt',IT_2025,'186','High-value cash receipt review'),section('gst-invoice','CGST Rules 2017','46','Tax invoice particulars')],
+ openQuestions:[RENUMBERING_QUESTION, 'The CA confirms exceptions, later GST amendments and whether the supplied ledger covers every relevant transaction.'],payload:{cashPaymentMinor:'1000000',cashReceiptMinor:'20000000'},
+};
 /** The tables new work is done on, picked by kind and transaction date (rateTableFor). */
 export const RATE_TABLES: readonly RateTable[] = Object.freeze([
-  INCOME_TAX_AY_2026_27, INTEREST_AY_2026_27_V2, GST_V1, GST_V2, TDS_FY_2025_26_V2, INCOME_TAX_AY_2027_28, TDS_FY_2026_27, INTEREST_AY_2027_28,
+  INCOME_TAX_AY_2026_27, INTEREST_AY_2026_27_V2, GST_V1, GST_V2, TDS_FY_2025_26_V2, INCOME_TAX_AY_2027_28, TDS_FY_2026_27, INTEREST_AY_2027_28, BOOKS_HEALTH_FY_2026_27,
 ] as RateTable[]);
 /**
  * Versions a correction replaced for the same days, kept unchanged so a receipt made on one can be read again. Nothing
@@ -535,7 +545,7 @@ export const RATE_TABLES: readonly RateTable[] = Object.freeze([
  */
 export const RATE_TABLE_HISTORY: readonly RateTable[] = Object.freeze([TDS_FY_2025_26, INTEREST_AY_2026_27] as RateTable[]);
 
-const KINDS: readonly RateTableKind[] = ['income-tax', 'income-tax-interest', 'gst-rates', 'tds-sections'];
+const KINDS: readonly RateTableKind[] = ['income-tax', 'income-tax-interest', 'gst-rates', 'tds-sections','books-health'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The content a CA confirms: the whole table, so any change to a figure, a window or a citation is a new hash. */

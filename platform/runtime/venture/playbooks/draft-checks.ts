@@ -1,3 +1,4 @@
+import {whatIfShown,healthReviewed} from './ca-firm/c2-checks.ts';
 import { socialContentChecks } from './social/content-checks.ts';
 import { ghostwritingChecks } from './social/structures.ts';
 import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
@@ -93,6 +94,7 @@ export type FlagshipCheckInput = {
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
   caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
+  caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
 };
 
@@ -443,6 +445,12 @@ function caChecks(input: FlagshipCheckInput): CaResult[] {
     ? { check: item.check, outcome: 'not-run' as const, detail: 'not run: the draft rests on no tax working with a rate table.' }
     : { check: item.check, outcome: item.passed ? 'pass' as const : 'fail' as const, detail: item.detail }));
   const words = caDraftWords(input);
+  if(receipts.some(receipt=>receipt.engine==='what-if'))results.push({check:'whatif-assumptions-shown',outcome:whatIfShown(receipts,words)?'pass':'fail',detail:'Every actual scenario assumption must appear in the papers.'});
+  if(input.offerKey==='books-health-check'){
+    const health=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='books-health') as unknown as {id:string;digest:string;ca:{working:unknown}}[];
+    const passed=health.length>0&&health.every(receipt=>healthReviewed(receipt,input.caHealthReviews??[]));
+    results.push({check:'finding-has-evidence',outcome:passed?'pass':'fail',detail:passed?'Every supplied line was read and each finding has an evidence-backed CA decision.':'Run the source health tool and have the CA decide every finding with evidence before the client report.'});
+  }
   const citationCall = [...(input.toolCalls ?? [])].reverse().find(call => call.tool === 'tax.citations' && call.envelope.ok);
   const citationResult = citationCall?.envelope.ok ? citationCall.envelope.result as Record<string, unknown> : null;
   const hasReferences = citationReferences(words).length > 0;

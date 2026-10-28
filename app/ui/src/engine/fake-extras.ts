@@ -1,3 +1,4 @@
+import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FAKE_CA_RULES } from './fake-ca-rules';
 import type { SignoffCheckView } from './types';
 /**
@@ -330,7 +331,7 @@ export class FakeExtrasDesk {
   }
   private caOf(biz: string): CaView {
     if (this.host.playbook(biz)?.id !== 'ca-firm') return { ca: null, pendingRates: [], requests: [] };
-    this.ca[biz] ??= { ca: null, pendingRates: [], requests: [] };
+    this.ca[biz] ??= { ca: null, pendingRates: RATE_TABLES.map(table=>({tableId:table.id,title:table.title,version:String(table.version),validFrom:table.validFrom,validTo:table.validTo,citations:table.citations.map(c=>[c.source,c.part,c.url].filter(Boolean).join(', '))})), requests: [] };
     this.ca[biz].citations ??= clone(FAKE_CA_RULES);
     return this.ca[biz];
   }
@@ -414,14 +415,11 @@ export class FakeExtrasDesk {
   }
 
   private confirmRates(biz: string, p: Record<string, unknown>) {
-    const view = this.mustBeCaFirm(biz);
-    const ids = Array.isArray(p.tableIds) ? p.tableIds.filter((id): id is string => typeof id === 'string') : [];
-    if (ids.length === 0) throw invalid('Choose at least one rate table.');
-    const unknown = ids.find((id) => !view.pendingRates.some((r) => r.tableId === id));
-    if (unknown) throw new EngineError('RATE_TABLE_NOT_FOUND', 'That rate table is not waiting for your CA.');
-    this.ofRecord(view, p.membershipNo);
-    view.pendingRates = view.pendingRates.filter((r) => !ids.includes(r.tableId));
-    return clone(view);
+    const view=this.mustBeCaFirm(biz),refs=p.tableIds,pattern=/^(in-[a-z0-9-]{1,60})(?:@(\d{1,4}))?$/;
+    if(Object.keys(p).some(key=>!['tableIds','membershipNo'].includes(key))||!Array.isArray(refs)||refs.length<1||refs.length>20||!refs.every(id=>typeof id==='string'&&pattern.test(id)))throw invalid('Choose the rate tables to confirm.');
+    const number=this.membership(p.membershipNo);if(!view.ca)throw new EngineError('CA_OF_RECORD_REQUIRED','Name your CA of record, with their ICAI membership number, first.');if(number!==view.ca.membershipNo)throw new EngineError('CA_MEMBERSHIP_MISMATCH',`That is not the ICAI membership number of ${view.ca.name}, your CA of record.`);
+    for(const ref of refs){const [,id,version]=pattern.exec(ref)!;if(!RATE_TABLES.some(t=>t.id===id&&(version===undefined||t.version===Number(version))))throw new EngineError('SIGNOFF_NOT_FOUND','That rate table version is not one Chausar keeps.');}
+    view.pendingRates=view.pendingRates.filter(row=>!refs.some(ref=>{const [,id,version]=pattern.exec(ref)!;return row.tableId===id&&(version===undefined||row.version===version);}));return clone(view);
   }
 
   // ---------------------------------------------------------------------------------------------------------------

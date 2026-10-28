@@ -42,8 +42,8 @@ export const handlers: VentureHandlerTable = Object.freeze({
   // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
   'venture.ca.confirmCitations': async (deps, ctx, payload) => (await import('./ca-firm/citations.ts')).caConfirmCitations(deps, ctx, payload),
   'venture.ca.signoff.get': async (deps, ctx, payload) => (await import('./ca-firm/stored-signoff.ts')).caSignoffGet(deps, ctx, payload),
-  'venture.ca.differential.add': notBuiltYet,
-  'venture.ca.dataPack.export': notBuiltYet,
+  'venture.ca.differential.add': async (deps, ctx, payload) => (await import('./ca-firm/differential.ts')).caDifferentialAdd(deps, ctx, payload),
+  'venture.ca.dataPack.export': async (deps,ctx,payload)=>(await import('./ca-firm/data-pack.ts')).caDataPackExport(deps,ctx,payload),
   // Every business's desk: 5A1 routes these through playbooks/desks.ts deskHandler
   'venture.desk.list': deskRoute('list'),
   'venture.desk.get': deskRoute('get'),

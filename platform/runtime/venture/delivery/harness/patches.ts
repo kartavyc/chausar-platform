@@ -27,7 +27,7 @@ const SUMS = /\b(add(?:s|ed|ing)? up|sum(?:s|med|ming)?|totals?|totalling|totali
 
 /** A flagship playbook's own tools, by playbook id: only its agents may ever hold them. */
 export const FLAGSHIP_TOOLS: Readonly<Record<string, readonly ToolName[]>> = Object.freeze({
-  [CA_FIRM_ID]: Object.freeze(['tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.statements', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance'] as const),
+  [CA_FIRM_ID]: Object.freeze(['tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.statements', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance', 'tax.whatIf', 'books.healthCheck', 'docs.entry'] as const),
   [YOUTUBE_ID]: Object.freeze(['youtube.hooks', 'youtube.editList', 'youtube.chapters', 'youtube.retention', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'youtube.style', 'youtube.clips', 'youtube.broll', 'youtube.beats', 'youtube.export'] as const),
   [SOCIAL_AGENCY_ID]: Object.freeze(['social.report', 'social.inventory', 'social.formats', 'social.slots'] as const),
 });

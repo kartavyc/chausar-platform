@@ -75,7 +75,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-go-no-go': 'gonogo', 'venture-sales-proposal': 'salesprop', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
   'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-local-app': 'localapp', 'venture-youtube-edit': 'ytedit',
   'venture-youtube-dictionary': 'ytdict', 'venture-youtube-style': 'ytstyle', 'venture-ca-citations': 'cacite', 'venture-ca-differential': 'cadiff',
-  'venture-ca-data-pack': 'cadatapack', 'venture-social-inbox-item': 'inboxitem', 'venture-social-scheduled': 'socialslot', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
+  'venture-ca-data-pack': 'cadatapack', 'venture-ca-working':'cawork', 'venture-social-inbox-item': 'inboxitem', 'venture-social-scheduled': 'socialslot', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
   'venture-seo-panel': 'seopanel', 'venture-seo-observation': 'seoobs', 'venture-seo-finding': 'seofinding', 'venture-seller-sku': 'sku',
   'venture-seller-feecard': 'feecard', 'venture-seller-stage': 'sellerstage', 'venture-seller-movement': 'movement', 'venture-seller-case': 'sellercase',
   'venture-support-ticket': 'ticket', 'venture-support-message': 'supportmsg', 'venture-support-request': 'supportreq', 'venture-support-rating': 'rating',
@@ -360,9 +360,8 @@ export function bpsPercent(bps: string): string {
  * Inside the app: the desktop window or the paired local browser (both 'desktop'), or a signed-in owner on the hosted
  * web app ('web'). Never phone or MCP, and never a request whose source text is tainted.
  */
-export function isAppChannel(ctx: Context | undefined): boolean {
-  return (ctx?.channel === 'desktop' || ctx?.channel === 'web') && !ctx.sourceTainted;
-}
+import {isAppChannel} from '../portable.ts';
+export {isAppChannel} from '../portable.ts';
 
 /** Owner approvals happen inside the app, never phone or MCP. */
 export function requireAppChannel(ctx: Context, method: VentureMethod) {

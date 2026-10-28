@@ -6,14 +6,14 @@
 export type CaCitationsView = { version: number; tableHash: string; rows: import('./citations.ts').CitationRow[]; rules: { id: string; title: string; assessmentYear: string; validFrom: string; validTo: string; verification: string; source: string }[]; confirmedBy: import('./citations.ts').CitationConfirmation | null };
 export type CaCitationsBody = { version: number; tableHash: string; confirmedBy: { name: string; membershipNumber: string; at: string } };
 /** venture-ca-differential: one case captured from the department's calculator, a placeholder until 5C2 lands. */
-export type CaDifferentialBody = { placeholder: true };
+export type CaDifferentialBody = { name: string; inputs: Record<string, unknown>; outputs: Record<string,string>; capturedBy: string; membershipNumber: string; capturedAt: string };
 /** venture-ca-data-pack: the ITR data pack, held encrypted, a placeholder until 5C2 lands. */
-export type CaDataPackBody = { placeholder: true };
+export type CaDataPackBody = { clientId:string; facts:import('./pack-core.ts').PackFacts; receiptId:string; exportApprovals:string[] };
 /** venture.ca.confirmCitations's answer (5C1). */
 export type CitationsConfirmView = CaCitationsBody;
 /** venture.ca.signoff.get's answer: same, or the first difference (5C1). */
 export type SignoffCheckView = { id: string; ca: { name: string; membershipNumber: string }; at: string; decision: 'signed' | 'returned'; playbookHash: string | null; workingDigest: string; receipts: { id: string; digest: string | null }[]; rederived: 'same' | 'differs'; differs: { key: string; line: string } | null };
 /** venture.ca.differential.add's answer (5C2). */
-export type DifferentialAddView = { placeholder: true };
+export type DifferentialAddView = CaDifferentialBody & { id: string };
 /** venture.ca.dataPack.export's answer (5C2). */
-export type DataPackExportView = { placeholder: true };
+export type DataPackExportView = { name:string; mime:string; contentBase64:string; digest:string; approvalDigest:string };

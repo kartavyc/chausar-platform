@@ -133,5 +133,15 @@
   "kit-intake-words.fc918413": "property",
   "kit-intake-words.9e1ca07d": "2026-27",
   "kit-intake-words.969ccbd3": "Email",
-  "kit-intake-words.9046da16": "Pages"
+  "kit-intake-words.9046da16": "Pages",
+  "kit-intake-words.d01df897": "Calendar quarter",
+  "kit-intake-words.ff4b5df0": "For example 2026-Q4. It limits the source dates checked.",
+  "kit-intake-words.32cc836f": "Financial year",
+  "kit-intake-words.73e05bf5": "The year selects the dated tax tables your CA confirms.",
+  "kit-intake-words.7e3f72e3": "Source coverage and missing files",
+  "kit-intake-words.c2ed472c": "Name each ledger or bank export and any known gaps. Only supplied lines can be checked.",
+  "kit-intake-words.4a0d469f": "Purchase review threshold source",
+  "kit-intake-words.834f4d33": "Identify the source cell holding the owner threshold. The agent cannot invent an amount.",
+  "kit-intake-words.caTdsHistory": "Complete prior TDS history",
+  "kit-intake-words.caTdsHistoryHelp": "Confirm that every earlier payment relevant to this year TDS threshold is included, or that there were none."
 }

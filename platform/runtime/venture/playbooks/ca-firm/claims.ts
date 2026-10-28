@@ -9,6 +9,7 @@
 // The judge rules ask what code cannot see, as yes or no questions with their own floors (delivery/judge/rules.ts),
 // and a committed baseline of held-back cases (baselines/ca-firm.json) fails the suite if quality drops.
 import { checkClaims, type SourceText } from '../../delivery/judge/claim-check.ts';
+import {caSourceCasePasses} from './baseline-source.ts';
 import { loadBaseline, type BaselineFile } from '../../delivery/judge/baseline.ts';
 import { validateRules, type JudgeRule } from '../../delivery/judge/rules.ts';
 import type { ToolEnvelope } from '../../contracts.ts';
@@ -273,6 +274,8 @@ export function checkCaDraft(input: CaDraftInput): { passed: boolean; findings: 
 
 /** The questions only a reader can answer, each with its own floor. Code counts the votes (delivery/judge/rules.ts). */
 export const CA_JUDGE_RULES: readonly JudgeRule[] = Object.freeze(validateRules([
+  {id:'whatif-assumptions-shown',question:'Are all scenario assumptions explicitly shown when what-if work is present? Otherwise answer yes.',text:'Show the exact calculator assumptions and keep the scenario separate from a client fact.',floor:{kind:'required-yes'}},
+  {id:'finding-has-evidence',question:'Does every books health finding cite source evidence and the CA decision, without implying unread data is clean? Otherwise answer yes.',text:'Evidence, full supplied-source coverage and CA review are required for health findings.',floor:{kind:'required-yes'}},
   { id:'citation-current', question:'Are every section and dated mapping checked, with unknown references held for the CA?', text:'Every citation must match the confirmed dated rule table.', floor:{kind:'required-yes'} },
   { id:'fact-check-form', question:'For a tax question note, are Supports, Conflicts, Unknowns and Coverage present with a source id for each claim? Otherwise answer yes.', text:'Tax question notes must use the source-backed fact-check form.', floor:{kind:'required-yes'} },
   { id:'assumption-labelled', question:'Are client estimates explicitly labelled assumptions wherever used?', text:'A client estimate must never be presented as an established fact.', floor:{kind:'required-yes'} },
@@ -288,6 +291,8 @@ export const CA_JUDGE_RULES: readonly JudgeRule[] = Object.freeze(validateRules(
 export const CA_BASELINE_DIR = new URL('./baselines/', import.meta.url);
 
 /** The committed baseline for this playbook. */
-export function loadCaBaseline(): Promise<BaselineFile> {
-  return loadBaseline('ca-firm', CA_BASELINE_DIR);
+export async function loadCaBaseline(): Promise<BaselineFile> {
+  const file=await loadBaseline('ca-firm', CA_BASELINE_DIR);
+  for(const item of file.cases)if(!caSourceCasePasses(item))throw new Error(`CA source baseline failed: ${item.id}`);
+  return file;
 }

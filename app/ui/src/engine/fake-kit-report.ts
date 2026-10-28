@@ -86,7 +86,7 @@ function header(size: number, fields: readonly Field[]): Uint8Array {
   return new Uint8Array(view.buffer);
 }
 /** A zip of stored entries, with UTF-8 names and the date 1 Jan 1980 (the engine deflates; a fake need not). */
-function storedZip(files: { name: string; text: string }[]): Uint8Array {
+export function storedZip(files: { name: string; text: string }[]): Uint8Array {
   const parts: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;

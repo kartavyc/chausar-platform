@@ -235,7 +235,7 @@ export const VENTURE_RECORD_KINDS = [
   // firm 5C1 citations, 5C2 differential cases and the ITR data pack; social 5D2 inbox items and the ad ledger, 5D3
   // influencer cases.
   'venture-youtube-edit', 'venture-youtube-dictionary', 'venture-youtube-style',
-  'venture-ca-citations', 'venture-ca-differential', 'venture-ca-data-pack',
+  'venture-ca-citations', 'venture-ca-differential', 'venture-ca-data-pack', 'venture-ca-working',
   'venture-social-inbox-item', 'venture-social-scheduled', 'venture-ad-ledger-entry', 'venture-influencer-case',
   // The new playbooks (playbooks/<id>/records.ts): seo-visibility 5E1 and 5E2; online-seller 5F1 and 5F2; support-desk
   // 5G; recruiting-desk 5H; job-search-desk 5I; translation-studio 5J1; bookkeeping-cfo 5K1 and 5K2; podcast-to-article
@@ -5006,6 +5006,7 @@ export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeSt
 export type CaCitationsRecord = RecordBase<'venture-ca-citations'> & CaCitationsBody;
 export type CaDifferentialRecord = RecordBase<'venture-ca-differential'> & CaDifferentialBody;
 export type CaDataPackRecord = RecordBase<'venture-ca-data-pack'> & CaDataPackBody;
+export type CaWorkingRecord = RecordBase<'venture-ca-working'> & import('./playbooks/ca-firm/work-core.ts').CaWorkingBody;
 export type SocialScheduledRecord = RecordBase<'venture-social-scheduled'> & SocialScheduledBody;
 export type SocialInboxItemRecord = RecordBase<'venture-social-inbox-item'> & SocialInboxItemBody;
 export type AdLedgerEntryRecord = RecordBase<'venture-ad-ledger-entry'> & AdLedgerEntryBody;
@@ -5101,7 +5102,7 @@ export type AnyVentureRecord =
   // Ink v2 wave 5 (section 9f)
   | GoNoGoRecord | SalesProposalRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord | LocalAppRecord
   | YoutubeEditRecord | YoutubeDictionaryRecord | YoutubeStyleRecord
-  | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord
+  | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord | CaWorkingRecord
   | SocialScheduledRecord | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
   | SeoPanelRecord | SeoObservationRecord | SeoFindingRecord
   | SellerSkuRecord | SellerFeecardRecord | SellerStageRecord | SellerMovementRecord | SellerCaseRecord
@@ -5926,7 +5927,7 @@ export type VenturePayloads = {
   'venture.ca.confirmCitations': { version: number; membershipNo: string };
   'venture.ca.signoff.get': { id: string };
   'venture.ca.differential.add': { name: string; inputs: Json; outputs: Json; capturedBy: string };
-  'venture.ca.dataPack.export': { clientId: string; fields: string[] };
+  'venture.ca.dataPack.export': import('./playbooks/ca-firm/pack-core.ts').PackSelection & {approvalDigest:string};
   'venture.desk.list': DeskListPayload;
   'venture.desk.get': DeskGetPayload;
   'venture.desk.act': DeskActPayload;
@@ -6279,6 +6280,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'STATEMENT_DOES_NOT_TIE',
   'AUDIO_INPUT_INVALID', 'AUDIO_TOO_LARGE', 'BEAT_INPUT_INVALID', 'BEAT_RULES_FAILED', 'BOARD_OUTPUT_INVALID', 'BOARD_REQUIRED', 'BROLL_APPROVAL_REQUIRED', 'BROLL_INVALID', 'BROLL_LICENCE_REQUIRED', 'BROLL_REMOVED', 'BROLL_REVIEW_REQUIRED', 'CLIP_PAGE_INVALID', 'CLIP_RULES_FAILED', 'FINISHING_FAILED', 'FINISHING_INPUT_INVALID', 'INTERCHANGE_INVALID', 'MEDIA_FILE_REQUIRED', 'OUTPUT_APPROVAL_REQUIRED', 'PUBLISHING_TEXT_INVALID', 'SOURCE_DOWNSCALED', 'STYLE_MEASUREMENTS_REQUIRED', 'STYLE_NOT_FOUND', 'STYLE_OWNED_REQUIRED', 'STYLE_SAMPLES_REQUIRED',
   'COMMUNITY_NO_GO',
   'COMMUNITY_RULES_REQUIRED',

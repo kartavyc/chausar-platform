@@ -1,3 +1,4 @@
+import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSocialChainNaming } from '../playbooks/social/chain-privacy.ts';
 import { eraseScheduledNaming } from '../playbooks/social/scheduled-privacy.ts';
 import { eraseSupportNaming } from '../playbooks/support-desk/privacy.ts';
@@ -279,6 +280,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.

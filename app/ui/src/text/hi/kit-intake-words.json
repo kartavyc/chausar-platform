@@ -133,5 +133,15 @@
   "kit-intake-words.fc918413": "प्रॉपर्टी",
   "kit-intake-words.9e1ca07d": "2026-27",
   "kit-intake-words.969ccbd3": "ईमेल",
-  "kit-intake-words.9046da16": "पेज"
+  "kit-intake-words.9046da16": "पेज",
+  "kit-intake-words.d01df897": "कैलेंडर तिमाही",
+  "kit-intake-words.ff4b5df0": "जैसे 2026-Q4। यह जाँचे जाने वाले स्रोत की तारीख़ों को सीमित करता है।",
+  "kit-intake-words.32cc836f": "वित्त वर्ष",
+  "kit-intake-words.73e05bf5": "वर्ष के आधार पर सीए की पुष्टि वाली कर तालिका चुनी जाती है।",
+  "kit-intake-words.7e3f72e3": "स्रोत का दायरा और गायब फ़ाइलें",
+  "kit-intake-words.c2ed472c": "हर बही या बैंक एक्सपोर्ट और ज्ञात कमी बताएँ। केवल दी गई लाइनें जाँची जा सकती हैं।",
+  "kit-intake-words.4a0d469f": "खरीद समीक्षा सीमा का स्रोत",
+  "kit-intake-words.834f4d33": "मालिक की सीमा वाले स्रोत खाने को पहचानें। एजेंट रकम नहीं बना सकता।",
+  "kit-intake-words.caTdsHistory": "पहले के सभी TDS भुगतान",
+  "kit-intake-words.caTdsHistoryHelp": "पुष्टि करें कि इस साल की TDS सीमा से जुड़े सभी पुराने भुगतान शामिल हैं, या पहले कोई भुगतान नहीं हुआ।"
 }

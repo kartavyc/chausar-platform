@@ -13,8 +13,8 @@
 // flags is left out ("the payee"). W5's CA deepening builds on it.
 // The Hindi is machine-drafted and needs a native reviewer (HINDI_REVIEW); 4Z adds it to the review list.
 // Idea taken, code written here: Invaro/opentax-engine (AGPL-3.0, ideas only), whose errors list the missing inputs.
-import { ChausarError } from '../../../contracts.ts';
-import type { HandoffRequest, Json, ToolCallRecord } from '../../contracts.ts';
+import { ChausarError } from '../../../portable.ts';
+import type {FactsHandoffInput as HandoffRequest,Json,FactsCallInput as ToolCallRecord} from './facts-types.ts';
 import { screenUntrusted } from '../../policy/untrusted.ts';
 
 export const HINDI_REVIEW = 'machine-drafted, needs a native reviewer';

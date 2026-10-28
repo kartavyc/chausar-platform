@@ -4,8 +4,8 @@
   "recordedAt": "2026-10-28",
   "recordedFrom": "Hand-written held-back CA draft references plus C2 synthetic typed-source calculator regressions. No departmental calculator captures are claimed. Re-record from a real playbook run with raiseBaseline; the baseline only rises.",
   "baseline": {
-    "passed": 10,
-    "of": 10
+    "passed": 13,
+    "of": 13
   },
   "cases": [
     {
@@ -212,6 +212,72 @@
         "has been filed"
       ],
       "reference": "We cannot file or skip your CA. We can prepare working papers and a checklist for your CA to review."
+    },
+    {
+      "id": "regime-compare",
+      "title": "Compare both regimes on the same typed salary",
+      "clientRequest": "Compare both regimes on the same typed salary. Prepare for review only.",
+      "sources": [
+        {
+          "id": "typed-input",
+          "text": "{\"mode\":\"compare-regimes\",\"base\":{\"assessmentYear\":\"2027-28\",\"regime\":\"new\",\"residency\":\"resident\",\"ageBand\":\"below-60\",\"salaryMinor\":\"120000000\"}}"
+        }
+      ],
+      "mustMention": [
+        "regime",
+        "assumed",
+        "CA"
+      ],
+      "mustNotMention": [
+        "has been filed",
+        "we filed",
+        "e-verified"
+      ],
+      "reference": "The regime comparison uses assumed omitted facts. Each amount has a code receipt. Your CA confirms applicability before you choose a regime."
+    },
+    {
+      "id": "health-duplicate-payment",
+      "title": "Merge cross-source duplicates and flag repeated payments",
+      "clientRequest": "Merge cross-source duplicates and flag repeated payments. Prepare for review only.",
+      "sources": [
+        {
+          "id": "typed-input",
+          "text": "{\"quarter\":\"2026-Q4\",\"financialYear\":\"2026-27\",\"purchaseThresholdMinor\":\"500000\",\"lines\":[{\"id\":\"ledger-a\",\"source\":\"ledger\",\"transactionId\":\"a\",\"date\":\"2026-10-01\",\"payee\":\"Shop\",\"direction\":\"out\",\"amountMinor\":\"600000\",\"cash\":false,\"purchase\":false,\"gstCharged\":false,\"gstin\":null,\"tds\":null},{\"id\":\"ledger-b\",\"source\":\"ledger\",\"transactionId\":\"b\",\"date\":\"2026-10-02\",\"payee\":\"Shop\",\"direction\":\"out\",\"amountMinor\":\"600000\",\"cash\":false,\"purchase\":false,\"gstCharged\":false,\"gstin\":null,\"tds\":null},{\"id\":\"bank-a\",\"source\":\"bank\",\"transactionId\":\"a\",\"date\":\"2026-10-01\",\"payee\":\"Shop\",\"direction\":\"out\",\"amountMinor\":\"600000\",\"cash\":false,\"purchase\":false,\"gstCharged\":false,\"gstin\":null,\"tds\":null}],\"priorPayments\":[]}"
+        }
+      ],
+      "mustMention": [
+        "duplicate",
+        "evidence",
+        "CA"
+      ],
+      "mustNotMention": [
+        "has been filed",
+        "we filed",
+        "e-verified"
+      ],
+      "reference": "Every supplied line was read. A possible duplicate payment has linked evidence from ledger and bank sources; this needs a CA decision before a client report."
+    },
+    {
+      "id": "statement-ties",
+      "title": "Tie a masked statement page by code",
+      "clientRequest": "Tie a masked statement page by code. Prepare for review only.",
+      "sources": [
+        {
+          "id": "typed-input",
+          "text": "{\"kind\":\"bank-statement\",\"source\":\"Synthetic masked statement\",\"account\":\"XXXX1234\",\"pages\":[{\"page\":1,\"openingMinor\":\"-1000\",\"closingMinor\":\"500\",\"lines\":[{\"id\":\"a\",\"date\":\"2026-10-01\",\"description\":\"Deposit\",\"creditMinor\":\"1500\",\"debitMinor\":\"0\"}]}]}"
+        }
+      ],
+      "mustMention": [
+        "masked",
+        "ties",
+        "approval"
+      ],
+      "mustNotMention": [
+        "has been filed",
+        "we filed",
+        "e-verified"
+      ],
+      "reference": "The masked bank statement ties by code. The voucher remains a draft until owner approval; enter it in the external books manually."
     }
   ]
 }

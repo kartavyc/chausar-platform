@@ -1,11 +1,13 @@
-/**
- * The AI-native CA firm desk on Work (Ink v2 wave 5, packages 5C1, 5C2). Package 5-0 left it a stub that says it is
- * not built yet; the package replaces this file with the desk (it may import parts of its own from other files).
- */
-
-import { useT } from '../../../text';
-
-export function CaFirmDesk() {
-  const t = useT();
-  return <p>{t('kit-desk.notBuilt')}</p>;
+// Original owner desk. Real calculations and private preparation; every outside filing stays manual.
+import {useId,useState,useRef} from 'react';import {useT} from '../../../text';import {useEngine,useResource} from '../../../engine/context';import {EngineError} from '../../../engine/types';import {Tile,TileHead} from '../../../parts/Tile';import {Button} from '../../../parts/Button';import {Field} from '../../../parts/Field';import {CaSelect,type CaAct} from './CaControls';import {CaWorkingForm} from './CaWorkingForm';import {CaWorkingResult,type CaWork} from './CaWorkingResult';import {CaReturnPack} from './CaReturnPack';import s from './CaFirmDesk.module.css';
+export function CaFirmDesk(){const t=useT(),engine=useEngine(),title=useId(),clients=useResource('venture.client.list',{}),saved=useResource('venture.desk.list',{playbook:'ca-firm',kind:'working'}),[client,setClient]=useState(''),[mode,setMode]=useState('what-if'),[busy,setBusy]=useState(false),[problem,setProblem]=useState<string|null>(null),[row,setRow]=useState<CaWork|null>(null),[receiptId,setReceiptId]=useState('');const selectedClient=client||clients.data?.[0]?.id||'';const epoch=useRef(0);const changed=()=>{epoch.current++;setRow(null);};
+ const act:CaAct=async(action,payload,id='new',digest,kind='working')=>{if(busy)return null;const version=epoch.current;setBusy(true);setProblem(null);try{const answer=await engine.request('venture.desk.act',{playbook:'ca-firm',kind,id,action,payload,...(digest?{digest}:{})});saved.reload();return version===epoch.current?answer.result:null;}catch(error){const code=error instanceof EngineError?error.code:'';setProblem(t(['RATE_UNCONFIRMED','NEEDS_FACTS','NOT_MODELLED','STATEMENT_DOES_NOT_TIE','CA_WORK_CHANGED','CA_WORK_SOURCE_CHANGED','CA_NOT_OF_RECORD','CA_FINDING_EVIDENCE_REQUIRED','CA_PACK_CHANGED','CA_PACK_APPROVAL_REQUIRED'].includes(code)?'pb-ca-firm.error.'+code:'pb-ca-firm.error.generic'));return null;}finally{setBusy(false);}};
+ return <><Tile as="section" labelledBy={title}><TileHead id={title} title={t('pb-ca-firm.desk')}/><div className={s.body}><p className={s.line}>{t('pb-ca-firm.deskLine')}</p><a href="#/business/ca">{t('pb-ca-firm.caSetup')}</a><CaSelect label={t('pb-ca-firm.client')} value={selectedClient} onChange={value=>{setClient(value);changed();}}>{!clients.data?.length&&<option value="">{t('pb-ca-firm.pickClient')}</option>}{clients.data?.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</CaSelect><CaSelect label={t('pb-ca-firm.mode')} value={mode} onChange={value=>{setMode(value);changed();}}>{['what-if','document','health','data-pack'].map(value=><option key={value} value={value}>{t('pb-ca-firm.mode.'+value)}</option>)}</CaSelect>
+ {mode==='data-pack'?<CaReturnPack key={selectedClient} clientId={selectedClient} act={act} busy={busy}/>:<CaWorkingForm key={mode+selectedClient} mode={mode} clientId={selectedClient} act={act} busy={busy} onResult={setRow} onEdit={changed}/>}
+ {problem&&<p role="alert">{problem}</p>}
+ </div></Tile>
+ {mode!=='data-pack'&&<details className={s.body}><summary>{t('pb-ca-firm.saved')}</summary><ul className={s.list}>{((saved.data?.rows??[]) as CaWork[]).filter(item=>item.clientId===selectedClient).map(item=><li className={s.row} key={item.id}><span>{t('pb-ca-firm.mode.'+item.mode)}</span><Button variant="quiet" onClick={()=>{setRow(item);setMode(item.mode);}}>{t('pb-ca-firm.open')}</Button></li>)}</ul><Field label={t('pb-ca-firm.deliveryReceipt')} value={receiptId} onChange={e=>setReceiptId(e.currentTarget.value)}/><Button variant="quiet" disabled={busy} locked={!receiptId} lockedReason={t('pb-ca-firm.receiptFirst')} onClick={()=>void act('adopt',{receiptId}).then(result=>result&&setRow(result))}>{t('pb-ca-firm.adopt')}</Button></details>}
+ {row&&mode!=='data-pack'&&<CaWorkingResult key={row.id} row={row} act={act} busy={busy} onResult={setRow}/>}
+ </>;
 }
+CaFirmDesk.ready=true;

@@ -1591,7 +1591,7 @@ export type CaCitationsView = { version: number; tableHash: string; confirmedBy:
 export type CitationsConfirmView = { version: number; tableHash: string; confirmedBy: CitationConfirmation };
 export type SignoffCheckView = { id:string;ca:{name:string;membershipNumber:string};at:string;decision:'signed'|'returned';playbookHash:string|null;workingDigest:string;receipts:{id:string;digest:string|null}[];rederived:'same'|'differs';differs:{key:string;line:string}|null };
 export type DifferentialAddView = W5Placeholder;
-export type DataPackExportView = W5Placeholder;
+export type DataPackExportView={name:string;mime:string;contentBase64:string;digest:string;approvalDigest:string};
 /**
  * Every business's desk (playbooks/desk-types.ts): one playbook id, one of its record kinds. rows, item and result are
  * the owning package's shapes; a desk package narrows them where it reads them.
@@ -2038,7 +2038,7 @@ export interface EngineMethods {
   'venture.ca.confirmCitations': { params: { version: number; membershipNo: string }; result: CitationsConfirmView };
   'venture.ca.signoff.get': { params: { id: string }; result: SignoffCheckView };
   'venture.ca.differential.add': { params: { name: string; inputs: unknown; outputs: unknown; capturedBy: string }; result: DifferentialAddView };
-  'venture.ca.dataPack.export': { params: { clientId: string; fields: string[] }; result: DataPackExportView };
+  'venture.ca.dataPack.export': { params: {packId:string;digest:string;fields:string[];unmask:string[];requestedBy:string;purpose:string;approvalDigest:string}; result: DataPackExportView };
   'venture.desk.list': { params: { playbook: DeskPlaybook; kind: string; filter?: unknown }; result: DeskListView };
   'venture.desk.get': { params: { playbook: DeskPlaybook; kind: string; id: string }; result: DeskItemView };
   'venture.desk.act': { params: { playbook: DeskPlaybook; kind: string; id: string; action: string; payload: unknown; digest?: string }; result: DeskActView };

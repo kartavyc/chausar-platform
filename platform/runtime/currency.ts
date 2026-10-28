@@ -1,4 +1,4 @@
-import { check } from './contracts.ts';
+import { check } from './portable.ts';
 
 const supported = new Set(Intl.supportedValuesOf('currency'));
 // ISO accounting units can be omitted from supportedValuesOf's currency list.
@@ -21,7 +21,7 @@ export function decimalMinor(value: string, currency = 'INR'): string {
   const [whole, rawFraction = ''] = value.replace(/^-/, '').split('.');
   const fraction = rawFraction.replace(/0+$/, '');
   check(fraction.length <= precision, 'INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
-  return String(sign * (BigInt(whole) * 10n ** BigInt(precision) + BigInt(fraction.padEnd(precision, '0') || '0')));
+  return String(sign * (BigInt(whole!) * 10n ** BigInt(precision) + BigInt(fraction.padEnd(precision, '0') || '0')));
 }
 export function formatMinor(value: string | bigint, currency = 'INR'): string {
   const precision = currencyMinorDigits(currency), scale = 10n ** BigInt(precision);

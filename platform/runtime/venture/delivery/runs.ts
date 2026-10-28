@@ -150,6 +150,7 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
     tables: extras.tables ?? [], toolCalls: extras.harness?.toolCalls ?? [],
     // The CA's explanations of portal differences, so one recorded while the run waited counts now (Ink v2 2A2).
     caExplanations: diffExplanations(deps.store.read(), context.venture.id),
+    caHealthReviews: listRecords(deps.store.read(),'venture-ca-working',context.venture.id).filter(row=>row.mode==='health'),
     caCitationUse: citationUseFor(deps.store.read(), context.venture.id, 'client'),
   };
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
