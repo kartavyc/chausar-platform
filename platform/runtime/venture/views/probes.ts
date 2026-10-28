@@ -49,6 +49,7 @@ import { relayNoticeRows } from '../agents/relay.ts';
 import { mediaNoticeRows } from '../playbooks/kit/media-intake.ts';
 import { monitorRows } from '../build/monitors.ts';
 import { localAppRows } from '../build/local-apps.ts';
+import { supportRows } from '../playbooks/support-desk/rows.ts';
 
 /**
  * The open business's notice rows. 4D3's saved searches with new matches and 4E2's paused outreach channels ("Don't
@@ -64,7 +65,7 @@ export function noticeRows(deps: VentureDeps, ctx: Context, state: State, ventur
     // 5A4 (P9): clips still holding their location data because no ffmpeg was here to clean them.
     ...mediaNoticeRows(deps, ctx, state, venture),
     // 5A6 (K16, K13): a page the owner watches that changed, and an app of theirs that asked them to do something first.
-    ...monitorRows(state, venture), ...localAppRows(state, venture)];
+    ...monitorRows(state, venture), ...localAppRows(state, venture), ...supportRows(state, venture)];
   return [...others, ...probeRows(deps, ctx, state, venture, new Set([...shown ?? [], ...others.map(row => row.subject)]))];
 }
 

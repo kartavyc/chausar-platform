@@ -344,6 +344,11 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
+    // 5G: a rating token never falls through to a client draft link, and carries no transcript.
+    if (body.supportRating === true) {
+      const rating = (await this.#load('playbooks')).supportRatingEntry;
+      return typeof rating === 'function' ? (rating as Entry)(this.#deps, ctx, token, { operation: op === 'page' ? 'page' : 'rate', score: body.score }) : null;
+    }
     if (op === 'page') {
       const found = await (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
       if (found !== null) return found;

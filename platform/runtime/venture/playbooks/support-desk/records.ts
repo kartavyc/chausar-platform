@@ -1,13 +1,13 @@
-// Chausar playbook: Support desk for small shops (Ink v2 wave 5, packages 5G). The bodies of its own records, as
-// contracts.ts types each one (RecordBase<kind> & Body). Package 5-0 named each as a placeholder; the package replaces
-// it with the record's fields here, never in contracts.ts. Types only. Written for Chausar; nothing here is learned
-// from an outside source.
-
-/** venture-support-ticket: a placeholder until package 5G lands. */
-export type SupportTicketBody = { placeholder: true };
-/** venture-support-message: a placeholder until package 5G lands. */
-export type SupportMessageBody = { placeholder: true };
-/** venture-support-request: a placeholder until package 5G lands. */
-export type SupportRequestBody = { placeholder: true };
-/** venture-support-rating: a placeholder until package 5G lands. */
-export type SupportRatingBody = { placeholder: true };
+// Support records, independently written from nexusdesk (Apache-2.0) and ResolveHQ ideas (source-available, no copied code).
+import type {ShopCustomerMatch} from './match.ts';
+export type TicketStatus = 'open' | 'in-progress' | 'waiting-customer' | 'resolved' | 'closed';
+export type SupportDraft = { original: string; translated: string; language: string; sources: string[]; approved: boolean; policyChange: boolean; sourceFiles?: {id:string;digest:string}[] };
+export type SupportTicketBody = {
+  replyAddress?:string; customerMatch?:ShopCustomerMatch; customerOrderNumber?:string; customerPhone?:string; serviceOrderId?: string | null; shopClientId?: string | null; policyApproval?: {shareId:string;replyDigest:string} | null; number?: string; rating?: { tokenHash: string; expiresAt: string }; proposal?: { expiresAt: string } | null; thread: string; customerEmail: string; subject: string; language: string; blocked: boolean;
+  status: TicketStatus; revision: number; note: string; autoDraftsPaused: boolean;
+  dueAt: string | null; resolutionDueAt: string | null; snoozedAt: string | null; snoozeUntil: string | null; snoozeReason: string | null;
+  draft: SupportDraft | null; sentAt: string | null; messages: SupportMessageBody[]; policyChangeApproved: boolean;
+};
+export type SupportMessageBody = { ticketId: string; messageId: string | null; sender: string; text: string; at: string; messageKind: 'customer' | 'owner' | 'system'; references: string[]; untrusted: boolean };
+export type SupportRequestBody = { ticketId: string; requestKind: 'refund' | 'replacement'; amountText: string; currency: string; state: 'requested, not done' };
+export type SupportRatingBody = { ticketId: string; score: number; at: string };

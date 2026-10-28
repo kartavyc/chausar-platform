@@ -34,5 +34,12 @@
       "unit-economics-monthly",
       "ads-health-check"
     ]
+  },
+  {
+    "id": "support-desk",
+    "offers": [
+      "monthly-support",
+      "help-pages"
+    ]
   }
 ]

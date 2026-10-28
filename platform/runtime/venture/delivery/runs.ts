@@ -243,6 +243,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   refuseQuarantined(state, venture, deps.clock().toISOString());
   // 4J12 (H24): an order whose contract waits for the owner's signature starts nothing, before any preview.
   refuseUnsignedContract(state, venture, order);
+  (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, order);
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
@@ -411,6 +412,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   refuseUnsignedRun(state, venture, run);
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
+  (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, context.order);
   const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
@@ -443,6 +445,8 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     refuseNewWork(deps.store.read(), venture, ctx, deps.clock().toISOString());
     // 4J12: a contract revision proposed meanwhile stops the send too, before anything goes.
     refuseUnsignedRun(deps.store.read(), venture, run);
+    const latestSupport=deps.store.read();
+    (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
     recheckSend(deps, venture.id, runId, callId, approved);
     if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending, answered: () => { went.out = true; } });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);

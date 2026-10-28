@@ -83,7 +83,7 @@ function checkedUrl(raw: unknown, reading = true): URL {
 }
 
 interface Monitor extends MonitorView { at: string }
-interface Mail { id: string; messageId: string; references: string[]; from: string; subject: string; date: string; source: 'mailbox' | 'file-import'; held: boolean }
+interface Mail { id: string; messageId: string; references: string[]; from: string; subject: string; date: string; source: 'mailbox' | 'file-import'; held: boolean; text?: string | null; to?: string[] }
 interface Book { monitors: Monitor[]; mail: Mail[]; webhooks: Partial<Record<WebhookKind, string>> }
 
 const LOCAL_APPS: readonly { id: LocalAppView['id']; name: string; note: string; licence: string }[] = [
@@ -138,6 +138,20 @@ function split(name: string, text: string): string[] {
   return out.filter((item) => item.trim());
 }
 
+/** Reads plain or multipart text without executing HTML; secret-like content is redacted before support sees it. */
+function mailBody(head: string, body: string, depth = 0): string {
+  if (depth > 4) return '';
+  const contentType = header(head, 'Content-Type') ?? 'text/plain';
+  const boundary = /boundary\s*=\s*(?:"([^"]+)"|([^;\s]+))/i.exec(contentType);
+  if (/^multipart\//i.test(contentType) && boundary) return body.split(`--${boundary[1] ?? boundary[2]}`).slice(1, 30).flatMap(part => { const cut = /\r?\n\r?\n/.exec(part); return cut ? [mailBody(part.slice(0, cut.index), part.slice(cut.index + cut[0].length), depth + 1)] : []; }).filter(Boolean).join('\n').slice(0, 4000);
+  if (!/^text\/(?:plain|html)/i.test(contentType)) return '';
+  let words = body;
+  if (/^base64$/i.test(header(head, 'Content-Transfer-Encoding') ?? '')) { try { words = new TextDecoder().decode(Uint8Array.from(atob(body.replace(/\s/g, '')), c => c.charCodeAt(0))); } catch { return ''; } }
+  if (/^quoted-printable$/i.test(header(head, 'Content-Transfer-Encoding') ?? '')) { const bytes = words.replace(/=\r?\n/g, '').replace(/=([a-f0-9]{2})/gi, (_all, hex: string) => String.fromCharCode(parseInt(hex, 16))); words = new TextDecoder().decode(Uint8Array.from(bytes, c => c.charCodeAt(0))); }
+  if (/^text\/html/i.test(contentType)) words = words.replace(/<(script|style|iframe)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '').replace(/<[^>]*>/g, ' ').replace(/&(?:lt|gt|amp|quot|#39);/g, value => ({ '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&#39;': "'" })[value] ?? value);
+  return words.replace(/\bsk-[a-z0-9_-]{20,}\b/gi, '[secret removed]').replace(/\b\d{12,19}\b/g, '[number removed]').replace(/\r\n/g, '\n').slice(0, 4000).trim();
+}
+
 /** Words aimed at an agent, as the untrusted screen holds them in its plainest form. */
 const AIMED = /ignore (?:all )?previous instructions|disregard (?:the )?(?:above|previous)|you are now|system prompt/i;
 
@@ -153,6 +167,23 @@ export class FakeKitConnectDesk {
 
   handles(method: string): boolean {
     return METHODS.has(method);
+  }
+
+  /** Internal read of already-screened imported words, the counterpart of the engine thread reader. */
+  supportThread(id: string): ReturnType<NonNullable<W4DeskHost['supportThread']>> {
+    const messages = this.threads().get(id);
+    return messages ? { held: messages.some(mail => mail.held), messages: messages.map(mail => ({ messageId: mail.messageId, references: [...mail.references], from: mail.from, subject: mail.subject, date: mail.date, text: mail.source === 'file-import' ? mail.text ?? null : 'The original words remain in the mailbox. Forward or export them to read them here.', source: mail.source })) } : null;
+  }
+  /** Forget erases full imported conversations involving the person, with the words kept for support. */
+  forgetPeople(people: readonly { names: readonly string[]; emails: readonly string[] }[], erase: boolean): void {
+    if (!erase) return;
+    const emails = new Set(people.flatMap(person => person.emails).map(email => email.toLowerCase()));
+    const names = people.flatMap(person => person.names).filter(name => name.length >= 3);
+    const escaped = names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = escaped.length ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${escaped.join('|')})(?![\\p{L}\\p{N}])`, 'iu') : null;
+    const gone = new Set<string>();
+    for (const messages of this.threads().values()) if (messages.some(mail => emails.has(mail.from) || mail.to?.some(to => emails.has(to)) || !!pattern?.test(`${mail.subject}\n${mail.text ?? ''}`))) for (const mail of messages) gone.add(mail.id);
+    this.book().mail = this.book().mail.filter(mail => !gone.has(mail.id));
   }
 
   private book(): Book {
@@ -280,10 +311,12 @@ export class FakeKitConnectDesk {
       const mail: Mail = {
         id: `inbound_${Math.random().toString(36).slice(2, 12)}`, messageId, references: ids(`${header(head, 'References') ?? ''} ${header(head, 'In-Reply-To') ?? ''}`).slice(-20),
         from, subject: (header(head, 'Subject') ?? '').trim() || '(no subject)', date: new Date(Number.isFinite(stated) ? Math.min(stated, Date.parse(at)) : Date.parse(at)).toISOString(),
-        source: 'file-import', held: AIMED.test(body),
+        source: 'file-import', held: AIMED.test(body) || AIMED.test(mailBody(head, body)), text: null, to: [...new Set((`${header(head, 'To') ?? ''} ${header(head, 'Cc') ?? ''}`.match(/[^\s<>"(),;]+@[^\s<>"(),;]+/g) ?? []).map(address => address.toLowerCase()))],
       };
+      mail.text = mail.held ? null : mailBody(head, body);
       if (mail.held) held += 1;
       book.mail.push(mail);
+      this.host.supportImported?.({...mail,text:mail.text??null});
       touched.push(mail);
       added += 1;
     }
@@ -367,4 +400,5 @@ export class FakeKitConnectDesk {
   }
 }
 
+/** Reuse the fake network policy in desks that read public sites. */
 export { checkedUrl as fakeCheckedFetchUrl };

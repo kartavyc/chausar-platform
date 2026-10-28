@@ -587,3 +587,8 @@ UI (`npx vitest run --config app/ui/vitest.config.ts`): app/ui/tests/engine (ipc
 
 - Registers the seller foundation with five own-shop and client audit offers. Source-backed unit economics, ads, listing/India checks and settlement differences use code receipts, explicit missing inputs and pending professional confirmation. Own-shop orders reuse one self client and cannot create customer invoices or client share links. English/Hindi owner audit screens and real/fake intake are included. Staged operations, photos and additional offers remain for 5F2; marketplace connectors remain for 5F3.
 - Earlier independent spec and quality PASS is recorded in the takeover checkpoint. The isolated commit candidate retains the five F1 baseline cases and actual delivery/owner/fake regressions. Reconstruction validation is not a fresh package review, visual PASS or complete batch gate.
+
+## 5G implementation and review closure
+
+- Support desk includes shop-scoped source matching, screened mail routing, exact owner reply approval and unsent mail handoff, business-hour targets, takeover guards, optional rating links and Forget cleanup. Both languages and real/fake public desk paths are included. No email is sent automatically; professional rule confirmations remain null.
+- Independent package review closure remains in the takeover checkpoint. This isolated reconstruction validates the support package at the batch-2 commit boundary; it is not a new visual PASS or broad batch gate.

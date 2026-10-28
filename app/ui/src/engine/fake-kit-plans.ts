@@ -1,3 +1,4 @@
+import { SUPPORT_DESK_META } from './support-metadata';
 import { SELLER_FAKE_METADATA } from './fake-online-seller';
 import { BOOKKEEPING_FAKE_METADATA } from './fake-bookkeeping-cfo';
 import { SEO_FAKE_META } from './fake-seo-visibility';
@@ -11,7 +12,7 @@ export interface FakeKitMetadata {
  offers: readonly { id: string; name: string; description: string; pricing: PricingModel; unit: string; intake: readonly string[]; rights?: readonly ('own-footage' | 'licence' | 'creator-clip-programme')[] }[];
  intakeFields: readonly NonNullable<OfferIntakeLite['kit']>[number][];
 }
-const METADATA = [SELLER_FAKE_METADATA, BOOKKEEPING_FAKE_METADATA, SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
+const METADATA = [SUPPORT_DESK_META, SELLER_FAKE_METADATA, BOOKKEEPING_FAKE_METADATA, SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
 const KITS = planPicks.map(plan => {
  const kit = METADATA.find(item => item.registration.id === plan.id);
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);

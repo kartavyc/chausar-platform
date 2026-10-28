@@ -34,8 +34,11 @@ import { FAKE_4J2_METHODS, FakeSets, fakeDeliveryCopy } from './fake-4j2';
 // 4J19: send back, edit and undo, a fix, paragraph changes, the triage rule, the decision record and row meta (fake-4j19.ts).
 import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19';
 
+export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
   orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
+  supportImported?(mail:SupportImportedMail):void;
+  supportThread?(id: string): { held: boolean; messages: { messageId: string; references: string[]; from: string; subject: string; date: string; text: string | null; source: 'mailbox' | 'file-import' }[] } | null;
   current(): string;
   now(): string;
   emit(event: VentureRunEvent): void;

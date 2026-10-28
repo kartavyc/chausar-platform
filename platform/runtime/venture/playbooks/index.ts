@@ -52,3 +52,6 @@ export const handlers: VentureHandlerTable = Object.freeze({
 
 /** 5A5: the hosted /share/<token> page for a report link (VentureHost.shareLink). Trusted host only; no RPC reaches it. */
 export const reportSharePage: typeof import('./kit/report/share.ts').reportSharePage = async (...args) => (await import('./kit/report/share.ts')).reportSharePage(...args);
+
+/** 5G: trusted hosted customer rating entry; no RPC method exposes it. */
+export const supportRatingEntry: typeof import('./support-desk/rating-link.ts').supportRatingEntry = async (...args) => (await import('./support-desk/rating-link.ts')).supportRatingEntry(...args);

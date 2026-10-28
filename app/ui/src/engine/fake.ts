@@ -239,6 +239,8 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
+      supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
@@ -490,7 +492,7 @@ export class FakeEngine {
     const gone = before.filter(person => !kept.has(person.id));
     if (gone.length) {
       this.kitSales()?.forgetPeople(gone, method === 'venture.network.forget');
-      for (const desk of this.w5 ?? []) if (desk instanceof FakePlaybooksDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
+      for (const desk of this.w5 ?? []) if (desk instanceof FakePlaybooksDesk || desk instanceof FakeKitConnectDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
     }
     return answer;
   }

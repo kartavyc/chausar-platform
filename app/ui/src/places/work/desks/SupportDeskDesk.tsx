@@ -1,11 +1,83 @@
-/**
- * The Support desk for small shops desk on Work (Ink v2 wave 5, packages 5G). Package 5-0 left it a stub that says it
- * is not built yet; the package replaces this file with the desk (it may import parts of its own from other files).
- */
-
-import { useT } from '../../../text';
-
-export function SupportDeskDesk() {
-  const t = useT();
-  return <p>{t('kit-desk.notBuilt')}</p>;
+/** Owner support queue. Original Chausar UI; ResolveHQ ideas only (source-available), nexusdesk (Apache-2.0). */
+import {useId,useState} from 'react';
+import {useEngine,useResource} from '../../../engine/context';
+import {EngineError} from '../../../engine/types';
+import {useT,type T} from '../../../text';
+import {Button} from '../../../parts/Button';
+import {Field} from '../../../parts/Field';
+import {Tile,TileHead} from '../../../parts/Tile';
+import s from './SupportDeskDesk.module.css';
+type Row={id:string;thread:string;subject:string;customerEmail:string;status:string;revision:number;due:string;proposal:boolean;paused:boolean;language:string};
+type Ticket=Omit<Row,'proposal'>&{thread:string;replyAddress?:string;customerMatch?:{matchedId:string|null;needsConfirmation:boolean;candidates:{id:string;customerId:string;orderNumber:string;file:string}[]};proposal:{expiresAt:string}|null;autoDraftsPaused:boolean;blocked:boolean;note:string;sentAt:string|null;draft:{original:string;translated:string;language:string;sources:string[];approved:boolean;policyChange:boolean}|null;ratings?:{count:number;average:string|null;line:string};messages:{text:string;messageKind:string}[]};
+type Handoff={eml:string;mailto:string;text:string;sent:false};
+const ERRORS=new Set(['TICKET_STALE','TICKET_EXPIRED','TICKET_RUN_ACTIVE','TICKET_DUPLICATE','TICKET_NOTE_REQUIRED','TICKET_CLOSED','TICKET_TRANSITION_REFUSED','SUPPORT_PERSON_REQUIRED','SUPPORT_LANGUAGE_MISMATCH','SUPPORT_NOT_DONE_YET','SUPPORT_APPROVAL_REQUIRED','SUPPORT_SHOP_APPROVAL_REQUIRED','SUPPORT_CONFIRM_REQUIRED','SUPPORT_SNOOZE_REASON','SUPPORT_HOURS_INVALID','SUPPORT_DOMAIN_INVALID','SUPPORT_SOURCE_REQUIRED','SUPPORT_RATING_EXISTS','SUPPORT_ORDER_REQUIRED','SUPPORT_SOURCE_CHANGED','SUPPORT_MATCH_REQUIRED','SUPPORT_THREAD_INVALID','SUPPORT_REPLY_ADDRESS_UNAVAILABLE']);
+const errorWords=(e:unknown,t:T)=>e instanceof EngineError&&ERRORS.has(e.code)?t(`pb-support-desk.error.${e.code}`):t('pb-support-desk.error.generic');
+const queueNames=['overdue','due-soon','open','waiting-customer','all'] as const;
+function download(eml:string){const url=URL.createObjectURL(new Blob([eml],{type:'message/rfc822'}));const link=document.createElement('a');link.href=url;link.download='reply.eml';link.click();URL.revokeObjectURL(url);}
+/** Reads server queue order and due words; every action uses the digest of the exact opened ticket. */
+export function SupportDeskDesk(){
+ const t=useT();const client=useEngine();const id=useId();
+ const [queue,setQueue]=useState<string>('all');const [selected,setSelected]=useState<string|null>(()=>new URLSearchParams(window.location.hash.split('?')[1]??'').get('support'));const [adding,setAdding]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+ const [incomingThread,setIncomingThread]=useState<string|null>(null);const [opening,setOpening]=useState('Mon-Sat 10:00-19:00');const [firstReply,setFirstReply]=useState('');const [resolution,setResolution]=useState('');const [until,setUntil]=useState('');const [reason,setReason]=useState('');const [score,setScore]=useState('5');const [ratingLink,setRatingLink]=useState<{url:string|null}|null>(null);
+ const [serviceOrderId,setServiceOrderId]=useState('');const [customerOrder,setCustomerOrder]=useState('');const [customerPhone,setCustomerPhone]=useState('');const [matchSelection,setMatchSelection]=useState<{ticketId:string;value:string}|null>(null);
+ const [email,setEmail]=useState('');const [subject,setSubject]=useState('');const [customerLanguage,setCustomerLanguage]=useState('en');const [blocked,setBlocked]=useState(false);
+ const [replying,setReplying]=useState(false);const [original,setOriginal]=useState('');const [translated,setTranslated]=useState('');const [sources,setSources]=useState('');const [policy,setPolicy]=useState(false);const [shareId,setShareId]=useState('');const [note,setNote]=useState('');const [handoff,setHandoff]=useState<Handoff|null>(null);
+ const [replyMailbox,setReplyMailbox]=useState('');
+ const [domain,setDomain]=useState('');const [selector,setSelector]=useState('');const [readiness,setReadiness]=useState<{checks:{kind:string;state:string}[]}|null>(null);
+ const orders=useResource('venture.order.list',{});
+ const clients=useResource('venture.client.list',{});
+ const mail=useResource('venture.mail.threads',{}, {refreshOn:e=>e.type==='desk.changed'});
+ const list=useResource('venture.desk.list',{playbook:'support-desk',kind:'ticket',filter:{queue}},{refreshOn:e=>e.type==='desk.changed'});
+ const detail=useResource('venture.desk.get',{playbook:'support-desk',kind:'ticket',id:selected??''},{skip:selected===null,refreshOn:e=>e.type==='desk.changed'});
+ const ticket=detail.data?.item as Ticket|undefined;const rows=(list.data?.rows??[]) as Row[];
+ const act=async(action:string,payload:unknown={},target=selected??'new')=>{setBusy(true);setError('');try{const answer=await client.request('venture.desk.act',{playbook:'support-desk',kind:'ticket',id:target,action,payload,...(target===selected&&detail.data?{digest:detail.data.digest}:{})});list.reload();detail.reload();return answer;}catch(e){setError(errorWords(e,t));return null;}finally{setBusy(false);}};
+ const due=(line:string)=>{const match=/^(Due in|Overdue by) (\d+)h$/.exec(line);return match?t(match[1]==='Due in'?'pb-support-desk.due':'pb-support-desk.overdue',{hours:match[2]!}):line;};
+ return <div className={s.desk}>
+  <Tile as="section" labelledBy={id}>
+   <TileHead id={id} title={t('pb-support-desk.heading')}/>
+   <p className={s.note}>{t('pb-support-desk.intro')}</p>
+   <div className={s.actions}><Button onClick={()=>{setIncomingThread(null);setAdding(v=>!v);}}>{t('pb-support-desk.add')}</Button><a href="#/connections">{t('pb-support-desk.import')}</a></div>
+   <div className={s.actions} role="group" aria-label={t('pb-support-desk.queues')}>{queueNames.map(q=><Button key={q} size="sm" variant="quiet" aria-pressed={queue===q} onClick={()=>setQueue(q)}>{t(`pb-support-desk.queue.${q}`)}</Button>)}</div>
+   {list.error?<p role="alert">{errorWords(list.error,t)}</p>:!list.loading&&!rows.length?<p>{t('pb-support-desk.empty')}</p>:null}
+   <ul className={s.list}>{rows.map(row=><li key={row.id} className={s.row}><Button variant="quiet" onClick={()=>{setSelected(row.id);setHandoff(null);setReplying(false);}}><span data-content>{row.subject}</span></Button><span>{t(`pb-support-desk.status.${row.status}`)}</span>{row.proposal&&<span>{t('pb-support-desk.proposed')}</span>}{row.paused&&<span>{t('pb-support-desk.paused')}</span>}{row.due&&<span className={s.due}>{due(row.due)}</span>}</li>)}</ul>
+   {(mail.data?.threads??[]).filter(m=>!rows.some(r=>r.thread===m.id)).map(m=><div key={m.id} className={s.row}><span data-content>{m.subject}</span><Button disabled={m.held} onClick={()=>{setIncomingThread(m.id);setEmail(m.from);setSubject(m.subject);setAdding(true);}}>{t('pb-support-desk.fromMail')}</Button></div>)}
+  </Tile>
+  {adding&&<Tile as="section" label={t('pb-support-desk.add')} card><form className={s.form} onSubmit={async e=>{e.preventDefault();const answer=await act('propose',{thread:incomingThread??`manual_${crypto.randomUUID()}`,customerEmail:email,subject,language:customerLanguage,blocked,...(customerOrder?{customerOrderNumber:customerOrder}:{}),...(customerPhone?{customerPhone}:{}),...(serviceOrderId?{serviceOrderId}:{}),...(firstReply?{firstReplyHours:firstReply}:{}),...(resolution?{resolutionHours:resolution}:{}),...(firstReply||resolution?{shopHours:opening,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}:{})},'new');if(answer){setSelected(answer.id);setAdding(false);}}}>
+   <label className={s.label}>{t('pb-support-desk.serviceOrder')}<select value={serviceOrderId} onChange={e=>setServiceOrderId(e.target.value)}><option value="">{t('pb-support-desk.triageOnly')}</option>{(orders.data??[]).filter(o=>o.status!=='cancelled').map(o=><option key={o.id} value={o.id}>{(clients.data??[]).find(c=>c.id===o.clientId)?.name??o.id}: {o.request}</option>)}</select></label>
+   <Field label={t('pb-support-desk.email')} type="email" required value={email} onChange={e=>setEmail(e.target.value)}/><Field label={t('pb-support-desk.subject')} required maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)}/>
+   <Field label={t('pb-support-desk.customerOrder')} value={customerOrder} maxLength={80} onChange={e=>setCustomerOrder(e.target.value)}/><Field label={t('pb-support-desk.customerPhone')} value={customerPhone} maxLength={40} onChange={e=>setCustomerPhone(e.target.value)}/>
+   <label className={s.label}>{t('pb-support-desk.language')}<select value={customerLanguage} onChange={e=>setCustomerLanguage(e.target.value)}><option value="en">{t('pb-support-desk.english')}</option><option value="hi">{t('pb-support-desk.hindi')}</option></select></label>
+   <label><input type="checkbox" checked={blocked} onChange={e=>setBlocked(e.target.checked)}/>{t('pb-support-desk.blocked')}</label>
+   <details><summary>{t('pb-support-desk.targets')}</summary><div className={s.form}><Field label={t('pb-support-desk.opening')} value={opening} onChange={e=>setOpening(e.target.value)} hint={t('pb-support-desk.openingHint')}/><Field label={t('pb-support-desk.firstReply')} value={firstReply} onChange={e=>setFirstReply(e.target.value)}/><Field label={t('pb-support-desk.resolution')} value={resolution} onChange={e=>setResolution(e.target.value)}/></div></details>
+   <Button type="submit" variant="primary" disabled={busy}>{t('pb-support-desk.review')}</Button>
+  </form></Tile>}
+  {selected&&ticket&&<Tile as="section" label={ticket.subject} card><div className={s.form}><h3 data-content>{ticket.subject}</h3><p className={s.note} data-content>{ticket.customerEmail}</p>
+   {ticket.proposal?<><p>{t('pb-support-desk.confirmNote')}</p>{ticket.customerMatch&&<label className={s.label}>{t('pb-support-desk.customerMatch')}<select value={matchSelection?.ticketId===selected?matchSelection.value:ticket.customerMatch.matchedId??''} onChange={e=>setMatchSelection({ticketId:selected,value:e.target.value})}><option value="">{t('pb-support-desk.matchUnknown')}</option>{ticket.customerMatch.candidates.map(c=><option key={c.id} value={c.id}>{c.customerId}: {c.orderNumber} ({c.file})</option>)}</select></label>}<Button variant="primary" disabled={busy} onClick={()=>void act('confirm',ticket.customerMatch?{matchId:(matchSelection?.ticketId===selected?matchSelection.value:ticket.customerMatch.matchedId)||null}:{})}>{t('pb-support-desk.confirm')}</Button></>:<>
+    <details><summary>{t('pb-support-desk.replyAddress')}</summary><Field label={t('pb-support-desk.replyMailbox')} value={replyMailbox} onChange={e=>setReplyMailbox(e.target.value)}/><Button disabled={busy} locked={!replyMailbox.trim()} onClick={()=>void act('reply-address',{mailbox:replyMailbox})}>{t('pb-support-desk.makeReplyAddress')}</Button>{ticket.replyAddress&&<><p>{t('pb-support-desk.replyAddressHint')}</p><p data-content>{ticket.replyAddress}</p></>}</details>
+    {ticket.autoDraftsPaused&&<p>{t('pb-support-desk.person')}</p>}
+    {ticket.messages.slice(-10).map((m,i)=><p key={i} data-content>{m.text}</p>)}
+    {ticket.draft&&<><h4>{t('pb-support-desk.original')}</h4><p className={s.quote} data-content>{ticket.draft.original}</p><h4>{t('pb-support-desk.translated')}</h4><p className={s.quote} data-content>{ticket.draft.translated}</p><p>{t('pb-support-desk.sources')}: {ticket.draft.sources.join(', ')}</p></>}
+    {!ticket.autoDraftsPaused&&ticket.status!=='closed'&&<Button onClick={()=>{setReplying(v=>!v);setOriginal(ticket.draft?.original??'');setTranslated(ticket.draft?.translated??'');setSources(ticket.draft?.sources.join('\n')??'');}}>{t('pb-support-desk.addReply')}</Button>}
+    {replying&&<form className={s.form} onSubmit={async e=>{e.preventDefault();if(await act('draft',{original,translated,language:ticket.language,sources:sources.split(/\n|,/).map(v=>v.trim()).filter(Boolean),policyChange:policy}))setReplying(false);}}>
+     <Field multiline label={t('pb-support-desk.original')} required value={original} onChange={e=>setOriginal(e.target.value)}/><Field multiline label={t('pb-support-desk.translated')} required value={translated} onChange={e=>setTranslated(e.target.value)}/><Field label={t('pb-support-desk.sources')} required value={sources} onChange={e=>setSources(e.target.value)}/><label><input type="checkbox" checked={policy} onChange={e=>setPolicy(e.target.checked)}/>{t('pb-support-desk.policyChange')}</label><Button disabled={busy} type="submit">{t('pb-support-desk.keep')}</Button>
+    </form>}
+    {ticket.draft?.policyChange&&!ticket.draft.approved&&<details><summary>{t('pb-support-desk.shopApproval')}</summary><Field label={t('pb-support-desk.shareId')} value={shareId} onChange={e=>setShareId(e.target.value)}/><Button disabled={busy} onClick={()=>void act('approve-policy',{shareId})}>{t('pb-support-desk.checkApproval')}</Button></details>}
+    {ticket.draft&&!ticket.draft.approved&&<Button variant="primary" disabled={busy} onClick={()=>void act('approve-reply')}>{t('pb-support-desk.approve')}</Button>}
+    {ticket.draft?.approved&&!ticket.sentAt&&<Button variant="primary" disabled={busy} onClick={async()=>{const answer=await act('handoff');if(answer)setHandoff(answer.result as Handoff);}}>{t('pb-support-desk.sendOptions')}</Button>}
+    {handoff&&<div className={s.form}><p>{t('pb-support-desk.unsent')}</p><div className={s.actions}><a href={handoff.mailto}>{t('pb-support-desk.openMail')}</a><Button onClick={()=>void navigator.clipboard?.writeText(handoff.text)}>{t('pb-support-desk.copy')}</Button><Button onClick={()=>download(handoff.eml)}>{t('pb-support-desk.download')}</Button></div><Button disabled={busy||!!ticket.sentAt} onClick={()=>void act('sent')}>{t('pb-support-desk.sent')}</Button></div>}
+    {ticket.sentAt&&<><p>{t('pb-support-desk.recorded')}</p><details><summary>{t('pb-support-desk.rating')}</summary><div className={s.form}><Button disabled={busy} onClick={async()=>{const answer=await act('rating-link');if(answer)setRatingLink(answer.result as {url:string|null});}}>{t('pb-support-desk.ratingLink')}</Button>{ratingLink&&(ratingLink.url?<Field label={t('pb-support-desk.ratingAddress')} readOnly value={ratingLink.url}/>:<p>{t('pb-support-desk.ratingManual')}</p>)}<label>{t('pb-support-desk.score')}<select value={score} onChange={e=>setScore(e.target.value)}>{['1','2','3','4','5'].map(v=><option key={v}>{v}</option>)}</select></label><Button disabled={busy} onClick={()=>void act('rate',{score:Number(score)})}>{t('pb-support-desk.recordRating')}</Button></div></details></>}
+    {ticket.ratings&&<p>{ticket.ratings.average?t('pb-support-desk.ratingAverage',{average:ticket.ratings.average,count:ticket.ratings.count}):t('pb-support-desk.ratingCount',{count:ticket.ratings.count})}</p>}
+    <details><summary>{t('pb-support-desk.snooze')}</summary><div className={s.form}><Field type="datetime-local" label={t('pb-support-desk.wakeAt')} value={until} onChange={e=>setUntil(e.target.value)}/><Field label={t('pb-support-desk.snoozeReason')} value={reason} onChange={e=>setReason(e.target.value)}/><Button disabled={busy||!until} onClick={()=>void act('snooze',{until:new Date(until).toISOString(),reason})}>{t('pb-support-desk.pauseClock')}</Button><Button disabled={busy} onClick={()=>void act('wake')}>{t('pb-support-desk.wakeNow')}</Button></div></details>
+    <details><summary>{t('pb-support-desk.manage')}</summary><div className={s.form}><Field multiline label={t('pb-support-desk.note')} value={note} onChange={e=>setNote(e.target.value)}/><div className={s.actions}>
+     {ticket.status==='open'&&<Button disabled={busy} onClick={()=>void act('move',{revision:ticket.revision,status:'in-progress',note})}>{t('pb-support-desk.startWork')}</Button>}
+     {ticket.status==='in-progress'&&<><Button disabled={busy} onClick={()=>void act('move',{revision:ticket.revision,status:'waiting-customer',note})}>{t('pb-support-desk.wait')}</Button><Button disabled={busy} onClick={()=>void act('move',{revision:ticket.revision,status:'resolved',note})}>{t('pb-support-desk.resolve')}</Button></>}
+     {ticket.status!=='closed'&&<Button disabled={busy} onClick={()=>void act('move',{revision:ticket.revision,status:'closed',note})}>{t('pb-support-desk.close')}</Button>}
+     {!ticket.autoDraftsPaused&&<Button disabled={busy} onClick={()=>void act('take-over')}>{t('pb-support-desk.takeover')}</Button>}
+    </div></div></details>
+   </>}
+  </div></Tile>}
+  <details className={s.readiness}><summary>{t('pb-support-desk.readiness')}</summary><form className={s.form} onSubmit={async e=>{e.preventDefault();const answer=await act('readiness',{domain,selector},'mail');if(answer)setReadiness(answer.result as {checks:{kind:string;state:string}[]});}}><Field label={t('pb-support-desk.domain')} required value={domain} onChange={e=>setDomain(e.target.value)}/><Field label={t('pb-support-desk.selector')} required value={selector} onChange={e=>setSelector(e.target.value)}/><Button type="submit" disabled={busy}>{t('pb-support-desk.recheck')}</Button></form><p>{t('pb-support-desk.lookup')}</p>{readiness&&<ul>{readiness.checks.map(c=><li key={c.kind}>{c.kind}: {t(`pb-support-desk.dns.${c.state}`)}{c.state!=='ready'&&<p>{t(`pb-support-desk.dnsFix.${c.kind}`)}</p>}</li>)}</ul>}</details>
+  {error&&<p role="alert">{error}</p>}
+ </div>;
 }
+SupportDeskDesk.ready=true;

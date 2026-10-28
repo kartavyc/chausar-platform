@@ -22,6 +22,7 @@ import { FileDirectory, PostgresDirectory, type HostedDirectory } from './direct
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
 import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from '../ui-ink.ts';
+import { supportRatingHtml } from '../venture/playbooks/support-desk/rating-link.ts';
 
 const hostedDir = fileURLToPath(new URL('../../../app/hosted/', import.meta.url));
 const TYPES: Readonly<Record<string, string>> = INK_TYPES; // html, js, css, svg, and the Ink build's fonts and data
@@ -303,6 +304,7 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       const browser = (create: boolean): Browser => ({ binding: binding(create), address });
       // 4J7: /share/<token>/upload is the client's file request page; a share page knows its owner's own session (a preview).
       if (/^\/share\/[A-Za-z0-9_-]{32}\/upload$/.test(url.pathname)) return await upload(url.pathname.slice('/share/'.length, -'/upload'.length), address, req, res);
+      if (url.pathname.startsWith('/support-rating/')) return await supportRating(url.pathname.slice('/support-rating/'.length), address, req, res);
       if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res, cookies.get(names.session));
       const auth = (): Authenticated => app.accounts.authenticate(cookies.get(names.session));
       const signIn = (signed: SignedIn) => {
@@ -446,6 +448,36 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
     return req.headers.origin === origin.origin || (req.headers.origin === 'null' && site === 'same-origin');
   };
 
+  /** 5G: one optional customer rating, no scripts, pixels, cookies or ticket text. */
+  const supportRating = async (token: string, address: string, req: IncomingMessage, res: ServerResponse) => {
+    const page = (status: number, html: string) => {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : html);
+    };
+    const gone = () => page(404, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Nothing is here</title><body><p>Nothing is here.</p></body></html>');
+    try {
+      if (!SHARE_TOKEN_PATTERN.test(token)) return gone();
+      let score: number | undefined;
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use the rating form.');
+        check(fromThisPage(req), 'INVALID_ORIGIN', 'Answer from the rating page itself.');
+        check((req.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded'), 'INVALID_CONTENT_TYPE', 'Use the rating form.');
+        let size = 0; const chunks: Buffer[] = [];
+        for await (const chunk of req) { size += chunk.length; check(size <= 1024, 'REQUEST_TOO_LARGE', 'Use the rating form.'); chunks.push(chunk); }
+        const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+        check([...form.keys()].every(key => key === 'score') && form.getAll('score').length === 1 && /^[1-5]$/.test(form.get('score') ?? ''), 'INVALID_REQUEST', 'Choose one rating.');
+        score = Number(form.get('score'));
+      }
+      const found = score === undefined ? await app.supportRating(token, address) : await app.supportRating(token, address, score);
+      return found ? page(200, supportRatingHtml(found)) : gone();
+    } catch (error) {
+      const code = (error as { code?: unknown }).code;
+      const status = code === 'SUPPORT_RATING_EXISTS' ? 409 : code === 'RATE_LIMITED' ? 429 : code === 'INVALID_ORIGIN' ? 403 : error instanceof ChausarError ? 400 : 500;
+      return page(status, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Rating not recorded</title><body><p>The rating was not recorded. Open the link again.</p></body></html>');
+    }
+  };
   /**
    * /share/<token>: the client share page. GET shows the draft read only; POST (a same-origin form) records Approve or
    * Ask for changes through the business's vault, or (4J7) a comment on one post. No session and no cookie: the token

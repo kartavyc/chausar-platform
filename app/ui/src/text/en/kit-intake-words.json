@@ -69,5 +69,22 @@
   "kit-intake-words.a2d14721": "Selling channels",
   "kit-intake-words.788250b8": "Name the marketplaces and shops covered by these exports.",
   "kit-intake-words.59bd2330": "Add the product, ads or settlement file for this audit.",
-  "kit-intake-words.56ba4700": "Seller export"
+  "kit-intake-words.56ba4700": "Seller export",
+  "kit-intake-words.eaa30180": "Resolution target",
+  "kit-intake-words.a862c7c": "Business hours allowed for resolving the request.",
+  "kit-intake-words.49a79dd2": "Blocked customers",
+  "kit-intake-words.f3c4508d": "Addresses that go straight to the owner.",
+  "kit-intake-words.b92f93b2": "First reply target",
+  "kit-intake-words.396a1301": "Shop policies",
+  "kit-intake-words.b279dcbd": "Days and local opening times; leave unset for always open.",
+  "kit-intake-words.f8c7143a": "Customer languages",
+  "kit-intake-words.71137106": "Shop holidays",
+  "kit-intake-words.349bdd5c": "Shop timezone",
+  "kit-intake-words.b541d5e6": "Local dates without shop opening hours.",
+  "kit-intake-words.13de09f8": "The languages the shop can review.",
+  "kit-intake-words.5eb05cfa": "The timezone used for response targets.",
+  "kit-intake-words.e84b1260": "Business hours allowed before the first reply.",
+  "kit-intake-words.b3a9d7ba": "Shop opening hours",
+  "kit-intake-words.11507a0e": "new",
+  "kit-intake-words.b1140b0e": "The shop files that support a reply."
 }

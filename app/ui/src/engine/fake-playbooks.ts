@@ -7,7 +7,7 @@
  */
 
 import { EngineError } from './types';
-import type { W4DeskHost } from './fake-w4';
+import type { W4DeskHost, SupportImportedMail } from './fake-w4';
 import { fakeYoutubeDesk } from './fake-youtube';
 import { fakeCaFirmDesk } from './fake-ca-firm';
 import { fakeSocialAgencyDesk } from './fake-social';
@@ -41,6 +41,7 @@ export interface FakeDeskKind {
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
 export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
 export interface FakePlaybookDesk {
+  importSupportMail?(mail:SupportImportedMail):void;
   forgetPeople?(people: readonly FakeForgottenPerson[], removeClient: boolean): void;
   readonly playbook: string;
   readonly kinds: Readonly<Record<string, FakeDeskKind>>;
@@ -85,6 +86,8 @@ export class FakePlaybooksDesk {
   forgetPeople(people: readonly FakeForgottenPerson[], removeClient: boolean): void {
     for (const desk of this.desks) desk.forgetPeople?.(people, removeClient);
   }
+
+  importSupportMail(mail:SupportImportedMail):void { for(const desk of this.desks)desk.importSupportMail?.(mail); }
 
   handles(method: string): boolean {
     return DESK_METHODS.has(method) || this.desks.some((desk) => desk.methods !== undefined && Object.hasOwn(desk.methods, method));

@@ -39,7 +39,7 @@ export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 /** The token at the end of a share address made on this server, or a file request's (4J7: '/share/<token>/upload'), or null. */
 function shareTokenOf(url: string): string | null {
-  const match = /\/share\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
+  const match = /\/(?:share|support-rating)\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
   return match ? match[1] : null;
 }
 /** What the share page shows (SharePage in venture/build/share-links.ts). Text only; the page escapes every field. */
@@ -371,6 +371,8 @@ export class HostedApp {
     // 5A5: a report link the same way; a rotated one leads only by its new token, a turned-off one nowhere.
     if (method === 'venture.report.shareRotate' || method === 'venture.report.shareDisable') await this.#unindexShare(key, result);
     if (method === 'venture.report.share' || method === 'venture.report.shareRotate') await this.#indexShare(key, result);
+    // 5G: an owner-created plain customer rating link uses the same opaque token directory.
+    if (method === 'venture.desk.act' && (input as any).playbook === 'support-desk' && (input as any).action === 'rating-link') await this.#indexShare(key, (result as any)?.result);
     return result;
   }
 
@@ -414,6 +416,12 @@ export class HostedApp {
     return await handle.shareLink('page', token, { preview: head || this.#isOwner(viewer, owner.user.id) }) as SharePageView | null;
   }
 
+  /** 5G: public rating, with no customer words exposed; the vault checks the opaque token and decides once. */
+  async supportRating(token: string, address: string, score?: number): Promise<import('../venture/playbooks/support-desk/rating-link.ts').SupportRatingPage | null> {
+    const target = this.#shareTarget(token, address);
+    if (!target || typeof target.handle.shareLink !== 'function') return null;
+    return await target.handle.shareLink(score === undefined ? 'page' : 'decide', token, { supportRating: true, ...(score === undefined ? {} : { score }) }) as import('../venture/playbooks/support-desk/rating-link.ts').SupportRatingPage | null;
+  }
   /** Whether a session cookie is a live session of this account (the owner looking at their own link). Never throws. */
   #isOwner(viewer: string | undefined, userId: string): boolean {
     if (!viewer) return false;

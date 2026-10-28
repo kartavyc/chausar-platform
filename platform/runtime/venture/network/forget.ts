@@ -1,3 +1,4 @@
+import { eraseSupportNaming } from '../playbooks/support-desk/privacy.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): Forget, the DPDP erasure of one person, in one step.
 // The person goes, and so does everything kept about them: ties, evidence rows, pipeline cards and drafts, their place
 // in plain-English search results, inbound mail from them or matched to their cards, leads with their email,
@@ -275,6 +276,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 4J18: their name in what the AI knows (the sources' titles, words and page addresses) and in kept ideas.
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
+    eraseSupportNaming(tx, emails, mentionsName, phones);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.

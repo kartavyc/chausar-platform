@@ -231,6 +231,11 @@ export class FakeWorkDesk {
   /** venture.delivery.run: a new run on the order, working (not waiting on the owner), first step current. */
   private start(biz: string, p: Record<string, unknown>): DeliveryLite {
     const order = this.order(biz, p.orderId);
+    const blocked = order.intake?.fields?.blockedCustomers;
+    const named = Array.isArray(blocked) && blocked.some(value => typeof value === 'string' && value.trim() && order.request.toLowerCase().includes(value.trim().toLowerCase()));
+    const support = this.host.ask?.('venture.desk.list', { playbook: 'support-desk', kind: 'ticket', filter: { queue: 'all' } }) as { rows?: { id: string; paused: boolean; status: string }[] } | undefined;
+    const paused = support?.rows?.some(row => row.paused && !['resolved', 'closed'].includes(row.status) && (this.host.ask?.('venture.desk.get', { playbook: 'support-desk', kind: 'ticket', id: row.id }) as { item?: { serviceOrderId?: string } } | undefined)?.item?.serviceOrderId === order.id);
+    if (named || paused) throw new EngineError('SUPPORT_PERSON_REQUIRED', 'A person is handling this customer. Automatic drafts are paused. Open the support desk.');
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';

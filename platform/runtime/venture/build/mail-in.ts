@@ -13,6 +13,7 @@
 // in it. Forget (network/forget.ts) deletes an imported message like any other inbound mail, its words and files too.
 // Written for Chausar; the mbox reading follows the mboxrd convention (">From " lines), nothing copied.
 import { createHash } from 'node:crypto';
+import { ingestSupportMail } from '../playbooks/support-desk/ingest.ts';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { InboundRecord, UploadFormat, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, singleLine, ventureAction } from '../records.ts';
@@ -187,6 +188,7 @@ export async function mailImport(deps: VentureDeps, ctx: Context, payload: unkno
         screen: screenNote(whole), source: 'file-import', text, attachments: attachmentsOf(message.parts), importId,
         ...(triage.hindi ? { hindi: true } : {}),
       });
+      ingestSupportMail(tx,record,deps.secrets.get('receipt:signing')??'');
       ids.push(record.id);
       added += 1;
     }
