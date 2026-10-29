@@ -22,6 +22,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,{qualification:'built-in' as const,what:'Prepares source-backed drafts and files for manual review. The client uses their own account, sends messages and applies themselves.'}])),
   ...SELLER_HANDOFF_MODES,
   'narration-distribution': {qualification:'fixture-tested',what:'Exports exact approved audio with AI narration disclosure after named legal review. The owner uploads manually; acceptance is not guaranteed.'},
   'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
@@ -34,6 +35,8 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'career-links':{qualification:'fixture-tested',what:'Reads one approved public static listing with policy, robots and complete-revision checks. LinkedIn and Naukri use pasted text only.'},
+  'career-boards':{qualification:'fixture-tested',what:'Reads a bounded public Greenhouse, Lever or Ashby index. An index is not a complete captured listing.'},
   ...SELLER_READ_MODES,
   'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
   'narration-files': {qualification:'fixture-tested',what:'Reads the current client manuscript bytes and rights from TXT, Markdown or bounded DOCX.'},

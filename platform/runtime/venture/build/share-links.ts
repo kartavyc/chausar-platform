@@ -1,3 +1,4 @@
+import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 // Chausar venture launcher: read-only preview links for a client. venture.share.create, venture.share.list and
 // venture.share.revoke, plus the two trusted entry points the hosted web server's /share/<token> page uses
 // (sharePage and shareDecide), which no RPC reaches.
@@ -396,7 +397,7 @@ function linkOf(state: State, venture: VentureRecord, token: unknown, nowIso: st
   if (typeof token !== 'string' || !SHARE_TOKEN.test(token)) return null;
   const hash = sha256(token);
   const record = listRecords(state, 'venture-share-link', venture.id).find(item => item.tokenHash === hash);
-  if (!record || !record.served || record.state === 'revoked' || Date.parse(record.expiresAt) <= Date.parse(nowIso) || !translationLinkCurrent(state,record,nowIso)) return null;
+  if (!record || !record.served || record.state === 'revoked' || Date.parse(record.expiresAt) <= Date.parse(nowIso) || !translationLinkCurrent(state,record,nowIso) || !careerLinkCurrent(state,record,nowIso)) return null;
   return record;
 }
 
@@ -413,6 +414,7 @@ function runOfLink(state: State, record: ShareLinkStoredRecord): DeliveryRunReco
  * client the link was made with, none.
  */
 function speakRefusal(state: State, record: ShareLinkStoredRecord, nowIso:string): string | null {
+  if(record.career)return careerLinkCurrent(state,record,nowIso)?null:SHARE_WORDS.notTheClient;
   if (record.translation) return translationLinkCurrent(state,record,nowIso) ? null : SHARE_WORDS.notTheClient;
   if ((record.shareKind ?? 'draft') !== 'draft') return SHARE_WORDS.pageOnly;
   const run = runOfLink(state, record);

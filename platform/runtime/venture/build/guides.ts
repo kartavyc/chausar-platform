@@ -1,3 +1,4 @@
+import {CAREER_GUIDES} from './career-guides.ts';
 import {SELLER_GUIDES} from './seller-guides.ts';
 import {OPEN_POSTING_GUIDES} from './open-posting-guides.ts';
 import {NARRATION_GUIDES} from './narration-guides.ts';
@@ -48,7 +49,7 @@ const CHARGES: Readonly<Record<string, { line: string; noted: boolean }>> = Obje
   firstbase: { line: 'Forming a company through it has a fee.', noted: false },
 });
 /** Chausar's own parts and the connectors that need nothing but this computer or the owner's own mail. */
-const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'narration-files', 'narration-local-checks', 'narration-distribution']);
+const FREE = new Set(['career-links', 'career-boards', 'chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'narration-files', 'narration-local-checks', 'narration-distribution']);
 
 type Hand = Omit<ConnectorGuide, 'charges' | 'missing'>;
 
@@ -80,6 +81,7 @@ const AGAIN = 'Chausar keeps it only while the app is open, so type it again aft
 
 /** The guides written by hand: every connector this build really links, hands off to, reads or keeps inside Chausar. */
 const HAND: Readonly<Record<string, Hand>> = Object.freeze({
+  ...CAREER_GUIDES,
   ...SELLER_GUIDES,
   ...NARRATION_GUIDES,
   'zoho-books': ZOHO_BOOKS_GUIDE,

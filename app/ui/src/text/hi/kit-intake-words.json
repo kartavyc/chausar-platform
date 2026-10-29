@@ -238,5 +238,17 @@
   "kit-intake-words.bca09815": "योग्य स्थानीय आवाज़ और मॉडल रास्ते मिलने तक निजी पाठ इसी डिवाइस पर रहता है।",
   "kit-intake-words.8f31a9bc": "आवाज़ का चुनाव",
   "kit-intake-words.43cc23fa": "दस्तावेज़",
-  "kit-intake-words.1c788b39": "निजी मूल पाठ"
+  "kit-intake-words.1c788b39": "निजी मूल पाठ",
+  "kit-intake-words.job-search-desk.targetRoles.label": "लक्ष्य पद",
+  "kit-intake-words.job-search-desk.targetRoles.help": "क्लाइंट के पसंदीदा पद लिखें।",
+  "kit-intake-words.job-search-desk.locations.label": "स्थान",
+  "kit-intake-words.job-search-desk.locations.help": "मंज़ूर स्थान या रिमोट काम लिखें।",
+  "kit-intake-words.job-search-desk.salaryFloor.label": "वेतन की उम्मीद",
+  "kit-intake-words.job-search-desk.salaryFloor.help": "वेतन का अनुमान लगाए बिना क्लाइंट के शब्द लिखें।",
+  "kit-intake-words.job-search-desk.facts.label": "क्लाइंट तथ्य",
+  "kit-intake-words.job-search-desk.facts.help": "तथ्य पेस्ट करें या दी गई प्रमाण फ़ाइल का नाम लिखें। डेस्क में तथ्य मंज़ूर करें।",
+  "kit-intake-words.job-search-desk.links.label": "नौकरी लिंक",
+  "kit-intake-words.job-search-desk.links.help": "क्लाइंट के लिंक पेस्ट करें या अनुमति वाले सार्वजनिक बोर्ड लें।",
+  "kit-intake-words.job-search-desk.languages.label": "भाषाएँ",
+  "kit-intake-words.job-search-desk.languages.help": "क्लाइंट पैक की भाषाएँ लिखें।"
 }

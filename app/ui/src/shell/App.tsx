@@ -1,13 +1,13 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngineProvider, useEngine, useEngineStatus } from '../engine/context';
+import { EngineProvider, useEngine, useEngineEvents, useEngineStatus } from '../engine/context';
 import { TextProvider, useT, type Language } from '../text';
 import { SheetTitleContext } from '../parts/Sheet';
 import { ShellToolsContext } from '../parts/PageTitle';
 import { AskBox } from './AskBox';
-import { useAskKey } from './ask';
+import { forgetAskWords, useAskKey } from './ask';
 import { Bell, NotifyProvider } from './Bell';
 import { StatusLine } from '../parts/StatusLine';
-import { closeSheet, returnFocus, useRoute } from './navigation';
+import { closeSheet, forgetFocusOrigin, returnFocus, useRoute } from './navigation';
 import { useShellKeys } from './keys';
 import { PLACES, SHEETS } from './places';
 import { Rail } from './Rail';
@@ -36,8 +36,16 @@ export function App({ client, language }: { client: EngineClient; language: Lang
 export function Shell() {
   const client = useEngine();
   const status = useEngineStatus();
+  const [privacy, setPrivacy] = useState(0);
+  useEngineEvents((event) => {
+    if (event.type !== 'privacy.forgotten') return;
+    forgetAskWords();
+    forgetFocusOrigin();
+    // Discard every local page/sheet buffer even when its subsequent read fails.
+    setPrivacy((generation) => generation + 1);
+  });
   const line = <StatusLine status={status} transport={client.transport} />;
-  return <BootScreen status={line}>{(checking) => <Frame statusLine={line} checking={checking} />}</BootScreen>;
+  return <BootScreen status={line}>{(checking) => <Frame key={privacy} statusLine={line} checking={checking} />}</BootScreen>;
 }
 
 /**

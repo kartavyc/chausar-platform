@@ -706,3 +706,8 @@ Source-bound influencer campaigns and exact approved open-network plain-text pub
 ### 5F3 isolated commit checkpoint
 
 Seller connectors and store assistant: exact-approved Shopify reads and writes with acknowledgement and read-back, owner-supplied marketplace template handoffs, and session-only catalogue-grounded buyer requests with per-question owner approval. Independent spec and quality PASS, genuine RED/GREEN and limitations are recorded in NOTES-5F3.md. Live merchant qualification is absent and buyer use waits for named lawyer confirmation.
+
+
+### 5I isolated commit checkpoint
+
+The job-search and career desk keeps approved fact qualifiers, complete listing revisions, four-verdict shortlists, coaching and six reachable service offers. Exact owner-approved DOCX/HTML-or-PDF packs bind current sources and actual client review links before delivery or export. Native and owner reviews, test-first evidence, manual platform paths, privacy erasure, and the generic Work parity repair are in NOTES-5I.md and NOTES-5I-UI.md. Live client work waits for a named lawyer privacy review.

@@ -9,7 +9,7 @@ const VENTURE_EVENT_TYPES = Object.freeze([
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES): ids only; notify.new also carries a count.
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
   // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed; ids only.
-  'chain.changed', 'desk.changed', 'idea.changed',
+  'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
 ]);
 // Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
 // worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
@@ -256,11 +256,11 @@ function validateVentureEvent(input) {
   if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
   const whole = value => Number.isSafeInteger(value) && value >= 0;
-  if (!id(input.businessId) || (input.runId !== undefined && !id(input.runId))) return null;
+  if (!id(input.businessId) || (input.type !== 'privacy.forgotten' && input.runId !== undefined && !id(input.runId))) return null;
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
   if ((input.seq !== undefined && !whole(input.seq)) || (input.count !== undefined && (input.type !== 'notify.new' || !whole(input.count)))) return null;
   return Object.freeze({
-    type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at,
+    type: input.type, businessId: input.businessId, ...(input.type !== 'privacy.forgotten' && input.runId !== undefined ? { runId: input.runId } : {}), at: input.at,
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }

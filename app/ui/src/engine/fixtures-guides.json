@@ -971,5 +971,142 @@
         ]
       }
     ]
+  },
+  "career-links": {
+    "guide": {
+      "steps": [
+        "1. Choose a career order and paste the public job address.",
+        "2. Approve reading that exact address, or paste the complete job text yourself.",
+        "3. Review the saved complete revision before using its quotes in a pack."
+      ],
+      "skipped": "LinkedIn and Naukri are pasted-text only. Dynamic or changing pages never count as complete.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks site policy, robots, public network addresses and two matching complete revisions. A failed read saves no job.",
+      "sends": "Sends: a public page request to the approved site. No client fact or job-board password is sent.",
+      "agentLimits": "Agents cannot bypass site rules, sign in or apply. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-complete-listing",
+        "mode": "read",
+        "fields": [
+          "url"
+        ]
+      }
+    ]
+  },
+  "career-boards": {
+    "guide": {
+      "steps": [
+        "1. Choose Greenhouse, Lever or Ashby and the company board name.",
+        "2. Set the target role and location filters, then approve the public read.",
+        "3. Read or paste each complete listing before adding it to the reviewed shortlist."
+      ],
+      "skipped": "A public index is not the full job text. Coverage reports only the saved listings reviewed.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the public provider and uses network and robots checks. No client account is used.",
+      "sends": "Sends: the exact public company board request. No resume, message or application is sent.",
+      "agentLimits": "Agents cannot sign in or apply. They cannot call a partial index a complete listing.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-public-index",
+        "mode": "read",
+        "fields": [
+          "provider",
+          "slug",
+          "gates"
+        ]
+      }
+    ]
+  },
+  "career-pinloop": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own Pinloop account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
+  },
+  "career-linkedin": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own LinkedIn account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
+  },
+  "career-naukri": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own Naukri account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
   }
 }

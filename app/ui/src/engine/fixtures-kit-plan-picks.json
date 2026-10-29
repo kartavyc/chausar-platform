@@ -101,5 +101,16 @@
     "offers": [
       "audiobook"
     ]
+  },
+  {
+    "id": "job-search-desk",
+    "offers": [
+      "monthly-job-search",
+      "interview-prep-pack",
+      "job-title-audit",
+      "profile-and-tailoring",
+      "weekly-shortlist",
+      "career-coaching"
+    ]
   }
 ]

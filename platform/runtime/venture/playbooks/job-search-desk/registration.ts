@@ -4,4 +4,4 @@
 // Written for Chausar; nothing here is learned from an outside source.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const JOB_SEARCH_DESK_REGISTRATION: PlaybookRegistration | null = null;
+export const JOB_SEARCH_DESK_REGISTRATION: PlaybookRegistration = {id:'job-search-desk',label:'Job-search and career desk',serviceType:'consulting',picks:['job search help','career coach','career coaching','resume writing','cv writing','interview prep','job hunt'],summary:'Agents prepare sourced shortlists, resumes and outreach drafts. You approve every claim and pack. The client sends and applies.',riskLevel:'high',lastReviewed:'2026-10-29'};

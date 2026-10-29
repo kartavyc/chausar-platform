@@ -63,15 +63,15 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (typeof callback !== 'function') throw new TypeError('Use a function for run events.');
     const types = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
       'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
-      'chain.changed', 'desk.changed', 'idea.changed'];
+      'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten'];
     const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
     const whole = value => Number.isSafeInteger(value) && value >= 0;
     const listener = (_event, value) => {
-      if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.runId !== undefined && !id(value.runId))) return;
+      if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.type !== 'privacy.forgotten' && value.runId !== undefined && !id(value.runId))) return;
       if (typeof value.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.at)) return;
       if ((value.seq !== undefined && !whole(value.seq)) || (value.count !== undefined && (value.type !== 'notify.new' || !whole(value.count)))) return;
       callback(Object.freeze({
-        type: value.type, businessId: value.businessId, ...(value.runId !== undefined ? { runId: value.runId } : {}), at: value.at,
+        type: value.type, businessId: value.businessId, ...(value.type !== 'privacy.forgotten' && value.runId !== undefined ? { runId: value.runId } : {}), at: value.at,
         ...(value.seq !== undefined ? { seq: value.seq } : {}), ...(value.count !== undefined ? { count: value.count } : {}),
       }));
     };

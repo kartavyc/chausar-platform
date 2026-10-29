@@ -1,3 +1,4 @@
+import {careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
 // Chausar venture launcher, delivery package (Ink v2 wave 2, 2C1, catalogue Q1): the rules judge on real orders.
 // The judge reads a ready agent draft once its code checks and its playbook's own checks pass, votes on the playbook's
 // rules (or the draft rules) citing the run's trace, and code counts the votes (judge/rules.ts). Its call carries the
@@ -127,7 +128,7 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
  */
 function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunRecord, nowMs: number): ChausarError | null {
   if (run.status !== 'ready-for-review') return new ChausarError('JUDGE_NOT_READY', NOT_READY);
-  if (run.servedBy !== 'model' || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
+  if (run.servedBy !== 'model' && !run.careerPackBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
   if (runView(run, venture, nowMs, state).practiceNow) return new ChausarError('PRACTICE_DRAFT', PRACTICE_REASON);
   if (failedCheckReason(run.checks.filter(result => result.check !== 'rules-judge'), run.playbookChecks) !== null) return new ChausarError('JUDGE_NOT_READY', JUDGE_FAILED_CHECK);
   // Ink v2 wave 4 (4J15, Q14): code scans the run's trace before any judge reads it (delivery/trace-scan.ts).
@@ -142,6 +143,7 @@ function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunReco
  * draft: the text in the draft's place; the run's own when absent.
  */
 function judgeInput(state: State, venture: VentureRecord, run: DeliveryRunRecord, draft?: string): { asked: RulesInput; client: string } {
+  careerRunCurrent(state,venture.id,run);
   const order = findRecord(state, 'venture-order', run.orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   const playbook = playbookForRun(state, run);
@@ -296,6 +298,7 @@ export async function deliveryJudgeHandler(deps: VentureDeps, ctx: Context, payl
   await ventureAction(deps, ctx, 'prepare', 'delivery.judge', tx => {
     const current = tx.find('venture-delivery-run', runId);
     check(current && current.status === 'ready-for-review' && draftDigestOf(current) === draftDigest, 'JUDGE_NOT_READY', NOT_READY);
+    careerRunCurrent(tx.state,venture.id,current,tx.now);
     tx.replace({ ...current, judge: waitingJudge(preview, tx.now, draftDigest, false, null) });
     tx.emit('run.step', { runId });
   });
@@ -373,12 +376,13 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
+  const careerDispatch=()=>{if(!a.run.careerPackBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
     let costMicros: string | null = null;
     try {
-      const outcome = await deps.models.runPreview(ctx, callId, a.preview.digest, raw => validateBallot(raw, asked.rules), a.standing ? { consent: 'standing-judge' } : undefined);
+      const outcome = await deps.models.runPreview(ctx, callId, a.preview.digest, raw => validateBallot(raw, asked.rules), {...(a.standing?{consent:'standing-judge' as const}:{}),beforeDispatch:careerDispatch});
       verdict = decideRules(asked.rules, [outcome.value], asked.trace);
       costMicros = outcome.costMicros;
     } catch (error) {
@@ -393,6 +397,7 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       check(current && current.judge?.status === 'waiting' && current.judge.callId === callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
       // A draft decided while the judge read it (rejected, edited) keeps no verdict: nothing lands on a decided draft.
       check(current.status === 'ready-for-review', 'JUDGE_NOT_READY', DECIDED);
+      if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the judge read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
       const harness = a.standing && costMicros !== null && current.harness ? withCost(current.harness, costMicros) : current.harness;
       const next: DeliveryRunRecord = {
         ...current, checks: [...current.checks.filter(item => item.check !== 'rules-judge'), result],

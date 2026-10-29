@@ -114,6 +114,9 @@ export function postingLadder(connectorId: string, option: Pick<PostingOption, '
  * takes no account at all: venture.posting.propose refuses one for it (CONNECTOR_FIELD_UNSUPPORTED).
  */
 export const CONNECTOR_CAPABILITIES: Readonly<Record<string, readonly ConnectorCapability[]>> = Object.freeze({
+  'career-links':[{operation:'read-complete-listing',mode:'read',fields:['url']}],
+  'career-boards':[{operation:'read-public-index',mode:'read',fields:['provider','slug','gates']}],
+  ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,[{operation:'manual-client-handoff',mode:'handoff' as const,fields:['approved-pack']}]])),
   lovable: [{ operation: 'open-with-brief', mode: 'handoff', fields: ['brief'] }],
   replit: [{ operation: 'open-with-brief', mode: 'handoff', fields: ['brief'] }],
   bolt: [{ operation: 'copy-brief', mode: 'handoff', fields: ['brief'] }],

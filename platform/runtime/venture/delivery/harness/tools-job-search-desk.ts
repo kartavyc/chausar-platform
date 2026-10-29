@@ -1,16 +1,20 @@
-// Chausar delivery harness: the job-search-desk playbook's own tools (Job-search and career desk; Ink v2 wave 5,
-// packages 5I). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub
-// with the tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for
-// Chausar; nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type JobSearchDeskToolName = Extract<ToolName, 'career.facts' | 'career.capture' | 'career.shortlist' | 'career.score'>;
-
-export const JOB_SEARCH_DESK_TOOLS: Readonly<Record<JobSearchDeskToolName, Spec>> = Object.freeze({
-  'career.facts': notBuiltTool('career.facts', 'compute', 'The client\'s own facts, each with where it came from.'), // 5I
-  'career.capture': notBuiltTool('career.capture', 'compute', 'A job listing the client pasted, saved with its source.'), // 5I
-  'career.shortlist': notBuiltTool('career.shortlist', 'compute', 'Jobs shortlisted against the client\'s facts.'), // 5I
-  'career.score': notBuiltTool('career.score', 'compute', 'How well a job fits the client\'s facts, by code.'), // 5I
+// Original career tools. Saved source evidence stays scoped to the current client service order.
+import {check,ChausarError} from '../../../contracts.ts';
+import {digest,findRecord,listRecords,ventureAction} from '../../records.ts';
+import type {Spec,ToolEnv,Field} from './tools.ts';
+import {orderChain} from '../../playbooks/kit/chain.ts';
+import {requireConfirmedRules} from '../../playbooks/kit/rules.ts';
+import {CAREER_PRIVACY_RULE} from '../../playbooks/job-search-desk/definition-data.ts';
+import {careerEvidence} from '../../playbooks/job-search-desk/source-state.ts';
+import {proposeCareerFact} from '../../playbooks/job-search-desk/state.ts';
+import {careerShortlist,type CareerMatch,type CareerVerdict} from '../../playbooks/job-search-desk/shortlist.ts';
+import {scoreCareerTarget} from '../../playbooks/job-search-desk/before-send.ts';
+const text=(about:string,max=200,required=true):Field=>({type:'text',about,max,required});
+function parsed(value:unknown){check(typeof value==='string'&&value.length<=30000,'INVALID_VENTURE_REQUEST','Use bounded JSON evidence.');try{return JSON.parse(value);}catch{throw new ChausarError('INVALID_VENTURE_REQUEST','Use valid JSON evidence.');}}
+function scope(env:ToolEnv){const state=env.deps.store.read(),run=env.runRef.kind==='delivery'?findRecord(state,'venture-delivery-run',env.runRef.runId):null,venture=findRecord(state,'venture-record',env.ventureId),order=run&&run.ventureId===env.ventureId?findRecord(state,'venture-order',run.orderId):null;check(venture&&order&&order.ventureId===env.ventureId&&order.status!=='cancelled'&&orderChain(state,venture,order)?.definition.registration.id==='job-search-desk','CAREER_ORDER_REQUIRED','Use this career service order.');requireConfirmedRules([CAREER_PRIVACY_RULE],['tailor'],venture.launchStage==='rehearsal'||venture.launchStage==='shadow'?'rehearsal':'client');return{state,order,evidence:careerEvidence(state,env.ventureId,order.id)};}
+export const JOB_SEARCH_DESK_TOOLS:Readonly<Record<'career.facts'|'career.capture'|'career.shortlist'|'career.score',Spec>>=Object.freeze({
+ 'career.facts':{name:'career.facts',effect:'compute',tier:'code',endsTurn:false,summary:'Read approved client facts. Adding forbidden uses tightens immediately; any new wording or loosened boundary remains a proposal for owner approval.',input:{factId:text('Saved fact record ID.',100,false),digest:text('Exact saved fact digest.',100,false),value:text('JSON fact with id, statement, qualifiers and forbiddenUses.',12000,false)},async run(env,input){const current=scope(env);if(input.factId===undefined){check(Object.keys(input).length===0,'INVALID_VENTURE_REQUEST','Read facts or supply the complete change.');return{result:{facts:current.evidence.facts,records:listRecords(current.state,'venture-career-fact',env.ventureId).filter(f=>f.orderId===current.order.id).map(f=>({id:f.id,digest:digest(f),state:f.state})),source:'saved-client-ledger'}};}check(env.ctx,'CAREER_APPROVAL_REQUIRED','Open a current owner-approved work run.');const value=parsed(input.value),expectedOrder=digest(current.order);return ventureAction(env.deps,env.ctx,'prepare','career.agent-fact',tx=>{const live=scope(env),fact=tx.find('venture-career-fact',input.factId);check(digest(live.order)===expectedOrder&&fact&&fact.orderId===current.order.id&&fact.clientId===current.order.clientId&&digest(fact)===input.digest,'APPROVAL_STALE','Read the current fact and its restrictions.');const next=tx.replace({...fact,state:proposeCareerFact(fact.state,value)});tx.emit('desk.changed',{playbook:'job-search-desk'});return{result:{id:next.id,state:next.state,digest:digest(next),needsOwnerApproval:next.state.proposal!==null}};});}},
+ 'career.capture':{name:'career.capture',effect:'compute',tier:'code',endsTurn:false,summary:'Read a complete listing already saved by the owner. Restricted boards require pasted text. No network read, login or application occurs.',input:{listingId:text('Saved listing ID.',100)},async run(env,input){const {evidence}=scope(env),listing=evidence.listings.find(l=>l.id===input.listingId);check(listing,'CAREER_NOT_FOUND','Choose a saved listing from this career order.');return{result:{id:listing.id,url:listing.url,text:listing.text,revision:listing.revision,sourceKind:listing.sourceKind,submitted:false}};}},
+ 'career.shortlist':{name:'career.shortlist',effect:'compute',tier:'code',endsTurn:false,summary:'Show coverage before fixed-word match proposals and drop reasons. Ratings are model proposals for owner review, never hiring promises.',input:{matches:text('JSON array of saved listing id, verdict and reason.',30000),threshold:text('Keep no, weak, fair or strong.',10)},async run(env,input){const {order,evidence}=scope(env),rows=parsed(input.matches)as CareerMatch[];check(Array.isArray(rows)&&rows.every(r=>r&&evidence.listings.some(l=>l.id===r.id)),'CAREER_NOT_FOUND','Rate only saved listings from this order.');const links=order.intake?.fields?.links,total=Math.max(Array.isArray(links)?new Set(links).size:0,evidence.listings.length);return{result:{...careerShortlist(total,rows,input.threshold as CareerVerdict),source:'model-proposed-ratings',needsOwnerReview:true,saved:false}};}},
+ 'career.score':{name:'career.score',effect:'compute',tier:'code',endsTurn:false,summary:'Sum seven supplied 0 to 2 criteria. Each names an evidence address or guess; addresses remain unverified until the owner reviews them.',input:{criteria:text('JSON array of id, score and evidence.',16000)},async run(env,input){scope(env);return{result:{...scoreCareerTarget(parsed(input.criteria)),evidenceVerified:false,saved:false}};}}
 });

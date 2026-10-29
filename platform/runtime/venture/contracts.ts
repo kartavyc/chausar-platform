@@ -1777,6 +1777,7 @@ export type DeliveryWorkflow = {
   dictionary: { id: string; kind: 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept'; name: string; meaning: string; aliases: string[] }[];
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
+  careerPackBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
@@ -2649,7 +2650,7 @@ export const VENTURE_EVENTS = [
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
   // Ink v2 wave 5 (named by 5-0, ids only): an order's chain moved (5A1), a playbook desk's records changed (each
   // business package), an idea moved or was graded (5A3).
-  'chain.changed', 'desk.changed', 'idea.changed',
+  'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
 ] as const;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; name: VentureEventName; data: Json };
@@ -2895,7 +2896,7 @@ export interface AgentView {
 }
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
   | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
-  | 'chain.changed' | 'desk.changed' | 'idea.changed';
+  | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
 /** seq: the event's place in the business's log, so a client that reconnects replays the gap (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
 // phase 2 views (SpendRow is in section 8c)
@@ -2941,7 +2942,7 @@ export type EvidenceRecord = RecordBase<'venture-evidence'> & {
 export const VENTURE_RUN_EVENT_TYPES: readonly VentureRunEventType[] = Object.freeze([
   'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
-  'chain.changed', 'desk.changed', 'idea.changed',
+  'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
 ] as const);
 export const QUEUE_ACTION_IDS: readonly QueueActionId[] = Object.freeze([
   'approve', 'deny', 'later', 'watch', 'read', 'answer', 'send-to-ca', 'open', 'connect', 'set-prices', 'keep', 'issue', 'run-again',
@@ -3106,6 +3107,7 @@ export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
  * (playbooks/social/approvals.ts): decide-once, on the digest shown, before the link ends.
  */
 export type ShareLinkStoredRecord = RecordBase<'venture-share-link'> & {
+  career?: {threadId:string;approvalDigest:string};
   translation?: { jobId: string; approvalDigest: string };
   deliveryId: string;
   clientId: string | null;
@@ -6296,6 +6298,17 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'CAREER_APPROVAL_REQUIRED',
+  'CAREER_CAPTURE_CHANGED',
+  'CAREER_CAPTURE_INCOMPLETE',
+  'CAREER_CLAIM_BOUNDARY',
+  'CAREER_CLIENT_APPROVAL_REQUIRED',
+  'CAREER_NOT_FOUND',
+  'CAREER_ORDER_REQUIRED',
+  'CAREER_RENDER_REQUIRED',
+  'CAREER_SOURCE_CHANGED',
+  'CAREER_UNSTATED_FACT',
+
   'SHOPIFY_API_REFUSED',
   'SHOPIFY_OUTCOME_UNKNOWN',
   'SHOPIFY_OVERSOLD_MANUAL',

@@ -238,5 +238,17 @@
   "kit-intake-words.bca09815": "Private text stays local until qualified local synthesis and model routes are available.",
   "kit-intake-words.8f31a9bc": "Voice choice",
   "kit-intake-words.43cc23fa": "document",
-  "kit-intake-words.1c788b39": "Private source"
+  "kit-intake-words.1c788b39": "Private source",
+  "kit-intake-words.job-search-desk.targetRoles.label": "Target roles",
+  "kit-intake-words.job-search-desk.targetRoles.help": "List the roles the client wants.",
+  "kit-intake-words.job-search-desk.locations.label": "Locations",
+  "kit-intake-words.job-search-desk.locations.help": "List acceptable locations or remote work.",
+  "kit-intake-words.job-search-desk.salaryFloor.label": "Salary expectation",
+  "kit-intake-words.job-search-desk.salaryFloor.help": "Record the client words without estimating pay.",
+  "kit-intake-words.job-search-desk.facts.label": "Client facts",
+  "kit-intake-words.job-search-desk.facts.help": "Paste facts or name the supplied evidence file. Approve facts in the desk.",
+  "kit-intake-words.job-search-desk.links.label": "Job links",
+  "kit-intake-words.job-search-desk.links.help": "Paste client-supplied links or use permitted public boards.",
+  "kit-intake-words.job-search-desk.languages.label": "Languages",
+  "kit-intake-words.job-search-desk.languages.help": "List the languages for the client pack."
 }

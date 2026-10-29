@@ -5,10 +5,10 @@
 // free), permission to reference (asked, and recorded yes or no), then the after-pilot asks: a case study and a
 // referral. A fact not agreed yet is a bracketed placeholder, never a guess; the sales proposal (kit/proposal.ts) repeats
 // each one under Open questions. Learned from paulklayvc's references/pilot-offer.md (MIT), ideas only, no code taken.
-import { check } from '../../../contracts.ts';
-import type { BpsString, IsoDate, MinorString } from '../../contracts.ts';
-import { addDaysUtc } from '../../money/dates.ts';
-import type { PlaybookDefinition } from './define.ts';
+import {check} from '../../../portable.ts';
+type BpsString=string;type IsoDate=string;type MinorString=string;
+import {addDaysUtc} from '../../../date-core.ts';
+type PilotDefinition={offers:readonly {id:string;name:string;pilotable:boolean}[]};
 
 /** The shortest and longest pilot, in weeks. */
 export const PILOT_MIN_WEEKS = 2;
@@ -88,7 +88,7 @@ const hoursWords = (value: number) => `${value} ${value === 1 ? 'hour' : 'hours'
  * price of zero or a share of none, and PILOT_WINDOW for a window outside 2 to 6 weeks or a success date outside it (after the first day,
  * by the last; with the weeks not agreed yet, within the longest pilot).
  */
-export function pilotOf(definition: Pick<PlaybookDefinition, 'offers'>, offerId: string, terms: PilotTerms): PilotPage {
+export function pilotOf(definition: PilotDefinition, offerId: string, terms: PilotTerms): PilotPage {
   const offer = definition.offers.find(item => item.id === offerId);
   check(offer, 'OFFER_NOT_FOUND', 'That offer is not in this playbook.');
   check(offer.pilotable, 'PILOT_NOT_OFFERED', `${offer.name} is not offered as a pilot. Choose an offer that is.`);

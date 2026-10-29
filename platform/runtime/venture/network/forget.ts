@@ -1,3 +1,4 @@
+import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
 import { eraseInfluencerNaming } from '../playbooks/social/influencer-privacy.ts';
 import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
 import {eraseNarrationNaming} from '../playbooks/narration-studio/privacy.ts';
@@ -293,6 +294,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseCareerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
@@ -420,6 +422,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
     const removed = removePersonData(tx, [person], { erase: true, secrets: deps.secrets });
     tx.put<ForgottenRecord>({ ...tx.base('venture-forgotten'), hashes, names: nameHashes, kept, by: ctx.memberId, scheme: 'hmac-sha256' });
     if (removed.cards || removed.drafts) tx.emit('pipeline.changed', {});
+    tx.emit('privacy.forgotten', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
   });
