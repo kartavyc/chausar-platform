@@ -367,9 +367,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     const career=playbook.flagship==='job-search-desk'?careerRunSource(deps.store.read(),venture.id,order.id):null;
     const forms=playbook.flagship==='data-entry-desk'?formsRunSource(deps.store.read(),venture.id,order.id):null;
     const va=playbook.flagship==='virtual-assistant'?vaRunSource(deps.store.read(),venture.id,order.id):null;
-    const deliverable = testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
-    const renderedText = testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
-    const checks = checkDraft(context, playbook, deliverable, renderedText,testing?{sections:['Reviewed evidence'],answers:[testing.text]}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
+    const deliverable = forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
+    const renderedText = forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
+    const checks = checkDraft(context, playbook, deliverable, renderedText,forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       fenceSocialPreview(tx);
@@ -1258,7 +1258,6 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
-    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
     if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);

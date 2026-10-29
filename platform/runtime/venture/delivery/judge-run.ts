@@ -130,7 +130,7 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
  */
 function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunRecord, nowMs: number): ChausarError | null {
   if (run.status !== 'ready-for-review') return new ChausarError('JUDGE_NOT_READY', NOT_READY);
-  if (run.servedBy !== 'model' && !run.careerPackBinding&&!run.formsSourceBinding&&!run.appTestingBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
+  if (run.servedBy !== 'model' && !run.careerPackBinding&&!run.formsSourceBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
   if (runView(run, venture, nowMs, state).practiceNow) return new ChausarError('PRACTICE_DRAFT', PRACTICE_REASON);
   if (failedCheckReason(run.checks.filter(result => result.check !== 'rules-judge'), run.playbookChecks) !== null) return new ChausarError('JUDGE_NOT_READY', JUDGE_FAILED_CHECK);
   // Ink v2 wave 4 (4J15, Q14): code scans the run's trace before any judge reads it (delivery/trace-scan.ts).
@@ -380,7 +380,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
-  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');testingRunCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
+  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
