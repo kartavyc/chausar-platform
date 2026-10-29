@@ -666,3 +666,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 
 - Tender question extraction, source-grounded responses, exact owner approvals, monetary evidence receipts and local export packs are integrated. Government submission remains a manual owner handoff.
 - Independent spec/quality PASS, source races, privacy, Today and phone evidence are recorded in NOTES-5O.md and its UI/domain notes.
+
+
+## Later package guide integration
+
+The isolated tender gate exposed omitted setup guides for already committed podcast and newsletter connectors. The native guides, exact rehearsal guide rows and EN/HI text for those four connectors plus tender now ship together. The primary implementation already held these reviewed paths; extraction had missed their shared lines. No new provider capability is claimed.

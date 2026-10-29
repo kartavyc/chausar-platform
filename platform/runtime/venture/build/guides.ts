@@ -45,7 +45,7 @@ const CHARGES: Readonly<Record<string, { line: string; noted: boolean }>> = Obje
   firstbase: { line: 'Forming a company through it has a fee.', noted: false },
 });
 /** Chausar's own parts and the connectors that need nothing but this computer or the owner's own mail. */
-const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import']);
+const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission']);
 
 type Hand = Omit<ConnectorGuide, 'charges' | 'missing'>;
 

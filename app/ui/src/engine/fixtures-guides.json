@@ -673,5 +673,119 @@
       "missing": null
     },
     "capabilities": []
+  },
+  "article-transcript": {
+    "guide": {
+      "steps": [
+        "1. Open the client article order and record your permission to use the episode.",
+        "2. Add the episode transcript as SRT, VTT or TXT, then choose it in the article desk.",
+        "3. Review the source and outline before drafting. Reuse a source only for the same client."
+      ],
+      "skipped": "Check that the file contains the episode words you may reuse, not unrelated private material.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads the selected file and binds drafts to its current source. There is no remote transcript account to check.",
+      "sends": "Sends: nothing for file import. Any later model request has its own preview and approval.",
+      "agentLimits": "Agents cannot borrow another client’s transcript or treat unsupported statements as source evidence.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "article-local-transcription": {
+    "guide": {
+      "steps": [
+        "1. Use the desktop app with ffmpeg and whisper.cpp already installed by you.",
+        "2. Record episode rights, select the local audio or video in the article desk and approve the source import.",
+        "3. Read the resulting transcript before drafting. If local tools are unavailable, add a transcript file instead."
+      ],
+      "skipped": "Local media is limited to 50 MB. For larger episodes, supply a transcript; Chausar does not install tools for you.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "The approved import copies the local source and checks the installed tools when transcription runs. Hosted web cannot run them.",
+      "sends": "Sends: no recording to a remote transcription service. Processing uses the installed tools on this computer.",
+      "agentLimits": "Agents cannot install software or claim a transcript exists when local processing fails.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "article-publishing": {
+    "guide": {
+      "steps": [
+        "1. Finish source review, the owner-approved outline and the article draft.",
+        "2. Complete the required client-use review and approve the exact final article and companion text.",
+        "3. Copy the approved handoff into the client publishing account and publish it yourself."
+      ],
+      "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.",
+      "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.",
+      "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "newsletter-owner-tool": {
+    "guide": {
+      "steps": [
+        "1. Prepare the issue from approved sources in the newsletter desk. No sending-service key is needed.",
+        "2. Before importing a recipient list or exporting, obtain the named lawyer’s consent confirmation. Draft preparation remains available meanwhile.",
+        "3. Approve the exact issue and recipients, export HTML, plain text and recipient CSV, then send through your existing tool yourself."
+      ],
+      "skipped": "Consent review is not yet confirmed. Keep list use and export blocked until that review is genuinely recorded.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks current consent, suppression and exact approval before export. It does not connect to or test your sending account.",
+      "sends": "Sends: nothing. You import the approved files and send with your own newsletter tool.",
+      "agentLimits": "Agents cannot send email, bypass opt-outs or claim a successful delivery from an export.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "tender-documents": {
+    "guide": {
+      "steps": [
+        "1. Attach client evidence separately from the RFP in the tender order.",
+        "2. Choose pasted questions or an RFP file. For a workbook, map the sheet, question column, answer column and row range.",
+        "3. Review every extracted question and its type before drafting. Write commercial answers yourself."
+      ],
+      "skipped": "The RFP is a request, not evidence that the client meets it. Do not use a copied RFP as client evidence.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar binds questions and answers to current source bytes. Changed sources require import and approval again.",
+      "sends": "Sends: nothing for local reading. A later AI request shows its exact source payload and asks separately.",
+      "agentLimits": "Agents cannot borrow documents from another client, invent certifications or write commercial answers.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "tender-submission": {
+    "guide": {
+      "steps": [
+        "1. Resolve source gaps and approve every answer by type.",
+        "2. Review the exact export pack, including the issuer workbook mapping and source amount receipts, then approve export.",
+        "3. Check the current issuer instructions and submit through your own portal or mail account."
+      ],
+      "skipped": "A downloaded pack does not prove submission or acceptance. Check the issuer deadline and current terms yourself.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar rechecks source bytes, exact answers and approvals before export. It does not test a portal account.",
+      "sends": "Sends: nothing to the issuer. You submit the approved files yourself.",
+      "agentLimits": "Agents cannot log in to a tender portal, submit a bid or claim the issuer accepted it.",
+      "missing": null
+    },
+    "capabilities": []
   }
 }
