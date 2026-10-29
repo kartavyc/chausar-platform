@@ -143,5 +143,18 @@
       "qa-service",
       "security-review"
     ]
+  },
+  {
+    "id": "monitored-data",
+    "offers": [
+      "price-list-watch",
+      "tender-board-watch"
+    ]
+  },
+  {
+    "id": "it-triage",
+    "offers": [
+      "triage-desk"
+    ]
   }
 ]

@@ -1,11 +1,6 @@
-/**
- * The Monitored data service desk on Work (Ink v2 wave 5, packages 5R5). Package 5-0 left it a stub that says it is
- * not built yet; the package replaces this file with the desk (it may import parts of its own from other files).
- */
-
-import { useT } from '../../../text';
-
-export function MonitoredDataDesk() {
-  const t = useT();
-  return <p>{t('kit-desk.notBuilt')}</p>;
-}
+// Owner selection from observed static source elements, with separate standing-read approval.
+import {useState} from 'react';import {useT} from '../../../text';import {Button} from '../../../parts/Button';import {Field} from '../../../parts/Field';import {Tile,TileHead} from '../../../parts/Tile';import {useR5Desk} from './r5-owner';import type {R5Act} from './r5-owner';import {WatchValues} from './WatchValues';import type {WatchSourceBody} from '../../../../../../platform/runtime/venture/playbooks/monitored-data/records';import s from './R5.module.css';
+export type WatchView=WatchSourceBody&{id:string};
+export function MonitoredDataDesk(){const t=useT(),w=(key:string)=>t('pb-r5.'+key),d=useR5Desk('monitored-data','source'),loaded=d.detail.data?.item as WatchView|undefined,item=!d.detail.error&&loaded?.id===d.selected?loaded:undefined,orders=(d.orders.data?.rows??[])as {id:string;request:string}[],rows=(d.list.data?.rows??[])as {id:string;url:string}[];return<section className={s.stack} aria-label={w('watch.title')}><Tile as="section" label={w('watch.title')}><TileHead title={w('watch.title')} end={<Button onClick={()=>d.setCreating(v=>!v)}>{w('watch.new')}</Button>}/><p className={s.line}>{w('watch.intro')}</p>{d.error&&<p role="alert" className={s.error}>{d.error}</p>}{d.detail.error&&d.selected&&<p role="alert">{w('error.APPROVAL_STALE')}</p>}{d.creating&&<WatchSetup key={d.generation} orders={orders} busy={d.busy} act={d.act} done={id=>{d.choose(id);d.setCreating(false);}}/>}<ul className={s.list}>{rows.map(row=><li key={row.id}><Button onClick={()=>d.choose(row.id)}><span data-content>{row.url}</span></Button></li>)}</ul></Tile>{item&&<WatchValues key={item.id+':'+d.generation} item={item} digest={d.detail.data?.digest??''} busy={d.busy||d.detail.loading} act={d.act}/>}</section>;}
+function WatchSetup({orders,busy,act,done}:{orders:{id:string;request:string}[];busy:boolean;act:R5Act;done:(id:string)=>void}){const t=useT(),w=(key:string)=>t('pb-r5.'+key),[order,setOrder]=useState(''),[url,setUrl]=useState(''),[terms,setTerms]=useState(''),[date,setDate]=useState(''),[allowed,setAllowed]=useState(false);return<form className={s.form} onSubmit={e=>{e.preventDefault();if(!busy&&order&&url&&terms&&date&&allowed)void act(order,'prepare',{url,terms:{url:terms,checkedOn:date,allowed:true},fields:[]}).then(r=>{if(r)done(r.id);});}}><label className={s.label}>{w('order')}<select value={order} onChange={e=>setOrder(e.target.value)}><option value="">{w('choose')}</option>{orders.map(o=><option key={o.id} value={o.id}>{o.request}</option>)}</select></label><Field label={w('watch.url')} value={url} onChange={e=>setUrl(e.target.value)}/><Field label={w('watch.terms')} value={terms} onChange={e=>setTerms(e.target.value)}/><Field type="date" label={w('watch.date')} value={date} onChange={e=>setDate(e.target.value)}/><label className={s.row}><input type="checkbox" checked={allowed} onChange={e=>setAllowed(e.target.checked)}/>{w('watch.allowed')}</label><Button type="submit" variant="primary" aria-disabled={busy||!order||!url||!terms||!date||!allowed}>{w('watch.save')}</Button></form>;}
+MonitoredDataDesk.ready=true;

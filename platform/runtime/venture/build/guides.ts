@@ -1,3 +1,4 @@
+import {R5_GUIDES} from './r5-guides.ts';
 import {APP_TESTING_GUIDES} from './app-testing-guides.ts';
 import {TRANSLATION_GUIDES} from './translation-guides.ts';
 import {CAREER_GUIDES} from './career-guides.ts';
@@ -51,7 +52,7 @@ const CHARGES: Readonly<Record<string, { line: string; noted: boolean }>> = Obje
   firstbase: { line: 'Forming a company through it has a fee.', noted: false },
 });
 /** Chausar's own parts and the connectors that need nothing but this computer or the owner's own mail. */
-const FREE = new Set(['android-local','docker-local','app-testing-delivery','local-live-captions', 'career-links', 'career-boards', 'chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'narration-files', 'narration-local-checks', 'narration-distribution']);
+const FREE = new Set(['page-monitors','source-export','triage-copy','android-local','docker-local','app-testing-delivery','local-live-captions', 'career-links', 'career-boards', 'chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'narration-files', 'narration-local-checks', 'narration-distribution']);
 
 type Hand = Omit<ConnectorGuide, 'charges' | 'missing'>;
 
@@ -90,6 +91,7 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
   ...TRANSLATION_GUIDES,
   'zoho-books': ZOHO_BOOKS_GUIDE,
   ...PLAYBOOK_GUIDES,
+  ...R5_GUIDES,
   ...OPEN_POSTING_GUIDES,
   lovable: builder('Lovable', 'Turn on GitHub sync in Lovable, so Chausar can follow the code.'),
   replit: builder('Replit', 'Connect GitHub in Replit, so Chausar can follow the code.'),

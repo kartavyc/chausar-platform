@@ -138,6 +138,7 @@ export function actionWords(label: string, t: T): string {
  * buttons are worded from the engine's fixed labels (4Z2).
  */
 export function wordedRow(row: QueueRow, t: T): QueueRow {
+  if(row.kind==='notice'&&row.id.includes('watch-source:')){const failed=row.title==='Review a source read problem';return{...row,title:t(failed?'pb-r5.notice.failedTitle':'pb-r5.notice.changedTitle'),line:t(failed?'pb-r5.notice.failedLine':'pb-r5.notice.changedLine'),actions:row.actions.map(a=>({...a,label:a.id==='open'?t('pb-r5.notice.open'):a.id==='later'?t('pb-r5.notice.later'):a.label}))};}
   if (row.kind === 'notice' && row.id.includes('social-revision:')) {
     return { ...row, title: t('pb-social-due.title'), line: t('pb-social-due.line'), actions: row.actions.map(action => ({ ...action, label: action.id === 'open' ? t('pb-social-due.open') : action.id === 'later' ? t('pb-social-due.later') : action.label })) };
   }

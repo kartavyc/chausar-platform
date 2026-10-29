@@ -42,6 +42,7 @@ export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLi
   }
   await reworkTiesDaily(deps, ctx); // 4D2: once a day, every tie worked out again as they fade (records its own failure)
   await readCalendarFeedDaily(deps, ctx); // 4E3: each morning, the owner's calendar address read again (records its own failure)
+  await import('../playbooks/monitored-data/schedule.ts').then(module => module.checkWatchedSourcesDue(deps, ctx)).catch(() => undefined); // 5R5: exact-approved selected source checks
   await import('./monitors.ts').then(module => module.checkMonitorsDue(deps, ctx)).catch(() => undefined); // 5A6 (K16): due page monitors (never throws)
   await import('../playbooks/seo-visibility/monitor-desk.ts').then(module => module.runSeoMonitorsDue(deps, ctx)).catch(() => undefined); // 5E1: exact-approved bounded evidence collection
   await import('../playbooks/seo-visibility/site-recheck.ts').then(module => module.runWebsiteRechecksDue(deps, ctx)).catch(() => undefined); // 5E1: approved installed website re-checks

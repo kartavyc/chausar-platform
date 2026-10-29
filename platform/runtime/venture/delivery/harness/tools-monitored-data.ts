@@ -1,13 +1,5 @@
-// Chausar delivery harness: the monitored-data playbook's own tools (Monitored data service; Ink v2 wave 5, packages
-// 5R5). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with
-// the tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type MonitoredDataToolName = Extract<ToolName, 'monitor.extract'>;
-
-export const MONITORED_DATA_TOOLS: Readonly<Record<MonitoredDataToolName, Spec>> = Object.freeze({
-  'monitor.extract': notBuiltTool('monitor.extract', 'read', 'Values from a watched page, only from the elements you picked.'), // 5R5
-});
+import {watchReport,watchDelivery} from '../../playbooks/monitored-data/report.ts';
+// Read-only current observations. The actor cannot choose a URL, selector, amount or outside fetch here.
+import {check} from '../../../contracts.ts';import type {ToolName} from '../../contracts.ts';import {findRecord,exactPayload} from '../../records.ts';import {watchRunSource} from '../../playbooks/monitored-data/run-source.ts';import {watchReceipt} from '../../playbooks/monitored-data/receipt.ts';import type {Spec,ToolEnv} from './tools.ts';
+type MonitoredDataToolName=Extract<ToolName,'monitor.extract'>;
+export const MONITORED_DATA_TOOLS:Readonly<Record<MonitoredDataToolName,Spec>>=Object.freeze({'monitor.extract':{name:'monitor.extract',effect:'read',tier:'code',endsTurn:false,summary:'Read checked owner-selected static source elements and their exact code receipts. Performs no network request.',input:{},async run(env:ToolEnv,input){exactPayload(input,[]);const run=env.runRef.kind==='delivery'?findRecord(env.deps.store.read(),'venture-delivery-run',env.runRef.runId):null;check(run&&run.ventureId===env.ventureId,'WATCH_SOURCE_NOT_FOUND','Use the current monitored client delivery run.');const rows=watchRunSource(env.deps,env.ventureId,run.orderId),{receiptOut}=await import('./tools.ts');const receipts:ReturnType<typeof receiptOut>[]=[];for(const row of rows)receipts.push(receiptOut({...env,receipts:[...env.receipts,...receipts.map(r=>r.record)]},watchReceipt(run.id,row.id,row.observation!)));const report=watchReport(rows);return{result:{report,delivery:watchDelivery(report),sources:rows.map((r,i)=>({id:r.id,url:r.url,observedAt:r.observation!.observedAt,sourceDigest:r.observation!.sourceDigest,values:r.observation!.values,receipt:receipts[i]!.alias,figures:receipts[i]!.figures})),saved:false,fetched:false},receipts:receipts.map(r=>r.record)};}}});

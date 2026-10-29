@@ -1177,6 +1177,108 @@
             "connections": "गिटहब और आपका कोडिंग टूल के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "monitored-data",
+        "playbook": "monitored-data",
+        "label": "Monitored data service",
+        "category": "marketing",
+        "department": "production",
+        "line": "Price lists and tender boards watched for clients, from pages whose terms allow it.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Pick sources, check the terms.",
+        "team": [
+          {
+            "role": "Analyst",
+            "initials": "AN",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Reviews sources and prepares updates.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹12,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Permitted page monitors and Source workbook download."
+        },
+        "starter": "Price monitoring: Price lists and tender boards watched for clients, from pages whose terms allow it.",
+        "yours": [],
+        "hi": {
+          "label": "निगरानी वाले डेटा की सेवा",
+          "line": "क्लाइंट के लिए दाम सूचियों और टेंडर बोर्डों की निगरानी, अनुमति वाले पेजों से।",
+          "hours": "हफ़्ते में 2 से 4 घंटे",
+          "youDo": "स्रोत चुनें, शर्तें देखें।",
+          "team": [
+            "विश्लेषक"
+          ],
+          "teamLine": "स्रोत देखता है और अपडेट तैयार करता है।",
+          "pay": "₹3,000 से ₹12,000",
+          "per": "एक क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Price monitoring: क्लाइंट के लिए दाम सूचियों और टेंडर बोर्डों की निगरानी, अनुमति वाले पेजों से।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "अनुमति वाले पेज मॉनिटर और स्रोत वर्कबुक डाउनलोड के साथ काम करता है।"
+          }
+        }
+      },
+      {
+        "id": "it-triage",
+        "playbook": "it-triage",
+        "label": "IT triage desk",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Help-channel triage summaries for small teams, every reply approved.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Approve replies, fix what needs a person.",
+        "team": [
+          {
+            "role": "Triage lead",
+            "initials": "TL",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Prepares source summaries for people.",
+        "clientsPay": {
+          "text": "₹8,000 to ₹25,000",
+          "per": "a team a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Approved reply handoff."
+        },
+        "starter": "It support desk: Help-channel triage summaries for small teams, every reply approved.",
+        "yours": [],
+        "hi": {
+          "label": "आईटी मदद की समीक्षा",
+          "line": "छोटी टीमों के मदद चैनल के सार, हर जवाब मंज़ूरी के बाद।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "जवाब मंज़ूर करें, व्यक्ति के ज़रूरी काम संभालें।",
+          "team": [
+            "समीक्षा प्रमुख"
+          ],
+          "teamLine": "लोगों के लिए स्रोत का सार तैयार करता है।",
+          "pay": "₹8,000 से ₹25,000",
+          "per": "एक टीम प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "It support desk: छोटी टीमों के मदद चैनल के सार, हर जवाब मंज़ूरी के बाद।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "मंज़ूर जवाब का हैंडऑफ़ के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -1190,7 +1292,7 @@
         "id": "marketing",
         "label": "Marketing",
         "hi": "मार्केटिंग",
-        "count": 3
+        "count": 4
       },
       {
         "id": "money-and-tax",
@@ -1202,14 +1304,14 @@
         "id": "shops-and-firms",
         "label": "Shops and firms",
         "hi": "दुकानें और फ़र्म",
-        "count": 6
+        "count": 7
       }
     ],
     "upTo": {
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 5
+      "count": 6
     }
   },
   "checklist": [

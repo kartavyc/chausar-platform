@@ -240,5 +240,23 @@
       "security review for",
       "code review service"
     ]
+  },
+  {
+    "id": "monitored-data",
+    "picks": [
+      "price monitoring",
+      "tender alerts",
+      "competitor price tracking",
+      "data monitoring service"
+    ]
+  },
+  {
+    "id": "it-triage",
+    "picks": [
+      "it support desk",
+      "on-call triage",
+      "slack support bot",
+      "it helpdesk for"
+    ]
   }
 ]

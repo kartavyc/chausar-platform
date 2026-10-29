@@ -267,6 +267,7 @@ export async function checkMonitorsDue(deps: VentureDeps, ctx: Context, budget: 
     if (!due.length) return;
     const lastRead = new Map<string, number>();
     for (const record of all) if (record.lastCheckedAt) lastRead.set(record.host, Math.max(lastRead.get(record.host) ?? 0, Date.parse(record.lastCheckedAt)));
+    for (const record of listRecords(state, 'venture-watch-source', venture.id)) if (record.lastCheckedAt) { const host = new URL(record.url).hostname; lastRead.set(host, Math.max(lastRead.get(host) ?? 0, Date.parse(record.lastCheckedAt))); } // 5R5: share the same site-hour budget
     const looked: { id: string; result: Look }[] = [];
     const waiting: { id: string; until: string }[] = [];
     for (const record of due) {

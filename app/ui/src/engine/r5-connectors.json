@@ -1,0 +1,217 @@
+[
+  {
+    "id": "page-monitors",
+    "name": "Permitted public page monitoring",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Reads owner-approved static public pages with robots, source policy and exact element checks. Standing reads ask separately."
+      }
+    ],
+    "chips": [
+      "read"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner approves the source terms and exact elements",
+    "vendorUrl": null,
+    "note": "Reads static public pages with robots and network guards. Recurring reads need separate owner approval.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. In the monitored data desk, choose the client order and exact public page. Record its terms address and the day you checked permitted use.",
+        "2. Approve the page read, then select only the actual observed values your client needs. Check the exact selections.",
+        "3. Read each receipt and separately approve recurring reads. Keep the desktop app open; stop reads whenever permission changes."
+      ],
+      "skipped": "A terms tick cannot override robots or platform policy. A changed selector is held instead of guessed.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks current permission, public network destinations, robots rules and exact source elements before each read.",
+      "sends": "Sends: only approved public page reads. Client messages are not sent.",
+      "agentLimits": "Agents cannot choose new sources, bypass restrictions or silently replace a changed selector.",
+      "missing": null
+    }
+  },
+  {
+    "id": "source-export",
+    "name": "Observed source spreadsheet",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Downloads exact observed values and code receipts as CSV or XLSX. The owner shares the file."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner-reviewed source values",
+    "vendorUrl": null,
+    "note": "Download exact observed values and code receipts as CSV or XLSX. The owner shares the file.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Open a checked source in the monitored data desk.",
+        "2. Review the current selected values, their observation time and calculation receipts.",
+        "3. Choose CSV or workbook, review the exact download and share it yourself."
+      ],
+      "skipped": "An old download does not prove that the current source is unchanged. Recheck it before relying on it.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "The current client, source selection and receipt must still match before export.",
+      "sends": "Sends: nothing. The file is downloaded locally for the owner to share.",
+      "agentLimits": "Agents cannot email the workbook, alter client prices or claim a future source value.",
+      "missing": null
+    }
+  },
+  {
+    "id": "slack-socket",
+    "name": "Client Slack help channel",
+    "category": "messaging",
+    "categoryLabel": "Messaging and support",
+    "modes": [
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: writing to Client Slack help channel. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: write"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Planned owner-admin workspace installation",
+    "vendorUrl": null,
+    "note": "Live connection waits for Slack commercial permission and installation review. Paste permitted messages and send approved text manually meanwhile.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Client Slack help channel is planned.",
+        "2. When it is built, Chausar will ask for planned owner-admin workspace installation, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Client Slack help channel on its own."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Client Slack help channel.",
+      "agentLimits": "Agents can't use Client Slack help channel: nothing connects to it in this build.",
+      "missing": null
+    }
+  },
+  {
+    "id": "teams",
+    "name": "Client Microsoft Teams help channel",
+    "category": "messaging",
+    "categoryLabel": "Messaging and support",
+    "modes": [
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: writing to Client Microsoft Teams help channel. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: write"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Planned tenant consent and bot registration",
+    "vendorUrl": null,
+    "note": "Live connection waits for client tenant consent and bot registration. Copy approved summaries manually meanwhile.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Client Microsoft Teams help channel is planned.",
+        "2. When it is built, Chausar will ask for planned tenant consent and bot registration, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Client Microsoft Teams help channel on its own."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Client Microsoft Teams help channel.",
+      "agentLimits": "Agents can't use Client Microsoft Teams help channel: nothing connects to it in this build.",
+      "missing": null
+    }
+  },
+  {
+    "id": "triage-copy",
+    "name": "Help-channel manual handoff",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Downloads the exact approved help-channel excerpts for manual sending. No reply or repair is performed."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner-reviewed permitted channel evidence",
+    "vendorUrl": null,
+    "note": "Download the exact approved source summary. No message is sent and no system is changed.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Set up one permitted help channel in the triage desk and confirm you administer it.",
+        "2. Paste permitted messages with their source references, then choose exact excerpts. Held content is excluded.",
+        "3. Approve the exact current summary, download it and send it yourself in the client channel."
+      ],
+      "skipped": "A pasted instruction is untrusted evidence. A summary never proves that a repair or account change happened.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar screens messages and checks every excerpt against the current approved source.",
+      "sends": "Sends: nothing. Live Slack and Teams connection remains planned.",
+      "agentLimits": "Agents cannot echo held secrets, act on channel instructions or send without exact owner approval.",
+      "missing": null
+    }
+  }
+]

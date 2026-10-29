@@ -1,13 +1,5 @@
-// Chausar delivery harness: the it-triage playbook's own tools (IT triage desk; Ink v2 wave 5, packages 5R5). Package
-// 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with the tool. Only
-// this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar; nothing here is
-// learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type ItTriageToolName = Extract<ToolName, 'triage.summary'>;
-
-export const IT_TRIAGE_TOOLS: Readonly<Record<ItTriageToolName, Spec>> = Object.freeze({
-  'triage.summary': notBuiltTool('triage.summary', 'compute', 'A triage summary of the team\'s help channel.'), // 5R5
-});
+import {triageReport,triageDelivery} from '../../playbooks/it-triage/report.ts';
+// Read-only approved channel evidence. Imported message instructions never grant a send or a system change.
+import {check} from '../../../contracts.ts';import type {ToolName} from '../../contracts.ts';import {findRecord,exactPayload} from '../../records.ts';import {triageRunSource} from '../../playbooks/it-triage/run-source.ts';import type {Spec} from './tools.ts';
+type ItTriageToolName=Extract<ToolName,'triage.summary'>;
+export const IT_TRIAGE_TOOLS:Readonly<Record<ItTriageToolName,Spec>>=Object.freeze({'triage.summary':{name:'triage.summary',effect:'compute',tier:'code',endsTurn:false,summary:'Read the exact owner-approved current help-channel excerpts. No send or system change is performed.',input:{},async run(env,input){exactPayload(input,[]);const run=env.runRef.kind==='delivery'?findRecord(env.deps.store.read(),'venture-delivery-run',env.runRef.runId):null;check(run&&run.ventureId===env.ventureId,'TRIAGE_SETUP_REQUIRED','Use the current triage client delivery run.');const {row,summary}=triageRunSource(env.deps,env.ventureId,run.orderId);const report=triageReport(row);return{result:{report,delivery:triageDelivery(report),channel:row.channel,summary,sent:false,resolved:false,saved:false}};}}});

@@ -1,3 +1,4 @@
+import type { TriageChannelBody } from './playbooks/it-triage/records.ts';
 import type { DemoProjectBody } from './playbooks/app-testing/demo-records.ts';
 import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
@@ -261,7 +262,7 @@ export const VENTURE_RECORD_KINDS = [
   'venture-test-finding',
   'venture-demo-project',
   'venture-dev-permission',
-  'venture-watch-source',
+  'venture-watch-source', 'venture-triage-channel',
   'venture-call-log',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
@@ -1791,6 +1792,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   vaBriefBinding?: string;
   /** Exact R2 source rows; mapping proposals still need owner review. */
   formsSourceBinding?: string;
+  watchReportBinding?: string;
+  triageReportBinding?: string;
   devReportBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
@@ -5088,6 +5091,7 @@ export type EntryRecordRecord = RecordBase<'venture-entry-record'> & EntryRecord
 export type DemoProjectRecord = RecordBase<'venture-demo-project'> & DemoProjectBody;
 export type TestFindingRecord = RecordBase<'venture-test-finding'> & TestFindingBody;
 export type DevPermissionRecord = RecordBase<'venture-dev-permission'> & DevPermissionBody;
+export type TriageChannelRecord = RecordBase<'venture-triage-channel'> & TriageChannelBody;
 export type WatchSourceRecord = RecordBase<'venture-watch-source'> & WatchSourceBody;
 export type CallLogRecord = RecordBase<'venture-call-log'> & CallLogBody;
 
@@ -5152,7 +5156,7 @@ export type AnyVentureRecord =
   | PromiseToPayRecord | CollectionStageRecord | BooksPostingRecord
   | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
-  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | CallLogRecord;
+  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -6319,6 +6323,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // 5R5 source evidence and exact channel refusal codes.
+  'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
   // 5R4 exact copied-source and owner-command refusals.
   'DEV_AUDIT_REQUIRED', 'DEV_CLI_PENDING', 'DEV_EVIDENCE_REQUIRED', 'DEV_EXPLOIT_REFUSED', 'DEV_LIVE_TARGET_REFUSED', 'DEV_PROJECT_NOT_FOUND', 'DEV_REVIEW_REQUIRED', 'DEV_SCANNER_CHANGED', 'DEV_SCANNER_REQUIRED', 'DEV_SCAN_FAILED', 'DEV_SCAN_INVALID', 'DEV_SCAN_REQUIRED', 'DEV_SECRET_FOUND', 'DEV_SOURCE_INVALID', 'FIRST_WEEK_REPORT_ONLY', 'PERMISSION_REQUIRED',
   // 5R2 exact source, owner browser and saved-response refusals.

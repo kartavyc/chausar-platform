@@ -224,6 +224,7 @@ export class FakeEngine {
       hosted: () => this.hosted,
     }, { fresh });
     this.work = new FakeWorkDesk({
+      r5Report:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.r5Report((this.desk.request('venture.blueprint.get',{}) as BlueprintViewLite|null)?.playbook?.id??'',id);},
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
       formsSource:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.formsSource(id);},
       testingSource:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.testingSource(id);},
@@ -289,6 +290,7 @@ export class FakeEngine {
       influencerOutreach:(input:Parameters<FakeExtrasDesk['influencerOutreach']>[1])=>{if(this.network.recruitingBlocked(input.email,null))throw new EngineError('LEADS_BLOCKED','This creator asked not to be contacted.');return this.extras.influencerOutreach(this.current,input);},
       eraseInfluencerCopies:(orderIds:readonly string[])=>{const files=orderIds.flatMap(id=>this.work.orderFiles(this.current,id).map(f=>f.id));this.work.eraseSellerFiles(this.current,files);this.work.eraseInfluencerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Campaign evidence was deleted. Start with new approved sources.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseInfluencerLeads:(ids:readonly string[])=>this.extras.eraseInfluencerLeads(this.current,ids),
+      eraseR5Copies:(orderIds:readonly string[])=>{this.work.eraseInfluencerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Monitored or channel evidence was deleted. Start with new approved sources.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseDevCopies:(orderIds:readonly string[])=>{this.work.eraseInfluencerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Developer source was deleted. Start with new approved sources.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseTranslationCopies:(orderIds:readonly string[])=>{this.work.eraseInfluencerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Translation source was deleted. Start with new approved sources.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseTenderIntake:(orderIds:readonly string[])=>this.work.eraseTenderIntake(this.current,orderIds),
@@ -386,7 +388,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -580,11 +582,15 @@ export class FakeEngine {
     this.network.syncRows(); // 4E4: follow-ups come due as the clock moves; replies and calls wait as the engine lists them
     this.chief.syncRows(); // 4C2: a proposal's card is made again from what it acts on now (only Dismiss once its gate fails)
     if (this.open && this.current) this.kitRules()?.syncRows(); // 5A3: a published idea's grade row comes due as the clock moves
-    this.rows = this.rows.filter(row => !row.id.startsWith('social-revision:')&&!row.id.startsWith('tender-gap:'));
+    this.rows = this.rows.filter(row => !row.id.startsWith('social-revision:')&&!row.id.startsWith('tender-gap:')&&!row.id.startsWith('watch-source:'));
     for (const business of this.businesses) {
       if (business.opens !== 'with-this-computer' && !(this.open && business.id === this.current)) continue;
       const plan = this.desk.blueprintFor(business.id);
       this.rows.push(...fakeSocialRevisionDueRows({countryCode:this.ventures.get(business.id)?.countryCode??'IN',businessId: business.id, businessName: business.name, now: this.now(), orders: this.work.ordersFor(business.id), offers: plan?.blueprint.offers ?? [], digest: digestOf}));
+      for(const desk of this.w5??[])if(desk instanceof FakePlaybooksDesk)for(const notice of desk.watchNotices({businessId:business.id,orders:this.work.ordersFor(business.id),offers:this.desk.acceptedOffersFor(business.id)})){
+        const row={id:notice.subject+':'+notice.version,businessId:business.id,businessName:business.name,kind:'notice' as const,createdAt:notice.createdAt,title:notice.title,line:notice.line,actions:[{id:'open' as const,label:'Open monitored sources',primary:true},{id:'later' as const,label:'Later',primary:false}],notice:{probe:'drafts' as const,severity:'medium' as const,link:notice.link}};
+        this.rows.push({...row,digest:digestOf(row)});
+      }
       for(const desk of this.w5??[])if(desk instanceof FakePlaybooksDesk)for(const notice of await desk.tenderNotices({businessId:business.id,orders:this.work.ordersFor(business.id),files:orderId=>this.work.orderFiles(business.id,orderId)})){
         const row={id:notice.subject+':'+notice.version,businessId:business.id,businessName:business.name,kind:'notice' as const,createdAt:notice.createdAt,title:notice.title,line:notice.line,actions:[{id:'open' as const,label:'Open tender desk',primary:true},{id:'later' as const,label:'Later',primary:false}],notice:{probe:'drafts' as const,severity:'medium' as const,link:notice.link}};
         this.rows.push({...row,digest:digestOf(row)});
@@ -615,7 +621,7 @@ export class FakeEngine {
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
     const va=this.w4.quality.decideVa(row,action.id);if(va){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:va};}
-    const social=this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
+    const social=this.work.r5Delivery.decide(row,action.id)??this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     const openPost=this.posting.decideOpen(row.id,action.id);if(openPost){if(openPost.outcome==='done')this.decided.add(row.id);return openPost;}
     this.decided.add(row.id);

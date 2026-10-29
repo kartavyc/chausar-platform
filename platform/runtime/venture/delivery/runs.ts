@@ -1,3 +1,7 @@
+import {triageDelivery} from '../playbooks/it-triage/report.ts';
+import {watchDelivery} from '../playbooks/monitored-data/report.ts';
+import {triageStateSource} from '../playbooks/it-triage/run-source.ts';
+import {watchStateSource} from '../playbooks/monitored-data/run-source.ts';
 import {devDelivery} from '../playbooks/dev-agency/report.ts';
 import {devStateSource} from '../playbooks/dev-agency/run-source.ts';
 import {testingDeliverable} from '../playbooks/app-testing/delivery-core.ts';
@@ -154,6 +158,8 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
   if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
   const checkInput = {
     ...(playbook.flagship==='app-testing'?{testingEvidence:testingRunSource(deps.store.read(),context.venture.id,context.order.id,deps.clock().toISOString())}:{}),
+    ...(playbook.flagship==='monitored-data'?{watchReport:watchStateSource(deps.store.read(),context.venture.id,context.order.id,deps.clock().toISOString())}:{}),
+    ...(playbook.flagship==='it-triage'?{triageReport:triageStateSource(deps.store.read(),context.venture.id,context.order.id,deps.clock().toISOString())}:{}),
     ...(playbook.flagship==='dev-agency'?{devReport:devStateSource(deps.store.read(),context.venture.id,context.order.id,deps.clock().toISOString(),true).report}:{}),
     ...(playbook.flagship==='data-entry-desk'?{formsEntries:formsRunSource(deps.store.read(),context.venture.id,context.order.id).rows}:{}),
     ...(playbook.flagship==='virtual-assistant'?{roomBrief:vaRoomEvidence(deps.store.read(),context.venture.id,context.order.id)}:{}),
@@ -269,6 +275,8 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
     ...(playbook.flagship==='data-entry-desk'?{formsSourceBinding:formsRunSource(tx.state,tx.venture!.id,order.id).binding}:{}),
     ...(playbook.flagship==='virtual-assistant'?{vaBriefBinding:vaRunSource(tx.state,tx.venture!.id,order.id).digest}:{}),
     ...(playbook.flagship==='app-testing'?{appTestingBinding:testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding}:{}),
+    ...(playbook.flagship==='monitored-data'?{watchReportBinding:watchStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest}:{}),
+    ...(playbook.flagship==='it-triage'?{triageReportBinding:triageStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest}:{}),
     scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
     // Ink v2 wave 5 (5A1): the chain stage this run drafts, once a kit chain order is past its first (playbooks/kit/chain.ts).
     ...(order.chainStage ? { chainStage: order.chainStage } : {}),
@@ -302,6 +310,8 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // stages or the playbook's checks rest on waits for a CA or lawyer (RULE_UNCONFIRMED). The check-time gate stays as a backstop.
   const chain = orderChain(state, venture, order);
   if(chain?.definition.registration.id==='app-testing')testingRunSource(state,venture.id,order.id,deps.clock().toISOString());
+  if(chain?.definition.registration.id==='monitored-data')watchStateSource(state,venture.id,order.id,deps.clock().toISOString());
+  if(chain?.definition.registration.id==='it-triage')triageStateSource(state,venture.id,order.id,deps.clock().toISOString());
   if(chain?.definition.registration.id==='dev-agency')devStateSource(state,venture.id,order.id,deps.clock().toISOString(),true);
   if(chain?.definition.registration.id==='data-entry-desk')formsRunSource(state,venture.id,order.id);
   if(chain?.definition.registration.id==='virtual-assistant')vaRunSource(state,venture.id,order.id);
@@ -314,7 +324,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
-  const template = chain?.definition.registration.id==='dev-agency' || chain?.definition.registration.id==='app-testing' || chain?.definition.registration.id==='job-search-desk' || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
+  const template = ['monitored-data','it-triage'].includes(chain?.definition.registration.id??'') || chain?.definition.registration.id==='dev-agency' || chain?.definition.registration.id==='app-testing' || chain?.definition.registration.id==='job-search-desk' || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   check(!template||!order.socialChain,'NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const basePlaybook = await ensurePlaybook(deps, ctx);
@@ -375,19 +385,23 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   }));
 
   if (!preview) {
+    const watch=playbook.flagship==='monitored-data'?watchStateSource(deps.store.read(),venture.id,order.id,deps.clock().toISOString()):null;
+    const triage=playbook.flagship==='it-triage'?triageStateSource(deps.store.read(),venture.id,order.id,deps.clock().toISOString()):null;
     const testing=playbook.flagship==='app-testing'?testingRunSource(deps.store.read(),venture.id,order.id,deps.clock().toISOString()):null;
     const dev=playbook.flagship==='dev-agency'?devStateSource(deps.store.read(),venture.id,order.id,deps.clock().toISOString(),true):null;
     const career=playbook.flagship==='job-search-desk'?careerRunSource(deps.store.read(),venture.id,order.id):null;
     const forms=playbook.flagship==='data-entry-desk'?formsRunSource(deps.store.read(),venture.id,order.id):null;
     const va=playbook.flagship==='virtual-assistant'?vaRunSource(deps.store.read(),venture.id,order.id):null;
-    const deliverable = dev?devDelivery(dev.report):testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
-    const renderedText = dev||testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
-    const checks = checkDraft(context, playbook, deliverable, renderedText,dev?{sections:['Review'],answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:testing?{sections:['Reviewed evidence'],answers:[testing.text],outputFiles:testing.files}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
+    const deliverable = watch?watchDelivery(watch):triage?triageDelivery(triage):dev?devDelivery(dev.report):testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
+    const renderedText = watch||triage?renderDeliverable(deliverable,context.receipts,context.venture.country):dev||testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
+    const checks = checkDraft(context, playbook, deliverable, renderedText,watch||triage?{sections:deliverable.sections.map(s=>s.heading),answers:deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))}:dev?{sections:['Review'],answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:testing?{sections:['Reviewed evidence'],answers:[testing.text],outputFiles:testing.files}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       if(dev)check(devStateSource(tx.state,tx.venture!.id,order.id,tx.now,true).report.digest===dev.report.digest,'DERIVED_STALE','The source report changed. Start again.');
       if(testing)check(testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding===testing.binding,'APPROVAL_STALE','The reviewed report or video changed. Start again.');
       fenceSocialPreview(tx);
+      if(watch)check(watchStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest===watch.digest,'DERIVED_STALE','The monitored source evidence changed. Start again.');
+      if(triage)check(triageStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest===triage.digest,'DERIVED_STALE','The approved channel summary changed. Start again.');
       if(career)check(careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding===career.sourceBinding,'CAREER_SOURCE_CHANGED','The career pack changed during preparation.');
       if(va)vaRunSource(tx.state,tx.venture!.id,order.id,va.digest);
       const run: DeliveryRunRecord = {
@@ -1274,6 +1288,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
     if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
+    if(verdict!=='rejected'&&run.watchReportBinding)check(watchStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.watchReportBinding&&verdict!=='edited','DERIVED_STALE','Review current measured sources in the monitored desk and prepare a new report.');
+    if(verdict!=='rejected'&&run.triageReportBinding)check(triageStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.triageReportBinding&&verdict!=='edited','DERIVED_STALE','Review current source excerpts in the triage desk and prepare a new report.');
     if(verdict!=='rejected'&&run.devReportBinding){const report=devStateSource(tx.state,tx.venture!.id,run.orderId,tx.now,true).report;check(report.digest===run.devReportBinding&&verdict!=='edited','DERIVED_STALE','Revise the source evidence in the developer desk and prepare a new report.');}
     if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}

@@ -741,3 +741,10 @@ The completed source-bound emulator testing and private demo desk, exact provide
 ### 5R4 isolated final-base checkpoint
 
 Developer agency source, owner CLI, exact metadata audit, reviewed reports and journalled manual command handoff passed independent specification and quality reviews. Metadata reclosure passed separately. Scope, evidence, limitations and ownership are in NOTES-5R4.md. The isolated candidate is based on committed R3 cf908956. Inherited accepted-offer declarations are preserved byte-for-byte; later accepted-plan and order-receipt integration changes are excluded. Frozen-byte checks are recorded in the candidate gate report.
+
+
+### 5R5: monitored data and IT triage
+
+Implemented the two registered playbooks with accepted-order source desks, measured static selectors, BigInt price receipts, approved recurring reads, Today changes, literal CSV/XLSX export, exact screened channel excerpts and an unsent approved handoff. Work and browser rehearsal bind current evidence and invalidate stale or forgotten copies. Slack and Teams remain planned pending qualification; no production Slack adapter is wired. The internal fixture-tested exact-post controller checks professional confirmation again at release.
+
+Independent Stage 1 SPEC PASS and Stage 2 QUALITY PASS were closed by root, including a separate final professional-gate recheck10/10. Author focused native43/43 before the late gate, affected gate14/14, and owner/fake/text/source51/51 passed. Six actual owner captures fit phone/desktop widths with axe0; root inspected phone captures. Full boundaries, genuine RED evidence, limitations and later isolated validation are recorded in NOTES-5R5.md. No whole-wave gate or live provider qualification is claimed here.

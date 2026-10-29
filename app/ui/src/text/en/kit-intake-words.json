@@ -308,5 +308,13 @@
   "kit-intake-words.dev-agency.writtenPermission.label": "Written permission",
   "kit-intake-words.dev-agency.writtenPermission.help": "For security work, attach the code owner permission and record its repository and window.",
   "kit-intake-words.dev-agency.private.label": "Private source",
-  "kit-intake-words.dev-agency.private.help": "Private source stays manual until a qualified local coding tool is available."
+  "kit-intake-words.dev-agency.private.help": "Private source stays manual until a qualified local coding tool is available.",
+  "kit-intake-words.monitored-data.sourceScope.label": "Client source scope",
+  "kit-intake-words.monitored-data.sourceScope.help": "Name the exact permitted pages and values.",
+  "kit-intake-words.monitored-data.permission.label": "Source permission",
+  "kit-intake-words.monitored-data.permission.help": "Record who permits this source use and its limits.",
+  "kit-intake-words.it-triage.sourceScope.label": "Client source scope",
+  "kit-intake-words.it-triage.sourceScope.help": "Name the exact help channel and requested review.",
+  "kit-intake-words.it-triage.permission.label": "Source permission",
+  "kit-intake-words.it-triage.permission.help": "Record who permits this source use and its limits."
 }

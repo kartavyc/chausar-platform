@@ -23,6 +23,8 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'source-export': {qualification:'fixture-tested',what:'Downloads exact observed values and code receipts as CSV or XLSX. The owner shares the file.'},
+  'triage-copy': {qualification:'fixture-tested',what:'Downloads the exact approved help-channel excerpts for manual sending. No reply or repair is performed.'},
   ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,{qualification:'built-in' as const,what:'Prepares source-backed drafts and files for manual review. The client uses their own account, sends messages and applies themselves.'}])),
   ...SELLER_HANDOFF_MODES,
   'app-testing-delivery': {qualification:'fixture-tested',what:'Exports actual source-bound reports and owner-reviewed demo files after named permission review. The owner delivers manually.'},
@@ -37,6 +39,7 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'page-monitors': {qualification:'fixture-tested',what:'Reads owner-approved static public pages with robots, source policy and exact element checks. Standing reads ask separately.'},
   'career-links':{qualification:'fixture-tested',what:'Reads one approved public static listing with policy, robots and complete-revision checks. LinkedIn and Naukri use pasted text only.'},
   'career-boards':{qualification:'fixture-tested',what:'Reads a bounded public Greenhouse, Lever or Ashby index. An index is not a complete captured listing.'},
   ...SELLER_READ_MODES,

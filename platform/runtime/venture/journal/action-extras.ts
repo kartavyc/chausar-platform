@@ -51,6 +51,7 @@ export function refuseDenylisted(action: unknown, operation: unknown): void {
  * owner's mail app and making a payment link. Any other operation, or none, is refused.
  */
 export const CONNECTOR_WRITE_OPERATIONS: readonly string[] = Object.freeze(['send-deliverable', 'create-link',
+  'triage-channel-post', // 5R5: exact one-channel summary, only through a qualified internal port
   // 5F3: one exact variant price, product title or CAS inventory movement in the owner's Shopify store.
   'shopify-price', 'shopify-title', 'shopify-stock',
   // Ink v2 wave 5 (5A6): one approved item to the owner's own n8n or Make webhook, and one approved command of an app they installed.

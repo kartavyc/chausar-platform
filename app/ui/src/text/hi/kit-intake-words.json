@@ -308,5 +308,13 @@
   "kit-intake-words.dev-agency.writtenPermission.label": "लिखित अनुमति",
   "kit-intake-words.dev-agency.writtenPermission.help": "सुरक्षा काम के लिए कोड के मालिक की अनुमति जोड़ें। उसकी रिपॉज़िटरी और समय सीमा दर्ज करें।",
   "kit-intake-words.dev-agency.private.label": "निजी स्रोत",
-  "kit-intake-words.dev-agency.private.help": "योग्य स्थानीय कोडिंग टूल मिलने तक निजी स्रोत पर काम ख़ुद करें।"
+  "kit-intake-words.dev-agency.private.help": "योग्य स्थानीय कोडिंग टूल मिलने तक निजी स्रोत पर काम ख़ुद करें।",
+  "kit-intake-words.monitored-data.sourceScope.label": "क्लाइंट के स्रोत का दायरा",
+  "kit-intake-words.monitored-data.sourceScope.help": "सटीक अनुमति वाले पेज और वैल्यू लिखें।",
+  "kit-intake-words.monitored-data.permission.label": "स्रोत की अनुमति",
+  "kit-intake-words.monitored-data.permission.help": "यह स्रोत इस्तेमाल करने की अनुमति कौन देता है और सीमाएँ क्या हैं, लिखें।",
+  "kit-intake-words.it-triage.sourceScope.label": "क्लाइंट के स्रोत का दायरा",
+  "kit-intake-words.it-triage.sourceScope.help": "सटीक मदद चैनल और माँगी गई समीक्षा लिखें।",
+  "kit-intake-words.it-triage.permission.label": "स्रोत की अनुमति",
+  "kit-intake-words.it-triage.permission.help": "यह स्रोत इस्तेमाल करने की अनुमति कौन देता है और सीमाएँ क्या हैं, लिखें।"
 }

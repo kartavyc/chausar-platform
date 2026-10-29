@@ -47,9 +47,11 @@ export type TenderNoticeScope={businessId:string;orders:readonly import('./types
 export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
 export interface FakePlaybookDesk {
   testingSource?(orderId:string):void;
+  r5Report?(orderId:string):import('../../../../platform/runtime/venture/playbooks/monitored-data/report').WatchReport|import('../../../../platform/runtime/venture/playbooks/it-triage/report').TriageReport;
   formsSource?(orderId:string):void;
   devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
+  watchNotices?(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}):TenderNotice[];
   tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
   sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
   revokeShare?(id:string):import('./types').ShareLink|null;
@@ -102,10 +104,12 @@ export class FakePlaybooksDesk {
 
   /** Clear session-only credentials on vault lock or attachment; saved desk work remains. */
   endSession(): void { for(const desk of this.desks)desk.endSession?.(); }
+  watchNotices(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}){return this.desks.flatMap(desk=>desk.watchNotices?.(scope)??[]);}
   async tenderNotices(scope:TenderNoticeScope):Promise<TenderNotice[]>{const found=await Promise.all(this.desks.map(desk=>desk.tenderNotices?.(scope)??[]));return found.flat();}
 
   formsSource(orderId:string){return this.desks.find(d=>d.playbook==='data-entry-desk')!.formsSource!(orderId);}
   testingSource(orderId:string){return this.desks.find(d=>d.playbook==='app-testing')!.testingSource!(orderId);}
+  r5Report(playbook:string,orderId:string){return this.desks.find(d=>d.playbook===playbook)!.r5Report!(orderId);}
   devReport(orderId:string){return this.desks.find(d=>d.playbook==='dev-agency')!.devReport!(orderId);}
   careerSource(orderId:string){return this.desks.find(d=>d.playbook==='job-search-desk')!.careerSource!(orderId);}
   vaBrief(orderId:string,expected?:string){return this.rooms.currentBrief(orderId,expected);}

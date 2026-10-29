@@ -1,7 +1,15 @@
-// Chausar playbook: Monitored data service (Ink v2 wave 5, package 5R5). The registry entry, with no runtime imports.
-// Package 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id
-// ('monitored-data'), label, service type, picks, summary, risk level and review day (the plan's "Registration" line).
-// Written for Chausar; nothing here is learned from an outside source.
-import type { PlaybookRegistration } from '../registry.ts';
-
-export const MONITORED_DATA_REGISTRATION: PlaybookRegistration | null = null;
+import type {PlaybookRegistration} from '../registry.ts';
+export const MONITORED_DATA_REGISTRATION:PlaybookRegistration={
+  "id": "monitored-data",
+  "label": "Monitored data service",
+  "serviceType": "research",
+  "picks": [
+    "price monitoring",
+    "tender alerts",
+    "competitor price tracking",
+    "data monitoring service"
+  ],
+  "summary": "Agents watch public pages whose terms allow it and prepare clean client updates for your approval.",
+  "riskLevel": "medium",
+  "lastReviewed": "2026-10-29"
+};
