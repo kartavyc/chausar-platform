@@ -1556,6 +1556,7 @@ export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & {
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
+  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
   'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',

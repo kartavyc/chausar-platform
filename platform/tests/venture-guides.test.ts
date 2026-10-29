@@ -132,6 +132,7 @@ test("guides: the UI's fake engine keeps the engine's own guides and capability 
   const fake = JSON.parse(await readFile(new URL('../../app/ui/src/engine/fixtures-guides.json', import.meta.url), 'utf8')) as Record<string, unknown>;
   const ids = Object.keys(fake).filter(id => id !== 'about');
   assert.ok(ids.length > 0);
+  for (const id of ['overpass','nominatim','own-site','happenstance']) assert.ok(ids.includes(id), `implemented lead connector ${id} has fake guide evidence`);
   for (const id of ids) {
     const item = CONNECTOR_CATALOGUE.find(entry => entry.id === id);
     assert.ok(item, `${id} is in the engine's catalogue`);

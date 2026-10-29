@@ -681,3 +681,8 @@ Adds the independently reviewed website service and Build deepening. Exact scope
 ### 5Q isolated commit checkpoint
 
 Narration, audiobook and explainer service: exact source-bound markup, owner-approved stock speech, measured audio, listening, mastering and manual distribution. Independent spec and quality PASS, actual-byte evidence, source/privacy/approval repairs and honest provider limits are recorded in NOTES-5Q.md. No live provider or distributor acceptance is claimed.
+
+
+## Completed batch-two gate integration
+
+All six fixed-inventory engine shards pass sequentially:1110,1106,1102,1190,1116,3 tests. The dedicated final shard is the complete independent activation test. UI2546/2546, both types and syntax1740 pass. Inventory SHA256:e43d2b3039ee56ce7e15a4441af6fccfb1fbfc1ceed51e075c1f6e783daa351b. Initial timeout/failure reports remain preserved. The remaining reviewed fixes now land: bounded code-owned offer identities with unchanged model cap3, exact current Story editor/Cutter expectations, real social chain setup, current connector mode assertions and required native-derived guide fixtures. No live provider qualification is claimed.

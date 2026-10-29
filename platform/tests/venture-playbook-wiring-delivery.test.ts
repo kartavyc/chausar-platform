@@ -338,20 +338,38 @@ test('a CA firm offer with no playbook id (an older plan) is read from its own w
 test('a social agency draft is checked against channel limits, disclosure and the client\'s own words', async () => {
   const env = await business(SOCIAL_IDEA);
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa this month.' });
+  // The actual content-calendar workflow approves the voice and calendar before posts.
+  const deliverPosts = async (orderId: string, answer: Draft): Promise<DeliveryRunView> => {
+    let waiting = await env.call('venture.delivery.run', { orderId });
+    for (let advanced = 0; advanced < 2 && (waiting.chainStage ?? 1) < 3; advanced++) {
+      const stage = waiting.chainStage ?? 1;
+      env.models.drafts.push(draft(stage === 1 ? 'Voice sheet' : 'Calendar', Object.fromEntries(
+        (stage === 1 ? ['Voice', 'Pillars', 'Words to avoid'] : ['Calendar', 'Topics and hooks'])
+          .map(heading => [heading, ['Clear, useful guidance for the studio.']]))));
+      const ready = await env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+      assert.equal(ready.canAccept, true, ready.acceptBlocked ?? '');
+      await env.call('venture.delivery.review', { runId: ready.id, verdict: 'accepted' });
+      waiting = listRecords(env.store.read(), 'venture-delivery-run').filter(run => run.orderId === orderId).at(-1)!;
+    }
+    assert.equal(waiting.chainStage, 3);
+    env.models.drafts.push(answer);
+    return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  };
   const posts = (line: string) => draft('Posts for the month', {
     Drafts: ['Instagram: Morning yoga in Goa, slow and steady. Come as you are.', `X: ${line}`],
     'Alt text': ['A calm room with yoga mats in the morning light.'],
     Hashtags: ['Use #yoga and #goa on every post.'],
+    'Post plan': ['Post 1 | Value | Goal: Teach useful practice | Reader action: Try it | Hook: Question', 'Post 2 | Value | Goal: Teach useful practice | Reader action: Try it | Hook: Contrast'],
   });
-  const bait = await deliver(env, order.id, posts('Tag a friend who needs a calm morning.'));
-  assert.deepEqual(env.models.previewed.at(-1)!.input && (env.models.previewed.at(-1)!.input as any).requiredSections, ['Drafts', 'Alt text', 'Hashtags']);
+  const bait = await deliverPosts(order.id, posts('Tag a friend who needs a calm morning.'));
+  assert.deepEqual((env.models.previewed.findLast(task => task.purpose === 'delivery')!.input as any).requiredSections, ['Drafts', 'Alt text', 'Hashtags', 'Post plan']);
   const byId = Object.fromEntries((bait.playbookChecks ?? []).map(item => [item.check, item]));
   assert.equal(byId.words.outcome, 'fail', byId.words.detail);
   assert.equal(byId['channel-media'].outcome, 'not-run', 'pictures come later; a text draft is not refused for them');
   assert.equal(bait.canAccept, false);
 
   const second = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa.' });
-  const clean = await deliver(env, second.id, posts('Morning yoga in Goa. Breathe first, then move.'));
+  const clean = await deliverPosts(second.id, posts('Morning yoga in Goa. Breathe first, then move.'));
   const cleanIds = Object.fromEntries((clean.playbookChecks ?? []).map(item => [item.check, item]));
   for (const id of ['channel-limits', 'claims', 'disclosure', 'words']) assert.equal(cleanIds[id].outcome, 'pass', `${id}: ${cleanIds[id].detail}`);
   assert.equal(clean.canAccept, true, clean.acceptBlocked ?? '');
