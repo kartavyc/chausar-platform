@@ -1,3 +1,5 @@
+import { eraseInfluencerNaming } from '../playbooks/social/influencer-privacy.ts';
+import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
 import {eraseNarrationNaming} from '../playbooks/narration-studio/privacy.ts';
 import {eraseSiteNaming} from '../playbooks/website-studio/privacy.ts';
 import {eraseTenderNaming} from '../playbooks/tender-desk/privacy.ts';
@@ -292,6 +294,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
     eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseNarrationNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
@@ -304,6 +307,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
     eraseSocialD2Naming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
+    eraseInfluencerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.

@@ -12,3 +12,5 @@
 .actions { display:flex;flex-wrap:wrap;gap:var(--sp-2); }
 
 .still { display:block;width:100%;height:auto;object-fit:contain;border-radius:var(--radius); }
+
+.receipt { white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;font-size:var(--text-read); }

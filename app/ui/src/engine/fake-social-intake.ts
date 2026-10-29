@@ -1,3 +1,4 @@
+import {SOCIAL_CHANNELS} from '../../../../platform/runtime/venture/playbooks/social/channel-ids';
 // Browser-only social intake and delivery preflight, matching the real order boundary.
 import { socialD2Preflight } from '../../../../platform/runtime/venture/playbooks/social/d2-preflight';
 import { fakeKitIntake } from './fake-kit-intake';
@@ -20,7 +21,7 @@ function calendarOf(value: unknown, key: string, today: string): CalendarIntakeL
  const { month, channels, postsPerChannel, weekdays } = body;
  const match = typeof month === 'string' && /^(\d{4})-(\d{2})$/.exec(month);
  if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) invalid('Give the month like 2026-11.');
- if (!Array.isArray(channels) || !channels.length || new Set(channels).size !== channels.length || channels.some(channel => !['instagram','facebook','linkedin','x','threads','tiktok','youtube-shorts'].includes(channel))) invalid('Pick one or more channels, each once.');
+ if (!Array.isArray(channels) || !channels.length || new Set(channels).size !== channels.length || channels.some(channel => !(SOCIAL_CHANNELS as readonly string[]).includes(channel))) invalid('Pick one or more channels, each once.');
  if (!Number.isInteger(postsPerChannel) || Number(postsPerChannel) < 1 || Number(postsPerChannel) > 31) invalid('Posts per channel is a whole number from one to thirty-one.');
  if (!Array.isArray(weekdays) || !weekdays.length || new Set(weekdays).size !== weekdays.length || weekdays.some(day => !Number.isInteger(day) || day < 1 || day > 7)) invalid('Pick posting weekdays from Monday (1) to Sunday (7), each once.');
  const year = Number(match[1]), number = Number(match[2]), days: string[] = [];

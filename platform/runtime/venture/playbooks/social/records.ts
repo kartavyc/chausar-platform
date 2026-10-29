@@ -6,5 +6,5 @@
 export type SocialInboxItemBody = import('./inbox.ts').InboxItem;
 /** venture-ad-ledger-entry: one competitor ad the owner captured, a placeholder until 5D2 lands. */
 export type AdLedgerEntryBody = { orderId: string; capturedBy: 'owner'; status: 'live'|'stopped'; format: 'video'|'image'|'carousel'; source: string; capturedAt: string };
-/** venture-influencer-case: one influencer campaign case, a placeholder until 5D3 lands. */
-export type InfluencerCaseBody = { placeholder: true };
+/** venture-influencer-case: one owner supplied shortlist with estimates and separately sourced actuals. */
+export type InfluencerCaseBody = import('./influencer-case.ts').InfluencerCase;

@@ -1,11 +1,11 @@
 {
   "version": 1,
   "playbook": "social-agency",
-  "recordedAt": "2026-10-28",
+  "recordedAt": "2026-10-29",
   "recordedFrom": "Reference drafts written by hand for the held-back cases. Re-record from a real playbook run; the baseline only rises.",
   "baseline": {
-    "passed": 14,
-    "of": 14
+    "passed": 16,
+    "of": 16
   },
   "cases": [
     {
@@ -352,6 +352,44 @@
         "scenario": {
           "kind": "d2",
           "caseId": "diagnosis-labelled"
+        }
+      }
+    },
+    {
+      "id": "influencer-disclosure",
+      "title": "Influencer disclosure",
+      "clientRequest": "Use the supplied owner inputs.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"at\": \"2026-10-29T12:00:00Z\", \"creator\": {\"id\": \"maya\", \"name\": \"Maya\", \"channel\": \"youtube\", \"channelUrl\": \"https://www.youtube.com/@maya\", \"businessEmail\": null, \"businessEmailSource\": null, \"publicBusinessEmail\": false}, \"brief\": {\"creatorId\": \"maya\", \"objective\": \"Explain the client tea.\", \"deliverables\": \"One clearly disclosed post.\"}}"
+        }
+      ],
+      "reference": "{\"disclosure\": \"Follow the ASCI influencer advertising guidelines: put a clear #Ad disclosure prominently with the content, and use the platform paid-partnership label where available. The owner and client approve the exact brief and post. Professional disclosure review is still required before publishing.\", \"platformLabel\": \"Paid partnership\", \"published\": false}",
+      "social": {
+        "channel": "bluesky",
+        "scenario": {
+          "kind": "d3",
+          "caseId": "influencer-disclosure"
+        }
+      }
+    },
+    {
+      "id": "creator-price-cap",
+      "title": "Creator price cap",
+      "clientRequest": "Use the supplied owner inputs.",
+      "sources": [
+        {
+          "id": "facts",
+          "text": "{\"quote\": {\"posts\": [{\"id\": \"one\", \"publishedAt\": \"2026-10-01T00:00:00Z\", \"views\": \"20\", \"comparable\": true, \"sourceUrl\": \"https://creator.example/post\", \"reason\": \"Same topic.\"}], \"asOf\": \"2026-10-29T12:00:00Z\", \"targetCpaRupees\": \"10\", \"capRupees\": \"50\", \"coefficients\": {\"clickRate\": {\"basisPoints\": 10000, \"source\": \"owner\", \"reason\": \"Fixture assumption.\"}, \"signupRate\": {\"basisPoints\": 10000, \"source\": \"owner\", \"reason\": \"Fixture assumption.\"}, \"fit\": {\"basisPoints\": 10000, \"source\": \"owner\", \"reason\": \"Fixture assumption.\"}, \"competition\": {\"basisPoints\": 10000, \"source\": \"owner\", \"reason\": \"Fixture assumption.\"}}}}"
+        }
+      ],
+      "reference": "{\"outcome\": \"held\", \"code\": \"INFLUENCER_PRICE_CAP\"}",
+      "social": {
+        "channel": "bluesky",
+        "scenario": {
+          "kind": "d3",
+          "caseId": "creator-price-cap"
         }
       }
     }

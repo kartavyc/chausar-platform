@@ -1,0 +1,38 @@
+import {it,expect,vi} from 'vitest';
+import {FakeEngine} from '../../src/engine/fake';
+import {fakeSocialInfluencer} from '../../src/engine/fake-social-influencer';
+import type {W4DeskHost} from '../../src/engine/fake-w4';
+import {FakeExtrasDesk} from '../../src/engine/fake-extras';
+import {influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
+const creator={id:'maya',name:'Maya',channel:'youtube',channelUrl:'https://www.youtube.com/@maya',businessEmail:'maya@example.in',businessEmailSource:'https://creator.example/contact',publicBusinessEmail:true};
+it('fake campaign preserves exact fields, stale guards, owner draft bridge and Forget invalidation',()=>{
+ const order={id:'order1',status:'open',clientId:'client1',offerId:'offer1'},outreach=vi.fn(()=>({leadId:'lead1',draftId:'draft1'})),erase=vi.fn(),copies=vi.fn(),host={current:()=> 'business1',now:()=> '2026-10-29T12:00:00Z',digest:JSON.stringify,emit:vi.fn(),influencerOutreach:outreach,eraseInfluencerLeads:erase,eraseInfluencerCopies:copies,ask:(method:string)=>method==='venture.order.list'?[order]:{blueprint:{offers:[{id:'offer1',playbookOffer:'influencer-campaign'}]}}} as unknown as W4DeskHost;
+ const desk=fakeSocialInfluencer(host),base={playbook:'social-agency',kind:'influencer'},prepared:any=desk.act!({...base,id:'order1',action:'prepare',payload:{}}),act=(action:string,payload:unknown,digest=prepared.result.digest)=>desk.act!({...base,id:prepared.id,action,payload,digest}) as any;
+ const saved=act('creator',{creator});expect(saved.result.creators[0].actual).toBeNull();expect(()=>act('creator',{creator})).toThrowError(expect.objectContaining({code:'APPROVAL_STALE'}));
+ expect(()=>act('outreach',{creatorId:'maya',subject:'Hello',body:'A campaign?',postalAddress:'x'},saved.result.digest)).toThrowError(expect.objectContaining({code:'LEADS_ADDRESS_MISSING'}));expect(outreach).not.toHaveBeenCalled();
+ const made=act('outreach',{creatorId:'maya',subject:'Hello',body:'A campaign?',postalAddress:'Studio, Pune'},saved.result.digest);expect(outreach).toHaveBeenCalledTimes(1);expect(made.result.creators[0].outreach).toEqual({leadId:'lead1',draftId:'draft1'});expect(made.line).toContain('No email was sent');
+ desk.forgetPeople([{id:'person1',clientId:null,names:[],emails:['maya@example.in'],phones:[]}],true);expect(erase).toHaveBeenCalledWith(['lead1']);expect(copies).toHaveBeenCalledWith(['order1']);expect(()=>desk.get!({...base,id:prepared.id})).toThrowError(expect.objectContaining({code:'INFLUENCER_CASE_NOT_FOUND'}));
+});
+it('fake public lead bridge writes one canonical W4 draft atomically and refuses a blocked creator',()=>{
+ const desk=new FakeExtrasDesk({current:()=> 'b',now:()=> '2026-10-29T12:00:00Z',digest:JSON.stringify,businessName:()=> 'Studio',playbook:()=>undefined,owed:()=>({value:'INR 0'}),hosted:()=>false,emit:()=>{}},{fresh:true}),input={name:'Maya',email:'maya@example.in',sourceUrl:'https://creator.example/contact',creatorId:'maya',subject:'A',body:'Hello',postalAddress:'Studio, Pune'};
+ const ids=desk.influencerOutreach('b',input),leads=(desk.request('venture.leads.list',{}) as any).leads;
+ expect(leads).toHaveLength(1);expect(leads[0].id).toBe(ids.leadId);expect(leads[0].drafts[0].id).toBe(ids.draftId);expect(leads[0].drafts[0].text).toBe(influencerEmailText(input.body,'Studio',input.postalAddress).text);expect(leads[0].sends).toEqual([]);
+ expect(()=>desk.influencerOutreach('b',{...input,postalAddress:'x'})).toThrowError(expect.objectContaining({code:'LEADS_ADDRESS_MISSING'}));expect((desk.request('venture.leads.list',{}) as any).leads).toHaveLength(1);
+ desk.request('venture.leads.block',{value:input.email});expect(()=>desk.influencerOutreach('b',input)).toThrowError(expect.objectContaining({code:'LEADS_BLOCKED'}));
+ desk.eraseInfluencerLeads('b',[ids.leadId]);expect((desk.request('venture.leads.list',{}) as any).leads).toEqual([]);
+});
+
+it('fake campaign approval binds the live order request, including client changes',()=>{
+ const order={id:'o',status:'open',clientId:'c',offerId:'offer',request:'Original campaign'},outreach=vi.fn(),host={current:()=> 'b',now:()=> '2026-10-29T12:00:00Z',digest:JSON.stringify,emit:vi.fn(),influencerOutreach:outreach,ask:(method:string)=>method==='venture.order.list'?[order]:{blueprint:{offers:[{id:'offer',playbookOffer:'influencer-campaign'}]}}} as unknown as W4DeskHost;
+ const desk=fakeSocialInfluencer(host),base={playbook:'social-agency',kind:'influencer'},prepared:any=desk.act!({...base,id:'o',action:'prepare',payload:{}}),saved:any=desk.act!({...base,id:prepared.id,action:'creator',digest:prepared.result.digest,payload:{creator}});
+ order.request='Changed campaign';expect(()=>desk.act!({...base,id:prepared.id,action:'outreach',digest:saved.result.digest,payload:{creatorId:'maya',subject:'Original',body:'Original brief',postalAddress:'Studio, Pune'}})).toThrowError(expect.objectContaining({code:'APPROVAL_STALE'}));expect(outreach).not.toHaveBeenCalled();
+});
+it('fake Forget cancels linked campaign orders even before a case is prepared',()=>{
+ const order={id:'o',status:'open',clientId:'c',offerId:'offer',request:'Opaque private campaign'},copies=vi.fn(),host={current:()=> 'b',now:()=> '2026-10-29T12:00:00Z',digest:JSON.stringify,emit:vi.fn(),eraseInfluencerCopies:copies,ask:(method:string)=>method==='venture.order.list'?[order]:{blueprint:{offers:[{id:'offer',playbookOffer:'influencer-campaign'}]}}} as unknown as W4DeskHost;
+ fakeSocialInfluencer(host).forgetPeople([{id:'p',clientId:'c',names:['Client'],emails:[],phones:[]}],true);expect(copies).toHaveBeenCalledWith(['o']);
+});
+
+it('public fake Forget erases the campaign request and refuses preparing the cancelled order again',async()=>{
+ const engine=new FakeEngine({fresh:true,now:()=> '2026-10-29T12:00:00.000Z'});await engine.request('workspace.create',{name:'Studio',pack:'services'});await engine.request('venture.create',{idea:'social media agency',countryCode:'IN'});for(const [questionId,answer]of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'monthly'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});const plan:any=await engine.request('venture.blueprint.draft',{useTemplate:true}),offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='influencer-campaign');await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'2500'}]}});const client:any=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}),order:any=await engine.request('venture.order.create',{clientId:client.id,offerId:offer.id,request:'Opaque private strategy'}),base={playbook:'social-agency',kind:'influencer'},prepared:any=await engine.request('venture.desk.act',{...base,id:order.id,action:'prepare',payload:{}});await engine.request('venture.desk.act',{...base,id:prepared.id,action:'creator',digest:prepared.result.digest,payload:{creator}});
+ await engine.request('venture.network.import',{kind:'contacts-csv',name:'contacts.csv',text:'Name,E-mail 1 - Value\nMaya,maya@example.in'});const found:any=await engine.request('venture.network.people',{query:'Maya'}),person=(found.people??found.rows??found)[0];expect(person).toBeTruthy();await engine.request('venture.network.forget',{id:person.id});const orders:any=await engine.request('venture.order.list',{}),erased=orders.find((v:any)=>v.id===order.id);expect(erased.request).toBe('');expect(erased.status).toBe('cancelled');await expect(engine.request('venture.desk.act',{...base,id:order.id,action:'prepare',payload:{}})).rejects.toMatchObject({code:'ORDER_NOT_FOUND'});
+});

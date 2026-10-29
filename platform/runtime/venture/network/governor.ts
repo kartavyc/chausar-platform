@@ -234,3 +234,8 @@ export function pauseNotices(deps: VentureDeps, _ctx: Context, state: State, ven
     }];
   });
 }
+
+/** Public publishing is counted from the existing durable journal, never from outreach messages or a second ledger.
+ * Its own posting caps and gaps govern these sends. Future unclaimed scheduled approvals have sent nothing.
+ * Every business in this vault counts, as does each destination of a multi-network draft independently. */
+export function publishingSends(state:State,connectorId?:string,except?:string):{id:string;connectorId:string;text:string;at:string}[]{return listRecords(state,'venture-connector-post').filter(post=>post.id!==except&&(connectorId===undefined||post.connectorId===connectorId)&&['approved','applied','outcome_unknown'].includes(post.state)&&!(post.scheduled&&post.state==='approved'&&!post.claimedAt)).map(post=>({id:post.id,connectorId:post.connectorId,text:post.text,at:post.claimedAt??post.journal.find(step=>step.state==='applied'||step.state==='outcome_unknown')?.at??post.at}));}

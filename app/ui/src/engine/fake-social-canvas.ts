@@ -26,7 +26,7 @@ export function fakeSocialCanvas(host: W4DeskHost): FakeDeskKind {
             catch (error) {
                 sourceProblem = (error as Error).message;
             }
-        const raw = order.intake?.fields?.channels, supported = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts'];
+        const raw = order.intake?.fields?.channels, supported = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts', 'bluesky', 'mastodon', 'telegram', 'discord'];
         const channels = Array.isArray(raw) ? raw.filter((value): value is SocialChannel => typeof value === 'string' && supported.includes(value)) : (order.intake?.calendar?.channels ?? []).filter((value): value is SocialChannel => supported.includes(value));
         return socialCanvas({ orderId: order.id, request: order.request, runId: run?.id ?? null, text: redactSecrets(((run?.status === 'accepted' || run?.status === 'edited') && run.editedText ? run.editedText : run?.renderedText) ?? ''), channels, source, sourceProblem, images: files.some(file => file.format === 'image') });
     }

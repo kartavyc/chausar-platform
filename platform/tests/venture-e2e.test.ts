@@ -239,12 +239,12 @@ test('the whole venture journey in India, with a model and GitHub answering from
 
   // 15. The connector catalogue claims only what the code does today.
   const cards = await ask('venture.connectors.list', {}) as ConnectorCard[];
-  assert.equal(cards.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal(cards.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.equal(new Set(cards.map(c => c.category)).size, 12);
   const availableFor = (mode: string) => cards.filter(c => c.modes.some(m => m.mode === mode && m.status === 'available')).map(c => c.id).sort();
   assert.deepEqual(availableFor('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
   // W5 5A6: the owner's own Make and n8n webhooks write, each send approved.
-  assert.deepEqual(availableFor('write'), ['chausar-books', 'chausar-crm', 'make-webhook', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress']);
+  assert.deepEqual(availableFor('write'), ['bluesky', 'chausar-books', 'chausar-crm', 'discord', 'make-webhook', 'mastodon', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'telegram']);
   const stripe = cards.find(c => c.id === 'stripe');
   assert.ok(stripe?.chips.includes('planned: handoff') && stripe.chips.includes('planned: write'));
   assert.ok(cards.find(c => c.id === 'github')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));

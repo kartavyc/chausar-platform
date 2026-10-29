@@ -696,3 +696,8 @@ The fixed-tree full UI run recorded 2696 passing, nine failing and two setup-blo
 ### 5B3 isolated candidate checkpoint
 
 Adds exact owner-selected YouTube services, source research and comment/script workflows with receipts, explicit public-read approvals and local quota attempts. Private analytics and publishing remain planned/manual. See NOTES-5B3.md for scope, reviewed fixes, evidence and precise limitations. Independent root Stage 1 spec PASS and Stage 2 quality PASS after refreshed-source and threshold repairs. Isolated validation and exact patch checks remain required before committing. Native project-folder regression now uses the default C: temporary folder after a genuine isolated ENOENT failure; all safety assertions remain intact.
+
+
+### 5D3 isolated commit checkpoint
+
+Source-bound influencer campaigns and exact approved open-network plain-text publishing. Independent spec and quality PASS, privacy/approval review repairs and actual phone captures are recorded in NOTES-5D3.md. External legal review remains explicit where required. No creator agreement, real publication or provider acceptance is inferred.

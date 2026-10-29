@@ -30,7 +30,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-delegate-run': 'delegaterun',
   'venture-spend': 'spend', 'venture-spend-quote': 'spendquote', 'venture-spend-policy': 'spendpolicy',
   'venture-composition': 'composition',
-  'venture-connector-post': 'post', 'venture-site-edit': 'siteedit',
+  'venture-open-posting-account': 'openaccount', 'venture-connector-post': 'post', 'venture-site-edit': 'siteedit',
   'venture-queue-decision': 'qdecision', 'venture-team-gate': 'teamgate',
   'venture-evidence': 'evidence',
   'venture-journal-entry': 'journal',

@@ -1,3 +1,4 @@
+import {OPEN_POSTING_GUIDES} from './open-posting-guides.ts';
 import {NARRATION_GUIDES} from './narration-guides.ts';
 import {ZOHO_BOOKS_GUIDE} from './zoho-books-guide.ts';
 import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
@@ -81,6 +82,7 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
   ...NARRATION_GUIDES,
   'zoho-books': ZOHO_BOOKS_GUIDE,
   ...PLAYBOOK_GUIDES,
+  ...OPEN_POSTING_GUIDES,
   lovable: builder('Lovable', 'Turn on GitHub sync in Lovable, so Chausar can follow the code.'),
   replit: builder('Replit', 'Connect GitHub in Replit, so Chausar can follow the code.'),
   bolt: builder('Bolt', 'Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.'),

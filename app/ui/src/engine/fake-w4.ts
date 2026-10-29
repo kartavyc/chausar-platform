@@ -54,6 +54,9 @@ export interface W4DeskHost {
   eraseSellerFiles?(ids:readonly string[]):void;
   eraseRecruitingCopies?(orderIds:readonly string[]):void;
   recruitingBlocked?(email:string|null,personId:string|null):boolean;
+  influencerOutreach?(input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string};
+  eraseInfluencerCopies?(orderIds:readonly string[]):void;
+  eraseInfluencerLeads?(ids:readonly string[]):void;
   recruitingReports?(orderId:string):{reports:unknown[];shares:unknown[]};
   recruitingMail?(threadIds:readonly string[]):unknown[];
   eraseRecruitingMail?(threadIds:readonly string[]):void;

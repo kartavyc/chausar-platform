@@ -712,6 +712,46 @@
           "required": false
         }
       ]
+    },
+    {
+      "id": "influencer-campaign",
+      "name": "Influencer campaign",
+      "description": "Plan a campaign from owner supplied creator profiles, with receipted price estimates, disclosure briefs and actual results.",
+      "charge": "project",
+      "price": "owner-sets",
+      "steps": [
+        "intake",
+        "creative-briefs",
+        "check",
+        "approve-drafts",
+        "publish",
+        "report",
+        "approve-report"
+      ],
+      "includes": [
+        "Price checks for each creator at the owner price",
+        "Public business email drafts that you send",
+        "Disclosure brief and sourced actual results"
+      ],
+      "disclosure": [
+        "paid"
+      ],
+      "intake": [
+        {
+          "id": "sellingCap",
+          "label": "Selling share cap",
+          "help": "A whole percentage from 0 to 100. The default is 20.",
+          "kind": "text",
+          "required": false
+        },
+        {
+          "id": "revisionDue",
+          "label": "Revision due date",
+          "help": "The day the monthly revisions are due.",
+          "kind": "date",
+          "required": false
+        }
+      ]
     }
   ],
   "steps": [

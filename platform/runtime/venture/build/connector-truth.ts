@@ -74,8 +74,9 @@ export function connectorEvidence(state: State, ventureId: string): ConnectorEvi
     else if (row.connectorId === 'calendar') reads.delete('google-calendar');
     else reads.delete(row.connectorId);
   }
+  // Telegram private channels and Discord confirm message identity without a public address.
   for (const post of listRecords(state, 'venture-connector-post', ventureId) as ConnectorPostRecord[]) {
-    if (post.state === 'applied' && post.outcome?.by === 'platform' && typeof post.outcome.url === 'string' && post.outcome.url) writes.add(`${post.connectorId}:${post.mode}`);
+    if (post.state === 'applied' && post.outcome?.by === 'platform' && (typeof post.outcome.url === 'string'&&post.outcome.url || post.mode==='api'&&['telegram','discord'].includes(post.connectorId))) writes.add(`${post.connectorId}:${post.mode}`);
   }
   return { reads, writes };
 }
@@ -128,6 +129,11 @@ export const CONNECTOR_CAPABILITIES: Readonly<Record<string, readonly ConnectorC
   'chausar-books': [{ operation: 'list', mode: 'read', fields: [] }, { operation: 'issue', mode: 'write', fields: ['invoice', 'payment'] }],
   linkedin: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
   x: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
+  bluesky: [{operation:'post',mode:'api',fields:['text']}],
+  mastodon: [{operation:'post',mode:'api',fields:['text']}],
+  telegram: [{operation:'post',mode:'api',fields:['text']}],
+  discord: [{operation:'post',mode:'api',fields:['text']}],
+
 });
 
 /** The operations a connector takes; empty when it takes none in this build (every planned connector). */

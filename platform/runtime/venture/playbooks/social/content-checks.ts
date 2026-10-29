@@ -1,4 +1,5 @@
 // Original Chausar social draft boundaries, run even when an agent skips a tool.
+import {INFLUENCER_PACKET_CHECK} from './influencer-completion.ts';
 import type { FlagshipCheckInput } from '../draft-checks.ts';
 import type { PlaybookCheckResult } from '../../contracts.ts';
 import { deliverableWords, checkClaims } from '../../delivery/judge/claim-check.ts';
@@ -9,6 +10,7 @@ import { communityDecision, hasCommunityPromotion } from './community.ts';
 import { repurposeCoverage } from './repurpose-coverage.ts';
 export function socialContentChecks(input: FlagshipCheckInput): Omit<PlaybookCheckResult, 'playbook'>[] {
     const results: Omit<PlaybookCheckResult, 'playbook'>[] = [...socialSlotChecks(input)], words = [deliverableWords(input.deliverable), ...input.deliverable.sections.map(section => section.heading)].join("\n"), fields = input.intake?.fields ?? {};
+    if(input.offerKey==='influencer-campaign')results.push({...INFLUENCER_PACKET_CHECK});
     if (input.offerKey === 'repurpose-pack') {
         const text = input.deliverable.sections.map(section => '## ' + section.heading + '\n' + section.parts.filter(part => part.kind === 'text').map(part => part.text).join('\n')).join('\n');
         results.push(repurposeCoverage(text, fields.channels));

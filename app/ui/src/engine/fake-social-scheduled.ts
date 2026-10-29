@@ -122,7 +122,7 @@ export function fakeSocialScheduledKind(host: W4DeskHost): FakeDeskKind & {
             if (p.action === 'create') {
                 need(p.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no prior digest.');
                 const input = exact(p.payload, ['postId', 'connectorId', 'dueAt']);
-                need(typeof input.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin'].includes(input.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
+                need(typeof input.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin', 'bluesky', 'mastodon', 'telegram', 'discord'].includes(input.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
                 need(input.connectorId !== 'linkedin', 'NOT_BUILT_YET', POSTING_WORDS.linkedin);
                 need(typeof input.dueAt === 'string' && Number.isFinite(Date.parse(input.dueAt)) && new Date(input.dueAt).toISOString() === input.dueAt && Date.parse(input.dueAt) >= Date.parse(host.now()) && Date.parse(input.dueAt) <= Date.parse(host.now()) + 366 * 86400000, 'SLOT_TIME_INVALID', 'Choose a future time within one year.');
                 need(input.postId === null || typeof input.postId === 'string', 'INVALID_VENTURE_REQUEST', 'Choose a waiting post or leave this slot empty.');

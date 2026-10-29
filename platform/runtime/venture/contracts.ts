@@ -150,7 +150,7 @@ export const VENTURE_RECORD_KINDS = [
   // Onboarding v2: the plan the AI composed from checked blocks before the vault existed.
   'venture-composition',
   // Connectors (P2-connectors): one post the owner approves on its own; one staged website edit.
-  'venture-connector-post', 'venture-site-edit',
+  'venture-connector-post', 'venture-site-edit', 'venture-open-posting-account',
   // Spend (P2-spend): a charge record per paid call, a quote waiting for the owner, and the owner's rate card and cap.
   'venture-spend', 'venture-spend-quote', 'venture-spend-policy',
   // Ink frontend (P1-A): the owner's decisions on Today's rows, and the auto or hold gate on each agent step.
@@ -1279,7 +1279,9 @@ export type PostingOption = {
 };
 /** Each post is its own journal entry: described, then approved, then applied, rejected or outcome_unknown. Never resent. */
 export type ConnectorPostState = 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown';
+export type OpenPostingAccountRecord = RecordBase<'venture-open-posting-account'> & {account:import('./build/open-posting-core.ts').OpenPostingAccount;active:boolean;revision:number};
 export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
+  openAccountDigest?: string;
   scheduled?: ScheduledPostBinding;
   connectorId: string;
   mode: Exclude<PostingModeName, 'handoff'>;
@@ -5115,7 +5117,7 @@ export type AnyVentureRecord =
   | GoNoGoRecord | SalesProposalRecord | BrandKitRecord | AssetRecord | VoiceConsentRecord | ReportRecord | ReportShareRecord | MonitorRecord | LocalAppRecord
   | YoutubeEditRecord | YoutubeDictionaryRecord | YoutubeStyleRecord
   | CaCitationsRecord | CaDifferentialRecord | CaDataPackRecord | CaWorkingRecord
-  | SocialScheduledRecord | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
+  | OpenPostingAccountRecord | SocialScheduledRecord | SocialInboxItemRecord | AdLedgerEntryRecord | InfluencerCaseRecord
   | SeoPanelRecord | SeoObservationRecord | SeoFindingRecord
   | SellerSkuRecord | SellerFeecardRecord | SellerStageRecord | SellerMovementRecord | SellerCaseRecord
   | SupportTicketRecord | SupportMessageRecord | SupportRequestRecord | SupportRatingRecord
@@ -6292,6 +6294,27 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'INFLUENCER_ACTUAL_INVALID',
+  'INFLUENCER_CASE_NOT_FOUND',
+  'INFLUENCER_CREATOR_INVALID',
+  'INFLUENCER_CREATOR_NOT_FOUND',
+  'INFLUENCER_INPUT_INVALID',
+  'INFLUENCER_KEYWORDS_INVALID',
+  'INFLUENCER_PACKET_INCOMPLETE',
+  'INFLUENCER_PRICE_CAP',
+  'INFLUENCER_PRICE_INVALID',
+  'INFLUENCER_PRICE_REQUIRED',
+  'OPEN_POSTING_ACCOUNT',
+  'OPEN_POSTING_CONNECT_FAILED',
+  'OPEN_POSTING_CONNECT_REQUIRED',
+  'OPEN_POSTING_CREDENTIAL',
+  'OPEN_POSTING_FAILED',
+  'OPEN_POSTING_INPUT',
+  'OPEN_POSTING_LENGTH',
+  'OPEN_POSTING_PERMISSION',
+  'OPEN_POSTING_REJECTED',
+  'OPEN_POSTING_RESPONSE',
+
   'SCRIPT_COVERAGE_FAILED',
   'YOUTUBE_KEY_REQUIRED',
   'YOUTUBE_READ_FAILED',
@@ -6536,7 +6559,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `youtube:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

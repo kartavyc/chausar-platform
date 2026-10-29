@@ -155,7 +155,10 @@
   "work.transcribe.local": "Made on this computer from the cut.",
   "work.transcribe.cut": "Reads the cut {name} on this computer.",
   "work.calendar.heading": "Calendar file",
-  "work.calendar.rows": {"one": "{count} post in the file, each on its date from the plan.", "other": "{count} posts in the file, each on its date from the plan."},
+  "work.calendar.rows": {
+    "one": "{count} post in the file, each on its date from the plan.",
+    "other": "{count} posts in the file, each on its date from the plan."
+  },
   "work.calendar.empty": "No post is ready for the file yet.",
   "work.calendar.nothing": "No post is ready for the file yet. Each post below says why.",
   "work.calendar.download": "Download the calendar file",
@@ -163,19 +166,40 @@
   "work.calendar.blocked": "Left out of the file",
   "work.calendar.failed": "Couldn't make the calendar file: {message}",
   "work.calendar.cantSave": "This device can't save a file from here.",
-  "work.calendar.defused": {"one": "One post starts with a mark that spreadsheets treat as a formula, so the file adds an apostrophe in front of it. Remove the apostrophe before you post it.", "other": "{count} posts start with a mark that spreadsheets treat as a formula, so the file adds an apostrophe in front of each. Remove the apostrophe before you post them."},
-  "work.calendar.threads": {"one": "One post is a thread. Post it by hand, part by part, in the order the file numbers the parts.", "other": "{count} posts are threads. Post each by hand, part by part, in the order the file numbers the parts."},
+  "work.calendar.defused": {
+    "one": "One post starts with a mark that spreadsheets treat as a formula, so the file adds an apostrophe in front of it. Remove the apostrophe before you post it.",
+    "other": "{count} posts start with a mark that spreadsheets treat as a formula, so the file adds an apostrophe in front of each. Remove the apostrophe before you post them."
+  },
+  "work.calendar.threads": {
+    "one": "One post is a thread. Post it by hand, part by part, in the order the file numbers the parts.",
+    "other": "{count} posts are threads. Post each by hand, part by part, in the order the file numbers the parts."
+  },
   "work.calendar.gaps": "Where the draft and the plan differ",
   "work.filter.waiting": "Needs you",
   "work.filter.business": "Business",
   "work.none.waiting": "Nothing here needs you.",
   "work.none.active": "Nothing is running right now.",
-  "work.line.runs": {"one": "{count} run going.", "other": "{count} runs going."},
-  "work.line.runsFailed": {"one": "{count} run going and {failed} failed.", "other": "{count} runs going and {failed} failed."},
-  "work.line.failed": {"one": "{count} run failed.", "other": "{count} runs failed."},
+  "work.line.runs": {
+    "one": "{count} run going.",
+    "other": "{count} runs going."
+  },
+  "work.line.runsFailed": {
+    "one": "{count} run going and {failed} failed.",
+    "other": "{count} runs going and {failed} failed."
+  },
+  "work.line.failed": {
+    "one": "{count} run failed.",
+    "other": "{count} runs failed."
+  },
   "work.line.idle": "Nothing running now.",
-  "work.line.orders": {"one": "{count} order open for {clients}.", "other": "{count} orders open for {clients}."},
-  "work.line.clients": {"one": "{count} client", "other": "{count} clients"},
+  "work.line.orders": {
+    "one": "{count} order open for {clients}.",
+    "other": "{count} orders open for {clients}."
+  },
+  "work.line.clients": {
+    "one": "{count} client",
+    "other": "{count} clients"
+  },
   "work.running": "Running now",
   "work.run.foot": "Run {id} · {elapsed}",
   "work.run.waitsAt": "Step {step} of {total} waits on you",
@@ -196,7 +220,10 @@
   "work.orders.meta": "{count} open for {clients}",
   "work.orders.clients": "Open Clients",
   "work.client.since": "Client since {date}",
-  "work.client.orders": {"one": "{count} order", "other": "{count} orders"},
+  "work.client.orders": {
+    "one": "{count} order",
+    "other": "{count} orders"
+  },
   "work.client.owes": "Owes you",
   "work.order.ordered": "Ordered {date}",
   "work.order.price": "Price",
@@ -243,7 +270,10 @@
   "work.failure.unknown": "The AI service answered with an error Chausar doesn't know. Nothing was retried.",
   "work.gate.note": "Anything for the next step? (optional)",
   "work.gate.failed": "Could not send it: {message}",
-  "work.line.stopped": {"one": "{count} run stopped.", "other": "{count} runs stopped."},
+  "work.line.stopped": {
+    "one": "{count} run stopped.",
+    "other": "{count} runs stopped."
+  },
   "work.stop.unpauseFirst": "Unpause first",
   "work.stop.waitsResume": "Waiting for Resume",
   "work.stop.forceLabel": "Force stop run {id}",
@@ -280,7 +310,10 @@
   "work.steps.state.always-asks": "always asks you",
   "work.steps.state.unknown": "not sure",
   "work.request.notServed": "File request links open only on the hosted Chausar with a public address. Ask your client to send the file, and add it to the order yourself.",
-  "work.steps.waits": {"one": "{count} waits on you: {stages}", "other": "{count} wait on you: {stages}"},
+  "work.steps.waits": {
+    "one": "{count} waits on you: {stages}",
+    "other": "{count} wait on you: {stages}"
+  },
   "work.steps.waitsOn.ca": "waits on your CA",
   "work.steps.waitsOn.client": "waits on the client",
   "work.steps.due": "due {date}",
@@ -298,5 +331,9 @@
   "work.contract.sign": "Sign",
   "work.contract.signRevision": "Sign revision {n}",
   "work.contract.signAsk": "Sign revision {n}? Work on this order follows it, and every draft is checked against what it keeps as it is.",
-  "work.contract.failed": "Couldn't sign: {message}"
+  "work.contract.failed": "Couldn't sign: {message}",
+  "work.intake.channel.bluesky": "Bluesky",
+  "work.intake.channel.mastodon": "Mastodon",
+  "work.intake.channel.telegram": "Telegram",
+  "work.intake.channel.discord": "Discord"
 }

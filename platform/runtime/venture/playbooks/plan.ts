@@ -118,7 +118,7 @@ const SOCIAL_PLAN = build(
   {
     // The three things a client buys, then the monthly report as its own offer (Ink v2 wave 2), so an order for it runs
     // the report steps on the exports the client uploads. Fourth, so the other offers keep their refs.
-    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }, { key: 'monthly-report', block: 'retainer' }, { key: 'repurpose-pack', block: 'retainer' }, { key: 'linkedin-ghostwriting', block: 'retainer' }, { key: 'reel-from-clips', block: 'package' }, { key: 'hook-variations', block: 'package' }, { key: 'local-instagram', block: 'retainer' }, { key: 'reply-inbox', block: 'retainer' }, { key: 'post-diagnosis', block: 'package' }, { key: 'video-ads', block: 'package' }, { key: 'cross-posting', block: 'retainer' }],
+    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }, { key: 'monthly-report', block: 'retainer' }, { key: 'repurpose-pack', block: 'retainer' }, { key: 'linkedin-ghostwriting', block: 'retainer' }, { key: 'reel-from-clips', block: 'package' }, { key: 'hook-variations', block: 'package' }, { key: 'local-instagram', block: 'retainer' }, { key: 'reply-inbox', block: 'retainer' }, { key: 'post-diagnosis', block: 'package' }, { key: 'video-ads', block: 'package' }, { key: 'cross-posting', block: 'retainer' }, { key: 'influencer-campaign', block: 'package' }],
     approvals: [
       { key: 'every-draft', block: 'each-draft' }, { key: 'spend-before-generation', block: 'prices-invoices' },
       { key: 'every-post', block: 'posts-in-your-name' }, { key: 'report-and-invoice', block: 'prices-invoices' },

@@ -1,0 +1,31 @@
+// Original saved influencer planning. The unlicensed S10 card supplied ideas only, never source code.
+import {digest} from '../../../portable.ts';
+import {decimalMinor,formatMinor} from '../../../currency.ts';
+import {check,d3Object,d3Text,d3Time,d3PublicUrl} from './d3-core.ts';
+import {influencerKeywords,readInfluencerCreator,type InfluencerCreator,type InfluencerKeywords} from './influencer.ts';
+import {influencerFairPrice} from './fair-price.ts';
+export const INFLUENCER_DISCLOSURE='Follow the ASCI influencer advertising guidelines: put a clear #Ad disclosure prominently with the content, and use the platform paid-partnership label where available. The owner and client approve the exact brief and post. Professional disclosure review is still required before publishing.';
+export type InfluencerActual={views:string;signups:string;spendMinor:string;revenueMinor:string;spendDisplay:string;revenueDisplay:string;sourceUrl:string;observedAt:string;note:string;receipt:{kind:'code';inputs:Record<string,string>;output:{spendMinor:string;revenueMinor:string};digest:string}};
+export type InfluencerFee={minor:string;display:string;receipt:{kind:'code';inputs:{priceRupees:string};output:{minor:string};digest:string}};
+export function influencerFee(raw:unknown):InfluencerFee{check(typeof raw==='string'&&/^\d{1,12}(?:\.\d{1,2})?$/.test(raw),'INVALID_AMOUNT','Enter your exact price in rupees.');const minor=decimalMinor(raw),receipt={kind:'code' as const,inputs:{priceRupees:raw},output:{minor}};return{minor,display:formatMinor(BigInt(minor),'INR'),receipt:{...receipt,digest:digest(receipt)}};}
+export type InfluencerCaseCreator=InfluencerCreator&{priceCheckFee:InfluencerFee|null;estimate:ReturnType<typeof influencerFairPrice>|null;brief:{objective:string;deliverables:string;disclosure:string;platformLabel:'Paid partnership'}|null;actual:InfluencerActual|null;outreach:{leadId:string;draftId:string}|null};
+export type InfluencerCase={orderId:string;keywords:InfluencerKeywords;creators:InfluencerCaseCreator[];updatedAt:string};
+export type InfluencerView=InfluencerCase&{id:string;digest:string};
+/** Start an empty case without implying discovered creators, platform access or a paid commitment. */
+export function newInfluencerCase(orderId:string,now:string):InfluencerCase{return{orderId,keywords:{product:[],pain:[],scenario:[],creator:[],tags:[],competitors:[],negative:[]},creators:[],updatedAt:d3Time(now)};}
+/** Public case state is the same immutable shape in the engine and fake. */
+export function viewInfluencerCase(value:InfluencerCase){return structuredClone(value);}
+/** Owner-entered actuals keep their own source and conversion receipt, separate from a planning estimate. */
+function actual(raw:Record<string,unknown>,now:string):InfluencerActual{const observedAt=d3Time(raw.observedAt);check(observedAt<=now,'INFLUENCER_ACTUAL_INVALID','Use the time of an actual observation, no later than now.');for(const k of ['views','signups'])check(typeof raw[k]==='string'&&/^\d{1,12}$/.test(raw[k] as string),'INFLUENCER_ACTUAL_INVALID','Use whole observed counts.');for(const k of ['spendRupees','revenueRupees'])check(typeof raw[k]==='string'&&/^\d{1,12}(?:\.\d{1,2})?$/.test(raw[k] as string),'INFLUENCER_ACTUAL_INVALID','Use exact observed rupee amounts.');const spendMinor=decimalMinor(raw.spendRupees as string),revenueMinor=decimalMinor(raw.revenueRupees as string),sourceUrl=d3PublicUrl(raw.sourceUrl),note=d3Text(raw.note,1000),inputs={spendRupees:raw.spendRupees as string,revenueRupees:raw.revenueRupees as string,sourceUrl,observedAt,note},output={spendMinor,revenueMinor},receipt={kind:'code' as const,inputs,output};return{views:BigInt(raw.views as string).toString(),signups:BigInt(raw.signups as string).toString(),spendMinor,revenueMinor,spendDisplay:formatMinor(BigInt(spendMinor),'INR'),revenueDisplay:formatMinor(BigInt(revenueMinor),'INR'),sourceUrl,observedAt,note,receipt:{...receipt,digest:digest(receipt)}};}
+/** Pure case edits never send, fetch, publish or record a guessed actual result. */
+export function changeInfluencerCase(previous:InfluencerCase,action:string,raw:unknown,now:string):InfluencerCase{
+ const value=structuredClone(previous);value.updatedAt=d3Time(now);
+ if(action==='keywords'){const p=d3Object(raw,['keywords']);value.keywords=influencerKeywords(p.keywords);return value;}
+ if(action==='creator'){const p=d3Object(raw,['creator']),creator=readInfluencerCreator(p.creator),index=value.creators.findIndex(v=>v.id===creator.id);if(index<0){check(value.creators.length<50,'INFLUENCER_INPUT_INVALID','Keep at most fifty creators in this campaign.');value.creators.push({...creator,priceCheckFee:null,estimate:null,brief:null,actual:null,outreach:null});}else{const old=value.creators[index]!,identity=readInfluencerCreator(Object.fromEntries(['id','name','channel','channelUrl','businessEmail','businessEmailSource','publicBusinessEmail'].map(k=>[k,old[k as keyof typeof old]])));value.creators[index]=digest(identity)===digest(creator)?old:{...creator,priceCheckFee:null,estimate:null,brief:null,actual:null,outreach:null};}return value;}
+ const keys=action==='price-check-fee'?['creatorId','priceRupees']:action==='price'?['creatorId','quote']:action==='brief'?['creatorId','objective','deliverables']:action==='actual'?['creatorId','views','signups','spendRupees','revenueRupees','sourceUrl','observedAt','note']:null;check(keys,'INVALID_VENTURE_REQUEST','Choose a campaign action.');const p=d3Object(raw,keys),creator=value.creators.find(v=>v.id===p.creatorId);check(creator,'INFLUENCER_CREATOR_NOT_FOUND','Choose a creator in this campaign.');
+ if(action==='price-check-fee')creator.priceCheckFee=influencerFee(p.priceRupees);
+ if(action==='price'){const estimate=influencerFairPrice(p.quote);check(estimate.receipt.inputs.asOf<=value.updatedAt,'INFLUENCER_PRICE_INVALID','Use observations no later than now.');creator.estimate=estimate;creator.outreach=null;}
+ if(action==='brief'){creator.brief={objective:d3Text(p.objective,2000),deliverables:d3Text(p.deliverables,3000),disclosure:INFLUENCER_DISCLOSURE,platformLabel:'Paid partnership'};creator.outreach=null;}
+ if(action==='actual')creator.actual=actual(p,value.updatedAt);
+ return value;
+}

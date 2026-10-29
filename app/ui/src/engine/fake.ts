@@ -273,6 +273,9 @@ export class FakeEngine {
       eraseRecruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.eraseRecruitingMail(threadIds),
       recruitingBlocked:(email:string|null,personId:string|null)=>this.extras.isBlocked(this.current,email)||this.network.recruitingBlocked(email,personId),
       eraseYoutubeIdeaSources:(sources:readonly string[])=>this.kitRules()?.eraseSources(this.current,sources),
+      influencerOutreach:(input:Parameters<FakeExtrasDesk['influencerOutreach']>[1])=>{if(this.network.recruitingBlocked(input.email,null))throw new EngineError('LEADS_BLOCKED','This creator asked not to be contacted.');return this.extras.influencerOutreach(this.current,input);},
+      eraseInfluencerCopies:(orderIds:readonly string[])=>{const files=orderIds.flatMap(id=>this.work.orderFiles(this.current,id).map(f=>f.id));this.work.eraseSellerFiles(this.current,files);this.work.eraseInfluencerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Campaign evidence was deleted. Start with new approved sources.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
+      eraseInfluencerLeads:(ids:readonly string[])=>this.extras.eraseInfluencerLeads(this.current,ids),
       eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
       eraseTenderIntake:(orderIds:readonly string[])=>this.work.eraseTenderIntake(this.current,orderIds),
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
@@ -363,7 +366,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -410,7 +413,7 @@ export class FakeEngine {
         return clone(signature ? { ...receipt, signature } : receipt);
       }
       case 'venture.books.summary': return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
-      case 'venture.connectors.list': return withTruth(clone(CONNECTORS), this.hosted);
+      case 'venture.connectors.list': return withTruth(this.posting.connectorCards(clone(CONNECTORS)), this.hosted);
       case 'workspace.list': return {
         complete: true,
         businesses: this.businesses.map((b) => ({ folder: b.id, name: b.name, demo: true, unlock: b.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', opens: b.opens, recovery: b.recovery, openedAt: b.id === this.current ? this.now() : null, listedFrom: 'card' })),
@@ -433,7 +436,7 @@ export class FakeEngine {
       default:
         if (this.desk.handles(method)) return this.desk.request(method, p);
         if (this.work.handles(method)) return this.work.request(method, p);
-        if(method==='venture.share.list'){const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra]};}
+        if(method==='venture.share.list')return this.shareView(p);
         if(method==='venture.share.revoke'&&typeof p.id==='string'){const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.revokeShare(p.id);if(extra)return extra;}
         if (this.extras.handles(method)) return this.extras.request(method, p);
         if (this.posting.handles(method)) return this.posting.request(method, p);
@@ -503,11 +506,13 @@ export class FakeEngine {
         return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, country: venture.countryCode ? { code: venture.countryCode, currency: COUNTRIES.find(country=>country.code===venture.countryCode)?.currency??'INR' } : null }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
         }
 
+  private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
   private answerNow(method: string, p: Record<string, unknown>): unknown {
     if (method === 'venture.get') return this.ventureView();
     this.guardInternalShare(method,p);
     if (FakeMoney.answers(method)) return this.money.request(method, p);
-    if (method === 'venture.connectors.list') return withTruth(clone(CONNECTORS), this.hosted);
+    if(method==='venture.share.list')return this.shareView(p);
+    if (method === 'venture.connectors.list') return withTruth(this.posting.connectorCards(clone(CONNECTORS)), this.hosted);
     // 4B3: agent chat reads the team (whose steps an agent owns) and the clients (whom a note is about).
     if (method === 'venture.team.list') return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
     if (method === 'venture.client.list') return clone(this.clients[this.current] ?? []);
@@ -585,6 +590,7 @@ export class FakeEngine {
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
+    const openPost=this.posting.decideOpen(row.id,action.id);if(openPost){if(openPost.outcome==='done')this.decided.add(row.id);return openPost;}
     const social=this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     this.decided.add(row.id);

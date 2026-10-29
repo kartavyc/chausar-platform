@@ -1,12 +1,12 @@
 // Original browser-safe Chausar social format router, catalogue S2 (MIT ideas only).
-import type { SocialChannel } from './channel-ids.ts';
+import {SOCIAL_CHANNELS,type SocialChannel} from './channel-ids.ts';
 export type SocialFormat = {
     channel: SocialChannel;
     format: 'text' | 'thread' | 'image' | 'image-brief' | 'video' | 'video-brief';
     ready: boolean;
     trace: string[];
 };
-const CHANNELS: readonly SocialChannel[] = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts'];
+const CHANNELS: readonly SocialChannel[] = SOCIAL_CHANNELS;
 /** Draft formats are limited to supplied media; a brief is visibly not a finished picture or video. */
 export function socialFormats(input: {
     channels: SocialChannel[];

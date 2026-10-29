@@ -61,7 +61,7 @@ export const SCHEDULED_DESK: DeskHandlers = { scheduled: {
                 if (payload.action === 'create') {
                     check(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no prior digest.');
                     const p = exactPayload(payload.payload, ['postId', 'connectorId', 'dueAt'], ['postId', 'connectorId', 'dueAt']);
-                    check(typeof p.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin'].includes(p.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
+                    check(typeof p.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin', 'bluesky', 'mastodon', 'telegram', 'discord'].includes(p.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
                     check(p.connectorId !== 'linkedin', 'NOT_BUILT_YET', LINKEDIN_HANDOFF_ONLY);
                     check(typeof p.dueAt === 'string' && Number.isFinite(Date.parse(p.dueAt)) && new Date(p.dueAt).toISOString() === p.dueAt && Date.parse(p.dueAt) >= Date.parse(tx.now) && Date.parse(p.dueAt) <= Date.parse(tx.now) + 366 * 86400000, 'SLOT_TIME_INVALID', 'Choose a future time within one year.');
                     check(p.postId === null || typeof p.postId === 'string', 'INVALID_VENTURE_REQUEST', 'Choose a waiting post or leave this slot empty.');

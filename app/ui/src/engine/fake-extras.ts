@@ -1,3 +1,4 @@
+import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FAKE_CA_RULES } from './fake-ca-rules';
 import type { SignoffCheckView } from './types';
@@ -452,6 +453,19 @@ export class FakeExtrasDesk {
     lead.status = to;
   }
 
+  /** S10 uses the same lead store, with an atomic exact creator draft and no fake send. */
+  influencerOutreach(biz:string,input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string}{
+    const p=influencerOutreachInput({creatorId:input.creatorId,subject:input.subject,body:input.body,postalAddress:input.postalAddress});
+    if(this.isBlocked(biz,input.email))throw new EngineError('LEADS_BLOCKED','This creator asked not to be contacted.');
+    const domain=input.email.split('@')[1]!;
+    if(!MAIL_DOMAINS.has(domain))throw new EngineError('LEADS_EMAIL_UNVERIFIED','Check the email first. Only an email with a working mail server gets a draft.');
+    if(!input.name.trim()||input.name.trim().length>120)throw invalid('name must be one line of text.');
+    const at=this.host.now(),id=`lead-new-${++this.seq}`,draftId=`draft-lead-${++this.seq}`,words=influencerEmailText(p.body,this.host.businessName(biz),p.postalAddress);
+    const draft:OutreachDraftView={id:draftId,leadId:id,to:input.email,subject:p.subject,text:words.text,footer:words.footer,sourceUrl:input.sourceUrl,by:'owner',at,digest:this.host.digest({id:draftId,to:input.email,subject:p.subject,text:words.text})};
+    const lead:LeadView={id,name:input.name,company:null,email:input.email,emailDomain:domain,sourceUrl:input.sourceUrl,emailCheck:{status:'verified',at,line:`A mail server answers for ${domain}.`},status:'drafted',drafts:[draft],sends:[],moves:[{from:'new',to:'drafted',at,by:'owner',evidence:{kind:'draft',id:draftId}}],addedBy:'owner',addedAt:at};
+    (this.leads[biz]??=[]).unshift(lead);return{leadId:id,draftId};
+  }
+  eraseInfluencerLeads(biz:string,ids:readonly string[]):void{this.leads[biz]=(this.leads[biz]??[]).filter(lead=>!ids.includes(lead.id));}
   private addLead(biz: string, p: Record<string, unknown>): LeadView {
     const name = text(p.name);
     if (name.length < 2 || name.length > 120) throw invalid('A name must be between 2 and 120 characters.');

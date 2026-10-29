@@ -1,3 +1,4 @@
+import {SOCIAL_D3_RULES} from './d3-rules.ts';
 // Chausar flagship playbook, social media agency: the dated register of platform rules (design 7.8).
 // Every limit a check uses and every disclosure rule it enforces is one entry here, with its sources, the day it was
 // checked, and how it was read: 'official' (the platform's or regulator's own page), 'secondary' (news or trade
@@ -20,7 +21,7 @@ import { HOUSE_POSTING_RULES } from './post-limits.ts';
 import { SOCIAL_D2_RULES } from './d2-rules.ts';
 import { socialLegalStatus } from './legal-confirmation.ts';
 
-export type RuleScope = 'instagram' | 'facebook' | 'linkedin' | 'x' | 'threads' | 'tiktok' | 'youtube-shorts' | 'meta' | 'india' | 'united-states' | 'all';
+export type RuleScope = 'instagram' | 'facebook' | 'linkedin' | 'x' | 'threads' | 'tiktok' | 'youtube-shorts' | 'meta' | 'india' | 'united-states' | 'all' | 'bluesky' | 'mastodon' | 'telegram' | 'discord';
 export type RuleTopic = 'limit' | 'media' | 'disclosure' | 'conduct' | 'export';
 export type RuleReading = 'official' | 'secondary' | 'house' | 'unconfirmed';
 export type RuleSource = { title: string; url: string };
@@ -67,6 +68,7 @@ const US_LIMIT = 'United States law: it applies when the client or the audience 
 const r = (rule: Omit<PlatformRule, 'checkedOn' | 'note'> & { note?: string }): PlatformRule => ({ ...rule, checkedOn: CHECKED, note: rule.note ?? null });
 
 export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
+ ...SOCIAL_D3_RULES,
  {id:'linkedin-manual-only',needs:null,scope:'linkedin',topic:'conduct',title:'LinkedIn copy and open',value:null,read:'official',checkedOn:'2026-10-27',note:null,how:'Read the official User Agreement and prohibited software help page on 27 October 2026. Chausar applies its stricter copy-and-open boundary.',usedBy:['publish'],limitations:['Chausar offers no automated LinkedIn post or message. The owner posts manually.'],rule:'LinkedIn prohibits unauthorized automated access and activity. LinkedIn is copy-and-open only in Chausar; the owner approves the words and posts them manually.',sources:[{title:'LinkedIn User Agreement',url:'https://www.linkedin.com/legal/user-agreement'},{title:'LinkedIn prohibited software',url:'https://www.linkedin.com/help/linkedin/answer/a1341387/prohibited-software-and-extensions?lang=en'}]},
  {id:'selling-share-house',needs:null,scope:'all',topic:'conduct',title:'Selling share',value:20,read:'house',checkedOn:'2026-10-27',note:null,how:'Checked against socialSlots and the social intake default on 27 October 2026.',usedBy:['calendar','drafts'],limitations:[HOUSE_LIMIT,'The owner can choose a different cap at intake.'],rule:'The default selling share is twenty percent of the planned slots. Every slot has one goal and one audience action.',sources:[]},
  {id:'revision-rounds-house',needs:null,scope:'linkedin',topic:'conduct',title:'Included revision rounds',value:2,read:'house',checkedOn:'2026-10-27',note:null,how:'Checked against the per-post revision desk on 27 October 2026.',usedBy:['approve-drafts'],limitations:[HOUSE_LIMIT,'Applies to the LinkedIn ghostwriting offer. Every extra-round price is owner-set.'],rule:'Two revision rounds are included per ghostwritten post. A later round needs the exact owner-set quote approved before work starts.',sources:[]},
@@ -444,7 +446,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
 
 const ID = /^[a-z][a-z0-9-]{1,40}$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const SCOPES: readonly RuleScope[] = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts', 'meta', 'india', 'united-states', 'all'];
+const SCOPES: readonly RuleScope[] = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts', 'meta', 'india', 'united-states', 'all', 'bluesky', 'mastodon', 'telegram', 'discord'];
 const TOPICS: readonly RuleTopic[] = ['limit', 'media', 'disclosure', 'conduct', 'export'];
 const READINGS: readonly RuleReading[] = ['official', 'secondary', 'house', 'unconfirmed'];
 

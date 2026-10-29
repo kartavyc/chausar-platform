@@ -940,7 +940,7 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal(recorder.requests.length, 0);
   const view = await handlers['venture.build.status']!(deps, viewer, {});
   assert.equal(view.follow?.repo.name, 'ledger-cafe-books');
-  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
 test('handlers are exactly the forty-one owned methods, and every code the package throws is a declared venture or engine code', async () => {
@@ -967,7 +967,7 @@ test('handlers are exactly the forty-one owned methods, and every code the packa
   const engineCodes = ['INVALID_VENTURE_REQUEST'];
   for (const thrownCode of thrown) assert.ok((VENTURE_ERRORS as readonly string[]).includes(thrownCode) || engineCodes.includes(thrownCode), thrownCode);
   assert.ok(thrown.has('GITHUB_READ_FAILED') && thrown.has('BRIEF_LINT_FAILED') && thrown.has('PRICE_REQUIRED'));
-  assert.equal(CONNECTOR_CATALOGUE.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal(CONNECTOR_CATALOGUE.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
 // ---------------------------------------------------------------------------

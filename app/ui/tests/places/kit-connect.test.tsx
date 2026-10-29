@@ -35,13 +35,14 @@ async function tile(name: string) {
 }
 
 describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => {
-  it('at rest one fold names six connectors with honest labels and keeps all five original connections', async () => {
+  it('at rest one fold names seven connectors with honest labels and keeps all five original connections', async () => {
     await start();
     const closed = await screen.findByRole('region', { name: 'More ways to connect' });
     expect(closed.querySelector('details')!.open).toBe(false);
     const all = await openFold();
     await settle();
-    expect([...all.querySelectorAll('[data-kit-part]')].map(row => row.getAttribute('data-kit-part'))).toEqual(['seo-publishing', 'monitors', 'mail', 'apps', 'webhook', 'speech']);
+    expect([...all.querySelectorAll('[data-kit-part]')].map(row => row.getAttribute('data-kit-part'))).toEqual(['open-posting', 'seo-publishing', 'monitors', 'mail', 'apps', 'webhook', 'speech']);
+    expect(all.querySelector('[data-kit-part="open-posting"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="seo-publishing"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="apps"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="speech"]')!.textContent).toMatch(/Planned/i);

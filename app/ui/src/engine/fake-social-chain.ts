@@ -1,3 +1,4 @@
+import {INFLUENCER_PACKET_CHECK} from '../../../../platform/runtime/venture/playbooks/social/influencer-completion';
 import {actualSocialPostLocations} from '../../../../platform/runtime/venture/playbooks/social/post-label';
 import {ghostwritingTextChecks} from '../../../../platform/runtime/venture/playbooks/social/ghostwriting-core';
 import {socialLegalBlock} from '../../../../platform/runtime/venture/playbooks/social/legal-confirmation';
@@ -123,6 +124,7 @@ export class FakeSocialChain {
  private plan(run:SocialRun,order:OrderLite,pin:Pin,text:string){
   const stage=pin.stages[run.chainStage-1];if(!['drafts','creative-briefs'].includes(stage??''))return null;
   const result=analyseSocialPostPlan(text,order.intake as SocialPlanIntake,{now:this.host.now(),runId:run.id,history:this.recent(order,run.id)});
+  if(pin.offerKey==='influencer-campaign')result.checks.push({...INFLUENCER_PACKET_CHECK});
   if(pin.offerKey==='repurpose-pack')result.checks.push(repurposeCoverage(text,order.intake?.fields?.channels));
   if(pin.offerKey==='linkedin-ghostwriting')result.checks.push(...ghostwritingTextChecks(text,order.intake?.fields?.postCount));
   return result;

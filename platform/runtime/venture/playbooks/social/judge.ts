@@ -1,3 +1,4 @@
+import {socialD3Baseline} from './d3-baseline.ts';
 // Chausar flagship playbook, social media agency: the judge rules and the committed baseline (design 7.5).
 // Rules are yes or no questions, each with its own floor; code checks every cited evidence id and counts the votes
 // (delivery/judge/rules.ts). The judge runs after the code checks, for what they cannot see: voice, pillar fit, a claim
@@ -16,6 +17,7 @@ import { SOCIAL_CHANNELS, type SocialChannel } from './channels.ts';
 import { checkSocialDraft, type AiUse, type ClientRules, type Finding, type PostDraft, type SocialMedia } from './checks.ts';
 
 export const SOCIAL_JUDGE_RULES: readonly JudgeRule[] = Object.freeze([
+  {id:'fair-price-receipted',question:'Does every proposed rupee amount for a creator use the current code receipt, stay within the owner cap and remain labelled model estimate until actual results exist?',text:'Every creator price offer needs its current receipt and explicit owner-set cap. Forecasts are model estimates.',floor:{kind:'required-yes'}},
   {id:'ad-disclosed',question:'Is every ad disclosed upfront, with any synthetic presenter clearly labelled Made with AI?',text:'Disclose ads and synthetic presenters clearly.',floor:{kind:'required-yes'}},
   {id:'reply-in-voice',question:'Does the reply follow the client approved voice while answering this specific comment?',text:'Use the approved client voice in each reply.',floor:{kind:'share',percent:75}},
   {id:'no-customer-pretence',question:'Does every synthetic presenter avoid claiming to be a customer or to have personal product experience?',text:'Synthetic presenters never speak as real customers.',floor:{kind:'required-yes'}},
@@ -86,7 +88,7 @@ export const SOCIAL_BASELINE_NAME = 'social-agency';
 
 /** The social facts of a held-back case: the channel and what the post is, so the code checks can run on it. */
 export type SocialCaseMeta = {
-  scenario?: {kind:'d2';caseId:string} | {kind:'repurpose-thin-source'} | {kind:'ghostwriting-structure';postCount:8|12} | {kind:'selling-share-cap';capPercent:number};
+  scenario?: {kind:'d3';caseId:string} | {kind:'d2';caseId:string} | {kind:'repurpose-thin-source'} | {kind:'ghostwriting-structure';postCount:8|12} | {kind:'selling-share-cap';capPercent:number};
   channel: SocialChannel;
   media?: SocialMedia[];
   paid?: boolean;
@@ -121,7 +123,8 @@ export function scoreSocialCase(item: HeldBackCase, meta: SocialCaseMeta, draft:
       check(draft.length<=100000,'SOCIAL_INPUT_INVALID','The baseline draft is too long.');
       const value:unknown=JSON.parse(draft);check(value&&typeof value==='object'&&!Array.isArray(value),'SOCIAL_INPUT_INVALID','Send one structured baseline draft.');
       const body=value as Record<string,unknown>;
-      if(meta.scenario.kind==='d2'){failures.push(...socialD2Baseline(meta.scenario.caseId,item.sources[0]?.text??'',body));}
+      if(meta.scenario.kind==='d3'){failures.push(...socialD3Baseline(meta.scenario.caseId,item.sources[0]?.text??'',body));}
+      else if(meta.scenario.kind==='d2'){failures.push(...socialD2Baseline(meta.scenario.caseId,item.sources[0]?.text??'',body));}
       else if(meta.scenario.kind==='repurpose-thin-source'){
         let thin=false;try{repurposeSource(item.sources.map(source=>source.text).join('\n'));}catch(error){if(error&&typeof error==='object'&&'code' in error&&error.code==='SOURCE_THIN')thin=true;else throw error;}
         if(!thin||body.outcome!=='request-source'||typeof body.message!=='string'||!/(longer piece|voice note)/i.test(body.message))failures.push('A thin source must request a longer piece or voice note before drafting.');

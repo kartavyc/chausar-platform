@@ -1,3 +1,7 @@
+import openCards from './fixtures-open-posting.json';
+import {OPEN_NAMES,openIdentity,openFakeAccount,openFakePosts,openFakeDraft} from './fake-open-publish';
+import {historyRisk} from '../../../../platform/runtime/venture/playbooks/social/risk-history';
+import {d3Object} from '../../../../platform/runtime/venture/playbooks/social/d3-core';
 import type {FakeForgottenPerson} from './fake-playbooks';
 /**
  * The fake engine's answers for posting (Ink v2 wave 2, packages 2B1 and 2B2): a post proposed from a checked draft
@@ -12,11 +16,12 @@ import type {FakeForgottenPerson} from './fake-playbooks';
 
 import {
   EngineError, type DraftPostLite, type OwnerPostingLimits, type PostingLimitsView, type PostingProposal, type QueueRow, type ShareAnswer, type ShareLink,
-  type PostingStepsView, type VentureRunEvent,
+  type PostingStepsView, type VentureRunEvent, type QueueItemView, type QueueDecision, type ConnectorCardLite,
 } from './types';
 
 import type { ScheduledPostSnapshot, ScheduledPostBinding } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core';
 export interface PostingHost {
+  eraseInfluencerCopies?(orderIds:readonly string[]):void;
   draftText?(id:string):string|null;
   sharedDraftDigest?(id:string):string|null;
   uploadFingerprint?(id:string):string|null;
@@ -69,11 +74,13 @@ export class FakePostingDesk {
   private answerPacks:Record<string,Record<string,string>>={};
   forgetPeople(people:readonly FakeForgottenPerson[]):void {
     const tokens=people.flatMap(person=>[...person.names.flatMap(name=>[name,...name.split(/[\s,.]+/).filter(word=>[...word].length>=3)]),...person.emails,...person.phones]).filter(Boolean).map(value=>value.toLowerCase());
+    const deliveries=this.host.ask('venture.delivery.list',{}) as {id:string;orderId:string}[],orders=this.host.ask('venture.order.list',{}) as {id:string;clientId:string}[],affected=[...this.scheduledPosts.entries()].filter(([key,e])=>key.startsWith(this.host.current()+':')&&e.open&&(tokens.some(token=>JSON.stringify(e.post).toLowerCase().includes(token))||people.some(p=>p.clientId&&orders.some(o=>o.clientId===p.clientId&&deliveries.some(r=>r.id===e.runId&&r.orderId===o.id))))).map(([,e])=>e.runId);const orderIds=[...new Set(deliveries.filter(r=>affected.includes(r.id)).map(r=>r.orderId))];this.host.eraseInfluencerCopies?.(orderIds);this.eraseRunCopies(affected);
     for(const answer of Object.values(this.answers[this.host.current()]??{}))if(tokens.some(token=>(answer.comment??'').toLowerCase().includes(token)))answer.comment=null;
   }
+  eraseRunCopies(ids:readonly string[]):void{const biz=this.host.current();for(const id of ids){delete this.answers[biz]?.[id];delete this.answerPacks[biz]?.[id];}const removed:string[]=[];for(const [key,entry]of this.scheduledPosts)if(key.startsWith(biz+':')&&ids.includes(entry.runId)){removed.push(entry.post.id);this.scheduledPosts.delete(key);}this.host.setRows(this.host.rows().filter(row=>!removed.includes(row.id)));}
   socialClientAnswer(runId:string):{answer:ShareAnswer;packDigest:string}|null {const biz=this.host.current(),answer=this.answers[biz]?.[runId],packDigest=this.answerPacks[biz]?.[runId];return answer&&packDigest?{answer:{...answer},packDigest}:null;}
   private seq = 0;
-  private scheduledPosts=new Map<string,{post:ScheduledPostSnapshot;runId:string;sourcePostId:string;binding?:ScheduledPostBinding}>();
+  private scheduledPosts=new Map<string,{post:ScheduledPostSnapshot;runId:string;sourcePostId:string;binding?:ScheduledPostBinding;open?:{accountDigest:string;sourceDigest:string;filesDigest:string;at:string}}> ();
   private fileDigest(runId:string):string{
     const runs=this.host.ask('venture.delivery.list',{}) as {id:string;orderId:string}[];
     const orderId=Array.isArray(runs)?runs.find(run=>run.id===runId)?.orderId:undefined;
@@ -85,11 +92,12 @@ export class FakePostingDesk {
   scheduledSnapshot(id:string):ScheduledPostSnapshot|null{
     const entry=this.scheduledPosts.get(this.host.current()+':'+id);if(!entry)return null;
     const shared=this.shareList(entry.runId);const answer=this.answers[this.host.current()]?.[entry.runId]??shared.links.find(link=>link.answer)?.answer;
-    const blocked=answer?.decision==='approved'?null:{code:'POST_CLIENT_NOT_APPROVED',line:'Your client has not approved this draft.'};
+    let blocked=answer?.decision==='approved'?null:{code:'POST_CLIENT_NOT_APPROVED',line:'Your client has not approved this draft.'};
     const live=shared.posts.find(post=>post.draftId===entry.sourcePostId);
-    const filesDigest=this.fileDigest(entry.runId);
+    const filesDigest=this.fileDigest(entry.runId);let liveAccount=entry.post.account;
+    if(entry.open){try{if(!live||this.host.digest(this.host.draftText?.(entry.runId)??'')!==entry.open.sourceDigest||filesDigest!==entry.open.filesDigest)throw new EngineError('POST_DRAFT_CHANGED','The draft changed after your client approved it. It needs their approval again.');const {account}=openFakeDraft(this.host,entry.runId,live);if(account.digest!==entry.open.accountDigest)throw new EngineError('ACCOUNT_FENCE','The connected account changed. Review this post again.');liveAccount=openIdentity(account.account!);if(this.answerPacks[this.host.current()]?.[entry.runId]!==entry.open.sourceDigest)throw new EngineError('POST_CLIENT_NOT_APPROVED','Your client has not approved this draft.');}catch(error){const e=error as Error&{code?:string};blocked={code:e.code??'INVALID_VENTURE_REQUEST',line:e.message};liveAccount=null;}}
     const state=!entry.post.scheduled&&!this.host.rows().some(row=>row.id===id)?'rejected':entry.post.state;
-    return {...entry.post,state,blocked,liveAccount:entry.post.account,text:live?.text??'',filesDigest,digest:this.host.digest({id,connectorId:entry.post.connectorId,text:live?.text??'',draftId:entry.post.draftId,...(entry.binding?{scheduled:entry.binding}:{})})};
+    return {...entry.post,state,blocked,liveAccount,text:live?.text??'',filesDigest,digest:this.host.digest({id,connectorId:entry.post.connectorId,text:live?.text??'',draftId:entry.post.draftId,...(entry.binding?{scheduled:entry.binding}:{})})};
   }
   moveScheduled(id:string,binding:ScheduledPostBinding):ScheduledPostSnapshot{
     const key=this.host.current()+':'+id;const entry=this.scheduledPosts.get(key);const live=this.scheduledSnapshot(id);
@@ -98,7 +106,7 @@ export class FakePostingDesk {
     this.scheduledPosts.set(this.host.current()+':'+nextId,{...entry,binding,post:{...live,id:nextId,state:'described',scheduled:true}});
     return this.scheduledSnapshot(nextId)!;
   }
-  decideScheduled(id:string,state:'approved'|'rejected'|'applied'):void{const entry=this.scheduledPosts.get(this.host.current()+':'+id),live=this.scheduledSnapshot(id);if(!entry||!live)throw new EngineError('POST_NOT_FOUND','That post is no longer available.');if(live.claimedAt)throw new EngineError('SLOT_FROZEN','This post has already started.');if(state!=='rejected'){if(live.blocked)throw new EngineError(live.blocked.code,live.blocked.line);if(!live.account)throw new EngineError('ACCOUNT_FENCE','This slot needs a known account before approval.');}entry.post.state=state;}
+  decideScheduled(id:string,state:'approved'|'rejected'|'applied'):void{const entry=this.scheduledPosts.get(this.host.current()+':'+id),live=this.scheduledSnapshot(id);if(!entry||!live)throw new EngineError('POST_NOT_FOUND','That post is no longer available.');if(live.claimedAt)throw new EngineError('SLOT_FROZEN','This post has already started.');if(state!=='rejected'){if(live.blocked)throw new EngineError(live.blocked.code,live.blocked.line);if(!live.account)throw new EngineError('ACCOUNT_FENCE','This slot needs a known account before approval.');if(entry.open){this.openRisk(entry.post.connectorId,live.text,id);if(state==='applied')entry.open.at=this.host.now();}}entry.post.state=state;}
   scheduledBusy(exceptId:string):boolean{return [...this.scheduledPosts.entries()].some(([key,entry])=>key.startsWith(this.host.current()+':')&&entry.post.id!==exceptId&&entry.post.state==='approved'&&!!entry.post.claimedAt);}
   eraseScheduled(id:string):void{this.scheduledPosts.delete(this.host.current()+':'+id);}
 
@@ -130,7 +138,7 @@ export class FakePostingDesk {
 
   private limitsView(biz: string): PostingLimitsView {
     return {
-      channels: Object.entries(TEXT_PLATFORMS).map(([connectorId, name]) => {
+      channels: Object.entries({...TEXT_PLATFORMS,...OPEN_NAMES}).map(([connectorId, name]) => {
         const owner = { ...(this.limits[biz]?.[connectorId] ?? {}) };
         return { connectorId, name, house: { ...HOUSE_LIMITS }, owner, inUse: { ...HOUSE_LIMITS, ...owner } };
       }),
@@ -139,7 +147,7 @@ export class FakePostingDesk {
   }
 
   private setLimits(biz: string, p: Record<string, unknown>): PostingLimitsView {
-    const connectorId = typeof p.connectorId === 'string' && TEXT_PLATFORMS[p.connectorId] ? p.connectorId : null;
+    const connectorId = typeof p.connectorId === 'string' && ({...TEXT_PLATFORMS,...OPEN_NAMES})[p.connectorId] ? p.connectorId : null;
     if (!connectorId) throw new EngineError('INVALID_VENTURE_REQUEST', 'Posting limits are set for LinkedIn and X.');
     const given = (p.limits && typeof p.limits === 'object' ? p.limits : null) as Record<string, unknown> | null;
     if (!given) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the limits as numbers.');
@@ -157,6 +165,12 @@ export class FakePostingDesk {
     return this.limitsView(biz);
   }
 
+  connectorCards(cards:ConnectorCardLite[]):ConnectorCardLite[]{const next=cards.filter(c=>!OPEN_NAMES[c.id]);for(const raw of openCards){const card=structuredClone(raw) as ConnectorCardLite,account=openFakeAccount(this.host,card.id),api=card.postingOptions.find(p=>p.mode==='api')!;if(account.connected){api.status='available';api.qualification='fixture-tested';api.reason=null;}card.posting=api;next.push(card);}return next;}
+  openPosts(id:string){return openFakePosts(this.host,id);}
+  queueView(kind:unknown,id:unknown):QueueItemView|null{const entry=this.scheduledPosts.get(this.host.current()+':'+id);if(kind!=='draft'||!entry?.open)return null;const account=openFakeAccount(this.host,entry.post.connectorId);return{kind:'draft',id:entry.post.id,businessName:this.host.current(),title:'Post to '+OPEN_NAMES[entry.post.connectorId],sections:[{heading:'Account',lines:[account.account?.label??entry.post.account??'']},{heading:'Exact post',lines:[entry.post.text]},{heading:'Approval',lines:['This posts through the official API after your approval.']}]};}
+  private openRisk(connectorId:string,text:string,except?:string){const owner=this.limits[this.host.current()]?.[connectorId]??{},limits={capPer24h:owner.capPer24h??3,minGapMinutes:owner.minGapMinutes??60,warmUpDays:owner.warmUpDays??7,duplicateBlockPermille:(owner.duplicatePercent??85)*10,duplicateWarnPermille:600,duplicateWindow:5,linkStreak:owner.linkStreak??3},history=[...this.scheduledPosts.values()].filter(e=>e.open&&e.post.connectorId===connectorId&&e.post.id!==except&&['applied','outcome_unknown'].includes(e.post.state)).map(e=>({id:e.post.id,at:e.open!.at,text:e.post.text})),risk=historyRisk({name:OPEN_NAMES[connectorId]!,text,now:this.host.now(),history,limits});if(risk.blocked)throw new EngineError('POST_RISK_BLOCKED',risk.blocks.join(' '));return risk;}
+  decideOpen(id:string,action:string):QueueDecision|null{const entry=this.scheduledPosts.get(this.host.current()+':'+id);if(!entry?.open)return null;try{if(entry.post.state!=='described')throw new EngineError('POST_ALREADY_DECIDED','This post was already decided. Chausar never sends a post twice.');if(action==='deny'){entry.post.state='rejected';return{outcome:'done',line:'You chose not to post this.'};}const shared=this.shareList(entry.runId),post=shared.posts.find(p=>p.draftId===entry.sourcePostId);if(!post||this.host.digest(this.host.draftText?.(entry.runId)??'')!==entry.open.sourceDigest||this.fileDigest(entry.runId)!==entry.open.filesDigest)throw new EngineError('POST_DRAFT_CHANGED','The draft changed after your client approved it. It needs their approval again.');const {account}=openFakeDraft(this.host,entry.runId,post);if(account.digest!==entry.open.accountDigest)throw new EngineError('ACCOUNT_FENCE','The connected account changed. Review this post again.');const answer=this.answers[this.host.current()]?.[entry.runId]??shared.links.find(l=>l.answer)?.answer;if(answer?.decision!=='approved'||this.answerPacks[this.host.current()]?.[entry.runId]!==entry.open.sourceDigest)throw new EngineError('POST_CLIENT_NOT_APPROVED','Your client has not approved this draft.');this.openRisk(entry.post.connectorId,post.text,id);entry.open.at=this.host.now();entry.post.state='applied';this.host.emit({type:'queue.changed',businessId:this.host.current(),at:this.host.now()});return{outcome:'done',line:'Posted to '+OPEN_NAMES[entry.post.connectorId]+'. The network confirmed this post.'};}catch(error){const e=error as Error&{code?:string};return{outcome:'refused',reason:e.code??'INVALID_VENTURE_REQUEST',line:e.message};}}
+  private proposeOpen(biz:string,p:Record<string,unknown>,runId:string,post:DraftPostLite,links:ShareLink[],posts:DraftPostLite[]):PostingProposal{d3Object(p,['draftId','account'],['draftId']);const published=[...this.scheduledPosts.values()].find(e=>e.runId===runId&&e.sourcePostId===post.draftId&&e.post.state==='applied'&&e.post.text===post.text);if(published)return{postId:published.post.id,connectorId:post.connectorId!,draftId:post.draftId,part:posts.filter(p=>p.connectorId===post.connectorId).findIndex(p=>p.draftId===post.draftId)+1,state:'applied',line:'Already published, skipped.',warnings:[]};if(p.account!==undefined&&(typeof p.account!=='string'||!p.account.trim()||p.account.length>80))throw new EngineError('INVALID_VENTURE_REQUEST','Name the exact account.');if(p.account!==undefined)throw new EngineError('CONNECTOR_FIELD_UNSUPPORTED','This connector does not take "account" for this. Nothing was sent; take it out and try again.');const {account}=openFakeDraft(this.host,runId,post),name=OPEN_NAMES[post.connectorId!]!,sourceDigest=this.host.digest(this.host.draftText?.(runId)??'');const answer=this.answers[biz]?.[runId]??links.find(l=>l.answer)?.answer;if(answer?.decision!=='approved')throw new EngineError('POST_CLIENT_NOT_APPROVED',answer?.decision==='changes'?'Your client asked for changes.':'Your client has not approved this draft.');if(this.answerPacks[biz]?.[runId]!==sourceDigest)throw new EngineError('POST_DRAFT_CHANGED','The draft changed after your client approved it. It needs their approval again.');const same=[...this.scheduledPosts.values()].filter(e=>e.runId===runId&&e.sourcePostId===post.draftId);if(same.some(e=>e.post.state==='outcome_unknown'))throw new EngineError('JOURNAL_OUTCOME_UNKNOWN','Check '+name+' before posting again: the post may have gone out.');if(same.some(e=>['approved','applied'].includes(e.post.state)))throw new EngineError('POST_ALREADY_DECIDED',`This post already went out on ${name}, or is going out now. Chausar never sends a post twice.`);const risk=this.openRisk(post.connectorId!,post.text),postId='post-fake-'+(++this.seq),identity=openIdentity(account.account!),line=`Post to ${name} as ${identity} through the ${name} API.`,seed:Omit<QueueRow,'digest'>={id:postId,businessId:biz,businessName:this.host.rows().find(r=>r.businessId===biz)?.businessName??biz,kind:'connector',createdAt:this.host.now(),title:'Post to '+name,line,viewRef:{kind:'draft',id:postId},actions:[{id:'deny',label:'Do not post',primary:false},{id:'approve',label:'Approve and post',primary:true,secondAsk:true,requiresView:true}],descriptionComplete:true,preview:{kind:'post',connectorId:post.connectorId!,platform:name,account:account.account!.label,mode:'api',text:post.text,textEstimate:true,counts:[{label:'characters',count:[...post.text].length,limit:account.account!.maxChars}]}};this.host.setRows([...this.host.rows(),{...seed,digest:this.host.digest(seed)}]);this.scheduledPosts.set(biz+':'+postId,{runId,sourcePostId:post.draftId,open:{accountDigest:account.digest,sourceDigest,filesDigest:this.fileDigest(runId),at:this.host.now()},post:{id:postId,connectorId:post.connectorId!,draftId:runId,text:post.text,account:identity,mode:'api',digest:'',filesDigest:this.fileDigest(runId),state:'described',scheduled:false}});this.host.emit({type:'queue.changed',businessId:biz,at:this.host.now()});return{postId,connectorId:post.connectorId!,draftId:post.draftId,part:posts.filter(p=>p.connectorId===post.connectorId).findIndex(p=>p.draftId===post.draftId)+1,state:'described',line:POSTING_WORDS.proposed,warnings:risk.warnings};}
   private shareList(draftId: string): { links: ShareLink[]; posts: DraftPostLite[] } {
     const listed = this.host.ask('venture.share.list', { deliveryId: draftId }) as { links?: ShareLink[]; shares?: ShareLink[]; posts?: DraftPostLite[] };
     return { links: listed.links ?? listed.shares ?? [], posts: listed.posts ?? [] };
@@ -185,6 +199,7 @@ export class FakePostingDesk {
     const { links, posts } = this.shareList(runId);
     const post = posts.find((item) => item.draftId === p.draftId);
     if (!post) throw new EngineError('POST_NOT_A_POST', POSTING_WORDS.notAPost);
+    if(post.connectorId&&OPEN_NAMES[post.connectorId])return this.proposeOpen(biz,p,runId,post,links,posts);
     if (post.connectorId === 'linkedin') throw new EngineError('NOT_BUILT_YET', POSTING_WORDS.linkedin);
     const name = post.connectorId ? TEXT_PLATFORMS[post.connectorId] : undefined;
     if (!post.connectorId || !name) throw new EngineError('NOT_BUILT_YET', post.connectorId && MEDIA_PLATFORMS.has(post.connectorId) ? POSTING_WORDS.media : `Chausar has no posting connector for ${post.name} in this build. Post it yourself from the calendar file.`);

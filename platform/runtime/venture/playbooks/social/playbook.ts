@@ -137,7 +137,7 @@ export function socialPlaybookSteps(): PlaybookStep[] {
 }
 
 export type SocialOffer = {
-  id: 'content-calendar' | 'community-replies' | 'monthly-report' | 'ugc-ads' | 'repurpose-pack' | 'linkedin-ghostwriting' | 'reel-from-clips' | 'hook-variations' | 'local-instagram' | 'reply-inbox' | 'post-diagnosis' | 'video-ads' | 'cross-posting';
+  id: 'content-calendar' | 'community-replies' | 'monthly-report' | 'ugc-ads' | 'repurpose-pack' | 'linkedin-ghostwriting' | 'reel-from-clips' | 'hook-variations' | 'local-instagram' | 'reply-inbox' | 'post-diagnosis' | 'video-ads' | 'cross-posting' | 'influencer-campaign';
   name: string;
   description: string;
   charge: 'monthly' | 'project';
@@ -182,6 +182,7 @@ export const SOCIAL_OFFERS: readonly SocialOffer[] = Object.freeze([
   { id: 'repurpose-pack', name: 'One source, a week of posts', charge: 'monthly', price: 'owner-sets', disclosure: [], description: 'A client source becomes drafts for three to five channels and a newsletter blurb. Every fact stays in the source.', steps: ['intake','voice','approve-voice','drafts','check','approve-drafts','publish'], includes: ['Source inventory with counts', 'A format and rule trace for each channel', 'Client approval before copy and open'] },
   { id: 'linkedin-ghostwriting', name: 'LinkedIn ghostwriting', charge: 'monthly', price: 'owner-sets', disclosure: [], description: 'Eight or twelve posts each month, with two revision rounds per post. You or your client copy and post the approved words.', steps: ['intake','voice','approve-voice','calendar','drafts','check','approve-drafts','publish'], includes: ['Five writing structures', 'Two revision rounds per post', 'Your price and approval for each extra round', 'LinkedIn is copy-and-open only'] },
   ...SOCIAL_D2_OFFERS,
+  {id:'influencer-campaign',name:'Influencer campaign',description:'Plan a campaign from owner supplied creator profiles, with receipted price estimates, disclosure briefs and actual results.',charge:'project',price:'owner-sets',steps:['intake','creative-briefs','check','approve-drafts','publish','report','approve-report'],includes:['Price checks for each creator at the owner price','Public business email drafts that you send','Disclosure brief and sourced actual results'],disclosure:['paid']},
 ] satisfies SocialOffer[]);
 
 export type ApprovalPoint = { id: string; when: string; who: ('owner' | 'client')[]; stepId: string; floor: boolean };

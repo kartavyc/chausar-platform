@@ -1,6 +1,6 @@
 // Original Chausar channel labels, shared by engine parsing and browser previews.
 import type { SocialChannel } from './channel-ids.ts';
-const channels: Record<string, SocialChannel> = { instagram: 'instagram', facebook: 'facebook', 'facebook page': 'facebook', linkedin: 'linkedin', x: 'x', threads: 'threads', tiktok: 'tiktok', 'youtube-shorts': 'youtube-shorts', 'youtube shorts': 'youtube-shorts' };
+const channels: Record<string, SocialChannel> = { bluesky:'bluesky',mastodon:'mastodon',telegram:'telegram',discord:'discord', instagram: 'instagram', facebook: 'facebook', 'facebook page': 'facebook', linkedin: 'linkedin', x: 'x', threads: 'threads', tiktok: 'tiktok', 'youtube-shorts': 'youtube-shorts', 'youtube shorts': 'youtube-shorts' };
 export function postOfLine(line: string): {
     channel: SocialChannel;
     text: string;

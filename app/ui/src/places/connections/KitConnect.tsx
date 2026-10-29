@@ -19,6 +19,7 @@ import { MailIn } from './MailIn';
 import { LocalApps } from './LocalApps';
 import { Webhooks } from './Webhooks';
 import { SpeechOut } from './SpeechOut';
+import {OpenPosting} from './OpenPosting';
 import { SeoConnections } from './SeoConnections';
 import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
@@ -44,6 +45,7 @@ export function KitConnect() {
   const speech = useResource('venture.speechOut.providers', {});
   const [open, setOpen] = useState<string | null>(null);
   const parts: Part[] = [
+    {id:'open-posting',title:t('pb-open-posting.title'),label:'write',Body:OpenPosting},
     { id: 'seo-publishing', title: t('pb-seo-connect.title'), label: 'write', Body: SearchPublishing },
     { id: 'monitors', title: t('kit-connect.monitors.title'), label: 'read', Body: Monitors },
     { id: 'mail', title: t('kit-connect.mail.title'), label: 'read', Body: MailIn },

@@ -109,15 +109,20 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('customers', 'attio', 'Attio', 'https://attio.com/', ['read'], GI, 'Workspace access token',
     'A flexible CRM. Linking it to Chausar is planned.'),
 
+  entry('marketing', 'bluesky', 'Bluesky', 'https://bsky.app/', ['write'], GI, 'Your app password for the selected server and handle',
+    'Official plain-text API posts after exact approval. Credentials stay in the current session.'),
+  entry('marketing', 'mastodon', 'Mastodon', 'https://joinmastodon.org/', ['write'], GI, 'Your instance token with write:statuses',
+    'Public plain-text API posts after exact approval, within the lower of five hundred characters and the instance limit.'),
+
   // Messaging and support
   entry('messaging', 'whatsapp', 'WhatsApp (Business Platform)', 'https://business.whatsapp.com/', ['write'], GI, 'Meta business sign-up',
     "WhatsApp's business rules limit AI-first chat services; read them before using WhatsApp for client support."),
   entry('messaging', 'telegram', 'Telegram', 'https://telegram.org/', ['write'], GI, 'Bot token',
-    'Alerts and quick approvals for you through a bot are planned.'),
+    'Official channel posts through your own administrator bot, each separately approved. No direct messages.'),
   entry('messaging', 'slack', 'Slack', 'https://slack.com/', ['write'], GI, 'Incoming webhook or bot token',
     'Posting updates to a channel is planned.'),
-  entry('messaging', 'discord', 'Discord', 'https://discord.com/', ['write'], GI, 'Bot token or channel webhook',
-    'Suits a community around your business, not support with promised reply times.'),
+  entry('messaging', 'discord', 'Discord', 'https://discord.com/', ['write'], GI, 'Incoming server-channel webhook',
+    'Official incoming webhook posts after exact approval. Automatic mentions are disabled and uncertain outcomes are never retried.'),
 
   // Docs and ops
   entry('docs-ops', 'notion', 'Notion', 'https://www.notion.com/', ['write'], GI, 'Notion sign-in',

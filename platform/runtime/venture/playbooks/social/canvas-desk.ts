@@ -28,7 +28,7 @@ function view(state: State, venture: VentureRecord, order: OrderRecord): SocialC
             sourceProblem = (error as Error).message;
         }
     const raw = order.intake?.fields?.channels;
-    const supported = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts'];
+    const supported = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts', 'bluesky', 'mastodon', 'telegram', 'discord'];
     const channels = Array.isArray(raw) ? raw.filter((value): value is SocialChannel => typeof value === 'string' && supported.includes(value)) : order.intake?.calendar?.channels ?? [];
     const images = listRecords(state, 'venture-upload', venture.id).some(file => file.format === 'image' && (file.scope.kind === 'order' || file.scope.kind === 'media') && file.scope.orderId === order.id);
     return socialCanvas({ orderId: order.id, request: order.request, runId: run?.id ?? null, text: run ? (clientDraft(run).text ?? '') : '', channels, source, sourceProblem, images });

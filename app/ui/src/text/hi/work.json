@@ -155,7 +155,10 @@
   "work.transcribe.local": "इस कंप्यूटर पर कट से बनाया गया।",
   "work.transcribe.cut": "इस कंप्यूटर पर कट {name} पढ़ा जाएगा।",
   "work.calendar.heading": "कैलेंडर फ़ाइल",
-  "work.calendar.rows": {"one": "फ़ाइल में {count} पोस्ट, हर एक प्लान की तारीख़ पर।", "other": "फ़ाइल में {count} पोस्ट, हर एक प्लान की तारीख़ पर।"},
+  "work.calendar.rows": {
+    "one": "फ़ाइल में {count} पोस्ट, हर एक प्लान की तारीख़ पर।",
+    "other": "फ़ाइल में {count} पोस्ट, हर एक प्लान की तारीख़ पर।"
+  },
   "work.calendar.empty": "फ़ाइल के लिए अभी कोई पोस्ट तैयार नहीं है।",
   "work.calendar.nothing": "फ़ाइल के लिए अभी कोई पोस्ट तैयार नहीं है। नीचे हर पोस्ट के साथ कारण लिखा है।",
   "work.calendar.download": "कैलेंडर फ़ाइल डाउनलोड करें",
@@ -163,19 +166,40 @@
   "work.calendar.blocked": "फ़ाइल से बाहर रखी गई पोस्ट",
   "work.calendar.failed": "कैलेंडर फ़ाइल नहीं बनी: {message}",
   "work.calendar.cantSave": "यह डिवाइस यहाँ से फ़ाइल सेव नहीं कर सकता।",
-  "work.calendar.defused": {"one": "एक पोस्ट ऐसे निशान से शुरू होती है जिसे स्प्रेडशीट फ़ॉर्मूला मानती है, इसलिए फ़ाइल उसके आगे एक अपॉस्ट्रॉफ़ी जोड़ती है। पोस्ट करने से पहले अपॉस्ट्रॉफ़ी हटा दें।", "other": "{count} पोस्ट ऐसे निशान से शुरू होती हैं जिसे स्प्रेडशीट फ़ॉर्मूला मानती है, इसलिए फ़ाइल हर एक के आगे एक अपॉस्ट्रॉफ़ी जोड़ती है। पोस्ट करने से पहले अपॉस्ट्रॉफ़ी हटा दें।"},
-  "work.calendar.threads": {"one": "एक पोस्ट थ्रेड है। उसे हाथ से, हिस्सा-दर-हिस्सा, फ़ाइल में दिए नंबरों के क्रम में पोस्ट करें।", "other": "{count} पोस्ट थ्रेड हैं। हर एक को हाथ से, हिस्सा-दर-हिस्सा, फ़ाइल में दिए नंबरों के क्रम में पोस्ट करें।"},
+  "work.calendar.defused": {
+    "one": "एक पोस्ट ऐसे निशान से शुरू होती है जिसे स्प्रेडशीट फ़ॉर्मूला मानती है, इसलिए फ़ाइल उसके आगे एक अपॉस्ट्रॉफ़ी जोड़ती है। पोस्ट करने से पहले अपॉस्ट्रॉफ़ी हटा दें।",
+    "other": "{count} पोस्ट ऐसे निशान से शुरू होती हैं जिसे स्प्रेडशीट फ़ॉर्मूला मानती है, इसलिए फ़ाइल हर एक के आगे एक अपॉस्ट्रॉफ़ी जोड़ती है। पोस्ट करने से पहले अपॉस्ट्रॉफ़ी हटा दें।"
+  },
+  "work.calendar.threads": {
+    "one": "एक पोस्ट थ्रेड है। उसे हाथ से, हिस्सा-दर-हिस्सा, फ़ाइल में दिए नंबरों के क्रम में पोस्ट करें।",
+    "other": "{count} पोस्ट थ्रेड हैं। हर एक को हाथ से, हिस्सा-दर-हिस्सा, फ़ाइल में दिए नंबरों के क्रम में पोस्ट करें।"
+  },
   "work.calendar.gaps": "जहाँ ड्राफ़्ट और प्लान अलग हैं",
   "work.filter.waiting": "आपकी ज़रूरत",
   "work.filter.business": "बिज़नेस",
   "work.none.waiting": "यहाँ किसी चीज़ को आपकी ज़रूरत नहीं।",
   "work.none.active": "अभी कुछ नहीं चल रहा।",
-  "work.line.runs": {"one": "{count} रन चल रहा है।", "other": "{count} रन चल रहे हैं।"},
-  "work.line.runsFailed": {"one": "{count} रन चल रहा है और {failed} फ़ेल।", "other": "{count} रन चल रहे हैं और {failed} फ़ेल।"},
-  "work.line.failed": {"one": "{count} रन फ़ेल हुआ।", "other": "{count} रन फ़ेल हुए।"},
+  "work.line.runs": {
+    "one": "{count} रन चल रहा है।",
+    "other": "{count} रन चल रहे हैं।"
+  },
+  "work.line.runsFailed": {
+    "one": "{count} रन चल रहा है और {failed} फ़ेल।",
+    "other": "{count} रन चल रहे हैं और {failed} फ़ेल।"
+  },
+  "work.line.failed": {
+    "one": "{count} रन फ़ेल हुआ।",
+    "other": "{count} रन फ़ेल हुए।"
+  },
   "work.line.idle": "अभी कुछ नहीं चल रहा।",
-  "work.line.orders": {"one": "{clients} के लिए {count} ऑर्डर खुला है।", "other": "{clients} के लिए {count} ऑर्डर खुले हैं।"},
-  "work.line.clients": {"one": "{count} क्लाइंट", "other": "{count} क्लाइंट"},
+  "work.line.orders": {
+    "one": "{clients} के लिए {count} ऑर्डर खुला है।",
+    "other": "{clients} के लिए {count} ऑर्डर खुले हैं।"
+  },
+  "work.line.clients": {
+    "one": "{count} क्लाइंट",
+    "other": "{count} क्लाइंट"
+  },
   "work.running": "अभी चल रहा है",
   "work.run.foot": "रन {id} · {elapsed}",
   "work.run.waitsAt": "कुल {total} में से कदम {step} आपका इंतज़ार कर रहा है",
@@ -196,7 +220,10 @@
   "work.orders.meta": "{clients} के लिए {count} खुले",
   "work.orders.clients": "'क्लाइंट' खोलें",
   "work.client.since": "{date} से क्लाइंट",
-  "work.client.orders": {"one": "{count} ऑर्डर", "other": "{count} ऑर्डर"},
+  "work.client.orders": {
+    "one": "{count} ऑर्डर",
+    "other": "{count} ऑर्डर"
+  },
   "work.client.owes": "आपका बकाया",
   "work.order.ordered": "ऑर्डर {date}",
   "work.order.price": "दाम",
@@ -243,7 +270,10 @@
   "work.failure.unknown": "AI सेवा ने ऐसी गड़बड़ी बताई जिसे Chausar नहीं जानता। कुछ भी दोबारा नहीं आज़माया गया।",
   "work.gate.note": "अगले कदम के लिए कुछ कहना है? (ज़रूरी नहीं)",
   "work.gate.failed": "भेजा नहीं जा सका: {message}",
-  "work.line.stopped": {"one": "{count} रन रुका है।", "other": "{count} रन रुके हैं।"},
+  "work.line.stopped": {
+    "one": "{count} रन रुका है।",
+    "other": "{count} रन रुके हैं।"
+  },
   "work.stop.unpauseFirst": "पहले फिर चालू करें",
   "work.stop.waitsResume": "फिर शुरू करने का इंतज़ार",
   "work.stop.forceLabel": "रन {id} तुरंत रोकें",
@@ -280,7 +310,10 @@
   "work.steps.state.always-asks": "हमेशा आपसे पूछता है",
   "work.steps.state.unknown": "पक्का नहीं",
   "work.request.notServed": "फ़ाइल माँगने के लिंक सिर्फ़ होस्ट किए गए Chausar पर, सार्वजनिक पते के साथ खुलते हैं। अपने क्लाइंट से फ़ाइल भेजने को कहें, और उसे ख़ुद ऑर्डर में जोड़ें।",
-  "work.steps.waits": {"one": "{count} आपका इंतज़ार: {stages}", "other": "{count} आपका इंतज़ार: {stages}"},
+  "work.steps.waits": {
+    "one": "{count} आपका इंतज़ार: {stages}",
+    "other": "{count} आपका इंतज़ार: {stages}"
+  },
   "work.steps.waitsOn.ca": "आपके CA का इंतज़ार",
   "work.steps.waitsOn.client": "क्लाइंट का इंतज़ार",
   "work.steps.due": "{date} तक देय",
@@ -298,5 +331,9 @@
   "work.contract.sign": "हस्ताक्षर करें",
   "work.contract.signRevision": "संशोधन {n} पर हस्ताक्षर करें",
   "work.contract.signAsk": "संशोधन {n} पर हस्ताक्षर करें? इस ऑर्डर का काम इसी के हिसाब से होगा, और हर ड्राफ़्ट जाँचा जाएगा कि जो जैसा रहना है वैसा रहा।",
-  "work.contract.failed": "हस्ताक्षर नहीं हो सका: {message}"
+  "work.contract.failed": "हस्ताक्षर नहीं हो सका: {message}",
+  "work.intake.channel.bluesky": "'Bluesky'",
+  "work.intake.channel.mastodon": "'Mastodon'",
+  "work.intake.channel.telegram": "'Telegram'",
+  "work.intake.channel.discord": "'Discord'"
 }

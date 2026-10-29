@@ -11,7 +11,7 @@ import { digest } from '../../records.ts';
 import { monthlyReport, type ExportPlatform, type ReportReceipt } from '../../playbooks/social/report.ts';
 import type { WorkReceiptDraft } from './work.ts';
 import { fail, fileOf, receiptOut, text, type Spec, type ToolEnv } from './tools.ts';
-import { notBuiltTool } from './tool-stub.ts';
+import {SOCIAL_INFLUENCER_TOOLS} from './tools-social-influencer.ts';
 import { SOCIAL_CONTENT_TOOLS } from './tools-social-content.ts';
 import { SOCIAL_PRODUCTION_TOOLS } from './tools-social-production.ts';
 
@@ -129,6 +129,6 @@ export const SOCIAL_W5_TOOLS: Readonly<Record<SocialW5ToolName, Spec>> = Object.
   'social.diagnose': SOCIAL_PRODUCTION_TOOLS['social.diagnose'],
   'social.health': SOCIAL_PRODUCTION_TOOLS['social.health'],
   'social.adStyle': SOCIAL_PRODUCTION_TOOLS['social.adStyle'],
-  'social.fairPrice': notBuiltTool('social.fairPrice', 'compute', 'A creator\'s fair price from comparable posts, with a receipt, under your cap.'), // 5D3
-  'social.keywords': notBuiltTool('social.keywords', 'compute', 'Keyword groups for the influencer search, competitor terms kept apart.'), // 5D3
+  'social.fairPrice': SOCIAL_INFLUENCER_TOOLS['social.fairPrice'],
+  'social.keywords': SOCIAL_INFLUENCER_TOOLS['social.keywords'],
 });
