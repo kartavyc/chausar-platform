@@ -1,16 +1,11 @@
-// Chausar delivery harness: the website-studio playbook's own tools (Website builder; Ink v2 wave 5, packages 5P).
-// Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with the
-// tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type WebsiteStudioToolName = Extract<ToolName, 'site.requirements' | 'site.uiReport' | 'site.flow' | 'site.preview'>;
-
-export const WEBSITE_STUDIO_TOOLS: Readonly<Record<WebsiteStudioToolName, Spec>> = Object.freeze({
-  'site.requirements': notBuiltTool('site.requirements', 'compute', 'The site\'s requirements from the brief, each checkable.'), // 5P
-  'site.uiReport': notBuiltTool('site.uiReport', 'compute', 'The site\'s screens checked against the requirements.'), // 5P
-  'site.flow': notBuiltTool('site.flow', 'compute', 'The screen flow checked step by step.'), // 5P
-  'site.preview': notBuiltTool('site.preview', 'read', 'A preview of the client\'s site, read as a visitor sees it.'), // 5P
+// Read-only source dossier tools. All model requests and deployments stay in the exact owner approval desk.
+import {check} from '../../../contracts.ts';import {findRecord,listRecords} from '../../records.ts';import type {Spec,ToolEnv} from './tools.ts';import {createRequire} from 'node:module';import {siteDelivery} from '../../playbooks/website-studio/checks.ts';import {siteScreenFlow} from '../../playbooks/website-studio/screen-flow.ts';import {siteShipLine,siteRequirementCounts} from '../../playbooks/website-studio/requirements.ts';
+const load=createRequire(import.meta.url);
+function scoped(env:ToolEnv){const state=env.deps.store.read(),run=env.runRef.kind==='delivery'?findRecord(state,'venture-delivery-run',env.runRef.runId):null,project=run?.ventureId===env.ventureId?listRecords(state,'venture-site-requirement',env.ventureId).filter(p=>p.orderId===run.orderId).at(-1):null;check(project,'SITE_PROJECT_NOT_FOUND','Prepare this order in the website desk first.');const tx={now:env.now(),find:<K extends Parameters<typeof listRecords>[1]>(kind:K,id:string)=>listRecords(state,kind,env.ventureId).find(r=>r.id===id),list:<K extends Parameters<typeof listRecords>[1]>(kind:K)=>listRecords(state,kind,env.ventureId)};const source=load('../../playbooks/website-studio/sources.ts') as typeof import('../../playbooks/website-studio/sources.ts');source.currentSiteProject(tx,project.id);check(tx.find('venture-order',project.orderId)?.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');return {project,blueprint:tx.list('venture-blueprint').at(-1)};}
+const spec=(name:Spec['name'],summary:string,read:(env:ToolEnv)=>unknown):Spec=>({name,effect:'compute',tier:'code',endsTurn:false,summary,input:{},async run(env){return {result:read(env)};}});
+export const WEBSITE_STUDIO_TOOLS:Readonly<Record<'site.requirements'|'site.uiReport'|'site.flow'|'site.preview',Spec>>=Object.freeze({
+ 'site.requirements':spec('site.requirements','Read the current saved website requirements, audit evidence and exact report to copy. This does not run an audit or change a site.',env=>{const {project}=scoped(env);return {project,counts:siteRequirementCounts(project.requirements),ship:siteShipLine(project.requirements),delivery:siteDelivery(project),saved:false};}),
+ 'site.uiReport':spec('site.uiReport','Read the actual saved GitHub UI report. Missing evidence stays not found; ask the owner to read it in the website desk.',env=>{const {project}=scoped(env);return {projectId:project.id,evidence:project.uiReport??{state:'not-found',reason:'Read the exact revision UI report in the website desk.'},measuredByChausar:false};}),
+ 'site.flow':spec('site.flow','Read code-written destinations from current blueprint pages. Missing pages are never invented.',env=>{const {project,blueprint}=scoped(env);return {projectId:project.id,flow:siteScreenFlow(blueprint?.pages??[]),scope:'current-business-blueprint'};}),
+ 'site.preview':spec('site.preview','Read the saved typed page preview. It is inert draft content, not a deployed website or measured browser result.',env=>{const {project}=scoped(env);return {projectId:project.id,tree:project.preview.current,deployed:false,measured:false};})
 });

@@ -208,5 +208,18 @@
   "kit-intake-words.515bbfd0": "Attach the workbook whose answer cells should be filled.",
   "kit-intake-words.e62eb3a9": "Paste one question per line, or attach an RFP file instead.",
   "kit-intake-words.d9ddd91d": "Attach the source questions. A spreadsheet needs a column map.",
-  "kit-intake-words.0913dbeb": "You submit the bid through this route."
+  "kit-intake-words.0913dbeb": "You submit the bid through this route.",
+  "kit-intake-words.a63cc903": "Name each form and its minimum fields.",
+  "kit-intake-words.169306eb": "Name the owner chosen hosting service.",
+  "kit-intake-words.0335f268": "Use the GitHub repository address with a read token.",
+  "kit-intake-words.85845126": "Forms",
+  "kit-intake-words.90ec623b": "Client requirements",
+  "kit-intake-words.ef7f6cbe": "Write the client brief in plain words.",
+  "kit-intake-words.084f67cf": "Client site address",
+  "kit-intake-words.a234013e": "Hosting service",
+  "kit-intake-words.1b79a620": "Name the required pages.",
+  "kit-intake-words.1728451e": "Private website source",
+  "kit-intake-words.3bd75e82": "Client repository",
+  "kit-intake-words.b93b25f1": "Private source stays manual until a qualified local model is available.",
+  "kit-intake-words.6f4fc653": "Use the approved HTTPS site address."
 }

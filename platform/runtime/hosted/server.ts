@@ -1,3 +1,4 @@
+import {siteFormHttp} from '../venture/playbooks/website-studio/form-http.ts';
 // Chausar hosted tier: the HTTP server. Experimental and off by default: it starts only with CHAUSAR_HOSTED=1 or --hosted.
 //   node platform/runtime/hosted/server.ts --hosted --dev      (npm run start:hosted: http://localhost:4320, development outbox)
 // Every response carries a strict content policy. Every POST must come from the configured origin. Sessions live in
@@ -30,7 +31,7 @@ const TYPES: Readonly<Record<string, string>> = INK_TYPES; // html, js, css, svg
 const STATIC: Record<string, [string, string]> = {
   '/': [hostedDir, 'index.html'], '/index.html': [hostedDir, 'index.html'], '/hosted.js': [hostedDir, 'hosted.js'], '/hosted.css': [hostedDir, 'hosted.css'],
 };
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 const HOSTED_META = '<meta name="chausar-mode" content="hosted">';
 
 // The client share page (/share/<token>): plain HTML, no scripts, one style allowed by its hash, a form that posts to
@@ -304,6 +305,7 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       const browser = (create: boolean): Browser => ({ binding: binding(create), address });
       // 4J7: /share/<token>/upload is the client's file request page; a share page knows its owner's own session (a preview).
       if (/^\/share\/[A-Za-z0-9_-]{32}\/upload$/.test(url.pathname)) return await upload(url.pathname.slice('/share/'.length, -'/upload'.length), address, req, res);
+      if (url.pathname.startsWith('/site-form/')) return await siteFormHttp(app, url.pathname.slice('/site-form/'.length), address, req, res);
       if (url.pathname.startsWith('/support-rating/')) return await supportRating(url.pathname.slice('/support-rating/'.length), address, req, res);
       if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res, cookies.get(names.session));
       const auth = (): Authenticated => app.accounts.authenticate(cookies.get(names.session));

@@ -6285,6 +6285,31 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'SITE_AUDIT_CURRENT',
+  'SITE_AUDIT_INVALID',
+  'SITE_AUDIT_REQUIRED',
+  'SITE_BRIEF_APPROVAL_REQUIRED',
+  'SITE_CAPTURE_HOSTED_ONLY',
+  'SITE_CHECK_PLANNED',
+  'SITE_DEPLOYMENT_PENDING',
+  'SITE_FORM_ALREADY_IMPORTED',
+  'SITE_FORM_INVALID',
+  'SITE_HEALTH_FAILED',
+  'SITE_HEALTH_REQUIRED',
+  'SITE_HOST_FAILED',
+  'SITE_HOST_SETUP_REQUIRED',
+  'SITE_INPUT_INVALID',
+  'SITE_PREVIEW_INVALID',
+  'SITE_PRODUCTION_CHANGED',
+  'SITE_PROJECT_NOT_FOUND',
+  'SITE_RELEASE_INSPECTION_REQUIRED',
+  'SITE_RELEASE_INVALID',
+  'SITE_REQUIREMENT_INVALID',
+  'SITE_ROLLBACK_UNAVAILABLE',
+  'SITE_SOURCE_TOO_LARGE',
+  'SITE_UI_CHECK_REQUIRED',
+  'SITE_UI_REPORT_INVALID',
+
   'PRICING_OWNER_ONLY', 'TENDER_ANSWER_REQUIRED', 'TENDER_APPROVAL_REQUIRED', 'TENDER_COLUMN_MAP_REQUIRED', 'TENDER_EXPORT_INVALID', 'TENDER_GROUNDING_REQUIRED', 'TENDER_INPUT_INVALID', 'TENDER_LENGTH_EXCEEDED', 'TENDER_NOT_FOUND', 'TENDER_SOURCE_REQUIRED', 'TENDER_WORKBOOK_PROTECTED',
   'NEWSLETTER_AUDIENCE_EMPTY', 'NEWSLETTER_CHECK_FAILED', 'NEWSLETTER_CONSENT_REQUIRED', 'NEWSLETTER_DRAFT_REQUIRED', 'NEWSLETTER_EXPORTED', 'NEWSLETTER_INPUT_INVALID', 'NEWSLETTER_NOT_FOUND', 'NEWSLETTER_RESULTS_MISMATCH', 'NEWSLETTER_RESULTS_REQUIRED', 'NEWSLETTER_SOURCE_MISMATCH', 'NEWSLETTER_SOURCE_REQUIRED',
   'ARTICLE_DRAFT_INVALID', 'ARTICLE_NOT_FOUND', 'ARTICLE_OUTLINE_REQUIRED',
@@ -6469,7 +6494,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

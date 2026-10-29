@@ -671,3 +671,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 ## Later package guide integration
 
 The isolated tender gate exposed omitted setup guides for already committed podcast and newsletter connectors. The native guides, exact rehearsal guide rows and EN/HI text for those four connectors plus tender now ship together. The primary implementation already held these reviewed paths; extraction had missed their shared lines. No new provider capability is claimed.
+
+
+### 5P isolated commit checkpoint
+
+Adds the independently reviewed website service and Build deepening. Exact scope, RED/GREEN evidence, source distinction, manual asset uploads, planned legal form boundary and isolated preview CSP changes are recorded in NOTES-5P.md and NOTES-5P-MANIFEST.md. No provider measurement or production release is fabricated.

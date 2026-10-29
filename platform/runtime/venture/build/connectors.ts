@@ -31,6 +31,7 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'website-public-site': {qualification:'fixture-tested',what:'Reads a client public page with robots and network guards. Runtime evidence needs an owner-installed checker or an uploaded report.'},
   'tender-documents': {qualification:'fixture-tested',what:'Reads current order RFP and separate client documents, preserving an explicit issuer spreadsheet column map. PDFs need the desktop reader.'},
   'article-transcript': {qualification:'fixture-tested',what:'Reads owner-supplied SRT, VTT or TXT and reuses transcripts only within the same client.'},
   'article-local-transcription': {qualification:'fixture-tested',what:'Desktop only, with owner-installed ffmpeg and whisper.cpp. Copies approved local video or audio up to 50 MB before transcription; otherwise add a transcript.'},
@@ -70,6 +71,7 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},
   'zoho-books': {qualification:'fixture-tested',what:'Creates exact-approved drafts, masters, opening balances and received settlements, then verifies readback. Invoice issue asks separately. No email or automatic retry.'},
   'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
   'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Writes an exact reviewed existing key, journals the result and keeps its previous value for undo.'},

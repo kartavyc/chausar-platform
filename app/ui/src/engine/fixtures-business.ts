@@ -1,3 +1,5 @@
+import {siteScreenFlowText} from '../../../../platform/runtime/venture/playbooks/website-studio/screen-flow';
+import {SITE_UI_ARTIFACT_GUIDANCE} from '../../../../platform/runtime/venture/playbooks/website-studio/ui-contract';
 /**
  * Sample data for Connections and the business menu: connectors, Your AI, plan and playbook, prices and website build.
  * Every shape and every sentence is the engine's (platform/runtime/venture/build/connectors.ts, posting.ts, catalogue.ts,
@@ -296,7 +298,7 @@ const LUMEN_BRIEF = [
 ].join('\n');
 /** The brief a template writes for a newly accepted plan. */
 export function templateBrief(name: string, version: number): string {
-  return [`Chausar build brief chb_${name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)}, version ${version}`, '', '## 1. What this business is', `${name}, from its accepted plan.`, '', '## 2. Pages', 'Home, Offers and prices, How it works, Start a request, Privacy and terms.'].join('\n');
+  return [`Chausar build brief chb_${name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)}, version ${version}`, '', '## 1. What this business is', `${name}, from its accepted plan.`, '', '## 2. Pages', 'Home, Offers and prices, How it works, Start a request, Privacy and terms.', siteScreenFlowText([{id:'home',block:'home',title:{value:'Home'}},{id:'offers',block:'offers-prices',title:{value:'Offers and prices'}},{id:'request',block:'start-request',title:{value:'Start a request'}}]), SITE_UI_ARTIFACT_GUIDANCE].join('\n');
 }
 
 export const BUILDS: Record<string, BuildStatusView> = {

@@ -1,7 +1,8 @@
-// Chausar connector catalogue: the website-studio playbook's own entries (Website builder; Ink v2 wave 5, packages 5P).
-// Package 5-0 left it empty; the package adds its connectors here, never in build/catalogue.ts. Import only types from
-// catalogue.ts: it loads this file while it is still being set up (build/catalogue-playbooks.ts). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { CatalogueEntry } from '../catalogue.ts';
-
-export const WEBSITE_STUDIO_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([]);
+// Website-only capabilities. Generic hosting entries retain their wider planned scope.
+import type {CatalogueEntry} from '../catalogue.ts';
+export const WEBSITE_STUDIO_CATALOGUE:readonly CatalogueEntry[]=Object.freeze([
+{id:'website-cloudflare',name:'Website Direct Upload releases',category:'site-domain',auth:'A session-only owner token scoped to the existing Cloudflare Pages project',regions:['india','global'],regionNote:null,note:'Deploys an exact manifest of already uploaded immutable assets. Preview, production and rollback each need separate approval. Asset uploading remains manual.',vendorUrl:'https://dash.cloudflare.com/',targets:['write']},
+{id:'website-public-site',name:'Website health evidence',category:'site-domain',auth:'None for the public website',regions:['india','global'],regionNote:null,note:'Reads the client public website with network and robots guards. Runtime checks require owner-installed lintapple or an uploaded report; a missing checker stays unmeasured.',vendorUrl:null,targets:['read']},
+{id:'website-form-capture',name:'Website form capture',category:'docs-ops',auth:'An exact owner-approved purpose notice',regions:['india','global'],regionNote:null,note:'Planned until a named lawyer confirms the notice and applicable obligations. Add a client manually from a permitted request meanwhile.',vendorUrl:null,targets:['write']},
+{id:'website-form-csv',name:'Website form export import',category:'docs-ops',auth:'An owner-supplied form export and approved purpose notice',regions:['india','global'],regionNote:null,note:'Planned until a named lawyer confirms the notice and applicable obligations. Add a client manually from a permitted request meanwhile.',vendorUrl:null,targets:['read']}
+]);

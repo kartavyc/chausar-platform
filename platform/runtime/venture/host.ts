@@ -344,6 +344,11 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
+    if (body.siteForm === true) {
+      const capture = (await this.#load('playbooks')).siteFormEntry;
+      const {siteForm:_flag,...fields}=body;
+      return typeof capture === 'function' ? (capture as Entry)(this.#deps,ctx,token,fields) : null;
+    }
     // 5G: a rating token never falls through to a client draft link, and carries no transcript.
     if (body.supportRating === true) {
       const rating = (await this.#load('playbooks')).supportRatingEntry;

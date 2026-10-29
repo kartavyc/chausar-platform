@@ -778,6 +778,63 @@
             "connections": "क्लाइंट के दस्तावेज़, आरएफपी फ़ाइलें, जेम, सीपीपीपी, राज्य पोर्टल और आपका मेल ऐप के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "website-studio",
+        "playbook": "website-studio",
+        "label": "Website builder",
+        "category": "content",
+        "department": "production",
+        "line": "Business sites and landing pages for clients, checked against their requirements before every release.",
+        "hours": "3 to 5 h a week",
+        "minHours": 3,
+        "maxHours": 5,
+        "hoursEstimate": true,
+        "youDo": "Talk to clients, approve releases.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Writes briefs, checks builds, keeps sites healthy.",
+        "clientsPay": {
+          "text": "₹15,000 to ₹60,000",
+          "per": "per site",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with GitHub, Lovable, Replit, Cloudflare Pages, Vercel and Netlify."
+        },
+        "starter": "Website builder: Business sites and landing pages for clients, checked against their requirements before every release.",
+        "yours": [],
+        "hi": {
+          "label": "वेबसाइट बनाने की सेवा",
+          "line": "क्लाइंट के लिए बिज़नेस वेबसाइट और लैंडिंग पेज, हर रिलीज़ से पहले उनकी ज़रूरतों से जाँचे जाते हैं।",
+          "hours": "हफ़्ते में 3 से 5 घंटे",
+          "youDo": "क्लाइंट से बात करें, रिलीज़ मंज़ूर करें।",
+          "team": [
+            "लेखक",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "ब्रीफ़ लिखती है, वेबसाइट जाँचती है और उसकी स्थिति देखती है।",
+          "pay": "₹15,000 से ₹60,000",
+          "per": "हर वेबसाइट",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Website builder: क्लाइंट के लिए बिज़नेस वेबसाइट और लैंडिंग पेज, हर रिलीज़ से पहले उनकी ज़रूरतों से जाँचे जाते हैं।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "गिटहब, लवेबल, रेप्लिट, क्लाउडफ़्लेयर पेजेज़, वर्सेल और नेटलिफ़ाइ के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -785,7 +842,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 4
+        "count": 5
       },
       {
         "id": "marketing",
@@ -810,7 +867,7 @@
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 3
+      "count": 4
     }
   },
   "checklist": [

@@ -118,5 +118,21 @@
   "pb-connector-guides.tender-submission.checks": "निर्यात से पहले चौसर स्रोत बाइट्स, पूरे उत्तर और मंज़ूरियाँ फिर जाँचता है। वह पोर्टल खाते का परीक्षण नहीं करता।",
   "pb-connector-guides.tender-submission.sends": "भेजता है: जारीकर्ता को कुछ नहीं। आप मंज़ूर फ़ाइलें ख़ुद जमा करते हैं।",
   "pb-connector-guides.tender-submission.agentLimits": "एजेंट निविदा पोर्टल में लॉगिन, बोली जमा या जारीकर्ता की स्वीकृति का दावा नहीं कर सकते।",
-  "pb-connector-guides.tender-submission.charges": "इस कनेक्शन का कोई शुल्क नहीं है।"
+  "pb-connector-guides.tender-submission.charges": "इस कनेक्शन का कोई शुल्क नहीं है।",
+  "pb-connector-guides.website-cloudflare.step1": "अपने 'Cloudflare' अकाउंट में पहले से बना सीधे अपलोड वाला प्रोजेक्ट चुनें और अपरिवर्तनीय फ़ाइलें वहाँ अपलोड करें।",
+  "pb-connector-guides.website-cloudflare.step2": "वेबसाइट डेस्क में अकाउंट, प्रोजेक्ट और मुख्य ब्रांच भरें। इस सत्र के लिए उसी प्रोजेक्ट तक सीमित टोकन दें।",
+  "pb-connector-guides.website-cloudflare.step3": "सही फ़ाइल सूची और रिलीज़ पहचान चिपकाएँ। पहले पूर्वावलोकन मंज़ूर करें, उसकी पहचान जांचें, फिर मुख्य रिलीज़ अलग से मंज़ूर करें।",
+  "pb-connector-guides.website-cloudflare.skipped": "'Git' से अपने आप चलने वाले प्रोजेक्ट मंज़ूर नहीं हैं। सूची से ग़ायब फ़ाइलें अपलोड नहीं होतीं। अनिश्चित नतीजे पर दोबारा कोशिश से पहले 'Cloudflare' में जांचें।",
+  "pb-connector-guides.website-cloudflare.checks": "Chausar प्रोजेक्ट और स्रोत जांचता है, सही रिलीज़ पहचान पढ़ता है और उसका चिह्न देखता है। ग़ायब सबूत पास नहीं हैं।",
+  "pb-connector-guides.website-cloudflare.sends": "भेजता है: केवल अलग से मंज़ूर पूर्वावलोकन, मुख्य रिलीज़ या पिछली रिलीज़ पर लौटने का अनुरोध। कनेक्शन केवल सेटिंग पढ़ता है।",
+  "pb-connector-guides.website-cloudflare.agentLimits": "एजेंट ख़ुद रिलीज़ नहीं कर सकते, पूर्वावलोकन को मुख्य नहीं बना सकते, फ़ाइलें अपलोड या डोमेन खरीद नहीं सकते और अनिश्चित अनुरोध दोहरा नहीं सकते।",
+  "pb-connector-guides.website-cloudflare.charges": "Chausar ने इसके दाम की जाँच नहीं की है। साइन अप से पहले इसका दाम वाला पेज पढ़ें।",
+  "pb-connector-guides.website-public-site.step1": "वेबसाइट ऑर्डर में क्लाइंट का मंज़ूर सार्वजनिक सुरक्षित पता रखें।",
+  "pb-connector-guides.website-public-site.step2": "वेबसाइट डेस्क खोलकर सार्वजनिक वेबसाइट जांचें। अनुरोध नेटवर्क और रोबोट नियम मानता है।",
+  "pb-connector-guides.website-public-site.step3": "ब्राउज़र की असली जांच के लिए 'lintapple' ख़ुद इंस्टॉल करें या उसकी रिपोर्ट जोड़ें। ग़ायब सबूत को बिना माप का मानें।",
+  "pb-connector-guides.website-public-site.skipped": "स्रोत कोड की समीक्षा या ग़ायब जांच टूल को ब्राउज़र का मापा नतीजा न मानें। निजी या प्रतिबंधित वेबसाइट की रोक नहीं टाली जाती।",
+  "pb-connector-guides.website-public-site.checks": "Chausar सार्वजनिक पेज के असली नतीजे और उपलब्ध इंस्टॉल किए टूल की रिपोर्ट दर्ज करता है।",
+  "pb-connector-guides.website-public-site.sends": "भेजता है: केवल सार्वजनिक पढ़ने के अनुरोध। फ़ॉर्म, संदेश, वेबसाइट बदलाव या रिलीज़ अनुरोध नहीं भेजे जाते।",
+  "pb-connector-guides.website-public-site.agentLimits": "एजेंट रोबोट नियम नहीं टाल सकते, टूल अपने आप इंस्टॉल नहीं कर सकते और पास का नतीजा बना नहीं सकते।",
+  "pb-connector-guides.website-public-site.charges": "Chausar ने इसके दाम की जाँच नहीं की है। साइन अप से पहले इसका दाम वाला पेज पढ़ें।"
 }

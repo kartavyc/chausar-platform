@@ -1,0 +1,7 @@
+// Code-written page flow informed by workspace68 prompt export (MIT), no copied implementation.
+import {requireSite,siteText} from './core.ts';
+export type SiteFlowPage={id:string;block:string;title:{value:string}};
+export type SiteFlow={from:string;button:string;to:string};
+/** Only destinations present in this blueprint are named. The owner still approves the whole brief. */
+export function siteScreenFlow(pages:readonly SiteFlowPage[]):SiteFlow[]{requireSite(pages.length<=20&&new Set(pages.map(p=>p.id)).size===pages.length,'SITE_INPUT_INVALID','Use distinct pages from the current blueprint.');for(const p of pages)siteText(p.title.value,200);const rows:SiteFlow[]=[],home=pages.find(p=>p.block==='home'),offers=pages.find(p=>p.block==='offers-prices'),request=pages.find(p=>p.block==='start-request'),booking=pages.find(p=>p.block==='booking'),client=pages.find(p=>p.block==='client-area');const link=(from:SiteFlowPage|undefined,button:string,to:SiteFlowPage|undefined)=>{if(from&&to&&from.id!==to.id)rows.push({from:from.title.value,button,to:to.title.value});};link(home,'See offers',offers);link(home,'Start a request',request);link(offers,'Start a request',request);link(home,'Book a time',booking);link(offers,'Book a time',booking);link(home,'Sign in',client);return rows;}
+export function siteScreenFlowText(pages:readonly SiteFlowPage[]){const flow=siteScreenFlow(pages);return ['### Screen flow',...(flow.length?flow.map(row=>'- '+row.from+': '+row.button+' opens '+row.to+'.'):['No page-to-page action is specified. Ask before adding one.'])].join('\n');}

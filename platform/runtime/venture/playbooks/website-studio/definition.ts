@@ -1,6 +1,3 @@
-// Chausar playbook: Website builder (Ink v2 wave 5, packages 5P). Its kit definition (playbooks/kit/define.ts). Package
-// 5-0 left it null; the package fills every field and passes it through 5A1's definePlaybook. Written for Chausar;
-// nothing here is learned from an outside source.
-import type { PlaybookDefinition } from '../kit/define.ts';
-
-export const WEBSITE_STUDIO_DEFINITION: PlaybookDefinition | null = null;
+// Original complete website kit schema, validated before registration.
+import {definePlaybook} from '../kit/define.ts';import {WEBSITE_DATA} from './definition-data.ts';
+export const WEBSITE_STUDIO_DEFINITION=definePlaybook(WEBSITE_DATA);

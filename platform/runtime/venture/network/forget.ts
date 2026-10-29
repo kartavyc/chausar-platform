@@ -1,3 +1,4 @@
+import {eraseSiteNaming} from '../playbooks/website-studio/privacy.ts';
 import {eraseTenderNaming} from '../playbooks/tender-desk/privacy.ts';
 import {eraseNewsletterNaming} from '../playbooks/newsletter-studio/privacy.ts';
 import {eraseArticleNaming} from '../playbooks/podcast-to-article/privacy.ts';
@@ -291,6 +292,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSiteNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
     eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);

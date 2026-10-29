@@ -55,6 +55,7 @@ export interface W4DeskHost {
   recruitingReports?(orderId:string):{reports:unknown[];shares:unknown[]};
   recruitingMail?(threadIds:readonly string[]):unknown[];
   eraseRecruitingMail?(threadIds:readonly string[]):void;
+  siteCaptureClient?(name:string,email:string):{id:string;name:string;email:string|null};
   orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
   supportImported?(mail:SupportImportedMail):void;
   supportThread?(id: string): { held: boolean; messages: { messageId: string; references: string[]; from: string; subject: string; date: string; text: string | null; source: 'mailbox' | 'file-import' }[] } | null;

@@ -260,6 +260,7 @@ export class FakeEngine {
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
       uploadFingerprint: (id: string) => this.work.uploadFingerprint(this.current, id),
+      siteCaptureClient:(name:string,email:string)=>{let client=(this.clients[this.current]??[]).find(c=>c.email?.toLowerCase()===email);if(!client){client={id:`c-site-${this.clientSeq++}`,at:this.now(),name,email,countryCode:null,taxId:null,stateCode:null,note:null};this.clients[this.current]=[client,...(this.clients[this.current]??[])];}this.network.captureSiteClient({id:client.id,name:client.name,email});return client;},
       keepSellerAsset: (asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.recordSellerAsset(asset),
       eraseSellerAssets: (ids:readonly string[]) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.eraseSellerAssets(ids),
       eraseSellerFiles: (ids:readonly string[]) => this.work.eraseSellerFiles(this.current,ids),

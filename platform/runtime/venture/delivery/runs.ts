@@ -145,6 +145,7 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
     ...(playbook.flagship==='podcast-to-article'?{articleRecord:listRecords(deps.store.read(),'venture-article-ledger',context.venture.id).find(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId)??null}:{}),
     ...(playbook.flagship==='newsletter-studio'?{newsletterIssue:listRecords(deps.store.read(),'venture-newsletter-issue',context.venture.id).filter(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId).at(-1)??null}:{}),
     ...(playbook.flagship==='tender-desk'?{tenderRows:(await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,context.venture.id,context.order.id,true)).rows}:{}),
+    ...(playbook.flagship==='website-studio'?{siteProject:listRecords(deps.store.read(),'venture-site-requirement',context.venture.id).filter(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId).at(-1)??null}:{}),
     flagship: playbook.flagship, offerKey: context.offerKey, stageId:flagshipDraft(playbook,context.offerKey,context.order.intake??null,context.order.chainStage??null)?.stepId, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
     brandKit: resolveKit(deps.store.read(), context.venture, context.order.clientId),
     socialSlotContext: socialSlotContext(deps.store.read(), context.venture, context.order, deps.clock().toISOString(), extras.runId ?? null),
@@ -272,6 +273,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // stages or the playbook's checks rest on waits for a CA or lawyer (RULE_UNCONFIRMED). The check-time gate stays as a backstop.
   const chain = orderChain(state, venture, order);
   if(chain?.definition.registration.id==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,order.id,true);
+  if(chain?.definition.registration.id==='website-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
   if(chain?.definition.registration.id==='translation-studio')check(order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
     if(chain?.definition.registration.id==='newsletter-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');
   if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');

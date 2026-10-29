@@ -1,3 +1,4 @@
+import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/website-studio/legal-core';
 import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import { FakeArticleChain } from './fake-article-chain';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
@@ -259,6 +260,8 @@ export class FakeWorkDesk {
   private start(biz: string, p: Record<string, unknown>): DeliveryLite {
     const order = this.order(biz, p.orderId);
     fakeRecruitPreflight(this.host,order);
+    if(this.host.plan()?.playbook?.id==='website-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
+    if(this.host.plan()?.playbook?.id==='website-studio'&&!SITE_FORM_RULE.confirmedBy)throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Website form notice and permission" yet. It works in practice runs only until they do.');
     if(this.host.plan()?.playbook?.id==='translation-studio'&&order.intake?.fields?.private!==false)throw new EngineError('PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
     if(this.host.plan()?.playbook?.id==='translation-studio')throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Translation rights review" yet. It works in practice runs only until they do.');
     if(this.host.plan()?.playbook?.id==='newsletter-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');

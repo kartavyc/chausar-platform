@@ -118,5 +118,21 @@
   "pb-connector-guides.tender-submission.checks": "Chausar rechecks source bytes, exact answers and approvals before export. It does not test a portal account.",
   "pb-connector-guides.tender-submission.sends": "Sends: nothing to the issuer. You submit the approved files yourself.",
   "pb-connector-guides.tender-submission.agentLimits": "Agents cannot log in to a tender portal, submit a bid or claim the issuer accepted it.",
-  "pb-connector-guides.tender-submission.charges": "No charge."
+  "pb-connector-guides.tender-submission.charges": "No charge.",
+  "pb-connector-guides.website-cloudflare.step1": "Create an existing Direct Upload project in your own Cloudflare account and upload the immutable assets there.",
+  "pb-connector-guides.website-cloudflare.step2": "In the website desk, enter the account, project and production branch, then enter a token scoped to that project for this session.",
+  "pb-connector-guides.website-cloudflare.step3": "Paste the exact asset manifest and release marker. Approve the preview, check its observed marker, then approve production separately.",
+  "pb-connector-guides.website-cloudflare.skipped": "Git-triggered projects are refused. A manifest does not upload missing assets. Unknown outcomes require inspection in Cloudflare before any retry.",
+  "pb-connector-guides.website-cloudflare.checks": "Chausar verifies the project and source checks, reads the exact deployment identity and observes its release marker. Missing evidence is not a pass.",
+  "pb-connector-guides.website-cloudflare.sends": "Sends: only the exact separately approved preview, production or rollback request. Connecting reads project settings without deploying.",
+  "pb-connector-guides.website-cloudflare.agentLimits": "Agents cannot deploy, promote a preview, upload assets, buy a domain or retry an uncertain write on their own.",
+  "pb-connector-guides.website-cloudflare.charges": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+  "pb-connector-guides.website-public-site.step1": "Set the approved public HTTPS client address in the website order.",
+  "pb-connector-guides.website-public-site.step2": "Open the website desk and choose Check public website. The request follows network and robots rules.",
+  "pb-connector-guides.website-public-site.step3": "For runtime UI checks, install lintapple yourself or attach its actual report. Read missing evidence as unmeasured.",
+  "pb-connector-guides.website-public-site.skipped": "Never treat a source-code audit or missing checker as a measured browser result. Restricted or private websites are not bypassed.",
+  "pb-connector-guides.website-public-site.checks": "Chausar records actual public-page results and the checker report when the installed checker is available.",
+  "pb-connector-guides.website-public-site.sends": "Sends: public read requests only. No forms, messages, site edits or deployment requests are sent.",
+  "pb-connector-guides.website-public-site.agentLimits": "Agents cannot bypass robots, install tools automatically or invent a passing measurement.",
+  "pb-connector-guides.website-public-site.charges": "Chausar has not checked its prices. Read its own pricing page before you sign up."
 }

@@ -1,0 +1,8 @@
+// Original code-written screen flow from current blueprint page identities.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {siteScreenFlow} from '../runtime/venture/playbooks/website-studio/screen-flow.ts';
+test('screen flow uses actual page names and never invents absent destinations',()=>{const pages=[{id:'home',block:'home',title:{value:'Welcome'}},{id:'offers',block:'offers-prices',title:{value:'Our services'}},{id:'ask',block:'start-request',title:{value:'Ask our shop'}}];assert.deepEqual(siteScreenFlow(pages),[{from:'Welcome',button:'See offers',to:'Our services'},{from:'Welcome',button:'Start a request',to:'Ask our shop'},{from:'Our services',button:'Start a request',to:'Ask our shop'}]);assert.deepEqual(siteScreenFlow([{id:'home',block:'home',title:{value:'Welcome'}}]),[]);});
+
+import {assembleBrief,briefTemplateWords} from '../runtime/venture/build/brief.ts';
+import {IN} from './venture-views-env.ts';
+test('the Build brief includes the current blueprint screen destinations written by code',()=>{const pages=[{id:'h',block:'home',title:{value:'Welcome'}},{id:'r',block:'start-request',title:{value:'Ask our shop'}}],words=briefTemplateWords('studio',{name:'Our studio',customer:'Local owners',pages:pages.map(p=>({title:p.title.value,purpose:'Show the next step.'})),clientArea:false}),markdown=assembleBrief({briefId:'test',serviceType:'studio',words,offers:[],taxLabel:'GST',paymentRail:'razorpay',country:IN,clientArea:false,flowPages:pages});assert.match(markdown,/### Screen flow\n- Welcome: Start a request opens Ask our shop\./);assert.doesNotMatch(markdown,/Sign in opens/);assert.match(markdown,/lintapple-report\.json/);assert.match(markdown,/artifact named lintapple-report/);});

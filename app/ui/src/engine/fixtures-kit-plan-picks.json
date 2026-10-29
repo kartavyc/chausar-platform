@@ -89,5 +89,11 @@
     "offers": [
       "bid-response"
     ]
+  },
+  {
+    "id": "website-studio",
+    "offers": [
+      "business-site"
+    ]
   }
 ]
