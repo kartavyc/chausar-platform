@@ -63,6 +63,7 @@ import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
+  tenderRows?: readonly import('./tender-desk/records.ts').TenderQuestionBody[];
   newsletterIssue?: import('./newsletter-studio/records.ts').NewsletterIssueBody | null;
   articleRecord?: import('./podcast-to-article/records.ts').ArticleLedgerBody | null;
   socialSlotContext?: import('./social/slots-live.ts').SocialSlotContext;

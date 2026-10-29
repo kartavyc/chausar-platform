@@ -73,11 +73,7 @@ export function optionalFlag(value: unknown, field: string): boolean {
   return value;
 }
 
-/** Shortens text for a check detail without cutting it in the middle of a long line. */
-export function quote(text: string, max = 80): string {
-  const single = text.replace(/\s+/g, ' ').trim();
-  return single.length <= max ? single : `${single.slice(0, max - 3).trimEnd()}...`;
-}
+export {quote} from './quote.ts';
 
 /** The most lines a Today view shows of one text (views/queue-view.ts); a longer text is cut there. */
 export const VIEW_MAX_LINES = 400;

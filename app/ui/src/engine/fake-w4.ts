@@ -36,6 +36,7 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  eraseTenderIntake?(orderIds:readonly string[]):void;
   workReceipt?(id:string):import('./types').WorkReceiptLite|undefined;
   socialClientAnswer?(runId:string):{answer:import('./types').ShareAnswer;packDigest:string}|null;
   socialChain?(orderId:string):import('./types').OrderChainView|null;

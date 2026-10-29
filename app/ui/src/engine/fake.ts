@@ -268,6 +268,7 @@ export class FakeEngine {
       eraseRecruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.eraseRecruitingMail(threadIds),
       recruitingBlocked:(email:string|null,personId:string|null)=>this.extras.isBlocked(this.current,email)||this.network.recruitingBlocked(email,personId),
       eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
+      eraseTenderIntake:(orderIds:readonly string[])=>this.work.eraseTenderIntake(this.current,orderIds),
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
@@ -540,17 +541,22 @@ export class FakeEngine {
     return this.w5?.find((desk): desk is FakeKitRulesDesk => desk instanceof FakeKitRulesDesk);
   }
 
-  private queueList(scope: 'current' | 'all') {
+  private async queueList(scope: 'current' | 'all') {
     this.network.syncRows(); // 4E4: follow-ups come due as the clock moves; replies and calls wait as the engine lists them
     this.chief.syncRows(); // 4C2: a proposal's card is made again from what it acts on now (only Dismiss once its gate fails)
     if (this.open && this.current) this.kitRules()?.syncRows(); // 5A3: a published idea's grade row comes due as the clock moves
-    this.rows = this.rows.filter(row => !row.id.startsWith('social-revision:'));
+    this.rows = this.rows.filter(row => !row.id.startsWith('social-revision:')&&!row.id.startsWith('tender-gap:'));
     for (const business of this.businesses) {
       if (business.opens !== 'with-this-computer' && !(this.open && business.id === this.current)) continue;
       const plan = this.desk.blueprintFor(business.id);
       this.rows.push(...fakeSocialRevisionDueRows({countryCode:this.ventures.get(business.id)?.countryCode??'IN',businessId: business.id, businessName: business.name, now: this.now(), orders: this.work.ordersFor(business.id), offers: plan?.blueprint.offers ?? [], digest: digestOf}));
+      for(const desk of this.w5??[])if(desk instanceof FakePlaybooksDesk)for(const notice of await desk.tenderNotices({businessId:business.id,orders:this.work.ordersFor(business.id),files:orderId=>this.work.orderFiles(business.id,orderId)})){
+        const row={id:notice.subject+':'+notice.version,businessId:business.id,businessName:business.name,kind:'notice' as const,createdAt:notice.createdAt,title:notice.title,line:notice.line,actions:[{id:'open' as const,label:'Open tender desk',primary:true},{id:'later' as const,label:'Later',primary:false}],notice:{probe:'drafts' as const,severity:'medium' as const,link:notice.link}};
+        this.rows.push({...row,digest:digestOf(row)});
+      }
     }
-
+    // A vault may be locked while its source files are read asynchronously.
+    this.rows=this.rows.filter(row=>!row.id.startsWith('tender-gap:')||this.businesses.some(b=>b.id===row.businessId&&(b.opens==='with-this-computer'||this.open&&b.id===this.current)));
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
@@ -571,6 +577,7 @@ export class FakeEngine {
     // 4E4: a next step from meeting notes with no day takes the day as Approve's answer (chief/proposals.ts).
     if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
+    if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
     const social=this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     this.decided.add(row.id);

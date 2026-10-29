@@ -41,7 +41,10 @@ export interface FakeDeskKind {
 }
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
 export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
+export type TenderNoticeScope={businessId:string;orders:readonly import('./types').OrderLite[];files:(orderId:string)=>{id:string;name:string;format:string;contentBase64:string;digest:string}[]};
+export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
 export interface FakePlaybookDesk {
+  tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
   endSession?(): void;
   sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
   revokeShare?(id:string):import('./types').ShareLink|null;
@@ -103,6 +106,8 @@ export class FakePlaybooksDesk {
   revokeShare(id:string):import('./types').ShareLink|null{for(const desk of this.desks){const found=desk.revokeShare?.(id);if(found)return found;}return null;}
 
   endSession(): void { for(const desk of this.desks)desk.endSession?.(); }
+
+  async tenderNotices(scope:TenderNoticeScope):Promise<TenderNotice[]>{const found=await Promise.all(this.desks.map(desk=>desk.tenderNotices?.(scope)??[]));return found.flat();}
 
   handles(method: string): boolean {
     return DESK_METHODS.has(method) || this.desks.some((desk) => desk.methods !== undefined && Object.hasOwn(desk.methods, method));

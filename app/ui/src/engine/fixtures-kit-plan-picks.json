@@ -83,5 +83,11 @@
     "offers": [
       "client-newsletter"
     ]
+  },
+  {
+    "id": "tender-desk",
+    "offers": [
+      "bid-response"
+    ]
   }
 ]

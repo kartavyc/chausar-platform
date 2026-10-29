@@ -1,7 +1,4 @@
-// Chausar playbook: Tender and proposal desk (Ink v2 wave 5, package 5O). The registry entry, with no runtime imports.
-// Package 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id ('tender-desk'),
-// label, service type, picks, summary, risk level and review day (the plan's "Registration" line). Written for Chausar;
-// nothing here is learned from an outside source.
+// Original browser-safe tender registration. Portal submission remains an owner handoff.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const TENDER_DESK_REGISTRATION: PlaybookRegistration | null = null;
+export const TENDER_DESK_REGISTRATION: PlaybookRegistration = {id:'tender-desk',label:'Tender and proposal desk',serviceType:'consulting',picks:['tender','bid writing','rfp response','proposal writing','gem bid','government tender'],summary:'Agents draft RFP answers from client documents and prepare an export pack. You write prices, approve answers and submit the bid.',riskLevel:'medium',lastReviewed:'2026-10-29'};

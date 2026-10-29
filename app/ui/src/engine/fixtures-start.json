@@ -715,6 +715,69 @@
             "connections": "आपका न्यूज़लेटर टूल के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "tender-desk",
+        "playbook": "tender-desk",
+        "label": "Tender and proposal desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "RFP answers from your client documents, with an export pack for manual submission.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Write the prices, approve answers, submit.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Extracts questions, drafts grounded answers, builds the pack.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹50,000",
+          "per": "per bid",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client documents, RFP files, GeM, CPPP, State portals and Your mail app."
+        },
+        "starter": "Tender and proposal desk: RFP answers from your client documents, with an export pack for manual submission.",
+        "yours": [],
+        "hi": {
+          "label": "निविदा और प्रस्ताव डेस्क",
+          "line": "क्लाइंट के दस्तावेज़ों से आरएफपी के उत्तर और ख़ुद जमा करने के लिए निर्यात पैक।",
+          "hours": "हफ़्ते में 4 से 8 घंटे",
+          "youDo": "कीमतें लिखें, उत्तर मंज़ूर करें, जमा करें।",
+          "team": [
+            "शोधकर्ता",
+            "लेखक",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "प्रश्न निकालता है, प्रमाण सहित उत्तरों के मसौदे बनाता है और पैक तैयार करता है।",
+          "pay": "₹10,000 से ₹50,000",
+          "per": "हर बोली",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Tender and proposal desk: क्लाइंट के दस्तावेज़ों से आरएफपी के उत्तर और ख़ुद जमा करने के लिए निर्यात पैक।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट के दस्तावेज़, आरएफपी फ़ाइलें, जेम, सीपीपीपी, राज्य पोर्टल और आपका मेल ऐप के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -740,7 +803,7 @@
         "id": "shops-and-firms",
         "label": "Shops and firms",
         "hi": "दुकानें और फ़र्म",
-        "count": 3
+        "count": 4
       }
     ],
     "upTo": {

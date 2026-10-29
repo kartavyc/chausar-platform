@@ -29,14 +29,8 @@ type Row = Partial<Record<Column, string>>;
 
 const STATUS_WORDS: Readonly<Record<InvoiceRecord['status'], string>> = Object.freeze({ draft: 'Draft', issued: 'Issued', 'part-paid': 'Part paid', paid: 'Paid', void: 'Void' });
 
-/**
- * One CSV cell: text that a spreadsheet would run as a formula (it begins with =, +, -, @, a tab or a carriage return)
- * gets an apostrophe first; a cell with a comma, a quote or a line break is quoted, its quotes doubled.
- */
-export function csvCell(value: string): string {
-  const cell = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
-}
+export {csvCell} from './csv-cell.ts';
+import {csvCell} from './csv-cell.ts';
 
 /** Minor units as a plain decimal in the currency's own digits ('1975000' INR is '19750.00'). */
 function decimal(minor: bigint, currency: string): string {

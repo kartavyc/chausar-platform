@@ -661,3 +661,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 
 - Source-bound newsletter drafting, consent/suppression checks, manual send exports, measured slices and code receipts are integrated. No sends are automated and named legal confirmation stays pending.
 - Independent spec/quality PASS, privacy and final dispatch-race evidence are recorded in NOTES-5N.md.
+
+## 5O isolated package closure
+
+- Tender question extraction, source-grounded responses, exact owner approvals, monetary evidence receipts and local export packs are integrated. Government submission remains a manual owner handoff.
+- Independent spec/quality PASS, source races, privacy, Today and phone evidence are recorded in NOTES-5O.md and its UI/domain notes.

@@ -158,5 +158,16 @@
       "newsletter writing",
       "run a newsletter"
     ]
+  },
+  {
+    "id": "tender-desk",
+    "picks": [
+      "tender",
+      "bid writing",
+      "rfp response",
+      "proposal writing",
+      "gem bid",
+      "government tender"
+    ]
   }
 ]

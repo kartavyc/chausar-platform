@@ -349,9 +349,10 @@ export function Place() {
 
   const activeRuns = runs.filter((run) => run.state === 'active').length;
   const summary = waiting > 0 && queue.data ? summaryWords(t, queue.data) : undefined;
-  // 4F3: a stopped run is listed only while the engine's row to resume it is on Today (a replaced one has none).
+  // Keep a just-stopped row mounted while Today refreshes, so the owner's stop receipt and focus survive.
+  // Once the queue arrives, a stopped run remains only while its resume row exists (replaced runs have none).
   const workingRuns = runs.filter((run) => ((run.state === 'active' || run.state === 'waiting')
-    && (run.stop?.state !== 'stopped' || live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'resume'))))
+    && (run.stop?.state !== 'stopped' || queue.loading&&queue.data!==undefined || live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'resume'))))
     || (run.state === 'failed' && live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'run-again') && !session.line(row.id))));
   // Each listed run's steps, read once and shared by the team's live tiles (a subset of these runs) and Working now.
   const details = useRunDetails(workingRuns.map((run) => run.runId));

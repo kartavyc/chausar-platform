@@ -1,3 +1,4 @@
+import {eraseTenderNaming} from '../playbooks/tender-desk/privacy.ts';
 import {eraseNewsletterNaming} from '../playbooks/newsletter-studio/privacy.ts';
 import {eraseArticleNaming} from '../playbooks/podcast-to-article/privacy.ts';
 import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
@@ -287,6 +288,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);

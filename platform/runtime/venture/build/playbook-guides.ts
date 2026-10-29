@@ -1,6 +1,20 @@
 // Original setup guides for the implemented public recruitment boards.
 import type {ConnectorGuide} from '../contracts.ts';
 export const PLAYBOOK_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges'|'missing'>>>=Object.freeze({
+ "tender-documents":{
+  steps:['Attach client evidence separately from the RFP in the tender order.','Choose pasted questions or an RFP file. For a workbook, map the sheet, question column, answer column and row range.','Review every extracted question and its type before drafting. Write commercial answers yourself.'],
+  skipped:'The RFP is a request, not evidence that the client meets it. Do not use a copied RFP as client evidence.',
+  checks:'Chausar binds questions and answers to current source bytes. Changed sources require import and approval again.',
+  sends:'Sends: nothing for local reading. A later AI request shows its exact source payload and asks separately.',
+  agentLimits:'Agents cannot borrow another client documents, invent certifications or write commercial answers.'
+ },
+ "tender-submission":{
+  steps:['Resolve source gaps and approve every answer by type.','Review the exact export pack, including the issuer workbook mapping and source amount receipts, then approve export.','Check the current issuer instructions and submit through your own portal or mail account.'],
+  skipped:'A downloaded pack does not prove submission or acceptance. Check the issuer deadline and current terms yourself.',
+  checks:'Chausar rechecks source bytes, exact answers and approvals before export. It does not test a portal account.',
+  sends:'Sends: nothing to the issuer. You submit the approved files yourself.',
+  agentLimits:'Agents cannot log in to a tender portal, submit a bid or claim the issuer accepted it.'
+ },
   "seo-wordpress": {
     "steps": [
       "In the client WordPress profile, create a separate credential under Application Passwords for a user allowed to create drafts.",

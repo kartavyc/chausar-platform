@@ -21,6 +21,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
   'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
   'article-publishing': {qualification:'fixture-tested',what:'Prepares the exact approved article and companion text for the owner to copy and publish manually.'},
   lovable: { qualification: 'fixture-tested', what: 'Opens Lovable with your brief filled in. You press send there.' },
@@ -30,6 +31,7 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'tender-documents': {qualification:'fixture-tested',what:'Reads current order RFP and separate client documents, preserving an explicit issuer spreadsheet column map. PDFs need the desktop reader.'},
   'article-transcript': {qualification:'fixture-tested',what:'Reads owner-supplied SRT, VTT or TXT and reuses transcripts only within the same client.'},
   'article-local-transcription': {qualification:'fixture-tested',what:'Desktop only, with owner-installed ffmpeg and whisper.cpp. Copies approved local video or audio up to 50 MB before transcription; otherwise add a transcript.'},
   'zoho-books': {qualification:'fixture-tested',what:'Reads exact accounting references through the owner self client, scoped to the selected client organisation.'},

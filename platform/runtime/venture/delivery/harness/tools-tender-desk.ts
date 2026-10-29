@@ -1,14 +1,11 @@
-// Chausar delivery harness: the tender-desk playbook's own tools (Tender and proposal desk; Ink v2 wave 5, packages
-// 5O). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with the
-// tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type TenderDeskToolName = Extract<ToolName, 'tender.questions' | 'tender.ground'>;
-
-export const TENDER_DESK_TOOLS: Readonly<Record<TenderDeskToolName, Spec>> = Object.freeze({
-  'tender.questions': notBuiltTool('tender.questions', 'compute', 'Every question in the tender, listed by code.'), // 5O
-  'tender.ground': notBuiltTool('tender.ground', 'compute', 'Each answer found in the client\'s own documents, with where.'), // 5O
+// Original read-only tender tools. They never save answers, grant approval, export or submit a bid.
+import {check} from '../../../contracts.ts';
+import {findRecord} from '../../records.ts';
+import type {Spec,ToolEnv} from './tools.ts';
+import {tenderRunSource} from '../../playbooks/tender-desk/run-source.ts';
+import {tenderDelivery} from '../../playbooks/tender-desk/checks.ts';
+async function scoped(env:ToolEnv){const run=env.runRef.kind==='delivery'?findRecord(env.deps.store.read(),'venture-delivery-run',env.runRef.runId):null;check(run&&run.ventureId===env.ventureId,'TENDER_NOT_FOUND','Use this client order tender run.');return tenderRunSource(env.deps,env.ventureId,run.orderId);}
+export const TENDER_DESK_TOOLS:Readonly<Record<'tender.questions'|'tender.ground',Spec>>=Object.freeze({
+ 'tender.questions':{name:'tender.questions',effect:'compute',tier:'code',endsTurn:false,summary:'Read this order imported source questions and their code classifications. The owner prepares sources in the tender desk.',input:{},async run(env){const data=await scoped(env);return {result:{rows:data.rows,saved:false}};}},
+ 'tender.ground':{name:'tender.ground',effect:'compute',tier:'code',endsTurn:false,summary:'Read current answer coverage, missing terms and the exact approved pack handoff. This never approves, exports or submits.',input:{},async run(env){const data=await scoped(env);return {result:{...data,delivery:data.ready?tenderDelivery(data.rows):null,exported:false,submitted:false}};}}
 });
