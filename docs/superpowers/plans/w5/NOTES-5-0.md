@@ -726,3 +726,8 @@ Virtual assistant orders have exact approved client-room briefs, source-only own
 ### 5R2 isolated commit checkpoint
 
 Data-entry work has exact source rows, owner-only native browser mapping and submit approvals, source-bound agent proposals and code-rendered reports, actual saved-response comparison and acknowledged sign-in erasure. The desktop remains planned pending lawyer confirmation; native HTML forms only, with a manual path for dynamic or unsupported sites. Independent whole-package specification and quality reviews passed; isolated validation is recorded separately. Exact manifest, tests, screenshots and limitations are in NOTES-5R2.md.
+
+
+### Landed kit browser rules integration
+
+Fourteen previously landed kits returned no rule register through browser rehearsal. Fourteen genuine failing routing tests reproduced that gap. Native-generated data now preserves exact sources, review holds, recipes and boundaries, with fresh and stale parity checked at every recheck edge. Independent specification then quality review passed. Public fake routing also now uses the India business day and exact empty-payload validation, both caught by behavioral regressions. The generator discovers newly landed kits; this isolated commit includes only the fourteen native definitions already committed. R3 adds its own generated data when it lands. Evidence is under results/w5-integration-rules-* and rules-integration-frozen.

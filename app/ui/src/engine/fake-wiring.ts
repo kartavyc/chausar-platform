@@ -84,7 +84,12 @@ export class FakeWiringDesk {
 
   request(method: string, _p: Record<string, unknown>): unknown {
     // 2H: the playbook the plan names, its dated rules on the fake's day (fixtures-rules.ts).
-    if (method === 'venture.rules.list') return rulesListFor((this.host.ask('venture.blueprint.get', {}) as BlueprintViewLite | null)?.playbook, this.host.now().slice(0, 10));
+    if (method === 'venture.rules.list') {
+      const p=_p??{};
+      if (typeof p!=='object' || Array.isArray(p) || ![Object.prototype,null].includes(Object.getPrototypeOf(p))) throw new EngineError('INVALID_VENTURE_REQUEST','Send one request object.');
+      if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');
+      return rulesListFor((this.host.ask('venture.blueprint.get', {}) as BlueprintViewLite | null)?.playbook, new Date(Date.parse(this.host.now())+330*60_000).toISOString().slice(0, 10));
+    }
     if (method === 'venture.files.transcribe') return this.transcribe(_p);
     if (method === 'venture.transcription.get') return this.whisperView();
     if (method === 'venture.transcription.set') return this.setWhisper(_p);
