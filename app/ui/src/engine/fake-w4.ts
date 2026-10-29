@@ -36,6 +36,10 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  keepVaReport?(routineId:string,title:string,text:string):void;
+  eraseVaReports?():void;
+  eraseVaCopies?(orderIds:readonly string[]):void;
+  roomPrice?(orderId:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomPrice|undefined;
   keepTranslationFile?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string}):void;
   keepNarrationFetched?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string}):void;
   narrationPrice?(orderId:string):{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}|undefined;

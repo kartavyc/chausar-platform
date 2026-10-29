@@ -1778,6 +1778,8 @@ export type DeliveryWorkflow = {
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   careerPackBinding?: string;
+  /** Exact owner-approved room brief this VA delivery read. */
+  vaBriefBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
@@ -3107,6 +3109,9 @@ export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
  * (playbooks/social/approvals.ts): decide-once, on the digest shown, before the link ends.
  */
 export type ShareLinkStoredRecord = RecordBase<'venture-share-link'> & {
+  /** A shared request room, showing only its current owner-approved brief. */
+  roomId?: string;
+  /** 5I: exact career source and rendered-file identity. */
   career?: {threadId:string;approvalDigest:string};
   translation?: { jobId: string; approvalDigest: string };
   deliveryId: string;
@@ -3417,6 +3422,8 @@ export type AgentNoteChangeRecord = RecordBase<'venture-agent-note-change'> & {
 export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & { title: string; pinned: boolean; routine: string | null; lastAt: IsoTime };
 /** One message in a Chats thread (4C1): the owner's words, or the chief's typed answer with the receipts its tools returned. */
 export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
+  /** Regenerable private source summary; Forget removes it rather than retaining anonymous copied text. */
+  recordReport?: true;
   threadId: string;
   from: 'owner' | 'chief';
   text: string;
@@ -4120,6 +4127,7 @@ export type RoutineSchedule =
   | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
+  recordReport?: 'va-morning'|'va-weekly';
   name: string;
   agent: string | null;
   setBy: 'owner' | 'agent' | 'chief';
@@ -4877,7 +4885,7 @@ export type RoutineView = { id: string; name: string; agent: string | null; prom
 export interface RoutinesView { routines: RoutineView[] }
 export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display };
 export interface RoutineRunsView { runs: RoutineRunView[] }
-export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean };
+export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; recordReport?: 'va-morning'|'va-weekly' };
 
 /** 4J14. Options already scored, reordered by the owner's weights in code; a model figure is an estimate only. */
 export type RankedOptionView = { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean };

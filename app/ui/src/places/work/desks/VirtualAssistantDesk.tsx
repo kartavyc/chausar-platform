@@ -1,11 +1,5 @@
-/**
- * The Virtual assistant service desk on Work (Ink v2 wave 5, packages 5R1). Package 5-0 left it a stub that says it is
- * not built yet; the package replaces this file with the desk (it may import parts of its own from other files).
- */
+// Original assistant owner board. All client content is scoped to the current order and client.
+import {useState} from 'react';import {useEngineEvents,useResource} from '../../../engine/context';import {useT} from '../../../text';import {Tile,TileHead} from '../../../parts/Tile';import {VaRoutines} from './VaRoutines';import {RoomDesk} from './RoomDesk';import {VaPurchase} from './VaPurchase';import s from './RoomDesk.module.css';
+export function VirtualAssistantDesk(){const t=useT(),w=(k:string)=>t('pb-va.'+k),[selected,setSelected]=useState(''),[privacy,setPrivacy]=useState(0),orders=useResource('venture.order.list',{}),plan=useResource('venture.blueprint.get',{}),offers=new Set(plan.data?.blueprint.offers.filter(o=>['va-monthly','errands-pack'].includes(o.playbookOffer??'')).map(o=>o.id)),order=orders.data?.find(o=>o.id===selected&&o.status!=='cancelled'&&offers.has(o.offerId)),failed=!!orders.error||!!plan.error,pending=orders.loading||plan.loading;useEngineEvents(e=>{if(e.type==='privacy.forgotten'){setSelected('');setPrivacy(v=>v+1);}});return <div className={s.stack}><Tile as="section" label={w('title')} className={s.form}><TileHead title={w('title')}/><p>{w('intro')}</p><label className={s.label}>{w('order')}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">{w('chooseOrder')}</option>{!failed&&!pending&&orders.data?.filter(o=>o.status!=='cancelled'&&offers.has(o.offerId)).map(o=><option key={o.id} value={o.id}>{o.request}</option>)}</select></label>{failed&&<p role="alert">{w('error')}</p>}</Tile><VaRoutines/>{order&&!failed&&<div className={s.stack} hidden={pending} key={privacy+':'+order.id+':'+order.clientId}><RoomDesk playbook="virtual-assistant" orderId={order.id} clientId={order.clientId} locked={pending}/><VaPurchase orderId={order.id} currency={plan.data!.blueprint.backOffice.currency} locked={pending}/></div>}</div>;}
 
-import { useT } from '../../../text';
-
-export function VirtualAssistantDesk() {
-  const t = useT();
-  return <p>{t('kit-desk.notBuilt')}</p>;
-}
+VirtualAssistantDesk.ready = true;

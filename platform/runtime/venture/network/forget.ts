@@ -1,3 +1,4 @@
+import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
 import { eraseInfluencerNaming } from '../playbooks/social/influencer-privacy.ts';
 import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
@@ -296,6 +297,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseSupportNaming(tx, emails, mentionsName, phones);
     eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),options.captions);
     eraseCareerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseClientRooms(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);

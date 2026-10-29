@@ -7,6 +7,8 @@ import { ChausarError, type Context } from '../../../contracts.ts';
 import type { VentureDeps } from '../../contracts.ts';
 import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskListPayload, DeskListView } from '../desk-types.ts';
 import { deskHandler } from '../desks.ts';
+import {kitDefinition} from './installed.ts';
+import {CLIENT_ROOM_DESK} from './client-room.ts';
 
 const NOT_BUILT = 'This part of Chausar is not built yet.';
 type Ops = { list: [DeskListPayload, DeskListView]; get: [DeskGetPayload, DeskItemView]; act: [DeskActPayload, DeskActView] };
@@ -15,7 +17,7 @@ type Ops = { list: [DeskListPayload, DeskListView]; get: [DeskGetPayload, DeskIt
 export function deskRoute<Op extends keyof Ops>(op: Op): (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<Ops[Op][1]> {
   return async (deps, ctx, payload) => {
     const body = payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
-    const handler = typeof body.playbook === 'string' && typeof body.kind === 'string' ? deskHandler(body.playbook, body.kind) : null;
+    const handler = typeof body.playbook === 'string' && typeof body.kind === 'string' ? body.kind==='room'&&kitDefinition(body.playbook)?.clientRoom===true?CLIENT_ROOM_DESK:deskHandler(body.playbook, body.kind) : null;
     const run = handler?.[op] as ((deps: VentureDeps, ctx: Context, payload: Ops[Op][0]) => Promise<Ops[Op][1]>) | undefined;
     if (!run) throw new ChausarError('NOT_BUILT_YET', NOT_BUILT);
     return run.call(handler, deps, ctx, payload as Ops[Op][0]);

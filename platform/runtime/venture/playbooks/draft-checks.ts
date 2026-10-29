@@ -65,6 +65,8 @@ import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
+  roomBrief?: import('./kit/client-room-core.ts').RoomBrief | null;
+  /** Current engine-resolved episode evidence, including null after Forget. */
   siteProject?: import('./website-studio/records.ts').SiteRequirementBody | null;
   tenderRows?: readonly import('./tender-desk/records.ts').TenderQuestionBody[];
   narrationRows?: readonly import('./narration-studio/checks.ts').NarrationReportRow[];
@@ -134,7 +136,7 @@ function textLines(deliverable: Deliverable): string[] {
 export async function runFlagshipChecks(input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Promise<PlaybookCheckResult[]> {
   // Ink v2 wave 5 (5A1): a kit playbook's own checks and their coverage (playbooks/kit/checks.ts), then the same lint.
   const kit = kitDefinition(input.flagship, definitions);
-  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='job-search-desk'&&input.careerPack) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
+  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
     : await playbookOwnChecks(input);
   if (!own.length || input.servedBy === 'template') return own;
   const line = promptLeakLine(draftLeaks(input));

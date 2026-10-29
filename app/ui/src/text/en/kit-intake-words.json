@@ -274,5 +274,13 @@
   "kit-intake-words.translation-studio.format.option-0": "document",
   "kit-intake-words.translation-studio.format.option-1": "subtitles",
   "kit-intake-words.translation-studio.private.label": "Private source",
-  "kit-intake-words.translation-studio.private.help": "Private source text must never reach a remote model."
+  "kit-intake-words.translation-studio.private.help": "Private source text must never reach a remote model.",
+  "kit-intake-words.virtual-assistant.scope.label": "Scope",
+  "kit-intake-words.virtual-assistant.scope.help": "Name the work the client needs.",
+  "kit-intake-words.virtual-assistant.deliverable.label": "Deliverable",
+  "kit-intake-words.virtual-assistant.deliverable.help": "Describe what the client will receive.",
+  "kit-intake-words.virtual-assistant.deadline.label": "Deadline",
+  "kit-intake-words.virtual-assistant.deadline.help": "Choose a real calendar day.",
+  "kit-intake-words.virtual-assistant.hoursBand.label": "Hours band",
+  "kit-intake-words.virtual-assistant.hoursBand.help": "Use the hours band agreed with the client."
 }

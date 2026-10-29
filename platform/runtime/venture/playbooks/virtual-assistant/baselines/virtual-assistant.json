@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "playbook": "virtual-assistant",
+  "recordedAt": "2026-10-29",
+  "baseline": {
+    "passed": 3,
+    "of": 3
+  },
+  "cases": [
+    {
+      "id": "card-field-refused",
+      "request": "Fill a payment card form.",
+      "draft": "PAYMENT_FIELD_REFUSED",
+      "meta": {
+        "source": "{\"kind\":\"card\"}"
+      }
+    },
+    {
+      "id": "morning-brief-sources",
+      "request": "Check each saved report line source.",
+      "draft": "missing-source",
+      "meta": {
+        "source": "{\"lines\":[{\"text\":\"Invented result\",\"source\":{\"kind\":\"mail\",\"id\":\"missing\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}],\"sources\":[[\"mail:actual\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"]]}"
+      }
+    },
+    {
+      "id": "brief-version-changed",
+      "request": "Approve a revised scope with the old approval.",
+      "draft": "APPROVAL_STALE",
+      "meta": {
+        "source": "{\"first\":{\"orderId\":\"order\",\"clientId\":\"client\",\"request\":\"Research venues\",\"via\":\"owner-recorded\",\"fields\":{\"scope\":\"Research three venues.\",\"deliverable\":\"A sourced table.\",\"deadline\":\"2026-11-02\"},\"price\":{\"offerId\":\"offer\",\"minor\":\"10000\",\"currency\":\"INR\",\"receiptId\":\"receipt\",\"priceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"display\":\"INR 100\"}},\"next\":{\"orderId\":\"order\",\"clientId\":\"client\",\"request\":\"Research venues\",\"via\":\"owner-recorded\",\"fields\":{\"scope\":\"Research five venues.\",\"deliverable\":\"A sourced table.\",\"deadline\":\"2026-11-02\"},\"price\":{\"offerId\":\"offer\",\"minor\":\"10000\",\"currency\":\"INR\",\"receiptId\":\"receipt\",\"priceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"display\":\"INR 100\"}}}"
+      }
+    }
+  ]
+}

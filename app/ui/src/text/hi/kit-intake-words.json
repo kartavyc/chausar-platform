@@ -274,5 +274,13 @@
   "kit-intake-words.translation-studio.format.option-0": "दस्तावेज़",
   "kit-intake-words.translation-studio.format.option-1": "सबटाइटल",
   "kit-intake-words.translation-studio.private.label": "निजी मूल पाठ",
-  "kit-intake-words.translation-studio.private.help": "निजी मूल पाठ कभी रिमोट मॉडल पर नहीं जाना चाहिए।"
+  "kit-intake-words.translation-studio.private.help": "निजी मूल पाठ कभी रिमोट मॉडल पर नहीं जाना चाहिए।",
+  "kit-intake-words.virtual-assistant.scope.label": "काम की सीमा",
+  "kit-intake-words.virtual-assistant.scope.help": "क्लाइंट को चाहिए काम बताएँ।",
+  "kit-intake-words.virtual-assistant.deliverable.label": "दिया जाने वाला काम",
+  "kit-intake-words.virtual-assistant.deliverable.help": "क्लाइंट को क्या मिलेगा, बताएँ।",
+  "kit-intake-words.virtual-assistant.deadline.label": "आखिरी तारीख़",
+  "kit-intake-words.virtual-assistant.deadline.help": "कैलेंडर की सही तारीख़ चुनें।",
+  "kit-intake-words.virtual-assistant.hoursBand.label": "घंटों का स्तर",
+  "kit-intake-words.virtual-assistant.hoursBand.help": "क्लाइंट के साथ तय घंटों का स्तर लिखें।"
 }

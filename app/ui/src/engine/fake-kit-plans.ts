@@ -1,3 +1,4 @@
+import {VA_META} from './va-metadata';
 import {CAREER_META} from './career-metadata';
 import {NARRATION_META} from './narration-metadata';
 import { WEBSITE_META } from './website-metadata';
@@ -16,11 +17,12 @@ import planPicks from './fixtures-kit-plan-picks.json';
 import registryPicks from './fixtures-playbook-picks.json';
 import { LEADGEN_REGISTRATION, LEADGEN_OFFERS, LEADGEN_INTAKE_FIELDS } from './fake-lead-generation';
 export interface FakeKitMetadata {
+ clientRoom?: boolean;
  registration: { id: string; label: string; serviceType: ServiceType; picks: readonly string[]; summary: string };
  offers: readonly { id: string; name: string; description: string; pricing: PricingModel; unit: string; intake: readonly string[]; rights?: readonly ('own-footage' | 'licence' | 'creator-clip-programme')[] }[];
  intakeFields: readonly NonNullable<OfferIntakeLite['kit']>[number][];
 }
-const METADATA = [CAREER_META, NARRATION_META, WEBSITE_META, TENDER_META, NEWSLETTER_META, ARTICLE_META, TRANSLATION_META, RECRUITING_META, SUPPORT_DESK_META, SELLER_FAKE_METADATA, BOOKKEEPING_FAKE_METADATA, SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
+const METADATA = [VA_META, CAREER_META, NARRATION_META, WEBSITE_META, TENDER_META, NEWSLETTER_META, ARTICLE_META, TRANSLATION_META, RECRUITING_META, SEO_FAKE_META, BOOKKEEPING_FAKE_METADATA, SELLER_FAKE_METADATA, SUPPORT_DESK_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
 const KITS = planPicks.map(plan => {
  const kit = METADATA.find(item => item.registration.id === plan.id);
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);
@@ -70,3 +72,7 @@ export function fakeKitPlan(kit: FakeKitMetadata, base: BlueprintViewLite): Blue
   offerReceipts: Object.fromEntries(offers.map(offer => [offer.id, null])),
   playbook: { id: kit.registration.id, label: kit.registration.label }, intake };
 }
+
+
+/** Browser metadata is the same registered schema used for kit onboarding. */
+export function fakeKitMetadata(id:string|undefined):FakeKitMetadata|undefined{return KITS.find(kit=>kit.registration.id===id);}

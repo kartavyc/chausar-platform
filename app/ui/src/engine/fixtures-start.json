@@ -949,6 +949,63 @@
             "connections": "पांडुलिपि फ़ाइलें, गूगल क्लाउड वाचन, स्थानीय ऑडियो जाँच, आपका एआई, सार्वजनिक स्रोत पन्ना और लेखकों के लिए स्पॉटिफ़ाई के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "virtual-assistant",
+        "playbook": "virtual-assistant",
+        "label": "Virtual assistant service",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Routines, research and client requests with exact approvals.",
+        "hours": "5 to 10 h a week",
+        "minHours": 5,
+        "maxHours": 10,
+        "hoursEstimate": true,
+        "youDo": "Meet clients and approve each handoff.",
+        "team": [
+          {
+            "role": "Assistant",
+            "initials": "AS",
+            "department": "operations"
+          },
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Prepares work notes and source-backed reports.",
+        "clientsPay": {
+          "text": "₹8,000 to ₹25,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Saved mail, Saved page monitors and Your own send and purchase."
+        },
+        "starter": "Virtual assistant service: Routines, research and client requests with exact approvals.",
+        "yours": [],
+        "hi": {
+          "label": "वर्चुअल सहायक सेवा",
+          "line": "ठीक इसी काम की मंज़ूरी के साथ नियमित काम, शोध और क्लाइंट अनुरोध।",
+          "hours": "हफ़्ते में 5 से 10 घंटे",
+          "youDo": "क्लाइंट से मिलें और हर हस्तांतरण मंज़ूर करें।",
+          "team": [
+            "सहायक",
+            "शोधकर्ता"
+          ],
+          "teamLine": "काम के नोट्स और स्रोत वाली रिपोर्ट बनाता है।",
+          "pay": "₹8,000 से ₹25,000",
+          "per": "एक क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Virtual assistant service: ठीक इसी काम की मंज़ूरी के साथ नियमित काम, शोध और क्लाइंट अनुरोध।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "सहेजी डाक, सहेजे पेज मॉनिटर और आपका खुद का संदेश और खरीद के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [

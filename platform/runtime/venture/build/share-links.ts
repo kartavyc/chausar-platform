@@ -22,6 +22,7 @@ import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 //   live order's steps, page only), 'statement' ("What you owe us", money/statement.ts, its receipts sealed when the link
 //   is made, its view the invoices' Viewed line) and 'books' (one month's invoices and payments for the accountant).
 import { createHash } from 'node:crypto';
+import {roomLinkCurrent,roomClientText,appendRoomRequest} from '../playbooks/kit/client-room-state.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
@@ -379,6 +380,7 @@ export async function shareRevoke(deps: VentureDeps, ctx: Context, payload: unkn
  * holds, each a comment can name ('draft' names the whole). steps: an order status link's steps in the client's words.
  */
 export type SharePage = {
+  canRequest?: boolean;
   businessName: string; title: string; text: string; expires: Display; digest: string;
   decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
   kind: ShareKind; canAnswer: boolean;
@@ -397,6 +399,7 @@ function linkOf(state: State, venture: VentureRecord, token: unknown, nowIso: st
   if (typeof token !== 'string' || !SHARE_TOKEN.test(token)) return null;
   const hash = sha256(token);
   const record = listRecords(state, 'venture-share-link', venture.id).find(item => item.tokenHash === hash);
+  if(record?.roomId&&!roomLinkCurrent(state,venture,record))return null;
   if (!record || !record.served || record.state === 'revoked' || Date.parse(record.expiresAt) <= Date.parse(nowIso) || !translationLinkCurrent(state,record,nowIso) || !careerLinkCurrent(state,record,nowIso)) return null;
   return record;
 }
@@ -414,6 +417,7 @@ function runOfLink(state: State, record: ShareLinkStoredRecord): DeliveryRunReco
  * client the link was made with, none.
  */
 function speakRefusal(state: State, record: ShareLinkStoredRecord, nowIso:string): string | null {
+  if(record.roomId)return SHARE_WORDS.pageOnly;
   if(record.career)return careerLinkCurrent(state,record,nowIso)?null:SHARE_WORDS.notTheClient;
   if (record.translation) return translationLinkCurrent(state,record,nowIso) ? null : SHARE_WORDS.notTheClient;
   if ((record.shareKind ?? 'draft') !== 'draft') return SHARE_WORDS.pageOnly;
@@ -431,6 +435,7 @@ function orderStepsOf(state: State, venture: VentureRecord, record: ShareLinkSto
 }
 
 function pageOf(state: State, record: ShareLinkStoredRecord, venture: VentureRecord, nowMs: number): SharePage {
+  if(record.roomId){const room=roomLinkCurrent(state,venture,record)!;return{businessName:venture.workingName,title:record.title,text:roomClientText(room),expires:formatVentureDate(record.expiresAt.slice(0,10),venture.country.dateOrder),digest:room.brief?.approved?.digest??record.draftDigest,decision:null,kind:'draft',canAnswer:false,canRequest:true,items:[],comments:room.requests.filter(r=>r.via==='client-page').map(r=>({item:r.id,text:r.text}))};}
   const made = record.decisions.at(-1);
   const kind = record.shareKind ?? 'draft';
   const run = runOfLink(state, record);
@@ -516,6 +521,7 @@ export async function shareComment(deps: VentureDeps, ctx: Context, token: unkno
   return ventureAction(deps, ctx, 'prepare', 'share.comment', tx => {
     const record = linkOf(tx.state, tx.venture!, token, tx.now);
     if (!record) return null;
+    if(record.roomId){check(input.item==='room-request','INVALID_VENTURE_REQUEST','Send a request from this room.');const room=roomLinkCurrent(tx.state,tx.venture!,record);if(!room)return null;appendRoomRequest(tx,room,input.text,'client-page');return pageOf(tx.state,record,tx.venture!,Date.parse(tx.now));}
     const refused = speakRefusal(tx.state, record, tx.now);
     if (refused) throw new ChausarError('SHARE_LINK_REFUSED', refused);
     const run = runOfLink(tx.state, record)!;

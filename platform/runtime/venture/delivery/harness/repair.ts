@@ -7,6 +7,7 @@
 // One repair turn for a malformed tool call, then stop, follows Qwen-CUA's protocol (demo/src/qwen_cua/protocol.py);
 // this is a rewrite, not a copy.
 import { check, type Context } from '../../../contracts.ts';
+import {vaRunCurrent} from '../../playbooks/virtual-assistant/run-source.ts';
 import { findRecord, ventureAction } from '../../records.ts';
 import type { DeliveryRunRecord, DeliveryRunView, HarnessState, VentureDeps } from '../../contracts.ts';
 import { carryControls, stampOwnerWords, stoppedNow, STOPPED_BY_YOU } from './controls.ts';
@@ -60,11 +61,13 @@ export async function repairTurn(deps: VentureDeps, ctx: Context, run: DeliveryR
   const { state, venture } = readAs(deps, ctx, 'approve');
   const live = findRecord(state, 'venture-delivery-run', run.id);
   check(live && live.status === 'waiting-for-you' && live.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+  vaRunCurrent(state,venture.id,live);
   const repaired: HarnessState = { ...spent(harness), repairs: [...(harness.repairs ?? []), { turn, reason }] };
   const made = await previewNextTurn(deps, ctx, state, venture, live, repaired);
   return ventureAction(deps, ctx, 'approve', 'delivery.repair', tx => {
     const current = tx.find('venture-delivery-run', run.id);
     check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+    vaRunCurrent(tx.state,venture.id,current);
     // What the owner changed while the call was out (a stop, a note, the gate) joins the repaired state (4F1).
     const merged = carryControls(made.harness!, current.harness);
     const stopping = !!merged.control?.stop;

@@ -716,3 +716,8 @@ The job-search and career desk keeps approved fact qualifiers, complete listing 
 ### 5J2 isolated commit checkpoint
 
 Consented stock-voice dubbing, actual audio checks and desktop local captions with saving off. Full independent spec and quality PASS, including exact microphone permissions, actual privacy.forgotten lifecycle repair and benign edit continuity. Isolated both types and syntax pass; inherited I fixture ordering was repaired without changing nonowned values, and native/UI reruns pass. An isolated removed Forget hook fails its public regression. Evidence and honest provider/legal limits are recorded in NOTES-5J2.md. Root owns the whole-wave gates.
+
+
+### 5R1 isolated commit checkpoint
+
+Virtual assistant orders have exact approved client-room briefs, source-only owner-approved morning and weekly routines, receipt-backed manual purchase handoffs and refusal of payment fields. Current brief revisions bind native and rehearsal delivery, with real Forget clearing saved and unsaved private copies. Independent native and owner reviews, test-first evidence, screenshots and capability limits are in NOTES-5R1.md and NOTES-5R1-UI.md. No live purchase, client hosting or model-provider qualification is claimed.

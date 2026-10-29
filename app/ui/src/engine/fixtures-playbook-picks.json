@@ -201,5 +201,14 @@
       "narrated lessons",
       "explainer reel"
     ]
+  },
+  {
+    "id": "virtual-assistant",
+    "picks": [
+      "virtual assistant",
+      "personal assistant service",
+      "errands service",
+      "executive assistant service"
+    ]
   }
 ]

@@ -4,4 +4,4 @@
 // line). Written for Chausar; nothing here is learned from an outside source.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const VIRTUAL_ASSISTANT_REGISTRATION: PlaybookRegistration | null = null;
+export const VIRTUAL_ASSISTANT_REGISTRATION:PlaybookRegistration={id:'virtual-assistant',label:'Virtual assistant service',serviceType:'support',picks:['virtual assistant','personal assistant service','errands service','executive assistant service'],summary:'Agents keep client routines, reminders and research moving; you approve every send and purchase.',riskLevel:'medium',lastReviewed:'2026-10-29'};

@@ -4,4 +4,5 @@
 // from an outside source.
 
 /** venture-room-brief: a placeholder until package 5R1 lands. */
-export type RoomBriefBody = { placeholder: true };
+export type RoomRequest={id:string;text:string;via:'owner-recorded'|'client-page';at:string};
+export type RoomBriefBody={orderId:string;clientId:string;playbook:string;requests:RoomRequest[];brief:import('../kit/client-room-core.ts').RoomBrief|null};

@@ -219,6 +219,8 @@ export type KitScope = { inScope: readonly string[]; outOfScope: readonly string
 
 /** Everything a business package fills in its playbooks/<id>/definition.ts (the plan's 5A1 table). */
 export type PlaybookDefinition = {
+  /** Enables the shared version-bound client request room for this playbook. */
+  clientRoom?: boolean;
   registration: PlaybookRegistration;
   offers: readonly KitOffer[];
   roles: readonly KitRole[];
@@ -317,6 +319,7 @@ export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, toda
   const refuse = (field: string, why: string): never => {
     throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} playbook's ${field}: ${why}`);
   };
+  if (definition.clientRoom !== undefined && typeof definition.clientRoom !== 'boolean') refuse('clientRoom', 'must be true or false.');
   try { validateRegistry([definition.registration]); } catch (error) { refuse('registration', (error as Error).message); }
 
   const roles = new Map<string, KitRole>();

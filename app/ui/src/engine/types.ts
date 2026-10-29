@@ -549,6 +549,7 @@ export interface BlueprintLite {
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {
+    taxRateBps?:string;taxState?:string|null;lutConfirmed?:boolean;
     currency: string; taxLabel: string; taxRegistered: LabelledLite<boolean>; invoiceKind: 'tax-invoice' | 'invoice';
     taxInvoiceReady: boolean; taxInvoiceMissing: string[]; paymentRail: string;
   };
@@ -1394,8 +1395,8 @@ export type RoutineSchedule =
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
-export interface RoutineInput { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
+export interface RoutineView { recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
 export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
 export interface AutoReadinessView { agent: string; items: { id: string; label: Display; met: boolean; line: Display }[]; locked: true; line: Display }

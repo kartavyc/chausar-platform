@@ -114,5 +114,12 @@
     "offers": [
       "audiobook"
     ]
+  },
+  {
+    "id": "virtual-assistant",
+    "offers": [
+      "va-monthly",
+      "errands-pack"
+    ]
   }
 ]

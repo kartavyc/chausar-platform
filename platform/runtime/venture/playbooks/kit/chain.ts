@@ -31,7 +31,7 @@ export const DEFAULT_MAX_LOOPS = 2;
 const DAY_MS = 86_400_000;
 
 /** A kit order's chain: its definition, offer and stage steps, in order. */
-export type ChainDefinition=Pick<PlaybookDefinition,'registration'|'offers'|'steps'|'rules'|'checkIds'|'connectors'>;
+export type ChainDefinition=Pick<PlaybookDefinition,'registration'|'offers'|'steps'|'rules'|'checkIds'|'connectors'|'clientRoom'>;
 export type KitChain = { definition: ChainDefinition; offer: KitOffer; steps: KitStep[] };
 
 /** The chain a kit offer is, or null when the playbook has no such offer. A one-stage offer is a chain of one. */
