@@ -686,3 +686,8 @@ Narration, audiobook and explainer service: exact source-bound markup, owner-app
 ## Completed batch-two gate integration
 
 All six fixed-inventory engine shards pass sequentially:1110,1106,1102,1190,1116,3 tests. The dedicated final shard is the complete independent activation test. UI2546/2546, both types and syntax1740 pass. Inventory SHA256:e43d2b3039ee56ce7e15a4441af6fccfb1fbfc1ceed51e075c1f6e783daa351b. Initial timeout/failure reports remain preserved. The remaining reviewed fixes now land: bounded code-owned offer identities with unchanged model cap3, exact current Story editor/Cutter expectations, real social chain setup, current connector mode assertions and required native-derived guide fixtures. No live provider qualification is claimed.
+
+
+## Batch-three UI gate follow-up
+
+The fixed-tree full UI run recorded 2696 passing, nine failing and two setup-blocked tests. Seven stale assertions in the gallery and Business were independently reviewed, repaired and passed all 66 focused tests. The unchanged dev-page and Today tests passed all 12 after the snapshot dependency link and an isolated retry, including both previously blocked tests. The onboarding word count remains 821 against 330 and is not silently raised; final measurement and every proposed rise belong in the founder PR. Both types and syntax2333 passed before this test-only follow-up. Both types and syntax2333 also passed on the reviewed follow-up snapshot before commit. Engine shards continue on the immutable committed snapshot; no final batch-three gate claim is made here.

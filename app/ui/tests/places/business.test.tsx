@@ -142,7 +142,12 @@ describe('Business: platform rules (2H)', () => {
     const later = rulesListFor({ id: 'social-agency', label: 'Social media agency' }, '2027-01-25');
     const newer = later.rules.filter(rule => rule.checkedOn === '2026-10-27');
     expect(newer.every(rule => !rule.stale)).toBe(true);
-    expect(later.summary).toBe(`${newer.length} current, ${later.rules.length - newer.length} to recheck.`);
+    const {RULE_DATA}=await import('../../src/engine/fixtures-rules-data');
+    const sample=RULE_DATA['social-agency']!;
+    const isOld=(rule:typeof sample[number])=>(Date.parse('2027-01-25')-Date.parse(rule.checkedOn))/86400000>rule.windowDays;
+    const stale=sample.filter(isOld),unconfirmed=sample.filter(rule=>!isOld(rule)&&rule.unconfirmed);
+    expect(later.rules.filter(rule=>rule.stale).map(rule=>rule.id)).toEqual(stale.map(rule=>rule.id));
+    expect(later.summary).toBe(`${sample.length-stale.length-unconfirmed.length} current, ${stale.length} to recheck${unconfirmed.length?`, ${unconfirmed.length} not confirmed against a source yet`:''}.`);
     expect(later.rules.find(rule => rule.id === 'x-weighted-280')!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
     for (const id of ['social-agency', 'youtube']) expect(rulesListFor({ id, label: id }, '2026-10-23').summary).not.toMatch(/rests on no dated platform rules/);
   });
@@ -479,7 +484,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
     const rates = screen.getByRole('region', { name: 'Rate tables to confirm' });
     expect(within(rates).getByRole('checkbox', { name: 'GST rates for services' })).toBeTruthy();
-    expect(rates.textContent).toContain('Version 3');
+    expect(rates.textContent).toContain('Version 2');
     expect(rates.textContent).toContain('no end date');
     expect(rates.textContent).toContain('CBIC rate notification for services, September 2025');
     const requests = screen.getByRole('region', { name: 'Sign-off requests' });
@@ -494,7 +499,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     fireEvent.click(within(rates).getByRole('checkbox', { name: 'GST rates for services' }));
     fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '999999' } });
     await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
-    await waitFor(() => expect(within(rates).getByRole('alert').textContent).toBe("That is not Meera Joshi's membership number. Only your CA of record signs."));
+    await waitFor(() => expect(within(rates).getByRole('alert').textContent).toBe('That is not the ICAI membership number of Meera Joshi, your CA of record.'));
     fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '412345' } });
     await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
     await waitFor(() => expect(within(rates).getByText('Confirmed 1 rate table.')).toBeTruthy());
