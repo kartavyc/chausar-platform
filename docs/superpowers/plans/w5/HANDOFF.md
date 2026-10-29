@@ -4,6 +4,8 @@ Read `AGENTS.md` at the repo root first: the founder's rules, how work is done, 
 
 ## Current continuation
 
+PR [#9, Ink v2 wave 5: playbooks](https://github.com/kartavyc/chausar-platform/pull/9) is open against `b2c/ink-v2-w4`. The cross-platform CI follow-up fixes only native test fixture paths and the Windows rehearsal oracle, with separate spec/quality review and focused 13/13 native plus 8/8 UI checks. Product behavior and verified pixels are unchanged. The live PR checks are authoritative for the latest Ubuntu/Windows status; earlier install failures and test failures remain recorded. See the final CI follow-up in NOTES. No PR has been merged.
+
 29 October 2026, pre-PR local integration checkpoint. All 39 planned packages are implemented and committed through R6 `da38c076`, with independent spec and quality review. Batch-one findings and 5A1 nits are closed. The reviewed shared integration is ready for its commit. The older checkpoints below are historical.
 
 Final native/UI typechecks, syntax for 2,892 source files and production UI build pass. The complete current UI suite passes 2977/2977 across 297 files, with no skips or todos. The final source fixes include required raw amount/currency fields in WorkReceiptLite and an exact three-step Editor test expectation; neither changes runtime behavior or verified pixels. Their original failed attempts are preserved, with independent acceptance and focused 26/26 and 31/31 checks.

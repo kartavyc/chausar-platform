@@ -80,11 +80,53 @@ it('keeps ghostwriting price in paise and refuses a selling cap outside the rang
 
 it('matches engine normalization and refusal codes and words across social legacy inputs', async () => {
  const { create } = desk('content-calendar');
- const samples: unknown[] = [undefined, {}, { format: 'short', aiPresenter: true }, { clientRules: { competitors: [' Shop ', 'Shop'] } }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 2, weekdays: [1] } }, { calendar: { month: '2026-10', channels: ['x'], postsPerChannel: 31, weekdays: [1,2,3,4,5,6,7] } }, { clientRules: { invented: [] } }, { rights: {} }, { cutFile: 'relative.mp4' }, { paidPromotion: null }, { format: null }, { fields: { sellingCap: '20' } }, { invented: 1 }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 10, weekdays: [1] } }];
+ const samples: unknown[] = [undefined, {}, { format: 'short', aiPresenter: true }, { clientRules: { competitors: [' Shop ', 'Shop'] } }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 2, weekdays: [1] } }, { calendar: { month: '2026-10', channels: ['x'], postsPerChannel: 31, weekdays: [1,2,3,4,5,6,7] } }, { clientRules: { invented: [] } }, { rights: {} }, { cutFile: 'relative.mp4' }, { cutFile: 'C:/cuts/review.mp4' }, { cutFile: '/cuts/review.mp4' }, { cutFile: '//server/review.mp4' }, { cutFile: 'C:/cuts/review.txt' }, { paidPromotion: null }, { format: null }, { fields: { sellingCap: '20' } }, { invented: 1 }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 10, weekdays: [1] } }];
  const capture = (run: () => unknown) => { try { return { value: run() }; } catch (error) { const problem = error as Error & {code: string}; return { code: problem.code, message: problem.message }; } };
- // Execute the real native boundary in Node. Bundling its entire runtime into jsdom is not the production path.
- const moduleUrl=pathToFileURL(resolve(process.cwd(),'platform/runtime/venture/playbooks/intake.ts')).href;
- const script=`import {readFileSync} from 'node:fs';import {serialize,deserialize} from 'node:v8';import {orderIntake} from ${JSON.stringify(moduleUrl)};const {samples,offer,options}=deserialize(readFileSync(0));const capture=run=>{try{return {value:run()};}catch(error){return {code:error.code,message:error.message};}};process.stdout.write(serialize(samples.map(sample=>capture(()=>orderIntake(sample,offer,options)))));`;
- const expected=deserialize(execFileSync(process.execPath,['--input-type=module','-e',script],{input:serialize({samples,offer:{key:'content-calendar',name:'Social service',rights:[],intake:socialIntakeFields('content-calendar')},options:{by:'owner',at:'2026-10-27T10:00:00.000Z',today:'2026-10-27',host:'desktop'}}),timeout:15000}));
+ const expected = nativeIntakes(samples, 'win32');
  for (const [index,sample] of samples.entries()) expect(capture(() => create(sample).intake)).toEqual(expected[index]);
+}, 20000);
+
+
+type IntakeResult = { value: OrderLite['intake'] } | { code: string; message: string };
+/** The browser rehearsal models Windows. Select that same platform in the isolated native oracle,
+ * independently of the CI runner. cutFile delegates to localPathProblem's explicit platform branch;
+ * it performs no node:path normalization or filesystem operation. Imports keep the real host context. */
+function nativeIntakes(samples: unknown[], platform: 'win32' | 'linux'): IntakeResult[] {
+ const moduleUrl = pathToFileURL(resolve(process.cwd(), 'platform/runtime/venture/playbooks/intake.ts')).href;
+ const script = `
+  import {readFileSync} from 'node:fs';
+  import {serialize,deserialize} from 'node:v8';
+  import {orderIntake} from ${JSON.stringify(moduleUrl)};
+  const {samples,offer,options,platform}=deserialize(readFileSync(0));
+  Object.defineProperty(process,'platform',{value:platform});
+  const capture=run=>{try{return {value:run()};}catch(error){return {code:error.code,message:error.message};}};
+  process.stdout.write(serialize({platform:process.platform,results:samples.map(sample=>capture(()=>orderIntake(sample,offer,options)))}));
+ `;
+ const output = deserialize(execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+  input: serialize({ samples, platform, offer: { key: 'content-calendar', name: 'Social service', rights: [], intake: socialIntakeFields('content-calendar') },
+   options: { by: 'owner', at: '2026-10-27T10:00:00.000Z', today: '2026-10-27', host: 'desktop' } }), timeout: 15000,
+ })) as { platform: string; results: IntakeResult[] };
+ expect(output.platform).toBe(platform);
+ return output.results;
+}
+
+it('keeps Windows rehearsal paths exact while independently checking native POSIX paths and refusals', () => {
+ const paths = ['C:/cuts/review.mp4', '/cuts/review.mp4', 'relative.mp4', '//server/review.mp4', 'C:/cuts/review.txt', '/cuts/review.txt'];
+ const windows = nativeIntakes(paths.map(cutFile => ({ cutFile })), 'win32');
+ const posix = nativeIntakes(paths.map(cutFile => ({ cutFile })), 'linux');
+ const invalid = (message: string) => ({ code: 'INVALID_VENTURE_REQUEST', message });
+ const windowsPath = invalid('The cut: Give the full path to a file on this computer, starting with a drive letter such as C:\\.');
+ const posixPath = invalid('The cut: Give the full path to a file on this computer, starting with /.');
+ const network = invalid('The cut: A file on a network share is not read. Copy it to this computer and give that path.');
+ const extension = invalid('Name the cut as a full path to an MP4, MOV, M4V, MKV or WEBM file on this computer.');
+ expect(windows[0]).toMatchObject({ value: { cutFile: paths[0] } });
+ expect(posix[1]).toMatchObject({ value: { cutFile: paths[1] } });
+ expect(windows.slice(1)).toEqual([windowsPath, windowsPath, network, extension, windowsPath]);
+ expect([posix[0], ...posix.slice(2)]).toEqual([posixPath, posixPath, network, posixPath, extension]);
+ const { create } = desk('content-calendar');
+ const actual = paths.map(cutFile => {
+  try { return { value: create({ cutFile }).intake }; }
+  catch (error) { const problem = error as Error & { code: string }; return { code: problem.code, message: problem.message }; }
+ });
+ expect(actual).toEqual(windows);
 }, 20000);

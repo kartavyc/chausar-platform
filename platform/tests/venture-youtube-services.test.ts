@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {business,owner} from './venture-judge-helpers.ts';
 import {listRecords,ventureAction} from '../runtime/venture/records.ts';
 import {flagshipPlanById} from '../runtime/venture/playbooks/plan.ts';
@@ -39,8 +41,8 @@ test('screencast service intake preserves the actual local video path and disclo
  const f=await business(idea),added=await f.call('venture.blueprint.update',{patch:{addOffer:{youtubeService:'screencast-tutorial'}}}),service=added.blueprint.offers.at(-1)!;
  assert.deepEqual(added.intake[service.id].fields,['format','aiVoice','aiPresenter','paidPromotion','cutFile']);
  const priced=await f.call('venture.blueprint.update',{patch:{offers:[{id:service.id,unitPrice:'1500'}]}});await f.call('venture.blueprint.accept',{digest:priced.blueprint.digest});
- const order=await f.call('venture.order.create',{clientId:f.client.id,offerId:service.id,request:'An instructional screencast and three Shorts.',intake:{...intake,format:'long',aiVoice:true,aiPresenter:false,paidPromotion:false,cutFile:'C:\\recordings\\lesson.mp4'}});
- assert.equal(order.intake.cutFile,'C:\\recordings\\lesson.mp4');assert.equal(order.intake.aiVoice,true);assert.equal(order.intake.fields.scripted,true);
+ const order=await f.call('venture.order.create',{clientId:f.client.id,offerId:service.id,request:'An instructional screencast and three Shorts.',intake:{...intake,format:'long',aiVoice:true,aiPresenter:false,paidPromotion:false,cutFile:join(tmpdir(),'chausar-youtube-lesson.mp4')}});
+ assert.equal(order.intake.cutFile,join(tmpdir(),'chausar-youtube-lesson.mp4'));assert.equal(order.intake.aiVoice,true);assert.equal(order.intake.fields.scripted,true);
  await assert.rejects(f.call('venture.order.create',{clientId:f.client.id,offerId:service.id,request:'No network footage.',intake:{...intake,cutFile:'\\\\server\\lesson.mp4'}}),{code:'INVALID_VENTURE_REQUEST'});
 });
 
