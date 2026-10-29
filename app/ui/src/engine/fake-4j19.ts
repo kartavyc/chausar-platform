@@ -110,7 +110,11 @@ export class FakeApprovalsDesk {
       case 'venture.delivery.decideChange': return this.decideChange(p);
       case 'venture.triage.preview': return this.triagePreview(p);
       case 'venture.triage.set': return this.triageSet(p);
-      case 'venture.work.get': throw new EngineError('WORK_RECEIPT_NOT_FOUND', 'That work receipt was not found.');
+      case 'venture.work.get': {
+        if(Object.keys(p).some(key=>key!=='id')||typeof p.id!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(p.id))throw new EngineError('INVALID_VENTURE_REQUEST','Work receipt must be a known identifier.');
+        const receipt=this.host.workReceipt?.(p.id);if(receipt)return structuredClone(receipt);
+        throw new EngineError('WORK_RECEIPT_NOT_FOUND', 'That work receipt was not found.');
+      }
       case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse() };
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }

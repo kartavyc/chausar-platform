@@ -12,6 +12,28 @@ async function env(content: string): Promise<ToolEnv> {
   return { deps: base.deps, ventureId: base.venture.id, memberId: 'owner', epoch: 1, currency: 'INR', dateOrder: 'day-month-year', runRef: { kind: 'rehearsal', scenarioId: 'bookkeeping-cfo-clean', episode: 1 }, files: [{ id: 'upload_ledger', name: 'ledger.csv', format: 'csv', bytes: Buffer.byteLength(content), digest: digest(contentBase64), contentBase64, clientData: false }], tables: [], receipts: [], dictionary: [], sandbox: undefined, now: base.now, allowed: [] };
 }
 
+test('voucher tool drafts exact paired entries from uploaded rupee rows, with receipts and no posting',async()=>{
+ const toolEnv=await env('id,on,description,debitAccount,creditAccount,amount\nrent,2026-10-28,Rent receipt,rent,bank,100.25');
+ const result=await BOOKKEEPING_CFO_TOOLS['vouchers.draft'].run(toolEnv,{table:'f1',cycleId:'rehearsal'});
+ const data=(result.result as any).data;
+ assert.equal(data.vouchers[0].state,'draft');assert.equal(data.vouchers[0].lines[0].debitMinor,'10025');assert.equal(data.posted,false);
+ assert.equal(result.receipts?.[0].figures[0]?.minor,'10025');
+ toolEnv.runRef={kind:'delivery',runId:'unbound'};
+ await assert.rejects(BOOKKEEPING_CFO_TOOLS['vouchers.draft'].run(toolEnv,{table:'f1',cycleId:'rehearsal'}),{code:'BOOKS_CYCLE_INVALID'});
+});
+test('books write tool keeps practice local and refuses a dry run from another delivery',async()=>{
+ const toolEnv=await env('id,amount\none,100');
+ const practice=await BOOKKEEPING_CFO_TOOLS['books.write'].run(toolEnv,{postingId:'rehearsal'});assert.deepEqual(practice.result,{rehearsal:true,posted:false,requiresOwnerApproval:true});
+ toolEnv.runRef={kind:'delivery',runId:'missing'};
+ await assert.rejects(BOOKKEEPING_CFO_TOOLS['books.write'].run(toolEnv,{postingId:'other-client'}),{code:'BOOKS_WORK_NOT_FOUND'});
+});
+test('seller and setup tools calculate actual CSV sources without claiming external changes',async()=>{
+ const seller=await env('kind,orderId,on,source,expectedRupees,paidRupees,detail\norder,one,2026-10-27,Order export,,,\nsettlement,one,2026-10-28T10:00:00Z,Settlement export,100,99,\nfee-slab,one,,Fee card,1,,\ntcs,,,Credit statement,0.50,0.40,CA section to review');
+ const report=await BOOKKEEPING_CFO_TOOLS['seller.books'].run(seller,{table:'f1',cycleId:'rehearsal',month:'2026-10'});assert.equal((report.result as any).data.posted,false);assert.equal(report.receipts?.[0].figures.find(row=>row.key==='credit-tcs')?.minor,'10');
+ const setup=await env('kind,id,name,source,debitRupees,creditRupees\ncustomer,c1,Client,Client list,,\ncategory,bank,Bank,Statement,,\ncategory,equity,Equity,Statement,,\nopening,bank,,Statement,100,0\nopening,equity,,Statement,0,100');
+ const draft=await BOOKKEEPING_CFO_TOOLS['books.setup'].run(setup,{table:'f1',cycleId:'rehearsal'});assert.equal((draft.result as any).data.setup.customers[0].id,'c1');assert.equal((draft.result as any).data.posted,false);assert.equal(draft.receipts?.[0].figures[0]?.minor,'10000');
+});
+
 test('CFO ratio tool reads amounts from the source file and returns usable work receipts', async () => {
   const toolEnv = await env('kind,amount\nreceivables,3000\npayables,1000\nrevenue,9000\ncosts,6000\ninventory,2000\ncash,12000\nnet-cash,-2000');
   const out = await BOOKKEEPING_CFO_TOOLS['cfo.ratios'].run(toolEnv, { table: 'f1', days: '30' });

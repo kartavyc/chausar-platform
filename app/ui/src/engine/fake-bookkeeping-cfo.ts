@@ -3,6 +3,7 @@ import { EngineError, type OrderLite } from './types';
 import { readCollectionsSource } from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/collections-source-core';
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
+import {fakeBooksFinance} from './fake-books-finance';
 
 /** Browser-safe startup metadata; shared fake onboarding consumes this, not server modules. */
 export const BOOKKEEPING_FAKE_METADATA = {
@@ -13,6 +14,8 @@ export const BOOKKEEPING_FAKE_METADATA = {
     { id: 'cfo-pack', name: 'Monthly CFO pack', description: 'Cash, working capital and scenarios with labelled figures.', pricing: 'monthly', unit: 'a client a month', intake: ['data-consent', 'period', 'question'], price: 'owner-sets' },
     { id: 'decision-memo', name: 'A decision memo', description: 'A clear answer to a finance question, with assumptions beside the scenarios.', pricing: 'project', unit: 'per memo', intake: ['data-consent', 'period', 'question'], price: 'owner-sets' },
     { id: 'money-checkup', name: 'Money check-up', description: 'A read-only spending summary and possible savings to review.', pricing: 'project', unit: 'per check-up', intake: ['data-consent', 'period', 'question', 'large-payment-threshold'], price: 'owner-sets' },
+    { id: 'seller-books', name: 'Monthly seller books', description: 'Reconcile orders, payouts and tax credits, then review exact accounting drafts before posting.', pricing: 'monthly', unit: 'a client a month', intake: ['data-consent', 'period', 'question'], price: 'owner-sets' },
+    { id: 'back-office-setup', name: 'Client books setup', description: 'Prepare customers, vendors, accounts and balanced opening entries for the client accounting system.', pricing: 'project', unit: 'per client setup', intake: ['data-consent', 'period', 'question'], price: 'owner-sets' },
   ],
   intakeFields: [
     { id: 'data-consent', label: 'Client consent to use these files', help: 'Confirm the client agreed to share their minimum necessary records.', kind: 'consent', required: true },
@@ -51,6 +54,7 @@ function validate(ladder: Ladder): void {
 
 /** The fake reads real fake invoice payments on every list; no owner or model flag can mark a promise kept. */
 export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
+  const finance=fakeBooksFinance(host);
   const promises: PromiseStored[] = [];
   const ladders = new Map<string, Ladder>();
   const orders = () => host.ask('venture.order.list', {}) as OrderLite[];
@@ -88,7 +92,10 @@ export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
   });
   const changed = (_kind: string, _recordId: string) => host.emit({ type: 'desk.changed', businessId: host.current(), at: host.now() });
   return { playbook: 'bookkeeping-cfo',
+    endSession:finance.endSession,
+    workReceipt:finance.workReceipt,
     forgetPeople(people, removeClient) {
+      finance.forget(people);
       if (!removeClient) return;
       const clientIds = new Set(people.flatMap(person => person.clientId ? [person.clientId] : []));
       const names = people.flatMap(person => [...person.names, ...person.emails, ...person.phones]).map(word => word.trim().toLowerCase()).filter(Boolean);
@@ -101,6 +108,10 @@ export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
       if (saved && namesSomeone(JSON.stringify(saved))) ladders.delete(host.current());
     },
     kinds: {
+    finance:finance.kind,
+    posting:finance.posting,
+    settlement:finance.settlement,
+    setup:finance.setup,
     ledger: { list(p) { const body = exact(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); if (body.filter !== undefined) exact(body.filter, []); return { playbook: 'bookkeeping-cfo', kind: 'ledger', rows: invoices(), line: 'Invoices in your client uploaded debtor ledgers.' }; } },
     promise: {
       list(p) { const body = exact(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); const filter = body.filter === undefined ? {} : exact(body.filter, ['clientId']); if (filter.clientId !== undefined) id(filter.clientId, 'Client'); return { playbook: 'bookkeeping-cfo', kind: 'promise', rows: rows().filter(row => !filter.clientId || row.clientId === filter.clientId), line: 'Your client approves and sends every reminder.' }; },

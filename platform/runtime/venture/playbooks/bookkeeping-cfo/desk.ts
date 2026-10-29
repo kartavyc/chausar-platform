@@ -9,10 +9,14 @@ import { ownerPrice } from '../../core/words.ts';
 import { collectionSource, collectionInvoices, type CollectionsInvoiceRow } from './collections-source.ts';
 import { daysFrom } from '../../money/ledger.ts';
 import { collectionStage, DEFAULT_LADDER, promiseStatus, reminderDraft, validateLadder, type CollectionStage } from './collections.ts';
+import {FINANCE_DESK,type FinanceDeskTypes} from './finance-desk.ts';
+import {BOOKS_POSTING_DESK,type BooksPostingDeskTypes} from './posting-desk.ts';
+import {SETTLEMENT_DESK,type SettlementDeskTypes} from './settlement-desk.ts';
+import {SETUP_DESK,type SetupDeskTypes} from './setup-desk.ts';
 
 export type PromiseRow = { id: string; clientId: string; clientName: string; invoiceIds: string[]; promisedOn: string; statedBy: string; status: 'kept' | 'pending' | 'broken'; stage: string; stageName: string; digest: string };
 export type LadderRow = { id: string; ladder: CollectionStage[]; digest: string };
-export type BookkeepingCfoDeskTypes = {
+export type BookkeepingCfoDeskTypes = FinanceDeskTypes & BooksPostingDeskTypes & SettlementDeskTypes & SetupDeskTypes & {
   ledger: DeskKindTypes & { row: CollectionsInvoiceRow; item: CollectionsInvoiceRow; actions: Record<never, never> };
   promise: DeskKindTypes & { row: PromiseRow; item: PromiseRow; actions: { record: { payload: { clientId: string; serviceOrderId: string; sourceName: string; invoiceIds: string[]; amountRupees: string; promisedOn: string; method: string; statedBy: string }; result: PromiseRow }; reminder: { payload: { text: string }; result: ReturnType<typeof reminderDraft> } } };
   ladder: DeskKindTypes & { row: LadderRow; item: LadderRow; actions: { set: { payload: { ladder: CollectionStage[] }; result: LadderRow } } };
@@ -47,6 +51,10 @@ function top(value: unknown, operation: 'list' | 'get' | 'act') {
 
 /** New promises and ladder edits are explicit owner actions; reminders stay client-only drafts. */
 export const BOOKKEEPING_CFO_DESK: DeskHandlers = Object.freeze({
+  ...FINANCE_DESK,
+  ...BOOKS_POSTING_DESK,
+  ...SETTLEMENT_DESK,
+  ...SETUP_DESK,
   ledger: {
     async list(deps, ctx, payload) { const body = top(payload, 'list'); if (body.filter !== undefined) exactPayload(body.filter, []); const { state, venture } = readAs(deps, ctx, 'read'); return { playbook: 'bookkeeping-cfo', kind: 'ledger', rows: collectionInvoices(state, venture), line: 'Invoices in your client uploaded debtor ledgers.' }; },
   },

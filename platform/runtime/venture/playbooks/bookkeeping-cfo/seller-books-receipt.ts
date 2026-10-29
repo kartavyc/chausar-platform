@@ -1,0 +1,8 @@
+// Shared monthly receipt display. Payout and tax-credit differences remain distinct figures.
+import {formatMinor} from '../../../currency.ts';
+import type {sellerBooks} from './seller-books.ts';
+export function sellerBooksReceipt(workId:string,source:{id:string;name:string;digest:string},report:ReturnType<typeof sellerBooks>){
+ const raw=[...report.settlement.rows.map(row=>({key:'payout-'+row.orderId,label:row.orderId,minor:row.differenceMinor})),...report.credits.map(row=>({key:'credit-'+row.kind,label:row.kind.toUpperCase(),minor:row.differenceMinor}))];
+ const figures=raw.map(row=>({...row,display:formatMinor(row.minor,'INR'),currency:'INR',unit:'money' as const}));
+ return {operation:'work.totals' as const,runRef:{kind:'delivery' as const,runId:workId},currency:'INR',inputs:{tables:[source],columns:{expectedRupees:'expectedRupees',paidRupees:'paidRupees'},rowIds:raw.map(row=>row.key)},steps:[...report.settlement.rows.map(row=>({op:'subtract' as const,inputs:[report.payouts.find(value=>value.orderId===row.orderId)!.expectedMinor,report.payouts.find(value=>value.orderId===row.orderId)!.paidMinor],result:row.differenceMinor,rule:'Seller settlement engine: expected source payout less actual source payout; named adjustments explain the difference.'})),...report.credits.map(row=>({op:'subtract' as const,inputs:[row.expectedMinor,row.creditedMinor],result:row.differenceMinor,rule:'Expected source credit less credited source amount. A CA confirms the section.'}))],figures,reconciliation:null,allowedNumbers:figures.flatMap(row=>[row.minor,row.display]),explanation:'Payout and GST, TCS and TDS credit differences are separate. A CA must confirm sections. Nothing was posted or filed.',digest:''};
+}

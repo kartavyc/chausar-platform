@@ -1,3 +1,4 @@
+import {localizedBooksGuide} from './BooksGuide';
 import {localizedPlaybookGuide} from './PlaybookGuide';
 import { useId } from 'react';
 import { useLanguage, useT } from '../../text';
@@ -21,7 +22,7 @@ function dayOf(day: string, language: string): string {
  */
 export function Guide({ guide: originalGuide, connectorId }: { guide: ConnectorGuideLite; connectorId?: string }) {
   const t = useT();
-  const guide = localizedPlaybookGuide(t, connectorId, originalGuide);
+  const guide = localizedPlaybookGuide(t, connectorId, localizedBooksGuide(t, connectorId, originalGuide));
   const language = useLanguage();
   const headingId = useId();
   const stepsId = useId();

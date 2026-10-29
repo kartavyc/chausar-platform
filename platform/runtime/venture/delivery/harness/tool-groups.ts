@@ -114,6 +114,8 @@ export const TOOL_GROUPS: Readonly<Record<ToolName, ToolGroup>> = Object.freeze(
   'money.checkup': 'bookkeeping-cfo',
   'books.write': 'bookkeeping-cfo',
   'vouchers.draft': 'bookkeeping-cfo',
+  'seller.books': 'bookkeeping-cfo',
+  'books.setup': 'bookkeeping-cfo',
   // podcast-to-article (5L)
   'article.ledger': 'podcast-to-article',
   'article.style': 'podcast-to-article',

@@ -163,8 +163,10 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'cfo.scenarios': { effects: ['read'], ...OF_FILES },
   'collections.ladder': { effects: ['read'], ...OF_FILES },
   'money.checkup': { effects: ['read'], ...OF_FILES },
-  'books.write': { effects: ['write', 'egress'], ...OWN },
-  'vouchers.draft': { effects: ['write'], ...OWN },
+  'books.write': { effects: ['read'], ...OF_FILES },
+  'vouchers.draft': { effects: ['read'], ...OF_FILES },
+  'seller.books': { effects: ['read'], ...OF_FILES },
+  'books.setup': { effects: ['read'], ...OF_FILES },
   // podcast-to-article (5L)
   'article.ledger': { effects: ['read'], ...OF_FILES },
   'article.style': { effects: ['read'], ...OF_FILES },

@@ -4,6 +4,11 @@ import {collectionStage,promiseStatus,type PromiseInput,type PromisePayment} fro
 import {financeFindings,questionRoute} from './cfo.ts';
 import {cfoRatios,cfoScenarios} from '../../money/cfo-sums.ts';
 import {moneyCheckup,type LedgerRow} from './checkup.ts';
+import {financeCycle,type CycleInput} from './cycles.ts';
+import {setupDraft,type SetupInput} from './setup.ts';
+import {voucherDraft,approveVoucher,type VoucherInput} from './vouchers.ts';
+import {sellerBooks,type SellerBooksInput} from './seller-books.ts';
+import {decidePosting,type BooksOrder,type ExistingBooksRecord} from './posting-core.ts';
 
 function source<T>(item:KitBaselineCase):T {
  const raw=JSON.parse(item.meta?.source??'null');
@@ -39,7 +44,23 @@ export function scoreFinanceBaseline(item:KitBaselineCase,draft:string){
     const value=source<{candidate:string}>(item);
     pass=typeof value.candidate==='string'&&financeFindings(value.candidate).includes('spending-only')&&/spending only/i.test(draft);break;
    }
-
+   case 'opening-balanced': {
+    const value=source<{cycle:CycleInput;input:Omit<SetupInput,'cycle'>}>(item),result=setupDraft({...value.input,cycle:financeCycle(value.cycle)});
+    pass=result.debitMinor==='1100'&&result.creditMinor==='1100'&&result.state==='draft'&&result.systemOfRecord==='client'&&/balanced.*owner approval/i.test(draft);break;
+   }
+   case 'receipt-approval': {
+    const value=source<{cycle:CycleInput;input:Omit<VoucherInput,'cycle'>;by:string;at:string}>(item),prepared=voucherDraft({...value.input,cycle:financeCycle(value.cycle)});
+    const approved=approveVoucher(prepared,{digest:prepared.digest,receiptDigest:value.input.receipt.digest,by:value.by,at:value.at});
+    pass=prepared.totalMinor==='1000'&&approved.state==='approved'&&approved.posted===false&&/approved.*not posted/i.test(draft);break;
+   }
+   case 'seller-credits-separate': {
+    const value=source<{cycle:CycleInput;input:Omit<SellerBooksInput,'cycle'>}>(item),result=sellerBooks({...value.input,cycle:financeCycle(value.cycle)});
+    pass=result.creditDifferenceMinor==='20'&&result.requiresCaConfirmation&&result.posted===false&&result.credits.map(r=>r.differenceMinor).join(',')==='0,10,10'&&/credits.*CA.*separate/i.test(draft);break;
+   }
+   case 'posting-date-and-remainder': {
+    const value=source<{order:BooksOrder;existing:ExistingBooksRecord[]}>(item),result=decidePosting(value.order,value.existing);
+    pass=result.action==='create-draft'&&result.postingDate==='2026-10-29'&&result.lines.map(r=>r.amountMinor).join(',')==='51,50'&&/draft.*issue.*separate/i.test(draft);break;
+   }
   }
  }catch{pass=false;}
  return {pass,why:pass?'Source calculations and the required finance boundary agree.':'The finance source, result or required boundary is missing or changed.'};

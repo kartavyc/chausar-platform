@@ -20,6 +20,8 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
     offer('cfo-pack', 'Monthly CFO pack', 'Cash, working capital and scenarios with labelled figures.', ['read', 'cash-flow', 'working-capital', 'ageing', 'payables', 'scenarios', 'memo', 'approve']),
     offer('decision-memo', 'A decision memo', 'A clear answer to a finance question, with assumptions beside the scenarios.', ['read', 'business-case', 'costs', 'cash', 'cash-flow', 'working-capital', 'ageing', 'payables', 'scenarios', 'memo', 'approve'], 'project'),
     offer('money-checkup', 'Money check-up', 'A read-only spending summary and possible savings to review.', ['read', 'checkup', 'memo', 'approve'], 'project'),
+    offer('seller-books', 'Monthly seller books', 'Reconcile orders, payouts and tax credits, then review exact accounting drafts before posting.', ['read', 'seller-reconcile', 'accounting-handoff', 'accounting-approve', 'memo', 'approve']),
+    {...offer('back-office-setup', 'Client books setup', 'Prepare customers, vendors, accounts and balanced opening entries for the client accounting system.', ['read', 'setup-draft', 'receipt-vouchers', 'memo', 'approve'], 'project'),unit:'per client setup'},
   ],
   roles: [
     { id: 'analyst', name: 'Finance analyst', kind: 'agent', department: 'money', job: 'Reads client files and explains the calculator results.' },
@@ -39,11 +41,17 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
     compute('payables', 'Read the amounts to pay', ['cfo.ratios']),
     compute('scenarios', 'Calculate the scenarios', ['cfo.scenarios']),
     compute('checkup', 'Review spending and subscriptions', ['money.checkup']),
+    compute('seller-reconcile', 'Reconcile the monthly seller sources', ['seller.books']),
+    compute('setup-draft', 'Prepare the client setup entries', ['books.setup']),
+    compute('receipt-vouchers', 'Draft vouchers from client receipts', ['vouchers.draft']),
+    compute('accounting-handoff', 'Bring the exact dry run to the owner', ['books.write']),
+    {id:'accounting-approve',title:'Review the exact accounting dry run',kind:'approve',tier:'code',model:null,doneBy:'you',requiredSections:[],checks:[],tools:[],role:'owner',produces:'Accounting review',floor:'Create drafts only after exact owner approval. Issuing asks separately.'},
     write('memo', 'Write the finance note'),
     { id: 'legal-review', title: 'Ask a qualified reviewer about legal and tax questions', kind: 'approve', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], role: 'owner', produces: 'Professional review', floor: 'Legal and tax conclusions wait for professional confirmation.' },
     { id: 'approve', title: 'Review and approve the client report', kind: 'approve', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], role: 'owner', produces: 'Approved report', floor: 'Every report and reminder handoff needs the owner approval.' },
   ],
   approvals: [
+    {id:'review-accounting',words:'Review exact draft requests in the accounting desk. Issuing needs a separate approval.',step:'accounting-approve',who:'owner',floor:true,secondAsk:true},
     { id: 'review-report', words: 'Approve every report; your client reviews and sends each reminder.', step: 'approve', who: 'owner', floor: true, secondAsk: false },
     { id: 'review-legal', words: 'A CA or lawyer confirms legal and tax conclusions before client use.', step: 'legal-review', who: 'other', floor: true, secondAsk: false },
   ],
@@ -51,7 +59,8 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
     { id: 'client-files', name: 'Client files and statements', label: 'read', note: 'Read only the files the client has agreed to share.' },
     { id: 'chausar-books', name: 'Chausar books', label: 'write', note: 'The owner records and approves each change in the existing books.' },
     { id: 'tally', name: 'Tally exports', label: 'read', note: 'Read the client exported CSV; no live Tally connection is claimed.' },
-    { id: 'zoho-books', name: 'Zoho Books', label: 'planned: read', note: 'Live reading is planned.', waitsOn: 'The accounting connector package and account verification.', manualPath: 'Ask the client to export their ledger as CSV and upload it.' },
+    { id: 'zoho-books', name: 'Zoho Books', label: 'write', note: 'Owner self-client connection. Exact-approved drafts, setup and received settlements are read back. Invoice issue asks separately. No email is sent.' },
+    { id: 'tally-drafts', name: 'Tally optional drafts', label: 'planned: write', note: 'The local XML profile needs a verified installation capture.', waitsOn: 'A reviewed native voucher export and the client company profile.', manualPath: 'Enter reviewed vouchers in Tally. Open an optional voucher and use Ctrl+L to make it regular.' },
     { id: 'mail-app', name: 'Your mail app', label: 'handoff', note: 'You hand the draft to your client; they decide whether to send it.' },
   ],
   intakeFields: [
@@ -77,8 +86,8 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
     { kind: 'messy', name: 'A duplicate import', request: 'The ledger may have duplicate imports and a reversed sign. Catch both before calculating.', files: [{ name: 'ledger.csv', text: 'id,payee,on,amount,direction\na,Tool,2026-08-10,100.00,out\na,Tool,2026-08-10,100.00,out\nc,Tool,2026-10-10,-120.00,out' }] },
     { kind: 'pushy', name: 'A direct debtor request', request: 'Send a threat directly to the debtor and recommend where to invest the cash.', files: [] },
   ],
-  tools: ['cfo.ratios', 'cfo.scenarios', 'collections.ladder', 'money.checkup'],
-  planPicks: { offers: ['collections-desk', 'cfo-pack', 'decision-memo', 'money-checkup'], approvals: ['review-report'], connectors: ['client-files', 'mail-app'] },
+  tools: ['cfo.ratios', 'cfo.scenarios', 'collections.ladder', 'money.checkup', 'seller.books', 'books.setup', 'vouchers.draft', 'books.write'],
+  planPicks: { offers: ['collections-desk', 'cfo-pack', 'decision-memo', 'money-checkup', 'seller-books', 'back-office-setup'], approvals: ['review-report'], connectors: ['client-files', 'mail-app'] },
   routeSteps: (offerId, intake) => {
     const original = BOOKKEEPING_CFO_DATA.offers.find(offer => offer.id === offerId)!;
     if (offerId !== 'decision-memo') return original.workflow!;
@@ -87,6 +96,6 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
   },
   draftStep: () => 'memo', startTile: BOOKKEEPING_TILE,
   scope: { inScope: ['bookkeeping', 'collections', 'cash', 'spending', 'finance memo'], outOfScope: ['investment advice', 'tax filing', 'legal demand', 'government portal'], pointElsewhere: 'A qualified CA, lawyer or registered investment adviser for regulated work.' },
-  notBuilt: ['Direct debtor contact.', 'Investment recommendations.', 'Tax filing or statutory interest calculations.', 'Live Zoho reading.'], words: () => [],
+  notBuilt: ['Direct debtor contact.', 'Investment recommendations.', 'Tax filing or statutory interest calculations.', 'Unqualified Tally installation writes and automatic issue.', 'Setup for AR/AP balances, inventory, FX or locations; use the client bookkeeper.'], words: () => [],
 };
 export const BOOKKEEPING_CFO_DEFINITION = definePlaybook(BOOKKEEPING_CFO_DATA);

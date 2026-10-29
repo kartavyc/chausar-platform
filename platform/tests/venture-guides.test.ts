@@ -69,10 +69,10 @@ test('least privilege: GitHub asks for one repo read only and no commit statuses
   assert.deepEqual([...new URL(TOKEN_LINK).searchParams.entries()].filter(([, value]) => value === 'read').map(([key]) => key).sort(), ['actions', 'contents', 'deployments', 'metadata']);
   assert.equal(github.sends, 'Sends: nothing, so nothing here can change your repo. Chausar reads it and never pushes.');
   const zoho = byId('zoho-books');
-  assert.equal(zoho.sends, 'Sends: nothing, so nothing here can change Zoho Books.');
-  assert.match(zoho.steps[0], /^1\. Nothing to set up in Chausar yet: linking Zoho Books is planned\.$/);
-  assert.match(zoho.skipped, /Don't make a key/);
-  assert.match(zoho.agentLimits, /can't use Zoho Books/);
+  assert.match(zoho.sends, /exact owner-approved.*invoice.*settlement.*master.*opening balance/);
+  assert.match(zoho.steps[0], /bookkeeping desk.*client organisation/);
+  assert.match(zoho.skipped, /correct client organisation and region/);
+  assert.match(zoho.agentLimits, /cannot send directly.*manual bookkeeper path/);
   const youtube = byId('youtube');
   assert.match(youtube.steps[0], /linking YouTube is planned/);
   assert.equal(youtube.steps.some(step => /^\d+\. Chausar copies/.test(step)), false, 'copying for YouTube is planned, so nothing says Chausar does it');

@@ -417,7 +417,7 @@ export class FakeEngine {
         // A typed passphrase opens only a business locked with that passphrase, as Vault.open checks it.
         if (typed && (business.opens !== 'needs-passphrase' || (business.passphrase !== undefined && p.passphrase !== business.passphrase))) throw new EngineError('UNLOCK_FAILED', UNLOCK_FAILED);
         if (business.opens === 'key-missing') throw new EngineError('DEVICE_KEY_FAILED', CUSTODY_ERROR_WORDS.DEVICE_KEY_FAILED);
-        this.scheduledSession++; this.current = business.id;
+        this.endPlaybookSession(); this.scheduledSession++; this.current = business.id;
         this.open = true;
         this.closedByOwner = false;
         this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
@@ -750,6 +750,7 @@ export class FakeEngine {
         };
       }
       case 'workspace.lock': {
+        this.endPlaybookSession();
         this.open = false;
         this.closedByOwner = true;
         return { locked: true };
@@ -829,7 +830,7 @@ export class FakeEngine {
     const id = this.freeId(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business');
     const shown = typed || this.hosted;
     this.businesses.push({ id, name, serviceType: 'other', opens: typed ? 'needs-passphrase' : 'with-this-computer', recovery: shown ? 'made' : 'not-made', ...(typed ? { passphrase: p.passphrase as string } : {}) });
-    this.scheduledSession++; this.current = id;
+    this.endPlaybookSession(); this.scheduledSession++; this.current = id;
     this.open = true;
     this.closedByOwner = false;
     const code = shown ? SAMPLE_RECOVERY_CODE : null;
@@ -863,8 +864,12 @@ export class FakeEngine {
     return { opens: 'with-this-computer' };
   }
 
+  private endPlaybookSession(): void {
+    this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.endSession();
+  }
+
   private openHere(business: HeldBusiness): { workspace: { id: string; name: string } } {
-    this.scheduledSession++; this.current = business.id;
+    this.endPlaybookSession(); this.scheduledSession++; this.current = business.id;
     this.open = true;
     this.closedByOwner = false;
     this.emit({ type: 'queue.changed', businessId: business.id, at: this.now() });
@@ -936,6 +941,7 @@ export class FakeEngine {
     const business = this.businesses.find((b) => b.id === this.current);
     if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
     if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+    this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
     this.desk.dropBackups(business.id);

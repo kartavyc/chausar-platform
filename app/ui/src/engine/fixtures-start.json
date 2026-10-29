@@ -510,7 +510,7 @@
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
-          "connections": "Works with Client files and statements, Chausar books, Tally exports and Your mail app."
+          "connections": "Works with Client files and statements, Chausar books, Tally exports, Zoho Books and Your mail app."
         },
         "starter": "Bookkeeping and CFO help: Collections drafts, cash packs and spending checks for small firms.",
         "yours": [],
@@ -529,7 +529,7 @@
           "starter": "Bookkeeping and CFO help: छोटे कारोबारों के लिए वसूली के मसौदे, नकदी रिपोर्ट और खर्च की जांच।",
           "needs": {
             "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "ग्राहक की फाइलें और विवरण, चौसर बहीखाता, टैली से निकली फाइलें और आपका मेल ऐप के साथ काम करता है।"
+            "connections": "ग्राहक की फाइलें और विवरण, चौसर बहीखाता, टैली से निकली फाइलें, ज़ोहो बुक्स और आपका मेल ऐप के साथ काम करता है।"
           }
         }
       },

@@ -151,8 +151,10 @@ export const TOOL_WORDS: Readonly<Record<ToolName, string>> = Object.freeze({
   'cfo.scenarios': 'Cash under each scenario, worked out by code with receipts.',
   'collections.ladder': 'The reminders for what is owed, as drafts the client sends.',
   'money.checkup': 'A check-up of the client\'s money, every figure a receipt.',
-  'books.write': 'Entries written to the accounting app, only the ones you approved.',
+  'books.write': 'The exact saved accounting proposal for owner review. This tool sends nothing.',
   'vouchers.draft': 'Vouchers drafted for the books, for you to approve.',
+  'seller.books': 'Monthly seller source reconciliation and separate tax-credit receipts for CA review.',
+  'books.setup': 'Client customers, vendors, categories and balanced opening entries for bookkeeper review.',
   // podcast-to-article (5L)
   'article.ledger': 'Each sentence of the article tied to where the transcript says it.',
   'article.style': 'The article checked against the client\'s style.',

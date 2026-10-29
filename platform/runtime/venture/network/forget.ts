@@ -1,3 +1,4 @@
+import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
 import {eraseTranslationNaming} from '../playbooks/translation-studio/privacy.ts';
 import {eraseRecruitingNaming} from '../playbooks/recruiting-desk/privacy.ts';
 import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
@@ -206,7 +207,7 @@ const sharesHandle = (person: PersonRecord, emails: ReadonlySet<string>, phones:
  * fact without them. An Undo (erase false) removes only what the import's people had: ties, evidence, cards and drafts.
  * Answers how many pipeline cards and drafts went.
  */
-export function removePersonData(tx: VentureTx, people: PersonRecord[], options: { erase: boolean }): { cards: number; drafts: number } {
+export function removePersonData(tx: VentureTx, people: PersonRecord[], options: { erase: boolean; secrets?: VentureDeps['secrets'] }): { cards: number; drafts: number } {
   const ids = new Set(people.map(person => person.id));
   if (!ids.size) return { cards: 0, drafts: 0 };
   const emails = new Set(people.flatMap(person => person.handles.emails));
@@ -284,6 +285,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
     eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
@@ -400,7 +402,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
       : invoices > 0
         ? `${first} is your client. ${first}'s invoices stay; everything else Chausar kept about ${first} is gone.`
         : `${first} is your client, so the client record stays in Clients; everything else Chausar kept about ${first} is gone.`;
-    const removed = removePersonData(tx, [person], { erase: true });
+    const removed = removePersonData(tx, [person], { erase: true, secrets: deps.secrets });
     tx.put<ForgottenRecord>({ ...tx.base('venture-forgotten'), hashes, names: nameHashes, kept, by: ctx.memberId, scheme: 'hmac-sha256' });
     if (removed.cards || removed.drafts) tx.emit('pipeline.changed', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];

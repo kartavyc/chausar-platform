@@ -25,6 +25,10 @@ test('each finance baseline responds to a material change in its own source',()=
   'positive-cash-no-runway':s=>{s.netCashMinor='-20000';},
   'subscription-rise':s=>{s.rows[2].amountMinor='10000';},
   'no-investment-advice':s=>{s.candidate='Review the recorded monthly spending.';},
+  'opening-balanced':s=>{s.input.opening[1].creditMinor='1101';},
+  'receipt-approval':s=>{s.input.lines[0].debitMinor='2000';s.input.lines[1].creditMinor='2000';},
+  'seller-credits-separate':s=>{s.input.credits[1].creditedMinor='50';},
+  'posting-date-and-remainder':s=>{s.order.timeZone='UTC';},
  };
  for(const item of loadKitBaseline(definition).cases){
   assert.equal(definition.baseline.score(item,item.draft,item.meta??{}).pass,true,item.id+' positive source');

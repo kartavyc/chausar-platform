@@ -105,8 +105,10 @@ export const TOOL_PURPOSE: Readonly<Record<string, string>> = Object.freeze({
   'cfo.scenarios': 'Worked out what-if cash',
   'collections.ladder': 'Planned the reminders for what is owed',
   'money.checkup': 'Ran the money check-up',
-  'books.write': 'Wrote entries to the books, as you approved',
+  'books.write': 'Brought the exact accounting dry run to your desk for approval',
   'vouchers.draft': 'Drafted vouchers for you to approve',
+  'seller.books': 'Reconciled seller payouts and separate tax credits from the source',
+  'books.setup': 'Prepared client setup entries without changing the accounting system',
   // podcast-to-article (5L)
   'article.ledger': 'Tied each sentence to the transcript',
   'article.style': 'Checked the article\'s style',

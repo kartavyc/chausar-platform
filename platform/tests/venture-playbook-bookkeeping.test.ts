@@ -18,7 +18,7 @@ test('bookkeeping registers offers, typed question routes, required rules and an
   assert.ok(definition.offers.some(row => row.id === 'decision-memo'));
   assert.ok(definition.offers.every(row => row.price === 'owner-sets'));
   assert.ok(definition.steps.some(row => row.id === 'scenarios' && row.tools?.includes('cfo.scenarios')));
-  assert.equal(definition.connectors.find(row => row.id === 'zoho-books')?.label, 'planned: read');
+  assert.equal(definition.connectors.find(row => row.id === 'zoho-books')?.label, 'write');
   assert.ok(definition.rules.every(row => Object.hasOwn(row, 'needs')));
   assert.ok(definition.rules.filter(row => row.needs).every(row => row.confirmedBy === null));
 });
@@ -27,7 +27,7 @@ test('the committed baseline scores real finance constraints and catches a worse
   assert.ok(BOOKKEEPING_CFO_DEFINITION);
   const definition = kitDefinitions().find(row => row.registration.id === 'bookkeeping-cfo')!;
   const result = runKitBaseline(definition);
-  assert.equal(result.of, 5);
+  assert.equal(result.of, 9);
   assert.equal(result.ok, true);
   assert.equal(runKitBaseline(definition, undefined, () => 'Invest in mutual funds.').ok, false);
 });

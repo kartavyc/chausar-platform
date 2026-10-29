@@ -3,8 +3,8 @@
   "playbook": "bookkeeping-cfo",
   "recordedAt": "2026-10-29T00:00:00.000Z",
   "baseline": {
-    "passed": 5,
-    "of": 5
+    "passed": 9,
+    "of": 9
   },
   "cases": [
     {
@@ -45,6 +45,38 @@
       "draft": "This is spending only. Ask a registered adviser about investment products.",
       "meta": {
         "source": "{\"candidate\":\"Invest in mutual funds.\"}"
+      }
+    },
+    {
+      "id": "opening-balanced",
+      "request": "Review the opening entries.",
+      "draft": "Calculated: balanced opening entries still need exact owner approval.",
+      "meta": {
+        "source": "{\"cycle\":{\"businessId\":\"business\",\"clientId\":\"client\",\"companyId\":\"12345\",\"system\":\"zoho\",\"from\":\"2026-04-01\",\"to\":\"2027-03-31\"},\"input\":{\"customers\":[{\"id\":\"buyer\",\"name\":\"Buyer\",\"source\":\"client.csv:2\"}],\"vendors\":[{\"id\":\"supplier\",\"name\":\"Supplier\",\"source\":\"client.csv:3\"}],\"categories\":[{\"id\":\"cash\",\"name\":\"Cash\",\"source\":\"accounts.csv:2\"},{\"id\":\"equity\",\"name\":\"Equity\",\"source\":\"accounts.csv:3\"}],\"opening\":[{\"accountId\":\"cash\",\"debitMinor\":\"1100\",\"creditMinor\":\"0\",\"source\":\"opening.csv:2\"},{\"accountId\":\"equity\",\"debitMinor\":\"0\",\"creditMinor\":\"1100\",\"source\":\"opening.csv:3\"}]}}"
+      }
+    },
+    {
+      "id": "receipt-approval",
+      "request": "Approve the exact receipt voucher.",
+      "draft": "The exact receipt voucher is approved but not posted in the client system.",
+      "meta": {
+        "source": "{\"cycle\":{\"businessId\":\"business\",\"clientId\":\"client\",\"companyId\":\"12345\",\"system\":\"zoho\",\"from\":\"2026-04-01\",\"to\":\"2027-03-31\"},\"input\":{\"date\":\"2026-10-28\",\"description\":\"Receipt purchase\",\"receipt\":{\"uploadId\":\"upload-receipt\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"clientId\":\"client\",\"orderId\":\"client-order\"},\"lines\":[{\"accountId\":\"cost\",\"debitMinor\":\"1000\",\"creditMinor\":\"0\"},{\"accountId\":\"cash\",\"debitMinor\":\"0\",\"creditMinor\":\"1000\"}]},\"by\":\"owner\",\"at\":\"2026-10-29T10:00:00Z\"}"
+      }
+    },
+    {
+      "id": "seller-credits-separate",
+      "request": "Reconcile payouts and credits.",
+      "draft": "Calculated credits wait for CA review and stay separate from payout differences.",
+      "meta": {
+        "source": "{\"cycle\":{\"businessId\":\"business\",\"clientId\":\"client\",\"companyId\":\"12345\",\"system\":\"zoho\",\"from\":\"2026-04-01\",\"to\":\"2027-03-31\"},\"input\":{\"month\":\"2026-10\",\"orders\":[{\"orderId\":\"one\",\"on\":\"2026-10-27\",\"source\":\"orders.csv:2\"}],\"settlements\":[{\"orderId\":\"one\",\"expectedMinor\":\"10000\",\"paidMinor\":\"9900\",\"source\":\"settlement.csv:2\",\"observedAt\":\"2026-10-28T10:00:00Z\",\"adjustments\":[{\"kind\":\"fee-slab\",\"minor\":\"100\",\"source\":\"fee-card:3\"}],\"holdReasons\":[]}],\"credits\":[{\"kind\":\"gst\",\"expectedMinor\":\"1800\",\"creditedMinor\":\"1800\",\"section\":\"Owner supplied CA section\",\"source\":\"gst.csv:2\"},{\"kind\":\"tcs\",\"expectedMinor\":\"50\",\"creditedMinor\":\"40\",\"section\":\"Owner supplied CA section\",\"source\":\"tax.csv:2\"},{\"kind\":\"tds\",\"expectedMinor\":\"10\",\"creditedMinor\":\"0\",\"section\":\"Owner supplied CA section\",\"source\":\"tax.csv:3\"}]}}"
+      }
+    },
+    {
+      "id": "posting-date-and-remainder",
+      "request": "Fit source lines and use the shop date.",
+      "draft": "Calculated draft amounts use the shop date. Approval to issue remains separate.",
+      "meta": {
+        "source": "{\"order\":{\"shopId\":\"shop\",\"orderId\":\"one\",\"source\":\"orders.csv:2\",\"occurredAt\":\"2026-10-28T21:00:00Z\",\"timeZone\":\"Asia/Kolkata\",\"status\":\"paid\",\"eligible\":true,\"currency\":\"INR\",\"goodsMinor\":\"101\",\"sellerDiscountMinor\":\"0\",\"platformDiscountMinor\":\"0\",\"subtotalMinor\":\"101\",\"shippingMinor\":\"0\",\"taxMinor\":\"0\",\"totalMinor\":\"101\",\"lines\":[{\"sku\":\"a\",\"itemId\":\"11\",\"amountMinor\":\"50\"},{\"sku\":\"b\",\"itemId\":\"22\",\"amountMinor\":\"50\"}]},\"existing\":[]}"
       }
     }
   ]

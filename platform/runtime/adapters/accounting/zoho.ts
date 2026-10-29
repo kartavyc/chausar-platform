@@ -14,7 +14,7 @@ export const ZOHO_RESOURCES = Object.freeze([
 ] as const);
 export type ZohoResource = typeof ZOHO_RESOURCES[number];
 export type ZohoDataCenter = 'com' | 'eu' | 'in' | 'com.au' | 'jp' | 'ca' | 'com.cn' | 'sa';
-const hosts: Record<ZohoDataCenter, string> = Object.freeze({
+export const ZOHO_HOSTS: Readonly<Record<ZohoDataCenter, string>> = Object.freeze({
   com: 'www.zohoapis.com', eu: 'www.zohoapis.eu', in: 'www.zohoapis.in',
   'com.au': 'www.zohoapis.com.au', jp: 'www.zohoapis.jp', ca: 'www.zohoapis.ca',
   'com.cn': 'www.zohoapis.com.cn', sa: 'www.zohoapis.sa',
@@ -194,7 +194,7 @@ export function zohoReadConfiguration(config: Pick<ZohoReadConfig, 'dataCenter' 
 export function createZohoReadAdapter(config: ZohoReadConfig): ApiReadAdapter {
   const organizationId = numericId(config.organizationId), companyId = config.companyId ?? organizationId;
   requiredText(companyId); check(typeof config.transport === 'function', 'ZOHO_TRANSPORT_REQUIRED', 'Inject a read-only transport.');
-  check(Object.hasOwn(hosts, config.dataCenter), 'ZOHO_DATA_CENTER_UNSUPPORTED', 'Select a documented Zoho data center.');
+  check(Object.hasOwn(ZOHO_HOSTS, config.dataCenter), 'ZOHO_DATA_CENTER_UNSUPPORTED', 'Select a documented Zoho data center.');
   check(ZOHO_RESOURCES.includes(config.resource), 'ZOHO_RESOURCE_UNSUPPORTED', 'Select an implemented Zoho resource.');
   check(config.operation.connectorId === 'zoho-books' && config.operation.kind === 'read' && config.operation.transport === 'api'
     && config.operation.applicability.applicationVersion === 'v3', 'ZOHO_OPERATION_MISMATCH', 'Bind an exact Zoho Books v3 read operation.');
@@ -208,7 +208,7 @@ export function createZohoReadAdapter(config: ZohoReadConfig): ApiReadAdapter {
   check(resource !== 'customerpayment-refunds' || parentId !== undefined, 'ZOHO_REFUND_PARENT_REQUIRED', 'Payment refund reads require an exact payment ID.');
   check(parentId === undefined || resource === 'creditnote-refunds' || resource === 'customerpayment-refunds', 'ZOHO_PARENT_UNSUPPORTED', 'Parent binding applies only to refund collections.');
   check(!detail || parentId === undefined, 'ZOHO_PARENT_UNSUPPORTED', 'Detail reads do not accept a refund parent.');
-  const perPage = integer(config.perPage ?? 200, 1, 200), host = hosts[config.dataCenter];
+  const perPage = integer(config.perPage ?? 200, 1, 200), host = ZOHO_HOSTS[config.dataCenter];
   const dataset = requiredText(config.dataset ?? `zoho-${resource}`);
   Object.freeze(operation.applicability); Object.freeze(operation);
   return Object.freeze<ApiReadAdapter>({

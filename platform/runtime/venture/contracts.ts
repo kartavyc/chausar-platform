@@ -1960,7 +1960,7 @@ export const TOOL_NAMES = [
   'recruit.criteria', 'recruit.ledger', 'recruit.slots',
   'career.facts', 'career.capture', 'career.shortlist', 'career.score',
   'translate.check', 'translate.terms', 'subtitle.check', 'dub.align', 'dub.verify',
-  'cfo.ratios', 'cfo.scenarios', 'collections.ladder', 'money.checkup', 'books.write', 'vouchers.draft',
+  'cfo.ratios', 'cfo.scenarios', 'collections.ladder', 'money.checkup', 'books.write', 'vouchers.draft', 'seller.books', 'books.setup',
   'article.ledger', 'article.style',
   'leads.osm', 'leads.enrich', 'leads.dedupe', 'community.vote',
   'newsletter.presend', 'newsletter.import', 'newsletter.slices', 'newsletter.stats',
@@ -6285,6 +6285,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'BOOKS_CONSENT_REQUIRED', 'BOOKS_CYCLE_INVALID', 'BOOKS_RECEIPT_REQUIRED', 'BOOKS_SETUP_INVALID', 'BOOKS_SOURCE_CHANGED', 'BOOKS_WORK_NOT_FOUND',
   'PRIVATE_NEEDS_LOCAL', 'TRANSLATION_GLOSSARY_REQUIRED', 'TRANSLATION_NOT_FOUND', 'TRANSLATION_REPAIR_LOSS',
   'RECRUIT_NOT_FOUND',
   'RECRUIT_ROLE_REQUIRED',
@@ -6465,7 +6466,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

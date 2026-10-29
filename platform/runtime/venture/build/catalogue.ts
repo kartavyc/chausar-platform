@@ -148,9 +148,9 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   // Books, tax and invoicing
   entry('books-tax', 'chausar-books', 'Chausar back office', null, ['read', 'write'], GI, 'None, it is inside Chausar',
     'Invoices, payments and books. Every number comes from Chausar\'s calculator with a receipt.'),
-  entry('books-tax', 'zoho-books', 'Zoho Books', 'https://www.zoho.com/books/', ['read', 'write'], GI, 'Zoho sign-in',
-    'Books and invoices in Zoho. Reading them into Chausar needs a sign-in path this build lacks.'),
-  entry('books-tax', 'tally', 'TallyPrime', 'https://tallysolutions.com/', ['read'], I, 'TallyPrime on this computer',
+  entry('books-tax', 'zoho-books', 'Zoho Books', 'https://www.zoho.com/books/', ['read', 'write'], GI, 'Owner-created self client and current access token',
+    'Connect the selected client organisation for the open session. Review exact supported drafts and approve issuing separately in the accounting desk.'),
+  entry('books-tax', 'tally', 'TallyPrime', 'https://tallysolutions.com/', ['read', 'write'], I, 'TallyPrime on this computer',
     "Reads TallyPrime's Day Book into the back office. Tested with a synthetic recording, not a real installation."),
   entry('books-tax', 'xero', 'Xero', 'https://www.xero.com/', ['read'], G, 'Xero sign-in',
     'Reading your Xero books is planned.'),

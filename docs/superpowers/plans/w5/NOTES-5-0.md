@@ -646,3 +646,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 
 - Source-bound translation and subtitle review, glossary versions, exact AI previews and client review tokens are integrated. External client sharing waits for named rights review; private remote models remain refused. J2 stays stubbed.
 - Independent spec/quality PASS and final dispatch-race repairs are recorded in NOTES-5J1.md. Includes the reviewed common synchronous ModelPort guard and its four no-send tests.
+
+## 5K2 isolated package closure
+
+- Client bookkeeping cycles, source-bound vouchers, monthly seller reconciliation and exact approved Zoho draft, settlement and setup writes are integrated. Issue asks separately. Tally writes remain planned with manual entry.
+- Independent spec and quality PASS and provider limits are recorded in NOTES-5K2-REVIEW.md and its bounded review notes. No live-account qualification is claimed.

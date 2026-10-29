@@ -1,5 +1,5 @@
 // Collections ladder ideas from finance-skills (MIT prompt text); original Chausar implementation.
-import { ChausarError } from '../../../contracts.ts';
+import { ChausarError } from '../../../portable.ts';
 
 export type CollectionStage = { id: string; fromDay: number; name: string };
 export type PromiseInput = { invoiceIds: readonly string[]; amountMinor: string; promisedOn: string };
