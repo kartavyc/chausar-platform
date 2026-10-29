@@ -644,6 +644,7 @@ export interface ClientAddParams { name: string; email?: string; countryCode?: s
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
 export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
 export interface OrderLite {
+  narrationFetched?: {fileId:string;url:string;finalUrl:string;digest:string};
   internal?: true;
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
@@ -672,7 +673,7 @@ export interface OrderWaitsOnYou { count: number; items: { stage: OrderStageId; 
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
   /** transcript: an SRT or VTT file of what was said, with timings. image: an order's poster, a still from its cut (4J3). */
-  id: string; at: string; name: string; format: 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio'; bytes: number;
+  id: string; at: string; name: string; format: 'docx' | 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio'; bytes: number;
   /** media (5A4): an order's photos (cleaned of location data when added) and recordings, apart from the files agents read. */
   scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string } | { kind: 'media'; orderId: string }; clientData: boolean;
   /**
@@ -1515,7 +1516,7 @@ export type AssetSource =
   | { kind: 'client-file'; uploadId: string | null } | { kind: 'generated'; model: string; prompt: string }
   | { kind: 'licensed-stock'; provider: string; licenceId: string } | { kind: 'unknown' };
 export type AssetCost = { kind: 'receipt'; receiptId: string } | { kind: 'not-measured' } | { kind: 'reused'; assetId: string };
-export type DerivedUnit = 'captions' | 'translation' | 'dub' | 'article' | 'chapters';
+export type DerivedUnit = 'narration' | 'captions' | 'translation' | 'dub' | 'article' | 'chapters';
 export type AssetSourceRef = { kind: 'upload'; id: string } | { kind: 'asset'; id: string } | { kind: 'transcript'; orderId: string };
 export interface AssetView {
   id: string; at: string; orderId: string; clientId: string; runId: string | null; toolCallId: string | null; name: string; fileDigest: string | null;

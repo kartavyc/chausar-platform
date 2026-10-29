@@ -68,7 +68,7 @@ export type AssetSource =
 /** What the file cost: a receipt, not measured, or nothing new because it was reused. */
 export type AssetCost = { kind: 'receipt'; receiptId: string } | { kind: 'not-measured' } | { kind: 'reused'; assetId: string };
 /** A unit made from another file, which goes stale when that file changes (P10). */
-export type DerivedUnit = 'captions' | 'translation' | 'dub' | 'article' | 'chapters';
+export type DerivedUnit = 'narration' | 'captions' | 'translation' | 'dub' | 'article' | 'chapters';
 /** The file a derived unit was made from: an upload, another asset, or the order's transcript (its newest). */
 export type SourceRef = { kind: 'upload'; id: string } | { kind: 'asset'; id: string } | { kind: 'transcript'; orderId: string };
 /** Location and camera data on a photo or clip: removed, still there (held for the owner), or not a photo or clip. */

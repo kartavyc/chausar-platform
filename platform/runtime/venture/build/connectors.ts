@@ -21,6 +21,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'narration-distribution': {qualification:'fixture-tested',what:'Exports exact approved audio with AI narration disclosure after named legal review. The owner uploads manually; acceptance is not guaranteed.'},
   'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
   'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
   'article-publishing': {qualification:'fixture-tested',what:'Prepares the exact approved article and companion text for the owner to copy and publish manually.'},
@@ -31,6 +32,8 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
+  'narration-files': {qualification:'fixture-tested',what:'Reads the current client manuscript bytes and rights from TXT, Markdown or bounded DOCX.'},
   'website-public-site': {qualification:'fixture-tested',what:'Reads a client public page with robots and network guards. Runtime evidence needs an owner-installed checker or an uploaded report.'},
   'tender-documents': {qualification:'fixture-tested',what:'Reads current order RFP and separate client documents, preserving an explicit issuer spreadsheet column map. PDFs need the desktop reader.'},
   'article-transcript': {qualification:'fixture-tested',what:'Reads owner-supplied SRT, VTT or TXT and reuses transcripts only within the same client.'},
@@ -71,6 +74,7 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'google-tts': {qualification:'fixture-tested',what:'Makes one exact approved stock voice request on the owner Google key. Current rights, private-source refusal, quoted cost and named legal confirmation are required.'},
   'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},
   'zoho-books': {qualification:'fixture-tested',what:'Creates exact-approved drafts, masters, opening balances and received settlements, then verifies readback. Invoice issue asks separately. No email or automatic retry.'},
   'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
@@ -90,7 +94,6 @@ const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorMod
   'google-workspace': { write: 'Planned: sending from Gmail would need a Google review first. Chausar only reads your inbox today.' },
   'google-calendar': { write: 'Planned: adding calls to your calendar. Chausar only reads it today.' },
   // 5A6: speech out waits for a place to add your own key.
-  'google-tts': { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
   'sarvam-tts': { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
   elevenlabs: { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
 });

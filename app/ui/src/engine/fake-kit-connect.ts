@@ -8,6 +8,7 @@
  * Written for Chausar; nothing is learned from an outside source.
  */
 
+import {SPEECH_PROVIDER_METADATA} from './speech-provider-metadata';
 import { EngineError } from './types';
 import type {
   LocalAppView, LocalAppsView, MailImportView, MailThreadView, MailThreadsView, MonitorKind, MonitorView, MonitorsView, SpeechProviderView,
@@ -49,7 +50,7 @@ const WORDS = {
   install: 'Install it yourself; Chausar never installs it.',
   choose: 'Choose n8n or Make.',
   https: 'Use the https address n8n or Make gives the webhook.',
-  speech: "Each needs your own key, which Chausar cannot take yet. Make audio in the provider's own site meanwhile.",
+  speech: "Add your Google Cloud key in the narration desk. Other providers remain planned; make audio in their own site meanwhile.",
 } as const;
 const MAX_MAIL_FILE_BYTES = 25 * 1024 * 1024;
 const NAMES: Record<WebhookKind, string> = { n8n: 'n8n', make: 'Make' };
@@ -92,30 +93,7 @@ const LOCAL_APPS: readonly { id: LocalAppView['id']; name: string; note: string;
   { id: 'filmcraft', name: 'FilmCraft', note: 'Video editing on this computer, through its command line.', licence: 'MIT or Apache-2.0' },
 ];
 
-const WAITS = 'Chausar: a place in Connections to add your own key for it. Not in this build.';
-const MANUAL = "Make the audio in the provider's own site or console with your account, and add the file to the order.";
-const NO_PRICE = "Its price is not filled in: nobody has read it on the provider's page on a build day, and Chausar never guesses a price.";
-/** build/speech-out.ts's table, as venture.speechOut.providers shows it. */
-const SPEECH: readonly SpeechProviderView[] = [
-  {
-    id: 'google-tts', name: 'Google Cloud Text-to-Speech', label: 'planned: write', languages: ['en-IN', 'hi-IN', 'bn-IN', 'ta-IN', 'te-IN', 'mr-IN', 'gu-IN', 'kn-IN', 'ml-IN'], maxChars: 5000,
-    voices: [
-      { id: 'hi-IN-Standard-A', name: 'Hindi, standard voice A', language: 'hi-IN', licence: "Google's stock voice; its Cloud terms let you use the audio you make." },
-      { id: 'en-IN-Standard-A', name: 'Indian English, standard voice A', language: 'en-IN', licence: "Google's stock voice; its Cloud terms let you use the audio you make." },
-    ],
-    price: null, waitsOn: WAITS, manualPath: MANUAL, note: `Many Indian languages on your own Google Cloud key. ${NO_PRICE}`,
-  },
-  {
-    id: 'sarvam-tts', name: 'Sarvam AI (Bulbul)', label: 'planned: write', languages: ['hi-IN', 'en-IN', 'bn-IN', 'ta-IN', 'te-IN', 'mr-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'od-IN', 'pa-IN'], maxChars: 1500,
-    voices: [{ id: 'anushka', name: 'Anushka', language: 'hi-IN', licence: "Sarvam's stock voice; check its terms for commercial use of the audio." }],
-    price: null, waitsOn: WAITS, manualPath: MANUAL, note: `Indian languages, made in India. Its call is not written yet: it is checked against Sarvam's own docs first. ${NO_PRICE}`,
-  },
-  {
-    id: 'elevenlabs', name: 'ElevenLabs', label: 'planned: write', languages: ['en-IN', 'hi-IN', 'ta-IN'], maxChars: 5000,
-    voices: [{ id: 'default-stock', name: 'A stock voice from its library', language: 'en-IN', licence: "ElevenLabs' stock voice; its paid plans allow commercial use of the audio." }],
-    price: null, waitsOn: WAITS, manualPath: MANUAL, note: `Natural voices; cloning needs the speaker's recorded consent. Its call is not written yet. ${NO_PRICE}`,
-  },
-];
+const SPEECH: readonly SpeechProviderView[] = SPEECH_PROVIDER_METADATA.map(provider=>({...provider,languages:[...provider.languages],voices:provider.voices.map(voice=>({...voice}))}));
 
 // --- Reading mail files, as build/mail-in.ts reads them ---
 

@@ -36,6 +36,8 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  keepNarrationFetched?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string}):void;
+  narrationPrice?(orderId:string):{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}|undefined;
   eraseTenderIntake?(orderIds:readonly string[]):void;
   workReceipt?(id:string):import('./types').WorkReceiptLite|undefined;
   socialClientAnswer?(runId:string):{answer:import('./types').ShareAnswer;packDigest:string}|null;

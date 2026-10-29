@@ -1,6 +1,4 @@
-// Chausar playbook: Narration and audiobooks (Ink v2 wave 5, packages 5Q). Its kit definition
-// (playbooks/kit/define.ts). Package 5-0 left it null; the package fills every field and passes it through 5A1's
-// definePlaybook. Written for Chausar; nothing here is learned from an outside source.
-import type { PlaybookDefinition } from '../kit/define.ts';
-
-export const NARRATION_STUDIO_DEFINITION: PlaybookDefinition | null = null;
+// Original narration activation, validated with the complete dated register and Hindi map.
+import {definePlaybook} from '../kit/define.ts';
+import {NARRATION_DATA} from './definition-data.ts';
+export const NARRATION_STUDIO_DEFINITION=definePlaybook(NARRATION_DATA);

@@ -20,7 +20,7 @@ import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
 import {
-  currentVenture, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
+  currentVenture, digest, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
 } from '../records.ts';
 import { QUOTE_TTL_MS, checkQuoteBinding } from './quote.ts';
 import { newestFirst } from './shared.ts';
@@ -312,7 +312,7 @@ export async function spendRefused(deps: VentureDeps, ctx: Context, error: unkno
 }
 
 /** A paid connector call: what it is, plus the list price Chausar knows for it (null when there is none). */
-export type PaidCallRequest = SpendSubject & { list: SpendRate | null };
+export type PaidCallRequest = SpendSubject & { list: SpendRate | null; approvedRateDigest?: string };
 
 /**
  * One paid connector call, start to finish: the charge record is committed before run() is called, run() makes the
@@ -323,6 +323,7 @@ export async function paidCall<T>(deps: VentureDeps, ctx: Context, request: Paid
   const subject = subjectOf(request);
   await ventureAction(deps, ctx, 'prepare', 'spend.reserve', tx => {
     const rate = resolveRate({ item: subject.item, list: request.list, owner: ownerRates(tx.list('venture-spend-policy')), subject });
+    check(request.approvedRateDigest===undefined||request.approvedRateDigest===digest(rate),'APPROVAL_STALE','The approved rate changed. Review a fresh quote before spending.');
     return reserveSpend(tx, { ...subject, rate, estimateMicros: fixedEstimate(rate, subject) });
   }).catch(error => spendRefused(deps, ctx, error));
   let answer: { value: T; billedMicros: MicroString | null };

@@ -40,7 +40,7 @@ export function sourceDigest(state: State, ref: SourceRef): string | null {
 }
 
 const UNIT_WORDS: Readonly<Record<DerivedUnit, string>> = Object.freeze({
-  captions: 'these captions', translation: 'this translation', dub: 'this dub', article: 'this article', chapters: 'this chapter list',
+  narration: 'this narration', captions: 'these captions', translation: 'this translation', dub: 'this dub', article: 'this article', chapters: 'this chapter list',
 });
 const SOURCE_WORDS: Readonly<Record<SourceRef['kind'], string>> = Object.freeze({ transcript: 'The transcript', upload: 'The file', asset: 'The file' });
 

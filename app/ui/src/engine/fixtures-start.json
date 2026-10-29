@@ -835,6 +835,63 @@
             "connections": "गिटहब, लवेबल, रेप्लिट, क्लाउडफ़्लेयर पेजेज़, वर्सेल और नेटलिफ़ाइ के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "narration-studio",
+        "playbook": "narration-studio",
+        "label": "Narration and audiobooks",
+        "category": "content",
+        "department": "production",
+        "line": "Books, lessons and short explainers with disclosed AI narration.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Approve the voice and listen to the result.",
+        "team": [
+          {
+            "role": "Narrator",
+            "initials": "NA",
+            "department": "production"
+          },
+          {
+            "role": "Producer",
+            "initials": "PR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Marks the script, makes audio, checks the reading.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹12,000",
+          "per": "per finished hour",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Manuscript files, Google Cloud speech, Local audio checks, Your AI, Public source page and Spotify for Authors."
+        },
+        "starter": "Narration and audiobooks: Books, lessons and short explainers with disclosed AI narration.",
+        "yours": [],
+        "hi": {
+          "label": "वाचन और ऑडियोबुक",
+          "line": "एआई वाचन की जानकारी वाली किताबें, पाठ और छोटी रील।",
+          "hours": "हफ़्ते में 2 से 4 घंटे",
+          "youDo": "आवाज़ मंज़ूर करें और परिणाम सुनें।",
+          "team": [
+            "वाचक",
+            "निर्माता"
+          ],
+          "teamLine": "पाठ में संकेत लगाता है, ऑडियो बनाता है और वाचन जाँचता है।",
+          "pay": "₹3,000 से ₹12,000",
+          "per": "तैयार ऑडियो के प्रति घंटे",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Narration and audiobooks: एआई वाचन की जानकारी वाली किताबें, पाठ और छोटी रील।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "पांडुलिपि फ़ाइलें, गूगल क्लाउड वाचन, स्थानीय ऑडियो जाँच, आपका एआई, सार्वजनिक स्रोत पन्ना और लेखकों के लिए स्पॉटिफ़ाई के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -842,7 +899,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 5
+        "count": 6
       },
       {
         "id": "marketing",
@@ -867,7 +924,7 @@
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 4
+      "count": 5
     }
   },
   "checklist": [

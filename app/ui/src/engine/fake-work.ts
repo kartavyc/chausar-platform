@@ -1,3 +1,5 @@
+import {hasDocx,checkFakeDocx} from './fake-manuscript-upload';
+import {FakeNarrationChain} from './fake-narration-chain';
 import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/website-studio/legal-core';
 import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import { FakeArticleChain } from './fake-article-chain';
@@ -25,7 +27,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 const MAX_UPLOAD_BYTES = 1_450_000;
 const MAX_UPLOADS_PER_ORDER = 10;
 /** The format each file ending is kept as; SRT and VTT are transcripts. */
-const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', txt: 'csv', xlsx: 'xlsx', pdf: 'pdf', srt: 'transcript', vtt: 'transcript' };
+const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', txt: 'csv', md: 'csv', markdown: 'csv', docx: 'docx', xlsx: 'xlsx', pdf: 'pdf', srt: 'transcript', vtt: 'transcript' };
 /** The engine's words for each basis (platform/runtime/venture/delivery/rights.ts RIGHTS_LABELS, in a sentence). */
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
@@ -76,12 +78,15 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 }
 
 export class FakeWorkDesk {
-  eraseTenderIntake(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,...rest}=order;return rest;});}
-  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
+  eraseTenderIntake(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,narrationFetched:_narrationFetched,...rest}=order;return rest;});}
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{this.narrationChain.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
   private readonly host: WorkHost;
   readonly socialChain: FakeSocialChain;
+  readonly narrationChain: FakeNarrationChain;
   readonly articleChain: FakeArticleChain;
   private orders: Record<string, OrderLite[]>;
+  private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
+  narrationPrice(biz:string,orderId:string){const value=this.narrationPrices.get(biz+':'+orderId);return value?clone(value):undefined;}
   private deliveries: Record<string, DeliveryLite[]>;
   private uploads: Record<string, UploadLite[]>;
   private seq = 0;
@@ -90,6 +95,7 @@ export class FakeWorkDesk {
 
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.narrationChain=new FakeNarrationChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.articleChain=new FakeArticleChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},next:orderId=>{this.start(host.current(),{orderId});}});
     this.socialChain=new FakeSocialChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},eraseFiles:ids=>{const biz=host.current();this.uploads[biz]=(this.uploads[biz]??[]).filter(f=>!ids.has(f.id));for(const id of ids){this.fileContents.delete(biz+':'+id);this.fileFingerprints.delete(biz+':'+id);}},next:orderId=>{this.start(host.current(),{orderId});}});
     this.orders = options.fresh ? {} : clone(ORDERS);
@@ -98,6 +104,7 @@ export class FakeWorkDesk {
   }
 
   /** Internal queue projection, scoped by business and returned without mutable references. */
+  keepNarrationFetched(biz:string,orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string}){const order=this.orders[biz]?.find(o=>o.id===orderId);if(!order)throw new EngineError('ORDER_NOT_FOUND','Choose a current narration order.');(this.uploads[biz]??=[]).push({id:file.id,at:this.host.now(),name:file.name,format:'transcript',bytes:atob(file.contentBase64).length,scope:{kind:'order',orderId},clientData:true});this.fileContents.set(biz+':'+file.id,file.contentBase64);this.fileFingerprints.set(biz+':'+file.id,file.digest);order.narrationFetched=clone(source);}
   ordersFor(biz: string): OrderLite[] { return clone(this.orders[biz] ?? []); }
   /** Seller Forget takes the source bytes and fingerprints as well as their upload rows. */
   /** Exact tender Forget clears order intake after the owner approves erasure. */
@@ -150,13 +157,13 @@ export class FakeWorkDesk {
         const invoices = this.host.invoices?.() ?? [];
         return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
       }
-      case 'venture.order.create': return this.create(biz, p);
+      case 'venture.order.create': {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p);});}
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
-      case 'venture.delivery.run': return this.start(biz, p);
-      case 'venture.delivery.approve': case 'venture.delivery.review': return this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
+      case 'venture.delivery.run': if(this.host.plan()?.playbook?.id==='narration-studio'){const order=this.order(biz,p.orderId),id='narration-run-'+(++this.seq);return this.narrationChain.start(order.id,id,p);}return this.start(biz, p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
-      case 'venture.files.add': return this.addFile(biz, p);
+      case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
@@ -241,6 +248,7 @@ export class FakeWorkDesk {
       for (const file of staged) { this.fileContents.delete(biz + ':' + file.id); this.fileFingerprints.delete(biz + ':' + file.id); }
       throw error;
     }
+    if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:offer.pricing.unitPriceMinor,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
     return clone(order);
   }
@@ -308,6 +316,7 @@ export class FakeWorkDesk {
     // 5A4 (P9): a photo (kept cleaned of its location data) or a recording sits in the order's media scope, apart.
     const media = !name.includes('.') ? null : ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' as const : ['wav', 'mp3', 'm4a', 'ogg'].includes(ext) ? 'audio' as const : null;
     const format = media ?? FORMAT_OF[ext];
+    if(['txt','md','markdown'].includes(ext)){try{new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)));}catch{throw new EngineError('UNSUPPORTED_UPLOAD','This CSV is not UTF-8 text. Save it as CSV UTF-8 and add it again.');}}
     if (!name.includes('.') || !format) throw new EngineError('UNSUPPORTED_UPLOAD', 'Add a CSV, Excel or PDF file, or a transcript as SRT or VTT.');
     const list = (this.uploads[biz] ??= []);
     if (media) {

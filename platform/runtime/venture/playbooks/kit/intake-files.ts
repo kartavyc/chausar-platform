@@ -28,7 +28,7 @@ export function prepareIntakeFiles(deps: VentureDeps, raw: unknown): PreparedInt
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const contentBase64 = Buffer.from(bytes).toString('base64');
   const prepared = { field, name, format, bytes: bytes.length, digest: digest(contentBase64), contentBase64, media: media !== null };
-  if (format === 'csv' && !/\.txt$/i.test(name) || format === 'xlsx') tablesOfFile({ ...prepared, id: 'upload_check', clientData: true });
+  if (format === 'csv' && !/\.(txt|md|markdown)$/i.test(name) || format === 'xlsx') tablesOfFile({ ...prepared, id: 'upload_check', clientData: true });
   return prepared;
  });
 }

@@ -1,0 +1,4 @@
+// Browser-safe code quote shared by the native speech provider and rehearsal.
+import {ChausarError,hash} from '../../portable.ts';
+export type SpeechQuotePrice={microsPerMillionChars:string;checkedOn:string;source:string};
+export function speechQuote(provider:{id:string;name:string;price:SpeechQuotePrice|null},voice:string,text:string){const price=provider.price;if(!price||!price.checkedOn||!/^\d{1,15}$/.test(price.microsPerMillionChars))throw new ChausarError('UNPRICED_CALL',`${provider.name} has no dated price, so Chausar will not call it: an unknown price is never counted as free. Add its price from its own page first.`);const chars=[...text].length,micros=String((BigInt(chars)*BigInt(price.microsPerMillionChars)+999999n)/1000000n),units=(BigInt(micros)+50n)/100n;return {provider:provider.id,voice,chars,micros,figure:`USD ${units/10000n}.${String(units%10000n).padStart(4,'0')}`,price:{...price},textDigest:hash(text)};}

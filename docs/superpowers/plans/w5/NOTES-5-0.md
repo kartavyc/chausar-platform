@@ -676,3 +676,8 @@ The isolated tender gate exposed omitted setup guides for already committed podc
 ### 5P isolated commit checkpoint
 
 Adds the independently reviewed website service and Build deepening. Exact scope, RED/GREEN evidence, source distinction, manual asset uploads, planned legal form boundary and isolated preview CSP changes are recorded in NOTES-5P.md and NOTES-5P-MANIFEST.md. No provider measurement or production release is fabricated.
+
+
+### 5Q isolated commit checkpoint
+
+Narration, audiobook and explainer service: exact source-bound markup, owner-approved stock speech, measured audio, listening, mastering and manual distribution. Independent spec and quality PASS, actual-byte evidence, source/privacy/approval repairs and honest provider limits are recorded in NOTES-5Q.md. No live provider or distributor acceptance is claimed.

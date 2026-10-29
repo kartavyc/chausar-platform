@@ -202,7 +202,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('docs-ops', 'make-webhook', 'Make webhook', null, ['write'], GI, 'The webhook address Make gives you',
     'Sends only an item you approve, as shown.'),
   entry('docs-ops', 'google-tts', 'Google Cloud Text-to-Speech', null, ['write'], GI, 'API key',
-    'Speech in Indian languages on your own key. Planned.'),
+    'Exact approved stock speech on your own Google key. Add the key in the narration desk. Client production waits for named rights review.'),
   entry('docs-ops', 'sarvam-tts', 'Sarvam AI (Bulbul)', null, ['write'], I, 'API key',
     'Indian languages, made in India. Planned.'),
   entry('docs-ops', 'elevenlabs', 'ElevenLabs', null, ['write'], GI, 'API key',

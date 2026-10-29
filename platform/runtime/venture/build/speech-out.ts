@@ -6,21 +6,21 @@
 // is built; its consent id is never sent as a voice name; a provider with no dated price is refused (UNPRICED_CALL), never
 // counted as free; the quote is shown first (QUOTE_FIRST until the caller shows it was seen), and the spend is reserved
 // before the call and settled after (money/spend.ts paidCall), so the same text is never paid for twice. The output's
-// asset note (5A4) records the provider, the voice and the text's digest. Labels are honest: every provider here needs
-// a key, and Chausar has no place to take one in this build, so each is planned, with what it waits on and the manual
-// path; their prices stay null until someone reads them on the provider's page on a build day. AI voices are disclosed
+// asset note (5A4) records the provider, the voice and the text's digest. Package 5Q adds owner Google key intake and a
+// dated Standard price; this fixture-qualified route becomes write only with that key. Other providers keep their
+// planned labels and manual paths. No live account qualification is implied. AI voices are disclosed
 // by the playbooks that use them (5Q, 5J2). Written for Chausar; nothing here is learned from an outside source.
 import { createHash } from 'node:crypto';
 import { check, ChausarError, type Context } from '../../contracts.ts';
 import type { SpendRate, VentureDeps } from '../contracts.ts';
-import { exactPayload, formatMicros, readVenture } from '../records.ts';
+import { exactPayload, readVenture } from '../records.ts';
 import { guardedFetch } from '../core/net-guard.ts';
 import { paidCall } from '../money/spend.ts';
 import { requireVoiceConsent, checkVoiceUse, todayOf } from '../playbooks/kit/voice-consent.ts';
 import type { AssetNote } from '../playbooks/kit/assets.ts';
 import { quotaRefusal } from './publish-tiers.ts';
 import { CHAUSAR_USER_AGENT } from './fetch-policy.ts';
-import type { SpeechPrice, SpeechProvidersView, SpeechProviderView, SpeechQuote, SpeechVoice } from './records-connect.ts';
+import type { SpeechProvidersView, SpeechProviderView, SpeechQuote, SpeechVoice } from './records-connect.ts';
 
 /** One provider: what the screens show, and how a call is made (null for a provider whose call is not written yet). */
 export type SpeechProvider = Omit<SpeechProviderView, 'label'> & {
@@ -39,7 +39,9 @@ export const SPEECH_PROVIDERS: readonly SpeechProvider[] = Object.freeze([
       { id: 'hi-IN-Standard-A', name: 'Hindi, standard voice A', language: 'hi-IN', licence: 'Google\'s stock voice; its Cloud terms let you use the audio you make.' },
       { id: 'en-IN-Standard-A', name: 'Indian English, standard voice A', language: 'en-IN', licence: 'Google\'s stock voice; its Cloud terms let you use the audio you make.' },
     ],
-    price: null, waitsOn: WAITS_ON_KEY, manualPath: MANUAL, note: `Many Indian languages on your own Google Cloud key. ${NO_PRICE_NOTE}`,
+    price: {microsPerMillionChars:'4000000',checkedOn:'2026-10-29',source:'https://cloud.google.com/text-to-speech/pricing'},
+    waitsOn: 'Your Google Cloud key, with billing and Text-to-Speech enabled. Add it in the narration desk.', manualPath: MANUAL,
+    note: 'Google Standard voices. Fixture-tested v1 request; provider access and billing depend on your account. List-price quote ignores free allowances. Google does not supply an immutable model revision.',
     // Cloud Text-to-Speech v1 text:synthesize, the key in its header; the answer's audioContent is base64.
     request: (text, voice, key) => ({
       url: 'https://texttospeech.googleapis.com/v1/text:synthesize', headers: { 'x-goog-api-key': key },
@@ -67,8 +69,8 @@ const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 /** A provider as the screens show it: write only when its call is written and the owner's key is here, else planned. */
 function viewOf(deps: VentureDeps, provider: SpeechProvider): SpeechProviderView {
   const { request: _request, audio: _audio, ...rest } = provider;
-  const ready = !!provider.request && deps.secrets.has(keyOf(provider.id));
-  return { ...structuredClone(rest), label: ready ? 'write' : 'planned: write' };
+  const ready = !!provider.request && !!provider.audio && !!provider.price && deps.secrets.has(keyOf(provider.id));
+  return { ...structuredClone(rest), label: ready ? 'write' : 'planned: write', waitsOn: ready ? null : rest.waitsOn };
 }
 
 /** venture.speechOut.providers {} (read): the capability table with each provider's honest label. */
@@ -77,19 +79,11 @@ export async function speechProviders(deps: VentureDeps, ctx: Context, payload: 
   readVenture(deps, ctx);
   const providers = SPEECH_PROVIDERS.map(provider => viewOf(deps, provider));
   const ready = providers.filter(provider => provider.label === 'write').length;
-  return { providers, line: ready ? `${ready} of these can make speech on your key.` : 'Each needs your own key, which Chausar cannot take yet. Make audio in the provider\'s own site meanwhile.' };
+  return { providers, line: ready ? `${ready} of these can make speech on your key.` : 'Add your Google Cloud key in the narration desk. Other providers remain planned; make audio in their own site meanwhile.' };
 }
 
-/** The quote for one call: characters, the cost in micro US dollars rounded up, the price it came from, the text's digest. */
-export function speechQuote(provider: SpeechProvider, voice: string, text: string): SpeechQuote {
-  const price: SpeechPrice | null = provider.price;
-  if (!price || !price.checkedOn || !/^\d{1,15}$/.test(price.microsPerMillionChars)) {
-    throw new ChausarError('UNPRICED_CALL', `${provider.name} has no dated price, so Chausar will not call it: an unknown price is never counted as free. Add its price from its own page first.`);
-  }
-  const chars = [...text].length;
-  const micros = String((BigInt(chars) * BigInt(price.microsPerMillionChars) + 999_999n) / 1_000_000n);
-  return { provider: provider.id, voice, chars, micros, figure: formatMicros(micros), price: { ...price }, textDigest: sha(text) };
-}
+export {speechQuote} from './speech-quote.ts';
+import {speechQuote} from './speech-quote.ts';
 
 /** The voice of a call: a stock voice with its licence, or a consented voice (5A4); anything else is refused. */
 export type SpeechVoiceChoice = { stock: string } | { consentId: string; speaker: string };
@@ -104,13 +98,14 @@ export type SpeechMade = { audio: Buffer; digest: string; quote: SpeechQuote; as
  * the provider's words. The caller keeps the audio as a file of the order.
  */
 export async function speechSay(
-  deps: VentureDeps, ctx: Context, input: { provider: string; voice: SpeechVoiceChoice; text: string; quoted?: string; ref?: string },
+  deps: VentureDeps, ctx: Context, input: { provider: string; voice: SpeechVoiceChoice; text: string; quoted?: string; ref?: string; approvedRateDigest?: string },
   providers: readonly SpeechProvider[] = SPEECH_PROVIDERS,
 ): Promise<SpeechMade> {
   const provider = providers.find(item => item.id === input.provider);
   check(provider, 'INVALID_VENTURE_REQUEST', 'Choose one of the speech providers.');
   check(typeof input.text === 'string' && input.text.trim().length > 0, 'INVALID_VENTURE_REQUEST', 'Give the words to speak.');
   if ([...input.text].length > provider.maxChars) throw new ChausarError('SPEECH_TOO_LONG', `${provider.name} takes at most ${provider.maxChars} characters a call. Split the text.`);
+  if (provider.id==='google-tts' && Buffer.byteLength(input.text,'utf8')>5000) throw new ChausarError('SPEECH_TOO_LONG','Google takes at most 5000 UTF-8 bytes a call. Split the text.');
   const key = deps.secrets.get(keyOf(provider.id));
   if (!provider.request || !provider.audio || !key) throw new ChausarError('SPEECH_PLANNED', `${provider.name} is planned. It waits on ${provider.waitsOn ?? 'its key'} Until then: ${provider.manualPath ?? MANUAL}`);
   const { state, venture } = readVenture(deps, ctx);
@@ -122,7 +117,7 @@ export async function speechSay(
     throw new ChausarError('VOICE_NOT_ALLOWED', `${consent.speaker}'s consent is recorded, but ${provider.name}'s voice-cloning call is not built yet. Use one of its stock voices.`);
   }
   const stock: SpeechVoice | undefined = provider.voices.find(item => item.id === (input.voice as { stock: string }).stock);
-  if (!stock) throw new ChausarError('VOICE_NOT_ALLOWED', 'Use one of the provider\'s stock voices, with its licence.');
+  if (!stock || !stock.licence.trim()) throw new ChausarError('VOICE_NOT_ALLOWED', 'Use one of the provider\'s stock voices, with its licence.');
   const voiceId = stock.id, licence = stock.licence, consentId: string | null = null;
   const quote = speechQuote(provider, voiceId, input.text);
   if (input.quoted !== quote.textDigest) throw new ChausarError('QUOTE_FIRST', `Show the quote first: ${quote.chars} characters with ${provider.name} costs about ${quote.figure} at its price of ${quote.price.checkedOn}.`);
@@ -133,7 +128,7 @@ export async function speechSay(
   };
   const audio = await paidCall(deps, ctx, {
     key: `speech:${provider.id}:${voiceId}:${quote.textDigest.slice(0, 32)}${input.ref ? `:${input.ref}` : ''}`, item, label: `Speech from ${provider.name}`,
-    payer: 'You, on your own provider key', draftDigest: quote.textDigest, connector: provider.id, list: rate,
+    approvedRateDigest: input.approvedRateDigest, payer: 'You, on your own provider key', draftDigest: quote.textDigest, connector: provider.id, list: rate,
   }, async () => {
     const call = provider.request!(input.text, voiceId, key);
     const answer = await guardedFetch({

@@ -4,6 +4,7 @@
 // trusted Python helper (pdf.extract). The shared hosted server never runs the Python helper, so there a PDF is refused
 // before it is stored. Practice files for rehearsal are made up by Chausar and never stored. On the desktop a YouTube
 // order's transcript can also be made on this computer from the cut named at intake (venture.files.transcribe).
+import {readDocx} from '../../playbooks/kit/ooxml/read.ts';
 import { audit, check, ChausarError, type Context } from '../../../contracts.ts';
 import { localPathProblem } from '../../../speech.ts';
 import { readWorkbook } from '../../../workbook.ts';
@@ -48,8 +49,9 @@ export function sniffFormat(name: string, bytes: Uint8Array): UploadFormat {
   const lower = name.toLowerCase();
   const head = Buffer.from(bytes.subarray(0, 5)).toString('latin1');
   if (lower.endsWith('.pdf')) { check(head === '%PDF-', 'UNSUPPORTED_UPLOAD', 'This file is named .pdf but is not a PDF.'); return 'pdf'; }
+  if (lower.endsWith('.docx')) { check(head.startsWith('PK\u0003\u0004'), 'UNSUPPORTED_UPLOAD', 'This file is named .docx but is not a Word document.'); readDocx(bytes); return 'docx'; }
   if (lower.endsWith('.xlsx')) { check(head.startsWith('PK\u0003\u0004'), 'UNSUPPORTED_UPLOAD', 'This file is named .xlsx but is not an XLSX workbook.'); return 'xlsx'; }
-  if (lower.endsWith('.csv') || lower.endsWith('.txt')) {
+  if (lower.endsWith('.csv') || lower.endsWith('.txt') || lower.endsWith('.md') || lower.endsWith('.markdown')) {
     try { new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw new ChausarError('UNSUPPORTED_UPLOAD', 'This CSV is not UTF-8 text. Save it as CSV UTF-8 and add it again.'); }
     return 'csv';
   }
@@ -84,7 +86,7 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
   const format = sniffFormat(name, bytes);
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const file: FileLike = { id: 'upload_check', name, format, bytes: bytes.length, digest: digest(encoded), contentBase64: encoded, clientData: true };
-  if (format === 'csv' && !/\.txt$/i.test(name) || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
+  if (format === 'csv' && !/\.(txt|md|markdown)$/i.test(name) || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'files.add', tx => {
     const order = tx.find('venture-order', orderId);

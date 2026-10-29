@@ -255,12 +255,14 @@ export class FakeEngine {
       scheduledBusy:(id:string)=>this.posting.scheduledBusy(id),
       eraseScheduledPost:(id:string)=>this.posting.eraseScheduled(id),
       decideScheduledPost: (id:string,state:'approved'|'rejected'|'applied') => this.posting.decideScheduled(id,state),
-      socialChain:(orderId:string)=>this.work.articleChain.view(orderId)??this.work.socialChain.view(orderId),
+      socialChain:(orderId:string)=>this.work.narrationChain.view(orderId)??this.work.articleChain.view(orderId)??this.work.socialChain.view(orderId),
       workReceipt:(id:string)=>this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.workReceipt(id),
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
       uploadFingerprint: (id: string) => this.work.uploadFingerprint(this.current, id),
       siteCaptureClient:(name:string,email:string)=>{let client=(this.clients[this.current]??[]).find(c=>c.email?.toLowerCase()===email);if(!client){client={id:`c-site-${this.clientSeq++}`,at:this.now(),name,email,countryCode:null,taxId:null,stateCode:null,note:null};this.clients[this.current]=[client,...(this.clients[this.current]??[])];}this.network.captureSiteClient({id:client.id,name:client.name,email});return client;},
+      keepNarrationFetched:(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string})=>this.work.keepNarrationFetched(this.current,orderId,file,source),
+      narrationPrice: (orderId:string) => this.work.narrationPrice(this.current,orderId),
       keepSellerAsset: (asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.recordSellerAsset(asset),
       eraseSellerAssets: (ids:readonly string[]) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.eraseSellerAssets(ids),
       eraseSellerFiles: (ids:readonly string[]) => this.work.eraseSellerFiles(this.current,ids),
@@ -358,7 +360,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -565,7 +567,7 @@ export class FakeEngine {
     return { rows: clone(rows), summary, needsYou: rows.length, businesses };
   }
 
-  private decide(p: ParamsOf<'venture.queue.decide'>): QueueDecision {
+  private decide(p: ParamsOf<'venture.queue.decide'>): QueueDecision|Promise<QueueDecision> {
     const row = this.rows.find((r) => r.id === p.id);
     if (!row) return { outcome: 'refused', line: 'This is no longer here.', reason: 'RESOLVED_ELSEWHERE' };
     if (this.decided.has(row.id)) return { outcome: 'refused', line: 'You decided this already.', reason: 'ALREADY_DECIDED' };
@@ -579,6 +581,7 @@ export class FakeEngine {
     if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
+    if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
     const social=this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     this.decided.add(row.id);

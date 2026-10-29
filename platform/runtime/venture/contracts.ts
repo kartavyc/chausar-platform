@@ -927,6 +927,8 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  /** Exact owner-approved fetched narration source. */
+  narrationFetched?: {fileId:string;url:string;finalUrl:string;digest:string};
   socialProduction?: import('./playbooks/social/production-types.ts').SocialProduction;
   socialPostHistory?: import('./playbooks/social/slots-live.ts').SocialHookHistory[];
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
@@ -2186,7 +2188,7 @@ export type AuditRound = { round: number; plan: string; steps: AuditStep[]; prog
 /** transcript: an SRT or VTT file of what was said, with timings (venture/playbooks/youtube/transcript.ts). */
 /** image: a still from an order's cut (Ink v2 wave 4, 4J3), a JPEG kept only as the order's poster. */
 /** image and audio (5A4): a client's photo, cleaned at intake, and a recording kept as it came (playbooks/kit/media-intake.ts). */
-export type UploadFormat = 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio';
+export type UploadFormat = 'docx' | 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio';
 export type UploadRecord = RecordBase<'venture-upload'> & {
   name: string;
   format: UploadFormat;
@@ -6285,6 +6287,29 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'EXPLAINER_CAPTION_INVALID',
+  'EXPLAINER_QUOTE_REQUIRED',
+  'NARRATION_APPROVAL_REQUIRED',
+  'NARRATION_AUDIO_EXISTS',
+  'NARRATION_AUDIO_REQUIRED',
+  'NARRATION_DESTINATION_INVALID',
+  'NARRATION_DISTRIBUTOR_BLOCKED',
+  'NARRATION_LISTEN_REQUIRED',
+  'NARRATION_MARKUP_INVALID',
+  'NARRATION_MARKUP_SOURCE_CHANGED',
+  'NARRATION_MEASUREMENT_REQUIRED',
+  'NARRATION_MEDIA_FAILED',
+  'NARRATION_NOT_FOUND',
+  'NARRATION_ORDER_REQUIRED',
+  'NARRATION_OUTCOME_UNKNOWN',
+  'NARRATION_PRICE_REQUIRED',
+  'NARRATION_PROVIDER_FAILED',
+  'NARRATION_QUOTE_REQUIRED',
+  'NARRATION_RETRY_REQUIRED',
+  'NARRATION_SOURCE_REQUIRED',
+  'NARRATION_TIMING_INVALID',
+  'NARRATION_VERIFICATION_REQUIRED',
+
   'SITE_AUDIT_CURRENT',
   'SITE_AUDIT_INVALID',
   'SITE_AUDIT_REQUIRED',

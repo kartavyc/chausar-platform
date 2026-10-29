@@ -1,0 +1,6 @@
+// Source-executed baseline sensitivity. No saved expected answer may replace the current domain computations.
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {scoreNarrationBaseline} from '../runtime/venture/playbooks/narration-studio/baseline.ts';
+const cases=JSON.parse(readFileSync(new URL('../runtime/venture/playbooks/narration-studio/baselines/narration-studio.json',import.meta.url),'utf8'));
+test('all narration baseline sources execute their current refusal and scoring code',()=>{assert.equal(cases.length,3);for(const item of cases)assert.equal(scoreNarrationBaseline(item,item.draft).pass,true,item.id);});
+test('missing or harmless replacement sources cannot pass by case name and expected prose',()=>{for(const item of cases){assert.equal(scoreNarrationBaseline({...item,meta:{}},item.draft).pass,false,item.id);const source=JSON.parse(item.meta.source);if(item.id==='unconsented-voice-refused')source.voices[0].licence='Current stock licence';if(item.id==='segment-review-flag')source.transcript=source.text;if(item.id==='explainer-quotes-only')source.lines[0]={start:0,end:source.text.length,text:source.text};assert.equal(scoreNarrationBaseline({...item,meta:{source:JSON.stringify(source)}},item.draft).pass,false,item.id);}});

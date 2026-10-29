@@ -95,5 +95,11 @@
     "offers": [
       "business-site"
     ]
+  },
+  {
+    "id": "narration-studio",
+    "offers": [
+      "audiobook"
+    ]
   }
 ]

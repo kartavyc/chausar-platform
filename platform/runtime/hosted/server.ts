@@ -31,7 +31,7 @@ const TYPES: Readonly<Record<string, string>> = INK_TYPES; // html, js, css, svg
 const STATIC: Record<string, [string, string]> = {
   '/': [hostedDir, 'index.html'], '/index.html': [hostedDir, 'index.html'], '/hosted.js': [hostedDir, 'hosted.js'], '/hosted.css': [hostedDir, 'hosted.css'],
 };
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 const HOSTED_META = '<meta name="chausar-mode" content="hosted">';
 
 // The client share page (/share/<token>): plain HTML, no scripts, one style allowed by its hash, a form that posts to

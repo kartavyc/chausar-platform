@@ -62,7 +62,7 @@ test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_OR
   for (const item of CONNECTOR_CATALOGUE) {
     if (item.vendorUrl === null) {
       // 5A6: mail import, the two webhooks and the speech providers have no Visit site link (their origins are not in the list).
-      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'chausar-templates', 'bank-account', 'mail-import', 'n8n-webhook', 'make-webhook', 'google-tts', 'sarvam-tts', 'elevenlabs'].includes(item.id), item.id);
+      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'chausar-templates', 'bank-account', 'mail-import', 'n8n-webhook', 'make-webhook', 'narration-files', 'narration-local-checks', 'narration-distribution', 'google-tts', 'sarvam-tts', 'elevenlabs'].includes(item.id), item.id);
       continue;
     }
     const url = new URL(item.vendorUrl);

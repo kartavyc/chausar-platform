@@ -40,7 +40,7 @@ export function kitIntakeReady(ask: OfferIntakeLite | null, answers: KitAnswers)
 }
 
 /** Client intake files use the same format and size boundaries as the engine, including cleanable photos and recordings. */
-export const KIT_FILE_ACCEPT = '.csv,.xlsx,.pdf,.srt,.vtt,.jpg,.jpeg,.png,.webp,.wav,.mp3,.m4a,.ogg';
+export const KIT_FILE_ACCEPT = '.txt,.md,.markdown,.docx,.csv,.xlsx,.pdf,.srt,.vtt,.jpg,.jpeg,.png,.webp,.wav,.mp3,.m4a,.ogg';
 export function isKitFile(value: unknown): value is File { return typeof File !== 'undefined' && value instanceof File; }
 /** A displayable problem code, without inspecting private file bytes in the UI. */
 export function kitFileProblem(file: File): 'type' | 'size' | null {
