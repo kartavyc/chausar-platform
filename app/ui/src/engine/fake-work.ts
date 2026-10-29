@@ -1,3 +1,4 @@
+import { FakeArticleChain } from './fake-article-chain';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 /**
@@ -22,7 +23,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 const MAX_UPLOAD_BYTES = 1_450_000;
 const MAX_UPLOADS_PER_ORDER = 10;
 /** The format each file ending is kept as; SRT and VTT are transcripts. */
-const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', xlsx: 'xlsx', pdf: 'pdf', srt: 'transcript', vtt: 'transcript' };
+const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', txt: 'csv', xlsx: 'xlsx', pdf: 'pdf', srt: 'transcript', vtt: 'transcript' };
 /** The engine's words for each basis (platform/runtime/venture/delivery/rights.ts RIGHTS_LABELS, in a sentence). */
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
@@ -73,9 +74,10 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 }
 
 export class FakeWorkDesk {
-  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
   private readonly host: WorkHost;
   readonly socialChain: FakeSocialChain;
+  readonly articleChain: FakeArticleChain;
   private orders: Record<string, OrderLite[]>;
   private deliveries: Record<string, DeliveryLite[]>;
   private uploads: Record<string, UploadLite[]>;
@@ -85,6 +87,7 @@ export class FakeWorkDesk {
 
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.articleChain=new FakeArticleChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},next:orderId=>{this.start(host.current(),{orderId});}});
     this.socialChain=new FakeSocialChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},eraseFiles:ids=>{const biz=host.current();this.uploads[biz]=(this.uploads[biz]??[]).filter(f=>!ids.has(f.id));for(const id of ids){this.fileContents.delete(biz+':'+id);this.fileFingerprints.delete(biz+':'+id);}},next:orderId=>{this.start(host.current(),{orderId});}});
     this.orders = options.fresh ? {} : clone(ORDERS);
     this.deliveries = options.fresh ? {} : clone(DELIVERIES);
@@ -148,7 +151,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
-      case 'venture.delivery.approve': case 'venture.delivery.review': return this.socialChain.request(method,p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': return this.addFile(biz, p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
@@ -266,7 +269,7 @@ export class FakeWorkDesk {
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}
-    const social=this.socialChain.start(order,runId);
+    const social=this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();

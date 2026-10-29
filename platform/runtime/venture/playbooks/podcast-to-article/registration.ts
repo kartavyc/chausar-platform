@@ -4,4 +4,4 @@
 // line). Written for Chausar; nothing here is learned from an outside source.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const PODCAST_TO_ARTICLE_REGISTRATION: PlaybookRegistration | null = null;
+export const PODCAST_TO_ARTICLE_REGISTRATION: PlaybookRegistration = Object.freeze({id:'podcast-to-article',label:'Podcast to articles',serviceType:'content',picks:['podcast to article','podcast to blog','video to article','episode to blog post','show notes service'],summary:'Agents turn each episode into an article, show notes and a newsletter blurb, every sentence tied to the transcript; you pick the angle and approve the article.',riskLevel:'medium',lastReviewed:'2026-10-28'});

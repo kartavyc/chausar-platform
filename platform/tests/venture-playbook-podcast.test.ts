@@ -1,0 +1,12 @@
+// Original kit registration and professional-review boundary tests.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {PODCAST_TO_ARTICLE_DEFINITION} from '../runtime/venture/playbooks/podcast-to-article/definition.ts';
+import {allWords,hiProblem} from '../runtime/venture/playbooks/kit/words.ts';
+import {readFileSync} from 'node:fs';
+import {PODCAST_TO_ARTICLE_CATALOGUE} from '../runtime/venture/build/catalogue/podcast-to-article.ts';
+import {connectorCard} from '../runtime/venture/build/connectors.ts';
+import {prepareTranscript} from '../runtime/venture/playbooks/podcast-to-article/prep.ts';
+test('clean article practice supplies enough source sections for the required owner outline',()=>{const clean=PODCAST_TO_ARTICLE_DEFINITION.practice.find(p=>p.kind==='clean')!;assert.ok(prepareTranscript(clean.files[0]!.text,{host:'Anu',guests:['Dev']}).paragraphs.length>=5);});
+test('article connector cards expose only implemented read and manual handoff modes',()=>{for(const entry of PODCAST_TO_ARTICLE_CATALOGUE){const card=connectorCard(entry,false);for(const target of entry.targets)assert.equal(card.modes.find(m=>m.mode===target)?.status,'available',entry.id);assert.notEqual(card.modes.find(m=>m.mode==='write')?.status,'available');}});
+test('article catalogue describes the real local input and manual publishing boundaries',()=>{assert.deepEqual(PODCAST_TO_ARTICLE_CATALOGUE.map(c=>c.id),['article-transcript','article-local-transcription','article-publishing']);assert.deepEqual(PODCAST_TO_ARTICLE_CATALOGUE.at(-1)?.targets,['handoff']);assert.match(PODCAST_TO_ARTICLE_CATALOGUE[1]!.note,/50 MB/);});
+test('podcast kit registers real offers, tools, owner floors, Hindi and source-backed checks',()=>{const d=PODCAST_TO_ARTICLE_DEFINITION;assert.ok(d);assert.equal(d.registration.id,'podcast-to-article');assert.deepEqual(d.offers.map(o=>o.id),['article-per-episode','show-notes','newsletter-blurb']);assert.ok(d.offers.every(o=>o.price==='owner-sets'));assert.deepEqual(d.tools,['article.ledger','article.style']);assert.ok(d.approvals.some(a=>a.step==='approve-angle'&&a.floor));assert.ok(d.approvals.some(a=>a.step==='approve'&&a.floor));assert.ok(d.rules.every(r=>Object.hasOwn(r,'needs')));assert.ok(d.rules.some(r=>r.needs==='lawyer'&&r.confirmedBy===null));assert.ok(d.checks.length);const hi=JSON.parse(readFileSync(new URL('../runtime/venture/playbooks/podcast-to-article/hi.json',import.meta.url),'utf8'));assert.ok(allWords(d).every(word=>hiProblem(hi,word)===null));});

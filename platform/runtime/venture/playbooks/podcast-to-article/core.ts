@@ -1,0 +1,5 @@
+// Original Chausar evidence guards, informed by podcast-to-article (MIT); no source code copied.
+export class ArticleError extends Error {code:string;constructor(code:string,line:string){super(line);this.code=code;this.name='ArticleError';}}
+export function requireArticle(ok:unknown,code:string,line:string):asserts ok {if(!ok)throw new ArticleError(code,line);}
+export function articleExact(raw:unknown,keys:readonly string[],required:readonly string[]=keys):Record<string,unknown>{requireArticle(!!raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');const body=raw as Record<string,unknown>;requireArticle(Object.keys(body).every(key=>keys.includes(key))&&required.every(key=>Object.hasOwn(body,key)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return body;}
+export function articleLine(raw:unknown,max=500):string{requireArticle(typeof raw==='string'&&!!raw.trim()&&raw.length<=max&&!/[\r\n\u0000-\u001f]/.test(raw),'INVALID_VENTURE_REQUEST','Use one short line of text.');return raw.trim();}

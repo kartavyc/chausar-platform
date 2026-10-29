@@ -3,5 +3,10 @@
 // record's fields here, never in contracts.ts. Types only. Written for Chausar; nothing here is learned from an outside
 // source.
 
-/** venture-article-ledger: a placeholder until package 5L lands. */
-export type ArticleLedgerBody = { placeholder: true };
+import type {ArticleParagraph} from './prep.ts';
+import type {ArticleFact} from './ledger.ts';
+import type {ArticleLanguage} from './style.ts';
+export type ArticleAngle={id:string;title:string;reason:string;factIds:string[]};
+export type ArticleBundle={title:string;sections:{heading:string;text:string}[];showNotes:string;newsletterBlurb:string};
+/** The ledger retains source identity, exact owner direction and one reviewable draft. */
+export type ArticleLedgerBody={orderId:string;clientId:string;source:{fileId:string;orderId:string;fingerprint:string;name:string};intakeDigest:string;host:string;guests:string[];language:ArticleLanguage;paragraphs:ArticleParagraph[];facts:ArticleFact[];warnings:string[];angles:ArticleAngle[];selection:{angleId:string;title:string;sections:string[]}|null;draft:ArticleBundle|null;state:'prepared'|'outlined'|'drafted'|'approved';approval:string|null};

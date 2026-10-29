@@ -135,12 +135,14 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
  * protects anything gets the contract's check last, on the eight fixed steps too (4J12).
  */
 async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { runId?: string; work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
+  (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(deps.store.read(), context.venture, context.order, deps.clock().toISOString());
   // Ink v2 wave 4 (4J12, H24): a signed order contract's protected items, on every playbook's drafts, after its own.
   const contract = contractChecks(deps.store.read(), context.venture, context.order.id, { text: draftWords(deliverable), ...(extras.files ? { files: extras.files.map(file => ({ name: file.name, digest: file.digest })) } : {}) });
   // Ink v2 wave 4 (4J17, A8): the owner's voice, by code, on every playbook's drafts; it only ever adds a result.
   const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(deps.store.read(), context.venture), playbook.flagship ?? null);
   if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
   const checkInput = {
+    ...(playbook.flagship==='podcast-to-article'?{articleRecord:listRecords(deps.store.read(),'venture-article-ledger',context.venture.id).find(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId)??null}:{}),
     flagship: playbook.flagship, offerKey: context.offerKey, stageId:flagshipDraft(playbook,context.offerKey,context.order.intake??null,context.order.chainStage??null)?.stepId, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
     brandKit: resolveKit(deps.store.read(), context.venture, context.order.clientId),
     socialSlotContext: socialSlotContext(deps.store.read(), context.venture, context.order, deps.clock().toISOString(), extras.runId ?? null),
@@ -260,6 +262,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   refuseUnsignedContract(state, venture, order);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, order);
   (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, order);
+  (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(state, venture, order, deps.clock().toISOString());
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
@@ -450,6 +453,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   const context = orderContext(state, venture, run.orderId);
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, context.order);
   (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, context.order);
+  (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(state, venture, context.order, deps.clock().toISOString());
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, context.order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,context.order);
   const playbook = playbookForRun(state, run);
@@ -487,6 +491,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     const latestSupport=deps.store.read();
     (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
     (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order);
+    (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order, deps.clock().toISOString());
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,orderContext(deps.store.read(),venture,run.orderId).order);
     recheckSend(deps, venture.id, runId, callId, approved);

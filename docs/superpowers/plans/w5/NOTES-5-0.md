@@ -651,3 +651,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 
 - Client bookkeeping cycles, source-bound vouchers, monthly seller reconciliation and exact approved Zoho draft, settlement and setup writes are integrated. Issue asks separately. Tally writes remain planned with manual entry.
 - Independent spec and quality PASS and provider limits are recorded in NOTES-5K2-REVIEW.md and its bounded review notes. No live-account qualification is claimed.
+
+## 5L isolated package closure
+
+- Source-bound podcast article preparation, approved direction, staged drafting and explicit manual publishing handoff are integrated. Local transcription needs owner-installed tools; legal confirmation stays pending.
+- Independent spec and quality PASS, source mutation proofs, Forget and measured phone evidence are recorded in NOTES-5L.md.

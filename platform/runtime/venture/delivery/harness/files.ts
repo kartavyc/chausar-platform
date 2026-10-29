@@ -84,7 +84,7 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
   const format = sniffFormat(name, bytes);
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const file: FileLike = { id: 'upload_check', name, format, bytes: bytes.length, digest: digest(encoded), contentBase64: encoded, clientData: true };
-  if (format === 'csv' || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
+  if (format === 'csv' && !/\.txt$/i.test(name) || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'files.add', tx => {
     const order = tx.find('venture-order', orderId);

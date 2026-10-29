@@ -534,6 +534,63 @@
         }
       },
       {
+        "id": "podcast-to-article",
+        "playbook": "podcast-to-article",
+        "label": "Podcast to articles",
+        "category": "content",
+        "department": "marketing",
+        "line": "An article, show notes and a newsletter blurb from every episode.",
+        "hours": "2 to 3 h a week",
+        "minHours": 2,
+        "maxHours": 3,
+        "hoursEstimate": true,
+        "youDo": "Pick the angle, approve the article.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Editor",
+            "initials": "ED",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Ledger of facts, drafts that cite the episode.",
+        "clientsPay": {
+          "text": "₹2,500 to ₹8,000",
+          "per": "per episode",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Episode transcript, Local transcription and Blog and newsletter."
+        },
+        "starter": "Podcast to articles: An article, show notes and a newsletter blurb from every episode.",
+        "yours": [],
+        "hi": {
+          "label": "पॉडकास्ट से लेख",
+          "line": "हर एपिसोड से लेख, शो नोट्स और न्यूज़लेटर का अंश।",
+          "hours": "हफ़्ते में 2 से 3 घंटे",
+          "youDo": "दिशा चुनें, लेख मंज़ूर करें।",
+          "team": [
+            "लेखक",
+            "संपादक"
+          ],
+          "teamLine": "तथ्यों की सूची और एपिसोड से जुड़े ड्राफ़्ट।",
+          "pay": "₹2,500 से ₹8,000",
+          "per": "हर एपिसोड",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Podcast to articles: हर एपिसोड से लेख, शो नोट्स और न्यूज़लेटर का अंश।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "एपिसोड का ट्रांसक्रिप्ट, कंप्यूटर पर ट्रांसक्रिप्ट और ब्लॉग और न्यूज़लेटर के साथ काम करता है।"
+          }
+        }
+      },
+      {
         "id": "lead-generation",
         "playbook": "lead-generation",
         "label": "Lead generation and appointment setting",
@@ -602,7 +659,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 2
+        "count": 3
       },
       {
         "id": "marketing",
@@ -627,7 +684,7 @@
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 1
+      "count": 2
     }
   },
   "checklist": [

@@ -1,3 +1,4 @@
+import {articleOnReview} from '../podcast-to-article/chain.ts';
 // Chausar playbook kit: the chain that carries a kit offer's stages across runs on one order (Ink v2 wave 5, package
 // 5A1; spec 5.8 "outcome edges, retry caps and timeouts across a chain of runs", on 4J12's step fields). An offer whose
 // stages name more than one step is a chain: the order starts at stage 1, and each run drafts its stage's step
@@ -101,6 +102,7 @@ function replaceOrder(tx: VentureTx, order: OrderRecord, patch: Pick<OrderRecord
  * stop after a rejection. Returns the order id when the next stage's run should start now (after the commit); else null.
  */
 export function chainOnReview(tx: VentureTx, run: DeliveryRunRecord, verdict: 'accepted' | 'edited' | 'rejected'): string | null {
+  articleOnReview(tx,run,verdict);
   keepSocialVoice(tx,run,verdict);
   const order = tx.find('venture-order', run.orderId);
   if (!order || !tx.venture || run.practice) return null;

@@ -1,0 +1,22 @@
+// Original Chausar transcript preparation, learned from orange2ai/podcast-to-article (MIT), rewritten for English/Hindi.
+import {parseTranscript,parseTimestamp} from '../youtube/transcript.ts';
+import {requireArticle} from './core.ts';
+export type ArticleParagraph={id:string;speaker:string|null;startMs:number|null;endMs:number|null;timecode:string|null;text:string};
+export type ArticleSpeakers={host:string;guests:readonly string[]};
+type Fragment=Omit<ArticleParagraph,'id'|'timecode'>;
+const clean=(text:string)=>text.replace(/<[^>]*>/g,'').replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g,'').replace(/\s+/g,' ').trim();
+const stamp=(ms:number|null)=>ms===null?null:'['+String(Math.floor(ms/60000)).padStart(2,'0')+':'+String(Math.floor(ms/1000)%60).padStart(2,'0')+']';
+function speakerText(raw:string,names:readonly string[]){const voice=/^\s*<v(?:\.\S+)?\s+([^>]+)>/i.exec(raw);const text=clean(raw);const name=names.find(name=>text.startsWith(name+':')||text.startsWith(name+'：'))??(voice&&names.includes(voice[1]!.trim())?voice[1]!.trim():null);return {speaker:name,text:name&&(text.startsWith(name+':')||text.startsWith(name+'：'))?text.slice(name.length+1).trim():text};}
+/** Preserve source words and known speakers; never invent missing times or speaker identities. */
+export function prepareTranscript(raw:string,speakers:ArticleSpeakers){
+ requireArticle(typeof raw==='string'&&!!raw.trim()&&raw.length<=1500000,'ARTICLE_SOURCE_REQUIRED','Add a transcript within the file limit.');const names=[speakers.host,...speakers.guests];requireArticle(names.length>0&&names.length<=20&&names.every(n=>typeof n==='string'&&!!n.trim()&&n.length<=100)&&new Set(names).size===names.length,'ARTICLE_SPEAKERS_REQUIRED','Name the host and each guest once.');
+ const timed=raw.includes('-->'),cues=timed?parseTranscript(raw):null;requireArticle(!timed||!!cues?.length,'ARTICLE_SOURCE_REQUIRED','This timed transcript has no readable speech.');
+ const fragments:Fragment[]=cues?cues.map(c=>({...speakerText(c.text,names),startMs:c.startMs,endMs:c.endMs})):raw.replace(/\r\n/g,'\n').split(/\n+/).filter(line=>line.trim()).map(line=>{const m=/^\s*\[(\d+:\d{2}(?::\d{2})?)\]\s*/.exec(line),startMs=m?parseTimestamp(m[1]!):null;requireArticle(!m||m[1]!.split(':').slice(1).every(part=>Number(part)<60),'ARTICLE_SOURCE_REQUIRED','Check the transcript timestamps.');return {...speakerText(m?line.slice(m[0].length):line,names),startMs,endMs:startMs};});
+ const paragraphs:ArticleParagraph[]=[],warnings:string[]=[];let current:Fragment|null=null,last:Fragment|null=null,echoesDropped=0;
+ const push=()=>{if(!current?.text)return;const words=current.text.split(' ');let text='';for(const word of words){if(text&&text.length+word.length+1>300){paragraphs.push({...current,text,id:'P'+(paragraphs.length+1),timecode:stamp(current.startMs)});text='';}requireArticle(word.length<=300,'ARTICLE_SOURCE_REQUIRED','Break unusually long transcript tokens into readable words.');text+=(text?' ':'')+word;}if(text)paragraphs.push({...current,text,id:'P'+(paragraphs.length+1),timecode:stamp(current.startMs)});current=null;};
+ for(const f of fragments){if(!f.text)continue;requireArticle(f.startMs===null||Number.isSafeInteger(f.startMs)&&f.startMs>=0&&f.startMs<=7*86400000&&f.endMs!==null&&f.endMs>=f.startMs,'ARTICLE_SOURCE_REQUIRED','Check the transcript timestamps.');if(last&&last.speaker===f.speaker&&last.text===f.text){echoesDropped++;last=f;continue;}const gap=last?.endMs!==null&&last?.endMs!==undefined&&f.startMs!==null?f.startMs-last.endMs:null;
+  if(current&&(current.speaker!==f.speaker||gap!==null&&gap>=1500||current.text.length>=140&&/[.!?।]$/.test(current.text)||current.text.length+f.text.length+1>300||!timed))push();
+  const prior=current as Fragment|null;current=prior?{...prior,text:prior.text+' '+f.text,endMs:f.endMs}:f;last=f;
+ }push();requireArticle(paragraphs.length>0&&paragraphs.length<=20000,'ARTICLE_SOURCE_REQUIRED','Add a readable bounded transcript.');if(paragraphs.some(p=>p.speaker===null))warnings.push('speaker-unverified');if(paragraphs.some(p=>p.startMs===null))warnings.push('timestamps-unavailable');if(paragraphs.filter(p=>/[.!?।]/.test(p.text)).length<paragraphs.length/2)warnings.push('sparse-punctuation');
+ return {paragraphs,cleaned:paragraphs.map(p=>[p.timecode,p.speaker?p.speaker+':':null,p.text].filter(Boolean).join(' ')).join('\n\n'),warnings,echoesDropped};
+}

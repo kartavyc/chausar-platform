@@ -63,6 +63,7 @@ import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
+  articleRecord?: import('./podcast-to-article/records.ts').ArticleLedgerBody | null;
   socialSlotContext?: import('./social/slots-live.ts').SocialSlotContext;
   stageId?: string;
   brandKit?: import('./kit/records-media.ts').ResolvedKit;

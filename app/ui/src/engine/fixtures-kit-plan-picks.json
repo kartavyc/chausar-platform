@@ -64,6 +64,12 @@
     ]
   },
   {
+    "id": "podcast-to-article",
+    "offers": [
+      "article-per-episode"
+    ]
+  },
+  {
     "id": "lead-generation",
     "offers": [
       "researched-pipeline",

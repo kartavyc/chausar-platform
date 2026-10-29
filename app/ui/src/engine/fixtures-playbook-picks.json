@@ -129,6 +129,16 @@
     ]
   },
   {
+    "id": "podcast-to-article",
+    "picks": [
+      "podcast to article",
+      "podcast to blog",
+      "video to article",
+      "episode to blog post",
+      "show notes service"
+    ]
+  },
+  {
     "id": "lead-generation",
     "picks": [
       "lead generation",
