@@ -701,3 +701,8 @@ Adds exact owner-selected YouTube services, source research and comment/script w
 ### 5D3 isolated commit checkpoint
 
 Source-bound influencer campaigns and exact approved open-network plain-text publishing. Independent spec and quality PASS, privacy/approval review repairs and actual phone captures are recorded in NOTES-5D3.md. External legal review remains explicit where required. No creator agreement, real publication or provider acceptance is inferred.
+
+
+### 5F3 isolated commit checkpoint
+
+Seller connectors and store assistant: exact-approved Shopify reads and writes with acknowledgement and read-back, owner-supplied marketplace template handoffs, and session-only catalogue-grounded buyer requests with per-question owner approval. Independent spec and quality PASS, genuine RED/GREEN and limitations are recorded in NOTES-5F3.md. Live merchant qualification is absent and buyer use waits for named lawyer confirmation.

@@ -22,6 +22,7 @@ import {
   listRateOfTable, modelTableOf, payerWords, reserveSpend, resolveRate, settleSpend, spendRatesOf, spendRefused, type SpendOutcome, type SpendSubject,
 } from '../money/spend.ts';
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
+import {modelBudgetUsed} from './budget.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
@@ -169,13 +170,8 @@ function spendOutcome(sent: boolean, usage: boolean, failed: boolean, costMicros
  * This month's spend on the preset, plus what every dispatching call of that preset reserves, plus this
  * estimate, must stay within the connection's monthly limit (months in UTC).
  */
-function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: PresetSpec, estimate: string, month: string) {
-  let total = BigInt(estimate);
-  for (const call of calls) {
-    if (call.presetId !== connection.presetId) continue;
-    if (call.status === 'dispatching') total += BigInt(call.estimatedMaxCostMicros);
-    else if (call.costMicros !== null && monthOf(call.at) === month) total += BigInt(call.costMicros);
-  }
+function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: PresetSpec, estimate: string, month: string, tx:VentureTx) {
+  const total = BigInt(estimate)+modelBudgetUsed(calls,tx.list('venture-spend'),connection.presetId,month);
   check(total <= BigInt(connection.monthlyCapMicros), 'BUDGET_REACHED',
     `This call could take ${spec.label} past your monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
 }
@@ -614,7 +610,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
           throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatMicros(estimate)}, more than the ${formatMicros(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
         }
-        checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now));
+        checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now),tx);
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);
         // The charge record, in the same commit as the call record: written before anything is sent.
         if (rate) reserveSpend(tx, { ...callSpend(record, route.spec), rate, estimateMicros: estimate });
@@ -686,7 +682,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         check(tx.state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
         const problem = problemOf(spec);
         if (problem) throw new ChausarError(problem.code, problem.message);
-        checkBudget(txCalls(tx), connection, spec, current.estimatedMaxCostMicros, monthOf(tx.now));
+        checkBudget(txCalls(tx), connection, spec, current.estimatedMaxCostMicros, monthOf(tx.now),tx);
         // Ink v2 wave 4 (4F2, H32): a call that writes a client draft is held to today's cap on drafts, read in this claim.
         if (current.purpose === 'delivery' && tx.venture) {
           const capped = writeCapDenial(tx.state, tx.venture, 'drafts', tx.now);

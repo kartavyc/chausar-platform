@@ -1,9 +1,12 @@
 // Chausar seller erasure. Original implementation, including copied receipts and source files.
 import type {VentureTx} from '../../records.ts';
+import type {VentureDeps} from '../../contracts.ts';
+import {eraseShopifyNaming} from './shopify-privacy.ts';
 import {removeRecords} from '../../network/people.ts';
 /** Forget removes seller evidence about the person and invalidates every dependent approval. */
-export function eraseSellerNaming(tx:VentureTx,clientIds:ReadonlySet<string>,handles:ReadonlySet<string>,mentions:(text:unknown)=>boolean):void {
+export function eraseSellerNaming(tx:VentureTx,clientIds:ReadonlySet<string>,handles:ReadonlySet<string>,mentions:(text:unknown)=>boolean,secrets?:VentureDeps['secrets']):void {
  const named=(value:unknown)=>{const text=JSON.stringify(value);return mentions(text)||[...handles].some(handle=>handle.length>=3&&text.toLowerCase().includes(handle.toLowerCase()));};
+ eraseShopifyNaming(tx,clientIds,named,secrets);
  const owns=(row:{clientId:string})=>clientIds.has(row.clientId)||named(row);
  const stages=tx.list('venture-seller-stage').filter(owns),movements=tx.list('venture-seller-movement').filter(owns),cases=tx.list('venture-seller-case').filter(owns);
  const ids=new Set([...stages,...movements,...cases].map(row=>row.id));

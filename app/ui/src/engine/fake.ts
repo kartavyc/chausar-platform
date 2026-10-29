@@ -1,3 +1,4 @@
+import {withSellerCards} from './fake-seller-cards';
 import { fakeSocialForIdea, fakeSocialPlan } from './fake-social-plan';
 import { fakeSocialRevisionDueRows } from './fake-social-revision-due';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -413,7 +414,7 @@ export class FakeEngine {
         return clone(signature ? { ...receipt, signature } : receipt);
       }
       case 'venture.books.summary': return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
-      case 'venture.connectors.list': return withTruth(this.posting.connectorCards(clone(CONNECTORS)), this.hosted);
+      case 'venture.connectors.list': return withTruth(this.posting.connectorCards(withSellerCards(clone(CONNECTORS))), this.hosted);
       case 'workspace.list': return {
         complete: true,
         businesses: this.businesses.map((b) => ({ folder: b.id, name: b.name, demo: true, unlock: b.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', opens: b.opens, recovery: b.recovery, openedAt: b.id === this.current ? this.now() : null, listedFrom: 'card' })),
@@ -512,7 +513,7 @@ export class FakeEngine {
     this.guardInternalShare(method,p);
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     if(method==='venture.share.list')return this.shareView(p);
-    if (method === 'venture.connectors.list') return withTruth(this.posting.connectorCards(clone(CONNECTORS)), this.hosted);
+    if (method === 'venture.connectors.list') return withTruth(this.posting.connectorCards(withSellerCards(clone(CONNECTORS))), this.hosted);
     // 4B3: agent chat reads the team (whose steps an agent owns) and the clients (whom a note is about).
     if (method === 'venture.team.list') return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
     if (method === 'venture.client.list') return clone(this.clients[this.current] ?? []);

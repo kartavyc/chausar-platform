@@ -157,6 +157,8 @@ const calls = (store: VentureTestStore) => listRecords(store.read(), 'venture-mo
 const connections = (store: VentureTestStore) => listRecords(store.read(), 'venture-model-connection') as any[];
 const events = (store: VentureTestStore) => (listRecords(store.read(), 'venture-event') as any[]).map(event => event.name);
 
+test('session-only model spend counts toward the next generic model connection cap without retaining a buyer body',async()=>{const {deps,rec}=await setup();await connect(deps,'anthropic-sonnet-5-5');await ventureAction(deps,owner,'approve','test.session-spend',tx=>{const connection=tx.list('venture-model-connection')[0]!;tx.replace({...connection,monthlyCapMicros:'10000000'});tx.put({...tx.base('venture-spend'),key:'storefront:opaque-session-call',item:'model:'+connection.presetId,label:'Store assistant AI',payer:'connection:'+connection.id,draftDigest:'random-approval-id',agent:null,connector:connection.presetId,ref:'opaque-session-call',rate:null,reservedMicros:'10000000',settledMicros:'10000000',settledBy:'usage',phase:'settled',quoteId:null,refusal:null,settledAt:tx.now});});const before=rec.http.length;await assert.rejects(deps.models.generate(owner,wordsTask({purpose:'delivery'})),code('BUDGET_REACHED'));assert.equal(rec.http.length,before);});
+
 async function seedClientAndOrder(deps: VentureDeps) {
   await ventureAction(deps, owner, 'prepare', 'seed', tx => {
     const client = tx.put({ ...tx.base('venture-client'), name: 'Cafe Aroma Demo', email: 'owner@aroma.example', countryCode: 'IN', taxId: null, stateCode: '27', note: null });

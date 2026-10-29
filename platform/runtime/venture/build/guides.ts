@@ -1,3 +1,4 @@
+import {SELLER_GUIDES} from './seller-guides.ts';
 import {OPEN_POSTING_GUIDES} from './open-posting-guides.ts';
 import {NARRATION_GUIDES} from './narration-guides.ts';
 import {ZOHO_BOOKS_GUIDE} from './zoho-books-guide.ts';
@@ -79,6 +80,7 @@ const AGAIN = 'Chausar keeps it only while the app is open, so type it again aft
 
 /** The guides written by hand: every connector this build really links, hands off to, reads or keeps inside Chausar. */
 const HAND: Readonly<Record<string, Hand>> = Object.freeze({
+  ...SELLER_GUIDES,
   ...NARRATION_GUIDES,
   'zoho-books': ZOHO_BOOKS_GUIDE,
   ...PLAYBOOK_GUIDES,

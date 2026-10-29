@@ -3,8 +3,8 @@
   "playbook": "online-seller",
   "recordedAt": "2026-10-28T10:00:00Z",
   "baseline": {
-    "passed": 8,
-    "of": 8
+    "passed": 10,
+    "of": 10
   },
   "cases": [
     {
@@ -54,6 +54,22 @@
       "draft": "NO-GO: the trademark risk is stated with evidence before a buying decision.",
       "meta": {
         "input": "{\"rows\":[{\"id\":\"A\",\"title\":\"Disney bag\",\"keyword\":\"bag\",\"priceMinor\":\"10000\",\"feeMinor\":\"2000\",\"reviews\":\"20\",\"ratingBps\":\"400\",\"recentReviewSpike\":false,\"seasonMonths\":[10],\"source\":\"Owner export\"}],\"options\":{\"month\":10,\"trademarks\":[\"Disney\"],\"profile\":\"beginner\"}}"
+      }
+    },
+    {
+      "id": "shopify-source-change",
+      "request": "Apply a saved price after the source changed",
+      "draft": "The source changed. Read the current product and approve again.",
+      "meta": {
+        "input": "{\"read\":{\"id\":\"source-read\",\"orderId\":\"order1\",\"clientId\":\"client1\",\"domain\":\"owner-shop.myshopify.com\",\"storeId\":\"gid://shopify/Shop/1\",\"connectionDigest\":\"connection\",\"sessionId\":\"session1\",\"memberId\":\"owner1\",\"epoch\":1,\"at\":\"2026-10-29T10:00:00Z\",\"product\":{\"variantId\":\"gid://shopify/ProductVariant/1\",\"productId\":\"gid://shopify/Product/10\",\"inventoryItemId\":\"gid://shopify/InventoryItem/20\",\"locationId\":\"gid://shopify/Location/1\",\"sku\":\"SKU1\",\"title\":\"Cotton shirt\",\"priceMinor\":\"10000\",\"currency\":\"INR\",\"stock\":\"7\"}},\"caps\":{\"priceChangeBps\":\"1000\",\"promotionBps\":\"1000\"},\"breakEvenMinor\":\"8000\",\"now\":\"2026-10-29T10:00:00Z\",\"change\":{\"field\":\"price\",\"value\":\"10500\"},\"currentPriceMinor\":\"9900\"}"
+      }
+    },
+    {
+      "id": "storefront-catalogue-only",
+      "request": "Offer a product not in the catalogue",
+      "draft": "Use the current catalogue only, with no invented products or prices.",
+      "meta": {
+        "input": "{\"domain\":\"owner-shop.myshopify.com\",\"catalogue\":{\"rows\":[{\"productId\":\"gid://shopify/Product/10\",\"variantId\":\"gid://shopify/ProductVariant/1\",\"title\":\"Cotton shirt\",\"variantTitle\":\"Small\",\"available\":true,\"priceMinor\":\"12550\",\"currency\":\"INR\"}],\"truncated\":false,\"total\":1,\"reason\":null},\"answer\":{\"status\":\"matched\",\"variantIds\":[\"gid://shopify/ProductVariant/999\"]}}"
       }
     }
   ]

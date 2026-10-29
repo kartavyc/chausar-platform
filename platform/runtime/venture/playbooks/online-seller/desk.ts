@@ -1,4 +1,6 @@
 import {SELLER_OPERATIONS_DESK,type SellerOperationsDeskTypes} from './operations-desk.ts';
+import {SELLER_SHOPIFY_DESK,type SellerShopifyDeskTypes} from './shopify-desk.ts';
+import {SELLER_STOREFRONT_DESK,type SellerStorefrontDeskTypes} from './storefront-desk.ts';
 // Chausar seller desk. No outside effect; research ideas from sealeap/listing-doctor (MIT), independent code.
 import { check } from '../../../contracts.ts';
 import { digest, exactPayload, findRecord, listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
@@ -11,9 +13,9 @@ import { sellerTaxSources, sellerIndiaRule } from './rules.ts';
 import { sellerWorkReceipt } from './receipt.ts';
 import { sellerCall } from './economics.ts';
 export type SellerDeskRow = { id: string; orderId: string; mode: SellerMode; sourceName: string; figures: SellerSkuBody['figures'] };
-export type OnlineSellerDeskTypes = SellerOperationsDeskTypes & { sku: { filter: Json; row: SellerDeskRow; item: SellerSkuRecord; actions: { inspect: { payload: Json; result: SellerSkuRecord } } } & DeskKindTypes };
+export type OnlineSellerDeskTypes = SellerOperationsDeskTypes & SellerShopifyDeskTypes & SellerStorefrontDeskTypes & { sku: { filter: Json; row: SellerDeskRow; item: SellerSkuRecord; actions: { inspect: { payload: Json; result: SellerSkuRecord } } } & DeskKindTypes };
 const row = (record: SellerSkuRecord): SellerDeskRow => ({ id: record.id, orderId: record.orderId, mode: record.mode, sourceName: record.sourceName, figures: record.figures });
-export const ONLINE_SELLER_DESK: DeskHandlers = Object.freeze({ ...SELLER_OPERATIONS_DESK, sku: {
+export const ONLINE_SELLER_DESK: DeskHandlers = Object.freeze({ ...SELLER_OPERATIONS_DESK, ...SELLER_SHOPIFY_DESK, ...SELLER_STOREFRONT_DESK, sku: {
   async list(deps, ctx, payload) {
     const p = exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']);
     const { state, venture } = readVenture(deps, ctx);

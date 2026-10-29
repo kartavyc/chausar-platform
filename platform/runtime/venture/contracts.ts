@@ -928,6 +928,8 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;
+  sellerStorefront?: import('./playbooks/online-seller/storefront-records.ts').SellerStorefrontBody;
   youtubeResearch?: import('./playbooks/youtube/research-state.ts').YoutubeResearchBody;
   youtubePublic?: import('./playbooks/youtube/public-state.ts').YoutubePublicRead;
   /** Exact owner-approved fetched narration source. */
@@ -6294,6 +6296,29 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'SHOPIFY_API_REFUSED',
+  'SHOPIFY_OUTCOME_UNKNOWN',
+  'SHOPIFY_OVERSOLD_MANUAL',
+  'SHOPIFY_RESPONSE_INVALID',
+  'SHOPIFY_SETUP_REQUIRED',
+  'SHOPIFY_SKU_MAPPING_REQUIRED',
+  'SHOPIFY_STORE_REQUIRED',
+  'STOREFRONT_AI_FAILED',
+  'STOREFRONT_BUSY',
+  'STOREFRONT_CATALOGUE_LIMIT',
+  'STOREFRONT_CATALOGUE_STALE',
+  'STOREFRONT_CONSENT_REQUIRED',
+  'STOREFRONT_HOSTED_ONLY',
+  'STOREFRONT_MODEL_UNAVAILABLE',
+  'STOREFRONT_NOT_FOUND',
+  'STOREFRONT_OUTPUT_REJECTED',
+  'STOREFRONT_PAUSED',
+  'STOREFRONT_QUESTION_INVALID',
+  'STOREFRONT_REQUEST_PENDING',
+  'STOREFRONT_SESSION_EXPIRED',
+  'STOREFRONT_SETUP_REQUIRED',
+  'STOREFRONT_UNAVAILABLE',
+
   'INFLUENCER_ACTUAL_INVALID',
   'INFLUENCER_CASE_NOT_FOUND',
   'INFLUENCER_CREATOR_INVALID',
@@ -6559,7 +6584,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}` | `shopify:${string}` | `storefront:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

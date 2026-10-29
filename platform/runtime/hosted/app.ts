@@ -39,7 +39,7 @@ export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 /** The token at the end of a share address made on this server, or a file request's (4J7: '/share/<token>/upload'), or null. */
 function shareTokenOf(url: string): string | null {
-  const match = /\/(?:share|support-rating|site-form)\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
+  const match = /\/(?:share|support-rating|site-form|store-assistant)\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
   return match ? match[1] : null;
 }
 /** What the share page shows (SharePage in venture/build/share-links.ts). Text only; the page escapes every field. */
@@ -378,6 +378,10 @@ export class HostedApp {
       await this.#unindexShare(key, {id:(result as any)?.id});
       if ((input as any).action === 'capture-enable') await this.#indexShare(key, (result as any)?.result);
     }
+    if(method==='venture.desk.act'&&(input as any).playbook==='online-seller'&&(input as any).kind==='storefront'&&['enable','pause','configure'].includes((input as any).action)){
+      await this.#unindexShare(key,{id:(result as any)?.id});
+      if((input as any).action==='enable')await this.#indexShare(key,(result as any)?.result);
+    }
     return result;
   }
 
@@ -431,6 +435,11 @@ export class HostedApp {
   async siteForm(token:string,address:string,input:Record<string,unknown>):Promise<Awaited<ReturnType<typeof import('../venture/playbooks/website-studio/form-entry.ts').siteFormEntry>>> {
     const target=this.#shareTarget(token,address);if(!target||typeof target.handle.shareLink!=='function')return null;
     return await target.handle.shareLink(input.operation==='page'?'page':'decide',token,{...input,siteForm:true}) as Awaited<ReturnType<typeof import('../venture/playbooks/website-studio/form-entry.ts').siteFormEntry>>;
+  }
+  /** 5F3: a public request only prepares a session question; the owner action separately approves each paid call. */
+  async storefront(token:string,address:string,input:Record<string,unknown>):Promise<unknown>{
+    const target=this.#shareTarget(token,address);if(!target||typeof target.handle.shareLink!=='function')return null;
+    return target.handle.shareLink(input.operation==='page'?'page':'decide',token,{...input,storefront:true});
   }
   /** Whether a session cookie is a live session of this account (the owner looking at their own link). Never throws. */
   #isOwner(viewer: string | undefined, userId: string): boolean {

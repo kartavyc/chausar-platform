@@ -1,6 +1,8 @@
 // Chausar dated seller rules. Official source documents checked 27 October 2026; no external code copied.
 import type { DatedRule } from '../kit/define.ts';
+import {STOREFRONT_PERMISSION_RULE} from './storefront-permission.ts';
 export const SELLER_RULES: readonly DatedRule[] = [
+  STOREFRONT_PERMISSION_RULE,
   ...[
     {id:'seller-change-caps',topic:'Owner change limits',rule:'Recheck source provenance and owner caps before preparing the exact handoff.',usedBy:['financial-draft']},
     {id:'seller-stock-movements',topic:'Stock and payout records',rule:'Write stock movements under one authority and keep refunds separate from earnings.',usedBy:['financial-draft']},

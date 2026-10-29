@@ -58,3 +58,4 @@ export const supportRatingEntry: typeof import('./support-desk/rating-link.ts').
 
 /** 5P trusted hosted form entry. No owner RPC exposes it. */
 export const siteFormEntry: typeof import('./website-studio/form-entry.ts').siteFormEntry = async (...args) => (await import('./website-studio/form-entry.ts')).siteFormEntry(...args);
+export const storefrontEntry: typeof import('./online-seller/storefront-entry.ts').storefrontEntry = async (...args) => (await import('./online-seller/storefront-entry.ts')).storefrontEntry(...args);

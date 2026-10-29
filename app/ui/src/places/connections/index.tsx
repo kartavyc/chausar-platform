@@ -42,6 +42,7 @@ import { KitConnect } from './KitConnect';
 // W4 4J21: the setup guides, the truth ladder's words and Check connections (from 4J7).
 import { ChecksTile } from './ChecksTile';
 import { Guide, LadderWord } from './Guide';
+import {localizedSellerCard} from './SellerCardWords';
 import s from './Connections.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
@@ -139,8 +140,9 @@ function GroupSection({ group }: { group: Group }) {
   );
 }
 
-function ConnectorTile({ card }: { card: ConnectorCardLite }) {
+function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
+  const card=localizedSellerCard(t,originalCard);
   const client = useEngine();
   const nameId = useId();
   const [said, setSaid] = useState<{ text: string; problem: boolean; toBuild: boolean } | null>(null);
@@ -244,8 +246,9 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-function SheetBody({ card }: { card: ConnectorCardLite }) {
+function SheetBody({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
+  const card=localizedSellerCard(t,originalCard);
   return (
     <>
       <div className={s.sheetSection}>

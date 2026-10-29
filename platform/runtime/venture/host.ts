@@ -1,3 +1,4 @@
+import {clearSessionMemory} from './core/session-cleanup.ts';
 // Chausar venture launcher: the host that serves every venture method to the engine.
 // Owned by package P6. The engine reaches this file only through a dynamic import at request time.
 //
@@ -344,6 +345,7 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
+    if(body.storefront===true){const entry=(await this.#load('playbooks')).storefrontEntry;const {storefront:_flag,...fields}=body;return typeof entry==='function'?(entry as Entry)(this.#deps,ctx,token,fields):null;}
     if (body.siteForm === true) {
       const capture = (await this.#load('playbooks')).siteFormEntry;
       const {siteForm:_flag,...fields}=body;
@@ -410,6 +412,7 @@ export class VentureHost {
     // 4J1: this vault's "allow for this session" ends first, before anything that could throw; other businesses open in
     // this process keep theirs (policy/allow-session.ts).
     endSessionAllowances(this.#store);
+    clearSessionMemory(this.#secrets);
     this.#closed = true;
     this.#secrets.clear();
     this.#port = null;

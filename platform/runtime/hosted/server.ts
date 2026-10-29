@@ -1,3 +1,4 @@
+import {storefrontWidgetHttp} from '../venture/build/storefront-widget-http.ts';
 import {siteFormHttp} from '../venture/playbooks/website-studio/form-http.ts';
 // Chausar hosted tier: the HTTP server. Experimental and off by default: it starts only with CHAUSAR_HOSTED=1 or --hosted.
 //   node platform/runtime/hosted/server.ts --hosted --dev      (npm run start:hosted: http://localhost:4320, development outbox)
@@ -306,6 +307,7 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       // 4J7: /share/<token>/upload is the client's file request page; a share page knows its owner's own session (a preview).
       if (/^\/share\/[A-Za-z0-9_-]{32}\/upload$/.test(url.pathname)) return await upload(url.pathname.slice('/share/'.length, -'/upload'.length), address, req, res);
       if (url.pathname.startsWith('/site-form/')) return await siteFormHttp(app, url.pathname.slice('/site-form/'.length), address, req, res);
+      if (url.pathname.startsWith('/store-assistant/')) return await storefrontWidgetHttp(app,url.pathname.slice('/store-assistant/'.length),address,origin.origin,req,res);
       if (url.pathname.startsWith('/support-rating/')) return await supportRating(url.pathname.slice('/support-rating/'.length), address, req, res);
       if (url.pathname === '/share' || url.pathname.startsWith('/share/')) return await share(url.pathname.slice('/share/'.length), address, req, res, cookies.get(names.session));
       const auth = (): Authenticated => app.accounts.authenticate(cookies.get(names.session));

@@ -1,3 +1,4 @@
+import {SELLER_HANDOFF_MODES,SELLER_READ_MODES,SELLER_WRITE_MODES} from './seller-connector-modes.ts';
 // Chausar venture launcher: connector cards with honest modes (package P4).
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
 // Ink v2 wave 4 (4J7): each card carries its setup guide (guides.ts) and, in venture.connectors.list, each mode's rung
@@ -21,6 +22,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  ...SELLER_HANDOFF_MODES,
   'narration-distribution': {qualification:'fixture-tested',what:'Exports exact approved audio with AI narration disclosure after named legal review. The owner uploads manually; acceptance is not guaranteed.'},
   'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
   'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
@@ -32,6 +34,7 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  ...SELLER_READ_MODES,
   'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
   'narration-files': {qualification:'fixture-tested',what:'Reads the current client manuscript bytes and rights from TXT, Markdown or bounded DOCX.'},
   'website-public-site': {qualification:'fixture-tested',what:'Reads a client public page with robots and network guards. Runtime evidence needs an owner-installed checker or an uploaded report.'},
@@ -74,6 +77,7 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  ...SELLER_WRITE_MODES,
   ...Object.fromEntries(['bluesky','mastodon','telegram','discord'].map(id=>[id,{qualification:'fixture-tested' as const,what:'Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection.'}])),
   'google-tts': {qualification:'fixture-tested',what:'Makes one exact approved stock voice request on the owner Google key. Current rights, private-source refusal, quoted cost and named legal confirmation are required.'},
   'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},
@@ -88,6 +92,7 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
 });
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
+  'shopify-store-assistant':{write:'Planned for buyers until named lawyer confirmation of notice, consent and provider handling. Link to the shop meanwhile. Every later AI question needs its own exact owner approval.'},
   tally: {write:'Planned: local optional voucher writes need a reviewed native installation profile. Enter reviewed vouchers in Tally manually meanwhile; automatic issue is not qualified.'},
   // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
   // build has neither, so the write mode stays planned.

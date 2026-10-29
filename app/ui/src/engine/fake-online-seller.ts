@@ -1,4 +1,5 @@
 import {fakeSellerOperations} from './fake-online-seller-operations';
+import {fakeSellerConnectors} from './fake-seller-connectors';
 /**
  * Fake seller engine. Uses the exact browser-safe core and source contracts of the real engine.
  * Chausar original code, sealeap/listing-doctor ideas (MIT), no copied source code.
@@ -23,9 +24,10 @@ const display = (key: string, value: string) => key.includes('Minor') ? formatMi
 /** Keeps report records by business, with the same refusals and source-file boundary as the engine. */
 export function fakeOnlineSellerDesk(host: W4DeskHost): FakePlaybookDesk {
   const operations=fakeSellerOperations(host);
+  const connectors=fakeSellerConnectors(host);
   const reports = new Map<string, Report[]>(); let sequence = 0;
   const all = () => reports.get(host.current()) ?? [];
-  return { playbook: 'online-seller', forgetPeople: operations.forgetPeople, kinds: { ...operations.kinds, sku: {
+  return { playbook: 'online-seller', forgetPeople: operations.forgetPeople, kinds: { ...operations.kinds, ...connectors.kinds, sku: {
     list(p) {
       requestObject(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']);
       const filter = p.filter === undefined ? {} : requestObject(p.filter, ['orderId'], []);
