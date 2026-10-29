@@ -77,5 +77,11 @@
       "linkedin-desk",
       "community-report"
     ]
+  },
+  {
+    "id": "newsletter-studio",
+    "offers": [
+      "client-newsletter"
+    ]
   }
 ]

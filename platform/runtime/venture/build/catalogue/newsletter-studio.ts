@@ -1,7 +1,3 @@
-// Chausar connector catalogue: the newsletter-studio playbook's own entries (Newsletter service; Ink v2 wave 5,
-// packages 5N). Package 5-0 left it empty; the package adds its connectors here, never in build/catalogue.ts. Import
-// only types from catalogue.ts: it loads this file while it is still being set up (build/catalogue-playbooks.ts).
-// Written for Chausar; nothing here is learned from an outside source.
-import type { CatalogueEntry } from '../catalogue.ts';
-
-export const NEWSLETTER_STUDIO_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([]);
+// Original newsletter manual handoff catalogue. Direct provider APIs remain planned in the kit.
+import type {CatalogueEntry} from '../catalogue.ts';
+export const NEWSLETTER_STUDIO_CATALOGUE:readonly CatalogueEntry[]=Object.freeze([{id:'newsletter-owner-tool',name:'Newsletter tool handoff',category:'docs-ops',auth:'The owner uses their existing newsletter account',regions:['india','global'],regionNote:null,note:'Export exact approved HTML, plain text and recipient CSV. The owner sends through their tool. List import and export wait for named professional consent review; prepare the issue manually meanwhile.',vendorUrl:null,targets:['handoff']}]);

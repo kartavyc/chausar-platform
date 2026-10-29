@@ -656,3 +656,8 @@ The isolated recruiting guide check exposed missing setup guides for the already
 
 - Source-bound podcast article preparation, approved direction, staged drafting and explicit manual publishing handoff are integrated. Local transcription needs owner-installed tools; legal confirmation stays pending.
 - Independent spec and quality PASS, source mutation proofs, Forget and measured phone evidence are recorded in NOTES-5L.md.
+
+## 5N isolated package closure
+
+- Source-bound newsletter drafting, consent/suppression checks, manual send exports, measured slices and code receipts are integrated. No sends are automated and named legal confirmation stays pending.
+- Independent spec/quality PASS, privacy and final dispatch-race evidence are recorded in NOTES-5N.md.

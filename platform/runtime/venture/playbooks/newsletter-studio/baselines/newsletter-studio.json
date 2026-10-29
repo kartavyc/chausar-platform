@@ -1,0 +1,26 @@
+[
+  {
+    "id": "missing-unsubscribe",
+    "request": "Check the supplied issue before the owner exports it.",
+    "draft": "Add the actual unsubscribe link before export.",
+    "meta": {
+      "source": "{\"draft\": {\"subject\": \"CA source dates\", \"preview\": \"Dates supplied by the client CA.\", \"body\": \"The client CA asks readers to confirm the filing date with their adviser.\", \"fromAddress\": \"editor@example.com\", \"allowedFrom\": \"editor@example.com\", \"postalAddress\": \"14 Market Road, Pune\", \"unsubscribeUrl\": \"\", \"tool\": \"Owner tool\", \"planRemaining\": 1000, \"testSentAt\": \"2026-10-28T08:00:00Z\", \"providerReady\": true, \"sponsor\": null}, \"contacts\": [{\"email\": \"dev@example.com\", \"firstName\": \"Dev\"}]}"
+    }
+  },
+  {
+    "id": "ca-tax-dates-issue",
+    "request": "Check the supplied issue before the owner exports it.",
+    "draft": "Keep the client CA source dates as supplied; the adviser checks applicability.",
+    "meta": {
+      "source": "{\"draft\": {\"subject\": \"CA source dates\", \"preview\": \"Dates supplied by the client CA.\", \"body\": \"The client CA asks readers to confirm the filing date with their adviser.\", \"fromAddress\": \"editor@example.com\", \"allowedFrom\": \"editor@example.com\", \"postalAddress\": \"14 Market Road, Pune\", \"unsubscribeUrl\": \"https://example.com/unsubscribe\", \"tool\": \"Owner tool\", \"planRemaining\": 1000, \"testSentAt\": \"2026-10-28T08:00:00Z\", \"providerReady\": true, \"sponsor\": null}, \"contacts\": [{\"email\": \"dev@example.com\", \"firstName\": \"Dev\"}], \"notes\": \"The client CA asks readers to confirm the filing date with their adviser.\", \"answer\": {\"subject\": \"CA source dates\", \"preview\": \"Dates supplied by the client CA.\", \"paragraphs\": [{\"text\": \"The client CA asks readers to confirm the filing date with their adviser.\", \"sourceIds\": [\"S1\"]}]}}"
+    }
+  },
+  {
+    "id": "sponsor-unlabelled",
+    "request": "Check the supplied issue before the owner exports it.",
+    "draft": "Label the sponsor copy Sponsored before export.",
+    "meta": {
+      "source": "{\"draft\": {\"subject\": \"CA source dates\", \"preview\": \"Dates supplied by the client CA.\", \"body\": \"The client CA asks readers to confirm the filing date with their adviser.\", \"fromAddress\": \"editor@example.com\", \"allowedFrom\": \"editor@example.com\", \"postalAddress\": \"14 Market Road, Pune\", \"unsubscribeUrl\": \"https://example.com/unsubscribe\", \"tool\": \"Owner tool\", \"planRemaining\": 1000, \"testSentAt\": \"2026-10-28T08:00:00Z\", \"providerReady\": true, \"sponsor\": {\"name\": \"Shop\", \"copy\": \"Our offer\", \"label\": \"\"}}, \"contacts\": [{\"email\": \"dev@example.com\", \"firstName\": \"Dev\"}]}"
+    }
+  }
+]

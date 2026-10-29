@@ -1,16 +1,19 @@
-// Chausar delivery harness: the newsletter-studio playbook's own tools (Newsletter service; Ink v2 wave 5, packages
-// 5N). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with the
-// tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type NewsletterStudioToolName = Extract<ToolName, 'newsletter.presend' | 'newsletter.import' | 'newsletter.slices' | 'newsletter.stats'>;
-
-export const NEWSLETTER_STUDIO_TOOLS: Readonly<Record<NewsletterStudioToolName, Spec>> = Object.freeze({
-  'newsletter.presend': notBuiltTool('newsletter.presend', 'compute', 'An issue checked before it goes: links, size and the unsubscribe line.'), // 5N
-  'newsletter.import': notBuiltTool('newsletter.import', 'compute', 'The subscriber list from an export, with consent kept.'), // 5N
-  'newsletter.slices': notBuiltTool('newsletter.slices', 'compute', 'The list split into groups by code.'), // 5N
-  'newsletter.stats': notBuiltTool('newsletter.stats', 'compute', 'An issue\'s opens and clicks from its export.'), // 5N
+// Original scoped newsletter tools. MailCheap (AGPL) inspired workflow ideas only; no source code is copied.
+import {check} from '../../../contracts.ts';import {findRecord,listRecords,digest} from '../../records.ts';
+import type {Spec,ToolEnv} from './tools.ts';
+import {createRequire} from 'node:module';
+const load=createRequire(import.meta.url);
+import {newsletterPresend} from '../../playbooks/newsletter-studio/presend.ts';
+import {newsletterSlice,newsletterSliceGate} from '../../playbooks/newsletter-studio/slices.ts';
+import {newsletterCleanup} from '../../playbooks/newsletter-studio/import.ts';
+import {newsletterReport} from '../../playbooks/newsletter-studio/report.ts';
+import {newsletterIssueChecks} from '../../playbooks/newsletter-studio/state.ts';
+import {newsletterDelivery} from '../../playbooks/newsletter-studio/checks.ts';
+function scoped(env:ToolEnv){const state=env.deps.store.read(),run=env.runRef.kind==='delivery'?findRecord(state,'venture-delivery-run',env.runRef.runId):null,issue=run?.ventureId===env.ventureId?listRecords(state,'venture-newsletter-issue',env.ventureId).filter(i=>i.orderId===run.orderId).at(-1):null;check(issue,'NEWSLETTER_NOT_FOUND','Prepare this order newsletter issue first.');const tx={now:env.now(),find:<K extends Parameters<typeof listRecords>[1]>(kind:K,id:string)=>listRecords(state,kind,env.ventureId).find(r=>r.id===id),list:<K extends Parameters<typeof listRecords>[1]>(kind:K)=>listRecords(state,kind,env.ventureId)},source=(load('../../playbooks/newsletter-studio/sources.ts') as typeof import('../../playbooks/newsletter-studio/sources.ts')).newsletterOrder(tx,issue.orderId);check(source.intakeDigest===issue.intakeDigest&&source.order.clientId===issue.clientId,'DERIVED_STALE','The newsletter source or permission changed.');check(source.order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');const contacts=listRecords(state,'venture-newsletter-contact',env.ventureId).filter(c=>c.listId===issue.listId).map(c=>({...c,state:newsletterCleanup(c,env.now())}));return {state,issue,contacts};}
+const spec=(name:Spec['name'],summary:string,compute:(env:ToolEnv)=>unknown):Spec=>({name,effect:'compute',tier:'code',endsTurn:false,summary,input:{},async run(env){return {result:compute(env)};}});
+export const NEWSLETTER_STUDIO_TOOLS:Readonly<Record<'newsletter.presend'|'newsletter.import'|'newsletter.slices'|'newsletter.stats',Spec>>=Object.freeze({
+ 'newsletter.presend':spec('newsletter.presend','Read the current saved issue and its pre-send checks. Prepare it in the newsletter desk first; copy its exact subject, Preview and Issue sections.',env=>{const {issue,contacts}=scoped(env);check(issue.draft,'NEWSLETTER_DRAFT_REQUIRED','Prepare the AI or manual issue in the newsletter desk first.');return {issue,checks:newsletterIssueChecks(issue,contacts),delivery:newsletterDelivery(issue),saved:false};}),
+ 'newsletter.import':spec('newsletter.import','Read consent-backed imported list counts. This tool never imports a list, looks up domains or exposes addresses to the model.',env=>{const {issue,contacts}=scoped(env);return {issueId:issue.orderId,total:contacts.length,eligible:contacts.filter(c=>!c.suppressed&&c.state===issue.purpose).length,suppressed:contacts.filter(c=>c.suppressed).length,imported:false};}),
+ 'newsletter.slices':spec('newsletter.slices','Read the next slice count and the actual reported gate. Only the owner can export it.',env=>{const {issue,contacts}=scoped(env),eligible=contacts.filter(c=>!c.suppressed&&c.state===issue.purpose).map(c=>({...c,state:'issue' as const}));return {count:newsletterSlice(eligible,issue.slices.flatMap(s=>s.contactIds)).length,gate:issue.slices.length?newsletterSliceGate(issue.slices.at(-1)!.reported?.stats??null,env.now()):null,exported:false,sent:false};}),
+ 'newsletter.stats':spec('newsletter.stats','Read owner-exported results from this list, compared with its own earlier issues. No tracking pixels or inferred outcomes.',env=>{const {issue,state}=scoped(env),report=newsletterReport(issue,listRecords(state,'venture-newsletter-issue',env.ventureId),env.now());check(report,'NEWSLETTER_RESULTS_REQUIRED','Import the actual newsletter tool results first.');const text=JSON.stringify({counts:report.counts,comparison:report.comparison,sources:report.sources,receipt:report.receipt,opens:'soft'},null,2);return {issue,report,delivery:{title:'Reported newsletter results',sections:[{heading:'Results',parts:[{kind:'text',text}]}],questionsForClient:[]},measuredByChausar:false};})
 });

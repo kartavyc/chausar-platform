@@ -1,9 +1,11 @@
-// Chausar playbook: Newsletter service (Ink v2 wave 5, packages 5N). The bodies of its own records, as contracts.ts
-// types each one (RecordBase<kind> & Body). Package 5-0 named each as a placeholder; the package replaces it with the
-// record's fields here, never in contracts.ts. Types only. Written for Chausar; nothing here is learned from an outside
-// source.
+// Original newsletter desk contract and records. Effects require exact owner approval.
+import type {NewsletterDraft} from './presend.ts';
+import type {NewsletterContactState} from './import.ts';
+import type {NewsletterStatsSource} from './stats.ts';
+export type NewsletterSource={fileId:string;fingerprint:string};
+export type NewsletterContactBody={listId:string;clientId:string;email:string;firstName:string;engagement:number;state:NewsletterContactState;everSent:boolean;ignoredIssues:number;lastEngagedAt:string;lastChanceSentAt:string|null;source:NewsletterSource;consentedAt:string;suppressed:boolean};
+export type NewsletterSlice={id:string;contactIds:string[];exportedAt:string;draftDigest:string;sent:false;reported:{source:NewsletterSource;stats:NewsletterStatsSource;at:string}|null};
+export type NewsletterIssueBody={orderId:string;clientId:string;listId:string;intakeDigest:string;purpose:'issue'|'lastChance';sourceNotes:string;language:'en'|'hi';aiRequest:{preview:NewsletterModelPreview;binding:string}|null;aiCallIds:string[];aiEvidence:{text:string;sourceIds:string[]}[];draft:NewsletterDraft|null;defaults:{fromAddress:string;postalAddress:string;tool:string};slices:NewsletterSlice[];state:'write'|'review'|'send';pricing:{input:import('./sponsors.ts').NewsletterPriceInput;quote:ReturnType<typeof import('./sponsors.ts').newsletterPriceQuote>}|null};
+export type NewsletterContactView=NewsletterContactBody&{id:string};
 
-/** venture-newsletter-issue: a placeholder until package 5N lands. */
-export type NewsletterIssueBody = { placeholder: true };
-/** venture-newsletter-contact: a placeholder until package 5N lands. */
-export type NewsletterContactBody = { placeholder: true };
+export type NewsletterModelPreview={callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;expiresAt:string;payer?:string};

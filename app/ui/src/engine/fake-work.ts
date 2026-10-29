@@ -1,3 +1,4 @@
+import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import { FakeArticleChain } from './fake-article-chain';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
 import {fakeSellerPreflight} from './fake-seller-preflight';
@@ -259,6 +260,8 @@ export class FakeWorkDesk {
     fakeRecruitPreflight(this.host,order);
     if(this.host.plan()?.playbook?.id==='translation-studio'&&order.intake?.fields?.private!==false)throw new EngineError('PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
     if(this.host.plan()?.playbook?.id==='translation-studio')throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Translation rights review" yet. It works in practice runs only until they do.');
+    if(this.host.plan()?.playbook?.id==='newsletter-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');
+    if(this.host.plan()?.playbook?.id==='newsletter-studio'&&!NEWSLETTER_PRIVACY_RULE.confirmedBy)throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Subscriber permission" yet. It works in practice runs only until they do.');
     const blocked = order.intake?.fields?.blockedCustomers;
     const named = Array.isArray(blocked) && blocked.some(value => typeof value === 'string' && value.trim() && order.request.toLowerCase().includes(value.trim().toLowerCase()));
     const support = this.host.ask?.('venture.desk.list', { playbook: 'support-desk', kind: 'ticket', filter: { queue: 'all' } }) as { rows?: { id: string; paused: boolean; status: string }[] } | undefined;

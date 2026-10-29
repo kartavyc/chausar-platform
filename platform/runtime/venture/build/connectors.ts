@@ -21,6 +21,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
   'article-publishing': {qualification:'fixture-tested',what:'Prepares the exact approved article and companion text for the owner to copy and publish manually.'},
   lovable: { qualification: 'fixture-tested', what: 'Opens Lovable with your brief filled in. You press send there.' },
   replit: { qualification: 'fixture-tested', what: 'Opens Replit with your brief filled in. You press send there.' },

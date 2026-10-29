@@ -652,6 +652,69 @@
             "connections": "ओपनस्ट्रीटमैप ओवरपास, नोमिनाटिम शहर खोज, कारोबार की अपनी वेबसाइट, हैपनस्टैन्स, आपकी मेल ऐप, लिंक्डइन और व्हाट्सऐप के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "newsletter-studio",
+        "playbook": "newsletter-studio",
+        "label": "Newsletter service",
+        "category": "content",
+        "department": "marketing",
+        "line": "A newsletter for a niche, a local business or your own list, checked before every send.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Approve each issue and send it from your tool.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Editor",
+            "initials": "ED",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Writes and checks each issue, reads the results.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "per client per month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your newsletter tool."
+        },
+        "starter": "Newsletter service: A newsletter for a niche, a local business or your own list, checked before every send.",
+        "yours": [],
+        "hi": {
+          "label": "न्यूज़लेटर सेवा",
+          "line": "किसी विषय, स्थानीय बिज़नेस या अपनी सूची का न्यूज़लेटर, हर भेजने से पहले जाँच के साथ।",
+          "hours": "हफ़्ते में 2 से 4 घंटे",
+          "youDo": "हर अंक मंज़ूर करें और अपने टूल से भेजें।",
+          "team": [
+            "शोधकर्ता",
+            "लेखक",
+            "संपादक"
+          ],
+          "teamLine": "हर अंक लिखता और जाँचता है, नतीजे पढ़ता है।",
+          "pay": "₹5,000 से ₹20,000",
+          "per": "हर क्लाइंट, हर महीने",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Newsletter service: किसी विषय, स्थानीय बिज़नेस या अपनी सूची का न्यूज़लेटर, हर भेजने से पहले जाँच के साथ।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "आपका न्यूज़लेटर टूल के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -659,7 +722,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 3
+        "count": 4
       },
       {
         "id": "marketing",
@@ -684,7 +747,7 @@
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 2
+      "count": 3
     }
   },
   "checklist": [

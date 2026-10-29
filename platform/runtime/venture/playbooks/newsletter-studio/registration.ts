@@ -1,7 +1,3 @@
-// Chausar playbook: Newsletter service (Ink v2 wave 5, package 5N). The registry entry, with no runtime imports.
-// Package 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id
-// ('newsletter-studio'), label, service type, picks, summary, risk level and review day (the plan's "Registration"
-// line). Written for Chausar; nothing here is learned from an outside source.
-import type { PlaybookRegistration } from '../registry.ts';
-
-export const NEWSLETTER_STUDIO_REGISTRATION: PlaybookRegistration | null = null;
+// Original browser-safe newsletter registration. Provider and legal limits are named in the kit.
+import type {PlaybookRegistration} from '../registry.ts';
+export const NEWSLETTER_STUDIO_REGISTRATION:PlaybookRegistration={id:'newsletter-studio',label:'Newsletter service',serviceType:'content',picks:['newsletter service','newsletter for','email newsletter','newsletter writing','run a newsletter'],summary:'Agents write each issue and check it before it goes; you approve every send, and the issue goes out from your own newsletter tool.',riskLevel:'medium',lastReviewed:'2026-10-29'};

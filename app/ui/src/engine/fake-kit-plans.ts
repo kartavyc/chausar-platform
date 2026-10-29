@@ -1,3 +1,4 @@
+import {NEWSLETTER_META} from './newsletter-metadata';
 import {ARTICLE_META} from './article-metadata';
 import {TRANSLATION_META} from './translation-metadata';
 import { RECRUITING_META } from './recruiting-metadata';
@@ -15,7 +16,7 @@ export interface FakeKitMetadata {
  offers: readonly { id: string; name: string; description: string; pricing: PricingModel; unit: string; intake: readonly string[]; rights?: readonly ('own-footage' | 'licence' | 'creator-clip-programme')[] }[];
  intakeFields: readonly NonNullable<OfferIntakeLite['kit']>[number][];
 }
-const METADATA = [ARTICLE_META, TRANSLATION_META, RECRUITING_META, SUPPORT_DESK_META, SELLER_FAKE_METADATA, BOOKKEEPING_FAKE_METADATA, SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
+const METADATA = [NEWSLETTER_META, ARTICLE_META, TRANSLATION_META, RECRUITING_META, SUPPORT_DESK_META, SELLER_FAKE_METADATA, BOOKKEEPING_FAKE_METADATA, SEO_FAKE_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
 const KITS = planPicks.map(plan => {
  const kit = METADATA.find(item => item.registration.id === plan.id);
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);
