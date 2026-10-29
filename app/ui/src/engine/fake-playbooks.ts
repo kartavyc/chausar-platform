@@ -46,6 +46,7 @@ export interface FakeForgottenPerson { id: string; clientId: string | null; name
 export type TenderNoticeScope={businessId:string;orders:readonly import('./types').OrderLite[];files:(orderId:string)=>{id:string;name:string;format:string;contentBase64:string;digest:string}[]};
 export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
 export interface FakePlaybookDesk {
+  testingSource?(orderId:string):void;
   formsSource?(orderId:string):void;
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
   tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
@@ -103,6 +104,7 @@ export class FakePlaybooksDesk {
   async tenderNotices(scope:TenderNoticeScope):Promise<TenderNotice[]>{const found=await Promise.all(this.desks.map(desk=>desk.tenderNotices?.(scope)??[]));return found.flat();}
 
   formsSource(orderId:string){return this.desks.find(d=>d.playbook==='data-entry-desk')!.formsSource!(orderId);}
+  testingSource(orderId:string){return this.desks.find(d=>d.playbook==='app-testing')!.testingSource!(orderId);}
   careerSource(orderId:string){return this.desks.find(d=>d.playbook==='job-search-desk')!.careerSource!(orderId);}
   vaBrief(orderId:string,expected?:string){return this.rooms.currentBrief(orderId,expected);}
   receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }

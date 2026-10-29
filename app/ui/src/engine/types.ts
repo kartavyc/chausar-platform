@@ -2102,6 +2102,7 @@ export interface EngineClient {
   /** Desktop: save approved YouTube outputs and open the returned folder handle. */
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
+  pickAppTestApk?(orderId: string, fromClient: true, digest?: string): Promise<{ imported: true; orderId: string } | null>;
   saveSocialProject?(orderId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openSocialProject?(savedId: string): Promise<{ opened: true }>;
   /**

@@ -1,3 +1,4 @@
+import {testingJudgeCurrent} from '../playbooks/app-testing/run-source.ts';
 import {formsRunCurrent} from '../playbooks/data-entry-desk/run-source.ts';
 import {careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
 import {vaRunCurrent} from '../playbooks/virtual-assistant/run-source.ts';
@@ -129,8 +130,9 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
  * every code check and every playbook check passed; an earlier verdict of its own is left out of that.
  */
 function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunRecord, nowMs: number): ChausarError | null {
+  testingJudgeCurrent(state,venture.id,run,new Date(nowMs).toISOString());
   if (run.status !== 'ready-for-review') return new ChausarError('JUDGE_NOT_READY', NOT_READY);
-  if (run.servedBy !== 'model' && !run.careerPackBinding&&!run.formsSourceBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
+  if (run.servedBy !== 'model' && !run.careerPackBinding&&!run.formsSourceBinding&&!run.appTestingBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
   if (runView(run, venture, nowMs, state).practiceNow) return new ChausarError('PRACTICE_DRAFT', PRACTICE_REASON);
   if (failedCheckReason(run.checks.filter(result => result.check !== 'rules-judge'), run.playbookChecks) !== null) return new ChausarError('JUDGE_NOT_READY', JUDGE_FAILED_CHECK);
   // Ink v2 wave 4 (4J15, Q14): code scans the run's trace before any judge reads it (delivery/trace-scan.ts).
@@ -301,6 +303,7 @@ export async function deliveryJudgeHandler(deps: VentureDeps, ctx: Context, payl
   await ventureAction(deps, ctx, 'prepare', 'delivery.judge', tx => {
     const current = tx.find('venture-delivery-run', runId);
     check(current && current.status === 'ready-for-review' && draftDigestOf(current) === draftDigest, 'JUDGE_NOT_READY', NOT_READY);
+    testingJudgeCurrent(tx.state,venture.id,current,tx.now);
     careerRunCurrent(tx.state,venture.id,current,tx.now);
     vaRunCurrent(tx.state,venture.id,current);formsRunCurrent(tx.state,venture.id,current);
     tx.replace({ ...current, judge: waitingJudge(preview, tx.now, draftDigest, false, null) });
@@ -380,7 +383,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
-  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
+  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
@@ -401,6 +404,7 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       check(current && current.judge?.status === 'waiting' && current.judge.callId === callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
       // A draft decided while the judge read it (rejected, edited) keeps no verdict: nothing lands on a decided draft.
       check(current.status === 'ready-for-review', 'JUDGE_NOT_READY', DECIDED);
+      if(a.run.appTestingBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The reviewed report changed while the judge read it.');testingJudgeCurrent(tx.state,a.venture.id,current,tx.now);}
       if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the judge read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
       if(a.run.formsSourceBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The source artifact changed while the judge read it.');formsRunCurrent(tx.state,a.venture.id,current);}
       if(a.run.vaBriefBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed while the judge read it.');vaRunCurrent(tx.state,a.venture.id,current);formsRunCurrent(tx.state,a.venture.id,current);}

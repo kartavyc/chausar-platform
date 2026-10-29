@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The project could not be saved.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
   },
+  pickAppTestApk: async (orderId, fromClient, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:apptest:pickApk', { orderId, fromClient, ...(digest === undefined ? {} : { digest }) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The client APK could not be read.'), { code: reply?.error?.code || 'CLIENT_APK_REQUIRED' });
+  },
   openYoutubeProject: async savedId => {
     const reply = await ipcRenderer.invoke('chausar:youtube:openProject', { savedId: String(savedId) });
     if (reply?.ok === true) return reply.result;

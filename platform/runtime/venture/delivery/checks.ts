@@ -80,6 +80,8 @@ export type Grounding = {
   harness?: HarnessState | null;
   /** The client's spreadsheet files, whole, even rows the agent never read. */
   files?: readonly FileLike[];
+  /** Engine-verified generated artifact identities. Never supplied by model prose. */
+  outputFiles?: readonly EvidenceFile[];
   /** Names that are never claims: the business, its offers, the client. */
   known?: readonly string[];
   dateOrder?: DateOrder;
@@ -285,7 +287,7 @@ function receiptEvidence(input: EvidenceInput): PreparedEvidence {
   const ours = input.receipts.filter(receipt => receipt.ventureId === input.ventureId);
   return prepareEvidence({
     sources: groundingSources(ours, input.ventureId, input.grounding), clientIds: clientSourceIds(input.grounding),
-    figures: calculatorFigures(ours, input.cited), files: evidenceFiles(ours, input.grounding?.files ?? []), links: ownerLinks(input.grounding),
+    figures: calculatorFigures(ours, input.cited), files: [...evidenceFiles(ours, input.grounding?.files ?? []),...(input.grounding?.outputFiles??[])], links: ownerLinks(input.grounding),
   }, input.grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year');
 }
 

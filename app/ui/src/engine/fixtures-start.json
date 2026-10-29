@@ -1063,6 +1063,69 @@
             "connections": "क्लाइंट की स्रोत फ़ाइलें के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "app-testing",
+        "playbook": "app-testing",
+        "label": "App testing and demo videos",
+        "category": "content",
+        "department": "production",
+        "line": "Emulator test rounds for small app makers, and recorded software demos.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review findings and videos.",
+        "team": [
+          {
+            "role": "Tester",
+            "initials": "TE",
+            "department": "production"
+          },
+          {
+            "role": "Recorder",
+            "initials": "RE",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Runs the app, reads crashes, records demos.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹25,000",
+          "per": "per round",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your stock speech voice and Reviewed file handoff."
+        },
+        "starter": "App testing service: Emulator test rounds for small app makers, and recorded software demos.",
+        "yours": [],
+        "hi": {
+          "label": "ऐप परीक्षण और डेमो वीडियो",
+          "line": "छोटे ऐप निर्माताओं के लिए एमुलेटर परीक्षण राउंड और रिकॉर्ड सॉफ़्टवेयर डेमो।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "निष्कर्ष और वीडियो जाँचें।",
+          "team": [
+            "परीक्षक",
+            "रिकॉर्डर",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "ऐप चलाता है, क्रैश पढ़ता है और डेमो रिकॉर्ड करता है।",
+          "pay": "₹5,000 से ₹25,000",
+          "per": "प्रति राउंड",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "App testing service: छोटे ऐप निर्माताओं के लिए एमुलेटर परीक्षण राउंड और रिकॉर्ड सॉफ़्टवेयर डेमो।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "आपकी उपलब्ध वाचन आवाज़ और समीक्षित फ़ाइलें सौंपना के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -1070,7 +1133,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 7
+        "count": 8
       },
       {
         "id": "marketing",

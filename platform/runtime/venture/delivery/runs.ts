@@ -1,3 +1,5 @@
+import {testingDeliverable} from '../playbooks/app-testing/delivery-core.ts';
+import {testingRunSource,testingRunCurrent} from '../playbooks/app-testing/run-source.ts';
 import {formsRunSource,formsRunCurrent,formsDispatchGuard,formsDeliverable} from '../playbooks/data-entry-desk/run-source.ts';
 import {careerPackDeliverable} from '../playbooks/job-search-desk/pack.ts';
 import {vaRunSource,vaRunCurrent,vaDispatchGuard,vaBriefDeliverable,vaRoomEvidence} from '../playbooks/virtual-assistant/run-source.ts';
@@ -149,6 +151,7 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
   const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(deps.store.read(), context.venture), playbook.flagship ?? null);
   if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
   const checkInput = {
+    ...(playbook.flagship==='app-testing'?{testingEvidence:testingRunSource(deps.store.read(),context.venture.id,context.order.id,deps.clock().toISOString())}:{}),
     ...(playbook.flagship==='data-entry-desk'?{formsEntries:formsRunSource(deps.store.read(),context.venture.id,context.order.id).rows}:{}),
     ...(playbook.flagship==='virtual-assistant'?{roomBrief:vaRoomEvidence(deps.store.read(),context.venture.id,context.order.id)}:{}),
     ...(playbook.flagship==='job-search-desk'?{careerPack:careerRunSource(deps.store.read(),context.venture.id,context.order.id)}:{}),
@@ -190,6 +193,7 @@ function draftContext(context: OrderContext, today: string): { refs: DraftRefs; 
 function approvedRoomRequest(context:OrderContext){const brief=context.roomBrief;return brief?context.order.request+'\nApproved room scope: '+brief.fields.scope+'\nApproved deliverable: '+brief.fields.deliverable+'\nUse room.deadline for the agreed deadline and order.total for the owner price.':context.order.request;}
 
 type DraftCheckExtras = {
+  outputFiles?: readonly {id:string;name:string;digest:string}[];
   work?: readonly WorkReceiptRecord[]; proofs?: readonly ClaimProof[]; sections?: readonly string[]; answers?: readonly string[];
   harness?: HarnessState | null; files?: readonly FileLike[]; corrections?: readonly ReceiptCorrection[];
   /** The run's own chapter time codes and their heading (youtubeWorked), which no-numeric-prose leaves out. */
@@ -230,7 +234,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: deliverable.questionsForClient.length > 0,
     ...(extras.sections ? { sections: extras.sections } : {}), ...(extras.proofs ? { proofs: extras.proofs } : {}), ...(extras.times ? { times: extras.times } : {}),
     grounding: {
-      clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [],
+      clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [], outputFiles: extras.outputFiles??[],
       known: context.known, dateOrder: context.venture.country.dateOrder, ownerWords: context.ownerWords,
     },
   };
@@ -260,6 +264,7 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
     ...(playbook.flagship==='job-search-desk'?{careerPackBinding:careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding}:{}),
     ...(playbook.flagship==='data-entry-desk'?{formsSourceBinding:formsRunSource(tx.state,tx.venture!.id,order.id).binding}:{}),
     ...(playbook.flagship==='virtual-assistant'?{vaBriefBinding:vaRunSource(tx.state,tx.venture!.id,order.id).digest}:{}),
+    ...(playbook.flagship==='app-testing'?{appTestingBinding:testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding}:{}),
     scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
     // Ink v2 wave 5 (5A1): the chain stage this run drafts, once a kit chain order is past its first (playbooks/kit/chain.ts).
     ...(order.chainStage ? { chainStage: order.chainStage } : {}),
@@ -292,6 +297,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
   // stages or the playbook's checks rest on waits for a CA or lawyer (RULE_UNCONFIRMED). The check-time gate stays as a backstop.
   const chain = orderChain(state, venture, order);
+  if(chain?.definition.registration.id==='app-testing')testingRunSource(state,venture.id,order.id,deps.clock().toISOString());
   if(chain?.definition.registration.id==='data-entry-desk')formsRunSource(state,venture.id,order.id);
   if(chain?.definition.registration.id==='virtual-assistant')vaRunSource(state,venture.id,order.id);
   if(chain?.definition.registration.id==='job-search-desk')careerRunSource(deps.store.read(),venture.id,order.id);
@@ -303,7 +309,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
-  const template = chain?.definition.registration.id==='job-search-desk' || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
+  const template = chain?.definition.registration.id==='app-testing' || chain?.definition.registration.id==='job-search-desk' || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   check(!template||!order.socialChain,'NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const basePlaybook = await ensurePlaybook(deps, ctx);
@@ -364,14 +370,16 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   }));
 
   if (!preview) {
+    const testing=playbook.flagship==='app-testing'?testingRunSource(deps.store.read(),venture.id,order.id,deps.clock().toISOString()):null;
     const career=playbook.flagship==='job-search-desk'?careerRunSource(deps.store.read(),venture.id,order.id):null;
     const forms=playbook.flagship==='data-entry-desk'?formsRunSource(deps.store.read(),venture.id,order.id):null;
     const va=playbook.flagship==='virtual-assistant'?vaRunSource(deps.store.read(),venture.id,order.id):null;
-    const deliverable = forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
-    const renderedText = forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
-    const checks = checkDraft(context, playbook, deliverable, renderedText,forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
+    const deliverable = testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
+    const renderedText = testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
+    const checks = checkDraft(context, playbook, deliverable, renderedText,testing?{sections:['Reviewed evidence'],answers:[testing.text],outputFiles:testing.files}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
+      if(testing)check(testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding===testing.binding,'APPROVAL_STALE','The reviewed report or video changed. Start again.');
       fenceSocialPreview(tx);
       if(career)check(careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding===career.sourceBinding,'CAREER_SOURCE_CHANGED','The career pack changed during preparation.');
       if(va)vaRunSource(tx.state,tx.venture!.id,order.id,va.digest);
@@ -1258,6 +1266,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
+    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
     if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);

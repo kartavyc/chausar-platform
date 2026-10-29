@@ -292,5 +292,13 @@
   "kit-intake-words.data-entry-desk.permission-file.label": "Written permission",
   "kit-intake-words.data-entry-desk.permission-file.help": "Upload permission as a text file, never the staff password.",
   "kit-intake-words.data-entry-desk.data-consent.label": "Client data consent",
-  "kit-intake-words.data-entry-desk.data-consent.help": "Confirm consent for processing these source records."
+  "kit-intake-words.data-entry-desk.data-consent.help": "Confirm consent for processing these source records.",
+  "kit-intake-words.app-testing.description.label": "App or demo description",
+  "kit-intake-words.app-testing.description.help": "Describe expected behavior and the client goal.",
+  "kit-intake-words.app-testing.testAccount.label": "Client test account",
+  "kit-intake-words.app-testing.testAccount.help": "Confirm fictional data only. Sign in yourself in the separate viewer; never paste credentials here.",
+  "kit-intake-words.app-testing.private.label": "Private client source",
+  "kit-intake-words.app-testing.private.help": "Private descriptions and scripts need a qualified local model or voice route.",
+  "kit-intake-words.app-testing.rights.label": "Recording and narration rights",
+  "kit-intake-words.app-testing.rights.help": "Record the owner or licence covering this script, captured test data and narration."
 }

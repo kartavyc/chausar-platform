@@ -1,3 +1,4 @@
+import {appTestingModes} from './app-testing-modes.ts';
 import {SELLER_HANDOFF_MODES,SELLER_READ_MODES,SELLER_WRITE_MODES} from './seller-connector-modes.ts';
 // Chausar venture launcher: connector cards with honest modes (package P4).
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
@@ -24,6 +25,7 @@ const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,{qualification:'built-in' as const,what:'Prepares source-backed drafts and files for manual review. The client uses their own account, sends messages and applies themselves.'}])),
   ...SELLER_HANDOFF_MODES,
+  'app-testing-delivery': {qualification:'fixture-tested',what:'Exports actual source-bound reports and owner-reviewed demo files after named permission review. The owner delivers manually.'},
   'narration-distribution': {qualification:'fixture-tested',what:'Exports exact approved audio with AI narration disclosure after named legal review. The owner uploads manually; acceptance is not guaranteed.'},
   'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
   'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
@@ -96,6 +98,8 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
 });
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
+  'android-local':{write:'Planned until owner SDK setup and a named lawyer permission review. Test the client build manually meanwhile.'},
+  'docker-local':{write:'Planned until owner image qualification and a named lawyer permission review. Prepare the demo script meanwhile.'},
   'shopify-store-assistant':{write:'Planned for buyers until named lawyer confirmation of notice, consent and provider handling. Link to the shop meanwhile. Every later AI question needs its own exact owner approval.'},
   tally: {write:'Planned: local optional voucher writes need a reviewed native installation profile. Enter reviewed vouchers in Tally manually meanwhile; automatic issue is not qualified.'},
   // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
@@ -209,6 +213,7 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const state = deps.store.read();
   const starters = new Set(starterIds(state, currentVenture(state)));
   const env = await postingEnvironment(deps);
+  const testingAvailable = await appTestingModes(deps);
   const venture = currentVenture(state);
   // 4J7 (K6, K11): each card's truth from this business's records, and a half-configured connection's missing setting.
   const evidence = venture ? connectorEvidence(state, venture.id) : NO_EVIDENCE;
@@ -216,7 +221,8 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const cards = CONNECTOR_CATALOGUE
     .filter(item => body.category === undefined || item.category === body.category)
     .map(item => {
-      const card = connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId));
+      let card = connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId));
+      if(testingAvailable.has(item.id)){const modes:ConnectorMode[]=card.modes.map(m=>m.mode==='write'?{...m,status:'available',qualification:'fixture-tested',what:item.id==='android-local'?'Installed Android SDK tools support exact approved emulator operations. Every device, source and screen is checked before execution.':'The selected installed Chausar image supports exact approved private desktop operations. No image is pulled or built.'}:m);card={...card,modes,chips:connectorChips(modes),guide:card.guide?{...card.guide,checks:'Checks current installed tools and selected image identity. Every client operation still needs its exact owner approval.'}:card.guide};}
       const missing = venture ? halfConfigured(deps, state, venture.id, item.id) : null;
       return withTruth(missing ? { ...card, guide: guideOf(item, missing) } : card, evidence, hosted);
     })

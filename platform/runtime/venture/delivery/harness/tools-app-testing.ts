@@ -1,14 +1,7 @@
-// Chausar delivery harness: the app-testing playbook's own tools (App testing and demo videos; Ink v2 wave 5, packages
-// 5R3). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with
-// the tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type AppTestingToolName = Extract<ToolName, 'apptest.logcat' | 'demo.plan'>;
-
-export const APP_TESTING_TOOLS: Readonly<Record<AppTestingToolName, Spec>> = Object.freeze({
-  'apptest.logcat': notBuiltTool('apptest.logcat', 'read', 'The test app\'s logs from the emulator on this computer.'), // 5R3
-  'demo.plan': notBuiltTool('demo.plan', 'compute', 'The demo video planned scene by scene.'), // 5R3
+// Read only the current recorded evidence. Device control remains in the exact owner-approved desk.
+import {check} from '../../../contracts.ts';import {exactPayload,findRecord,listRecords} from '../../records.ts';import {testingRunCurrent} from '../../playbooks/app-testing/run-source.ts';import type {ToolEnv,Spec} from './tools.ts';
+function scoped(env:ToolEnv,kind:'test'|'demo'){const state=env.deps.store.read(),run=env.runRef.kind==='delivery'?findRecord(state,'venture-delivery-run',env.runRef.runId):null;check(run?.ventureId===env.ventureId&&run.appTestingBinding,'APPROVAL_STALE','Use the current reviewed app testing delivery.');const source=testingRunCurrent(state,env.ventureId,run,env.now());check(source?.kind===kind,'INVALID_VENTURE_REQUEST','Use the tool for this order service.');return{state,run,source};}
+export const APP_TESTING_TOOLS:Readonly<Record<'apptest.logcat'|'demo.plan',Spec>>=Object.freeze({
+ 'apptest.logcat':{name:'apptest.logcat',effect:'read',tier:'code',endsTurn:false,summary:'Read the captured current client emulator evidence and owner finding decisions. Never run a device command.',input:{},async run(env,input){exactPayload(input,[]);const {state,run,source}=scoped(env,'test'),row=listRecords(state,'venture-test-finding',env.ventureId).find(r=>r.orderId===run.orderId)!;return{result:{findings:row.findings,decisions:row.decisions,reproductions:row.reproductions,sourceBinding:source.binding,deviceCalled:false}};}},
+ 'demo.plan':{name:'demo.plan',effect:'compute',tier:'code',endsTurn:false,summary:'Read the exact approved script and shot list behind the reviewed video. No recording or provider call.',input:{},async run(env,input){exactPayload(input,[]);const {state,run,source}=scoped(env,'demo'),row=listRecords(state,'venture-demo-project',env.ventureId).find(r=>r.orderId===run.orderId)!;return{result:{plan:row.plan,sourceBinding:source.binding,renderDigest:row.rendered!.digest,recorded:true,providerCalled:false}};}}
 });

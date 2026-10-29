@@ -9,8 +9,7 @@
 // Learned from kimo crates/kimo-core/src/transcript_captions.rs, caption_validate.rs and editorial.rs (MIT and Apache
 // 2.0) and reels-af src/reel_af/planning/cards.py (MIT): the grouping order, the finding codes and the escaping. The
 // code is written here for Chausar; no source text is copied.
-import { check } from '../../../contracts.ts';
-import type { DatedRule } from './define.ts';
+import { check } from '../../../portable.ts';
 
 /** One spoken word with its time, in whole milliseconds. */
 export type TimedWord = { text: string; startMs: number; endMs: number };
@@ -61,7 +60,7 @@ const PAUSE_MS = 600;
 const USED_BY = Object.freeze(['captions.group', 'captions.validate']);
 
 /** The captions' values as dated house rules: one per profile and value, and the pause that closes a cue. */
-export const CAPTION_RULES: readonly DatedRule[] = Object.freeze([
+export const CAPTION_RULES = Object.freeze([
   ...(Object.keys(VALUES) as CaptionProfileId[]).flatMap(profile => (Object.keys(KEY_WORDS) as ProfileKey[]).map(key => Object.freeze({
     id: `captions.${profile}.${key}`, scope: 'captions', topic: `Captions for ${PROFILE_WORDS[profile]}`, rule: `${KEY_WORDS[key].rule}, for ${PROFILE_WORDS[profile]}.`,
     value: String(VALUES[profile][key]), unit: KEY_WORDS[key].unit, sources: [], checkedOn: CHECKED_ON, read: 'house' as const, how: HOW, usedBy: USED_BY, limitations: LIMITS, needs: null,
@@ -140,7 +139,7 @@ function runsOf(words: readonly TimedWord[], profile: CaptionProfile): TimedWord
         || (CLAUSE_END.test(last.text) && textOf(current).length * 2 >= capacity)
         || textOf([...current, word]).length > capacity
         || !fitsLines([...current, word], profile)
-        || word.endMs - current[0].startMs > profile.maxDurationMs;
+        || word.endMs - current[0]!.startMs > profile.maxDurationMs;
       if (closes) { runs.push(current); current = []; }
     }
     current.push(word);
@@ -153,16 +152,16 @@ function runsOf(words: readonly TimedWord[], profile: CaptionProfile): TimedWord
 function joinStrays(runs: TimedWord[][], profile: CaptionProfile): TimedWord[][] {
   const capacity = profile.maxLineChars * profile.maxLines;
   const fits = (a: readonly TimedWord[], b: readonly TimedWord[]) => textOf([...a, ...b]).length <= capacity && fitsLines([...a, ...b], profile)
-    && b.at(-1)!.endMs - a[0].startMs <= profile.maxDurationMs && b[0].startMs - a.at(-1)!.endMs < profile.pauseMs;
+    && b.at(-1)!.endMs - a[0]!.startMs <= profile.maxDurationMs && b[0]!.startMs - a.at(-1)!.endMs < profile.pauseMs;
   const out = runs.map(run => [...run]);
   for (let index = 0; index < out.length; index += 1) {
-    if (out.length < 2 || out[index].length !== 1) continue;
-    if (index + 1 < out.length && fits(out[index], out[index + 1])) {
-      out[index + 1] = [...out[index], ...out[index + 1]];
+    if (out.length < 2 || out[index]!.length !== 1) continue;
+    if (index + 1 < out.length && fits(out[index]!, out[index + 1]!)) {
+      out[index + 1] = [...out[index]!, ...out[index + 1]!];
       out.splice(index, 1);
       index -= 1;
-    } else if (index > 0 && fits(out[index - 1], out[index])) {
-      out[index - 1] = [...out[index - 1], ...out[index]];
+    } else if (index > 0 && fits(out[index - 1]!, out[index]!)) {
+      out[index - 1] = [...out[index - 1]!, ...out[index]!];
       out.splice(index, 1);
       index -= 1;
     }
@@ -184,10 +183,10 @@ export function linesOf(words: readonly string[], profile: CaptionProfileId | Ca
   if (whole.length <= p.maxLineChars || p.maxLines < 2 || words.length < 2) return [whole];
   let best: { lines: string[]; score: number } | null = null;
   for (let split = 1; split < words.length; split += 1) {
-    const lines = [words.slice(0, split).join(' '), words.slice(split).join(' ')];
+    const lines: [string, string] = [words.slice(0, split).join(' '), words.slice(split).join(' ')];
     const over = Math.max(0, ...lines.map(line => line.length - p.maxLineChars));
     const single = (split === 1 || split === words.length - 1) && words.length > 2 ? 1 : 0;
-    const clause = CLAUSE_END.test(words[split - 1]) || SENTENCE_END.test(words[split - 1]) ? 0 : 1;
+    const clause = CLAUSE_END.test(words[split - 1]!) || SENTENCE_END.test(words[split - 1]!) ? 0 : 1;
     // Fit first, then no one-word line, then even lines, then a split after a clause.
     const score = over * 1_000_000 + single * 10_000 + Math.abs(lines[0].length - lines[1].length) * 10 + clause;
     if (!best || score < best.score) best = { lines, score };
@@ -199,10 +198,10 @@ export function linesOf(words: readonly string[], profile: CaptionProfileId | Ca
 function timed(runs: readonly TimedWord[][], profile: CaptionProfile): CaptionCue[] {
   const gap = gapOf(profile);
   return runs.map((run, index) => {
-    const startMs = run[0].startMs;
+    const startMs = run[0]!.startMs;
     const lines = linesOf(run.map(word => word.text), profile);
     const chars = lines.join(' ').length;
-    const nextStart = index + 1 < runs.length ? runs[index + 1][0].startMs : null;
+    const nextStart = index + 1 < runs.length ? runs[index + 1]![0]!.startMs : null;
     let endMs = Math.max(run.at(-1)!.endMs, startMs + profile.minDurationMs, startMs + Math.ceil(chars * 1000 / profile.maxCps));
     endMs = Math.min(endMs, startMs + profile.maxDurationMs);
     if (nextStart !== null) endMs = Math.min(endMs, nextStart - gap);

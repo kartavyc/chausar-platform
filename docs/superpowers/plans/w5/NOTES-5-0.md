@@ -731,3 +731,8 @@ Data-entry work has exact source rows, owner-only native browser mapping and sub
 ### Landed kit browser rules integration
 
 Fourteen previously landed kits returned no rule register through browser rehearsal. Fourteen genuine failing routing tests reproduced that gap. Native-generated data now preserves exact sources, review holds, recipes and boundaries, with fresh and stale parity checked at every recheck edge. Independent specification then quality review passed. Public fake routing also now uses the India business day and exact empty-payload validation, both caught by behavioral regressions. The generator discovers newly landed kits; this isolated commit includes only the fourteen native definitions already committed. R3 adds its own generated data when it lands. Evidence is under results/w5-integration-rules-* and rules-integration-frozen.
+
+
+### 5R3 app testing and demos
+
+The completed source-bound emulator testing and private demo desk, exact provider approvals, client cleanup, real reviewed exports and browser preparation paths are recorded in NOTES-5R3.md. It preserves explicit local-tool and named-lawyer gates. Separate full spec and quality review evidence and limits are in that note. Final isolated gates follow the frozen candidate bytes.

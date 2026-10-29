@@ -1,7 +1,2 @@
-// Chausar playbook: App testing and demo videos (Ink v2 wave 5, package 5R3). The registry entry, with no runtime
-// imports. Package 5-0 left it null, so the playbook is not registered and has no tile; the package sets its id
-// ('app-testing'), label, service type, picks, summary, risk level and review day (the plan's "Registration" line).
-// Written for Chausar; nothing here is learned from an outside source.
-import type { PlaybookRegistration } from '../registry.ts';
-
-export const APP_TESTING_REGISTRATION: PlaybookRegistration | null = null;
+// Original service registration, without runtime side effects.
+export {APP_TESTING_REGISTRATION_DATA as APP_TESTING_REGISTRATION} from './registration-data.ts';

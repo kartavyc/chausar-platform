@@ -84,7 +84,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-translation-segment': 'tsegment', 'venture-glossary': 'glossary', 'venture-promise-to-pay': 'ptp', 'venture-collection-stage': 'collstage',
   'venture-books-posting': 'booksposting', 'venture-article-ledger': 'articleledger', 'venture-lead-source': 'leadsource', 'venture-newsletter-issue': 'nlissue',
   'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
-  'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding',
+  'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding', 'venture-demo-project': 'demoproject',
   'venture-dev-permission': 'devperm', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
 };
 

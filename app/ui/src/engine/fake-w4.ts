@@ -36,6 +36,7 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  acceptedOffers?():readonly {id:string;playbookOffer?:string|null}[];
   eraseFormsCopies?(orderIds:readonly string[]):void;
   keepVaReport?(routineId:string,title:string,text:string):void;
   eraseVaReports?():void;
@@ -60,6 +61,7 @@ export interface W4DeskHost {
   eraseSellerFiles?(ids:readonly string[]):void;
   eraseRecruitingCopies?(orderIds:readonly string[]):void;
   eraseCareerCopies?(orderIds:readonly string[]):void;
+  eraseAppTestingCopies?(orderIds:readonly string[]):void;
   eraseTranslationCopies?(orderIds:readonly string[]):void;
   recruitingBlocked?(email:string|null,personId:string|null):boolean;
   influencerOutreach?(input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string};

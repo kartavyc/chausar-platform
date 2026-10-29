@@ -115,6 +115,7 @@ export class FakeBusinessDesk {
   }
 
   /** Internal queue projection, without changing the open business. */
+  acceptedOffersFor(businessId: string) { return clone(this.accepted[businessId]?.offers ?? []); }
   blueprintFor(businessId: string): BlueprintViewLite | null { return this.blueprints[businessId] ? clone(this.blueprints[businessId]!) : null; }
 
   /** A plan written elsewhere in the fake (onboarding) becomes this business's plan. */

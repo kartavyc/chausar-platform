@@ -1,3 +1,4 @@
+import {eraseAppTesting,clearForgottenDemoDesktops,clearForgottenAppTests} from '../playbooks/app-testing/privacy.ts';
 import {eraseFormsNaming,clearForgottenFormSignIns} from '../playbooks/data-entry-desk/privacy.ts';
 import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
@@ -304,6 +305,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseNarrationNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseAppTesting(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseSiteNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
@@ -430,7 +432,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
     tx.emit('privacy.forgotten', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
-  }).then(async result=>{if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}return result;});
+  }).then(async result=>{if(!await clearForgottenAppTests(deps,ctx)){result.line='Client source data was deleted. Emulator data deletion is still pending.';result.kept.push('An exact client app or temporary emulator screen still needs removal. Open the desktop emulator to finish deleting it; new tests stay blocked meanwhile.');}if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}if(!await clearForgottenDemoDesktops(deps,ctx)){result.line='Client source data was deleted. Private demo desktop deletion is still pending.';result.kept.push('A private client demo desktop still needs removal. Open the desktop app to finish deleting it; new demo desktops stay blocked meanwhile.');}return result;});
 }
 
 /**

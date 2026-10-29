@@ -128,5 +128,12 @@
       "data-entry-monthly",
       "backlog-project"
     ]
+  },
+  {
+    "id": "app-testing",
+    "offers": [
+      "app-test-round",
+      "demo-video"
+    ]
   }
 ]

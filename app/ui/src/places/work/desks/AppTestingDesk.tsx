@@ -1,11 +1,7 @@
-/**
- * The App testing and demo videos desk on Work (Ink v2 wave 5, packages 5R3). Package 5-0 left it a stub that says it
- * is not built yet; the package replaces this file with the desk (it may import parts of its own from other files).
- */
-
-import { useT } from '../../../text';
-
-export function AppTestingDesk() {
-  const t = useT();
-  return <p>{t('kit-desk.notBuilt')}</p>;
+// Original owner testing desk. Native effects remain explicit; browser preparation never invents them.
+import {useState} from 'react';import {useEngineEvents,useResource} from '../../../engine/context';import {useT} from '../../../text';import {Tile,TileHead} from '../../../parts/Tile';import {TestingDemo} from './TestingDemo';import {TestingRound} from './TestingRound';import s from './AppTestingDesk.module.css';
+export function AppTestingDesk(){const t=useT(),w=(k:string)=>t('pb-app-testing.'+k),[selected,setSelected]=useState(''),[privacy,setPrivacy]=useState(0),orders=useResource('venture.desk.list',{playbook:'app-testing',kind:'orders'}),rows=(orders.data?.rows??[]) as {id:string;clientId:string;request:string;service:string}[],order=rows.find(o=>o.id===selected),loading=orders.loading,failed=!!orders.error;
+ useEngineEvents(e=>{if(e.type==='privacy.forgotten'){setSelected('');setPrivacy(v=>v+1);}});
+ return <section className={s.stack}><Tile as="section" label={w('title')} className={s.form}><TileHead title={w('title')}/><p>{w('intro')}</p><p className={s.muted}>{w('legal')}</p><label className={s.label}>{w('order')}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">{w('chooseOrder')}</option>{!loading&&!failed&&rows.map(o=><option key={o.id} value={o.id}>{o.request}</option>)}</select></label>{failed&&<p role="alert">{w('readFailed')}</p>}</Tile>{order&&!failed&&<div className={s.stack} hidden={loading} key={privacy+':'+order.id+':'+order.clientId}>{order.service==='demo-video'?<TestingDemo orderId={order.id} clientId={order.clientId} locked={loading}/>:<TestingRound orderId={order.id} clientId={order.clientId} locked={loading}/>}</div>}</section>;
 }
+AppTestingDesk.ready=true;

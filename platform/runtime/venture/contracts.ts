@@ -1,3 +1,4 @@
+import type { DemoProjectBody } from './playbooks/app-testing/demo-records.ts';
 import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
 // Chausar venture launcher: shared contracts.
@@ -258,6 +259,7 @@ export const VENTURE_RECORD_KINDS = [
   'venture-room-brief',
   'venture-entry-record',
   'venture-test-finding',
+  'venture-demo-project',
   'venture-dev-permission',
   'venture-watch-source',
   'venture-call-log',
@@ -277,6 +279,9 @@ export type RecordBase<K extends VentureRecordKind> = {
 export type VentureRecord = RecordBase<'venture-record'> & {
   /** Opaque partition IDs awaiting an already approved Forget. No client text or credentials. */
   formsSignInErasure?: string[];
+  appTestErasure?: import('./playbooks/app-testing/records.ts').AppTestErasure[];
+  appTestScreenErasure?: import('./build/android.ts').AndroidScreenFile[];
+  demoDesktopErasure?: import('./playbooks/app-testing/demo-records.ts').DemoSession[];
   youtubePublicQuota?: import('./playbooks/youtube/public-state.ts').YoutubeQuotaUse[];
   idea: string;
   ideaDigest: string;
@@ -1782,6 +1787,7 @@ export type DeliveryWorkflow = {
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   careerPackBinding?: string;
   /** Exact owner-approved room brief this VA delivery read. */
+  appTestingBinding?: string;
   vaBriefBinding?: string;
   /** Exact R2 source rows; mapping proposals still need owner review. */
   formsSourceBinding?: string;
@@ -5078,6 +5084,7 @@ export type SiteReleaseRecord = RecordBase<'venture-site-release'> & SiteRelease
 export type NarrationSegmentRecord = RecordBase<'venture-narration-segment'> & NarrationSegmentBody;
 export type RoomBriefRecord = RecordBase<'venture-room-brief'> & RoomBriefBody;
 export type EntryRecordRecord = RecordBase<'venture-entry-record'> & EntryRecordBody;
+export type DemoProjectRecord = RecordBase<'venture-demo-project'> & DemoProjectBody;
 export type TestFindingRecord = RecordBase<'venture-test-finding'> & TestFindingBody;
 export type DevPermissionRecord = RecordBase<'venture-dev-permission'> & DevPermissionBody;
 export type WatchSourceRecord = RecordBase<'venture-watch-source'> & WatchSourceBody;
@@ -5144,7 +5151,7 @@ export type AnyVentureRecord =
   | PromiseToPayRecord | CollectionStageRecord | BooksPostingRecord
   | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
-  | TestFindingRecord | DevPermissionRecord | WatchSourceRecord | CallLogRecord;
+  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | CallLogRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -6701,6 +6708,8 @@ export type VentureDeps = {
   /** The mail server lookup for lead emails. Absent means node:dns; tests inject a table. */
   mx?: (domain: string) => Promise<{ exchange: string; priority: number }[]>;
   /** The ffmpeg that takes the sound out of a cut for a transcript made here. Absent means the one on PATH; never on hosted. */
+  android?: import('./build/android.ts').AndroidCommandPort;
+  sandboxDesktop?: import('./build/sandbox-desktop.ts').DesktopCommandPort;
   ffmpeg?: FfmpegPort;
   /** Trusted host composition: the engine stops long local work through it when the workspace closes (VentureClosingPort). */
   closing?: VentureClosingPort;

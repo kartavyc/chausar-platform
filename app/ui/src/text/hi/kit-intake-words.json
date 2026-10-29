@@ -292,5 +292,13 @@
   "kit-intake-words.data-entry-desk.permission-file.label": "लिखित अनुमति",
   "kit-intake-words.data-entry-desk.permission-file.help": "अनुमति टेक्स्ट फ़ाइल में जोड़ें, कर्मचारी का पासवर्ड कभी नहीं।",
   "kit-intake-words.data-entry-desk.data-consent.label": "क्लाइंट डेटा की सहमति",
-  "kit-intake-words.data-entry-desk.data-consent.help": "इन स्रोत रिकॉर्ड पर काम करने की सहमति की पुष्टि करें।"
+  "kit-intake-words.data-entry-desk.data-consent.help": "इन स्रोत रिकॉर्ड पर काम करने की सहमति की पुष्टि करें।",
+  "kit-intake-words.app-testing.description.label": "ऐप या डेमो का विवरण",
+  "kit-intake-words.app-testing.description.help": "अपेक्षित व्यवहार और क्लाइंट का लक्ष्य बताएँ।",
+  "kit-intake-words.app-testing.testAccount.label": "क्लाइंट परीक्षण अकाउंट",
+  "kit-intake-words.app-testing.testAccount.help": "केवल काल्पनिक डेटा की पुष्टि करें। अलग व्यूअर में ख़ुद साइन इन करें; यहाँ पहचान जानकारी न डालें।",
+  "kit-intake-words.app-testing.private.label": "निजी क्लाइंट स्रोत",
+  "kit-intake-words.app-testing.private.help": "निजी विवरण और स्क्रिप्ट के लिए जाँचा स्थानीय मॉडल या आवाज़ सेवा चाहिए।",
+  "kit-intake-words.app-testing.rights.label": "रिकॉर्डिंग और वाचन अधिकार",
+  "kit-intake-words.app-testing.rights.help": "इस स्क्रिप्ट, रिकॉर्ड परीक्षण डेटा और वाचन के मालिक या लाइसेंस का रिकॉर्ड रखें।"
 }
