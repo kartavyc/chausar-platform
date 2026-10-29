@@ -8,7 +8,8 @@ test('word-edit baseline runs real cleanup, caption and script coverage checks w
   assert.equal(YOUTUBE_DRAFT_RULES.find(rule => rule.id === 'no-new-words')?.floor.kind, 'required-yes');
   const pass = await runYoutubeBaseline(file);
   assert.equal(pass.ok, true, JSON.stringify(pass.cases.filter(item => !item.passed)));
-  assert.equal(pass.passed, 12);
+  assert.equal(pass.passed, file.cases.length);
+  assert.ok(file.cases.length >= 12);
   const failed = await runYoutubeBaseline(file, item => item.id === 'cleanup-summary' ? 'Nothing was cut.' : item.reference);
   assert.equal(failed.ok, false);
 });

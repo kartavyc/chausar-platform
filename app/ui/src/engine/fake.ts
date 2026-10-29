@@ -1,5 +1,6 @@
 import { fakeSocialForIdea, fakeSocialPlan } from './fake-social-plan';
 import { fakeSocialRevisionDueRows } from './fake-social-revision-due';
+import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine for `npm run dev:ui` and for tests. It answers the same methods with the same shapes and keeps the
@@ -211,6 +212,7 @@ export class FakeEngine {
     this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
     this.hosted = (options.hosted ?? false) || this.trial !== null;
     this.desk = new FakeBusinessDesk({
+      orders:()=>this.work.request('venture.order.list',{}) as OrderLite[],
       current: () => this.current, now: () => this.now(), receiptId: () => `R-0${this.receiptSeq++}`,
       businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       rows: () => this.rows, setRows: (rows) => { this.rows = rows; }, digest: digestOf,
@@ -270,6 +272,7 @@ export class FakeEngine {
       recruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.recruitingMail(threadIds)??[],
       eraseRecruitingMail:(threadIds:readonly string[])=>this.w5?.find((desk):desk is FakeKitConnectDesk=>desk instanceof FakeKitConnectDesk)?.eraseRecruitingMail(threadIds),
       recruitingBlocked:(email:string|null,personId:string|null)=>this.extras.isBlocked(this.current,email)||this.network.recruitingBlocked(email,personId),
+      eraseYoutubeIdeaSources:(sources:readonly string[])=>this.kitRules()?.eraseSources(this.current,sources),
       eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
       eraseTenderIntake:(orderIds:readonly string[])=>this.work.eraseTenderIntake(this.current,orderIds),
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
@@ -360,7 +363,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -582,7 +585,7 @@ export class FakeEngine {
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
-    const social=this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
+    const social=this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     this.decided.add(row.id);
     // 4J5: Issue or Cancel on a credit note's card does what the engine does, and says it in the engine's words.
@@ -1058,7 +1061,7 @@ export class FakeEngine {
       starterConnectorIds: [],
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
-    const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : templateView;
+    const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : fakeYoutubeForIdea(venture.idea)?fakeYoutubePlan(templateView,this.hosted):templateView;
     this.desk.putBlueprint(business.id, view);
     return view;
   }

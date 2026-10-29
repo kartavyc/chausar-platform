@@ -1,3 +1,5 @@
+import {parseChapters,clock,chapterProblems,type Chapter} from './chapters-core.ts';
+export {parseChapters,clock,chapterProblems,type Chapter} from './chapters-core.ts';
 // Chausar flagship playbook, YouTube channel: the deterministic checks. Code only, no model, run before any judge.
 // Each returns a plain sentence the owner can read. A scorer here is lint, not a forecast: the hook scorer's own author
 // measured that it separates plainly bad hooks from real ones and barely separates hits from misses, so the gate only
@@ -238,46 +240,6 @@ function metadataCheck(pkg: YoutubePackage): YoutubeCheckResult {
 // ---------------------------------------------------------------------------
 // Chapters (chapters.py)
 // ---------------------------------------------------------------------------
-
-export type Chapter = { atMs: number; label: string; line: string };
-const CHAPTER_LINE = /^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(?:[-|:]\s*)?(.+?)\s*$/;
-
-/** Every description line that starts with a timestamp, in the order written. */
-export function parseChapters(description: string): Chapter[] {
-  const chapters: Chapter[] = [];
-  for (const line of description.split(/\r?\n/)) {
-    const match = CHAPTER_LINE.exec(line);
-    if (!match) continue;
-    const [, hours, minutes, seconds, label] = match;
-    if (Number(seconds) > 59 || (hours !== undefined && Number(minutes) > 59)) continue;
-    chapters.push({ atMs: ((Number(hours ?? 0) * 60 + Number(minutes)) * 60 + Number(seconds)) * 1000, label, line: line.trim() });
-  }
-  return chapters;
-}
-
-export function clock(ms: number): string {
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
-  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
-}
-
-/** The platform's rules for chapters: the first at 0:00, at least three, in order, each at least ten seconds. */
-export function chapterProblems(chapters: readonly Chapter[], durationMs: number | null): string[] {
-  const rule = platformRule('chapters').limits;
-  const minMs = rule.minimumSeconds * 1000;
-  const problems: string[] = [];
-  if (!chapters.length) return ['The description has no chapters.'];
-  if (chapters[0].atMs !== rule.firstAtSeconds * 1000) problems.push(`The first chapter must start at 0:00, not ${clock(chapters[0].atMs)}.`);
-  if (chapters.length < rule.minimumCount) problems.push(`YouTube needs at least three chapters; there are ${chapters.length}.`);
-  for (let index = 1; index < chapters.length; index += 1) {
-    const gap = chapters[index].atMs - chapters[index - 1].atMs;
-    if (gap <= 0) { problems.push(`The chapter at ${clock(chapters[index].atMs)} is out of order.`); break; }
-    if (gap < minMs) { problems.push(`The chapter at ${clock(chapters[index - 1].atMs)} is shorter than ten seconds.`); break; }
-  }
-  const last = chapters.at(-1)!;
-  if (durationMs !== null && durationMs - last.atMs < minMs && !problems.some(line => /order/.test(line))) problems.push(`The last chapter, at ${clock(last.atMs)}, is shorter than ten seconds.`);
-  return problems;
-}
 
 function chapterCheck(order: YoutubeOrder, pkg: YoutubePackage): YoutubeCheckResult {
   const chapters = parseChapters(pkg.description);
@@ -613,6 +575,7 @@ export function runYoutubeChecks(input: YoutubeCheckInput): YoutubeCheckResult[]
       case 'rights-recorded': return rightsCheck(input.order, input.today);
       case 'source-credit': return sourceCreditCheck(input.order, input.pkg);
       case 'finishing': return input.finishing ?? result('finishing', 'not-run', 'not run: no finishing check for this cut.');
+      case 'screencast-handoff':case 'service-sections':case 'source-backed-analysis':case 'audit-one-fix':case 'plan-fits-hours':case 'reply-not-bait':case 'comment-question-source':case 'after-publish-directive':case 'niche-evidence-labels':case 'query-test':case 'thumbnail-supported':return result(id,'not-run','not run: this check requires the exact service draft and source evidence.');
       case 'caption-file': case 'script-coverage': case 'cleanup': return result(id, 'not-run', 'not run: the measured word-edit tool has not completed.');
     }
   });

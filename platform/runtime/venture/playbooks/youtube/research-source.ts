@@ -1,0 +1,26 @@
+// Original bounded CSV mapping shared by the owner desk, fake and harness. Existing Chausar CSV parser is reused.
+import {searchYoutubeArchive,type ArchiveSpeech} from './archive.ts';
+import {csvRows} from '../../../csv.ts';
+import {check,researchCount,researchText,researchVideos,RESEARCH_INVALID} from './b3-core.ts';
+import {afterPublish} from './after-publish.ts';
+import type {StudioPerformance} from './after-publish.ts';
+import type {ResearchVideo} from './b3-core.ts';
+import type {SourceComment} from './comments.ts';
+import type {ScriptBlock} from './teleprompter.ts';
+export type ResearchSourceKind='videos'|'studio'|'comments'|'script'|'archive';
+export type ResearchSources={videos:ResearchVideo[];studio:StudioPerformance[];comments:SourceComment[];script:ScriptBlock[];archive:ArchiveSpeech[]};
+const columns={videos:['id','channelId','views','publishedOn'],studio:['videoId','ctrBasisPoints','retentionBasisPoints','views','searchViews','browseViews'],comments:['id','text'],script:['kind','text'],archive:['sourceId','startMs','endMs','text']} as const;
+const optional=(value:string)=>value.trim()===''?null:value.trim();
+function percent(value:string){const text=optional(value);if(text===null)return null;const match=/^(\d{1,3})(?:\.(\d{1,2}))?%?$/.exec(text);check(match,RESEARCH_INVALID,'Use a source percentage with at most two decimal places.');const result=Number(match[1])*100+Number((match[2]??'').padEnd(2,'0'));check(result<=10000,RESEARCH_INVALID,'A source percentage cannot exceed one hundred.');return result;}
+/** Convert owner hours to exact whole minutes; never round an over-budget plan into compliance. */
+export function ownerHoursMinutes(value:unknown){check(typeof value==='string'&&/^(?:0|[1-9]\d{0,2})(?:\.\d{1,3})?$/.test(value),RESEARCH_INVALID,'Use positive weekly hours with at most three decimals.');const [whole,fraction='']=value.split('.'),scale=10n**BigInt(fraction.length),scaled=BigInt(whole!)*scale+BigInt(fraction||'0'),numerator=scaled*60n;check(numerator%scale===0n&&numerator>0n&&numerator/scale<=10080n,RESEARCH_INVALID,'Use a weekly allowance that gives whole minutes and fits one week.');return Number(numerator/scale);}
+/** Owner maps the actual export headings. Unknown, duplicated or omitted mapped columns fail closed. */
+export function researchSource<K extends ResearchSourceKind>(kind:K,text:string,mapping:Record<string,string>):ResearchSources[K]{
+ check(Object.hasOwn(columns,kind)&&typeof text==='string'&&text.length>0&&text.length<=1500000&&mapping&&typeof mapping==='object'&&!Array.isArray(mapping),RESEARCH_INVALID,'Choose a bounded CSV and its exact column mapping.');const fields=columns[kind];check(Object.keys(mapping).length===fields.length&&fields.every(key=>typeof mapping[key]==='string'&&mapping[key]!.trim()),RESEARCH_INVALID,'Map every requested source field exactly once.');check(new Set(Object.values(mapping)).size===fields.length,RESEARCH_INVALID,'A source column cannot stand for two different fields.');
+ let rows:string[][];try{rows=csvRows(text);}catch{check(false,RESEARCH_INVALID,'Use a complete CSV with balanced quotes.');}const header=rows![0];check(header&&header.length<=100&&new Set(header).size===header.length&&rows!.length>1&&rows!.length<=5001,RESEARCH_INVALID,'Use unique column headings and one to five thousand rows.');const indices=fields.map(field=>header.indexOf(mapping[field]!));check(indices.every(index=>index>=0),RESEARCH_INVALID,'The mapped columns must exist in this export.');const ids=new Set<string>();const archive=new Map<string,ArchiveSpeech>();const values=rows!.slice(1).map(cells=>{check(cells.length===header.length,RESEARCH_INVALID,'Every CSV row must match its headings.');const raw=Object.fromEntries(fields.map((field,i)=>[field,cells[indices[i]!]!]));if(kind==='archive'){const id=researchText(raw.sourceId),start=raw.startMs!,end=raw.endMs!;check(/^(0|[1-9]\d*)$/.test(start)&&/^(0|[1-9]\d*)$/.test(end)&&BigInt(end)<=21600000n&&BigInt(start)<BigInt(end),RESEARCH_INVALID,'Use measured whole-millisecond word times from your own transcript.');const source=archive.get(id)??{id,ownerConfirmed:true,words:[]};source.words.push({startMs:Number(start),endMs:Number(end),text:researchText(raw.text,500)});archive.set(id,source);return source;}if(kind==='script'){check(raw.kind==='speech'||raw.kind==='cue',RESEARCH_INVALID,'Mark each script block as speech or cue.');return {kind:raw.kind,text:researchText(raw.text,20000)};}
+ const id=researchText(raw.id??raw.videoId);check(!ids.has(id),RESEARCH_INVALID,'Each source row needs a distinct ID.');ids.add(id);if(kind==='comments')return {id,text:researchText(raw.text,5000)};
+ if(kind==='videos')return {id,channelId:researchText(raw.channelId),views:optional(raw.views!),publishedOn:optional(raw.publishedOn!)};
+ const studio={videoId:id,ctrBasisPoints:percent(raw.ctrBasisPoints!),retentionBasisPoints:percent(raw.retentionBasisPoints!),views:optional(raw.views!),searchViews:optional(raw.searchViews!),browseViews:optional(raw.browseViews!)};afterPublish(studio);return studio;});
+ if(kind==='archive'){const sources=[...archive.values()];searchYoutubeArchive(sources,'source-check');return sources as ResearchSources[K];}
+ if(kind==='videos')researchVideos(values as ResearchVideo[]);return values as ResearchSources[K];
+}

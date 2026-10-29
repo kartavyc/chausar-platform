@@ -1,11 +1,11 @@
 {
   "version": 1,
   "playbook": "youtube",
-  "recordedAt": "2026-10-27",
+  "recordedAt": "2026-10-29",
   "recordedFrom": "Reference drafts written by hand for the held-back cases of the YouTube channel playbook. Every name and figure in a reference, chapter times included, comes from the case's own sources. Re-record from a real playbook run with raiseBaseline; the baseline only rises.",
   "baseline": {
-    "passed": 12,
-    "of": 12
+    "passed": 16,
+    "of": 16
   },
   "cases": [
     {
@@ -299,6 +299,102 @@
         "uploaded"
       ],
       "reference": "The b-roll has a recorded stock licence."
+    },
+    {
+      "id": "channel-audit",
+      "title": "channel-audit",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"fixes\":[\"Improve the opening\"],\"keep\":[\"Clear sound\",\"Sourced examples\",\"Captions\"],\"notYet\":[\"New equipment\"]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The audit keeps one fix and the required keep and not-yet lists."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The audit keeps one fix and the required keep and not-yet lists."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The audit keeps one fix and the required keep and not-yet lists."
+    },
+    {
+      "id": "weekly-plan-hours",
+      "title": "weekly-plan-hours",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"pieces\":[{\"id\":\"anchor\",\"kind\":\"anchor\",\"minutes\":90},{\"id\":\"cheap\",\"kind\":\"cheap\",\"minutes\":30},{\"id\":\"a\",\"kind\":\"short\",\"minutes\":20},{\"id\":\"b\",\"kind\":\"short\",\"minutes\":20},{\"id\":\"c\",\"kind\":\"short\",\"minutes\":20}],\"availableMinutes\":240,\"dropFirst\":\"c\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+    },
+    {
+      "id": "comment-reply-short",
+      "title": "comment-reply-short",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"comments\":[{\"id\":\"q\",\"text\":\"How do I count stock?\"},{\"id\":\"b\",\"text\":\"you are stupid\"}],\"replies\":[{\"id\":\"q\",\"reply\":\"We will show the steps.\"}],\"pinId\":\"q\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The reply is short and the held bait receives no response."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The reply is short and the held bait receives no response."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The reply is short and the held bait receives no response."
+    },
+    {
+      "id": "after-publish-directive",
+      "title": "after-publish-directive",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"source\":{\"videoId\":\"v\",\"ctrBasisPoints\":200,\"retentionBasisPoints\":7000,\"searchViews\":\"100\",\"browseViews\":\"700\",\"views\":\"1000\"},\"expected\":\"fix-packaging\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The measured next step is to improve the title and thumbnail."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The measured next step is to improve the title and thumbnail."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The measured next step is to improve the title and thumbnail."
     }
   ]
 }

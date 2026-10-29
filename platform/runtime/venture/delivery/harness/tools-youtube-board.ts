@@ -1,3 +1,4 @@
+import {currentScreencastProof} from '../../playbooks/youtube/screencast-source.ts';
 import {wholeCount} from '../../playbooks/kit/count.ts';
 // Chausar 5B2 tools. Original adapters over measured order records; no provider is implied by a compute result.
 import { check } from '../../../contracts.ts';
@@ -68,6 +69,7 @@ export const YOUTUBE_B2_TOOLS: Readonly<Record<B2Name, Spec>> = Object.freeze({
       const fresh=session(env,input.editId);
       check(JSON.stringify(fresh.edit)===JSON.stringify(edit)&&fresh.order.intake?.cutFile===order.intake.cutFile,'DERIVED_STALE','The edit changed while checking the finished files.');
       const files = boardFiles(edit.board);
-      return { result: { orderId: edit.orderId, files, manifest: projectManifest(files), capability: 'handoff', line: 'Editor instructions and approved text only. Save the project in the desktop app, then finish or post in your editor.' } };
+      const screencast=currentScreencastProof(fresh.state,env.ventureId,fresh.order,fresh.edit,env.now());
+      return { result: { orderId: edit.orderId, ...(screencast?{screencast}:{}), files, manifest: projectManifest(files), capability: 'handoff', line: 'Editor instructions and approved text only. Save the project in the desktop app, then finish or post in your editor.' } };
     }) },
 });

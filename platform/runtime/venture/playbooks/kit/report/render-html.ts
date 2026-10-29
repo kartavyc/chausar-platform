@@ -5,7 +5,8 @@
 // prose with a number no receipt backs says "Model estimate"; a quote says "Shown as written". Bars are drawn by width
 // classes, never an inline style. The same input gives the same bytes: the date it shows is passed in. The idea of a report renderer
 // with typed blocks comes from beyondseo (MIT), catalogue row P11; no code of it was read or copied. Written for Chausar.
-import { createHash } from 'node:crypto';
+import {sha256} from '@noble/hashes/sha2.js';
+import {utf8ToBytes} from '@noble/hashes/utils.js';
 import type { ReportBlock } from '../records-report.ts';
 
 /** What a report file shows: its title, the business, the date it is as of (in words), its blocks, and its link. */
@@ -48,7 +49,7 @@ export const REPORT_STYLE = ':root{color-scheme:light dark;--bg:#ffffff;--fg:#16
   + WIDTHS.map(width => `.w${width}{width:${width}%}`).join('')
   + 'blockquote{margin:1rem 0;padding:.25rem 0 .25rem 1rem;border-left:3px solid var(--line)}footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem}'
   + '@media print{body{background:#fff;color:#000}main{max-width:none;padding:0}}';
-const STYLE_HASH = createHash('sha256').update(REPORT_STYLE).digest('base64');
+const STYLE_HASH = btoa(String.fromCharCode(...sha256(utf8ToBytes(REPORT_STYLE))));
 const CSP = `default-src 'none'; style-src 'sha256-${STYLE_HASH}'; img-src 'none'; form-action 'none'; base-uri 'none'`;
 
 function block(item: ReportBlock): string {

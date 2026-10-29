@@ -22,7 +22,7 @@ const byId = (id: string) => listWays({}).ways.find(way => way.id === id)!;
 test('the three flagship tiles carry the plan\'s words, hours, team and pay, as a model estimate', () => {
   const youtube = byId('youtube');
   assert.equal(youtube.category, 'content');
-  assert.equal(youtube.line, "Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.");
+  assert.equal(youtube.line, "Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.");
   assert.deepEqual([youtube.hours, youtube.youDo, youtube.teamLine], ['4 to 8 h a week', 'Record, watch each cut, meet sponsors.', 'Edits, shorts, titles and sponsor quotes.']);
   assert.deepEqual(youtube.team.map(member => [member.role, member.department]), [['Story editor', 'production'], ['Producer', 'sales'], ['Packager', 'marketing']]);
   assert.deepEqual([youtube.clientsPay.text, youtube.clientsPay.per], ['₹5,000 to ₹30,000', 'per video']);

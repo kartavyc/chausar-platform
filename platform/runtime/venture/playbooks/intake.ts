@@ -17,6 +17,7 @@ import { SOCIAL_OFFERS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
 import { kitIntakeAsk, kitOrderIntake } from './kit/intake.ts';
+import {isYoutubeService,validateYoutubeServiceIntake} from './youtube/service-offer.ts';
 
 const KEYS = ['rights', 'format', 'aiVoice', 'aiPresenter', 'paidPromotion', 'cutFile', 'calendar', 'clientRules'] as const;
 /** The social offers whose orders post on a calendar code plans. */
@@ -49,7 +50,7 @@ export function offerIntakeAsk(playbookId: string, offer: Pick<FlagshipOffer, 'r
   // Ink v2 wave 5 (5A1): a kit offer asks its own fields (playbooks/kit/intake.ts).
   if (offer.intake) {
     const own = kitIntakeAsk({ rights: offer.rights, intake: offer.intake });
-    if (playbookId !== SOCIAL_AGENCY_ID) return own;
+    if (playbookId !== SOCIAL_AGENCY_ID && !(playbookId===YOUTUBE_ID && offer.key==='screencast-tutorial')) return own;
     const common = offerIntakeAsk(playbookId, { ...offer, intake: undefined }, host);
     return own || common ? { rights: [...offer.rights], fields: common?.fields ?? [], kit: own?.kit ?? [] } : null;
   }
@@ -136,12 +137,17 @@ export function orderIntake(raw: unknown, offer: { key?: string; name: string; r
     return null;
   }
   // Ink v2 wave 5 (5A1): a kit offer keeps its own fields under intake.fields (playbooks/kit/intake.ts).
-  if (offer.intake && !isSocialOffer(offer.key)) return kitOrderIntake(raw, { ...offer, intake: offer.intake }, meta);
-  if (offer.intake && isSocialOffer(offer.key)) {
+  if (offer.intake && !isSocialOffer(offer.key) && offer.key!=='screencast-tutorial') {
+    const kept=kitOrderIntake(raw, { ...offer, intake: offer.intake }, meta);
+    if(isYoutubeService(offer.key))validateYoutubeServiceIntake(kept?.fields,offer.key);
+    return kept;
+  }
+  if (offer.intake && (isSocialOffer(offer.key) || offer.key==='screencast-tutorial')) {
     check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
     const { fields, moneyRupees, ...base } = (raw ?? {}) as Record<string, unknown>;
     const own = kitOrderIntake({ fields, ...(moneyRupees === undefined ? {} : { moneyRupees }) }, { ...offer, rights: [], intake: offer.intake }, meta);
     const common = orderIntake(Object.keys(base).length ? base : undefined, { ...offer, intake: undefined }, meta);
+    if(isYoutubeService(offer.key))validateYoutubeServiceIntake(own?.fields,offer.key);
     return own || common ? { ...(own ?? common!), ...(common ?? {}), fields: own?.fields ?? {} } : null;
   }
   check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');

@@ -1,3 +1,4 @@
+import {refuseYoutubeDraft,youtubeDispatchGuard} from '../playbooks/youtube/run-guard.ts';
 import { caNamedTokens } from '../playbooks/ca-firm/draft-references.ts';
 // Chausar venture launcher, delivery package (P5): draft replies for real orders.
 // A template outline needs no agent and works at any stage. An agent draft needs shadow or approve each; it shows the
@@ -136,6 +137,7 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
  */
 async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { runId?: string; work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
   (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(deps.store.read(), context.venture, context.order, deps.clock().toISOString());
+  refuseYoutubeDraft(deps.store.read(),context.venture,context.order,deps.clock().toISOString(),extras.harness?.toolCalls);
   // Ink v2 wave 4 (4J12, H24): a signed order contract's protected items, on every playbook's drafts, after its own.
   const contract = contractChecks(deps.store.read(), context.venture, context.order.id, { text: draftWords(deliverable), ...(extras.files ? { files: extras.files.map(file => ({ name: file.name, digest: file.digest })) } : {}) });
   // Ink v2 wave 4 (4J17, A8): the owner's voice, by code, on every playbook's drafts; it only ever adds a result.
@@ -267,6 +269,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   (await import('../playbooks/support-desk/run-guard.ts')).refuseSupportDraft(state, venture, order);
   (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, order);
   (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(state, venture, order, deps.clock().toISOString());
+  refuseYoutubeDraft(state,venture,order,deps.clock().toISOString());
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
@@ -513,9 +516,10 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     // 4J18: a source this draft's text carries that was removed, changed or held since never goes; it is made again.
     await refuseStaleSources(deps, ctx, { run, callId, context, harness: null });
     const knowledge = sourcesCarried(state, venture, run.preview?.payloadText ?? '');
+    const youtubeGuard=youtubeDispatchGuard(deps,venture,context.order);
     let deliverable: Deliverable;
     try {
-      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }));
+      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }),{beforeDispatch:()=>{youtubeGuard();}});
       went.out = true;
       deliverable = outcome.value;
     } catch (error) {
@@ -619,6 +623,7 @@ type HarnessApproval = {
  */
 async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApproval): Promise<DeliveryRunView> {
   const { run, harness, context, playbook, refs, callId } = a;
+  const youtubeGuard=youtubeDispatchGuard(deps,context.venture,context.order,harness.toolCalls);
   // 4F1: from here to the commit is the time this turn took to run (the run's measured working time, estimates.ts).
   const began = deps.clock().getTime();
   const files = uploadsById(a.state, context.venture.id, harness.uploadIds);
@@ -632,7 +637,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   await refuseStaleSources(deps, ctx, a);
   let value: unknown, by: 'model' | 'template', costMicros: string;
   try {
-    const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw));
+    const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw),{beforeDispatch:()=>{youtubeGuard();}});
     value = outcome.value; by = outcome.by; costMicros = outcome.costMicros;
     a.answered?.();
   } catch (error) {
@@ -1214,6 +1219,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'){const order=tx.find('venture-order',run.orderId);if(order)voiceGuard(tx.state,tx.venture!,order);}
+    if(verdict!=='rejected'){const order=tx.find('venture-order',run.orderId);if(order)refuseYoutubeDraft(tx.state,tx.venture!,order,tx.now,run.harness?.toolCalls);}
     // An agent draft is a practice draft unless the business is at approve each now: moving down is the owner's
     // safety lever, so a draft approved earlier can't be accepted, and an edit made now can't be copied.
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');

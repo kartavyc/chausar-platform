@@ -1,7 +1,10 @@
 // Chausar playbook kit: client reports and their share links (Ink v2 wave 5, package 5A5, P11). The record bodies and
 // the methods' answers; types only (contracts.ts imports them). Written for Chausar; nothing here is learned from an
 // outside source.
-import type { Display, IsoDate, IsoTime } from '../../contracts.ts';
+// Primitive report values stay a type leaf for the browser renderer.
+export type Display=string;
+type IsoDate=string;
+type IsoTime=string;
 
 /** The files a report can be made as. */
 export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';

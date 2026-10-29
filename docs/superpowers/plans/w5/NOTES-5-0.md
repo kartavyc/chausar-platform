@@ -691,3 +691,8 @@ All six fixed-inventory engine shards pass sequentially:1110,1106,1102,1190,1116
 ## Batch-three UI gate follow-up
 
 The fixed-tree full UI run recorded 2696 passing, nine failing and two setup-blocked tests. Seven stale assertions in the gallery and Business were independently reviewed, repaired and passed all 66 focused tests. The unchanged dev-page and Today tests passed all 12 after the snapshot dependency link and an isolated retry, including both previously blocked tests. The onboarding word count remains 821 against 330 and is not silently raised; final measurement and every proposed rise belong in the founder PR. Both types and syntax2333 passed before this test-only follow-up. Both types and syntax2333 also passed on the reviewed follow-up snapshot before commit. Engine shards continue on the immutable committed snapshot; no final batch-three gate claim is made here.
+
+
+### 5B3 isolated candidate checkpoint
+
+Adds exact owner-selected YouTube services, source research and comment/script workflows with receipts, explicit public-read approvals and local quota attempts. Private analytics and publishing remain planned/manual. See NOTES-5B3.md for scope, reviewed fixes, evidence and precise limitations. Independent root Stage 1 spec PASS and Stage 2 quality PASS after refreshed-source and threshold repairs. Isolated validation and exact patch checks remain required before committing. Native project-folder regression now uses the default C: temporary folder after a genuine isolated ENOENT failure; all safety assertions remain intact.

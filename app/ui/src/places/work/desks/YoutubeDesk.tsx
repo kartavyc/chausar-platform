@@ -1,3 +1,6 @@
+import {YoutubeServices} from './YoutubeServices';
+import {YoutubeResearch} from './YoutubeResearch';
+import {YoutubePublic} from './YoutubePublic';
 /** Chausar 5B1 word editor. Tomada (AGPL), request/undo concepts only; original Ink UI. */
 import { useId, useState } from 'react';
 import { useEngine, useResource } from '../../../engine/context';
@@ -38,6 +41,7 @@ export function YoutubeDesk() {
   const orders = useResource('venture.order.list', {}), edits = useResource('venture.desk.list', { playbook: 'youtube', kind: 'edit' });
   const [orderId, setOrder] = useState(''), [source, setSource] = useState<unknown>(null), [selected, setSelected] = useState<string | null>(null), [sourceChoice, setSourceChoice] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
+  const [researchOpen,setResearchOpen]=useState(false),[publicOpen,setPublicOpen]=useState(false);
   const chosen = orderId || orders.data?.find(order => order.status === 'open')?.id || '';
   const sourceFiles = useResource('venture.files.list', chosen ? { orderId: chosen } : {});
   const sourceAssets = useResource('venture.assets.list', chosen ? { orderId: chosen } : {});
@@ -56,6 +60,7 @@ export function YoutubeDesk() {
     finally { setBusy(false); }
   }
   return <div className={s.body}>
+    <details><summary>{t('pb-youtube-research.servicesTitle')}</summary><YoutubeServices/></details>
     <Tile as="section" label={t('pb-youtube.title')}>
       <TileHead title={t('pb-youtube.title')} />
       <p className={s.line}>{t('pb-youtube.honesty')}</p>
@@ -84,6 +89,7 @@ export function YoutubeDesk() {
       <ul className={s.list}>{rows.map(row => <li key={row.id} className={s.row}><span data-content="">{row.source.label}</span><Button onClick={() => setSelected(row.id)}>{t('pb-youtube.open')}</Button></li>)}</ul>
       {!rows.length && !edits.loading && <p className={s.line}>{t('pb-youtube.empty')}</p>}
     </Tile>
+    {chosen&&<><details open={researchOpen} onToggle={event=>setResearchOpen(event.currentTarget.open)}><summary>{t('pb-youtube-research.researchTitle')}</summary>{researchOpen&&<YoutubeResearch key={chosen} orderId={chosen}/>}</details><details open={publicOpen} onToggle={event=>setPublicOpen(event.currentTarget.open)}><summary>{t('pb-youtube-research.publicTitle')}</summary>{publicOpen&&<YoutubePublic key={chosen} orderId={chosen}/>}</details></>}
     {selected && <><EditPanel key={selected} id={selected} onChanged={edits.reload} /><details><summary>{t('pb-youtube-board.title')}</summary><YoutubeBoard key={`board-${selected}`} editId={selected} /></details></>}
   </div>;
 }

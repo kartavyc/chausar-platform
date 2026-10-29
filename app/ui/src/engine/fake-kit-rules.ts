@@ -120,6 +120,7 @@ export class FakeKitRulesDesk {
   handles(method: string): boolean {
     return METHODS.has(method);
   }
+  eraseSources(businessId:string,sources:readonly string[]):void {const existing=this.books.get(businessId);if(existing)this.books.set(businessId,existing.filter(idea=>!sources.includes(idea.source)));}
 
   request(method: string, p: Record<string, unknown>): unknown {
     if (method === 'venture.ideas.add') return this.add(p);

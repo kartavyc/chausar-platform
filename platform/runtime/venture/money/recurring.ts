@@ -12,6 +12,8 @@ import {
 import { localDayAt } from '../local-day.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { orderIntake } from '../playbooks/intake.ts';
+import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
+import {requireYoutubeServiceBinding} from '../playbooks/youtube/service-binding.ts';
 import { draftDueBillsIn, repeatingBillsDue } from './bills.ts';
 import { draftInvoiceIn } from './invoices.ts';
 import { buildPriceReceipt } from './quote.ts';
@@ -90,7 +92,8 @@ function orderIn(tx: VentureTx, deps: VentureDeps, schedule: RecurringInvoiceRec
   check(client, 'CLIENT_NOT_FOUND', 'The client of this schedule was not found.');
   const offer = requireOffer(blueprint, schedule.offerId);
   requirePrice(offer);
-  const intake = orderIntake(undefined, flagshipOffer(flagshipPlan(venture.idea), offer), { by: tx.ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host });
+  requireYoutubeServiceBinding(tx.state,venture,offer);
+  const intake = orderIntake(undefined, youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer), { by: tx.ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host });
   const base = tx.base('venture-order');
   const quantity = quantityFor(offer, schedule.frequency);
   const taxInclusive = schedule.taxInclusive === true;
@@ -164,7 +167,8 @@ export async function recurringSet(deps: VentureDeps, ctx: Context, payload: unk
     const offer = requireOffer(blueprint, offerId);
     requirePrice(offer);
     // An offer that needs something on each order (footage rights) is ordered by hand, never on a schedule.
-    orderIntake(undefined, flagshipOffer(flagshipPlan(venture.idea), offer), { by: ctx.memberId, at: tx.now, today, host: deps.host });
+    requireYoutubeServiceBinding(tx.state,venture,offer);
+    orderIntake(undefined, youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer), { by: ctx.memberId, at: tx.now, today, host: deps.host });
     const fields = {
       clientId, offerId, frequency, startOn, end, nextOn: nextAfter({ startOn, frequency, end }, lastDrafted(existing?.made, startOn)), stoppedAt: null,
       ...(reminderDays ? { reminderDays } : {}), ...(taxInclusive ? { taxInclusive: true } : {}),

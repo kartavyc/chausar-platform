@@ -1,3 +1,5 @@
+import {youtubeServiceChecks} from './youtube/service-checks.ts';
+import {isYoutubeService} from './youtube/service-fields.ts';
 import {whatIfShown,healthReviewed} from './ca-firm/c2-checks.ts';
 import { socialContentChecks } from './social/content-checks.ts';
 import { ghostwritingChecks } from './social/structures.ts';
@@ -294,6 +296,7 @@ async function finishing(input: FlagshipCheckInput, format: 'long' | 'short'): P
 }
 
 async function youtubeChecks(input: FlagshipCheckInput): Promise<YoutubeCheckResult[]> {
+  if(isYoutubeService(input.offerKey))return youtubeServiceChecks(input);
   const lines = textLines(input.deliverable);
   const parsed = parsePackageText(lines.join('\n'));
   const hooks = lines.flatMap(line => { const match = HOOK.exec(line); return match ? [match[1].trim()] : []; });

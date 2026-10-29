@@ -14,6 +14,8 @@ import { orderIntake } from '../playbooks/intake.ts';
 import type { PlaybookDefinition } from '../playbooks/kit/define.ts';
 import { attachIntakeFiles, prepareIntakeFiles } from '../playbooks/kit/intake-files.ts';
 import { requireAppChannel } from '../records.ts';
+import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
+import {requireYoutubeServiceBinding} from '../playbooks/youtube/service-binding.ts';
 
 /**
  * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
@@ -39,7 +41,8 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
     const blueprint = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
     const offer = requireOffer(blueprint, offerId);
-    const selectedOffer = flagshipOffer(flagshipPlan(venture.idea), offer);
+    requireYoutubeServiceBinding(tx.state,venture,offer);
+    const selectedOffer = youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer);
     const internal = flagshipPlan(venture.idea)?.id === 'online-seller' && selectedOffer?.key === 'own-shop-back-office';
     const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null }) : clientId ? tx.find('venture-client', clientId) : null;
     check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');

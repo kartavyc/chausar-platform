@@ -1,3 +1,5 @@
+import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
+import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine's answers for Connections and the business menu: Your AI (venture.models.* in a business,
@@ -19,6 +21,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
   current(): string;
+  orders?(): {offerId:string;status:string}[];
   businessName(id: string): string;
   now(): string;
   /** The next receipt number, shared with the queue's receipts. */
@@ -111,10 +114,19 @@ export class FakeBusinessDesk {
     return pick ? clone(pick) : undefined;
   }
 
+  /** Internal queue projection, without changing the open business. */
   blueprintFor(businessId: string): BlueprintViewLite | null { return this.blueprints[businessId] ? clone(this.blueprints[businessId]!) : null; }
 
   /** A plan written elsewhere in the fake (onboarding) becomes this business's plan. */
   putBlueprint(businessId: string, view: BlueprintViewLite): void {
+    const prior=this.blueprints[businessId];
+    if(view.playbook?.id==='youtube'&&prior?.playbook?.id==='youtube'){
+      const kept=prior.blueprint.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer);
+      view.blueprint.offers.push(...clone(kept));
+      view.intake={...view.intake,...Object.fromEntries(kept.map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))};
+      view.offerReceipts={...view.offerReceipts,...Object.fromEntries(kept.map(offer=>[offer.id,null]))};
+      view.blueprint.digest=this.host.digest({...view.blueprint,digest:''});
+    }
     this.blueprints[businessId] = clone(view);
   }
 
@@ -329,16 +341,24 @@ export class FakeBusinessDesk {
       const offer = next.offers.find((o) => o.id === id);
       if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
       if (!offer.addedByOwner) throw invalid('Only an offer you added can be taken out.');
+      if(this.host.orders?.().some(order=>order.offerId===id&&order.status==='open'))throw invalid('An open order uses this offer. Deliver or cancel it first.');
       next.offers = next.offers.filter((o) => o.id !== id);
     }
     if (patch.addOffer !== undefined) {
-      const add = (patch.addOffer ?? {}) as Record<string, unknown>;
+      let add = (patch.addOffer ?? {}) as Record<string, unknown>;let service:string|undefined;
+      if(Object.hasOwn(add,'youtubeService')){
+        if(Object.keys(add).length!==1)throw invalid('Send the required fields and nothing else.');
+        let chosen:ReturnType<typeof youtubeService>;try{chosen=youtubeService(add.youtubeService);}catch{throw invalid('Choose a named YouTube service.');}
+        if(view.playbook?.id!=='youtube')throw new EngineError('YOUTUBE_SERVICE_INVALID','Add a YouTube service only to a YouTube business.');
+        if(next.offers.some(offer=>offer.addedByOwner&&offer.playbookOffer===chosen.id))throw new EngineError('YOUTUBE_SERVICE_EXISTS','This service is already on your plan. Set its price or open that service.');
+        service=chosen.id;add={name:chosen.name,description:chosen.description,pricingModel:chosen.pricing};
+      }
       const model = add.pricingModel as PricingModel;
       if (!(model in UNITS)) throw invalid('Choose per month, per project or per hour.');
       if (next.offers.filter((o) => o.addedByOwner).length >= 5) throw invalid('Your plan holds five offers you added. Take one out first.');
       this.ownerOffers[biz] = (this.ownerOffers[biz] ?? 0) + 1;
       next.offers.push({
-        id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
+        id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, ...(service?{playbookOffer:service}:{}), name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
         pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
       });
     }
@@ -347,7 +367,7 @@ export class FakeBusinessDesk {
     // Receipts belong to a version: a new version has none until it is priced again.
     this.blueprints[biz] = {
       blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
-      ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: clone(view.intake) } : {}),
+      ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
     this.planRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });

@@ -8,7 +8,7 @@ import type { StartTile } from '../kit/define.ts';
 export const YOUTUBE_TILE: StartTile = Object.freeze({
   category: 'content',
   icon: 'video',
-  line: "Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.",
+  line: "Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.",
   youDo: Object.freeze({ hoursMin: 4, hoursMax: 8, line: 'Record, watch each cut, meet sponsors.' }),
   team: Object.freeze({ roleIds: Object.freeze(['chausar', 'story-editor', 'producer', 'packager']), line: 'Edits, shorts, titles and sponsor quotes.' }),
   pay: Object.freeze({ minRupees: 5000, maxRupees: 30000, per: 'per video' }),
@@ -16,7 +16,7 @@ export const YOUTUBE_TILE: StartTile = Object.freeze({
 
 /** The tile's lines in Hindi (machine-drafted, needs a native reviewer). */
 export const YOUTUBE_TILE_HI = Object.freeze({
-  line: 'अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स और पैकेजिंग, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।',
+  line: 'अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स, पैकेजिंग और जाँच, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।',
   youDo: 'रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।',
   teamLine: 'एडिट, शॉर्ट्स, टाइटल और स्पॉन्सर के लिए कोटेशन।',
 });

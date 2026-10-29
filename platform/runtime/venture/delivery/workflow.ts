@@ -6,12 +6,19 @@ import { kitDefinition } from '../playbooks/kit/installed.ts';
 import { kitWorkflowIds } from '../playbooks/kit/workflow.ts';
 import { dictionaryEntries, ownerDefinitions } from './harness/dictionary.ts';
 import { playbookLimits, validatePlaybook } from './playbook.ts';
+import {youtubeServiceWorkflow} from '../playbooks/youtube/service-workflow.ts';
 
 export type RunPlaybook = PlaybookRecord & { runWorkflow?: DeliveryWorkflow };
 const workflowHash = ({ hash: _hash, ...body }: DeliveryWorkflow): string => digest(body);
 
 /** Owner changes on the base remain, within the selected workflow's declared tool ceiling. */
 export function playbookForOrder(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, base: PlaybookRecord, order: OrderRecord, offerId: string | null): RunPlaybook {
+  const youtubeSteps=youtubeServiceWorkflow(state,venture,base,order,offerId);
+  if(youtubeSteps){
+    const limits=playbookLimits(base),aliases=base.aliases??{};validatePlaybook(youtubeSteps,{limits,aliases});
+    const workflow:DeliveryWorkflow=structuredClone({orderId:order.id,offerId:offerId!,baseHash:base.hash,intakeDigest:digest(order.intake??null),steps:youtubeSteps,limits,aliases,dictionary:dictionaryEntries(state,venture,aliases,ownerDefinitions(deps,ctx)),hash:''});workflow.hash=workflowHash(workflow);
+    return {...base,hash:workflow.hash,steps:workflow.steps,limits,aliases,runWorkflow:workflow};
+  }
   const definition = kitDefinition(base.flagship ?? null);
   const offer = definition?.offers.find(item => item.id === offerId);
   if (!definition || !offer?.workflow) return base;

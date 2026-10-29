@@ -65,7 +65,7 @@
         "label": "YouTube channel",
         "category": "content",
         "department": "production",
-        "line": "Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.",
+        "line": "Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.",
         "hours": "4 to 8 h a week",
         "minHours": 4,
         "maxHours": 8,
@@ -103,7 +103,7 @@
         "yours": [],
         "hi": {
           "label": "YouTube चैनल",
-          "line": "अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स और पैकेजिंग, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।",
+          "line": "अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स, पैकेजिंग और जाँच, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।",
           "hours": "हफ़्ते में 4 से 8 घंटे",
           "youDo": "रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।",
           "team": [

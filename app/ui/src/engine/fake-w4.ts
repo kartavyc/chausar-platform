@@ -72,6 +72,7 @@ export interface W4DeskHost {
   digest(value: unknown): string;
   /** Another desk's answer, for the records this desk reads. */
   ask(method: string, params: Record<string, unknown>): unknown;
+  eraseYoutubeIdeaSources?(sources:readonly string[]):void;
   /** The businesses on this computer and how each opens (4J6). */
   businesses?(): { id: string; name: string; opens: string }[];
   /** The fake's runs, which the run controls change as the engine's do (4F3). */

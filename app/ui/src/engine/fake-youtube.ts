@@ -1,4 +1,7 @@
+import {fakeYoutubeRights} from './fake-youtube-rights';
 /** Chausar 5B1 fake desk, matching the engine's validations and edit transaction shapes. No AI or outside writes. */
+import {fakeYoutubePublic} from './fake-youtube-public';
+import {fakeYoutubeResearch} from './fake-youtube-research';
 import { fakeYoutubeBoard, fakeYoutubeStyle } from './fake-youtube-board';
 import type { YoutubeBoardBody } from '../../../../platform/runtime/venture/playbooks/youtube/board-core';
 import { bindFakeWordSource, requireFakeWordSource, type WordSourceBinding } from './fake-youtube-source';
@@ -29,21 +32,13 @@ export function fakeYoutubeDesk(host: W4DeskHost): FakePlaybookDesk {
   let seq = 0;
   const records = () => { const key = host.current(); if (!byBusiness.has(key)) byBusiness.set(key, new Map()); return byBusiness.get(key)!; };
   const view = (item: EditItem) => ({ ...clone(item), digest: host.digest(item), captionFiles: item.captions ? { srt: toSrt(item.captions.cues), vtt: toVtt(item.captions.cues), ...captionCoverage(item.captions.cues, item.captions.profile) } : null });
-  const orderRights = (id: unknown) => {
-    const order = (host.ask('venture.order.list', {}) as OrderLite[]).find(order => order.id === id && order.status !== 'cancelled');
-    check(order, 'ORDER_NOT_FOUND', 'Choose an open order in this business.');
-    const rights = (order.intake as { rights?: { basis: string; holder: string; reference?: string | null; expiresOn?: string | null } } | undefined)?.rights;
-    check(rights, 'RIGHTS_REQUIRED', 'Record the rights to the footage at intake before clipping.');
-    check(['own-footage', 'licence', 'creator-clip-programme'].includes(rights.basis), 'RIGHTS_REQUIRED', 'Choose own footage, a licence, or a creator clip programme.');
-    check(typeof rights.holder === 'string' && rights.holder.trim().length > 0 && rights.holder.trim().length <= 160 && !/[\r\n\t\u0000-\u001f\u007f]/.test(rights.holder.trim()), 'RIGHTS_REQUIRED', 'Say who owns the footage.');
-    check(rights.basis === 'own-footage' || (typeof rights.reference === 'string' && rights.reference.trim().length > 0 && rights.reference.trim().length <= 300 && !/[\r\n\t\u0000-\u001f\u007f]/.test(rights.reference.trim())), 'RIGHTS_REQUIRED', 'Add the licence or clip programme reference.');
-    check(rights.expiresOn === undefined || rights.expiresOn === null || (typeof rights.expiresOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rights.expiresOn) && new Date(`${rights.expiresOn}T00:00:00Z`).toISOString().slice(0, 10) === rights.expiresOn), 'RIGHTS_REQUIRED', 'Give the end date like 2026-12-31, or leave it empty.');
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(host.now()));
-    check(!rights.expiresOn || rights.expiresOn >= today, 'RIGHTS_REQUIRED', `The rights to this footage ended on ${rights.expiresOn}.`);
-  };
+  const orderRights=(id:unknown)=>fakeYoutubeRights(host,id);
   const changed = () => host.emit({ type: 'desk.changed', businessId: host.current(), at: host.now() });
-  return { playbook: 'youtube', kinds: {
-    board: fakeYoutubeBoard(host, records, exact, orderRights, changed),
+  const research=fakeYoutubeResearch(host,exact,orderRights),publicRead=fakeYoutubePublic(host,exact,orderRights);
+  return { playbook: 'youtube', endSession:publicRead.endSession, workReceipt:id=>research.workReceipt(id)??publicRead.workReceipt(id), forgetPeople:people=>{research.forgetPeople(people);publicRead.forgetPeople(people);}, kinds: {
+    public:publicRead.publicKind,
+    research:research.research,
+    board: fakeYoutubeBoard(host, records, exact, orderRights, changed, research.current),
     style: fakeYoutubeStyle(host, exact, records, orderRights),
     model: { list(p) { exact(p, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); exact(p.filter ?? {}, []); return { playbook: 'youtube', kind: 'model', rows: Object.entries(TRANSCRIPT_MODELS).map(([tier, model]) => ({ tier, ...model })), line: 'Local model downloads are handoffs you confirm. No model is downloaded automatically.' }; } },
     edit: {

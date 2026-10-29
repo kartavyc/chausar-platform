@@ -1,3 +1,4 @@
+import {CHAPTER_LIMITS} from './chapters-core.ts';
 // Chausar flagship playbook, YouTube channel: the dated register of platform rules (design 7.8). Each rule says what
 // the platform's own page said on the day it was read, links that page, and goes stale visibly after a set number of
 // days so nobody keeps acting on a rule that may have changed. The deterministic checks read their limits from here.
@@ -11,11 +12,13 @@ import type { IsoDate } from '../../contracts.ts';
 // playbook.ts loads nothing that reads these rules, so this import makes no cycle. Keep it so: playbook.ts must not
 // read these rules while it loads (inside a function is fine).
 import { YOUTUBE_STEPS } from './playbook.ts';
+import {RESEARCH_RULES} from './research-rules.ts';
 import { FINISHING_RULES } from './finishing-rules.ts';
 
 export type PlatformRuleId =
   | 'api-upload-privacy' | 'altered-synthetic-disclosure' | 'reused-content' | 'inauthentic-content'
   | 'chapters' | 'shorts-length' | 'metadata-limits' | 'paid-promotion' | 'caption-formats' | 'caption-profile' | 'cleanup-thresholds'
+  | 'public-data-quota' | 'comment-policy' | 'after-publish-thresholds'
   | 'finishing-house' | 'safe-zone-reels' | 'safe-zone-stories' | 'safe-zone-tiktok';
 
 export type PlatformRule = {
@@ -51,6 +54,7 @@ const RECHECK_DAYS = 90;
 
 const RULES: PlatformRule[] = [
   ...FINISHING_RULES,
+  ...RESEARCH_RULES,
   {
     id: 'caption-formats', needs: null, platform: 'youtube', title: 'Caption file formats',
     rule: 'YouTube accepts basic UTF-8 SubRip and WebVTT caption files.', effect: 'The caption step exports SRT and VTT. The owner uploads them.',
@@ -78,7 +82,7 @@ const RULES: PlatformRule[] = [
   {
     id: 'api-upload-privacy', needs: null, platform: 'youtube', title: 'Uploads through the YouTube API from unverified projects',
     usedBy: ['publish'],
-    limitations: ['Read on the API reference page only; the API terms of service were not read again.', 'No YouTube API client ships in this build, so the rule decides nothing until one does.'],
+    limitations: ['Read on the API reference page only; the API terms of service were not read again.', 'No YouTube upload API client ships in this build. Public read requests cannot upload a video.'],
     rule: "Google's page says videos uploaded from unverified API projects are not restricted to private viewing mode. Some uploads can still default to private because of the creator's account settings.",
     effect: 'Upload stays a handoff in this playbook because no YouTube API client ships in this build, and the owner publishes every video.',
     limits: {}, sourceTitle: 'Videos: insert, YouTube Data API', sourceUrl: 'https://developers.google.com/youtube/v3/docs/videos/insert',
@@ -121,7 +125,7 @@ const RULES: PlatformRule[] = [
     limitations: ['The check reads the chapters written in the description; automatic chapters YouTube may add are not read.'],
     rule: 'The first timestamp starts at 00:00, there are at least three timestamps in ascending order, and each chapter is at least 10 seconds long.',
     effect: 'The chapter check refuses a description whose chapters would not show.',
-    limits: { firstAtSeconds: 0, minimumCount: 3, minimumSeconds: 10 }, sourceTitle: 'Video Chapters, YouTube Help', sourceUrl: 'https://support.google.com/youtube/answer/9884579',
+    limits: CHAPTER_LIMITS, sourceTitle: 'Video Chapters, YouTube Help', sourceUrl: 'https://support.google.com/youtube/answer/9884579',
     sourceUpdated: null, effectiveFrom: null, checkedOn: CHECKED_ON, recheckAfterDays: RECHECK_DAYS,
   },
   {
@@ -179,7 +183,7 @@ export function validatePlatformRules(rules: readonly PlatformRule[], targets: R
       throw new Error(`The platform rule ${rule.id} needs its limitations: at least one line on what it does not cover.`);
     }
     if (!rule.title?.trim() || !rule.rule?.trim() || !rule.effect?.trim()) throw new Error(`The platform rule ${rule.id} needs a title, its words and what it means here.`);
-    if (rule.sourceKind === 'house' && !/^house:youtube-(?:cleanup|finishing|safe-zone-(?:reels|stories|tiktok))$/.test(rule.sourceUrl) && !/^https:\/\/partnerhelp\.netflixstudios\.com\//.test(rule.sourceUrl)) throw new Error('A house rule needs its named house source or the dated secondary guide.');
+    if (rule.sourceKind === 'house' && !/^house:youtube-(?:cleanup|finishing|after-publish|safe-zone-(?:reels|stories|tiktok))$/.test(rule.sourceUrl) && !/^https:\/\/partnerhelp\.netflixstudios\.com\//.test(rule.sourceUrl)) throw new Error('A house rule needs its named house source or the dated secondary guide.');
     if (rule.sourceKind !== 'house' && !SOURCE.test(rule.sourceUrl)) throw new Error(`The platform rule ${rule.id} needs its source page on the platform's own site.`);
     if (!validDate(rule.checkedOn)) throw new Error(`The platform rule ${rule.id} needs the date it was checked, like 2026-10-21.`);
     for (const date of [rule.sourceUpdated, rule.effectiveFrom]) if (date !== null && !validDate(date)) throw new Error(`The platform rule ${rule.id} has a date that is not a real date.`);

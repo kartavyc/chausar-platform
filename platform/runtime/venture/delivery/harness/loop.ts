@@ -663,7 +663,7 @@ export function provenSentences(state: HarnessState, receipts: readonly WorkRece
  */
 export type WorkedForWriter = { tables: Json[]; times: DraftTimes | null };
 export type WriteContext = LoopContext & { idea: string; allowed: readonly string[]; priceRefs: DraftRefs; templateTotalRef: 'offer_1.total' | 'order.total'; proven: string[]; worked?: WorkedForWriter | null };
-const WORKED_NOTE = "Chausar's code worked these out from the client's files. Use them as given: copy a hook word for word, and keep each chapter time exactly as written.";
+const WORKED_NOTE = "Chausar's code worked these out from the client's files. Use them as given: copy a hook word for word, keep each chapter time exactly as written, and preserve source analysis directives, coverage and caveats. Use each numeric source figure through its receipt reference.";
 
 /** The last reconciliation receipt of the run: the one Chausar attaches after the agent's words. */
 export function lastReconciliation(receipts: readonly WorkReceiptRecord[]): WorkReceiptRecord | null {
@@ -748,4 +748,3 @@ export function finishWrite(state: HarnessState, meta: { by: 'model' | 'template
 export function proofsOf(state: HarnessState | null | undefined): ClaimProof[] {
   return state ? [...state.proofs] : [];
 }
-

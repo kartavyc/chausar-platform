@@ -35,6 +35,7 @@ import { eraseKnowledgeNaming } from '../agents/knowledge.ts';
 import { eraseFileCallsNaming } from '../core/attachment.ts';
 import { eraseFileRequestsNaming } from '../build/file-requests.ts';
 import { importedMailOf } from '../build/mail-in.ts';
+import {eraseYoutubeResearch} from '../playbooks/youtube/research-privacy.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
 
@@ -296,7 +297,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseSiteNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
-    eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
+    eraseYoutubeResearch(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseRecruitingNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);

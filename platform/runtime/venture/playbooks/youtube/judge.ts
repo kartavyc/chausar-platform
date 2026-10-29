@@ -22,9 +22,16 @@ import { checkClips } from './clip-rules.ts';
 import { finishingAdditions } from './finishing-extra.ts';
 import { planBroll } from './broll.ts';
 
+import {checkChannelAudit,checkWeeklyPlan} from './offers2.ts';
+import {triageComments} from './comments.ts';
+import {afterPublish} from './after-publish.ts';
+
 const unbacked = DRAFT_RULES.find(rule => rule.id === 'no-unbacked-claims')!;
 
 export const YOUTUBE_DRAFT_RULES: readonly JudgeRule[] = Object.freeze(validateRules([
+  {id:'audit-one-fix',question:'For a channel audit, is there exactly one fix, three keeps and one not-yet?',text:'Keep an audit focused on one fix, three keeps and one not-yet. Other services do not need this format.',floor:{kind:'required-yes'}},
+  {id:'plan-fits-hours',question:'For a weekly plan, do all pieces fit the owner hours and name the first piece to drop?',text:'A weekly plan fits the owner allowance and names one exact piece to drop first. Other services do not need a weekly plan.',floor:{kind:'required-yes'}},
+  {id:'reply-not-bait',question:'For comment work, are replies short, source-linked and free of replies to held bait?',text:'Never answer held bait. Reply drafts are at most thirty words and stay manual. Other services need no comment replies.',floor:{kind:'required-yes'}},
   { id: 'clip-stands-alone', question: 'Does every short clip make sense without the full video?', text: 'Each short clip must stand alone with a complete thought.', floor: { kind: 'share', percent: 75 } },
   { id: 'broll-fits-claim', question: 'Does every added image support only what the speaker actually said?', text: 'Never use b-roll to imply a claim the speaker did not make.', floor: { kind: 'required-yes' } },
   { id: 'meaning-kept', question: 'Does the edit keep the qualifiers and what the speaker meant?', text: 'Keep the speaker meaning and every qualifier when cutting.', floor: { kind: 'share', percent: 75 } },
@@ -155,6 +162,7 @@ export async function runYoutubeBaseline(file: BaselineFile, draftFor: DraftMake
 /** Real deterministic checks behind the three word-edit held-back cases. */
 function wordEditBaselineFailures(item: HeldBackCase, draft: string): string[] {
   try {
+    if(['channel-audit','weekly-plan-hours','comment-reply-short','after-publish-directive'].includes(item.id)){const source=JSON.parse(item.sources[0]!.text);let passed=false;if(item.id==='channel-audit')passed=checkChannelAudit(source).passed;else if(item.id==='weekly-plan-hours')passed=checkWeeklyPlan(source.pieces,source.availableMinutes,source.dropFirst).passed;else if(item.id==='comment-reply-short')passed=triageComments(source.comments,source.replies,source.pinId).complete;else passed=afterPublish(source.source,source.thresholds).directive===source.expected;return passed?[]:['The source-backed service check failed.'];}
     if (item.id === 'short-clip-rules') {
       const source = JSON.parse(item.sources[0].text);
       return checkClips(source.words, source.picks, 'shorts').passed ? [] : ['The short clip fails its measured boundary checks.'];

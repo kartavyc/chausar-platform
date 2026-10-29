@@ -274,6 +274,7 @@ export type RecordBase<K extends VentureRecordKind> = {
 };
 
 export type VentureRecord = RecordBase<'venture-record'> & {
+  youtubePublicQuota?: import('./playbooks/youtube/public-state.ts').YoutubeQuotaUse[];
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -927,6 +928,8 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
+  youtubeResearch?: import('./playbooks/youtube/research-state.ts').YoutubeResearchBody;
+  youtubePublic?: import('./playbooks/youtube/public-state.ts').YoutubePublicRead;
   /** Exact owner-approved fetched narration source. */
   narrationFetched?: {fileId:string;url:string;finalUrl:string;digest:string};
   socialProduction?: import('./playbooks/social/production-types.ts').SocialProduction;
@@ -2259,7 +2262,7 @@ export type Reconciliation = {
  * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
  */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report' | 'youtube.compute';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -4019,6 +4022,7 @@ export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & { firstNa
  * on the plan's offer, set by the owner.
  */
 export type OwnerOfferRecord = RecordBase<'venture-owner-offer'> & {
+  youtubeService?: import('./playbooks/youtube/offers2.ts').YoutubeServiceId;
   offerId: string; name: string; description: string; pricingModel: PricingModel; removedAt: IsoTime | null;
 };
 /**
@@ -6288,6 +6292,18 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'SCRIPT_COVERAGE_FAILED',
+  'YOUTUBE_KEY_REQUIRED',
+  'YOUTUBE_READ_FAILED',
+  'YOUTUBE_READ_USED',
+  'YOUTUBE_REPLY_BAIT',
+  'YOUTUBE_REPLY_TOO_LONG',
+  'YOUTUBE_RESEARCH_INVALID',
+  'YOUTUBE_RESEARCH_NOT_FOUND',
+  'YOUTUBE_SERVICE_EXISTS',
+  'YOUTUBE_SERVICE_INVALID',
+  'YOUTUBE_SOURCE_REQUIRED',
+
   'EXPLAINER_CAPTION_INVALID',
   'EXPLAINER_QUOTE_REQUIRED',
   'NARRATION_APPROVAL_REQUIRED',
@@ -6520,7 +6536,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}`;
+  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `youtube:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;

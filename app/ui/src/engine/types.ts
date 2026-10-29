@@ -578,7 +578,7 @@ export interface BlueprintPatchLite {
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
   /** 4J8: a new offer of the owner's, with no price yet; and taking out an offer the owner added. */
-  addOffer?: { name: string; description: string; pricingModel: PricingModel };
+  addOffer?: { name: string; description: string; pricingModel: PricingModel } | {youtubeService:string};
   removeOffer?: { id: string };
 }
 

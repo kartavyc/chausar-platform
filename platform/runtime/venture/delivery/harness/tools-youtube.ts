@@ -16,9 +16,9 @@ import type { Cue } from '../../playbooks/youtube/transcript.ts';
 import { transcriptCues, type FileLike } from './files.ts';
 import type { WorkedForWriter } from './loop.ts';
 import { computedTable, fail, fileOf, text, type Spec, type ToolEnv } from './tools.ts';
-import { notBuiltTool } from './tool-stub.ts';
 import { YOUTUBE_B2_TOOLS } from './tools-youtube-board.ts';
 import { YOUTUBE_EDIT_TOOLS } from './tools-youtube-edit.ts';
+import {YOUTUBE_RESEARCH_TOOLS,YOUTUBE_PUBLIC_TOOL} from './tools-youtube-research.ts';
 
 type YoutubeToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
 
@@ -189,7 +189,7 @@ function rowsOf(value: unknown, fields: Readonly<Record<string, string>>): Row[]
 }
 
 /**
- * What the write step uses as given: the hooks the scorer kept and the drafted chapters, and nothing else a tool made
+ * What the write step uses as given: the hooks the scorer kept and the drafted chapters, and the screened source analyses and their receipt references, excluding other media intermediates
  * (no edit list frames, retention drops or transcript text). Their words come from the results the run stored, which
  * passed the untrusted screen before the agent read them, so a result the screen held gives nothing and a cleaned one
  * stays cleaned. The time codes come from the run's own chapters table, which only code wrote, and are allowed only
@@ -204,6 +204,13 @@ export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly
   const drafted = newestResult(calls, 'youtube.chapters');
   const chapterRows = rowsOf(drafted?.chapters, { At: 'at', Label: 'label', Length: 'length' });
   if (drafted && chapterRows) out.push({ table: String(drafted.table ?? ''), name: chapters.name, columns: [...chapters.columns], rows: chapterRows });
+  for(const name of ['youtube.afterPublish','youtube.outliers','youtube.niche','youtube.comments','youtube.archive','youtube.publicStats'] as const){
+    const call=[...calls].reverse().find(item=>item.tool===name);
+    if(!call||call.outcome!=='succeeded'||!call.envelope.ok)continue;
+    const result=call.envelope.result;
+    if(!result||typeof result!=='object'||Array.isArray(result)||!Object.hasOwn(result,'analysis')||!Object.hasOwn(result,'figures'))continue;
+    out.push({name:'YouTube source analysis',tool:name,...result});
+  }
   const codes = chapterTimesOf(tables);
   const heading = PACKAGE_SECTIONS.find(section => /chapters/i.test(section)) ?? null;
   return { tables: out, times: codes.length && heading ? { heading, codes } : null };
@@ -217,10 +224,6 @@ export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly
 type YoutubeW5ToolName = Extract<ToolName, 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
 export const YOUTUBE_W5_TOOLS: Readonly<Record<YoutubeW5ToolName, Spec>> = Object.freeze({
   ...YOUTUBE_B2_TOOLS,
-  'youtube.afterPublish': notBuiltTool('youtube.afterPublish', 'compute', 'What to change next, from the Studio export, with its receipts.'), // 5B3
-  'youtube.outliers': notBuiltTool('youtube.outliers', 'compute', 'The videos that did best against the channel\'s own median, worked out by code.'), // 5B3
-  'youtube.niche': notBuiltTool('youtube.niche', 'compute', 'Medians, ages and coverage for a niche report, worked out by code.'), // 5B3
-  'youtube.comments': notBuiltTool('youtube.comments', 'compute', 'The comments from an export, sorted into piles with counts first.'), // 5B3
-  'youtube.publicStats': notBuiltTool('youtube.publicStats', 'read', 'Public video and channel stats, read with your own API key, counting the quota.'), // 5B3
-  'youtube.archive': notBuiltTool('youtube.archive', 'compute', 'Your own past transcripts, searched in short windows. Speech only.'), // 5B3
+  ...YOUTUBE_RESEARCH_TOOLS,
+  'youtube.publicStats': YOUTUBE_PUBLIC_TOOL,
 });

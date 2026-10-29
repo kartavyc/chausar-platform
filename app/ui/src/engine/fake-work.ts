@@ -1,3 +1,6 @@
+import {FakeYoutubeServiceRun} from './fake-youtube-service-run';
+import {fakeYoutubeMediaIntake} from './fake-youtube-intake';
+import {isYoutubeService,validateYoutubeServiceIntake} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
 import {hasDocx,checkFakeDocx} from './fake-manuscript-upload';
 import {FakeNarrationChain} from './fake-narration-chain';
 import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/website-studio/legal-core';
@@ -79,11 +82,12 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 
 export class FakeWorkDesk {
   eraseTenderIntake(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,narrationFetched:_narrationFetched,...rest}=order;return rest;});}
-  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{this.narrationChain.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[]):string[]{this.narrationChain.eraseOrders(biz,orderIds);this.youtubeServices.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line:'Candidate evidence was deleted. Start with new approved sources.'};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
   private readonly host: WorkHost;
   readonly socialChain: FakeSocialChain;
   readonly narrationChain: FakeNarrationChain;
   readonly articleChain: FakeArticleChain;
+  readonly youtubeServices: FakeYoutubeServiceRun;
   private orders: Record<string, OrderLite[]>;
   private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
   narrationPrice(biz:string,orderId:string){const value=this.narrationPrices.get(biz+':'+orderId);return value?clone(value):undefined;}
@@ -95,6 +99,7 @@ export class FakeWorkDesk {
 
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.youtubeServices=new FakeYoutubeServiceRun(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.narrationChain=new FakeNarrationChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.articleChain=new FakeArticleChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},next:orderId=>{this.start(host.current(),{orderId});}});
     this.socialChain=new FakeSocialChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);},eraseFiles:ids=>{const biz=host.current();this.uploads[biz]=(this.uploads[biz]??[]).filter(f=>!ids.has(f.id));for(const id of ids){this.fileContents.delete(biz+':'+id);this.fileFingerprints.delete(biz+':'+id);}},next:orderId=>{this.start(host.current(),{orderId});}});
@@ -161,7 +166,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': if(this.host.plan()?.playbook?.id==='narration-studio'){const order=this.order(biz,p.orderId),id='narration-run-'+(++this.seq);return this.narrationChain.start(order.id,id,p);}return this.start(biz, p);
-      case 'venture.delivery.approve': case 'venture.delivery.review': return this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
@@ -216,7 +221,8 @@ export class FakeWorkDesk {
       }
       rawIntake = { ...body, fields };
     }
-    const keptIntake = ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    const keptIntake = ask?.kit && plan.playbook?.id==='youtube' && offer.playbookOffer==='screencast-tutorial' ? fakeYoutubeMediaIntake(rawIntake,ask,{by:'owner',at:this.host.now(),today:new Date(Date.parse(this.host.now())+19800000).toISOString().slice(0,10),hosted:this.host.hosted?.()},()=>this.host.ask?.('venture.voiceConsent.list',{}) as import('./types').VoiceConsentsView??{consents:[],line:''}) : ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    if(plan.playbook?.id==='youtube'&&isYoutubeService(offer.playbookOffer))validateYoutubeServiceIntake((keptIntake as OrderLite['intake'])?.fields,offer.playbookOffer!);
     if (ask?.kit && keptIntake && typeof keptIntake === 'object') {
       const values = (keptIntake as NonNullable<OrderLite['intake']>).fields;
       for (const field of ask.kit.filter(field => field.kind === 'file')) {
@@ -266,6 +272,7 @@ export class FakeWorkDesk {
 
   /** venture.delivery.run: a new run on the order, working (not waiting on the owner), first step current. */
   private start(biz: string, p: Record<string, unknown>): DeliveryLite {
+    if(this.host.plan()?.playbook?.id==='youtube'&&(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean'))throw invalid('Send the required fields and nothing else.');
     const order = this.order(biz, p.orderId);
     fakeRecruitPreflight(this.host,order);
     if(this.host.plan()?.playbook?.id==='website-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
@@ -284,7 +291,7 @@ export class FakeWorkDesk {
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}
-    const social=this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
+    const social=this.youtubeServices.start(order,runId,p)??this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();

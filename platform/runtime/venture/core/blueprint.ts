@@ -164,7 +164,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
  */
 function withOwnerOffers(structure: BlueprintStructure, owned: readonly OwnerOfferRecord[]): BlueprintStructure {
   if (!owned.length) return structure;
-  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const }))] };
+  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const, ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}) }))] };
 }
 
 function planStructure(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null): BlueprintStructure {

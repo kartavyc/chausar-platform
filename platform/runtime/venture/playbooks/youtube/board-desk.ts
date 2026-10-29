@@ -1,3 +1,4 @@
+import {currentScreencastProof} from './screencast-source.ts';
 // Chausar 5B2 review board. Original integration; editor workflow ideas only from the cited catalogue.
 import { localApp, commandOf, commandLine, runApprovedLocalApp } from '../../build/local-apps.ts';
 import { pathToFileURL } from 'node:url';
@@ -208,7 +209,8 @@ export const boardDesk: DeskHandler = {
           exactPayload(body, []);
           if (board.broll) currentBroll(tx.state, venture.id, edit);
           const files = boardFiles(board);
-          return { orderId: edit.orderId, editId: edit.id, digest: digest(edit), files, manifest: projectManifest(files), capability: 'handoff', line: 'Editor instructions and approved text only. Open the folder and finish or post in your chosen app.' };
+          const screencast=currentScreencastProof(tx.state,venture.id,order,edit,tx.now);
+          return { orderId: edit.orderId, editId: edit.id, digest: digest(edit), ...(screencast?{screencast}:{}), files, manifest: projectManifest(files), capability: 'handoff', line: 'Editor instructions and approved text only. Open the folder and finish or post in your chosen app.' };
         } else throw new ChausarError('EDIT_ACTION_UNKNOWN', 'Choose an output board action this desk supports.');
         const saved = tx.replace({ ...edit, board });
         tx.emit('desk.changed', { playbook: 'youtube', kind: 'board', id: edit.id });

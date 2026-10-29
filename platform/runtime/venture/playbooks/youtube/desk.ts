@@ -1,5 +1,7 @@
 // Chausar 5B1 YouTube desk. Tomada (AGPL), edit request/undo ideas only; original Chausar code.
 import { styleDesk, styleView } from './style-desk.ts';
+import {youtubePublicDesk} from './public-desk.ts';
+import {researchDesk} from './research-desk.ts';
 import { boardDesk, boardView } from './board-desk.ts';
 import { check, ChausarError, type Context, type State } from '../../../contracts.ts';
 import type { Json, VentureDeps, YoutubeEditRecord, YoutubeDictionaryRecord } from '../../contracts.ts';
@@ -23,6 +25,8 @@ import { toSrt, toVtt, type CaptionProfileId } from '../kit/captions.ts';
 import type { YoutubeEditBody, YoutubeEditView } from './records.ts';
 
 export type YoutubeDeskTypes = {
+  public: {filter:Json;row:unknown;item:unknown;actions:Record<string,{payload:Json;result:unknown}>};
+  research: {filter:Json;row:unknown;item:unknown;actions:Record<string,{payload:Json;result:unknown}>};
   style: { filter: Json; row: ReturnType<typeof styleView>; item: ReturnType<typeof styleView>; actions: Record<string, { payload: Json; result: ReturnType<typeof styleView> | Json }> };
   board: { filter: Json; row: ReturnType<typeof boardView>; item: ReturnType<typeof boardView>; actions: Record<string, { payload: Json; result: ReturnType<typeof boardView> | Json }> };
   edit: { filter: Json; row: YoutubeEditView; item: YoutubeEditView; actions: Record<string, { payload: Json; result: YoutubeEditView | Json }> };
@@ -164,6 +168,8 @@ async function actEdit(deps: VentureDeps, ctx: Context, payload: DeskActPayload)
   return { playbook: 'youtube', kind: 'edit', id: payload.id, result: item, line: 'The edit list is saved. No footage changed or published.' };
 }
 export const YOUTUBE_DESK: DeskHandlers = Object.freeze({
+  public:youtubePublicDesk,
+  research:researchDesk,
   board: boardDesk,
   style: styleDesk,
   model: { async list(deps, ctx, payload) { exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']); exactPayload(payload.filter ?? {}, []); readAs(deps, ctx, 'read'); return { playbook: 'youtube', kind: 'model', rows: Object.entries(TRANSCRIPT_MODELS).map(([tier, model]) => ({ tier, ...model })), line: 'Local model downloads are handoffs you confirm. No model is downloaded automatically.' }; } },

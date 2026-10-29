@@ -20,6 +20,7 @@ const everyString = (value: unknown, out: string[] = []): string[] => {
   else if (value && typeof value === 'object') Object.values(value).forEach(item => everyString(item, out));
   return out;
 };
+const SERVICES=['channel-audit','weekly-plan','packaging-per-video','comment-triage','comment-insights','niche-report','screencast-tutorial','after-publish-review'];
 
 test('registration: the label is "YouTube channel", it extends the studio type, and ideas pick it', () => {
   assert.equal(YOUTUBE_ID, 'youtube');
@@ -39,14 +40,14 @@ test('registration: the label is "YouTube channel", it extends the studio type, 
 });
 
 test('offers: an episode package, shorts from the client\'s own long video, and clips under a recorded licence or clip programme', () => {
-  assert.deepEqual(YOUTUBE_OFFERS.map(offer => offer.id), ['episode-package', 'shorts-from-own-video', 'licensed-clips']);
+  assert.deepEqual(YOUTUBE_OFFERS.map(offer => offer.id), ['episode-package', 'shorts-from-own-video', 'licensed-clips',...SERVICES]);
   const [episode, shorts, clips] = YOUTUBE_OFFERS;
   assert.deepEqual([...shorts.rightsBases], ['own-footage']);
   assert.deepEqual([...clips.rightsBases], ['licence', 'creator-clip-programme']);
   assert.ok(episode.rightsBases.includes('own-footage'));
   for (const offer of YOUTUBE_OFFERS) {
     assert.ok(offer.rightsBases.every(basis => (RIGHTS_BASES as readonly string[]).includes(basis)));
-    assert.ok(offer.deliverables.length >= 2, offer.id);
+    assert.ok(offer.deliverables.length >= (SERVICES.includes(offer.id)?1:2), offer.id);
     assert.equal(/\d/.test(offer.name + offer.description), false, 'offer words carry no prices or counts');
   }
   assert.equal(offerAcceptsRights('licensed-clips', 'own-footage'), false);
@@ -54,9 +55,9 @@ test('offers: an episode package, shorts from the client\'s own long video, and 
   assert.equal(offerAcceptsRights('shorts-from-own-video', 'licence'), false);
 });
 
-test('steps: eleven typed steps, each with a role; agents only on agent kinds, code and owner steps use no model', () => {
-  assert.equal(YOUTUBE_STEPS.length, 11);
-  assert.deepEqual(YOUTUBE_STEPS.map(step => step.id), ['intake', 'clarify', 'probe', 'find', 'score', 'edit', 'assemble', 'package', 'verify', 'review', 'publish']);
+test('steps: media and explicit service steps each have a role; code and owner steps use no model', () => {
+  assert.equal(YOUTUBE_STEPS.length, 19);
+  assert.deepEqual(YOUTUBE_STEPS.map(step => step.id), ['intake', 'clarify', 'probe', 'find', 'score', 'edit', 'assemble', 'package', 'verify',...SERVICES, 'review', 'publish']);
   for (const step of YOUTUBE_STEPS) {
     if (step.role.kind === 'agent') {
       assert.ok(['gather', 'question', 'work', 'write'].includes(step.kind), step.id);
@@ -90,9 +91,9 @@ test('floor: rights, paid generation, sending to the client and publishing ask a
   for (const step of floorSteps()) assert.ok(step.floor && step.floor.length > 10, step.id);
 });
 
-test('engine: the eleven steps map onto the delivery harness and pass its validation', () => {
+test('engine: media and service steps map onto the delivery harness and pass its validation', () => {
   const steps = youtubeEngineSteps();
-  assert.equal(steps.length, 11);
+  assert.equal(steps.length, 19);
   const checked = validatePlaybook(steps);
   assert.equal(checked.validated, true);
   assert.equal(steps.find(step => step.id === 'package')!.kind, 'write');
@@ -137,6 +138,7 @@ test('platform rules: dated, sourced, and they go stale visibly', () => {
   }
   for (const rule of PLATFORM_RULES) {
     if (rule.id === 'cleanup-thresholds') assert.equal(rule.sourceUrl, 'house:youtube-cleanup');
+    else if (rule.id === 'after-publish-thresholds') assert.equal(rule.sourceUrl, 'house:youtube-after-publish');
     else if (rule.id === 'finishing-house') assert.equal(rule.sourceUrl, 'house:youtube-finishing');
     else if (rule.id.startsWith('safe-zone-')) assert.equal(rule.sourceUrl, 'house:youtube-' + rule.id);
     else if (rule.id === 'caption-profile') assert.match(rule.sourceUrl, /^https:\/\/partnerhelp\.netflixstudios\.com\//, rule.id);

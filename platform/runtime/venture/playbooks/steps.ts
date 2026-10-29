@@ -12,6 +12,7 @@ import { CA_STEPS, caFirmPlaybookSteps } from './ca-firm/playbook.ts';
 import { CA_FIRM_ID, CA_FIRM_LABEL } from './ca-firm/registration.ts';
 import { YOUTUBE_STEPS, youtubeEngineSteps } from './youtube/playbook.ts';
 import { YOUTUBE_ID, YOUTUBE_LABEL } from './youtube/registration.ts';
+import {isYoutubeService} from './youtube/service-offer.ts';
 import { SOCIAL_APPROVALS, SOCIAL_ROLES, SOCIAL_STEPS, socialPlaybookSteps, type SocialRoleId } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID, SOCIAL_AGENCY_LABEL } from './social/registration.ts';
 import {socialStages} from './social/stages.ts';
@@ -112,7 +113,7 @@ function youtube(): FlagshipDelivery {
   return {
     id: YOUTUBE_ID, label: YOUTUBE_LABEL, steps, plan: planOf(steps, doers), roles, roleOf,
     floor: Object.fromEntries(YOUTUBE_STEPS.filter(step => step.floor).map(step => [step.id, step.floor!])),
-    draftStep: () => 'package',
+    draftStep: offerKey => isYoutubeService(offerKey)?offerKey!:'package',
     orderGuidance: () => [],
   };
 }

@@ -28,7 +28,7 @@ export const SHARED_NAME = 'Shared by the team';
  */
 export const ROLE_DEPARTMENTS: Readonly<Record<string, Readonly<Record<string, DepartmentId>>>> = Object.freeze({
   [YOUTUBE_ID]: Object.freeze({
-    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', cutter: 'production', packager: 'marketing',
+    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', cutter: 'production', packager: 'marketing', analyst:'marketing', 'community-helper':'sales',
   }),
   [CA_FIRM_ID]: Object.freeze({
     intake: 'sales', preparer: 'money', reconciler: 'money', writer: 'money', checker: 'operations', calculator: 'money',
