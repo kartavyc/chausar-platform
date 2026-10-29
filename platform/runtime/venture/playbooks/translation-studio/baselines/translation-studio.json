@@ -3,8 +3,8 @@
   "playbook": "translation-studio",
   "recordedAt": "2026-10-28",
   "baseline": {
-    "passed": 4,
-    "of": 4
+    "passed": 6,
+    "of": 6
   },
   "cases": [
     {
@@ -42,6 +42,22 @@
       "meta": {
         "source": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Please acknowledge notice 42.\",\"target\":\"कृपया नोटिस 42 की प्राप्ति स्वीकार करें।\",\"probes\":[],\"ownerHash\":null}]",
         "glossary": "[]"
+      }
+    },
+    {
+      "id": "dub-consent-refusal",
+      "request": "A speaker has no signed voice consent.",
+      "draft": "CONSENT_REQUIRED",
+      "meta": {
+        "source": "{\"sentences\": [{\"id\": \"a\", \"speaker\": \"Asha\", \"text\": \"Hello\", \"startMs\": 0, \"endMs\": 2000}], \"voices\": []}"
+      }
+    },
+    {
+      "id": "dub-overlong",
+      "request": "Report an overlong sentence without truncating it.",
+      "draft": "overlong",
+      "meta": {
+        "source": "{\"startMs\": 0, \"endMs\": 2000, \"nextStartMs\": 3000, \"durationMs\": 5000}"
       }
     }
   ]

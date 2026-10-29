@@ -238,5 +238,13 @@
   "pb-connector-guides.career-naukri.checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
   "pb-connector-guides.career-naukri.sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
   "pb-connector-guides.career-naukri.agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
-  "pb-connector-guides.career-naukri.charges": "Chausar has not checked its prices. Read its own pricing page before you sign up."
+  "pb-connector-guides.career-naukri.charges": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+  "pb-connector-guides.local-live-captions.step1": "Install and configure local whisper.cpp in Connections, Your AI. Record the event host permission in a live-caption order.",
+  "pb-connector-guides.local-live-captions.step2": "Open Translation, choose that caption order and Start local captions. Only this desktop microphone is used.",
+  "pb-connector-guides.local-live-captions.step3": "Saving starts off. Enable Save future captions only when you want confirmed lines kept. Stop capture when the event ends.",
+  "pb-connector-guides.local-live-captions.skipped": "Local model speed and language accuracy vary. Speaker labels are owner supplied, not automatic identification. Turning saving off does not delete previously saved lines.",
+  "pb-connector-guides.local-live-captions.checks": "Chausar checks local tool availability and current host permission before capture and after each recognition. Missing tools stop capture.",
+  "pb-connector-guides.local-live-captions.sends": "Sends: nothing over the network. Audio goes to installed local whisper.cpp; there is no cloud fallback.",
+  "pb-connector-guides.local-live-captions.agentLimits": "Agents cannot start the microphone, enable saving, install models or send event audio to a remote service.",
+  "pb-connector-guides.local-live-captions.charges": "No charge."
 }

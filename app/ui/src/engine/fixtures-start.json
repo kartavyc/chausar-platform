@@ -281,7 +281,7 @@
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
-          "connections": "Works with Your image app, Seller export files and Your seller dashboard."
+          "connections": "Works with Shopify Admin, Shopify Storefront, Your image app, Seller export files and Your seller dashboard."
         },
         "starter": "Online seller and seller services: Listing, ads and settlement audits from the seller exports you add.",
         "yours": [],
@@ -301,7 +301,7 @@
           "starter": "Online seller and seller services: जोड़ी गई विक्रेता फ़ाइलों से लिस्टिंग, विज्ञापन और भुगतान की जांच।",
           "needs": {
             "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "आपका इमेज ऐप, विक्रेता की निर्यात की गई फ़ाइलें और आपका विक्रेता डैशबोर्ड के साथ काम करता है।"
+            "connections": "'Shopify' प्रशासन, 'Shopify' सार्वजनिक स्टोर, आपका इमेज ऐप, विक्रेता की निर्यात की गई फ़ाइलें और आपका विक्रेता डैशबोर्ड के साथ काम करता है।"
           }
         }
       },
@@ -426,6 +426,63 @@
         }
       },
       {
+        "id": "job-search-desk",
+        "playbook": "job-search-desk",
+        "label": "Job-search and career desk",
+        "category": "content",
+        "department": "production",
+        "line": "Shortlists, resumes, preparation packs and outreach drafts.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Meet clients and approve packs.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Finds roles, prepares resumes and drafts outreach.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹15,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client job links, Public job boards, Your Pinloop account, LinkedIn manual path and Naukri manual path."
+        },
+        "starter": "Job search help: Shortlists, resumes, preparation packs and outreach drafts.",
+        "yours": [],
+        "hi": {
+          "label": "नौकरी खोज और करियर डेस्क",
+          "line": "नौकरी सूचियाँ, रिज़्यूमे, तैयारी पैक और संदेश ड्राफ़्ट।",
+          "hours": "हफ़्ते में 3 से 6 घंटे",
+          "youDo": "क्लाइंट से मिलें और पैक मंज़ूर करें।",
+          "team": [
+            "शोधकर्ता",
+            "लेखक"
+          ],
+          "teamLine": "पद खोजता है, रिज़्यूमे बनाता है और संदेश ड्राफ़्ट करता है।",
+          "pay": "₹3,000 से ₹15,000",
+          "per": "एक क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Job search help: नौकरी सूचियाँ, रिज़्यूमे, तैयारी पैक और संदेश ड्राफ़्ट।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट के नौकरी लिंक, सार्वजनिक नौकरी बोर्ड, आपका Pinloop खाता, LinkedIn पर हाथ से काम और Naukri पर हाथ से काम के साथ काम करता है।"
+          }
+        }
+      },
+      {
         "id": "translation-studio",
         "playbook": "translation-studio",
         "label": "Translation and subtitles",
@@ -458,7 +515,7 @@
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
-          "connections": "Works with Source text and Your AI."
+          "connections": "Works with Source text, Your AI, Consented stock voices and Local captions."
         },
         "starter": "Translation service: Documents and subtitles with source checks and review.",
         "yours": [],
@@ -478,7 +535,7 @@
           "starter": "Translation service: मूल पाठ की जाँच और समीक्षा के साथ दस्तावेज़ और सबटाइटल।",
           "needs": {
             "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "मूल पाठ और आपका AI के साथ काम करता है।"
+            "connections": "मूल पाठ, आपका AI, सहमति वाली तैयार आवाज़ें और स्थानीय कैप्शन के साथ काम करता है।"
           }
         }
       },
@@ -899,7 +956,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 6
+        "count": 7
       },
       {
         "id": "marketing",

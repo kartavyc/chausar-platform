@@ -12,6 +12,7 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
+const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;}});
 const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
@@ -71,9 +72,9 @@ async function startEngine() {
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
-  engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
+  engine.on('status', status => { if(status?.state!=='ready')captionMicrophone.clear(); if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
-  engine.on('venture-event', event => { if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
+  engine.on('venture-event', event => { if(event?.type==='privacy.forgotten')captionMicrophone.clear(); if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
   engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
   await engine.start();
@@ -177,7 +178,7 @@ function createWindow(hash = '') {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.once('ready-to-show', () => window.show());
   window.loadURL(TRUSTED_DOCUMENT + hash);
-  window.on('closed', () => { window = null; lifecycleChanged(); noteStillRunning(); });
+  window.on('closed', () => { captionMicrophone.clear(); window = null; lifecycleChanged(); noteStillRunning(); });
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and
   // focused; alerts outside the app wait while they are. Told to the engine on each change.
   // The tray's count was news since the owner last looked (4G3): looking clears it.
@@ -197,11 +198,11 @@ if (singleInstance) app.whenReady().then(async () => {
   hostAwake = true;
   powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
   powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
-  // One permission is allowed: the app's own window may write text to the clipboard (Copy brief, Copy invoice). Everything else is refused.
+  // Clipboard stays unchanged. Microphone capture needs a fresh owner-started native caption session; camera stays refused.
   // The page may carry an Ink '#/' route; the rule is the IPC sender check's own, so the two never drift apart.
   const clipboardWrite = (contents, permission) => permission === 'clipboard-sanitized-write' && Boolean(window) && contents === window.webContents && isTrustedDocument(contents.mainFrame?.url);
-  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(clipboardWrite(contents, permission)));
-  session.defaultSession.setPermissionCheckHandler((contents, permission) => clipboardWrite(contents, permission));
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {if(clipboardWrite(contents,permission))callback(true);else void captionMicrophone.request(contents,permission,details).then(callback,()=>callback(false));});
+  session.defaultSession.setPermissionCheckHandler((contents, permission, origin, details) => clipboardWrite(contents, permission)||captionMicrophone.check(contents,permission,origin,details));
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
     const url = new URL(request.url); const file = inkFiles.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
@@ -213,7 +214,9 @@ if (singleInstance) app.whenReady().then(async () => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
-      return { ok: true, result: await engine.request(request.method, request.payload) };
+      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();
+      const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
+      return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
   ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input) => {

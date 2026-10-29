@@ -46,10 +46,23 @@
     ]
   },
   {
+    "id": "job-search-desk",
+    "offers": [
+      "monthly-job-search",
+      "interview-prep-pack",
+      "job-title-audit",
+      "profile-and-tailoring",
+      "weekly-shortlist",
+      "career-coaching"
+    ]
+  },
+  {
     "id": "translation-studio",
     "offers": [
       "document-translation",
-      "subtitles"
+      "subtitles",
+      "dubbing",
+      "live-captions"
     ]
   },
   {
@@ -100,17 +113,6 @@
     "id": "narration-studio",
     "offers": [
       "audiobook"
-    ]
-  },
-  {
-    "id": "job-search-desk",
-    "offers": [
-      "monthly-job-search",
-      "interview-prep-pack",
-      "job-title-audit",
-      "profile-and-tailoring",
-      "weekly-shortlist",
-      "career-coaching"
     ]
   }
 ]

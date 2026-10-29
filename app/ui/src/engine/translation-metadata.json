@@ -96,6 +96,87 @@
         "private"
       ],
       "audience": "client"
+    },
+    {
+      "id": "dubbing",
+      "name": "Dubbing",
+      "description": "Translate and dub timed sentences with each speaker consent, exact voice quotes and local listening checks.",
+      "pricing": "project",
+      "unit": "per video minute",
+      "price": "owner-sets",
+      "stages": [
+        "translate"
+      ],
+      "workflow": [
+        "intake",
+        "glossary",
+        "approve-glossary",
+        "translate",
+        "check",
+        "owner-review",
+        "client-approval",
+        "deliver"
+      ],
+      "includes": [
+        "Source text",
+        "Client glossary",
+        "Bilingual review",
+        "Consented stock voices"
+      ],
+      "pilotable": false,
+      "rights": [
+        "own-footage",
+        "licence"
+      ],
+      "intake": [
+        "rights",
+        "languagePair",
+        "glossary",
+        "format",
+        "private"
+      ],
+      "audience": "client"
+    },
+    {
+      "id": "live-captions",
+      "name": "Live captions",
+      "description": "Caption a permitted event on this desktop. Audio never goes to a cloud service.",
+      "pricing": "project",
+      "unit": "per hour",
+      "price": "owner-sets",
+      "stages": [
+        "translate"
+      ],
+      "workflow": [
+        "intake",
+        "glossary",
+        "approve-glossary",
+        "translate",
+        "check",
+        "owner-review",
+        "client-approval",
+        "deliver"
+      ],
+      "includes": [
+        "Source text",
+        "Client glossary",
+        "Bilingual review",
+        "Local captions"
+      ],
+      "pilotable": false,
+      "rights": [
+        "own-footage",
+        "licence"
+      ],
+      "intake": [
+        "rights",
+        "languagePair",
+        "glossary",
+        "format",
+        "private",
+        "hostPermission"
+      ],
+      "audience": "client"
     }
   ],
   "intakeFields": [
@@ -137,6 +218,13 @@
       "help": "Private source text must never reach a remote model.",
       "kind": "yes-no",
       "required": true
+    },
+    {
+      "id": "hostPermission",
+      "label": "Host permission to capture audio",
+      "help": "The event host has permitted microphone capture. Saving starts off.",
+      "kind": "yes-no",
+      "required": false
     }
   ]
 }

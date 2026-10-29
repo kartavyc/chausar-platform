@@ -1,3 +1,4 @@
+import {addTranslationMedia} from './j2-definition.ts';
 // Original Chausar translation playbook. Index-Translate (Apache-2.0), Mimi and easyread (MIT), workflow ideas only.
 import type {PlaybookDefinition,KitStep,KitOffer,DatedRule} from '../kit/define.ts';
 import {DRAFT_CHECKS} from '../../delivery/check-lists.ts';
@@ -30,3 +31,5 @@ export const TRANSLATION_DATA:PlaybookDefinition={
 
 
 TRANSLATION_DATA.rules=TRANSLATION_DATA.rules.map(rule=>rule.id==='adaptation-rights'?TRANSLATION_RIGHTS_RULE:rule);
+
+addTranslationMedia(TRANSLATION_DATA,TRANSLATION_HI);

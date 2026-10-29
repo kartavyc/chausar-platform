@@ -12,3 +12,5 @@
 .check {display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target);font-size:var(--text-read)}
 .error {color:var(--fail);font-size:var(--text-read)}
 @media(max-width:560px){.pair{grid-template-columns:minmax(0,1fr)}}
+
+.audio {width:100%;min-width:0;max-width:100%}

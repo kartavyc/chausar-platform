@@ -238,5 +238,13 @@
   "pb-connector-guides.career-naukri.checks": "Chausar सेव किए हुए तथ्य और फ़ाइलें जाँचता है, क्लाइंट का खाता या हाथ से भेजा आवेदन नहीं।",
   "pb-connector-guides.career-naukri.sends": "भेजता है: नौकरी बोर्ड को कुछ नहीं। क्लाइंट जाँचे शब्द और फ़ाइलें ख़ुद कॉपी करता है।",
   "pb-connector-guides.career-naukri.agentLimits": "एजेंट क्लाइंट के लिए लॉगिन, संदेश या आवेदन नहीं कर सकते। असली काम नामित गोपनीयता समीक्षा तक रुका है।",
-  "pb-connector-guides.career-naukri.charges": "Chausar ने इसकी दाम नहीं जाँची हैं। खाता बनाने से पहले इसकी अपनी दाम का पन्ना पढ़ें।"
+  "pb-connector-guides.career-naukri.charges": "Chausar ने इसकी दाम नहीं जाँची हैं। खाता बनाने से पहले इसकी अपनी दाम का पन्ना पढ़ें।",
+  "pb-connector-guides.local-live-captions.step1": "कनेक्शन में अपने AI के तहत स्थानीय \"whisper.cpp\" इंस्टॉल और सेट करें। लाइव कैप्शन ऑर्डर में कार्यक्रम के होस्ट की अनुमति दर्ज करें।",
+  "pb-connector-guides.local-live-captions.step2": "अनुवाद खोलें, वह कैप्शन ऑर्डर चुनें और स्थानीय कैप्शन शुरू करें। केवल इस डेस्कटॉप का माइक्रोफ़ोन इस्तेमाल होता है।",
+  "pb-connector-guides.local-live-captions.step3": "सेव करना शुरू में बंद रहता है। पक्की पंक्तियाँ रखना चाहें तभी आगे के कैप्शन सेव करें। कार्यक्रम समाप्त होने पर कैप्चर रोकें।",
+  "pb-connector-guides.local-live-captions.skipped": "स्थानीय मॉडल की गति और भाषा की शुद्धता अलग हो सकती है। वक्ता के नाम मालिक देता है, पहचान अपने आप नहीं होती। सेव करना बंद करने से पहले की सेव पंक्तियाँ नहीं मिटतीं।",
+  "pb-connector-guides.local-live-captions.checks": "चौसर कैप्चर से पहले और हर पहचान के बाद स्थानीय टूल और होस्ट की मौजूदा अनुमति जाँचता है। टूल न मिलने पर कैप्चर रुकता है।",
+  "pb-connector-guides.local-live-captions.sends": "भेजता है: नेटवर्क पर कुछ नहीं। ऑडियो इंस्टॉल किए स्थानीय \"whisper.cpp\" को जाता है; क्लाउड विकल्प नहीं है।",
+  "pb-connector-guides.local-live-captions.agentLimits": "एजेंट माइक्रोफ़ोन शुरू नहीं कर सकते, सेव करना चालू नहीं कर सकते, मॉडल इंस्टॉल नहीं कर सकते और कार्यक्रम का ऑडियो रिमोट सेवा पर नहीं भेज सकते।",
+  "pb-connector-guides.local-live-captions.charges": "कोई शुल्क नहीं।"
 }

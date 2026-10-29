@@ -81,6 +81,7 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
   ...SELLER_WRITE_MODES,
+  'local-live-captions':{qualification:'fixture-tested',what:'Captures only an owner-started desktop microphone session and transcribes with installed local whisper.cpp. Saving is off by default; there is no cloud fallback.'},
   ...Object.fromEntries(['bluesky','mastodon','telegram','discord'].map(id=>[id,{qualification:'fixture-tested' as const,what:'Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection.'}])),
   'google-tts': {qualification:'fixture-tested',what:'Makes one exact approved stock voice request on the owner Google key. Current rights, private-source refusal, quoted cost and named legal confirmation are required.'},
   'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},

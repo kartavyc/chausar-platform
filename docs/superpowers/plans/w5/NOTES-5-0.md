@@ -711,3 +711,8 @@ Seller connectors and store assistant: exact-approved Shopify reads and writes w
 ### 5I isolated commit checkpoint
 
 The job-search and career desk keeps approved fact qualifiers, complete listing revisions, four-verdict shortlists, coaching and six reachable service offers. Exact owner-approved DOCX/HTML-or-PDF packs bind current sources and actual client review links before delivery or export. Native and owner reviews, test-first evidence, manual platform paths, privacy erasure, and the generic Work parity repair are in NOTES-5I.md and NOTES-5I-UI.md. Live client work waits for a named lawyer privacy review.
+
+
+### 5J2 isolated commit checkpoint
+
+Consented stock-voice dubbing, actual audio checks and desktop local captions with saving off. Full independent spec and quality PASS, including exact microphone permissions, actual privacy.forgotten lifecycle repair and benign edit continuity. Isolated both types and syntax pass; inherited I fixture ordering was repaired without changing nonowned values, and native/UI reruns pass. An isolated removed Forget hook fails its public regression. Evidence and honest provider/legal limits are recorded in NOTES-5J2.md. Root owns the whole-wave gates.
