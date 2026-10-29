@@ -2,11 +2,9 @@ import {R5_GUIDES} from './r5-guides.ts';
 import {APP_TESTING_GUIDES} from './app-testing-guides.ts';
 import {TRANSLATION_GUIDES} from './translation-guides.ts';
 import {CAREER_GUIDES} from './career-guides.ts';
-import {SELLER_GUIDES} from './seller-guides.ts';
 import {OPEN_POSTING_GUIDES} from './open-posting-guides.ts';
-import {NARRATION_GUIDES} from './narration-guides.ts';
-import {ZOHO_BOOKS_GUIDE} from './zoho-books-guide.ts';
-import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
+import {NARRATION_GUIDES,NARRATION_CHARGES} from './narration-guides.ts';
+import {SELLER_GUIDES} from './seller-guides.ts';
 // Chausar venture launcher, connector setup guides (Ink v2 wave 4, package 4J7, catalogue K11). Every catalogue
 // connector has a guide: numbered steps that ask for the least access the code uses, the step people skip, what the
 // platform charges (dated only where Chausar's catalogue note says it), "No charge" for Chausar's own parts, a line on
@@ -16,6 +14,8 @@ import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
 // only leave a key lying about. A half-configured connection names its missing setting (halfConfigured). guideProblems
 // is the validation a test runs over the whole catalogue.
 import type { State } from '../../contracts.ts';
+import {ZOHO_BOOKS_GUIDE} from './zoho-books-guide.ts';
+import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
 import type { ConnectorGuide, VentureDeps } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { CONNECTOR_CATALOGUE, type CatalogueEntry } from './catalogue.ts';
@@ -87,12 +87,12 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
   'app-testing-delivery':APP_TESTING_GUIDES['app-testing-delivery']!,
   ...CAREER_GUIDES,
   ...SELLER_GUIDES,
-  ...NARRATION_GUIDES,
-  ...TRANSLATION_GUIDES,
-  'zoho-books': ZOHO_BOOKS_GUIDE,
   ...PLAYBOOK_GUIDES,
   ...R5_GUIDES,
   ...OPEN_POSTING_GUIDES,
+  ...NARRATION_GUIDES,
+  ...TRANSLATION_GUIDES,
+  'zoho-books': ZOHO_BOOKS_GUIDE,
   lovable: builder('Lovable', 'Turn on GitHub sync in Lovable, so Chausar can follow the code.'),
   replit: builder('Replit', 'Connect GitHub in Replit, so Chausar can follow the code.'),
   bolt: builder('Bolt', 'Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.'),
@@ -168,7 +168,6 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
     sends: 'Sends: nothing outside Chausar. Every number comes from the calculator with a receipt.',
     agentLimits: "Agents can't issue an invoice or record a payment. Each one waits for you.",
   },
-  linkedin: poster('LinkedIn'),
   x: poster('X'),
   // Ink v2 wave 5 (5A6): mail files you import, and your own n8n or Make webhook.
   'mail-import': {
@@ -219,6 +218,7 @@ function plannedGuide(item: CatalogueEntry): Hand {
 
 /** What the platform charges: dated only where the catalogue's note says it; Chausar's own parts and the owner's own mail are free. */
 function chargesOf(id: string): ConnectorGuide['charges'] {
+  if (NARRATION_CHARGES[id]) return { line: NARRATION_CHARGES[id], checkedOn: null };
   if (FREE.has(id)) return { line: NO_CHARGE, checkedOn: null };
   const said = CHARGES[id];
   return said ? { line: said.line, checkedOn: said.noted ? CATALOGUE_NOTES_ON : null } : { line: PRICES_UNCHECKED, checkedOn: null };
@@ -272,7 +272,7 @@ export function halfConfigured(deps: Pick<VentureDeps, 'secrets'>, state: State,
     const empty = accounts.find(account => !imported.has(account.id));
     return empty ? `Missing: a statement file for ${empty.label}. Import one under Bank.` : null;
   }
-  if (connectorId === 'linkedin' || connectorId === 'x') {
+  if (connectorId === 'x') {
     // A steps record exists once the owner started checking; until every step has worked, the check is what is missing.
     const started = listRecords(state, 'venture-posting-steps', ventureId).some(record => record.connectorId === connectorId);
     return started && !stepsCheckedOnOf(state, connectorId) ? 'Missing: a posting steps check where every step worked. Run it again before the first post.' : null;

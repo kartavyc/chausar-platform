@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest';
 import { resolve } from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {execFileSync} from 'node:child_process';
+import {serialize,deserialize} from 'node:v8';
 import { FakeEngine } from '../../src/engine/fake';
 import { FakeWorkDesk } from '../../src/engine/fake-work';
 import metadata from '../../src/engine/fixtures-social-plan.json';
@@ -12,16 +15,16 @@ async function onboard() {
  for (const [questionId, answer] of [['q_1', { skipped: true }], ['q_pricing_model', { choiceId: 'monthly' }], ['q_price', { skipped: true }], ['q_tax', { yes: false }]] as const) await engine.request('venture.interview.answer', { questionId, answer });
  return await engine.request('venture.blueprint.draft', { useTemplate: true }) as BlueprintViewLite;
 }
-const keys = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting'];
+const keys = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting','influencer-campaign'];
 function desk(key: string, legacy = false) {
  const runs: RunDetail[] = [];
- const view = { playbook: { id: 'social-agency', label: 'Social media agency' }, blueprint: { offers: [{ id: 'offer_social', playbookOffer: key, name: { value: 'Social service' }, pricing: { unitPriceMinor: '10000', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: { offer_social: { rights: [], fields: ['clientRules'], kit: socialIntakeFields(key)?.map(field => legacy ? { ...field, required: false } : field) } } } as unknown as BlueprintViewLite;
- const work = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00.000Z', clients: () => [{ id: 'client', name: 'Shop' }] as never, plan: () => view, runs: () => runs, agentName: () => 'Writer', emit: () => {} }, { fresh: true });
+ const view = { playbook: { id: 'social-agency', label: 'Social media agency' }, blueprint: {  backOffice: {currency:'INR',taxRegistered:{value:false}}, offers: [{ id: 'offer_social', playbookOffer: key, name: { value: 'Social service' }, pricing: { unitPriceMinor: '10000', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: { offer_social: { rights: [], fields: ['clientRules'], kit: socialIntakeFields(key)?.map(field => legacy ? { ...field, required: false } : field) } } } as unknown as BlueprintViewLite;
+ const work = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00.000Z', clients: () => [{ id: 'client', name: 'Shop' }] as never, country:()=>({code:'IN',currency:'INR'}), plan: () => view, runs: () => runs, agentName: () => 'Writer', emit: () => {} }, { fresh: true });
  const create = (intake: unknown = {}, intakeFiles?: unknown) => work.request('venture.order.create', { clientId: 'client', offerId: 'offer_social', request: 'Draft my social work', intake, ...(intakeFiles ? { intakeFiles } : {}) }) as OrderLite;
  return { work, runs, create, start: (order: OrderLite) => work.request('venture.delivery.run', { orderId: order.id }) };
 }
 const source = (words: string[]) => ({ sourceFile: { name: 'source.srt', contentBase64: btoa(words.map((word, i) => `${i + 1}\n00:00:0${i},000 --> 00:00:0${i+1},000\n${word}\n`).join('\n')) } });
-it('onboards all thirteen social offers with merged legacy and generic intake in stable plan order', async () => {
+it('onboards all fourteen social offers with merged legacy and generic intake in stable plan order', async () => {
  const view = await onboard();
  expect(view.playbook?.id).toBe('social-agency');
  expect(view.blueprint.offers.map(offer => offer.playbookOffer)).toEqual(keys);
@@ -76,13 +79,12 @@ it('keeps ghostwriting price in paise and refuses a selling cap outside the rang
 });
 
 it('matches engine normalization and refusal codes and words across social legacy inputs', async () => {
- const modulePath = '/@fs/' + resolve(process.cwd(), 'platform/runtime/venture/playbooks/intake.ts').replace(/\\/g, '/');
- const { orderIntake } = await import(/* @vite-ignore */ modulePath);
  const { create } = desk('content-calendar');
  const samples: unknown[] = [undefined, {}, { format: 'short', aiPresenter: true }, { clientRules: { competitors: [' Shop ', 'Shop'] } }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 2, weekdays: [1] } }, { calendar: { month: '2026-10', channels: ['x'], postsPerChannel: 31, weekdays: [1,2,3,4,5,6,7] } }, { clientRules: { invented: [] } }, { rights: {} }, { cutFile: 'relative.mp4' }, { paidPromotion: null }, { format: null }, { fields: { sellingCap: '20' } }, { invented: 1 }, { calendar: { month: '2026-11', channels: ['x'], postsPerChannel: 10, weekdays: [1] } }];
  const capture = (run: () => unknown) => { try { return { value: run() }; } catch (error) { const problem = error as Error & {code: string}; return { code: problem.code, message: problem.message }; } };
- for (const sample of samples) {
-  const expected = capture(() => orderIntake(sample, { key: 'content-calendar', name: 'Social service', rights: [], intake: socialIntakeFields('content-calendar') }, { by: 'owner', at: '2026-10-27T10:00:00.000Z', today: '2026-10-27', host: 'desktop' }));
-  expect(capture(() => create(sample).intake)).toEqual(expected);
- }
+ // Execute the real native boundary in Node. Bundling its entire runtime into jsdom is not the production path.
+ const moduleUrl=pathToFileURL(resolve(process.cwd(),'platform/runtime/venture/playbooks/intake.ts')).href;
+ const script=`import {readFileSync} from 'node:fs';import {serialize,deserialize} from 'node:v8';import {orderIntake} from ${JSON.stringify(moduleUrl)};const {samples,offer,options}=deserialize(readFileSync(0));const capture=run=>{try{return {value:run()};}catch(error){return {code:error.code,message:error.message};}};process.stdout.write(serialize(samples.map(sample=>capture(()=>orderIntake(sample,offer,options)))));`;
+ const expected=deserialize(execFileSync(process.execPath,['--input-type=module','-e',script],{input:serialize({samples,offer:{key:'content-calendar',name:'Social service',rights:[],intake:socialIntakeFields('content-calendar')},options:{by:'owner',at:'2026-10-27T10:00:00.000Z',today:'2026-10-27',host:'desktop'}}),timeout:15000}));
+ for (const [index,sample] of samples.entries()) expect(capture(() => create(sample).intake)).toEqual(expected[index]);
 }, 20000);

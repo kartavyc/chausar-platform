@@ -78,7 +78,7 @@ test('least privilege: GitHub asks for one repo read only and no commit statuses
   assert.equal(youtube.steps.some(step => /^\d+\. Chausar copies/.test(step)), false, 'copying for YouTube is planned, so nothing says Chausar does it');
   assert.match(byId('chausar-templates').steps[1], /needs no key or sign-in/);
   assert.match(byId('linkedin').agentLimits, /waits for your approval/);
-  assert.match(byId('linkedin').sends, /from the LinkedIn account you signed in to/);
+  assert.match(byId('linkedin').sends, /nothing to LinkedIn.*LinkedIn account you signed in to/);
 });
 
 test('the mailbox and calendar guides: app passwords, 2-Step Verification, the admin block, the secret address; no "no key yet"', () => {

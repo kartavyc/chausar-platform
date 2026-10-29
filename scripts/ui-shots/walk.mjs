@@ -110,7 +110,7 @@ const SETTLED = `(async () => {
   const loading = /^(Loading|लोड हो रहा है)/;
   let ready = false;
   // A cold dev server compiles the app on the first visit, which can take a while with four browsers at once.
-  for (let i = 0; i < 300 && !ready; i++) {
+  for (let i = 0; i < 1200 && !ready; i++) {
     ready = Boolean(!document.querySelector('[data-boot]') && document.querySelector('#root h1, #root [data-specimens]')
       && ![...document.querySelectorAll('p, h2, h3, li')].some((n) => loading.test((n.textContent || '').trim()))
       && (!location.hash.includes('sheet=') || document.querySelector('aside h2')));
@@ -175,6 +175,9 @@ async function axe(b) {
 }
 
 async function stepsOf(b, steps, hindi = false) {
+  const common = JSON.parse(readFileSync(join(ROOT, 'app/ui/src/text', hindi ? 'hi' : 'en', 'common.json'), 'utf8'));
+  const switchWords = common['business.switchTo'];
+  const switchPattern = new RegExp(switchWords.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$');
   for (const step of steps ?? []) {
     if (step.press !== undefined) {
       // In Hindi a button carries its Hindi name (`hi`), when the case gives one.
@@ -182,9 +185,9 @@ async function stepsOf(b, steps, hindi = false) {
       await b.click(button(name, step.in ?? 'document'), `"${name}"${step.in ? ` in ${step.in}` : ''}`);
       await sleep(500);
     } else if (step.business) {
-      await b.click(button(/Switch business$/), 'the business button');
+      await b.click(button(switchPattern), 'the business button');
       await sleep(400);
-      await b.click(`[...document.querySelectorAll('[role=dialog][aria-label^="Business menu"] button')].find((e) => e.textContent.trim().startsWith(${JSON.stringify(step.business)}))`, `business ${step.business}`);
+      await b.click(`(() => { const toggle = [...document.querySelectorAll('button[aria-controls]')].find(e => e.textContent.trim().endsWith(${JSON.stringify(switchWords)})); const menu = toggle && document.getElementById(toggle.getAttribute('aria-controls')); return menu && [...menu.querySelectorAll('button')].find(e => e.textContent.trim().startsWith(${JSON.stringify(step.business)})); })()`, `business ${step.business}`);
       await sleep(900);
     } else if (step.hash) {
       await b.evaluate(`location.hash = ${JSON.stringify(step.hash)}; true`);
@@ -227,7 +230,7 @@ async function runJob(b, base, job) {
     // From here on the page must not load again: a dev server reloads every open page when a source file changes
     // (other work in the same checkout), and a case caught by one is walked again (see main).
     offReload = b.on((m) => { if (m.method === 'Page.frameNavigated' && !m.params.frame.parentId) result.reloaded = true; });
-    if (!(await b.evaluate(SETTLED))) throw new Error('the page did not show its place within 30 s');
+    if (!(await b.evaluate(SETTLED))) throw new Error('the page did not show its place within 120 s');
     const lang = await b.evaluate('document.documentElement.lang');
     if (lang !== (hindi ? 'hi' : 'en')) result.problems.push(`the app chose the language "${lang}", not ${hindi ? 'Hindi' : 'English'}`);
     await sleep(400);

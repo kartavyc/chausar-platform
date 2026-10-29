@@ -1,3 +1,4 @@
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import { it, expect } from 'vitest';
 import { fakeSocialRevision } from '../../src/engine/fake-social-revision';
 import type { W4DeskHost } from '../../src/engine/fake-w4';
@@ -34,7 +35,7 @@ it.each([['IN','INR'],['US','USD']])('public fake revision quote opens its %s co
  const engine=new FakeEngine({fresh:true,now:()=> '2026-10-27T10:00:00Z'});
  await engine.request('workspace.create',{name:'Revision studio',pack:'services'});await engine.request('venture.create',{idea:'social media agency',countryCode});
  for(const [questionId,answer] of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'monthly'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});
- const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='linkedin-ghostwriting');await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'100'}]}});
+ const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='linkedin-ghostwriting');await priceAndAcceptPlan(engine,plan,'100');
  const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
  const order=await engine.request('venture.order.create',{clientId:client.id,offerId:offer.id,request:'Write useful studio guidance.',intake:{fields:{postCount:'8'},moneyRupees:{extraRoundPrice:'250'}}}) as any;
  let run=await engine.request('venture.delivery.run',{orderId:order.id}) as any;

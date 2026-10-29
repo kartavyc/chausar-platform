@@ -1,14 +1,14 @@
-import {phoneDelivery} from '../playbooks/phone-receptionist/report.ts';
-import {phoneRunSource} from '../playbooks/phone-receptionist/run-source.ts';
-import {triageDelivery} from '../playbooks/it-triage/report.ts';
-import {watchDelivery} from '../playbooks/monitored-data/report.ts';
-import {triageStateSource} from '../playbooks/it-triage/run-source.ts';
 import {watchStateSource} from '../playbooks/monitored-data/run-source.ts';
-import {devDelivery} from '../playbooks/dev-agency/report.ts';
-import {devStateSource} from '../playbooks/dev-agency/run-source.ts';
-import {testingDeliverable} from '../playbooks/app-testing/delivery-core.ts';
+import {triageStateSource} from '../playbooks/it-triage/run-source.ts';
+import {watchDelivery} from '../playbooks/monitored-data/report.ts';
+import {triageDelivery} from '../playbooks/it-triage/report.ts';
 import {testingRunSource,testingRunCurrent} from '../playbooks/app-testing/run-source.ts';
+import {testingDeliverable} from '../playbooks/app-testing/delivery-core.ts';
 import {formsRunSource,formsRunCurrent,formsDispatchGuard,formsDeliverable} from '../playbooks/data-entry-desk/run-source.ts';
+import {phoneRunSource} from '../playbooks/phone-receptionist/run-source.ts';
+import {phoneDelivery} from '../playbooks/phone-receptionist/report.ts';
+import {devStateSource} from '../playbooks/dev-agency/run-source.ts';
+import {devDelivery} from '../playbooks/dev-agency/report.ts';
 import {careerPackDeliverable} from '../playbooks/job-search-desk/pack.ts';
 import {vaRunSource,vaRunCurrent,vaDispatchGuard,vaBriefDeliverable,vaRoomEvidence} from '../playbooks/virtual-assistant/run-source.ts';
 import {careerRunSource,careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
@@ -167,11 +167,11 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
     ...(playbook.flagship==='data-entry-desk'?{formsEntries:formsRunSource(deps.store.read(),context.venture.id,context.order.id).rows}:{}),
     ...(playbook.flagship==='virtual-assistant'?{roomBrief:vaRoomEvidence(deps.store.read(),context.venture.id,context.order.id)}:{}),
     ...(playbook.flagship==='job-search-desk'?{careerPack:careerRunSource(deps.store.read(),context.venture.id,context.order.id)}:{}),
-    ...(playbook.flagship==='podcast-to-article'?{articleRecord:listRecords(deps.store.read(),'venture-article-ledger',context.venture.id).find(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId)??null}:{}),
-    ...(playbook.flagship==='newsletter-studio'?{newsletterIssue:listRecords(deps.store.read(),'venture-newsletter-issue',context.venture.id).filter(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId).at(-1)??null}:{}),
     ...(playbook.flagship==='tender-desk'?{tenderRows:(await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,context.venture.id,context.order.id,true)).rows}:{}),
     ...(playbook.flagship==='narration-studio'?{narrationRows:(await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,context.venture.id,context.order.id,true)).rows}:{}),
     ...(playbook.flagship==='website-studio'?{siteProject:listRecords(deps.store.read(),'venture-site-requirement',context.venture.id).filter(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId).at(-1)??null}:{}),
+    ...(playbook.flagship==='newsletter-studio'?{newsletterIssue:listRecords(deps.store.read(),'venture-newsletter-issue',context.venture.id).filter(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId).at(-1)??null}:{}),
+    ...(playbook.flagship==='podcast-to-article'?{articleRecord:listRecords(deps.store.read(),'venture-article-ledger',context.venture.id).find(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId)??null}:{}),
     flagship: playbook.flagship, offerKey: context.offerKey, stageId:flagshipDraft(playbook,context.offerKey,context.order.intake??null,context.order.chainStage??null)?.stepId, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
     brandKit: resolveKit(deps.store.read(), context.venture, context.order.clientId),
     socialSlotContext: socialSlotContext(deps.store.read(), context.venture, context.order, deps.clock().toISOString(), extras.runId ?? null),
@@ -186,7 +186,6 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
   };
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
   const own = await guardedPlaybookChecks(playbook.flagship, { deliverable, files: checkInput.files, tables: checkInput.tables, toolCalls: checkInput.toolCalls }, () => runFlagshipChecks(checkInput)) as PlaybookCheckResult[];
-
   if (playbook.flagship === 'seo-visibility') {
     const verified = await (await import('../playbooks/seo-visibility/verify-article.ts')).verifySeoArticle(checkInput, deps.net);
     if (verified.length) return withVoiceCheck([...own.filter(row => !verified.some(check => check.check === row.check)), ...verified, ...contract], voice);
@@ -324,12 +323,12 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if(chain?.definition.registration.id==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,order.id,true);
   if(chain?.definition.registration.id==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,venture.id,order.id,true);
   if(chain?.definition.registration.id==='website-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
-  if(chain?.definition.registration.id==='translation-studio')check(order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
     if(chain?.definition.registration.id==='newsletter-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');
+  if(chain?.definition.registration.id==='translation-studio')check(order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
   if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
-  const template = chain?.definition.registration.id==='phone-receptionist' || ['monitored-data','it-triage'].includes(chain?.definition.registration.id??'') || chain?.definition.registration.id==='dev-agency' || chain?.definition.registration.id==='app-testing' || chain?.definition.registration.id==='job-search-desk' || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
+  const template = ['dev-agency','job-search-desk','phone-receptionist','app-testing','monitored-data','it-triage'].includes(chain?.definition.registration.id??'') || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   check(!template||!order.socialChain,'NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const basePlaybook = await ensurePlaybook(deps, ctx);
@@ -398,18 +397,18 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     const career=playbook.flagship==='job-search-desk'?careerRunSource(deps.store.read(),venture.id,order.id):null;
     const forms=playbook.flagship==='data-entry-desk'?formsRunSource(deps.store.read(),venture.id,order.id):null;
     const va=playbook.flagship==='virtual-assistant'?vaRunSource(deps.store.read(),venture.id,order.id):null;
-    const deliverable = phone?phoneDelivery(phone.report):watch?watchDelivery(watch):triage?triageDelivery(triage):dev?devDelivery(dev.report):testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
-    const renderedText = phone||watch||triage?renderDeliverable(deliverable,context.receipts,context.venture.country):dev||testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
-    const checks = checkDraft(context, playbook, deliverable, renderedText,phone?{sections:['Call script','Call review'],answers:deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))}:watch||triage?{sections:deliverable.sections.map(s=>s.heading),answers:deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))}:dev?{sections:['Review'],answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:testing?{sections:['Reviewed evidence'],answers:[testing.text],outputFiles:testing.files}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
+    const deliverable = watch?watchDelivery(watch):triage?triageDelivery(triage):testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):phone?phoneDelivery(phone.report):dev?devDelivery(dev.report):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
+    const renderedText = testing||forms||phone||dev||watch||triage?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
+    const checks = checkDraft(context, playbook, deliverable, renderedText,watch||triage?{sections:deliverable.sections.map(s=>s.heading),answers:deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))}:testing?{sections:['Reviewed evidence'],answers:[testing.text],outputFiles:testing.files}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:phone?{sections:['Call script','Call review'],answers:deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))}:dev?{sections:['Review'],answers:[...deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[]))]}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
-      if(phone)check(phoneRunSource(tx.state,tx.venture!.id,order.id).report.digest===phone.report.digest,'DERIVED_STALE','The call report changed. Start again.');
-      if(dev)check(devStateSource(tx.state,tx.venture!.id,order.id,tx.now,true).report.digest===dev.report.digest,'DERIVED_STALE','The source report changed. Start again.');
-      if(testing)check(testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding===testing.binding,'APPROVAL_STALE','The reviewed report or video changed. Start again.');
       fenceSocialPreview(tx);
+      if(testing)check(testingRunSource(tx.state,tx.venture!.id,order.id,tx.now).binding===testing.binding,'APPROVAL_STALE','The reviewed report or video changed. Start again.');
+      if(phone)check(phoneRunSource(tx.state,tx.venture!.id,order.id).report.digest===phone.report.digest,'DERIVED_STALE','The call report changed. Start again.');
       if(watch)check(watchStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest===watch.digest,'DERIVED_STALE','The monitored source evidence changed. Start again.');
       if(triage)check(triageStateSource(tx.state,tx.venture!.id,order.id,tx.now).digest===triage.digest,'DERIVED_STALE','The approved channel summary changed. Start again.');
       if(career)check(careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding===career.sourceBinding,'CAREER_SOURCE_CHANGED','The career pack changed during preparation.');
+      if(dev)check(devStateSource(tx.state,tx.venture!.id,order.id,tx.now,true).report.digest===dev.report.digest,'DERIVED_STALE','The source report changed. Start again.');
       if(va)vaRunSource(tx.state,tx.venture!.id,order.id,va.digest);
       const run: DeliveryRunRecord = {
         ...baseRun(tx, context.order, playbook, [], '0'), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
@@ -572,7 +571,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     recheckSend(deps, venture.id, runId, callId, approved);
     vaRunCurrent(deps.store.read(),venture.id,run);formsRunCurrent(deps.store.read(),venture.id,run);
     if(playbook.flagship==='job-search-desk')careerRunSource(deps.store.read(),venture.id,run.orderId);
-    if(playbook.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,run.orderId,true);
+  if(playbook.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,run.orderId,true);
     if(playbook.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,venture.id,run.orderId,true);
     if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending, answered: () => { went.out = true; } });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);

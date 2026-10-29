@@ -84,7 +84,7 @@ describe('the bell', () => {
     const { calls } = start('#/work');
     fireEvent.click(await within(tools()).findByRole('button', { name: 'Notifications, 2 new' }));
     await waitFor(() => expect(centre()).not.toBeNull());
-    const first = within(centre()!).getAllByRole('link').find((a) => a.textContent?.includes('Post to LinkedIn'))!;
+    const first = within(centre()!).getAllByRole('link').find((a) => a.textContent?.includes('Post to X'))!;
     expect(first.getAttribute('href')).toBe('#/approve/post:linkedin-ep13:v1');
     fireEvent.click(first);
     await waitFor(() => expect(calls.some(([method, params]) => method === 'venture.notify.read' && Array.isArray((params as { ids?: string[] }).ids))).toBe(true));

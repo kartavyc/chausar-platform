@@ -1,13 +1,8 @@
-// Original setup guides for the implemented public recruitment boards.
+// Original setup guides from implemented owner paths. Official provider references: NOTES-W5-GUIDES.md.
 import type {ConnectorGuide} from '../contracts.ts';
 export const PLAYBOOK_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges'|'missing'>>>=Object.freeze({
 "website-cloudflare":{"steps": ["Create an existing Direct Upload project in your own Cloudflare account and upload the immutable assets there.", "In the website desk, enter the account, project and production branch, then enter a token scoped to that project for this session.", "Paste the exact asset manifest and release marker. Approve the preview, check its observed marker, then approve production separately."], "skipped": "Git-triggered projects are refused. A manifest does not upload missing assets. Unknown outcomes require inspection in Cloudflare before any retry.", "checks": "Chausar verifies the project and source checks, reads the exact deployment identity and observes its release marker. Missing evidence is not a pass.", "sends": "Sends: only the exact separately approved preview, production or rollback request. Connecting reads project settings without deploying.", "agentLimits": "Agents cannot deploy, promote a preview, upload assets, buy a domain or retry an uncertain write on their own."},
 "website-public-site":{"steps": ["Set the approved public HTTPS client address in the website order.", "Open the website desk and choose Check public website. The request follows network and robots rules.", "For runtime UI checks, install lintapple yourself or attach its actual report. Read missing evidence as unmeasured."], "skipped": "Never treat a source-code audit or missing checker as a measured browser result. Restricted or private websites are not bypassed.", "checks": "Chausar records actual public-page results and the checker report when the installed checker is available.", "sends": "Sends: public read requests only. No forms, messages, site edits or deployment requests are sent.", "agentLimits": "Agents cannot bypass robots, install tools automatically or invent a passing measurement."},
-"article-transcript":{"steps": ["Open the client article order and record your permission to use the episode.", "Add the episode transcript as SRT, VTT or TXT, then choose it in the article desk.", "Review the source and outline before drafting. Reuse a source only for the same client."], "skipped": "Check that the file contains the episode words you may reuse, not unrelated private material.", "checks": "Chausar reads the selected file and binds drafts to its current source. There is no remote transcript account to check.", "sends": "Sends: nothing for file import. Any later model request has its own preview and approval.", "agentLimits": "Agents cannot borrow another client’s transcript or treat unsupported statements as source evidence."},
-"article-local-transcription":{"steps": ["Use the desktop app with ffmpeg and whisper.cpp already installed by you.", "Record episode rights, select the local audio or video in the article desk and approve the source import.", "Read the resulting transcript before drafting. If local tools are unavailable, add a transcript file instead."], "skipped": "Local media is limited to 50 MB. For larger episodes, supply a transcript; Chausar does not install tools for you.", "checks": "The approved import copies the local source and checks the installed tools when transcription runs. Hosted web cannot run them.", "sends": "Sends: no recording to a remote transcription service. Processing uses the installed tools on this computer.", "agentLimits": "Agents cannot install software or claim a transcript exists when local processing fails."},
-"article-publishing":{"steps": ["Finish source review, the owner-approved outline and the article draft.", "Complete the required client-use review and approve the exact final article and companion text.", "Copy the approved handoff into the client publishing account and publish it yourself."], "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.", "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.", "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.", "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article."},
-"newsletter-owner-tool":{"steps": ["Prepare the issue from approved sources in the newsletter desk. No sending-service key is needed.", "Before importing a recipient list or exporting, obtain the named lawyer’s consent confirmation. Draft preparation remains available meanwhile.", "Approve the exact issue and recipients, export HTML, plain text and recipient CSV, then send through your existing tool yourself."], "skipped": "Consent review is not yet confirmed. Keep list use and export blocked until that review is genuinely recorded.", "checks": "Chausar checks current consent, suppression and exact approval before export. It does not connect to or test your sending account.", "sends": "Sends: nothing. You import the approved files and send with your own newsletter tool.", "agentLimits": "Agents cannot send email, bypass opt-outs or claim a successful delivery from an export."},
-
  "tender-documents":{
   steps:['Attach client evidence separately from the RFP in the tender order.','Choose pasted questions or an RFP file. For a workbook, map the sheet, question column, answer column and row range.','Review every extracted question and its type before drafting. Write commercial answers yourself.'],
   skipped:'The RFP is a request, not evidence that the client meets it. Do not use a copied RFP as client evidence.',
@@ -43,6 +38,72 @@ export const PLAYBOOK_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges
     "checks": "Saving settings checks their shape, not live access. Staging reads the existing key; applying checks the saved value. Changes can take time to appear elsewhere.",
     "sends": "Sends: only an exact approved existing-key replacement or separately approved undo.",
     "agentLimits": "Agents cannot provision Workers, change other keys or retry an unknown write. Inspect uncertain results manually."
+  },
+  "recruit-greenhouse": {
+    "steps": [
+      "Open the employer’s public Greenhouse jobs page and copy its board name. No API key is needed.",
+      "In the recruiting role, choose this provider and board, then set the exact job filters.",
+      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
+    ],
+    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
+  },
+  "recruit-lever": {
+    "steps": [
+      "Open the employer’s public Lever jobs page and copy its board name. No API key is needed.",
+      "In the recruiting role, choose this provider and board, then set the exact job filters.",
+      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
+    ],
+    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
+  },
+  "recruit-ashby": {
+    "steps": [
+      "Open the employer’s public Ashby jobs page and copy its board name. No API key is needed.",
+      "In the recruiting role, choose this provider and board, then set the exact job filters.",
+      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
+    ],
+    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
+  },
+  "article-transcript": {
+    "steps": [
+      "Open the client article order and record your permission to use the episode.",
+      "Add the episode transcript as SRT, VTT or TXT, then choose it in the article desk.",
+      "Review the source and outline before drafting. Reuse a source only for the same client."
+    ],
+    "skipped": "Check that the file contains the episode words you may reuse, not unrelated private material.",
+    "checks": "Chausar reads the selected file and binds drafts to its current source. There is no remote transcript account to check.",
+    "sends": "Sends: nothing for file import. Any later model request has its own preview and approval.",
+    "agentLimits": "Agents cannot borrow another client’s transcript or treat unsupported statements as source evidence."
+  },
+  "article-local-transcription": {
+    "steps": [
+      "Use the desktop app with ffmpeg and whisper.cpp already installed by you.",
+      "Record episode rights, select the local audio or video in the article desk and approve the source import.",
+      "Read the resulting transcript before drafting. If local tools are unavailable, add a transcript file instead."
+    ],
+    "skipped": "Local media is limited to 50 MB. For larger episodes, supply a transcript; Chausar does not install tools for you.",
+    "checks": "The approved import copies the local source and checks the installed tools when transcription runs. Hosted web cannot run them.",
+    "sends": "Sends: no recording to a remote transcription service. Processing uses the installed tools on this computer.",
+    "agentLimits": "Agents cannot install software or claim a transcript exists when local processing fails."
+  },
+  "article-publishing": {
+    "steps": [
+      "Finish source review, the owner-approved outline and the article draft.",
+      "Complete the required client-use review and approve the exact final article and companion text.",
+      "Copy the approved handoff into the client publishing account and publish it yourself."
+    ],
+    "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.",
+    "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.",
+    "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.",
+    "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article."
   },
   "overpass": {
     "steps": [
@@ -88,41 +149,26 @@ export const PLAYBOOK_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges
     "sends": "Sends: only the exact owner-approved paid search. Open the returned Happenstance result yourself.",
     "agentLimits": "Agents cannot send outreach or retry an unknown search. Check your Happenstance account after an uncertain result."
   },
-
-  "recruit-ashby": {
+  "newsletter-owner-tool": {
     "steps": [
-      "Open the employer’s public Ashby jobs page and copy its board name. No API key is needed.",
-      "In the recruiting role, choose this provider and board, then set the exact job filters.",
-      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
+      "Prepare the issue from approved sources in the newsletter desk. No sending-service key is needed.",
+      "Before importing a recipient list or exporting, obtain the named lawyer’s consent confirmation. Draft preparation remains available meanwhile.",
+      "Approve the exact issue and recipients, export HTML, plain text and recipient CSV, then send through your existing tool yourself."
     ],
-    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
-    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
-    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
-    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
+    "skipped": "Consent review is not yet confirmed. Keep list use and export blocked until that review is genuinely recorded.",
+    "checks": "Chausar checks current consent, suppression and exact approval before export. It does not connect to or test your sending account.",
+    "sends": "Sends: nothing. You import the approved files and send with your own newsletter tool.",
+    "agentLimits": "Agents cannot send email, bypass opt-outs or claim a successful delivery from an export."
   },
-
-  "recruit-lever": {
+  "linkedin": {
     "steps": [
-      "Open the employer’s public Lever jobs page and copy its board name. No API key is needed.",
-      "In the recruiting role, choose this provider and board, then set the exact job filters.",
-      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
+      "Read and approve the draft, then copy its text.",
+      "Open LinkedIn yourself and sign in to the account you want to use.",
+      "Paste the approved words and press Post or Send yourself. Chausar needs no LinkedIn password."
     ],
-    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
-    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
-    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
-    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
-  },
-
-  "recruit-greenhouse": {
-    "steps": [
-      "Open the employer’s public Greenhouse jobs page and copy its board name. No API key is needed.",
-      "In the recruiting role, choose this provider and board, then set the exact job filters.",
-      "Read and approve the board and filters before installation. Read it again when you want fresh matches."
-    ],
-    "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
-    "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
-    "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
-    "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves."
-  },
-
+    "skipped": "LinkedIn is copy-and-open only. Do not set up browser automation or give Chausar your LinkedIn password.",
+    "checks": "Chausar does not check LinkedIn access or verify that your manual post or message was sent.",
+    "sends": "Sends: nothing to LinkedIn. You post or send in the LinkedIn account you signed in to.",
+    "agentLimits": "A draft waits for your approval. Agents cannot post or message on LinkedIn or bypass its restrictions."
+  }
 });

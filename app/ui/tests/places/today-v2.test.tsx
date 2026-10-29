@@ -561,7 +561,7 @@ describe('Today v2: previews on the cards', () => {
 
   it('a draft opened in its sheet is quoted words', async () => {
     start({ hash: '#/today?sheet=view%3Adraft%3Apost-linkedin-ep13' });
-    const sheet = await screen.findByRole('complementary', { name: 'LinkedIn post for episode 13' });
+    const sheet = await screen.findByRole('complementary', { name: 'X post for episode 13' });
     await waitFor(() => expect(sheet.querySelector('ul[data-content]')?.textContent).toContain('We tested five budget mics'));
     expect(sheet.querySelector('ul[data-engine-line]')).toBeNull();
   });

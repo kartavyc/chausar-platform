@@ -59,5 +59,21 @@
   "kit-rules.bounds.cannot": "नहीं बता सकता",
   "kit-rules.emptyOpen": "अभी कोई आइडिया चल नहीं रहा। जब सूझे, जोड़ दें।",
   "kit-rules.manual.heading": "अभी हाथ से होने वाला काम",
-  "kit-rules.manual.waits": "{connector} इसका इंतज़ार कर रहा है: {who}"
+  "kit-rules.manual.waits": "{connector} इसका इंतज़ार कर रहा है: {who}",
+  "kit-rules.chain.heading": "ऑर्डर के चरण",
+  "kit-rules.chain.progress": "{total} में से चरण {stage}",
+  "kit-rules.chain.voice": "ब्रांड की बोलने की शैली",
+  "kit-rules.chain.calendar": "कैलेंडर",
+  "kit-rules.chain.drafts": "ड्राफ़्ट",
+  "kit-rules.chain.creative-briefs": "रचनात्मक निर्देश",
+  "kit-rules.chain.report": "रिपोर्ट",
+  "kit-rules.chain.collect-exports": "क्लाइंट की एक्सपोर्ट फ़ाइलें",
+  "kit-rules.chain.figures": "कोड की रसीदों से आँकड़े",
+  "kit-rules.chain.approve-report": "मालिक की मंज़ूरी",
+  "kit-rules.chain.state.done": "पूरा",
+  "kit-rules.chain.state.now": "मौजूदा",
+  "kit-rules.chain.state.waiting": "इंतज़ार",
+  "kit-rules.chain.state.not-started": "शुरू नहीं हुआ",
+  "kit-rules.chain.state.stopped": "रुका हुआ",
+  "kit-rules.chain.boundary": "मंज़ूर करने से लेखन का अगला चरण शुरू होता है। भेजने और प्रकाशित करने के लिए अलग मंज़ूरी चाहिए।"
 }

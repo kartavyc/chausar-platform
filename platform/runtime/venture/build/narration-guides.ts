@@ -1,5 +1,11 @@
 // Original setup guides for actual narration desk paths. Official sources are recorded in NOTES-5Q.
 import type {ConnectorGuide} from '../contracts.ts';
+export const NARRATION_CHARGES:Readonly<Record<string,string>>=Object.freeze({
+ 'google-tts':'Google charges your project for approved speech. The narration desk computes a dated quote before each request; no free allowance is assumed.',
+ 'narration-files':'No charge for reading the local manuscript. Any later model or speech use has its own approval and quote.',
+ 'narration-local-checks':'No provider charge for these local checks. They use your computer.',
+ 'narration-distribution':'No charge for the local handoff. Check the distributor current terms before using its service.',
+});
 export const NARRATION_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges'|'missing'>>>=Object.freeze({
   "google-tts": {
     "steps": [

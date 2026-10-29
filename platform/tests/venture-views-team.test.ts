@@ -105,11 +105,13 @@ test('team: each agent has its department, kind, a state from facts and who set 
     ['story-editor', 'production', 'agent', 'idle', 'business', true],
     ['cutter', 'production', 'agent', 'idle', 'business', true],
     ['packager', 'marketing', 'agent', 'waiting', 'business', true],
+    ['analyst', 'marketing', 'agent', 'idle', 'business', true],
+    ['community-helper', 'sales', 'agent', 'idle', 'business', true],
     ['keeper', 'operations', 'code', 'idle', undefined, false],
   ]);
   assert.deepEqual(departments!.map(item => [item.id, item.name, item.counts]), [
-    ['sales', 'Sales and clients', { working: 0, waiting: 0, stopped: 0, idle: 1 }],
-    ['marketing', 'Marketing', { working: 0, waiting: 1, stopped: 0, idle: 0 }],
+    ['sales', 'Sales and clients', { working: 0, waiting: 0, stopped: 0, idle: 2 }],
+    ['marketing', 'Marketing', { working: 0, waiting: 1, stopped: 0, idle: 1 }],
     ['production', 'Production', { working: 0, waiting: 0, stopped: 0, idle: 4 }],
     ['money', 'Money', { working: 0, waiting: 0, stopped: 0, idle: 0 }],
     ['operations', 'Operations', { working: 0, waiting: 0, stopped: 0, idle: 1 }],
@@ -317,9 +319,9 @@ test('team: an idle agent reads Connect your AI until a connected AI can run; a 
   const { playbook, order } = await flagshipTeam(env, 'youtube');
   const nowOf = async () => Object.fromEntries((await list(env)).agents.filter(agent => agent.id !== 'keeper').map(agent => [agent.id, agent.now]));
   // Templates only: each idle agent waits for the owner's AI. The code role needs none.
-  assert.deepEqual(await nowOf(), { 'intake-clerk': 'Connect your AI', producer: 'Connect your AI', chausar: 'Idle', 'story-editor': 'Connect your AI', cutter: 'Connect your AI', packager: 'Connect your AI' });
+  assert.deepEqual(await nowOf(), { 'intake-clerk': 'Connect your AI', producer: 'Connect your AI', chausar: 'Idle', 'story-editor': 'Connect your AI', cutter: 'Connect your AI', packager: 'Connect your AI', analyst: 'Connect your AI', 'community-helper': 'Connect your AI' });
   env.models.connected = true;
-  assert.deepEqual(Object.values(await nowOf()), ['Idle', 'Idle', 'Idle', 'Idle', 'Idle', 'Idle'], 'a connected AI that can run');
+  assert.deepEqual(Object.values(await nowOf()), ['Idle', 'Idle', 'Idle', 'Idle', 'Idle', 'Idle', 'Idle', 'Idle'], 'a connected AI that can run');
   env.models.usable = false;
   assert.equal((await nowOf())['intake-clerk'], 'Connect your AI', 'an AI that cannot run now leaves them waiting');
   // Work in hand says what it is, AI or not.

@@ -1,7 +1,3 @@
-import type { TriageChannelBody } from './playbooks/it-triage/records.ts';
-import type { DemoProjectBody } from './playbooks/app-testing/demo-records.ts';
-import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
-import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
 // Chausar venture launcher: shared contracts.
 // Every type, record kind, RPC method name, payload and result shape used by the venture packages.
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
@@ -30,6 +26,7 @@ import type {
   AssetBody, AssetRerunView, AssetReuseView, AssetsView, BrandKitBody, BrandKitInput, BrandKitView, VoiceConsentBody, VoiceConsentsView, VoiceConsentView,
 } from './playbooks/kit/records-media.ts';
 import type { PrintPort, ReportBody, ReportFormat, ReportListView, ReportShareBody, ReportShareView, ReportView } from './playbooks/kit/records-report.ts';
+import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type {
   LocalAppBody, LocalAppPort, LocalAppsView, MailAttachment, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookKind, WebhookView,
 } from './build/records-connect.ts';
@@ -38,6 +35,7 @@ import type {
   CaCitationsBody, CaDataPackBody, CaDifferentialBody, CitationsConfirmView, DataPackExportView, DifferentialAddView, SignoffCheckView,
 } from './playbooks/ca-firm/records.ts';
 import type { AdLedgerEntryBody, InfluencerCaseBody, SocialInboxItemBody } from './playbooks/social/records.ts';
+import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
 import type { SeoFindingBody, SeoObservationBody, SeoPanelBody } from './playbooks/seo-visibility/records.ts';
 import type { SellerCaseBody, SellerFeecardBody, SellerMovementBody, SellerSkuBody, SellerStageBody } from './playbooks/online-seller/records.ts';
 import type { SupportMessageBody, SupportRatingBody, SupportRequestBody, SupportTicketBody } from './playbooks/support-desk/records.ts';
@@ -53,8 +51,10 @@ import type { SiteReleaseBody, SiteRequirementBody } from './playbooks/website-s
 import type { NarrationSegmentBody } from './playbooks/narration-studio/records.ts';
 import type { RoomBriefBody } from './playbooks/virtual-assistant/records.ts';
 import type { EntryRecordBody } from './playbooks/data-entry-desk/records.ts';
+import type { DemoProjectBody } from './playbooks/app-testing/demo-records.ts';
 import type { TestFindingBody } from './playbooks/app-testing/records.ts';
 import type { DevPermissionBody } from './playbooks/dev-agency/records.ts';
+import type { TriageChannelBody } from './playbooks/it-triage/records.ts';
 import type { WatchSourceBody } from './playbooks/monitored-data/records.ts';
 import type { CallLogBody } from './playbooks/phone-receptionist/records.ts';
 import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskListPayload, DeskListView } from './playbooks/desk-types.ts';
@@ -278,12 +278,6 @@ export type RecordBase<K extends VentureRecordKind> = {
 };
 
 export type VentureRecord = RecordBase<'venture-record'> & {
-  /** Opaque partition IDs awaiting an already approved Forget. No client text or credentials. */
-  formsSignInErasure?: string[];
-  appTestErasure?: import('./playbooks/app-testing/records.ts').AppTestErasure[];
-  appTestScreenErasure?: import('./build/android.ts').AndroidScreenFile[];
-  demoDesktopErasure?: import('./playbooks/app-testing/demo-records.ts').DemoSession[];
-  youtubePublicQuota?: import('./playbooks/youtube/public-state.ts').YoutubeQuotaUse[];
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -293,7 +287,14 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   launchStage: LaunchStage;
   blueprintId: string | null; // latest blueprint version
   acceptedBlueprintId: string | null;
+  /** Opaque Electron partition IDs awaiting an already owner-approved Forget. No credentials or client text. */
+  formsSignInErasure?: string[];
+  /** Opaque owned containers awaiting an already owner-approved client Forget. */
+  appTestErasure?: import('./playbooks/app-testing/records.ts').AppTestErasure[];
+  appTestScreenErasure?: import('./build/android.ts').AndroidScreenFile[];
+  demoDesktopErasure?: import('./playbooks/app-testing/demo-records.ts').DemoSession[];
   playbookId: string | null; // latest validated playbook
+  youtubePublicQuota?: import('./playbooks/youtube/public-state.ts').YoutubeQuotaUse[];
   invoiceSequence: number; // last issued invoice number
   updatedAt: IsoTime;
   /**
@@ -886,13 +887,8 @@ export type ModelOutputs = {
 // ---------------------------------------------------------------------------
 
 /** How tax is worked out on one receipt. 'cgst-sgst', 'igst' and 'zero-rated-lut' are India only. */
-export type TaxTreatment = 'none' | 'single' | 'cgst-sgst' | 'igst' | 'zero-rated-lut';
-export type PriceStep = {
-  op: 'multiply' | 'discount' | 'tax' | 'tax-split' | 'add';
-  inputs: string[]; // minor strings, quantities or bps exactly as used
-  resultMinor: MinorString;
-  rule: string; // e.g. 'unit price times quantity', 'rounded half up to the minor unit'
-};
+export type {TaxTreatment,PriceStep} from './money/price-types.ts';
+import type {TaxTreatment,PriceStep} from './money/price-types.ts';
 export type PriceFigure = {
   key: 'unit' | 'subtotal' | 'discount' | 'taxable' | 'tax' | 'cgst' | 'sgst' | 'igst' | 'total' | 'paid' | 'balance' | 'credited';
   label: string; // 'Total', 'CGST at 9%' ...
@@ -928,6 +924,7 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
 };
 
 export type ClientRecord = RecordBase<'venture-client'> & {
+  /** The one owner shop identity; never a paying customer. */
   self?: true;
   name: string; // one line
   email: string | null;
@@ -939,14 +936,14 @@ export type ClientRecord = RecordBase<'venture-client'> & {
 export type OrderRecord = RecordBase<'venture-order'> & {
   sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;
   sellerStorefront?: import('./playbooks/online-seller/storefront-records.ts').SellerStorefrontBody;
-  youtubeResearch?: import('./playbooks/youtube/research-state.ts').YoutubeResearchBody;
   youtubePublic?: import('./playbooks/youtube/public-state.ts').YoutubePublicRead;
-  /** Exact owner-approved fetched narration source. */
+  youtubeResearch?: import('./playbooks/youtube/research-state.ts').YoutubeResearchBody;
+  /** The exact page fetched with owner approval for a narration explainer. */
   narrationFetched?: {fileId:string;url:string;finalUrl:string;digest:string};
-  socialProduction?: import('./playbooks/social/production-types.ts').SocialProduction;
   socialPostHistory?: import('./playbooks/social/slots-live.ts').SocialHookHistory[];
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
-  socialChain?: import('./playbooks/social/chain.ts').SocialChainPin;
+  socialProduction?: import('./playbooks/social/production-types.ts').SocialProduction;
+  /** Owner shop work creates no customer sale, invoice or client share. */
   internal?: true;
   clientId: string;
   offerId: string;
@@ -964,6 +961,7 @@ export type OrderRecord = RecordBase<'venture-order'> & {
    * Ink v2 wave 5 (named by 5-0, kept by 5A1's chain, playbooks/kit/chain.ts): the stage of a kit offer's stages this
    * order is at, counted from 1, and where the chain stands. Absent on an order that is not a chain.
    */
+  socialChain?: import('./playbooks/social/chain.ts').SocialChainPin;
   chainStage?: number;
   chainState?: 'running' | 'waiting' | 'stopped' | 'done';
   /** 5A1: when the chain last moved (a stage, a wait on the client, a stop), for the waiting rows on Today. */
@@ -1293,6 +1291,7 @@ export type ConnectorPostState = 'described' | 'approved' | 'applied' | 'rejecte
 export type OpenPostingAccountRecord = RecordBase<'venture-open-posting-account'> & {account:import('./build/open-posting-core.ts').OpenPostingAccount;active:boolean;revision:number};
 export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
   openAccountDigest?: string;
+  /** One exact owner-approved due slot, included in the post digest. */
   scheduled?: ScheduledPostBinding;
   connectorId: string;
   mode: Exclude<PostingModeName, 'handoff'>;
@@ -1572,8 +1571,6 @@ export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & {
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
-  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
-  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com', 'https://www.paddle.com', 'https://dodopayments.com',
@@ -1590,9 +1587,29 @@ export const EXTERNAL_ORIGINS = Object.freeze([
   'https://www.mca.gov.in', 'https://www.gst.gov.in', 'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io',
   'https://posthog.com', 'https://plausible.io', 'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com',
   'https://console.anthropic.com', 'https://platform.openai.com',
-  // 5M catalogue links do not grant provider API access.
+  // Wave 5 catalogue Visit site links. These do not grant provider API access.
+  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
+  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
   'https://overpass-api.de', 'https://operations.osmfoundation.org', 'https://developers.google.com',
   'https://redditinc.com', 'https://developer.happenstance.ai',
+  // Exact catalogue Visit site origins only; no API permission or wildcard access.
+  'https://bsky.app',
+  'https://joinmastodon.org',
+  'https://developer-docs.amazon.com',
+  'https://advertising.amazon.com',
+  'https://seller.flipkart.com',
+  'https://supplier.meesho.com',
+  'https://partners.myntrainfo.com',
+  'https://seller.ajio.com',
+  'https://seller.nykaa.com',
+  'https://seller.jiomart.com',
+  'https://apidocs.shiprocket.in',
+  'https://help.delhivery.com',
+  'https://www.whatsapp.com',
+  'https://sorftime.com',
+  'https://shopify.dev',
+  'https://developer.android.com',
+  'https://docs.docker.com',
 ] as const);
 
 // ---------------------------------------------------------------------------
@@ -1788,14 +1805,14 @@ export type DeliveryWorkflow = {
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   careerPackBinding?: string;
   /** Exact owner-approved room brief this VA delivery read. */
-  appTestingBinding?: string;
-  vaBriefBinding?: string;
-  /** Exact R2 source rows; mapping proposals still need owner review. */
-  formsSourceBinding?: string;
+  devReportBinding?: string;
   phoneReportBinding?: string;
   watchReportBinding?: string;
   triageReportBinding?: string;
-  devReportBinding?: string;
+  appTestingBinding?: string;
+  vaBriefBinding?: string;
+  /** Exact R2 source rows; proposed mappings remain owner-reviewed separately. */
+  formsSourceBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
@@ -2115,6 +2132,7 @@ export type HarnessLimits = {
   deadlineMs?: number;
 };
 export type HarnessState = {
+  /** Deterministic prerequisites completed before a writing preview, with no model turn. */
   codePrerequisites?: {tool:'social.report'|'seller.shortlist'|'seller.catalogueSheet'|'seller.multiStore';result:Json}[];
   version: 1;
   phase: 'act' | 'write' | 'needs-answer' | 'brief' | 'done' | 'stopped'; // 'brief': a heavy-work brief waits for the owner
@@ -2285,7 +2303,7 @@ export type Reconciliation = {
  * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
  */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report' | 'youtube.compute';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -2496,7 +2514,7 @@ export type SpendRate = {
 /** reserved: the charge record, written before the call. unknown: the answer never came, so it stays held. */
 export type SpendPhase = 'reserved' | 'settled' | 'unknown' | 'released' | 'refused';
 export type SpendRecord = RecordBase<'venture-spend'> & {
-  /** The delivery article sharing this atomic cost reservation. */
+  /** SEO4: the delivery article whose atomic cost reservation this charge shares. */
   articleOrderId?: string;
   key: string; // the idempotency key: one per thing asked for, so a retry never pays twice
   item: string;
@@ -3129,6 +3147,7 @@ export type ShareLinkStoredRecord = RecordBase<'venture-share-link'> & {
   roomId?: string;
   /** 5I: exact career source and rendered-file identity. */
   career?: {threadId:string;approvalDigest:string};
+  /** 5J1: exact source, glossary and translation version on a hosted client review link. */
   translation?: { jobId: string; approvalDigest: string };
   deliveryId: string;
   clientId: string | null;
@@ -4051,8 +4070,8 @@ export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & { firstNa
  * on the plan's offer, set by the owner.
  */
 export type OwnerOfferRecord = RecordBase<'venture-owner-offer'> & {
-  youtubeService?: import('./playbooks/youtube/offers2.ts').YoutubeServiceId;
   offerId: string; name: string; description: string; pricingModel: PricingModel; removedAt: IsoTime | null;
+  youtubeService?: import('./playbooks/youtube/offers2.ts').YoutubeServiceId;
 };
 /**
  * The public half of a receipt signing key (4J10), kept for good once a receipt is signed with it, so old signatures
@@ -5622,8 +5641,9 @@ export type VenturePayloads = {
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
-    clientId: string; offerId: string; quantity?: string; request: string;
-    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string };
+    clientId?: string; offerId: string; quantity?: string; request: string;
+    intakeFiles?: Record<string, { name: string; contentBase64: string }>;
+    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyRupees?: Record<string, string> };
     /** 4J5 (M15): the price includes the tax. */
     taxInclusive?: boolean;
   };
@@ -6324,183 +6344,47 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
-  'CALL_LOG_NOT_FOUND', 'CALL_ALREADY_IMPORTED', 'CALL_ALREADY_RESERVED', 'CALL_ALREADY_SETTLED', 'CALL_BUDGET_CHANGED', 'CALL_FACTS_HELD', 'CALL_FACTS_INVALID', 'CALL_LOG_INVALID', 'CALL_NOT_RESERVED', 'CALL_ORDER_REQUIRED', 'CALL_REQUEST_NOT_FOUND', 'CALL_RESPONSE_STOPPED', 'CALL_SEND_UNCONFIRMED', 'CALL_SETUP_REQUIRED', 'VOICE_PROVIDER_UNVERIFIED',
-  // 5R5 source evidence and exact channel refusal codes.
+  'CALL_LOG_NOT_FOUND',
+  // 5R5: exact monitored sources and one-channel triage.
   'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
-  // 5R4 exact copied-source and owner-command refusals.
+  // 5R6 exact scripts, imported call evidence and bounded call reservations.
+  'CALL_ALREADY_IMPORTED', 'CALL_ALREADY_RESERVED', 'CALL_ALREADY_SETTLED', 'CALL_BUDGET_CHANGED', 'CALL_FACTS_HELD', 'CALL_FACTS_INVALID', 'CALL_LOG_INVALID', 'CALL_NOT_RESERVED', 'CALL_ORDER_REQUIRED', 'CALL_REQUEST_NOT_FOUND', 'CALL_RESPONSE_STOPPED', 'CALL_SEND_UNCONFIRMED', 'CALL_SETUP_REQUIRED', 'VOICE_PROVIDER_UNVERIFIED',
+  // 5R4 exact copied-source developer review and approved local-tool refusals.
   'DEV_AUDIT_REQUIRED', 'DEV_CLI_PENDING', 'DEV_EVIDENCE_REQUIRED', 'DEV_EXPLOIT_REFUSED', 'DEV_LIVE_TARGET_REFUSED', 'DEV_PROJECT_NOT_FOUND', 'DEV_REVIEW_REQUIRED', 'DEV_SCANNER_CHANGED', 'DEV_SCANNER_REQUIRED', 'DEV_SCAN_FAILED', 'DEV_SCAN_INVALID', 'DEV_SCAN_REQUIRED', 'DEV_SECRET_FOUND', 'DEV_SOURCE_INVALID', 'FIRST_WEEK_REPORT_ONLY', 'PERMISSION_REQUIRED',
-  // 5R2 exact source, owner browser and saved-response refusals.
-  'FORM_ACTION_HELD', 'FORM_ALREADY_SUBMITTED', 'FORM_BROWSER_CLOSED', 'FORM_CAPTURE_INCOMPLETE', 'FORM_CONSENT_REQUIRED', 'FORM_DESKTOP_REQUIRED', 'FORM_MAPPING_INVALID', 'FORM_ORDER_CLOSED', 'FORM_ORDER_REQUIRED', 'FORM_PERMISSION_REQUIRED', 'FORM_PRIVACY_PENDING', 'FORM_READBACK_INVALID', 'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED', 'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING', 'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
-  'CAPTION_AUDIO_UNAVAILABLE',
-  'CAPTION_BUSY',
-  'CAPTION_EVENT_STALE',
-  'CAPTION_NOT_SAVED',
-  'CAPTION_PERMISSION_REQUIRED',
-  'CAPTION_SAVE_FULL',
-  'CAPTION_SESSION_EXPIRED',
-  'CAPTION_TOO_SLOW',
-  'DUB_APPROVAL_REQUIRED',
-  'DUB_AUDIO_REQUIRED',
-  'DUB_DISCLOSURE_REQUIRED',
-  'DUB_INPUT_INVALID',
-  'DUB_MEDIA_FAILED',
-  'DUB_NOT_FOUND',
-  'DUB_OUTCOME_UNKNOWN',
-  'DUB_OVERLONG',
-  'DUB_PROVIDER_FAILED',
-  'DUB_QUOTE_REQUIRED',
-  'DUB_RETRY_REFUSED',
-  'DUB_TIMING_INVALID',
-
-  'CAREER_APPROVAL_REQUIRED',
+  // 5J2 source-bound dubbing and local caption refusals.
+  'CAPTION_AUDIO_UNAVAILABLE', 'CAPTION_TOO_SLOW', 'CAPTION_BUSY', 'CAPTION_EVENT_STALE', 'CAPTION_NOT_SAVED', 'CAPTION_PERMISSION_REQUIRED', 'CAPTION_SAVE_FULL', 'CAPTION_SESSION_EXPIRED', 'DUB_APPROVAL_REQUIRED', 'DUB_AUDIO_REQUIRED', 'DUB_DISCLOSURE_REQUIRED', 'DUB_INPUT_INVALID', 'DUB_MEDIA_FAILED', 'DUB_NOT_FOUND', 'DUB_OUTCOME_UNKNOWN', 'DUB_OVERLONG', 'DUB_PROVIDER_FAILED', 'DUB_QUOTE_REQUIRED', 'DUB_RETRY_REFUSED', 'DUB_TIMING_INVALID',
+  // 5F3 exact owner-store operations and ephemeral buyer sessions.
+  'SHOPIFY_API_REFUSED', 'SHOPIFY_OUTCOME_UNKNOWN', 'SHOPIFY_OVERSOLD_MANUAL', 'SHOPIFY_RESPONSE_INVALID', 'SHOPIFY_SETUP_REQUIRED', 'SHOPIFY_SKU_MAPPING_REQUIRED', 'SHOPIFY_STORE_REQUIRED', 'STOREFRONT_AI_FAILED', 'STOREFRONT_BUSY', 'STOREFRONT_CATALOGUE_LIMIT', 'STOREFRONT_CATALOGUE_STALE', 'STOREFRONT_CONSENT_REQUIRED', 'STOREFRONT_HOSTED_ONLY', 'STOREFRONT_MODEL_UNAVAILABLE', 'STOREFRONT_NOT_FOUND', 'STOREFRONT_OUTPUT_REJECTED', 'STOREFRONT_PAUSED', 'STOREFRONT_QUESTION_INVALID', 'STOREFRONT_REQUEST_PENDING', 'STOREFRONT_SESSION_EXPIRED', 'STOREFRONT_SETUP_REQUIRED', 'STOREFRONT_UNAVAILABLE',
+  'INFLUENCER_PRICE_REQUIRED',
+  // 5Q exact manuscript, speech and render refusals.
+  'NARRATION_NOT_FOUND', 'EXPLAINER_CAPTION_INVALID', 'EXPLAINER_QUOTE_REQUIRED', 'NARRATION_APPROVAL_REQUIRED', 'NARRATION_AUDIO_EXISTS', 'NARRATION_AUDIO_REQUIRED', 'NARRATION_DESTINATION_INVALID', 'NARRATION_DISTRIBUTOR_BLOCKED', 'NARRATION_LISTEN_REQUIRED', 'NARRATION_MARKUP_INVALID', 'NARRATION_MARKUP_SOURCE_CHANGED', 'NARRATION_MEASUREMENT_REQUIRED', 'NARRATION_MEDIA_FAILED', 'NARRATION_ORDER_REQUIRED', 'NARRATION_OUTCOME_UNKNOWN', 'NARRATION_PRICE_REQUIRED', 'NARRATION_PROVIDER_FAILED', 'NARRATION_QUOTE_REQUIRED', 'NARRATION_RETRY_REQUIRED', 'NARRATION_SOURCE_REQUIRED', 'NARRATION_TIMING_INVALID', 'NARRATION_VERIFICATION_REQUIRED',
+  // 5D3 source-bound influencer campaigns and approved open-network text posts.
+  'INFLUENCER_ACTUAL_INVALID', 'INFLUENCER_CASE_NOT_FOUND', 'INFLUENCER_CREATOR_INVALID', 'INFLUENCER_CREATOR_NOT_FOUND', 'INFLUENCER_INPUT_INVALID', 'INFLUENCER_KEYWORDS_INVALID', 'INFLUENCER_PACKET_INCOMPLETE', 'INFLUENCER_PRICE_CAP', 'INFLUENCER_PRICE_INVALID', 'OPEN_POSTING_ACCOUNT', 'OPEN_POSTING_CONNECT_FAILED', 'OPEN_POSTING_CONNECT_REQUIRED', 'OPEN_POSTING_CREDENTIAL', 'OPEN_POSTING_FAILED', 'OPEN_POSTING_INPUT', 'OPEN_POSTING_LENGTH', 'OPEN_POSTING_PERMISSION', 'OPEN_POSTING_REJECTED', 'OPEN_POSTING_RESPONSE',
+  'CAREER_CLIENT_APPROVAL_REQUIRED', 'CAREER_APPROVAL_REQUIRED',
+  'CAREER_RENDER_REQUIRED',
+  'CAREER_CLAIM_BOUNDARY', 'CAREER_UNSTATED_FACT', 'CAREER_SOURCE_CHANGED',
   'CAREER_CAPTURE_CHANGED',
   'CAREER_CAPTURE_INCOMPLETE',
-  'CAREER_CLAIM_BOUNDARY',
-  'CAREER_CLIENT_APPROVAL_REQUIRED',
   'CAREER_NOT_FOUND',
   'CAREER_ORDER_REQUIRED',
-  'CAREER_RENDER_REQUIRED',
-  'CAREER_SOURCE_CHANGED',
-  'CAREER_UNSTATED_FACT',
-
-  'SHOPIFY_API_REFUSED',
-  'SHOPIFY_OUTCOME_UNKNOWN',
-  'SHOPIFY_OVERSOLD_MANUAL',
-  'SHOPIFY_RESPONSE_INVALID',
-  'SHOPIFY_SETUP_REQUIRED',
-  'SHOPIFY_SKU_MAPPING_REQUIRED',
-  'SHOPIFY_STORE_REQUIRED',
-  'STOREFRONT_AI_FAILED',
-  'STOREFRONT_BUSY',
-  'STOREFRONT_CATALOGUE_LIMIT',
-  'STOREFRONT_CATALOGUE_STALE',
-  'STOREFRONT_CONSENT_REQUIRED',
-  'STOREFRONT_HOSTED_ONLY',
-  'STOREFRONT_MODEL_UNAVAILABLE',
-  'STOREFRONT_NOT_FOUND',
-  'STOREFRONT_OUTPUT_REJECTED',
-  'STOREFRONT_PAUSED',
-  'STOREFRONT_QUESTION_INVALID',
-  'STOREFRONT_REQUEST_PENDING',
-  'STOREFRONT_SESSION_EXPIRED',
-  'STOREFRONT_SETUP_REQUIRED',
-  'STOREFRONT_UNAVAILABLE',
-
-  'INFLUENCER_ACTUAL_INVALID',
-  'INFLUENCER_CASE_NOT_FOUND',
-  'INFLUENCER_CREATOR_INVALID',
-  'INFLUENCER_CREATOR_NOT_FOUND',
-  'INFLUENCER_INPUT_INVALID',
-  'INFLUENCER_KEYWORDS_INVALID',
-  'INFLUENCER_PACKET_INCOMPLETE',
-  'INFLUENCER_PRICE_CAP',
-  'INFLUENCER_PRICE_INVALID',
-  'INFLUENCER_PRICE_REQUIRED',
-  'OPEN_POSTING_ACCOUNT',
-  'OPEN_POSTING_CONNECT_FAILED',
-  'OPEN_POSTING_CONNECT_REQUIRED',
-  'OPEN_POSTING_CREDENTIAL',
-  'OPEN_POSTING_FAILED',
-  'OPEN_POSTING_INPUT',
-  'OPEN_POSTING_LENGTH',
-  'OPEN_POSTING_PERMISSION',
-  'OPEN_POSTING_REJECTED',
-  'OPEN_POSTING_RESPONSE',
-
-  'SCRIPT_COVERAGE_FAILED',
-  'YOUTUBE_KEY_REQUIRED',
-  'YOUTUBE_READ_FAILED',
-  'YOUTUBE_READ_USED',
-  'YOUTUBE_REPLY_BAIT',
-  'YOUTUBE_REPLY_TOO_LONG',
-  'YOUTUBE_RESEARCH_INVALID',
-  'YOUTUBE_RESEARCH_NOT_FOUND',
-  'YOUTUBE_SERVICE_EXISTS',
-  'YOUTUBE_SERVICE_INVALID',
-  'YOUTUBE_SOURCE_REQUIRED',
-
-  'EXPLAINER_CAPTION_INVALID',
-  'EXPLAINER_QUOTE_REQUIRED',
-  'NARRATION_APPROVAL_REQUIRED',
-  'NARRATION_AUDIO_EXISTS',
-  'NARRATION_AUDIO_REQUIRED',
-  'NARRATION_DESTINATION_INVALID',
-  'NARRATION_DISTRIBUTOR_BLOCKED',
-  'NARRATION_LISTEN_REQUIRED',
-  'NARRATION_MARKUP_INVALID',
-  'NARRATION_MARKUP_SOURCE_CHANGED',
-  'NARRATION_MEASUREMENT_REQUIRED',
-  'NARRATION_MEDIA_FAILED',
-  'NARRATION_NOT_FOUND',
-  'NARRATION_ORDER_REQUIRED',
-  'NARRATION_OUTCOME_UNKNOWN',
-  'NARRATION_PRICE_REQUIRED',
-  'NARRATION_PROVIDER_FAILED',
-  'NARRATION_QUOTE_REQUIRED',
-  'NARRATION_RETRY_REQUIRED',
-  'NARRATION_SOURCE_REQUIRED',
-  'NARRATION_TIMING_INVALID',
-  'NARRATION_VERIFICATION_REQUIRED',
-
-  'SITE_AUDIT_CURRENT',
-  'SITE_AUDIT_INVALID',
-  'SITE_AUDIT_REQUIRED',
-  'SITE_BRIEF_APPROVAL_REQUIRED',
-  'SITE_CAPTURE_HOSTED_ONLY',
-  'SITE_CHECK_PLANNED',
-  'SITE_DEPLOYMENT_PENDING',
-  'SITE_FORM_ALREADY_IMPORTED',
-  'SITE_FORM_INVALID',
-  'SITE_HEALTH_FAILED',
-  'SITE_HEALTH_REQUIRED',
-  'SITE_HOST_FAILED',
-  'SITE_HOST_SETUP_REQUIRED',
-  'SITE_INPUT_INVALID',
-  'SITE_PREVIEW_INVALID',
-  'SITE_PRODUCTION_CHANGED',
-  'SITE_PROJECT_NOT_FOUND',
-  'SITE_RELEASE_INSPECTION_REQUIRED',
-  'SITE_RELEASE_INVALID',
-  'SITE_REQUIREMENT_INVALID',
-  'SITE_ROLLBACK_UNAVAILABLE',
-  'SITE_SOURCE_TOO_LARGE',
-  'SITE_UI_CHECK_REQUIRED',
-  'SITE_UI_REPORT_INVALID',
-
-  'PRICING_OWNER_ONLY', 'TENDER_ANSWER_REQUIRED', 'TENDER_APPROVAL_REQUIRED', 'TENDER_COLUMN_MAP_REQUIRED', 'TENDER_EXPORT_INVALID', 'TENDER_GROUNDING_REQUIRED', 'TENDER_INPUT_INVALID', 'TENDER_LENGTH_EXCEEDED', 'TENDER_NOT_FOUND', 'TENDER_SOURCE_REQUIRED', 'TENDER_WORKBOOK_PROTECTED',
+  // 5P exact website owner-path refusals.
+  'SITE_AUDIT_CURRENT', 'SITE_AUDIT_INVALID', 'SITE_AUDIT_REQUIRED', 'SITE_BRIEF_APPROVAL_REQUIRED', 'SITE_CAPTURE_HOSTED_ONLY', 'SITE_DEPLOYMENT_PENDING', 'SITE_FORM_ALREADY_IMPORTED', 'SITE_FORM_INVALID', 'SITE_HEALTH_FAILED', 'SITE_HEALTH_REQUIRED', 'SITE_HOST_FAILED', 'SITE_HOST_SETUP_REQUIRED', 'SITE_INPUT_INVALID', 'SITE_PREVIEW_INVALID', 'SITE_PRODUCTION_CHANGED', 'SITE_PROJECT_NOT_FOUND', 'SITE_RELEASE_INSPECTION_REQUIRED', 'SITE_RELEASE_INVALID', 'SITE_REQUIREMENT_INVALID', 'SITE_ROLLBACK_UNAVAILABLE', 'SITE_SOURCE_TOO_LARGE', 'SITE_UI_CHECK_REQUIRED', 'SITE_UI_REPORT_INVALID',
+  // Newsletter source, consent, recipient and report boundaries.
+  'PRIVATE_NEEDS_LOCAL',
   'NEWSLETTER_AUDIENCE_EMPTY', 'NEWSLETTER_CHECK_FAILED', 'NEWSLETTER_CONSENT_REQUIRED', 'NEWSLETTER_DRAFT_REQUIRED', 'NEWSLETTER_EXPORTED', 'NEWSLETTER_INPUT_INVALID', 'NEWSLETTER_NOT_FOUND', 'NEWSLETTER_RESULTS_MISMATCH', 'NEWSLETTER_RESULTS_REQUIRED', 'NEWSLETTER_SOURCE_MISMATCH', 'NEWSLETTER_SOURCE_REQUIRED',
-  'ARTICLE_DRAFT_INVALID', 'ARTICLE_NOT_FOUND', 'ARTICLE_OUTLINE_REQUIRED',
-  'BOOKS_CONSENT_REQUIRED', 'BOOKS_CYCLE_INVALID', 'BOOKS_RECEIPT_REQUIRED', 'BOOKS_SETUP_INVALID', 'BOOKS_SOURCE_CHANGED', 'BOOKS_WORK_NOT_FOUND',
-  'PRIVATE_NEEDS_LOCAL', 'TRANSLATION_GLOSSARY_REQUIRED', 'TRANSLATION_NOT_FOUND', 'TRANSLATION_REPAIR_LOSS',
-  'RECRUIT_NOT_FOUND',
-  'RECRUIT_ROLE_REQUIRED',
-
-  'SELLER_PROVENANCE_REQUIRED',
-  'SEO_INPUT_INVALID',
-  'PRODUCT_PHOTO_REQUIRED',
-
-  'STATEMENT_DOES_NOT_TIE',
-  'AUDIO_INPUT_INVALID', 'AUDIO_TOO_LARGE', 'BEAT_INPUT_INVALID', 'BEAT_RULES_FAILED', 'BOARD_OUTPUT_INVALID', 'BOARD_REQUIRED', 'BROLL_APPROVAL_REQUIRED', 'BROLL_INVALID', 'BROLL_LICENCE_REQUIRED', 'BROLL_REMOVED', 'BROLL_REVIEW_REQUIRED', 'CLIP_PAGE_INVALID', 'CLIP_RULES_FAILED', 'FINISHING_FAILED', 'FINISHING_INPUT_INVALID', 'INTERCHANGE_INVALID', 'MEDIA_FILE_REQUIRED', 'OUTPUT_APPROVAL_REQUIRED', 'PUBLISHING_TEXT_INVALID', 'SOURCE_DOWNSCALED', 'STYLE_MEASUREMENTS_REQUIRED', 'STYLE_NOT_FOUND', 'STYLE_OWNED_REQUIRED', 'STYLE_SAMPLES_REQUIRED',
-  'COMMUNITY_NO_GO',
-  'COMMUNITY_RULES_REQUIRED',
-  'OFFER_EXTRA_ROUND',
-  'SLOT_DESKTOP_ONLY',
-  'SLOT_FROZEN',
-  'SLOT_NOT_FOUND',
-  'SLOT_STALE',
-  'SLOT_TIME_INVALID',
-  'SOCIAL_INPUT_INVALID',
-  'SOCIAL_POST_REQUIRED',
-  'SOCIAL_REVISION_SHAPE',
-  'SOCIAL_SOURCE_INVALID',
+  'TENDER_NOT_FOUND', 'TENDER_INPUT_INVALID', 'TENDER_SOURCE_REQUIRED', 'TENDER_COLUMN_MAP_REQUIRED', 'TENDER_EXPORT_INVALID', 'TENDER_WORKBOOK_PROTECTED', 'TENDER_ANSWER_REQUIRED', 'TENDER_GROUNDING_REQUIRED', 'TENDER_LENGTH_EXCEEDED', 'TENDER_APPROVAL_REQUIRED', 'PRICING_OWNER_ONLY',
+  'INTERNAL_ORDER',
+  // Wave 5 harness tools expose these exact public refusal codes.
+  'BOOKS_SETUP_INVALID', 'BOOKS_CYCLE_INVALID', 'BOOKS_CONSENT_REQUIRED', 'BOOKS_SOURCE_CHANGED', 'CLIENT_LEDGER_REQUIRED', 'CLIENT_BALANCE_REQUIRED', 'BOOKS_WORK_NOT_FOUND', 'BOOKS_RECEIPT_REQUIRED',
+  'STATEMENT_DOES_NOT_TIE', 'ARTICLE_NOT_FOUND', 'ARTICLE_OUTLINE_REQUIRED', 'ARTICLE_DRAFT_INVALID',
+  'RECRUIT_ROLE_REQUIRED', 'RECRUIT_NOT_FOUND', 'SELLER_INPUT_INVALID', 'SELLER_PROVENANCE_REQUIRED',
+  'SEO_INPUT_INVALID', 'PANEL_NOT_FOUND', 'PANEL_ORDER_REQUIRED', 'PANEL_APPROVAL_REQUIRED', 'SITE_CHECK_INVALID', 'SITE_CHECK_DESKTOP_ONLY', 'SITE_CHECK_PLANNED',
+  'PRODUCT_PHOTO_REQUIRED', 'MEDIA_FILE_REQUIRED', 'SUPPORT_TICKET_NOT_FOUND', 'SUPPORT_THREAD_INVALID',
+  'TRANSLATION_NOT_FOUND', 'TRANSLATION_REPAIR_LOSS', 'TRANSLATION_GLOSSARY_REQUIRED', 'WORD_TIMES_REQUIRED', 'EDIT_NOT_FOUND', 'SCRIPT_FILE_REQUIRED', 'SCRIPT_COVERAGE_FAILED',
+  'BOARD_REQUIRED', 'BOARD_OUTPUT_INVALID', 'OUTPUT_APPROVAL_REQUIRED', 'STYLE_NOT_FOUND', 'STYLE_OWNED_REQUIRED', 'STYLE_SAMPLES_REQUIRED', 'STYLE_MEASUREMENTS_REQUIRED',
+  'BROLL_INVALID', 'BROLL_REMOVED', 'BROLL_LICENCE_REQUIRED', 'BROLL_APPROVAL_REQUIRED', 'BROLL_REVIEW_REQUIRED', 'SOURCE_DOWNSCALED', 'FINISHING_FAILED', 'FINISHING_INPUT_INVALID',
+  'INTERCHANGE_INVALID', 'PUBLISHING_TEXT_INVALID', 'CLIP_RULES_FAILED', 'CLIP_PAGE_INVALID', 'BEAT_RULES_FAILED', 'BEAT_INPUT_INVALID', 'AUDIO_INPUT_INVALID', 'AUDIO_TOO_LARGE',
   'SOCIAL_VOICE_CHANGED',
-  'SOURCE_THIN',
-
-  'EDIT_NOT_FOUND', 'SCRIPT_FILE_REQUIRED', 'WORD_TIMES_REQUIRED',
-  'SUPPORT_THREAD_INVALID', 'SUPPORT_TICKET_NOT_FOUND',
-  'INTERNAL_ORDER', 'SELLER_INPUT_INVALID',
-  'CLIENT_BALANCE_REQUIRED', 'CLIENT_LEDGER_REQUIRED', 'PLAYBOOK_ROUTE_INVALID', 'PLAYBOOK_WORKFLOW_CHANGED',
-  'PANEL_APPROVAL_REQUIRED', 'PANEL_NOT_FOUND', 'PANEL_ORDER_REQUIRED', 'SITE_CHECK_DESKTOP_ONLY', 'SITE_CHECK_INVALID',
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
@@ -6526,6 +6410,7 @@ export const VENTURE_ERRORS = [
   'SPEND_UNPRICED', 'SPEND_CAP', 'SPEND_ALREADY_CHARGED', 'QUOTE_WAITING', 'QUOTE_CHANGED', 'QUOTE_EXPIRED',
   // Connectors (P2-connectors): posts, staged website edits, the bank shape, leads and clip rights
   'POST_NOT_FOUND', 'POST_ALREADY_DECIDED',
+  'SLOT_NOT_FOUND', 'SLOT_STALE', 'SLOT_FROZEN', 'SLOT_TIME_INVALID', 'SLOT_DESKTOP_ONLY',
   'SITE_EDIT_NOT_FOUND', 'SITE_EDIT_UNCHANGED', 'SITE_CHANGED_SINCE_REVIEW', 'SITE_WRITE_NOT_GRANTED', 'SITE_PATH_INVALID',
   'BANK_CONSENT_EXPIRED', 'BANK_POLL_LIMIT', 'BANK_STATEMENT_INVALID',
   // Bank statements into the books (Ink v2 wave 2, 2D): a row or account not found, decided once, transfers and directions
@@ -6616,7 +6501,8 @@ export const VENTURE_ERRORS = [
   // without its second answer, and a settings draft holding a key, card or account number
   'COPY_NOT_SENT', 'VIEW_FIRST', 'SET_NEEDS_SECOND_ASK', 'DRAFT_HOLDS_SECRET',
   // Ink v2 wave 5, 5A1: a kit definition that breaks a rule, and a kit order missing a required intake field
-  'PLAYBOOK_DEFINITION_INVALID', 'INTAKE_FIELD_REQUIRED',
+  'PLAYBOOK_DEFINITION_INVALID', 'INTAKE_FIELD_REQUIRED', 'PLAYBOOK_ROUTE_INVALID', 'PLAYBOOK_WORKFLOW_CHANGED', 'SOCIAL_POST_REQUIRED', 'SOCIAL_REVISION_SHAPE', 'OFFER_EXTRA_ROUND',
+  'SOURCE_THIN', 'SOCIAL_SOURCE_INVALID', 'SOCIAL_INPUT_INVALID', 'COMMUNITY_RULES_REQUIRED', 'COMMUNITY_NO_GO',
   // 5M: exact owner-approved research, source permissions, channel limits and paid lookup outcomes.
   'APPROVAL_CHANGED', 'CITY_NOT_FOUND', 'COLD_CHANNEL_REFUSED', 'COMMUNITY_OWNER_SOURCE_REQUIRED', 'COMMUNITY_QUOTE_MISSING', 'HAPPENSTANCE_SEARCH_UNCONFIRMED', 'KEY_REQUIRED', 'LEAD_HOST_CHANGED', 'LEAD_INTAKE_CHANGED', 'LEAD_RATE_STALE', 'LEAD_SOURCE_UNAVAILABLE', 'PRODUCT_CONFIRM_REQUIRED', 'WHATSAPP_CONSENT_REQUIRED',
   // Ink v2 wave 5, 5A2: share prices (no recorded base, a base without its file, a share outside 0.01% to 100%); the
@@ -6635,6 +6521,17 @@ export const VENTURE_ERRORS = [
   // named), and a derived unit whose source changed
   'ASSET_LICENCE_UNKNOWN', 'ASSET_NOT_FOUND', 'ASSET_NOT_MADE', 'ASSET_REFUSED', 'MEDIA_NOT_CLEAN',
   'CONSENT_REQUIRED', 'CONSENT_WITHDRAWN', 'CONSENT_NOT_FOUND', 'VOICE_MISMATCH', 'DERIVED_STALE',
+  // 5B3: source-bound YouTube analysis, comment handoffs and owner-key public reads.
+  'YOUTUBE_RESEARCH_INVALID', 'YOUTUBE_RESEARCH_NOT_FOUND', 'YOUTUBE_SOURCE_REQUIRED',
+  'YOUTUBE_REPLY_BAIT', 'YOUTUBE_REPLY_TOO_LONG', 'YOUTUBE_READ_FAILED', 'YOUTUBE_READ_USED', 'YOUTUBE_KEY_REQUIRED',
+  'YOUTUBE_SERVICE_INVALID', 'YOUTUBE_SERVICE_EXISTS',
+  // 5R2: exact client-source, guarded desktop form and saved-response boundaries.
+  'FORM_ACTION_HELD', 'FORM_ALREADY_SUBMITTED', 'FORM_BROWSER_CLOSED', 'FORM_CAPTURE_INCOMPLETE',
+  'FORM_CONSENT_REQUIRED', 'FORM_DESKTOP_REQUIRED', 'FORM_MAPPING_INVALID', 'FORM_ORDER_CLOSED',
+  'FORM_ORDER_REQUIRED', 'FORM_PERMISSION_REQUIRED', 'FORM_PRIVACY_PENDING', 'FORM_READBACK_INVALID',
+  'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED',
+  'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING',
+  'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -6674,6 +6571,7 @@ export type VentureEngineServices = {
    */
   speech?: {
     localTranscriber(): { ready: true; providerId: string } | { ready: false; reason: string };
+    /** 5B1 trusted host only: the selected local files for provenance hashing. No RPC exposes this. */
     localTranscriptionFiles?(ctx: Context): { providerId: string; command: string; model: string } | null;
     transcribeFile(ctx: Context, input: { path: string; prompt?: string; timeoutMs?: number; signal?: AbortSignal }): Promise<{ srt: string; providerId: string }>;
     /** Puts in place (or removes, with null) the whisper.cpp the owner set up in the app (venture.transcription.set). */
@@ -6692,7 +6590,6 @@ export function experimentalStorage(deps: { storage: VentureStorage; host: Ventu
   return deps.storage === 'experimental-file' || deps.host === 'hosted-web';
 }
 export type VentureDeps = {
-  seoWebsiteChecker?: { run(url: string, signal?: AbortSignal): Promise<unknown> } | null;
   store: StateStore;
   clock: () => Date;
   models: ModelPort;
@@ -6719,9 +6616,12 @@ export type VentureDeps = {
   /** The mail server lookup for lead emails. Absent means node:dns; tests inject a table. */
   mx?: (domain: string) => Promise<{ exchange: string; priority: number }[]>;
   /** The ffmpeg that takes the sound out of a cut for a transcript made here. Absent means the one on PATH; never on hosted. */
+  ffmpeg?: FfmpegPort;
+  /** Desktop-only emulator command port. Tests inject it; production uses installed Android SDK tools. */
   android?: import('./build/android.ts').AndroidCommandPort;
   sandboxDesktop?: import('./build/sandbox-desktop.ts').DesktopCommandPort;
-  ffmpeg?: FfmpegPort;
+  /** Trusted website checker port; absent uses owner-installed lintapple, null means unavailable. Never a request payload. */
+  seoWebsiteChecker?: { run(url: string, signal?: AbortSignal): Promise<unknown> } | null;
   /** Trusted host composition: the engine stops long local work through it when the workspace closes (VentureClosingPort). */
   closing?: VentureClosingPort;
   /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
@@ -6764,6 +6664,7 @@ export type VentureDeps = {
   trial?: () => boolean;
   /** Ink v2 wave 5 (5A5): the desktop's printer for a report's PDF (Electron's printToPDF). Never on hosted; absent: no PDF. */
   print?: PrintPort;
+  /** Desktop-only trusted owner-browser port. Never supplied by a renderer or model. */
   formsBrowser?: FormsBrowserPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
@@ -6840,6 +6741,7 @@ export type VentureHostOptions = {
   trial?: () => boolean;
   /** Trusted host composition (5A5): the desktop's report printer over the worker's channel (VentureDeps.print). Never on hosted. */
   print?: PrintPort;
+  /** Desktop host composition for exact approved native HTML form requests. */
   formsBrowser?: FormsBrowserPort;
 };
 

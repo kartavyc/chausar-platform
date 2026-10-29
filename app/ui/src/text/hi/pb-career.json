@@ -183,5 +183,7 @@
   "pb-career.provider.lever": "'\"Lever\"'",
   "pb-career.provider.ashby": "'\"Ashby\"'",
   "pb-career.applicationManual": "क्लाइंट ने बताया है। क्लाइंट संदेश और आवेदन भेजता है।",
-  "pb-career.packManual": "क्लाइंट संदेश और आवेदन भेजता है।"
+  "pb-career.packManual": "क्लाइंट संदेश और आवेदन भेजता है।",
+  "pb-career.sourceUnavailable": "नौकरी का स्रोत उपलब्ध नहीं है",
+  "pb-career.packUnavailable": "पैक का प्रकार उपलब्ध नहीं है"
 }

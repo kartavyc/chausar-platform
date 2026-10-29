@@ -62,8 +62,8 @@ async function seed(deps: VentureDeps) {
 const list = (deps: VentureDeps) => handlers['venture.connectors.list']!(deps, owner, {}) as Promise<ConnectorCard[]>;
 const option = (card: ConnectorCard, mode: string) => card.postingOptions.find(item => item.mode === mode)!;
 
-test('posting connectors: LinkedIn, X, Instagram and YouTube carry three modes; every other card carries none', () => {
-  assert.deepEqual([...POSTING_CONNECTORS].sort(), ['instagram', 'linkedin', 'x', 'youtube']);
+test('posting connectors: the eight registered networks carry three modes; every other card carries none', () => {
+  assert.deepEqual([...POSTING_CONNECTORS].sort(), ['bluesky', 'discord', 'instagram', 'linkedin', 'mastodon', 'telegram', 'x', 'youtube']);
   for (const item of CONNECTOR_CATALOGUE) {
     const card = connectorCard(item, false);
     if (!POSTING_CONNECTORS.includes(item.id as any)) {

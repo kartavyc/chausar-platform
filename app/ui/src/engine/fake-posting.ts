@@ -50,6 +50,14 @@ const LIMIT_WORDS: Readonly<Record<keyof OwnerPostingLimits, string>> = {
 };
 const LIMITS_LINE = "Chausar's own posting limits are the loosest it posts at. You can only make them stricter, per channel, for this business; posts from every business on this computer count toward them.";
 
+/** The native exactPayload boundary, kept local so this browser desk imports no server graph. */
+function limitsObject(value: unknown, allowed: readonly string[], required: readonly string[] = []): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send one request object.');
+  const body = value as Record<string, unknown>;
+  if (!Object.keys(body).every(key => allowed.includes(key)) || !required.every(key => Object.hasOwn(body, key))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+  return body;
+}
+
 /** The engine's words (build/posting.ts, build/share-links.ts). */
 export const POSTING_WORDS = Object.freeze({
   linkedin: 'LinkedIn is copy-and-open only.',
@@ -127,7 +135,7 @@ export class FakePostingDesk {
       case 'venture.posting.propose': return this.propose(biz, p);
       case 'venture.posting.signIn': return this.signIn(p);
       case 'venture.posting.checkSteps': return this.checkSteps(p);
-      case 'venture.posting.limits.get': return this.limitsView(biz);
+      case 'venture.posting.limits.get': limitsObject(p, []); return this.limitsView(biz);
       case 'venture.posting.limits.set': return this.setLimits(biz, p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -146,26 +154,29 @@ export class FakePostingDesk {
     };
   }
 
-  private setLimits(biz: string, p: Record<string, unknown>): PostingLimitsView {
-    const connectorId = typeof p.connectorId === 'string' && ({...TEXT_PLATFORMS,...OPEN_NAMES})[p.connectorId] ? p.connectorId : null;
-    if (!connectorId) throw new EngineError('INVALID_VENTURE_REQUEST', 'Posting limits are set for LinkedIn and X.');
-    const given = (p.limits && typeof p.limits === 'object' ? p.limits : null) as Record<string, unknown> | null;
-    if (!given) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the limits as numbers.');
+  private setLimits(biz: string, raw: unknown): PostingLimitsView {
+    const p = limitsObject(raw, ['connectorId', 'limits'], ['connectorId', 'limits']);
+    const names = { ...TEXT_PLATFORMS, ...OPEN_NAMES };
+    const connectorId = typeof p.connectorId === 'string' && Object.hasOwn(names, p.connectorId) ? p.connectorId : null;
+    if (!connectorId) throw new EngineError('INVALID_VENTURE_REQUEST', `Posting limits are set for ${Object.values(names).join(', ')}.`);
+    if (p.limits === null || typeof p.limits !== 'object' || Array.isArray(p.limits)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the limits as numbers.');
+    const keys = Object.keys(HOUSE_LIMITS) as (keyof OwnerPostingLimits)[];
+    const given = limitsObject(p.limits, keys);
     const chosen: Partial<OwnerPostingLimits> = {};
-    for (const [key, value] of Object.entries(given)) {
-      if (!(key in HOUSE_LIMITS)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the limits as numbers.');
-      const name = key as keyof OwnerPostingLimits;
-      if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) throw new EngineError('INVALID_VENTURE_REQUEST', `The ${LIMIT_WORDS[name]} must be a whole number from 1.`);
+    for (const name of keys) {
+      const value = given[name];
+      if (value === undefined) continue;
+      const least = name === 'linkStreak' ? 2 : 1;
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < least || value > (name === 'duplicatePercent' ? 100 : 10_000)) throw new EngineError('INVALID_VENTURE_REQUEST', `The ${LIMIT_WORDS[name]} must be a whole number from ${least}.`);
       chosen[name] = value;
     }
-    const looser = (Object.keys(chosen) as (keyof OwnerPostingLimits)[])
-      .filter((key) => (LOWER_IS_STRICTER.has(key) ? chosen[key]! > HOUSE_LIMITS[key] : chosen[key]! < HOUSE_LIMITS[key]));
-    if (looser.length) throw new EngineError('POSTING_LIMIT_LOOSER', `These are looser than Chausar's own limits: ${looser.map((key) => LIMIT_WORDS[key]).join(', ')}. ${LIMITS_LINE}`);
+    const looser = keys.filter(key => chosen[key] !== undefined && (LOWER_IS_STRICTER.has(key) ? chosen[key]! > HOUSE_LIMITS[key] : chosen[key]! < HOUSE_LIMITS[key]));
+    if (looser.length) throw new EngineError('POSTING_LIMIT_LOOSER', `These are looser than Chausar's own limits: ${looser.map(key => LIMIT_WORDS[key]).join(', ')}. ${LIMITS_LINE}`);
     (this.limits[biz] ??= {})[connectorId] = chosen;
     return this.limitsView(biz);
   }
 
-  connectorCards(cards:ConnectorCardLite[]):ConnectorCardLite[]{const next=cards.filter(c=>!OPEN_NAMES[c.id]);for(const raw of openCards){const card=structuredClone(raw) as ConnectorCardLite,account=openFakeAccount(this.host,card.id),api=card.postingOptions.find(p=>p.mode==='api')!;if(account.connected){api.status='available';api.qualification='fixture-tested';api.reason=null;}card.posting=api;next.push(card);}return next;}
+  connectorCards(cards:ConnectorCardLite[]):ConnectorCardLite[]{const next=cards.filter(c=>!OPEN_NAMES[c.id]);for(const raw of openCards){const card=structuredClone(raw) as ConnectorCardLite,account=openFakeAccount(this.host,card.id),api=card.postingOptions.find(p=>p.mode==='api')!;if(account.connected){api.status='available';api.qualification='fixture-tested';api.reason=null;}const summary=card.postingOptions.find(option=>option.status==='available')??card.postingOptions.find(option=>option.mode==='owner-browser-session');if(summary)card.posting=summary;else delete card.posting;next.push(card);}return next;}
   openPosts(id:string){return openFakePosts(this.host,id);}
   queueView(kind:unknown,id:unknown):QueueItemView|null{const entry=this.scheduledPosts.get(this.host.current()+':'+id);if(kind!=='draft'||!entry?.open)return null;const account=openFakeAccount(this.host,entry.post.connectorId);return{kind:'draft',id:entry.post.id,businessName:this.host.current(),title:'Post to '+OPEN_NAMES[entry.post.connectorId],sections:[{heading:'Account',lines:[account.account?.label??entry.post.account??'']},{heading:'Exact post',lines:[entry.post.text]},{heading:'Approval',lines:['This posts through the official API after your approval.']}]};}
   private openRisk(connectorId:string,text:string,except?:string){const owner=this.limits[this.host.current()]?.[connectorId]??{},limits={capPer24h:owner.capPer24h??3,minGapMinutes:owner.minGapMinutes??60,warmUpDays:owner.warmUpDays??7,duplicateBlockPermille:(owner.duplicatePercent??85)*10,duplicateWarnPermille:600,duplicateWindow:5,linkStreak:owner.linkStreak??3},history=[...this.scheduledPosts.values()].filter(e=>e.open&&e.post.connectorId===connectorId&&e.post.id!==except&&['applied','outcome_unknown'].includes(e.post.state)).map(e=>({id:e.post.id,at:e.open!.at,text:e.post.text})),risk=historyRisk({name:OPEN_NAMES[connectorId]!,text,now:this.host.now(),history,limits});if(risk.blocked)throw new EngineError('POST_RISK_BLOCKED',risk.blocks.join(' '));return risk;}

@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -251,4 +254,41 @@ describe('Team: helpers nested under their parent (W4 4J22b, from 4J12)', () => 
     expect(within(editor).queryByRole('list', { name: 'Helpers of Editor' })).toBeNull();
     expect(editor.querySelector('[data-helpers-spend]')).toBeNull();
   });
+});
+
+it('owner-only native work is absent from sample agent assignments and their capability claims', async () => {
+  const module = JSON.stringify(pathToFileURL(resolve(process.cwd(), 'platform/runtime/venture/playbooks/steps.ts')).href);
+  const native = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `
+    import {flagshipDelivery} from ${module};
+    const y=flagshipDelivery('youtube'),ca=flagshipDelivery('ca-firm');
+    console.log(JSON.stringify({publish:y.steps.find(s=>s.id==='publish').doneBy,
+      publishRole:y.roleOf.publish??null,file:ca.steps.find(s=>s.id==='file').doneBy,fileRole:ca.roleOf.file??null}));
+  `], { encoding: 'utf8' })) as { publish: string; publishRole: null; file: string; fileRole: null };
+  expect(native).toEqual({ publish: 'you', publishRole: null, file: 'you', fileRole: null });
+
+  const client = createFakeClient(new FakeEngine());
+  const team = await client.request('venture.team.list', {});
+  expect(team.agents.find(a => a.id === 'editor')!.steps.some(s => s.id === 'publish')).toBe(native.publishRole !== null);
+  expect(team.agents.find(a => a.id === 'producer')!.steps.map(s => s.id)).toEqual(['brief']);
+  const editor = await client.request('venture.agents.capabilities', { agent: 'editor' });
+  expect(editor.items.some(i => i.key === 'step:publish')).toBe(false);
+  expect(editor.items.find(i => i.key === 'effect:send')?.state).toBe('off');
+  const producer = await client.request('venture.agents.capabilities', { agent: 'producer' });
+  expect(producer.items.filter(i => ['step:price', 'step:send'].includes(i.key))).toEqual([]);
+  expect(producer.items.find(i => i.key === 'outbox:mail-app')?.state).toBe('records');
+  const publisher = await client.request('venture.agents.capabilities', { agent: 'publisher' });
+  expect(publisher.items.find(i => i.key === 'step:post')?.state).toBe('planned');
+
+  await client.request('workspace.open', { folder: 'ledgerline' });
+  const books = await client.request('venture.team.list', {});
+  expect(books.agents.find(a => a.id === 'bookkeeper')!.steps.some(s => s.id === 'portal')).toBe(native.fileRole !== null);
+  expect(books.agents.find(a => a.id === 'billing')!.steps.find(s => s.id === 'issue')).toMatchObject({ gate: 'hold', floor: true });
+  const billing = await client.request('venture.agents.capabilities', { agent: 'billing' });
+  expect(billing.items.find(i => i.key === 'step:issue')?.state).toBe('works');
+  await expect(client.request('venture.team.gate', { agentId: 'billing', stepId: 'issue', gate: 'auto' })).rejects.toMatchObject({ code: 'GATE_FLOOR' });
+
+  start('#/team?sheet=agent:editor&tab=cando');
+  const tab = await tabPanel('Editor');
+  expect(tab.textContent).not.toContain('Publish to YouTube');
+  expect(tab.textContent).toContain("Can't send anything to a client, a contact or the public.");
 });

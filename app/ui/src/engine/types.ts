@@ -423,7 +423,8 @@ export interface ReceiptSignatureLite { algorithm: 'ed25519'; publicKey: string;
  */
 export interface WorkReceiptLite {
   id: string; at: string; operation: string; currency: string; explanation: string;
-  figures: { key: string; label: string; display: Display; unit: 'money' | 'count' | 'percent' | 'post' }[];
+  /** WorkFigure's exact source amount and denomination are required, even when only display is shown. */
+  figures: { key: string; label: string; minor: string; display: Display; currency: string; unit: 'money' | 'count' | 'percent' | 'post' }[];
   steps: { op: string; inputs: string[]; result: string; rule: string }[];
   coverage?: CoverageView;
 }
@@ -2099,9 +2100,10 @@ export interface EngineClient {
    * when that folder is there already. Absent on the web, the hosted app and the fake, where the page downloads files.
    */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
-  /** Desktop: save approved YouTube outputs and open the returned folder handle. */
+  /** Desktop 5B2: save only approved outputs; open only an opaque handle from this session. */
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
+  /** Desktop-only native picker, import and source inspection. No page-supplied path and no installation. */
   pickAppTestApk?(orderId: string, fromClient: true, digest?: string): Promise<{ imported: true; orderId: string } | null>;
   saveSocialProject?(orderId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openSocialProject?(savedId: string): Promise<{ opened: true }>;

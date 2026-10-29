@@ -51,17 +51,17 @@ async function threeDrafts() {
 function browser(): BrowserPort {
   return {
     async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; },
-    async post() { return { outcome: 'posted', line: 'LinkedIn showed the post.', url: null }; },
+    async post() { return { outcome: 'posted', line: 'X showed the post.', url: null }; },
   };
 }
 
 /** Posts waiting to go out, one per line; complete: whether each shows all it sends. */
 async function posts(env: Env, lines: string[], complete = true) {
   env.deps = { ...env.deps, connectors: { browser: browser(), appReviewed: [], postTimeoutMs: 200 } };
-  const draft = await seedPostDraft(env.deps, lines.map(line => `LinkedIn: ${line}`));
+  const draft = await seedPostDraft(env.deps, lines.map(line => `X: ${line}`));
   const made = [];
   for (let part = 1; part <= lines.length; part += 1) {
-    made.push(await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, part, ...(complete ? {} : { descriptionComplete: false }) }));
+    made.push(await proposePost(env.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part, ...(complete ? {} : { descriptionComplete: false }) }));
   }
   const rows = (await queue(env)).rows.filter(row => row.kind === 'connector');
   return { made, rows };
@@ -194,7 +194,7 @@ test('posts in a set: it asks twice, and each post is decided on its own, with i
   // The first post goes out under its own approval; the second meets its own posting gate (one post a day on a new
   // channel) and is refused there, so the set stops: a set never gets round a post's own rules.
   assert.deepEqual(result.decisions.map(item => item.outcome), ['done', 'refused']);
-  assert.match(result.line, /^Approved 1 of 2. Stopped at the next one: LinkedIn is new to Chausar/);
+  assert.match(result.line, /^Approved 1 of 2. Stopped at the next one: X is new to Chausar/);
   const [first, second] = made.map(post => findRecord(env.store.read(), 'venture-connector-post', post.id)!);
   assert.notEqual(first.id, second.id, 'each post is its own journal record');
   assert.equal(first.state, 'applied');

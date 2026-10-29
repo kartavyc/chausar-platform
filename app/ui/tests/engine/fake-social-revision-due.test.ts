@@ -1,10 +1,11 @@
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import {expect,it} from 'vitest';
 import {FakeEngine} from '../../src/engine/fake';
 it.each([[false,'IN'],[true,'IN'],[false,'US']] as const)('public fake Today derives monthly notices without exposing locked workspaces (%s, %s)',async(locked,countryCode)=>{
  let now=countryCode==='US'?'2026-10-27T03:30:00Z':'2026-10-26T18:00:00Z';const engine=new FakeEngine({fresh:true,now:()=>now});
  const first=await engine.request('workspace.create',{name:'Social studio',pack:'services',...(locked?{passphrase:'a-long-test-passphrase'}:{})}) as any;await engine.request('venture.create',{idea:'social media agency',countryCode});
  for(const [questionId,answer] of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'monthly'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});
- const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='content-calendar');await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'100'}]}});
+ const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='content-calendar');await priceAndAcceptPlan(engine,plan,'100');
  const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
  const order=await engine.request('venture.order.create',{clientId:client.id,offerId:offer.id,request:'Write useful studio guidance.',intake:{fields:{revisionDue:'2026-10-27'},calendar:{month:'2026-11',channels:['linkedin'],postsPerChannel:1,weekdays:[1]}}}) as any;
  const rows=async()=>((await engine.request('venture.queue.list',{scope:'current'})) as any).rows.filter((r:any)=>r.id.startsWith('social-revision:'));

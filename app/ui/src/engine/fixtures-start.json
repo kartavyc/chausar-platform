@@ -572,7 +572,7 @@
         "starter": "Bookkeeping and CFO help: Collections drafts, cash packs and spending checks for small firms.",
         "yours": [],
         "hi": {
-          "label": "बहीखाता और वित्तीय मदद",
+          "label": "बही-खाता और वित्तीय मदद",
           "line": "छोटे कारोबारों के लिए वसूली के मसौदे, नकदी रिपोर्ट और खर्च की जांच।",
           "hours": "हफ़्ते में 3 से 6 घंटे",
           "youDo": "बहीखाता जांचें, रिपोर्ट मंजूर करें और ग्राहकों से बात करें।",
@@ -690,7 +690,7 @@
         "starter": "Lead generation and appointment setting: Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
         "yours": [],
         "hi": {
-          "label": "संभावित ग्राहक खोजना और मुलाकात तय करना",
+          "label": "संभावित क्लाइंट खोजना और मुलाकात तय करना",
           "line": "आपके प्रस्तावों के लिए शोध वाले स्थानीय ग्राहक, संदेश मसौदे, अगली बातचीत और तय मुलाकातें।",
           "hours": "हफ़्ते में 4 से 6 घंटे",
           "youDo": "संदेश भेजें, कॉल लें।",
@@ -988,7 +988,7 @@
         "starter": "Virtual assistant service: Routines, research and client requests with exact approvals.",
         "yours": [],
         "hi": {
-          "label": "वर्चुअल सहायक सेवा",
+          "label": "वर्चुअल एजेंट सेवा",
           "line": "ठीक इसी काम की मंज़ूरी के साथ नियमित काम, शोध और क्लाइंट अनुरोध।",
           "hours": "हफ़्ते में 5 से 10 घंटे",
           "youDo": "क्लाइंट से मिलें और हर हस्तांतरण मंज़ूर करें।",
@@ -1368,7 +1368,7 @@
       "maxHours": 5,
       "label": "Up to 5 h a week",
       "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 6
+      "count": 7
     }
   },
   "checklist": [

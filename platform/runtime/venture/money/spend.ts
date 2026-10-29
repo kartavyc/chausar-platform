@@ -1,4 +1,3 @@
-import { articleReservation } from '../playbooks/seo-visibility/article-budget.ts';
 // P2-spend: what paid calls cost, held before each call and settled after, in BigInt micro-USD.
 //
 // Every paid call (a keyed model call, a heavy-work run, a paid connector) goes the same way:
@@ -35,6 +34,7 @@ import { WRITE_CAP_KINDS, WRITE_CAPS, writeCapsToday } from '../delivery/harness
 import { resetDay, shortDay } from '../delivery/failure-words.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { presetSpec } from '../models/presets.ts';
+import { articleReservation } from '../playbooks/seo-visibility/article-budget.ts';
 import type { ModelPresetId, ModelTier, RateCardLine } from '../contracts.ts';
 // 4Z3: which currency leads spend.
 import type { CountryProfile, CurrencyLead, SpendLead } from '../contracts.ts';

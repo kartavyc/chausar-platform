@@ -11,6 +11,7 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { playbookForRun } from '../delivery/workflow.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
 import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
@@ -120,7 +121,7 @@ function stepAudited(calls: readonly ToolCallRecord[], audits: Map<string, StepA
 
 /** The steps a delivery run follows: its own playbook's, else the business's current one, else the accepted plan's. */
 function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord): PlaybookStep[] {
-  const own = findRecord(state, 'venture-playbook', run.playbookId);
+  const own = playbookForRun(state, run);
   if (own && own.ventureId === venture.id) return own.steps;
   const current = currentPlaybook(state, venture);
   if (current) return current.steps;

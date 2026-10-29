@@ -17,8 +17,6 @@ import { FAKE_4E4_METHODS, FakePipelineDesk, type MeetingDrafts } from './fake-p
 const NETWORK_METHODS = new Set<string>([...FAKE_4D4_METHODS, ...FAKE_4E4_METHODS]);
 
 export class FakeNetworkDesk {
-  captureSiteClient(client:{id:string;name:string;email:string}):void {this.people.captureSiteClient(client);}
-  recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   /** 4D4: the people, imports, searches and the cards added from them. */
@@ -33,6 +31,11 @@ export class FakeNetworkDesk {
     const meetings: MeetingDrafts = options.meetings ?? { draftFromMeeting: () => { throw new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); } };
     this.pipeline = new FakePipelineDesk(host, this.people, meetings, { fresh: this.fresh, ...(options.due === undefined ? {} : { due: options.due }) });
   }
+
+  /** Internal minimum identity from an exactly approved website import. */
+  captureSiteClient(client:{id:string;name:string;email:string}):void {this.people.captureSiteClient(client);}
+
+  recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
 
   handles(method: string): boolean {
     return NETWORK_METHODS.has(method);

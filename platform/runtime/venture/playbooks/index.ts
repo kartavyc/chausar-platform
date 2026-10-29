@@ -56,6 +56,8 @@ export const reportSharePage: typeof import('./kit/report/share.ts').reportShare
 /** 5G: trusted hosted customer rating entry; no RPC method exposes it. */
 export const supportRatingEntry: typeof import('./support-desk/rating-link.ts').supportRatingEntry = async (...args) => (await import('./support-desk/rating-link.ts')).supportRatingEntry(...args);
 
-/** 5P trusted hosted form entry. No owner RPC exposes it. */
+
+/** 5P: trusted hosted form capture; no ordinary RPC exposes the entry. */
 export const siteFormEntry: typeof import('./website-studio/form-entry.ts').siteFormEntry = async (...args) => (await import('./website-studio/form-entry.ts')).siteFormEntry(...args);
+/** 5F3 trusted hosted buyer entry; no RPC method exposes it. */
 export const storefrontEntry: typeof import('./online-seller/storefront-entry.ts').storefrontEntry = async (...args) => (await import('./online-seller/storefront-entry.ts')).storefrontEntry(...args);

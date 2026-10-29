@@ -1,3 +1,4 @@
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import {expect,it} from 'vitest';
 import {FakeEngine} from '../../src/engine/fake';
 import {FakeSocialChain} from '../../src/engine/fake-social-chain';
@@ -15,7 +16,7 @@ async function setup(key='content-calendar',postCount='8'){
  await engine.request('workspace.create',{name:'Social studio',pack:'services'});await engine.request('venture.create',{idea:'social media agency',countryCode:'IN'});
  for(const [questionId,answer] of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'monthly'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});
  const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer===key);
- await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'100'}]}});const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
+ await priceAndAcceptPlan(engine,plan,'100');const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
  const make=async(clientId=client.id)=>await engine.request('venture.order.create',{clientId,offerId:offer.id,request:'Write useful studio guidance.',intake:key==='monthly-report'?{fields:{reportMonth:'2026-11'}}:key==='linkedin-ghostwriting'?{fields:{postCount},moneyRupees:{extraRoundPrice:'100'}}:{calendar:{month:'2026-11',channels:['linkedin'],postsPerChannel:1,weekdays:[1]}}}) as any;
  return {engine,client,make};
 }

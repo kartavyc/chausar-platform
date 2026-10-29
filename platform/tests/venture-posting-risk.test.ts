@@ -265,7 +265,7 @@ const HOUSE: Limits = { capPer24h: 3, minGapMinutes: 60, warmUpDays: 7, duplicat
 test("the owner tightens a channel's limits; a looser number is refused; the gate uses them; clearing goes back to the house limits", async () => {
   const { env, deps } = await posting();
   const first = await limitsCall<LimitsView>(deps, 'get');
-  assert.deepEqual(first.channels.map(channel => [channel.connectorId, channel.name]), [['linkedin', 'LinkedIn'], ['x', 'X']]);
+  assert.deepEqual(first.channels.map(channel => [channel.connectorId, channel.name]), [['linkedin', 'LinkedIn'], ['x', 'X'], ['bluesky', 'Bluesky'], ['mastodon', 'Mastodon'], ['telegram', 'Telegram'], ['discord', 'Discord']]);
   assert.deepEqual(first.channels[1], { connectorId: 'x', name: 'X', house: HOUSE, owner: {}, inUse: HOUSE });
   assert.match(first.line, /only make them stricter/);
 
@@ -301,6 +301,24 @@ test("the owner tightens a channel's limits; a looser number is refused; the gat
   await limitsCall(deps, 'set', { connectorId: 'x', limits: {} });
   assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels[1].inUse, HOUSE);
   assert.equal((await propose(deps, `${run.id}.post-1`)).state, 'described');
+});
+
+test('all four official API channels expose and retain exact owner limits, refuse looser settings and require app approval', async () => {
+  const { deps, env } = await posting();
+  for (const [connectorId, name] of [['bluesky', 'Bluesky'], ['mastodon', 'Mastodon'], ['telegram', 'Telegram'], ['discord', 'Discord']]) {
+    const limits = { capPer24h: 1, minGapMinutes: 180, warmUpDays: 14, duplicatePercent: 70, linkStreak: 2 };
+    const result = await limitsCall<LimitsView>(deps, 'set', { connectorId, limits });
+    const expected = { connectorId, name, house: HOUSE, owner: limits, inUse: limits };
+    assert.deepEqual(result.channels.find(row => row.connectorId === connectorId), expected);
+    assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels.find(row => row.connectorId === connectorId), expected);
+    for (const loose of [{ capPer24h: 4 }, { minGapMinutes: 30 }, { warmUpDays: 3 }, { duplicatePercent: 90 }, { linkStreak: 5 }]) {
+      await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: loose }), code('POSTING_LIMIT_LOOSER'));
+    }
+    await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: {} }, agent), code('APP_APPROVAL_REQUIRED'));
+    await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: {}, unapproved: true }), code('INVALID_VENTURE_REQUEST'));
+    assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels.find(row => row.connectorId === connectorId), expected, 'refusals do not overwrite the approved settings');
+  }
+  assert.equal(listRecords(env.store.read(), 'venture-posting-limits').length, 4);
 });
 
 test('a rule the post rests on, past its 90-day recheck on the posting day, is a warning on the Today row, never a block', async () => {

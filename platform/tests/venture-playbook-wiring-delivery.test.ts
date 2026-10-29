@@ -405,7 +405,7 @@ test('the team shows the playbook\'s roles as the agents; a gate set on a role\'
   const delivery = flagshipDelivery('youtube')!;
   // Ink v2 wave 4 (4A1): Keeper, the engine's own jobs as code, is listed after the playbook's roles.
   assert.deepEqual(agents.map((agent: any) => agent.name), [...delivery.roles.map(role => role.name), 'Keeper']);
-  assert.deepEqual(agents.map((agent: any) => agent.name), ['Intake clerk', 'Producer', 'Chausar', 'Story editor', 'Cutter', 'Packager', 'Keeper']);
+  assert.deepEqual(agents.map((agent: any) => agent.name), ['Intake clerk', 'Producer', 'Chausar', 'Story editor', 'Cutter', 'Packager', 'Analyst', 'Community helper', 'Keeper']);
   const editor = agents.find((agent: any) => agent.name === 'Story editor');
   assert.deepEqual(editor.steps.map((step: any) => step.id), ['find']);
   const intake = agents.find((agent: any) => agent.name === 'Intake clerk');

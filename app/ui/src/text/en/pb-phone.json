@@ -29,7 +29,7 @@
   "pb-phone.approveScript": "Approve this script",
   "pb-phone.receipt": "Calculation receipt",
   "pb-phone.report": "Review report",
-  "pb-phone.reportPreview": "Exact report preview",
+  "pb-phone.reportPreview": "Original report text; download is unchanged",
   "pb-phone.download": "Download report",
   "pb-phone.logs": "Imported call review",
   "pb-phone.used": "Imported cost this month",

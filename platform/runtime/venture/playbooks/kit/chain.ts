@@ -1,4 +1,3 @@
-import {articleOnReview} from '../podcast-to-article/chain.ts';
 // Chausar playbook kit: the chain that carries a kit offer's stages across runs on one order (Ink v2 wave 5, package
 // 5A1; spec 5.8 "outcome edges, retry caps and timeouts across a chain of runs", on 4J12's step fields). An offer whose
 // stages name more than one step is a chain: the order starts at stage 1, and each run drafts its stage's step
@@ -22,6 +21,7 @@ import { pickPlaybook } from '../registry.ts';
 import type { KitOffer, KitStep, PlaybookDefinition } from './define.ts';
 import { kitDefinition } from './installed.ts';
 import {socialChainDefinition,keepSocialVoice} from '../social/chain.ts';
+import {articleOnReview} from '../podcast-to-article/chain.ts';
 
 import { manualPathFor } from './manual-path.ts';
 import type { ChainStageState, OrderChainView } from './records-chain.ts';

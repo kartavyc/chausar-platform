@@ -147,10 +147,10 @@ describe('Start: the flagship tiles (5A1)', () => {
     expect(tile.querySelector('.sr-only')?.textContent).toContain('model estimate');
   };
 
-  it('YouTube channel: episodes, shorts and packaging; 4 to 8 h; three agents; ₹5,000 to ₹30,000 per video', async () => {
+  it('YouTube channel: episodes, shorts, packaging and audits; 4 to 8 h; three agents; ₹5,000 to ₹30,000 per video', async () => {
     await start();
     const tile = await tileOf('YouTube channel');
-    expect(tile.textContent).toContain("Episodes, shorts and packaging for your own channel or a client's, from footage you own or license.");
+    expect(tile.textContent).toContain("Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.");
     expect(tile.textContent).toContain('4 to 8 h a week');
     expect(tile.textContent).toContain('Record, watch each cut, meet sponsors.');
     expect(within(tile).getByRole('img', { name: '3 agents: Story editor, Producer and Packager' })).toBeTruthy();

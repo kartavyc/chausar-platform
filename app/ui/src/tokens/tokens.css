@@ -135,6 +135,7 @@
   --text-body: 14px;
   --text-read: 13px;
   --text-label: 12px;
+  /* Owner-controlled script reader sizes. */
   --text-prompter-small: 20px;
   --text-prompter-normal: 24px;
   --text-prompter-medium: 32px;

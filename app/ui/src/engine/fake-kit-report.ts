@@ -148,13 +148,13 @@ type HeldReport = Omit<ReportView, 'files' | 'manifest'> & {
 type HeldShare = Omit<ReportShareView, 'url' | 'reason' | 'state'> & { businessId: string; state: 'open' | 'disabled'; served: boolean };
 
 export class FakeKitReportDesk {
-  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {const ids=new Set(this.reports.filter(r=>r.businessId===biz&&runIds.includes(r.runId)).map(r=>r.id));for(let n=this.reports.length-1;n>=0;n--)if(ids.has(this.reports[n]!.id))this.reports.splice(n,1);for(let n=this.shares.length-1;n>=0;n--)if(this.shares[n]!.businessId===biz&&ids.has(this.shares[n]!.reportId))this.shares.splice(n,1);}
-  recruitingReports(biz:string,orderId:string){const reports=this.reports.filter(r=>r.businessId===biz&&r.orderId===orderId),ids=new Set(reports.map(r=>r.id));return structuredClone({reports,shares:this.shares.filter(r=>r.businessId===biz&&ids.has(r.reportId))});}
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   private readonly reports: HeldReport[] = [];
   private readonly shares: HeldShare[] = [];
   private seq = 0;
+  recruitingReports(biz:string,orderId:string){const reports=this.reports.filter(r=>r.businessId===biz&&r.orderId===orderId),ids=new Set(reports.map(r=>r.id));return structuredClone({reports,shares:this.shares.filter(r=>r.businessId===biz&&ids.has(r.reportId))});}
+  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {const ids=new Set(this.reports.filter(r=>r.businessId===biz&&runIds.includes(r.runId)).map(r=>r.id));for(let n=this.reports.length-1;n>=0;n--)if(ids.has(this.reports[n]!.id))this.reports.splice(n,1);for(let n=this.shares.length-1;n>=0;n--)if(this.shares[n]!.businessId===biz&&ids.has(this.shares[n]!.reportId))this.shares.splice(n,1);}
 
   constructor(host: W4DeskHost, options: { fresh?: boolean } = {}) {
     this.host = host;

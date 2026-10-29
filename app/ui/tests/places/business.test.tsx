@@ -155,10 +155,11 @@ describe('Business: platform rules (2H)', () => {
   it("shows the playbook's dated rules: how many to recheck, each stale rule's line and its source link", async () => {
     start('#/business/plan', new FakeEngine({ now: () => '2027-01-25T09:00:00.000Z' }));
     const rules = await screen.findByRole('region', { name: 'Platform rules' });
-    await waitFor(() => expect(within(rules).getByText('0 current, 8 to recheck.')).toBeTruthy());
+    await waitFor(() => expect(within(rules).getByText('10 current, 8 to recheck.')).toBeTruthy());
     expect(within(rules).getByText("Medium risk · Chausar's build last reviewed these rules on 23 Oct 2026")).toBeTruthy();
     const stale = within(rules).getByRole('list', { name: 'To recheck' });
     expect(within(stale).getAllByRole('listitem')).toHaveLength(8);
+    expect(within(rules).getByRole('list', { name: 'Current rules' }).querySelectorAll(':scope > [data-rule]')).toHaveLength(10);
     const chapters = within(stale).getByText(/^Video chapters added by hand was checked 96 days ago, on 2026-10-21\./).closest('li')!;
     const link = within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' });
     expect(link.getAttribute('href')).toBe('https://support.google.com/youtube/answer/9884579');
@@ -168,9 +169,10 @@ describe('Business: platform rules (2H)', () => {
   it('inside the window every rule is current, with what it does not cover; a business with no playbook shows none', async () => {
     start('#/business/plan', new FakeEngine({ now: () => '2026-10-23T09:00:00.000Z' }));
     const rules = await screen.findByRole('region', { name: 'Platform rules' });
-    await waitFor(() => expect(within(rules).getByText('8 current, 0 to recheck.')).toBeTruthy());
+    await waitFor(() => expect(within(rules).getByText('18 current, 0 to recheck.')).toBeTruthy());
     expect(within(rules).queryByRole('list', { name: 'To recheck' })).toBeNull();
     const current = within(rules).getByRole('list', { name: 'Current rules' });
+    expect(current.querySelectorAll(':scope > [data-rule]')).toHaveLength(18);
     const chapters = within(current).getByText(/^Video chapters added by hand: The first timestamp/).closest('li')!;
     expect(within(chapters).getByText('The check reads the chapters written in the description; automatic chapters YouTube may add are not read.')).toBeTruthy();
     expect(within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' })).toBeTruthy();

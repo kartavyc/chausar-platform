@@ -1,6 +1,6 @@
-import phoneConnector from './phone-connector.json';
 import r5Connectors from './r5-connectors.json';
 import testingConnectors from './app-testing-connectors.json';
+import phoneConnector from './phone-connector.json';
 import formsConnector from './forms-connector.json';
 import {siteScreenFlowText} from '../../../../platform/runtime/venture/playbooks/website-studio/screen-flow';
 import {SITE_UI_ARTIFACT_GUIDANCE} from '../../../../platform/runtime/venture/playbooks/website-studio/ui-contract';
@@ -44,15 +44,80 @@ function posting(options: PostingOptionLite[]): Pick<ConnectorCardLite, 'posting
 }
 
 export const CONNECTORS: ConnectorCardLite[] = [
-  formsConnector as ConnectorCardLite,
   ...testingConnectors as ConnectorCardLite[],
   ...r5Connectors as ConnectorCardLite[],
   phoneConnector as ConnectorCardLite,
+  formsConnector as ConnectorCardLite,
   {
-    id: 'github', name: 'GitHub', category: 'build', categoryLabel: 'Build',
-    modes: [PLANNED_HANDOFF, { mode: 'read', status: 'available', qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' }, { mode: 'write', status: 'planned', qualification: 'unqualified', what: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today.' }],
-    chips: ['read', 'planned: handoff', 'planned: write'], regions: GI, regionNote: null, auth: 'A fine-grained token for one repo, read only', vendorUrl: 'https://github.com/',
-    note: 'Where your builder keeps the code. Chausar reads one repo and never pushes to it.', starter: true, postingOptions: [],
+    "id": "github",
+    "name": "GitHub",
+    "category": "build",
+    "categoryLabel": "Build",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
+        "ladder": "documented"
+      },
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Reads commits, files and checks of one repo. Never writes.",
+        "ladder": "discovered"
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.",
+        "ladder": "documented"
+      }
+    ],
+    "chips": [
+      "read",
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "A fine-grained token for one repo, read only",
+    "vendorUrl": "https://github.com/",
+    "note": "Where your builder keeps the code. Chausar reads one repo and never pushes to it.",
+    "starter": true,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. On GitHub, make a fine-grained personal access token.",
+        "2. Under Repository access, choose Only select repositories and pick the one repo your builder uses.",
+        "3. Under Repository permissions, set Contents and Metadata to Read-only, and Actions and Deployments to Read-only for the build checks. Leave every other permission at No access.",
+        "4. Set an end date, then paste the token and the repo address in Chausar."
+      ],
+      "skipped": "Set an end date on the token, so a lost token stops working on its own.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar does not read GitHub when you link the repo. It reads it when you press Check GitHub, and Check connections reads the repo page once.",
+      "sends": "Sends: nothing, so nothing here can change your repo. Chausar reads it and never pushes.",
+      "agentLimits": "Agents can't read or change the repo. Only the build page reads it.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-repo",
+        "mode": "read",
+        "fields": [
+          "repo",
+          "token"
+        ]
+      }
+    ]
   },
   {
     id: 'lovable', name: 'Lovable', category: 'build', categoryLabel: 'Build',
@@ -116,15 +181,217 @@ export const CONNECTORS: ConnectorCardLite[] = [
     ...posting(postingOptionsFor('Instagram', ['Meta app review', 'An Instagram professional account'], true, 'Copies your caption and opens Instagram. You add the picture and post there.')),
   },
   {
-    id: 'linkedin', name: 'LinkedIn', category: 'marketing', categoryLabel: 'Marketing and social',
-    modes: [PLANNED_HANDOFF, plannedWrite('LinkedIn')],
-    chips: ['planned: handoff', 'planned: write'], regions: GI, regionNote: null, auth: 'LinkedIn sign-in', vendorUrl: 'https://www.linkedin.com/',
-    note: 'Copy approved posts; open LinkedIn yourself.', starter: false,
-    ...posting(postingOptionsFor('LinkedIn', ['LinkedIn app review for posting'], false, 'Copies your post and opens LinkedIn. You paste it and press Post there.').map(option=>option.mode==='handoff'?option:{...option,status:'planned' as const,what:'LinkedIn is copy-and-open only.',risk:null,requires:[],reason:'LinkedIn is copy-and-open only.'})),
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "category": "marketing",
+    "categoryLabel": "Marketing and social",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
+        "ladder": "documented"
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: writing to LinkedIn. Not in this build.",
+        "ladder": "documented"
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "LinkedIn sign-in",
+    "vendorUrl": "https://www.linkedin.com/",
+    "note": "Posting to your own profile is planned.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "LinkedIn is copy-and-open only.",
+      "risk": null,
+      "requires": [],
+      "status": "planned",
+      "qualification": "unqualified",
+      "reason": "LinkedIn is copy-and-open only.",
+      "stepsCheckedOn": null,
+      "boxAndButtonCheckedOn": null,
+      "ladder": "documented"
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "LinkedIn is copy-and-open only.",
+        "risk": null,
+        "requires": [],
+        "reason": "LinkedIn is copy-and-open only.",
+        "ladder": "documented"
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "LinkedIn is copy-and-open only.",
+        "risk": null,
+        "requires": [],
+        "status": "planned",
+        "qualification": "unqualified",
+        "reason": "LinkedIn is copy-and-open only.",
+        "stepsCheckedOn": null,
+        "boxAndButtonCheckedOn": null,
+        "ladder": "documented"
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Copies your post and opens LinkedIn. You paste it and press Post there.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet.",
+        "ladder": "documented"
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Read and approve the draft, then copy its text.",
+        "2. Open LinkedIn yourself and sign in to the account you want to use.",
+        "3. Paste the approved words and press Post or Send yourself. Chausar needs no LinkedIn password."
+      ],
+      "skipped": "LinkedIn is copy-and-open only. Do not set up browser automation or give Chausar your LinkedIn password.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar does not check LinkedIn access or verify that your manual post or message was sent.",
+      "sends": "Sends: nothing to LinkedIn. You post or send in the LinkedIn account you signed in to.",
+      "agentLimits": "A draft waits for your approval. Agents cannot post or message on LinkedIn or bypass its restrictions.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "copy-and-open",
+        "mode": "handoff",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
   },
   {
-    id:'x',name:'X',category:'marketing',categoryLabel:'Marketing and social',modes:[PLANNED_HANDOFF,plannedWrite('X')],chips:['planned: handoff','planned: write'],regions:GI,regionNote:null,auth:'X sign-in',vendorUrl:'https://x.com/',note:'Posts approved text through your signed-in browser.',starter:false,
-    ...posting(postingOptionsFor('X',['An X API client, which this build does not ship'],false,'Copies your approved post and opens X. You post there.')),
+    "id": "x",
+    "name": "X",
+    "category": "marketing",
+    "categoryLabel": "Marketing and social",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
+        "ladder": "documented"
+      }
+    ],
+    "chips": [
+      "planned: handoff"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "X sign-in",
+    "vendorUrl": "https://x.com/",
+    "note": "Opening a ready post for you to send is planned.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "Posts approved text through your signed-in X browser. Not yet checked against the live site.",
+      "risk": "The platform may restrict this account.",
+      "requires": [
+        "Playwright with Chromium on this computer",
+        "You sign in to X yourself, once, in the Chausar browser window"
+      ],
+      "status": "available",
+      "qualification": "unqualified",
+      "reason": null,
+      "stepsCheckedOn": null,
+      "boxAndButtonCheckedOn": null,
+      "ladder": "discovered"
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Posts through the X API after you approve each post.",
+        "risk": null,
+        "requires": [
+          "A paid X API plan"
+        ],
+        "reason": "Planned until the platform's review of the app is done.",
+        "ladder": "documented"
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "Posts approved text through your signed-in X browser. Not yet checked against the live site.",
+        "risk": "The platform may restrict this account.",
+        "requires": [
+          "Playwright with Chromium on this computer",
+          "You sign in to X yourself, once, in the Chausar browser window"
+        ],
+        "status": "available",
+        "qualification": "unqualified",
+        "reason": null,
+        "stepsCheckedOn": null,
+        "boxAndButtonCheckedOn": null,
+        "ladder": "discovered"
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Opens X with your post filled in. You press Post there.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet.",
+        "ladder": "documented"
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Use the desktop app: posting through your own browser works only there.",
+        "2. If Chausar says Playwright with Chromium is missing, install it first.",
+        "3. Press Sign in and sign in to X yourself, in the Chausar browser window. Chausar never sees your password.",
+        "4. Run the posting steps check, then approve each post on Today."
+      ],
+      "skipped": "Run the posting steps check before the first post, so Chausar knows the page still works the way it expects.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar never sees your X sign-in. The posting steps check shows the day each step last worked on the live page, and Check connections reports it.",
+      "sends": "Sends: only the posts you approve, one at a time, from the X account you signed in to. To post from another account, sign in to that one.",
+      "agentLimits": "Agents can only propose a post. Each one waits for your approval, and none goes out on its own.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "post",
+        "mode": "owner-browser-session",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
   },
   {
     id: 'youtube', name: 'YouTube', category: 'marketing', categoryLabel: 'Marketing and social',
@@ -134,10 +401,58 @@ export const CONNECTORS: ConnectorCardLite[] = [
     ...posting(postingOptionsFor('YouTube', ['Google sign-in verification for the YouTube upload scope', 'A YouTube upload client, which this build does not ship'], true, 'Copies the title and description and opens YouTube Studio, where you publish. It stays private until you choose; tick the altered or synthetic content setting for an AI voice or presenter.')),
   },
   {
-    id: 'bank-account', name: 'Bank account (read only)', category: 'books-tax', categoryLabel: 'Books, tax and invoicing',
-    modes: [{ mode: 'read', status: 'planned', qualification: 'unqualified', what: 'Planned: balances and transactions, read only, with your consent and its end date shown. No provider is linked yet.' }],
-    chips: ['planned: read'], regions: GI, regionNote: null, auth: 'Your consent, with an end date you can see', vendorUrl: null,
-    note: 'Reads balances and transactions only and never moves money. In India this would go through an account aggregator.', starter: false, postingOptions: [],
+    "id": "bank-account",
+    "name": "Bank account (read only)",
+    "category": "books-tax",
+    "categoryLabel": "Books, tax and invoicing",
+    "modes": [
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "built-in",
+        "what": "Imports a bank statement file you download, read only, counting each row once. A live bank link with consent and an end date is planned: no provider is linked yet.",
+        "ladder": "discovered"
+      }
+    ],
+    "chips": [
+      "read"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "Your consent, with an end date you can see",
+    "vendorUrl": null,
+    "note": "Reads balances and transactions only and never moves money. In India this would go through an account aggregator.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Download a statement from your bank's site as a CSV file.",
+        "2. In Chausar, import it under Connections, Bank, and name the account.",
+        "3. Chausar counts each row once, so importing the same file again adds nothing."
+      ],
+      "skipped": "Download the statement as CSV: Chausar reads CSV statements only.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "There is no bank sign-in to check: no bank provider is linked, and Chausar reads only the statement files you import.",
+      "sends": "Sends: nothing, so nothing here can move money or change your bank. Chausar never asks for your bank password.",
+      "agentLimits": "Agents can't read your bank rows or move money. Matching them to bills waits for you.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "import-statement",
+        "mode": "read",
+        "fields": [
+          "csv",
+          "account"
+        ]
+      }
+    ]
   },
   {
     id: 'gst-einvoice', name: 'GST e-invoicing (IRP)', category: 'books-tax', categoryLabel: 'Books, tax and invoicing',
@@ -146,10 +461,74 @@ export const CONNECTORS: ConnectorCardLite[] = [
     note: 'Needed for business sales once turnover passes the government limit. New businesses rarely need it in their first year.', starter: false, postingOptions: [],
   },
   {
-    id: 'tally', name: 'TallyPrime', category: 'books-tax', categoryLabel: 'Books, tax and invoicing',
-    modes: [PLANNED_HANDOFF, { mode: 'read', status: 'available', qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' }],
-    chips: ['read', 'planned: handoff'], regions: ['india'], regionNote: null, auth: 'TallyPrime on this computer', vendorUrl: 'https://tallysolutions.com/',
-    note: "Reads TallyPrime's Day Book into the back office. Tested with a synthetic recording, not a real installation.", starter: false, postingOptions: [],
+    "id": "tally",
+    "name": "TallyPrime",
+    "category": "books-tax",
+    "categoryLabel": "Books, tax and invoicing",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
+        "ladder": "documented"
+      },
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Reads into the back office, under Sources. Needs TallyPrime running on this computer.",
+        "ladder": "discovered"
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: local optional voucher writes need a reviewed native installation profile. Enter reviewed vouchers in Tally manually meanwhile; automatic issue is not qualified.",
+        "ladder": "documented"
+      }
+    ],
+    "chips": [
+      "read",
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "TallyPrime on this computer",
+    "vendorUrl": "https://tallysolutions.com/",
+    "note": "Reads TallyPrime's Day Book into the back office. Tested with a synthetic recording, not a real installation.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Use the desktop app: TallyPrime is read on this computer.",
+        "2. Open TallyPrime with the company you want.",
+        "3. In Chausar, add it under Sources and choose that company.",
+        "4. Chausar reads the Day Book into the back office."
+      ],
+      "skipped": "Keep TallyPrime open while Chausar reads it: it reads only what TallyPrime serves on this computer.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads TallyPrime only when you read it under Sources. Check connections says when that last happened and does not reach TallyPrime on its own.",
+      "sends": "Sends: nothing, so nothing here can change TallyPrime.",
+      "agentLimits": "Agents can't read TallyPrime. Its figures reach them only as the back office's receipts.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-day-book",
+        "mode": "read",
+        "fields": [
+          "company",
+          "endpoint"
+        ]
+      }
+    ]
   },
   {
     id: 'gst-registration', name: 'GST registration', category: 'legal-entity', categoryLabel: 'Legal and entity',

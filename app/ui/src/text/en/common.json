@@ -343,7 +343,10 @@
   "preview.watch": "Watch {title}",
   "preview.notWatched": "Not watched yet",
   "preview.length": "Length",
-  "preview.chapters": { "one": "{count} chapter", "other": "{count} chapters" },
+  "preview.chapters": {
+    "one": "{count} chapter",
+    "other": "{count} chapters"
+  },
   "preview.total": "Total",
   "preview.breakdown": "How it is worked out",
   "preview.option": "Option {letter}",
@@ -352,7 +355,10 @@
   "swipe.later": "Later",
   "swipe.locked": "Open it first, then approve",
   "tabs.label": "Places",
-  "tabs.needYou": { "one": "{count} needs you", "other": "{count} need you" },
+  "tabs.needYou": {
+    "one": "{count} needs you",
+    "other": "{count} need you"
+  },
   "phone.more": "More",
   "more.title": "More",
   "more.places": "More places",
@@ -362,7 +368,10 @@
   "gallery.youRunThis": "You run this",
   "gallery.youDo": "What you do",
   "gallery.teamDoes": "What your AI team does",
-  "gallery.team": { "one": "{count} agent: {names}", "other": "{count} agents: {names}" },
+  "gallery.team": {
+    "one": "{count} agent: {names}",
+    "other": "{count} agents: {names}"
+  },
   "gallery.pay": "Clients usually pay",
   "gallery.payPer": "Clients usually pay, {per}",
   "gallery.start": "Start",
@@ -420,8 +429,14 @@
   "business.stopAll": "Stop all",
   "business.runControls.failed": "Could not do that: {message}",
   "business.away": "Away",
-  "business.stopAll.ask": {"one": "Stop all? {count} run stops, and no new work starts until you unpause. Finished steps are kept.", "other": "Stop all? {count} runs stop, and no new work starts until you unpause. Finished steps are kept."},
-  "business.stopAll.done": {"one": "Paused. {count} run is stopping or stopped.", "other": "Paused. {count} runs are stopping or stopped."},
+  "business.stopAll.ask": {
+    "one": "Stop all? {count} run stops, and no new work starts until you unpause. Finished steps are kept.",
+    "other": "Stop all? {count} runs stop, and no new work starts until you unpause. Finished steps are kept."
+  },
+  "business.stopAll.done": {
+    "one": "Paused. {count} run is stopping or stopped.",
+    "other": "Paused. {count} runs are stopping or stopped."
+  },
   "business.pauseAll.done": "Paused. No new work starts until you unpause.",
   "business.unpause.done": "Unpaused. Stopped runs stay stopped until you resume them.",
   "place.chats": "Chats",
@@ -454,7 +469,10 @@
   "approval.meta.expired": "expired",
   "approval.meta.expiresMin": "expires in {count} min",
   "approval.meta.expiresHours": "expires in {count} h",
-  "approval.meta.expiresDays": {"one": "expires in {count} day", "other": "expires in {count} days"},
+  "approval.meta.expiresDays": {
+    "one": "expires in {count} day",
+    "other": "expires in {count} days"
+  },
   "approval.meta.sendsTo.client": "Sends to the client",
   "approval.meta.sendsTo.public": "Goes public",
   "approval.meta.sendsTo.bank": "Goes to your bank",
@@ -560,5 +578,15 @@
   "runsheet.verb.matched": "matched",
   "runsheet.verb.used": "used",
   "runsheet.whatOf": "{units} {verb}",
-  "runsheet.and": "{first} and {last}"
+  "runsheet.and": "{first} and {last}",
+  "runsheet.scope.line": "Set when it started: {tools}, {actions} it may propose for your approval, a spend cap of {cap}, {posture}.",
+  "runsheet.scope.toolCount": {
+    "one": "{count} tool",
+    "other": "{count} tools"
+  },
+  "runsheet.scope.actionCount": {
+    "one": "{count} outside action",
+    "other": "{count} outside actions"
+  },
+  "runsheet.scope.rupeeRate": "{amount} at {rate} per {unit} (your rate, set {date})"
 }

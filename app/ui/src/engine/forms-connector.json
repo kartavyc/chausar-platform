@@ -8,7 +8,8 @@
       "mode": "write",
       "status": "planned",
       "qualification": "unqualified",
-      "what": "Planned: writing to Client form browser. Not in this build."
+      "what": "Planned: writing to Client form browser. Not in this build.",
+      "ladder": "documented"
     }
   ],
   "chips": [
@@ -21,7 +22,7 @@
   "regionNote": null,
   "auth": "Written client permission and a revocable staff login entered by the owner",
   "vendorUrl": null,
-  "note": "Planned pending a lawyer confirming client permission and data use. A guarded desktop native-form browser is implemented; dynamic forms and restricted portals stay unsupported. Use the permitted client system manually meanwhile.",
+  "note": "Planned until a lawyer confirms client permission and data use. Guarded desktop forms only; dynamic forms and restricted portals unsupported. Use the client system manually.",
   "starter": false,
   "postingOptions": [],
   "guide": {
@@ -39,5 +40,6 @@
     "sends": "Sends: nothing, so nothing here can change Client form browser.",
     "agentLimits": "Agents can't use Client form browser: nothing connects to it in this build.",
     "missing": null
-  }
+  },
+  "capabilities": []
 }

@@ -41,7 +41,7 @@
   "pb-dev.reviewHelp": "Read the whole source and complete required audits before confirming. An empty list does not prove safety.",
   "pb-dev.confirm": "Confirm reviewed findings",
   "pb-dev.export": "Review export",
-  "pb-dev.exportPreview": "Exact report",
+  "pb-dev.exportPreview": "Original report text; download is unchanged",
   "pb-dev.download": "Download report",
   "pb-dev.verdict.incomplete": "Review incomplete",
   "pb-dev.verdict.hold": "Do not ship",

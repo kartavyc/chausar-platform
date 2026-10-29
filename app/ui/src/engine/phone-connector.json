@@ -8,7 +8,8 @@
       "mode": "write",
       "status": "planned",
       "qualification": "unqualified",
-      "what": "Planned: writing to Phone receptionist provider. Not in this build."
+      "what": "Planned: writing to Phone receptionist provider. Not in this build.",
+      "ladder": "documented"
     }
   ],
   "chips": [
@@ -20,7 +21,7 @@
   "regionNote": null,
   "auth": "Owner account, Indian number, provider identity checks and authenticated hosted callback",
   "vendorUrl": null,
-  "note": "Live calling is planned until the provider account, Indian number, callback authentication and dated rates are verified and a lawyer confirms the calling setup. Use your own phone forwarding and the approved client script meanwhile.",
+  "note": "Live calls are planned pending provider account, Indian number, callback authentication, dated rates and lawyer checks. Meanwhile, use your own phone forwarding and the approved client script.",
   "starter": false,
   "postingOptions": [],
   "guide": {
@@ -38,5 +39,6 @@
     "sends": "Sends: nothing, so nothing here can change Phone receptionist provider.",
     "agentLimits": "Agents can't use Phone receptionist provider: nothing connects to it in this build.",
     "missing": null
-  }
+  },
+  "capabilities": []
 }

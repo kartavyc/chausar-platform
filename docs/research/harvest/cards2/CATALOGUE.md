@@ -644,3 +644,13 @@ The cards raise these and the 23 Oct decisions don't settle them. Each has a rec
 8. **Client logos, or initials only?** Recommend initials drawn locally by default; a logo only when the owner uploads it, or opt-in fetched by the engine from the client's own site through the SSRF guard, never through a third-party favicon service.
 9. **Does this build open "auto with spot checks"?** Recommend no: build the fresh-proof gate, the drills and the shadow-week summary in W4, keep the rung closed, and open it per agent and step only after two clean drill runs and the founder's yes.
 10. **How much Hindi in this build?** Recommend Hindi in voice profiles, proposed-note patterns, writing checks and report rendering (with the HTML fallback) now; a full Hindi UI catalogue after Ink v2 settles.
+
+## 5. Nexscope public app follow-up, 29 October 2026
+
+See [the bounded REA inspection](nexscope-rea-2026-10-29.md). The anonymous shipped workspace and its sign-in boundary were observed. Authenticated generation, data provenance and billing remain unknown. These candidate rows do not expand the current wave plan.
+
+| Row | Candidate | Evidence | Disposition |
+|---|---|---|---|
+| NX1 | Marketplace data catalogue separated from creative tools, API keys, schedules and usage | Public homepage and shipped workspace navigation, partial REA observations | Later. Nexscope remains planned pending individual access, terms, provenance and price verification. |
+| NX2 | Multi-product video batches with a reviewable outcome for each item | Bulk-video navigation entry only; actual behavior unverified | Later. Chausar would require per-item approval and quotes, independent retries and duplicate-charge protection. |
+| NX3 | Unified provider library with distinct image, URL, avatar and reference-video paths | Shipped workspace navigation and public documentation | Later. Qualified adapters only, current rights and consent, disclosed synthetic media, no capability inferred from a menu. |

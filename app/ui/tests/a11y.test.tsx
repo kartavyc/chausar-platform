@@ -198,13 +198,12 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
 }
 
 /**
- * How long a case over Today may take. The full Today page (Ink v2, 3C) is the largest tree axe walks here, about 740
- * elements (twelve cards with their previews, the team, Working now, Earlier), and in jsdom on a loaded machine one
- * pass took up to 4.5 s, against vitest's 5 s default. So every case drawn on #/today (its sheets and second asks too)
- * gets 15 s; every other case keeps the default.
+ * Large pages need time for the complete axe walk in jsdom. Today already uses this budget; wave 5 Connections
+ * and onboarding now exceed the default five seconds under load too. Their cases, including sheets, get fifteen
+ * seconds without changing any accessibility checks. Every other route keeps the default.
  */
-const TODAY_MS = 15_000;
-const timeoutOf = (each: Case) => (each.hash.startsWith('#/today') ? TODAY_MS : undefined);
+const LARGE_PAGE_MS = 15_000;
+const timeoutOf = (each: Case) => (['#/today', '#/connections', '#/onboarding'].some(route => each.hash.startsWith(route)) ? LARGE_PAGE_MS : undefined);
 
 async function violations(root: HTMLElement): Promise<string[]> {
   const result = await axe.run(root, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] });

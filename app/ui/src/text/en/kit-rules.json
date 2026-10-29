@@ -59,5 +59,21 @@
   "kit-rules.bounds.cannot": "Cannot say",
   "kit-rules.emptyOpen": "Nothing in progress. Add an idea when it comes to you.",
   "kit-rules.manual.heading": "Done by hand for now",
-  "kit-rules.manual.waits": "{connector} waits on: {who}"
+  "kit-rules.manual.waits": "{connector} waits on: {who}",
+  "kit-rules.chain.heading": "Order stages",
+  "kit-rules.chain.progress": "Stage {stage} of {total}",
+  "kit-rules.chain.voice": "Voice sheet",
+  "kit-rules.chain.calendar": "Calendar",
+  "kit-rules.chain.drafts": "Drafts",
+  "kit-rules.chain.creative-briefs": "Creative briefs",
+  "kit-rules.chain.report": "Report",
+  "kit-rules.chain.collect-exports": "Client exports",
+  "kit-rules.chain.figures": "Figures from code receipts",
+  "kit-rules.chain.approve-report": "Owner approval",
+  "kit-rules.chain.state.done": "Done",
+  "kit-rules.chain.state.now": "Current",
+  "kit-rules.chain.state.waiting": "Waiting",
+  "kit-rules.chain.state.not-started": "Not started",
+  "kit-rules.chain.state.stopped": "Stopped",
+  "kit-rules.chain.boundary": "Accept advances the writing stage. Sending and publishing still ask separately."
 }

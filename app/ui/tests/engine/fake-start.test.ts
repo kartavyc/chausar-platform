@@ -1,7 +1,7 @@
-import PICKS from '../../src/engine/fixtures-playbook-picks.json';
 import { describe, expect, it } from 'vitest';
 import { FakeEngine } from '../../src/engine/fake';
 import { EngineError, type VentureViewLite, type WaysView } from '../../src/engine/types';
+import PICKS from '../../src/engine/fixtures-playbook-picks.json';
 
 const ROUTE = /^#\/(?:today|team|work|clients|money|connections|business|onboarding)(?:\/[a-z0-9][a-z0-9-]{0,47})*$/;
 

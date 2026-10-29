@@ -130,7 +130,7 @@ export const CONNECTOR_CAPABILITIES: Readonly<Record<string, readonly ConnectorC
   'google-calendar': [{ operation: 'read-feed', mode: 'read', fields: ['url'] }],
   'chausar-crm': [{ operation: 'list', mode: 'read', fields: [] }, { operation: 'add', mode: 'write', fields: ['client', 'order'] }],
   'chausar-books': [{ operation: 'list', mode: 'read', fields: [] }, { operation: 'issue', mode: 'write', fields: ['invoice', 'payment'] }],
-  linkedin: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
+  linkedin: [{ operation: 'copy-and-open', mode: 'handoff', fields: ['text'] }],
   x: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
   bluesky: [{operation:'post',mode:'api',fields:['text']}],
   mastodon: [{operation:'post',mode:'api',fields:['text']}],

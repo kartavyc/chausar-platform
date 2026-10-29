@@ -51,10 +51,11 @@ test('the three flagship tiles carry the plan\'s words, hours, team and pay, as 
 });
 
 test('a kit playbook gets one tile from its definition, in English and Hindi, with both figures a model estimate', async t => {
-  assert.deepEqual(listWays({}).ways.map(way => way.id), ['ca-firm', 'youtube', 'social-agency'], 'no kit package has landed: no tile');
+  const before = listWays({});
+  assert.ok(!before.ways.some(way => way.id === 'kit-fixture'));
   t.after(installKitFixture());
   const view = listWays({});
-  assert.deepEqual(view.ways.map(way => way.id), ['ca-firm', 'youtube', 'social-agency', 'kit-fixture']);
+  assert.deepEqual(view.ways.map(way => way.id), [...before.ways.map(way => way.id), 'kit-fixture']);
   const kit = view.ways.find(way => way.id === 'kit-fixture')!;
   assert.deepEqual([kit.label, kit.category, kit.line, kit.hours, kit.youDo, kit.teamLine], [
     'Kit fixture studio', 'marketing', 'Voice sheets, calendars and posts for small shops.', '2 to 4 h a week', 'Approve drafts and talk to clients.', 'Research, voice sheets and posts.',
@@ -67,7 +68,7 @@ test('a kit playbook gets one tile from its definition, in English and Hindi, wi
   assert.equal(kit.hi.hours, 'हफ़्ते में 2 से 4 घंटे');
   assert.match(kit.needs.connections, /Your mail app/);
   assert.doesNotMatch(kit.needs.connections, /scheduler/i, 'a planned connector is not a need');
-  assert.equal(view.categories.find(category => category.id === 'marketing')!.count, 2);
+  assert.equal(view.categories.find(category => category.id === 'marketing')!.count, before.categories.find(category => category.id === 'marketing')!.count + 1);
 });
 
 test('a registered playbook with no definition yet has no tile; kitWay maps a definition onto the gallery\'s way data', () => {

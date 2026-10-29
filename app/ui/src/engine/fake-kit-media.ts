@@ -40,7 +40,7 @@ const KEY_REFUSED = 'That looks like a key. Keys go in Connections, never in you
 const ID_REFUSED = 'That looks like a card, bank account, Aadhaar or one-time code number. Chausar never keeps those here, so nothing was saved.';
 const CLIP_HELD = 'This clip still has its location data, so it cannot go out. Add ffmpeg to this computer, then run the order again to clean it.';
 /** fingerprint.ts staleLine: the unit and its source in the engine's words. */
-const UNIT_WORDS: Readonly<Record<string, string>> = { captions: 'these captions', translation: 'this translation', dub: 'this dub', article: 'this article', chapters: 'this chapter list' };
+const UNIT_WORDS: Readonly<Record<string, string>> = { narration: 'this narration', captions: 'these captions', translation: 'this translation', dub: 'this dub', article: 'this article', chapters: 'this chapter list' };
 const SOURCE_WORDS: Readonly<Record<string, string>> = { transcript: 'The transcript', upload: 'The file', asset: 'The file' };
 function staleLine(derived: NonNullable<AssetView['derived']>): string {
   const plural = derived.unit === 'captions';

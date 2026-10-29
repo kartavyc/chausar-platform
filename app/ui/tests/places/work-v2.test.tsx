@@ -465,3 +465,12 @@ describe('Work v2: Hindi', () => {
     expect(screen.getByRole('group', { name: 'दिखाएँ' })).toBeTruthy();
   });
 });
+
+it('localizes the known run-again control and its confirmation in Hindi', async () => {
+ await start('#/work', { language: 'hi', intercept: { 'venture.queue.list': withAgain({ secondAsk: true }) } });
+ const stopped = await tileOf('Rendering the thumbnail set');
+ const again = await within(stopped).findByRole('button', { name: 'फिर से चलाएँ' });
+ await click(again);
+ expect(within(stopped).getByRole('button', { name: 'फिर से चलाएँ' })).toBeTruthy();
+ expect(within(stopped).queryByRole('button', { name: 'Run again' })).toBeNull();
+});

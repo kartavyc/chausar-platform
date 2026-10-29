@@ -1,10 +1,5 @@
 import {youtubeServiceChecks} from './youtube/service-checks.ts';
 import {isYoutubeService} from './youtube/service-fields.ts';
-import {whatIfShown,healthReviewed} from './ca-firm/c2-checks.ts';
-import { socialContentChecks } from './social/content-checks.ts';
-import { ghostwritingChecks } from './social/structures.ts';
-import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
-import { questionNoteFromDraft } from './ca-firm/question-desk.ts';
 // Chausar flagship playbooks: their own checks on a draft (playbook wiring, design 7.5 and 7.8). Code only, no model.
 // The delivery run and the rehearsal run these after the harness checks (delivery/runs.ts, delivery/simulate.ts) and
 // keep the results on the run as playbookChecks; a failed one blocks Accept and fails a practice episode. A check that
@@ -35,6 +30,9 @@ import { transcriptCues, type FileLike } from '../delivery/harness/files.ts';
 import { deliverableWords } from '../delivery/judge/claim-check.ts';
 import type { JudgeRule } from '../delivery/judge/rules.ts';
 import { CA_DRAFT_SECTIONS, CA_OFFERS } from './ca-firm/playbook.ts';
+import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
+import { questionNoteFromDraft } from './ca-firm/question-desk.ts';
+import {whatIfShown,healthReviewed} from './ca-firm/c2-checks.ts';
 import { checkCaDraft, citedSections, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
 import type { CaReceipt } from './ca-firm/receipt.ts';
 import type { Difference, ReconcileWorking, Tie } from './ca-firm/reconcile.ts';
@@ -53,6 +51,8 @@ import type { CalendarSlot } from './social/calendar.ts';
 import { assignSlots, calendarPosts, calendarSlots, socialDraftPosts } from './social/draft-posts.ts';
 import { checkReportNarrative, reportFiguresOf } from './social/report.ts';
 import { SOCIAL_JUDGE_RULES } from './social/judge.ts';
+import { socialContentChecks } from './social/content-checks.ts';
+import { ghostwritingChecks } from './social/structures.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { PROMPT_LEAK_CHECK, promptLeakLine, promptLeaks, type PromptLeak } from './prompt-leak.ts';
 import { rulesCurrentResult } from './rules-current.ts';
@@ -74,13 +74,15 @@ export type FlagshipCheckInput = {
   roomBrief?: import('./kit/client-room-core.ts').RoomBrief | null;
   /** Current engine-resolved episode evidence, including null after Forget. */
   siteProject?: import('./website-studio/records.ts').SiteRequirementBody | null;
-  tenderRows?: readonly import('./tender-desk/records.ts').TenderQuestionBody[];
-  narrationRows?: readonly import('./narration-studio/checks.ts').NarrationReportRow[];
   newsletterIssue?: import('./newsletter-studio/records.ts').NewsletterIssueBody | null;
   careerPack?: import('./job-search-desk/checks.ts').CareerDraftEvidence;
+  tenderRows?: readonly import('./tender-desk/records.ts').TenderQuestionBody[];
+  narrationRows?: readonly import('./narration-studio/checks.ts').NarrationReportRow[];
   articleRecord?: import('./podcast-to-article/records.ts').ArticleLedgerBody | null;
   socialSlotContext?: import('./social/slots-live.ts').SocialSlotContext;
+  /** The engine-selected writing artifact, when an order runs a chain. */
   stageId?: string;
+  /** Current engine-resolved brand rules, with per-field provenance. */
   brandKit?: import('./kit/records-media.ts').ResolvedKit;
   flagship: string;
   /** The playbook offer the order is (Offer.playbookOffer), or null. */
@@ -110,8 +112,8 @@ export type FlagshipCheckInput = {
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
   caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
-  caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
+  caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
 };
 
 /**
@@ -142,7 +144,7 @@ function textLines(deliverable: Deliverable): string[] {
 export async function runFlagshipChecks(input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Promise<PlaybookCheckResult[]> {
   // Ink v2 wave 5 (5A1): a kit playbook's own checks and their coverage (playbooks/kit/checks.ts), then the same lint.
   const kit = kitDefinition(input.flagship, definitions);
-  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='phone-receptionist'&&input.phoneReport||input.flagship==='monitored-data'&&input.watchReport||input.flagship==='it-triage'&&input.triageReport||input.flagship==='dev-agency'&&input.devReport||input.flagship==='app-testing'&&input.testingEvidence||input.flagship==='data-entry-desk'&&input.formsEntries||input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
+  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='data-entry-desk'&&input.formsEntries||input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief||input.flagship==='dev-agency'&&input.devReport||input.flagship==='phone-receptionist'&&input.phoneReport||input.flagship==='monitored-data'&&input.watchReport||input.flagship==='it-triage'&&input.triageReport||input.flagship==='app-testing'&&input.testingEvidence) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
     : await playbookOwnChecks(input);
   if (!own.length || input.servedBy === 'template') return own;
   const line = promptLeakLine(draftLeaks(input));
@@ -617,7 +619,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
   const withOrigin = (result: SocialResult): SocialResult => usesKit ? { ...result, detail: result.detail + ' Rule source: ' + [...new Set([input.brandKit!.bannedWords.source, input.brandKit!.bannedTopics.source, input.brandKit!.competitors.source])].join(', ') + '.' } : result;
   const paid = ['ugc-ads','video-ads'].includes(input.offerKey??'') || !!input.intake?.paidPromotion;
   const ai = { person: !!input.intake?.aiPresenter, voice: !!input.intake?.aiVoice };
-  const style = ['community-replies','reply-inbox','local-instagram'].includes(input.offerKey??'') ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
+  const style = ['community-replies','reply-inbox','local-instagram'].includes(input.offerKey??'') ? 'reply' as const : ['ugc-ads','video-ads'].includes(input.offerKey??'') ? 'ugc-ad' as const : 'post' as const;
   if (input.stageId === 'voice' || input.stageId === 'calendar') {
     const stageDraft: PostDraft = { id: input.stageId, channel: 'linkedin', text: deliverableWords(input.deliverable), style: 'post' };
     const claims = checkDraftClaims(stageDraft, client).findings, words = checkWords(stageDraft, client);

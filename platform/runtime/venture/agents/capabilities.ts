@@ -162,7 +162,7 @@ export const TOOL_WORDS: Readonly<Record<ToolName, string>> = Object.freeze({
   'leads.osm': 'Local businesses from OpenStreetMap, whose terms allow it.',
   'leads.enrich': 'A business\'s public details from its own site.',
   'leads.dedupe': 'Duplicate leads merged by code.',
-  'community.vote': 'Votes on which lead to call first, counted by code.',
+  'community.vote': 'Community evidence scores checked by code; never votes or posts online.',
   // newsletter-studio (5N)
   'newsletter.presend': 'An issue checked before it goes: links, size and the unsubscribe line.',
   'newsletter.import': 'The subscriber list from an export, with consent kept.',

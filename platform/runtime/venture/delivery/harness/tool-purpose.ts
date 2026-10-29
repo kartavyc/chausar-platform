@@ -84,7 +84,7 @@ export const TOOL_PURPOSE: Readonly<Record<string, string>> = Object.freeze({
   'seller.multiStore': 'Compared the stores',
   // support-desk (5G)
   'support.match': 'Found the matching answer',
-  'support.ticket': 'Updated a support ticket',
+  'support.ticket': 'Prepared a support ticket',
   // recruiting-desk (5H)
   'recruit.criteria': 'Checked source quotes against approved rules',
   'recruit.ledger': 'Read the saved candidate ledger',
@@ -116,7 +116,7 @@ export const TOOL_PURPOSE: Readonly<Record<string, string>> = Object.freeze({
   'leads.osm': 'Found businesses on OpenStreetMap',
   'leads.enrich': 'Looked up a business\'s public details',
   'leads.dedupe': 'Removed duplicate leads',
-  'community.vote': 'Counted the community\'s votes',
+  'community.vote': 'Checked quoted community evidence scores',
   // newsletter-studio (5N)
   'newsletter.presend': 'Checked the issue before it goes',
   'newsletter.import': 'Read the subscriber list',

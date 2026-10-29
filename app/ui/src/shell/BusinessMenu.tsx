@@ -1,3 +1,4 @@
+import {playbookLabel} from '../text/playbook-label';
 import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../text';
@@ -58,7 +59,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   const name = venture.data ? venture.data.venture.workingName : venture.data === null ? t('business.none') : '';
   const type = venture.data?.venture.serviceType;
   // The playbook's own label ("YouTube channel") when the idea picked one; else the service type's label.
-  const kind = venture.data?.playbook?.label ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
+  const kind = playbookLabel(t,venture.data?.playbook) ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
   const links: (readonly [string, string])[] = [
     ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.goals', '#/business/goals'],
     ['kit-sales.page', '#/business/go-no-go'], // W5 5A2: a GO, HOLD or NO-GO card before something new

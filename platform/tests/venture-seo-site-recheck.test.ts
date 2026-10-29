@@ -1,6 +1,7 @@
 // Chausar website re-check integration. lintapple (MIT), original tests through the scheduler tick.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
 import { setup, owner } from './venture-views-env.ts';
 import { SEO_VISIBILITY_DESK } from '../runtime/venture/playbooks/seo-visibility/desk.ts';
 import { sweepWholeJournal } from '../runtime/venture/build/journal-sweep.ts';
@@ -48,6 +49,7 @@ test('a missing installed checker pauses the approved job without inventing a fr
     const view: any = await handler.get!(env.deps, owner, { ...base, id });
     assert.equal(view.item.recheck.state, 'held');
     assert.equal(view.item.recheck.error, 'SITE_CHECK_PLANNED');
+    assert.ok((VENTURE_ERRORS as readonly string[]).includes(view.item.recheck.error), 'the actual public refusal stays in the declared error contract');
     assert.equal((await handler.list!(env.deps, owner, base)).rows.length, 1);
     await runWebsiteRechecksDue(env.deps, owner);
     assert.equal((await handler.get!(env.deps, owner, { ...base, id })).digest, view.digest);

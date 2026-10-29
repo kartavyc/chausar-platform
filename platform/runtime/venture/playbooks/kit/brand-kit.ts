@@ -18,9 +18,8 @@ import type { BrandKitRecord, Json, UploadRecord, VentureDeps, VentureRecord } f
 import type { BrandKitField, BrandKitFields, BrandKitInput, BrandKitView, ClientBrief, KitClaim, KitSource, ResolvedKit } from './records-media.ts';
 
 /** Every field, in the order the screens show them. */
-export const BRAND_KIT_FIELDS: readonly BrandKitField[] = Object.freeze([
-  'colours', 'fonts', 'logoFileId', 'voice', 'samples', 'bannedWords', 'bannedTopics', 'competitors', 'claims',
-]);
+import { BRAND_KIT_FIELDS,currentKit,resolveKit } from './brand-kit-read.ts';
+export { BRAND_KIT_FIELDS,currentKit,resolveKit } from './brand-kit-read.ts';
 /** How many of each list a kit keeps, and how long one item may be. */
 const LIMITS = Object.freeze({
   colours: { items: 12, chars: 7 }, fonts: { items: 6, chars: 60 }, voice: { items: 12, chars: 200 }, samples: { items: 3, chars: 2000 },
@@ -107,32 +106,7 @@ function clientFile(state: State, venture: VentureRecord, clientId: string, uplo
 // ---------------------------------------------------------------------------
 
 /** The client's kit in use: its newest version, or null. */
-export function currentKit(state: State, venture: VentureRecord, clientId: string): BrandKitRecord | null {
-  return listRecords(state, 'venture-brand-kit', venture.id).filter(item => item.clientId === clientId).sort((a, b) => b.version - a.version)[0] ?? null;
-}
-
 const fieldsOf = (record: BrandKitRecord): BrandKitFields => Object.fromEntries(BRAND_KIT_FIELDS.map(field => [field, structuredClone(record[field])])) as BrandKitFields;
-const given = (value: unknown) => (Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined);
-
-/**
- * The kit every creative step reads, field by field with where it came from: the client's kit when it gives the field;
- * else the business's own voice that is on for every channel in English (how it talks, its never-use words); else
- * Chausar's house style (its banned words); else the default (empty).
- */
-export function resolveKit(state: State, venture: VentureRecord, clientId: string): ResolvedKit {
-  const kit = currentKit(state, venture, clientId);
-  const voice = voicesInUse(state, venture).find(item => item.on && item.language === 'en' && item.channel === null) ?? null;
-  const fallback: Partial<Record<BrandKitField, { value: unknown; source: KitSource }>> = {
-    ...(voice?.sections.howITalk.length ? { voice: { value: [...voice.sections.howITalk], source: 'business-voice' } } : {}),
-    bannedWords: voice?.sections.neverUse.length ? { value: [...voice.sections.neverUse], source: 'business-voice' } : { value: [...BANNED_WORDS], source: 'house-style' },
-  };
-  return Object.fromEntries(BRAND_KIT_FIELDS.map(field => {
-    if (kit && given(kit[field])) return [field, { value: structuredClone(kit[field]), source: 'client-kit' }];
-    const other = fallback[field];
-    if (other) return [field, other];
-    return [field, { value: field === 'logoFileId' ? null : [], source: 'default' }];
-  })) as ResolvedKit;
-}
 
 /** The client's past briefs, newest first: each order's request, the client's own words as the owner typed them. */
 export function clientMemory(state: State, venture: VentureRecord, clientId: string): ClientBrief[] {

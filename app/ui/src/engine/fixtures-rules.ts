@@ -1,7 +1,7 @@
-import {phoneRules} from './phone-rules';
 import {r5Rules} from './r5-rules';
-import {devRules} from './dev-rules';
 import {landedKitRules} from './landed-kit-rules';
+import {devRules} from './dev-rules';
+import {phoneRules} from './phone-rules';
 import {formsRules} from './forms-rules';
 /**
  * The fake engine's answer for the dated platform rules (venture.rules.list, Ink v2 wave 2, package 2H). The rules and

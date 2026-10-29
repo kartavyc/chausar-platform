@@ -103,7 +103,10 @@ test('social register: a rule a check quotes is used by that check, so a changed
 test('social register: the rules posting and the risk gate read name publish; the thread split names drafts; no empty claims', () => {
   const usedBy = (id: string) => socialRule(id).usedBy;
   // posting.ts holds each post to its channel's length (PROFILES maxChars) and refuses a thread on X by its weighted count.
-  const posting: Record<string, string> = { linkedin: 'linkedin-3000', x: 'x-weighted-280', instagram: 'ig-caption-2200', youtube: 'yt-description-5000' };
+  const posting: Record<string, string> = {
+    linkedin: 'linkedin-3000', x: 'x-weighted-280', instagram: 'ig-caption-2200', youtube: 'yt-description-5000',
+    bluesky: 'bluesky-text-300', mastodon: 'mastodon-text-house', telegram: 'telegram-text-4096', discord: 'discord-text-2000',
+  };
   assert.deepEqual(Object.keys(posting).sort(), [...POSTING_CONNECTORS].sort());
   for (const id of [...Object.values(posting), 'x-url-23']) assert.ok(usedBy(id).includes('publish'), id);
   // The risk gate blocks on the hashtag cap and engagement bait: every platform rule it quotes names publish.

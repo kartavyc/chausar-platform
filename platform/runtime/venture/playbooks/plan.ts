@@ -1,6 +1,3 @@
-import { SOCIAL_CLIP_OFFERS } from './social/d2-intake.ts';
-import { socialIntakeFields } from './social/intake-fields.ts';
-import { caIntakeFields } from './ca-firm/intake-fields.ts';
 // Chausar flagship playbooks: what each one puts on the plan (playbook wiring, design 7.8). When an idea picks a flagship
 // playbook (registry.ts), the instant plan, the template plan, the plan the AI rewrites and the plan the AI composes all
 // take these words instead of the base service type's template words: the playbook's label, its summary as the one
@@ -20,6 +17,9 @@ import { YOUTUBE_APPROVALS, YOUTUBE_CONNECTOR_IDS, YOUTUBE_OFFERS } from './yout
 import { YOUTUBE_ID } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_CONNECTORS, SOCIAL_OFFERS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
+import { caIntakeFields } from './ca-firm/intake-fields.ts';
+import { socialIntakeFields } from './social/intake-fields.ts';
+import { SOCIAL_CLIP_OFFERS } from './social/d2-intake.ts';
 import type { KitIntakeField, PlaybookDefinition } from './kit/define.ts';
 import { kitDefinition, kitDefinitions } from './kit/installed.ts';
 

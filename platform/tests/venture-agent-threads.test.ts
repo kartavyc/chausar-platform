@@ -149,8 +149,8 @@ test('thread: in time order, with run items, proposals and pages of 50', async (
   const runItem = view.items[0].run;
   assert.equal(runItem.runId, run.id);
   assert.equal(runItem.purpose, 'Draft a reply for Asha Rao');
-  assert.deepEqual(runItem.steps.map((step: any) => step.id), ['package']);
-  assert.equal(runItem.total, 1);
+  assert.deepEqual(runItem.steps.map((step: any) => step.id), ['package', 'packaging-per-video', 'screencast-tutorial']);
+  assert.equal(runItem.total, 3);
   assert.equal(view.items[2].proposal.status, 'drafted');
   assert.equal(view.items[2].proposal.title, "Proposed change to Packager's instructions");
   assert.equal(view.items[2].proposal.line, null);

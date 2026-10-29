@@ -26,6 +26,8 @@ import { CA_APPROVALS, CA_OFFERS } from '../runtime/venture/playbooks/ca-firm/pl
 import { CA_FIRM_REGISTRATION } from '../runtime/venture/playbooks/ca-firm/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_OFFERS } from '../runtime/venture/playbooks/social/playbook.ts';
 import { SOCIAL_AGENCY_REGISTRATION } from '../runtime/venture/playbooks/social/registration.ts';
+import { socialIntakeFields } from '../runtime/venture/playbooks/social/intake-fields.ts';
+import { caIntakeFields } from '../runtime/venture/playbooks/ca-firm/intake-fields.ts';
 import { EXCEL_COMPOSE, EXCEL_DECIDE, planEntries } from './fixtures/venture/compose-unit/plans.ts';
 import { PASSPHRASE, compose, connectPair, engineFor } from './fixtures/venture/compose-unit/harness.ts';
 import { VentureTestStore } from './venture-test-store.ts';
@@ -37,9 +39,9 @@ const CA_IDEA = 'An AI-native CA firm for GST filing and income tax returns in P
 const SOCIAL_IDEA = 'A content calendar service for yoga studios in Goa';
 
 const youtubeOffers = ['episode-package', 'shorts-from-own-video', 'licensed-clips'].map(id => YOUTUBE_OFFERS.find(offer => offer.id === id)!);
-const caOffers = ['monthly-books', 'gst-working', 'itr-salaried'].map(id => CA_OFFERS.find(offer => offer.id === id)!);
+const caOffers = ['monthly-books', 'gst-working', 'itr-salaried', 'books-health-check', 'itr-form-and-regime', 'itr-computation-only', 'itr-check-draft', 'itr-checklist', 'check-return-elsewhere', 'advance-tax-freelancer', 'tax-question-desk'].map(id => CA_OFFERS.find(offer => offer.id === id)!);
 // The social agency's plan also sells the monthly report (Ink v2 wave 2), so an order for it can run the report steps.
-const socialOffers = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report'].map(id => SOCIAL_OFFERS.find(offer => offer.id === id)!);
+const socialOffers = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting', 'reel-from-clips', 'hook-variations', 'local-instagram', 'reply-inbox', 'post-diagnosis', 'video-ads', 'cross-posting', 'influencer-campaign'].map(id => SOCIAL_OFFERS.find(offer => offer.id === id)!);
 const caApprovals = ['owner-approves-draft', 'ca-signs-regulated', 'ca-confirms-rates', 'human-files'].map(id => CA_APPROVALS.find(item => item.id === id)!.words);
 const socialApprovals = ['every-draft', 'spend-before-generation', 'every-post', 'report-and-invoice'].map(id => SOCIAL_APPROVALS.find(item => item.id === id)!.when);
 
@@ -134,11 +136,11 @@ test('the CA firm and social agency ideas plan with their own offers and approva
   assert.equal('playbook' in plain, false);
 });
 
-test('flagship plan data: three offers (four for the social agency) whose block allows their pricing, one to four approvals with a draft approval, catalogue connectors, house words', () => {
+test('flagship plan data keeps all shipped offers with allowed pricing, draft approvals, catalogue connectors and house words', () => {
   assert.deepEqual(FLAGSHIP_PLANS.map(plan => plan.id), ['ca-firm', 'youtube', 'social-agency']);
   const catalogue = new Set(CONNECTOR_CATALOGUE.map(entry => entry.id));
   for (const plan of FLAGSHIP_PLANS) {
-    assert.equal(plan.offers.length, plan.id === 'social-agency' ? 4 : 3, plan.id);
+    assert.equal(plan.offers.length, ({'social-agency': 14, 'ca-firm': 11, youtube: 3} as Record<string, number>)[plan.id], plan.id);
     assert.ok(plan.offers.length <= OFFER_REFS.length, `${plan.id}: every offer has an offer ref`);
     for (const offer of plan.offers) assert.ok(OFFER_BLOCKS[offer.block].allowed.includes(offer.model), `${plan.id} ${offer.key}`);
     assert.ok(plan.approvals.length >= 1 && plan.approvals.length <= 4, plan.id);
@@ -254,20 +256,20 @@ test('a composed plan for a flagship idea takes its offers and approvals from th
   assert.deepEqual((brief.input as { steps: string[] }).steps, first.flagshipSteps!.map(step => step.title.value));
 });
 
-test('a composed social agency plan keeps all four playbook offers, the monthly report fourth, each priced by the owner', async t => {
+test('a composed social agency plan keeps every shipped offer, the monthly report fourth, each priced by the owner', async t => {
   const { engine } = await engineFor(t, { responses: planEntries(SOCIAL_IDEA, EXCEL_DECIDE, EXCEL_COMPOSE) });
   await connectPair(engine);
   const { plan } = await compose(engine, SOCIAL_IDEA, 'IN');
-  assert.deepEqual(plan.offers.map(offer => offer.id), ['offer_1', 'offer_2', 'offer_3', 'offer_4']);
-  assert.deepEqual(plan.offers.map(offer => offer.playbookOffer), ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report']);
+  assert.deepEqual(plan.offers.map(offer => offer.id), socialOffers.map((_, index) => `offer_${index + 1}`));
+  assert.deepEqual(plan.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
   assert.deepEqual(plan.offers.map(offer => offer.name.value), socialOffers.map(offer => offer.name));
   assert.ok(plan.offers.every(offer => OFFER_BLOCKS[offer.block].allowed.includes(offer.pricing.model)));
   const priced = await engine.request('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_4', unitPrice: '5000' }] } }) as ComposedPlan;
   await engine.request('workspace.create', { name: 'Goa Yoga', passphrase: PASSPHRASE, pack: 'services' });
   await engine.request('venture.create', { idea: SOCIAL_IDEA, countryCode: 'IN', workingName: 'Goa Yoga', composeId: priced.composeId, composedDigest: priced.digest });
   const first = (await engine.request('venture.blueprint.get', {}) as BlueprintView).blueprint;
-  assert.deepEqual(first.offers.map(offer => offer.playbookOffer), ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report']);
-  assert.deepEqual(first.offers.map(offer => offer.pricing.unitPriceMinor), [null, null, null, '500000']);
+  assert.deepEqual(first.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
+  assert.deepEqual(first.offers.map(offer => offer.pricing.unitPriceMinor), socialOffers.map((_, index) => index === 3 ? '500000' : null));
 });
 
 /** The steps a flagship playbook delivers with, as the plan lists them: its own titles and who does each. */
@@ -347,15 +349,19 @@ test('the plan says what an order for each flagship offer asks at intake: the ri
   const social = harness();
   const socialView = await templatePlan(social.call, SOCIAL_IDEA);
   // Every social offer reads the client's word lists (Ink v2 wave 2); only the content calendar asks for its calendar.
-  assert.deepEqual(socialView.intake!.offer_1, { rights: [], fields: ['aiVoice', 'aiPresenter', 'paidPromotion', 'calendar', 'clientRules'] });
-  for (const id of ['offer_2', 'offer_3']) assert.deepEqual(socialView.intake![id], { rights: [], fields: ['aiVoice', 'aiPresenter', 'paidPromotion', 'clientRules'] }, id);
+  assert.deepEqual(socialView.intake!.offer_1, { rights: [], fields: ['aiVoice', 'aiPresenter', 'paidPromotion', 'calendar', 'clientRules'], kit: socialIntakeFields('content-calendar') });
+  for (const [id, offer] of [['offer_2', 'community-replies'], ['offer_3', 'ugc-ads']]) assert.deepEqual(socialView.intake![id], { rights: [], fields: ['aiVoice', 'aiPresenter', 'paidPromotion', 'clientRules'], kit: socialIntakeFields(offer) }, id);
   // The monthly report has no posts, so it asks no post disclosures; its words are still checked against the client's lists.
-  assert.deepEqual(socialView.intake!.offer_4, { rights: [], fields: ['clientRules'] });
-  assert.deepEqual(socialView.blueprint.offers.map(offer => offer.playbookOffer), ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report']);
+  assert.deepEqual(socialView.intake!.offer_4, { rights: [], fields: ['clientRules'], kit: socialIntakeFields('monthly-report') });
+  assert.deepEqual(socialView.blueprint.offers.map(offer => offer.playbookOffer), socialOffers.map(offer => offer.id));
   assert.equal(socialView.blueprint.offers[3].pricing.unitPriceMinor, null, 'the owner sets its price, like every other offer');
 
   const ca = harness();
-  assert.equal('intake' in await templatePlan(ca.call, CA_IDEA), false, 'a CA firm order asks nothing at intake');
+  const caView = await templatePlan(ca.call, CA_IDEA);
+  for (const [index, offer] of caOffers.entries()) {
+    const kit = caIntakeFields(offer.id);
+    assert.deepEqual(caView.intake![`offer_${index + 1}`], kit?.length ? {rights: [], fields: [], kit} : undefined, offer.id);
+  }
   const plain = harness();
   assert.equal('intake' in await templatePlan(plain.call, 'Dog walking in Bandra for busy owners'), false);
 });

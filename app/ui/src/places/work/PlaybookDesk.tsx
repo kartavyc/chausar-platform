@@ -1,3 +1,4 @@
+import {playbookLabel} from '../../text/playbook-label';
 /**
  * The business's own desk on Work, beside its orders (Ink v2 wave 5, package 5A1): the open business's playbook (the one
  * its idea picks, from venture.get) finds its desk in DESKS (places/work/desks/index.ts). A desk shows only once its
@@ -33,7 +34,7 @@ export function PlaybookDesk() {
   const Desk = DESKS[pick!.id as DeskPlaybook];
   return (
     <section aria-labelledby={id} className={s.block} data-desk={pick!.id}>
-      <SectionHead id={id} title={t('kit-chain.desk')} meta={pick!.label} />
+      <SectionHead id={id} title={t('kit-chain.desk')} meta={playbookLabel(t,pick)} />
 <details className={s.whyMore} open={linked || undefined} onToggle={event => { if (event.currentTarget.open) setOpened(true); }}><summary>{t('kit-chain.openTools')}</summary>{opened && <Desk />}</details>
     </section>
   );

@@ -31,7 +31,7 @@
   "pb-seller-cards.sorftime.note": "Owner paid API key and current terms; API contract remains unverified. Use your own Sorftime account and add the permitted export to the order.",
   "pb-seller-cards.sorftime.handoff": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
   "pb-seller-cards.sorftime.read": "Planned: reading from Sorftime. Not in this build.",
-  "pb-seller-cards.shopify-admin.note": "Use the desktop or hosted owner desk with an app in your own organization. Exact approved price, stock and title changes require actual acknowledgement and read-back. No live account qualification is claimed. Otherwise change the product in Shopify yourself.",
+  "pb-seller-cards.shopify-admin.note": "Desktop or hosted owner desk; your organisation's app. Exact approved price, stock and title edits need acknowledgement and readback. Live account unqualified. Otherwise edit in Shopify yourself.",
   "pb-seller-cards.shopify-admin.handoff": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it.",
   "pb-seller-cards.shopify-admin.read": "Reads the exact own-organization store, product and location after approval. Multi-page reads show incomplete coverage until all pages are read.",
   "pb-seller-cards.shopify-admin.write": "Stages one exact price, available-stock or title change under owner caps. Applies only after separate owner approval; acknowledgement and exact read-back are required. Unknown outcomes never retry.",

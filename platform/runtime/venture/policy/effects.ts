@@ -98,7 +98,7 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'youtube.outliers': { effects: ['read'], ...OF_FILES },
   'youtube.niche': { effects: ['read'], ...OF_FILES },
   'youtube.comments': { effects: ['read'], ...OF_FILES },
-  'youtube.publicStats': { effects: ['private-read', 'egress'], integrity: 'untrusted', source: 'web-page' },
+  'youtube.publicStats': { effects: ['read'], ...OF_FILES },
   'youtube.archive': { effects: ['read'], ...OF_FILES },
   // the CA firm (5C1, 5C2)
   'tax.citations': { effects: ['read'], ...OF_FILES },
@@ -163,6 +163,7 @@ export const TOOL_DECLARATIONS: Readonly<Record<ToolName, ToolDeclaration>> = Ob
   'cfo.scenarios': { effects: ['read'], ...OF_FILES },
   'collections.ladder': { effects: ['read'], ...OF_FILES },
   'money.checkup': { effects: ['read'], ...OF_FILES },
+  // These tools compute or hand off saved proposals. Only the owner posting desk writes to the provider.
   'books.write': { effects: ['read'], ...OF_FILES },
   'vouchers.draft': { effects: ['read'], ...OF_FILES },
   'seller.books': { effects: ['read'], ...OF_FILES },

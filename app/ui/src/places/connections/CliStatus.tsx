@@ -10,6 +10,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import { EngineError, type CliStatusView, type ModelAvailability } from '../../engine/types';
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
+import { connectionWords } from './ConnectionWords';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -90,7 +91,7 @@ export function CliStatus() {
             {data.clis.map((view) => <Tool key={view.cli} view={view} />)}
           </ul>
           {/* What this look ran, once for the tile, in the engine's words (it names only the tools it started). */}
-          <p className={`${s.note} ${c.how}`} data-cli-ran="">{data.line}</p>
+          <p className={`${s.note} ${c.how}`} data-cli-ran="">{connectionWords(t, data.line)}</p>
         </>
       )}
       {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
@@ -120,11 +121,11 @@ function Tool({ view }: { view: CliStatusView }) {
         </span>
       </div>
       {atRest !== null && (view.fix
-        ? <p className={c.fix} data-fix-line="">{atRest}</p>
-        : <p className={s.line} data-cli-line="">{atRest}</p>)}
+        ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
+        : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
       <details className={`${s.fold} ${c.more}`}>
         <summary>{t('connections.cli.details')}</summary>
-        {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{view.line}</p>}
+        {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}
         <dl className={c.facts}>
           {factsOf(view, t).map(([label, value]) => (
             <div key={label} className={c.fact}>

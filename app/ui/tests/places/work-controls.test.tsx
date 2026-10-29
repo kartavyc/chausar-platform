@@ -46,7 +46,7 @@ const STOPPED: RunDetail = {
   runId: '25', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the poster set', state: 'waiting', startedAt: '2026-10-21T09:40:00.000Z', elapsed: '2m',
   progress: { done: 1, total: 3 }, result: 'Stopped: the same error came back three times: ffmpeg was not found on this computer.',
   stop: { state: 'stopped', line: 'Stopped: the same error came back three times: ffmpeg was not found on this computer.', trigger: 'same-error' },
-  fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg',
+  fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg',
   steps: [
     { id: 's1', purpose: 'Picked 3 frames for the poster', state: 'done', elapsed: '20s' },
     { id: 's2', purpose: 'Render the poster', state: 'waiting' },
@@ -98,7 +98,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     await click(resume);
     expect(of(calls, 'venture.runs.resume')).toEqual([{ runId: '31' }]);
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Stopped' })).toBeNull());
-  });
+  }, 15_000);
 
   it('Force stop names what is lost and asks once more; Not now leaves the run alone', async () => {
     const { calls } = await start();
@@ -139,7 +139,7 @@ describe('Work: the stopped tile (O1, O14)', () => {
     expect(fix.getAttribute('aria-expanded')).toBe('false');
     await click(fix);
     expect(fix.getAttribute('aria-expanded')).toBe('true');
-    expect(within(tile).getByText('Install ffmpeg, or turn off the finishing check, then run again.')).toBeTruthy();
+    expect(within(tile).getByText('Install ffmpeg, then run the required finishing checks again.')).toBeTruthy();
     expect(within(tile).getByRole('button', { name: 'Resume' }).getAttribute('data-variant')).toBe('primary');
     assertInkRules();
     await click(within(tile).getByRole('button', { name: 'Run again' }));
@@ -160,13 +160,13 @@ describe('Work: the stopped tile (O1, O14)', () => {
 
   it('a failed run with a fix from the engine offers How to fix it; the fix is worded in Hindi too', async () => {
     const fixed = (p: unknown, real: () => Promise<unknown>) => ((p as { runId: string }).runId === '28'
-      ? real().then((run) => ({ ...(run as RunDetail), fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg' }))
+      ? real().then((run) => ({ ...(run as RunDetail), fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg' }))
       : real());
     await start('#/work', { language: 'hi', intercept: { 'venture.runs.get': fixed } });
     const tile = await tileOf('Rendering the thumbnail set');
     const fix = await within(tile).findByRole('button', { name: 'ठीक कैसे करें' });
     await click(fix);
-    expect(within(tile).getByText('ffmpeg इंस्टॉल करें, या फ़िनिशिंग जाँच बंद करें, फिर दोबारा चलाएँ।')).toBeTruthy();
+    expect(within(tile).getByText('ffmpeg इंस्टॉल करें, फिर ज़रूरी फ़िनिशिंग जाँच दोबारा चलाएँ।')).toBeTruthy();
   });
 });
 

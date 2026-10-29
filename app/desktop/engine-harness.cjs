@@ -45,6 +45,7 @@ class EngineHarness extends EventEmitter {
         const child = this.options.forkProcess(this.options.workerPath, [], { execPath: this.options.execPath, execArgv: ['--experimental-strip-types'], windowsHide: true, shell: false, env: { ...this.options.environment, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
         this.worker = child;
         const forms = createFormsRelay(this, child);
+        child.once('disconnect', () => forms.close()); child.once('exit', () => forms.close());
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }

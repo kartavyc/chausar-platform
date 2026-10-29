@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
@@ -43,6 +43,11 @@ describe('Work: the playbook desk (5A1)', () => {
     const desk = await screen.findByRole('region', { name: 'Your desk' });
     expect(desk.getAttribute('data-desk')).toBe('youtube');
     expect(desk.textContent).toContain('YouTube channel');
+    expect(desk.querySelector('details')).not.toBeNull();
+    expect(desk.querySelector('details')?.open).toBe(false);
+    expect(desk.querySelector('select')).toBeNull();
+    fireEvent.click(screen.getByText('Open tools'));
+    await screen.findByRole('heading', {name:'Edit video by words'});
     assertInkRules();
   });
 

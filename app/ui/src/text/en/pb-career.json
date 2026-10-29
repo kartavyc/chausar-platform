@@ -183,5 +183,7 @@
   "pb-career.provider.lever": "Lever",
   "pb-career.provider.ashby": "Ashby",
   "pb-career.applicationManual": "Client reported. The client sends and applies.",
-  "pb-career.packManual": "The client sends and applies."
+  "pb-career.packManual": "The client sends and applies.",
+  "pb-career.sourceUnavailable": "Job source unavailable",
+  "pb-career.packUnavailable": "Pack type unavailable"
 }

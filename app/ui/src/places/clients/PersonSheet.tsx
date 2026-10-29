@@ -12,6 +12,7 @@ import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { closeSheet, openSheet } from '../../shell/navigation';
+import { useForgetCompletion } from '../../shell/PrivacyBoundary';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Inner } from '../../parts/Card';
@@ -30,11 +31,11 @@ export function PersonSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
   const person = useResource('venture.network.person', { id }, { refreshOn: networkRefresh });
-  const [forgotten, setForgotten] = useState<{ name: string; line: string; kept: string[] } | null>(null);
-  useClientsChanged(engine, () => { if (!forgotten) person.reload(); });
+  const { result: forgotten, completed } = useForgetCompletion();
+  useClientsChanged(engine, () => { if (!completed) person.reload(); });
 
   const view = person.data;
-  const title = forgotten ? t('clients.person.forgotten')
+  const title = completed ? t('clients.person.forgotten')
     : person.error ? (person.error.code === 'INVALID_VENTURE_REQUEST' ? t('clients.person.notFound') : t('sheet.failed', { message: person.error.message }))
       : view ? view.person.name : t('sheet.loading');
 
@@ -42,18 +43,18 @@ export function PersonSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     <Sheet
       label={t('clients.person.sheet')}
       title={title}
-      name={view?.person.name}
-      line={forgotten ? forgotten.line : view ? roleLine(t, view.person) ?? undefined : undefined}
-      avatar={!forgotten && view ? <Avatar name={view.person.name} size={40} /> : undefined}
+      name={completed ? undefined : view?.person.name}
+      line={completed ? forgotten?.line : view ? roleLine(t, view.person) ?? undefined : undefined}
+      avatar={!completed && view ? <Avatar name={view.person.name} size={40} /> : undefined}
       onClose={onClose}
       returnFocus={returnFocus}
     >
-      {forgotten ? <Forgotten {...forgotten} /> : view && <Body view={view} reload={person.reload} onForgotten={setForgotten} />}
+      {completed ? <Forgotten kept={forgotten?.kept ?? []} /> : view && <Body view={view} reload={person.reload} />}
     </Sheet>
   );
 }
 
-function Body({ view, reload, onForgotten }: { view: PersonView; reload: () => void; onForgotten: (forgotten: { name: string; line: string; kept: string[] }) => void }) {
+function Body({ view, reload }: { view: PersonView; reload: () => void }) {
   const t = useT();
   const engine = useEngine();
   const howId = useId();
@@ -142,7 +143,7 @@ function Body({ view, reload, onForgotten }: { view: PersonView; reload: () => v
       {view.merged && <Split id={splitId} view={view} onDone={setSplitLine} />}
       {splitLine && <p className={s.said} role="status">{splitLine}</p>}
 
-      <Leave view={view} busy={busy} act={act} onForgotten={onForgotten} />
+      <Leave view={view} busy={busy} act={act} />
 
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </>
@@ -242,21 +243,22 @@ function Split({ id, view, onDone }: { id: string; view: PersonView; onDone: (li
 }
 
 /** Hide or show again, and Forget with its second ask. */
-function Leave({ view, busy, act, onForgotten }: {
+function Leave({ view, busy, act }: {
   view: PersonView; busy: boolean; act: (work: () => Promise<unknown>) => Promise<void>;
-  onForgotten: (forgotten: { name: string; line: string; kept: string[] }) => void;
 }) {
   const t = useT();
   const engine = useEngine();
+  const { begin } = useForgetCompletion();
   const [asking, setAsking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const { person } = view;
 
   async function forget() {
     setProblem(null);
+    const complete = begin();
     try {
       const result = await engine.request('venture.network.forget', { id: person.id });
-      onForgotten({ name: person.name, line: result.line, kept: result.kept });
+      complete(result);
       personForgotten(engine, person.id);
       clientsChanged(engine);
     } catch (error) {
@@ -287,14 +289,14 @@ function Leave({ view, busy, act, onForgotten }: {
 }
 
 /** After Forget: the engine's line, and what stays (the law's records, the one-way check, earlier backups). */
-function Forgotten({ kept }: { name: string; line: string; kept: string[] }) {
+function Forgotten({ kept }: { kept: string[] }) {
   const t = useT();
   const staysId = useId();
   // The header holds the engine's line; the person's name and role are gone from the sheet.
   return (
-    <section className={s.sheetSection} aria-labelledby={staysId}>
-      <h3 id={staysId} className={s.heading}>{t('clients.person.forget.stays')}</h3>
-      <ul className={s.lines}>{kept.map((item, index) => <li key={index}>{item}</li>)}</ul>
+    <section className={s.sheetSection} aria-labelledby={kept.length ? staysId : undefined}>
+      {kept.length > 0 && <><h3 id={staysId} className={s.heading}>{t('clients.person.forget.stays')}</h3>
+      <ul className={s.lines}>{kept.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
       <div className={s.actions}><Button size="sm" variant="quiet" onClick={() => closeSheet()}>{t('sheet.close')}</Button></div>
     </section>
   );

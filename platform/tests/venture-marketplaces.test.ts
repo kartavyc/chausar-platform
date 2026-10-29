@@ -6,7 +6,9 @@ test('marketplace labels keep unbuilt calls planned and name the actual manual p
  const labels=Object.fromEntries(MARKETPLACES.map(row=>[row.id,row.label]));
  assert.deepEqual(labels,{'amazon-sp-api':'planned: read','amazon-ads':'planned: read','flipkart-api':'planned: read',meesho:'handoff',myntra:'handoff',ajio:'handoff',nykaa:'handoff',jiomart:'handoff',shiprocket:'planned: write',delhivery:'planned: write','instagram-shop':'handoff','whatsapp-business':'handoff',sorftime:'planned: read','shopify-admin':'write','shopify-storefront':'read'});
  for(const row of MARKETPLACES){assert.match(row.manualPath,/\S/);assert.equal(row.checkedOn,'2026-10-29');assert.match(row.source,/^https:\/\//);assert.equal(row.liveVerified,null);if(row.label.startsWith('planned'))assert.match(row.waitsOn!,/\S/);}
- assert.match(MARKETPLACES.find(r=>r.id==='shopify-admin')!.manualPath,/own organization/);assert.match(MARKETPLACES.find(r=>r.id==='sorftime')!.waitsOn!,/unverified/);
+ const shopify=MARKETPLACES.find(r=>r.id==='shopify-admin')!;
+ assert.match(shopify.manualPath,/your organisation's app/);assert.match(shopify.manualPath,/Live account unqualified/);assert.match(shopify.manualPath,/edit in Shopify yourself/);
+ assert.match(MARKETPLACES.find(r=>r.id==='sorftime')!.waitsOn!,/unverified/);
 });
 test('only named Shopify operations exist; none is falsely live-qualified',()=>{
  assert.deepEqual(SELLER_REMOTE_OPERATIONS.map(r=>[r.id,r.safety]),[['products','read'],['variant','read'],['price','write'],['title','write'],['inventory-movement','write'],['storefront-products','read']]);

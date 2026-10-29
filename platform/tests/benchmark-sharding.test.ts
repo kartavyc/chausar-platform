@@ -393,6 +393,7 @@ test('CI runs the Ink frontend on both operating systems: typecheck, every test 
   const start = workflow.search(/^  ui:$/m);
   assert.ok(start > 0, 'the ui job exists');
   const ui = workflow.slice(start);
+  assert.match(ui, /timeout-minutes: 25/, 'the complete wave-five UI run needs room for install, types and build');
   assert.match(ui, /os: \[ubuntu-latest, windows-latest\]/);
   assert.match(ui, /node-version: '24\.13\.1'/);
   assert.match(ui, /run: npm run typecheck:ui/);

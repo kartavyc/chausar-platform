@@ -214,7 +214,6 @@ const TRAIT_TABLE: readonly { words: RegExp; label: string; test: RegExp; fields
 ];
 
 export class FakePeopleDesk {
-  captureSiteClient(client:{id:string;name:string;email:string}):void {const network=this.network();if(network.people.some(person=>person.emails.includes(client.email)))return;network.people.push({id:'person_site_'+ ++this.seq,name:client.name,title:null,company:null,place:null,emails:[client.email],linkedin:null,hidden:false,band:null,how:[],paths:[],facts:[],notes:[],clientId:client.id,web:[]});}
   private readonly host: W4DeskHost;
   private readonly networks = new Map<string, Network>();
   private seq = 0;
@@ -242,6 +241,9 @@ export class FakePeopleDesk {
       explanation: `How well you know ${person.name}, worked out by Chausar's code from your own files and records, never by AI. ${found} That is ${bandWord(person.band)}. Chausar's own weights; tuned later from your outcomes. Each signal fades by half every 180 days, Chausar's own choice.`,
     };
   }
+
+  /** Internal website capture: minimum identity only, with no invented relationship evidence. */
+  captureSiteClient(client:{id:string;name:string;email:string}):void {const network=this.network();if(network.people.some(person=>person.emails.includes(client.email)))return;network.people.push({id:'person_site_'+ ++this.seq,name:client.name,title:null,company:null,place:null,emails:[client.email],linkedin:null,hidden:false,band:null,how:[],paths:[],facts:[],notes:[],clientId:client.id,web:[]});}
 
   /** Internal privacy hook: identities needed to erase sales drafts, never sent to a screen. */
   privacyFacts(): { id: string; names: string[]; clientId: string | null; emails: string[]; phones: string[]; urls:string[] }[] {

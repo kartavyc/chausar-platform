@@ -14,3 +14,47 @@ it('a privacy event clears owner text and rejects a delayed purchase response ev
 it('ordinary desk refresh preserves unsaved source and purchase inputs',async()=>{const f=await vaClient();render(<TextProvider language="en"><EngineProvider client={f.client}><VirtualAssistantDesk/></EngineProvider></TextProvider>);await screen.findByRole('option',{name:'Research a public supplier list'});fireEvent.change(screen.getByLabelText('Assistant order'),{target:{value:f.order.id}});fireEvent.click(await screen.findByRole('button',{name:'Open client room'}));fireEvent.change(await screen.findByLabelText('Client request'),{target:{value:'Unsaved request'}});fireEvent.change(screen.getByLabelText('Scope'),{target:{value:'Unsaved scope'}});fireEvent.change(screen.getByLabelText('Item to buy'),{target:{value:'Unsaved purchase'}});act(()=>f.engine.emit({type:'desk.changed',businessId:'va-test',at:'2026-10-29T10:00:02Z'}));await waitFor(()=>expect(screen.getByRole('button',{name:'Record this request'}).getAttribute('aria-disabled')).not.toBe('true'));expect((screen.getByLabelText('Client request') as HTMLTextAreaElement).value).toBe('Unsaved request');expect((screen.getByLabelText('Scope') as HTMLInputElement).value).toBe('Unsaved scope');expect((screen.getByLabelText('Item to buy') as HTMLInputElement).value).toBe('Unsaved purchase');});
 
 it('actual Forget fences a purchase reply and clears selection when its subsequent order read fails',async()=>{const f=await vaClient(),request=f.client.request.bind(f.client);await request('venture.network.import',{kind:'contacts-csv',name:'fictional.csv',text:'Name,E-mail 1 - Value\nFictional practice client,practice@example.org'});const people=await request('venture.network.people',{query:'Fictional practice client'});let fail=false,release:()=>void=()=>{},started=false;f.client.request=vi.fn(async(method,payload)=>{if(method==='venture.order.list'&&fail)throw Error('read unavailable');const out=await request(method,payload);if(method==='venture.desk.act'&&(payload as {kind?:unknown}).kind==='purchase'){started=true;await new Promise<void>(resolve=>{release=resolve;});}return out;}) as typeof f.client.request;render(<TextProvider language="en"><EngineProvider client={f.client}><VirtualAssistantDesk/></EngineProvider></TextProvider>);await screen.findByRole('option',{name:'Research a public supplier list'});fireEvent.change(screen.getByLabelText('Assistant order'),{target:{value:f.order.id}});fireEvent.change(await screen.findByLabelText('Item to buy'),{target:{value:'Private delayed purchase'}});fireEvent.change(screen.getByLabelText('Unit price in paise'),{target:{value:'12345'}});fireEvent.click(screen.getByRole('button',{name:'Review purchase total'}));await waitFor(()=>expect(started).toBe(true));fail=true;await act(async()=>{await request('venture.network.forget',{id:people.people[0]!.id});});await waitFor(()=>expect((screen.getByLabelText('Assistant order') as HTMLSelectElement).value).toBe(''));await act(async()=>release());expect(screen.queryByRole('option',{name:'Research a public supplier list'})).toBeNull();expect(screen.queryByText('INR 123.45')).toBeNull();expect(screen.queryByDisplayValue('Private delayed purchase')).toBeNull();});
+
+import {within} from '@testing-library/react';
+import {CATALOGUES,format} from '../../src/text';
+const hindi=(key:string)=>format(CATALOGUES.hi,'hi',key);
+it('Hindi room receipt explains known code figures without changing the original evidence',async()=>{
+ const f=await vaClient(true),base={playbook:'virtual-assistant' as const,kind:'room'},made=await f.client.request('venture.desk.act',{...base,id:f.order.id,action:'create',payload:{}}),id=made.id;
+ let detail=await f.client.request('venture.desk.get',{...base,id});
+ await f.client.request('venture.desk.act',{...base,id,action:'request',digest:detail.digest,payload:{text:'Original client words'}});
+ detail=await f.client.request('venture.desk.get',{...base,id});const item=detail.item as unknown as {requests:{id:string}[]};
+ await f.client.request('venture.desk.act',{...base,id,action:'draft',digest:detail.digest,payload:{requestId:item.requests[0]!.id,fields:{scope:'Original scope',deliverable:'Original output',deadline:'2026-11-10'}}});
+ detail=await f.client.request('venture.desk.get',{...base,id});const saved=detail.item as unknown as {brief:{price:{receiptId:string}}},receipt=await f.client.request('venture.receipt.get',{id:saved.brief.price.receiptId});
+ render(<TextProvider language="hi"><EngineProvider client={f.client}><VirtualAssistantDesk/></EngineProvider></TextProvider>);
+ await screen.findByRole('option',{name:'Research a public supplier list'});fireEvent.change(screen.getByLabelText(hindi('pb-va.order')),{target:{value:f.order.id}});
+ fireEvent.click(await screen.findByRole('button',{name:/5,?900/}));const sheet=await screen.findByRole('complementary');
+ expect(within(sheet).getByText('हर महीने का दाम')).toBeTruthy();expect(within(sheet).getByText('कुल जोड़')).toBeTruthy();
+ expect(within(sheet).getByText(/प्रति इकाई दाम को संख्या से गुणा/)).toBeTruthy();
+ expect(within(sheet).getByText(receipt.explanation)).toBeTruthy();for(const figure of receipt.figures)expect(within(sheet).getAllByText(figure.display).length).toBeGreaterThan(0);
+ expect(await f.client.request('venture.receipt.get',{id:receipt.id})).toEqual(receipt);
+});
+it('Hindi routine approval names weekdays and explains the fixed prompt while submitting its exact original',async()=>{
+ const f=await vaClient();render(<TextProvider language="hi"><EngineProvider client={f.client}><VirtualAssistantDesk/></EngineProvider></TextProvider>);
+ fireEvent.click(await screen.findByRole('button',{name:hindi('pb-va.reviewMorning')}));const sheet=await screen.findByRole('complementary');
+ expect(within(sheet).getByText('हर दिन 09:00, Asia/Kolkata')).toBeTruthy();expect(within(sheet).getByText(/सेव किए गए मेल/)).toBeTruthy();
+ expect(within(sheet).getByText(vaRoutinePreset('morning','Asia/Kolkata').prompt)).toBeTruthy();
+ fireEvent.click(within(sheet).getByRole('button',{name:hindi('pb-va.approveRoutine')}));await waitFor(async()=>expect((await f.client.request('venture.routines.list',{})).routines[0]?.on).toBe(true));
+ const saved=(await f.client.request('venture.routines.list',{})).routines[0]!;expect(saved.prompt).toBe(vaRoutinePreset('morning','Asia/Kolkata').prompt);expect(saved.schedule).toEqual(vaRoutinePreset('morning','Asia/Kolkata').schedule);
+});
+
+import {roomReceiptLabel,roomReceiptCalculation,vaScheduleWords} from '../../src/places/work/desks/RoomReceiptWords';
+const hiWords:import('../../src/text').T=(key,values)=>format(CATALOGUES.hi,'hi',key,values);
+it('receipt words preserve unknown client content and every supplied numeric token',()=>{
+ const figures=[{key:'unit',label:'Price per month',display:'INR 2500.00'},{key:'tax',label:'GST at 18%',display:'INR 900.00'},{key:'total',label:'Total',display:'INR 5900.00'}];
+ const receipt={id:'r',at:'now',stale:false,figures,explanation:'2 x month at INR 2500.00, plus GST at 18% (INR 900.00) = INR 5900.00.'};const before=JSON.stringify(receipt),shown=roomReceiptCalculation(hiWords,receipt)!;
+ expect(shown).toMatch(/महीना/);expect(shown.match(/\d+(?:\.\d+)?/g)).toEqual(receipt.explanation.match(/\d+(?:\.\d+)?/g));expect(JSON.stringify(receipt)).toBe(before);
+ expect(roomReceiptCalculation(hiWords,{...receipt,explanation:receipt.explanation+' Private owner suffix.'})).toBeNull();
+ expect(roomReceiptCalculation(hiWords,{...receipt,explanation:receipt.explanation.replace('INR 900.00','INR 901.00')})).toBeNull();
+ expect(roomReceiptLabel(hiWords,{key:'total',label:'Total for the private contract',display:'INR 5900.00'})).toBe('Total for the private contract');
+ expect(vaScheduleWords(hiWords,{kind:'calendar',weekdays:[5],time:'17:00',timeZone:'Asia/Kolkata'},'')).toBe('हर शुक्रवार 17:00, Asia/Kolkata');
+});
+
+it('native split-tax receipts keep amounts and state assumptions in the translated explanation',()=>{
+ const receipt={id:'native',at:'now',stale:false,figures:[{key:'unit',label:'Price per month',display:'INR 2500.00'},{key:'taxable',label:'Amount before tax',display:'INR 5000.00'},{key:'cgst',label:'CGST at 9%',display:'INR 450.00'},{key:'sgst',label:'SGST at 9%',display:'INR 450.00'},{key:'total',label:'Total',display:'INR 5900.00'}],explanation:'2 x month at INR 2500.00, plus CGST at 9% (INR 450.00) and SGST at 9% (INR 450.00) = INR 5900.00. Place of supply taken as your own state.'};
+ const shown=roomReceiptCalculation(hiWords,receipt);expect(shown).toContain('राज्य');expect(shown!.match(/\d+(?:\.\d+)?/g)).toEqual(receipt.explanation.match(/\d+(?:\.\d+)?/g));
+});

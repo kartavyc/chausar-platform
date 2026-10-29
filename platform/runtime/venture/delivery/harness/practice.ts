@@ -1,4 +1,3 @@
-import { CA_PRACTICE } from '../../playbooks/ca-firm/practice.ts';
 // Chausar delivery harness: made-up files for rehearsal. Chausar wrote them; no client sent them, so rehearsals stay
 // free of client data and run under standing consent. Bookkeeping has a clean month that balances and a messy one
 // (newest row first, two payments with no bill, one bill not paid); the clean month also has a sales register for a CA
@@ -6,6 +5,7 @@ import { CA_PRACTICE } from '../../playbooks/ca-firm/practice.ts';
 import { digest } from '../../records.ts';
 import type { Scenario } from '../../contracts.ts';
 import type { FileLike } from './files.ts';
+import { CA_PRACTICE } from '../../playbooks/ca-firm/practice.ts';
 import { kitPracticeClient, practiceFormat } from '../../playbooks/kit/practice.ts';
 
 type PracticeFile = { name: string; content: string };

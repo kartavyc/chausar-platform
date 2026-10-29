@@ -1,4 +1,3 @@
-import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 // Chausar venture launcher, delivery package (P5): practice clients for rehearsal.
 // Three made-up clients per service type (clean, messy, pushy), plus cases made from the owner's signals.
 // Scenario words hold no digits and never copy a real client's request.
@@ -6,6 +5,7 @@ import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 // passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { findRecord, listRecords } from '../records.ts';
+import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 import { practiceFileNames } from './harness/practice.ts';
 import { signalExpectations } from './corrections.ts';
 import type { State } from '../../contracts.ts';

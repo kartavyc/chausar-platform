@@ -224,10 +224,10 @@ export class FakeEngine {
       hosted: () => this.hosted,
     }, { fresh });
     this.work = new FakeWorkDesk({
-      r5Report:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.r5Report((this.desk.request('venture.blueprint.get',{}) as BlueprintViewLite|null)?.playbook?.id??'',id);},
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
       formsSource:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.formsSource(id);},
       testingSource:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.testingSource(id);},
+      r5Report:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.r5Report(this.desk.acceptedPlanFor(this.current)?.playbook?.id??'',id);},
       phoneReport:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.phoneReport(id);},
       devReport:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.devReport(id);},
       vaBrief:(id,expected)=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('APPROVAL_STALE','Approve the current client room brief and start this work again.');return desk.vaBrief(id,expected);},
@@ -235,7 +235,8 @@ export class FakeEngine {
       hosted: () => this.hosted,
       fingerprint: digestOf, recruitDigest: digestOf,
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
-      plan: () => this.desk.request('venture.blueprint.get', {}) as BlueprintViewLite | null,
+      country:()=>{const country=this.ventureView()?.venture.country;if(!country)throw new EngineError('VENTURE_NOT_FOUND','Start a business first.');return country;},
+      plan: () => this.desk.acceptedPlanFor(this.current),
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
       // 4J3: the invoices an order's stage steps read (read only when the order list is asked for, after money exists).
       invoices: () => this.money.request('venture.invoice.list', {}) as InvoiceLite[],
@@ -304,6 +305,11 @@ export class FakeEngine {
       socialChain:(orderId:string)=>this.work.narrationChain.view(orderId)??this.work.articleChain.view(orderId)??this.work.socialChain.view(orderId),
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
+      // 5K1: read stored payment parts, never parse the formatted UI payment view.
+      paymentFacts: () => {
+        const ledger = this.money.ledger();
+        return ledger.payments.map(payment => ({ id: payment.id, invoiceId: payment.invoiceId, amountMinor: String(payment.amount), receivedOn: payment.receivedOn, state: payment.state, currency: ledger.invoices.find(invoice => invoice.id === payment.invoiceId)?.currency ?? 'INR' }));
+      },
       // 4J6: the businesses on this computer, as workspace.list lists them (fake-across.ts).
       businesses: () => this.businesses.map((b) => ({ id: b.id, name: b.name, opens: b.opens })),
       // 4F3: the runs, which Stop, Resume and the round gate change (fake-run-controls.ts).
@@ -390,7 +396,7 @@ export class FakeEngine {
       case 'venture.queue.decide': return this.decide(p as ParamsOf<'venture.queue.decide'>);
       case 'venture.queue.view': {
         // 5A2: a sales proposal's row reads its five sections from the kit sales desk (fake-kit-sales.ts).
-        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
+        const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id) ?? this.kitSales()?.view(p.kind, p.id) ?? this.posting.queueView(p.kind,p.id) ?? this.work.r5Delivery.queueView(p.kind,p.id) ?? this.work.phoneDelivery.queueView(p.kind,p.id) ?? this.work.devDelivery.queueView(p.kind,p.id) ?? this.work.careerDelivery.queueView(p.kind,p.id) ?? this.work.vaDelivery.queueView(p.kind,p.id) ?? this.work.narrationChain.queueView(p.kind,p.id) ?? this.work.youtubeServices.queueView(p.kind,p.id) ?? this.work.articleChain.queueView(p.kind,p.id) ?? this.work.socialChain.queueView(p.kind,p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
         // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
         // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
@@ -465,6 +471,7 @@ export class FakeEngine {
         if(method==='venture.share.list')return this.shareView(p);
         if(method==='venture.share.revoke'&&typeof p.id==='string'){const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.revokeShare(p.id);if(extra)return extra;}
         if (this.extras.handles(method)) return this.extras.request(method, p);
+        if (method === 'venture.posting.limits.set' && params === null) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send one request object.');
         if (this.posting.handles(method)) return this.posting.request(method, p);
         if (this.practice.handles(method)) return this.practice.request(method, p);
         if (this.bank.handles(method)) return this.bank.request(method, p);
@@ -478,7 +485,7 @@ export class FakeEngine {
   /** Another desk's answer at once, with no latency: what the wave 2 desks read (orders, runs, files, invoices). */
   /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
   private findReceipt(id: string): ReceiptLite | undefined {
-    return this.work.roomReceipt(this.current,id) ?? this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.receipt(id) ?? RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
+    return this.work.orderReceipt(this.current,id) ?? this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.receipt(id) ?? RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
       ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
   }
 
@@ -523,7 +530,6 @@ export class FakeEngine {
     }
   }
 
-
   private ventureView() {
         const venture = this.ventures.get(this.current);
         const playbook = this.desk.playbook(this.current);
@@ -533,6 +539,7 @@ export class FakeEngine {
         }
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
+
   private answerNow(method: string, p: Record<string, unknown>): unknown {
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();
@@ -623,7 +630,7 @@ export class FakeEngine {
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
     const va=this.w4.quality.decideVa(row,action.id);if(va){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:va};}
-    const social=this.work.phoneDelivery.decide(row,action.id)??this.work.r5Delivery.decide(row,action.id)??this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
+    const social=this.work.r5Delivery.decide(row,action.id)??this.work.phoneDelivery.decide(row,action.id)??this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
     if(social){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:social};}
     const openPost=this.posting.decideOpen(row.id,action.id);if(openPost){if(openPost.outcome==='done')this.decided.add(row.id);return openPost;}
     this.decided.add(row.id);

@@ -1,5 +1,5 @@
-import {FakePhoneDelivery} from './fake-phone-delivery';
 import {FakeR5Delivery} from './fake-r5-delivery';
+import {FakePhoneDelivery} from './fake-phone-delivery';
 import {FakeDevDelivery} from './fake-dev-delivery';
 import {FakeCareerDelivery} from './fake-career-delivery';
 import {FakeVaDelivery} from './fake-va-delivery';
@@ -10,7 +10,6 @@ import {formatMinor} from '../../../../platform/runtime/currency';
 import {digest as priceDigest} from '../../../../platform/runtime/portable';
 import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
 import type {ReceiptLite} from './types';
-import {fakeKitMetadata} from './fake-kit-plans';
 import {FakeYoutubeServiceRun} from './fake-youtube-service-run';
 import {fakeYoutubeMediaIntake} from './fake-youtube-intake';
 import {isYoutubeService,validateYoutubeServiceIntake} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
@@ -61,8 +60,9 @@ export interface WorkHost {
   hosted?(): boolean;
   current(): string;
   now(): string;
-  /** The open business's clients and plan. */
+  /** The open business's clients and accepted plan, including its intake and price receipts. */
   clients(): ClientLite[];
+  country(): {code:string;currency:string};
   plan(): BlueprintViewLite | null;
   /** The engine's run list: a started run goes to its front. */
   runs(): RunDetail[];
@@ -112,9 +112,9 @@ export class FakeWorkDesk {
   readonly articleChain: FakeArticleChain;
   readonly youtubeServices: FakeYoutubeServiceRun;
   private orders: Record<string, OrderLite[]>;
-  private roomPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
-  roomPrice(biz:string,id:string){const kept=this.roomPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
-  roomReceipt(biz:string,id:string){return clone([...this.roomPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
+  private orderPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
+  roomPrice(biz:string,id:string){const kept=this.orderPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
+  orderReceipt(biz:string,id:string){return clone([...this.orderPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
   private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
   narrationPrice(biz:string,orderId:string){const value=this.narrationPrices.get(biz+':'+orderId);return value?clone(value):undefined;}
   private deliveries: Record<string, DeliveryLite[]>;
@@ -149,7 +149,7 @@ export class FakeWorkDesk {
   eraseInfluencerOrders(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,...rest}=order;return {...rest,request:'',status:'cancelled'};});}
   eraseCareerOrders(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,...rest}=order;return {...rest,request:'Client data deleted.',status:'cancelled'};});}
   eraseTenderIntake(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,narrationFetched:_narrationFetched,...rest}=order;return rest;});}
-  eraseRecruitingCopies(biz:string,orderIds:readonly string[],line='Candidate evidence was deleted. Start with new approved sources.'):string[]{this.devDelivery.eraseOrders(biz,orderIds);this.r5Delivery.eraseOrders(biz,orderIds);this.phoneDelivery.eraseOrders(biz,orderIds);this.careerDelivery.eraseOrders(biz,orderIds);this.vaDelivery.eraseOrders(biz,orderIds);this.narrationChain.eraseOrders(biz,orderIds);this.youtubeServices.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[],line='Candidate evidence was deleted. Start with new approved sources.'):string[]{this.careerDelivery.eraseOrders(biz,orderIds);this.devDelivery.eraseOrders(biz,orderIds);this.r5Delivery.eraseOrders(biz,orderIds);this.phoneDelivery.eraseOrders(biz,orderIds);this.vaDelivery.eraseOrders(biz,orderIds);this.narrationChain.eraseOrders(biz,orderIds);this.youtubeServices.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
 
   /** Internal byte fingerprint for source-bound fake media; file metadata is never a substitute. */
   uploadFingerprint(biz: string, id: string): string | null {
@@ -202,7 +202,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': if(this.host.plan()?.playbook?.id==='narration-studio'){const order=this.order(biz,p.orderId),id='narration-run-'+(++this.seq);return this.narrationChain.start(order.id,id,p);}return this.start(biz, p);
-      case 'venture.delivery.approve': case 'venture.delivery.review': return this.phoneDelivery.handles(p.runId)?this.phoneDelivery.request(method,p):this.r5Delivery.handles(p.runId)?this.r5Delivery.request(method,p):this.devDelivery.handles(p.runId)?this.devDelivery.request(method,p):this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.r5Delivery.handles(p.runId)?this.r5Delivery.request(method,p):this.phoneDelivery.handles(p.runId)?this.phoneDelivery.request(method,p):this.devDelivery.handles(p.runId)?this.devDelivery.request(method,p):this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
@@ -218,7 +218,7 @@ export class FakeWorkDesk {
   private create(biz: string, p: Record<string, unknown>): OrderLite {
 
     const plan = this.host.plan();
-    if (!plan) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first.');
+    if (!plan) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first.');
     const offer = plan.blueprint.offers.find((o) => o.id === p.offerId);
     if (!offer) throw invalid('That service is not in your plan.');
     if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
@@ -271,17 +271,20 @@ export class FakeWorkDesk {
       client = this.host.clients().find(c => c.id === made.id)!; client.self = true;
     }
     if (!client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
+    const orderId = `o-new-${++this.seq}`;
     const order: OrderLite = {
       ...(internal ? { internal: true as const } : {}),
-      id: `o-new-${++this.seq}`, at: this.host.now(), clientId: client.id, offerId: offer.id,
+      id: orderId, at: this.host.now(), clientId: client.id, offerId: offer.id,
       quantity: text(p.quantity) || offer.pricing.defaultQuantity, request, status: 'open',
-      priceReceiptId: plan.offerReceipts[offer.id]?.id ?? 'R-0415', deliveredOn: null,
+      priceReceiptId: 'order-price-'+biz+'-'+orderId, deliveredOn: null,
       // The engine keeps the intake on the order (OrderRecord.intake); a transcript made here reads its cutFile.
       ...(keptIntake && typeof keptIntake === 'object' ? { intake: clone(keptIntake) as OrderLite['intake'] } : {}),
     };
-    let roomPrice:{price:RoomPrice;receipt:ReceiptLite}|undefined;
-    if(fakeKitMetadata(plan.playbook?.id)?.clientRoom){
-      const office=plan.blueprint.backOffice,currency=office.currency,decision=taxDecision({taxRegistered:office.taxRegistered,taxRateBps:office.taxRateBps??'0',taxState:office.taxState??null,lutConfirmed:office.lutConfirmed??false},{countryCode:client.countryCode??null,stateCode:client.stateCode??null},currency==='INR'?'IN':'OTHER'),input={unitPriceMinor:offer.pricing.unitPriceMinor,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id='room-price-'+biz+'-'+order.id;
+    let roomPrice:{price:RoomPrice;receipt:ReceiptLite};
+    {
+      const office=plan.blueprint.backOffice,country=this.host.country(),currency=office.currency;
+      if(currency!==country.currency)throw new EngineError('CURRENCY_CONFLICT',`This business keeps its books in ${country.currency}.`);
+      const decision=taxDecision({taxRegistered:office.taxRegistered,taxRateBps:office.taxRateBps??'0',taxState:office.taxState??null,lutConfirmed:office.lutConfirmed??false},{countryCode:client.countryCode??null,stateCode:client.stateCode??null},country.code),input={unitPriceMinor:offer.pricing.unitPriceMinor,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id=order.priceReceiptId;
       const display=formatMinor(computed.amounts.total,currency),receipt:ReceiptLite={id,at:order.at,stale:false,totalMinor:computed.amounts.total,figures:[{key:'unit',label:'Price per '+offer.pricing.quantityUnit,display:formatMinor(computed.amounts.unit,currency)},{key:'subtotal',label:'Subtotal',display:formatMinor(computed.amounts.subtotal,currency)},...(['taxable','tax','cgst','sgst','igst'] as const).flatMap(key=>computed.amounts[key]===null?[]:[{key,label:key.toUpperCase(),display:formatMinor(computed.amounts[key]!,currency)}]),{key:'total',label:'Total',display}],explanation:computed.steps.map(step=>step.rule+'; inputs: '+step.inputs.join(', ')+'; result: '+step.resultMinor+' minor units').join('. ')};
       roomPrice={price:{offerId:offer.id,minor:computed.amounts.total,currency,receiptId:id,priceDigest:priceDigest({orderId:order.id,input,computed}),display},receipt};order.priceReceiptId=id;
     }
@@ -296,7 +299,7 @@ export class FakeWorkDesk {
       for (const file of staged) { this.fileContents.delete(biz + ':' + file.id); this.fileFingerprints.delete(biz + ':' + file.id); }
       throw error;
     }
-    if(roomPrice)this.roomPrices.set(biz+':'+order.id,roomPrice);
+    this.orderPrices.set(biz+':'+order.id,roomPrice);
     if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:offer.pricing.unitPriceMinor,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
     return clone(order);
@@ -336,7 +339,7 @@ export class FakeWorkDesk {
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}
-    const social=this.phoneDelivery.start(order,runId,p)??this.r5Delivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p)??this.youtubeServices.start(order,runId,p)??this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
+    const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p)??this.youtubeServices.start(order,runId,p)??this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();

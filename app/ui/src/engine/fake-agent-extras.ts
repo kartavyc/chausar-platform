@@ -115,13 +115,12 @@ const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your
 
 /** What each sample step is, as the playbook's step kinds say (the fake's agents carry only id and purpose). */
 const STEP_KIND: Readonly<Record<string, 'gather' | 'work' | 'write' | 'verify' | 'floor'>> = {
-  cut: 'work', shorts: 'work', finish: 'verify', publish: 'floor', titles: 'write', thumbs: 'verify', brief: 'gather', price: 'floor', send: 'floor',
-  post: 'floor', match: 'work', gst: 'verify', portal: 'floor', draft: 'write', issue: 'floor',
+  cut: 'work', shorts: 'work', finish: 'verify', titles: 'write', thumbs: 'verify', brief: 'gather',
+  post: 'floor', match: 'work', gst: 'verify', draft: 'write', issue: 'floor',
 };
 /** The floor reason each always-ask step carries (the flagship playbooks' own words). */
 const FLOOR_LINE: Readonly<Record<string, string>> = {
-  publish: 'Publishing always asks you first.', price: 'A price change always asks you first.', send: 'Sending to a client always asks you first.',
-  portal: 'Anything on the GST portal always asks you first.', issue: 'Issuing an invoice always asks you first.', post: 'Posting always asks you first.',
+  issue: 'Issuing an invoice always asks you first.', post: 'Posting always asks you first.',
 };
 /** Steps that need a connector mode this build does not have (connector truth: Instagram posting is planned). */
 const NEEDS_PLANNED: Readonly<Record<string, string>> = { post: 'Instagram' };

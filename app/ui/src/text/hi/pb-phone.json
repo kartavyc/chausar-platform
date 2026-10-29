@@ -29,7 +29,7 @@
   "pb-phone.approveScript": "यह स्क्रिप्ट मंज़ूर करें",
   "pb-phone.receipt": "हिसाब की रसीद",
   "pb-phone.report": "रिपोर्ट जाँचें",
-  "pb-phone.reportPreview": "ठीक इसी रिपोर्ट की झलक",
+  "pb-phone.reportPreview": "मूल रिपोर्ट का पाठ; डाउनलोड में बदलाव नहीं होता",
   "pb-phone.download": "रिपोर्ट डाउनलोड करें",
   "pb-phone.logs": "आयात किए कॉल की जाँच",
   "pb-phone.used": "इस महीने की आयातित लागत",

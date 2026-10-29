@@ -170,19 +170,32 @@ describe('Team: the agent sheet', () => {
     expect((within(sheet).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('lists its playbook steps, each with a gate; a floor step always asks and has no switch', async () => {
+  it('lists only its assigned playbook steps, each with a gate', async () => {
     start();
     const sheet = await openAgent('Editor');
     const steps = within(sheet).getByRole('list', { name: 'Steps' });
     // Ink v2 (3B5b): a gate draws both words, Auto and Hold, with the one in force marked data-on.
     expect(within(steps).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold', 'Publish to YouTubeAlways asks you',
+      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold',
     ]);
-    expect(within(steps).getAllByRole('listitem').map((li) => li.querySelector('[data-on]')?.textContent ?? null)).toEqual(['Auto', 'Auto', 'Hold', null]);
+    expect(within(steps).getAllByRole('listitem').map((li) => li.querySelector('[data-on]')?.textContent ?? null)).toEqual(['Auto', 'Auto', 'Hold']);
     expect(within(steps).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
     expect(within(steps).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
     expect(within(steps).queryByRole('switch', { name: /Publish to YouTube/ })).toBeNull();
     expect(within(steps).getAllByRole('switch')).toHaveLength(3);
+  });
+
+  it('the assigned Billing issue step always asks and has no switch', async () => {
+    const { base } = start();
+    await rowOf('Editor');
+    await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
+    const sheet = await openAgent('Billing');
+    const steps = within(sheet).getByRole('list', { name: 'Steps' });
+    expect(within(steps).getAllByRole('listitem').map(li => li.textContent)).toEqual([
+      'Draft invoicesAutoHold', 'Issue an invoice to a clientAlways asks you',
+    ]);
+    expect(within(steps).queryByRole('switch', { name: /Issue an invoice/ })).toBeNull();
+    expect(within(steps).getAllByRole('switch')).toHaveLength(1);
   });
 
   it('switching a gate asks the engine and keeps its answer', async () => {
@@ -315,9 +328,10 @@ describe('Team: live and empty', () => {
   });
 
   it('speaks Hindi', async () => {
-    start('#/team', { language: 'hi' });
+    const { base } = start('#/team', { language: 'hi' });
     expect(await screen.findByRole('heading', { level: 1, name: 'टीम' })).toBeTruthy();
-    const sheet = await openAgent('Editor');
+    await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
+    const sheet = await openAgent('Billing');
     expect(within(sheet).getByText('हर काम पर मंज़ूरी')).toBeTruthy();
     expect(within(sheet).getByText('हमेशा आपसे पूछता है')).toBeTruthy();
   });

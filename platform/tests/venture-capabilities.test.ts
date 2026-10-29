@@ -87,6 +87,7 @@ test('the Story editor: the team\'s tools, everything a turn carries, its step, 
   assert.deepEqual(keys(view, 'see'), [
     'tool:files.list', 'tool:files.read', 'tool:youtube.hooks', 'tool:youtube.editList', 'tool:youtube.chapters', 'tool:youtube.retention',
     'tool:youtube.editOps', 'tool:youtube.clean', 'tool:youtube.captions', 'tool:youtube.coverage', 'tool:youtube.dictionary', 'tool:youtube.style', 'tool:youtube.clips', 'tool:youtube.broll', 'tool:youtube.beats',
+    'tool:youtube.afterPublish', 'tool:youtube.outliers', 'tool:youtube.niche', 'tool:youtube.comments', 'tool:youtube.publicStats', 'tool:youtube.archive',
     'input:request', 'input:files', 'input:dictionary', 'input:answers', 'input:notes', 'input:knowledge',
   ]);
   assert.ok(view.items.filter(entry => entry.list === 'see').every(entry => entry.state === 'reads'));
@@ -104,7 +105,7 @@ test('the Packager writes with no tools: it sees what the team found and the sou
   const env = await agentBusiness();
   const view = await page(env, 'packager');
   assert.deepEqual(keys(view, 'see'), ['input:request', 'input:proven', 'input:answers', 'input:knowledge']);
-  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
+  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', 'Packaging per video. You check the draft before anything leaves Chausar.', 'Screencast tutorial. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
   assert.deepEqual(keys(view, 'off'), ['effect:read', 'effect:write', 'effect:send', 'effect:money']);
   assert.equal(view.line, NO_TOOLS_LINE);
 });

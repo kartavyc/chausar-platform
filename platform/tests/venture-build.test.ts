@@ -986,7 +986,7 @@ async function composedBrief(t: any, output: typeof CAFE_COMPOSE): Promise<Brief
   await engine.request('venture.blueprint.accept', { digest: draft.digest });
   return await engine.request('venture.build.brief', { useTemplate: true }) as BriefRecord;
 }
-const pageTitles = (markdown: string) => sectionLines(markdown, BRIEF_HEADINGS[3]).map(line => line.replace(/^\d+\. /, '').split(':')[0]);
+const pageTitles = (markdown: string) => sectionLines(markdown, BRIEF_HEADINGS[3]).filter(line => /^\d+\. /.test(line)).map(line => line.replace(/^\d+\. /, '').split(':')[0]);
 
 test('composed brief without a client area: the plan pages in order, the Razorpay line, no sign-in or private-upload lines, and a clean lint', async t => {
   const brief = await composedBrief(t, CAFE_COMPOSE);

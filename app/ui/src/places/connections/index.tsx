@@ -42,7 +42,7 @@ import { KitConnect } from './KitConnect';
 // W4 4J21: the setup guides, the truth ladder's words and Check connections (from 4J7).
 import { ChecksTile } from './ChecksTile';
 import { Guide, LadderWord } from './Guide';
-import {localizedSellerCard} from './SellerCardWords';
+import { localizedConnectionCard } from './ConnectionWords';
 import s from './Connections.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
@@ -142,7 +142,7 @@ function GroupSection({ group }: { group: Group }) {
 
 function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
-  const card=localizedSellerCard(t,originalCard);
+  const card=localizedConnectionCard(t,originalCard);
   const client = useEngine();
   const nameId = useId();
   const [said, setSaid] = useState<{ text: string; problem: boolean; toBuild: boolean } | null>(null);
@@ -192,7 +192,7 @@ function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
       )}
       {card.posting && (
         <p className={s.posting} data-posting="">
-          <span className={s.postingWord}>{t('connections.posting')}</span>
+          <span className={s.postingWord}>{t(`connections.posting.mode.${card.posting.mode}`)}</span>
           <PostingLabel option={card.posting} />
           {card.posting.status === 'planned' && card.posting.reason && <span className={s.reason}>{card.posting.reason}</span>}
         </p>
@@ -248,7 +248,7 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 
 function SheetBody({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
-  const card=localizedSellerCard(t,originalCard);
+  const card=localizedConnectionCard(t,originalCard);
   return (
     <>
       <div className={s.sheetSection}>

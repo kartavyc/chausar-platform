@@ -1,6 +1,8 @@
 // P4 tests for the connector catalogue: base and playbook cards in 12 categories, honest modes and chips, starter cards.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import ipcContract from '../../app/desktop/ipc-contract.cjs';
 import type { Context } from '../runtime/contracts.ts';
 import { CONNECTOR_CATEGORIES, EXTERNAL_ORIGINS, STARTER_CONNECTORS } from '../runtime/venture/contracts.ts';
 import type { BlueprintRecord, ConnectorCard, CountryProfile, VentureDeps } from '../runtime/venture/contracts.ts';
@@ -48,38 +50,40 @@ const availableIds = (mode: 'handoff' | 'read' | 'write') =>
   cards().filter(card => card.modes.some(m => m.mode === mode && m.status === 'available')).map(card => card.id).sort();
 
 test('1. base and playbook entries, unique ids, all 12 categories present', () => {
-  // 5-0: the 66 of catalogue.ts, then each wave 5 playbook's own entries (build/catalogue-playbooks.ts; none yet). 5A6
-  // added six: mail import, the n8n and Make webhooks and three speech providers.
-  assert.equal(CONNECTOR_CATALOGUE.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  // The shared catalogue has 74 entries; each landed playbook contributes its own registered rows.
+  assert.equal(CONNECTOR_CATALOGUE.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.equal(new Set(CONNECTOR_CATALOGUE.map(item => item.id)).size, CONNECTOR_CATALOGUE.length);
   assert.deepEqual([...new Set(CONNECTOR_CATALOGUE.map(item => item.category))].sort(), [...CONNECTOR_CATEGORIES].sort());
   const labels = new Set(cards().map(card => card.categoryLabel));
-  assert.deepEqual([...labels], ['Build', 'Site and domain', 'Payments', 'Email and inbox', 'Booking and calendar', 'Customers and CRM', 'Messaging and support',
-    'Docs and ops', 'Marketing and social', 'Books, tax and invoicing', 'Legal and entity', 'Analytics and feedback']);
+  assert.deepEqual([...labels], ['Build', 'Site and domain', 'Payments', 'Email and inbox', 'Booking and calendar', 'Customers and CRM', 'Marketing and social', 'Messaging and support',
+    'Docs and ops', 'Books, tax and invoicing', 'Legal and entity', 'Analytics and feedback']);
 });
 
 test('2. every vendorUrl is null or an https link whose origin is in EXTERNAL_ORIGINS', () => {
+  assert.deepEqual([...ipcContract.EXTERNAL_ORIGINS], [...EXTERNAL_ORIGINS]);
   for (const item of CONNECTOR_CATALOGUE) {
     if (item.vendorUrl === null) {
       // 5A6: mail import, the two webhooks and the speech providers have no Visit site link (their origins are not in the list).
-      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'chausar-templates', 'bank-account', 'mail-import', 'n8n-webhook', 'make-webhook', 'narration-files', 'narration-local-checks', 'narration-distribution', 'google-tts', 'sarvam-tts', 'elevenlabs', 'seo-client-site', 'article-transcript', 'article-local-transcription', 'article-publishing', 'own-site', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'website-public-site', 'website-form-capture', 'website-form-csv'].includes(item.id), item.id);
+      assert.ok(['mail-app', 'chausar-crm', 'chausar-books', 'bank-account', 'chausar-templates', 'mail-import', 'n8n-webhook', 'make-webhook', 'google-tts', 'sarvam-tts', 'elevenlabs', 'seo-client-site', 'career-links', 'career-boards', 'career-pinloop', 'career-linkedin', 'career-naukri', 'local-live-captions', 'article-transcript', 'article-local-transcription', 'article-publishing', 'own-site', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'website-public-site', 'website-form-capture', 'website-form-csv', 'narration-files', 'narration-local-checks', 'narration-distribution', 'formfill', 'app-testing-delivery', 'page-monitors', 'source-export', 'slack-socket', 'teams', 'triage-copy', 'voice-provider'].includes(item.id), item.id);
       continue;
     }
     const url = new URL(item.vendorUrl);
     assert.equal(url.protocol, 'https:');
     assert.equal(url.href, item.vendorUrl);
     assert.ok((EXTERNAL_ORIGINS as readonly string[]).includes(url.origin), `${item.id} ${url.origin}`);
+    assert.equal(ipcContract.validateExternalUrl(item.vendorUrl), item.vendorUrl, item.id);
   }
+  for (const url of ['http://bsky.app/', 'https://owner:secret@shopify.dev/', 'https://unlisted.shopify.dev/', 'https://shopify.dev:444/']) assert.throws(() => ipcContract.validateExternalUrl(url));
   assert.equal(CONNECTOR_CATALOGUE.find(item => item.id === 'meta-ads')?.vendorUrl, 'https://www.facebook.com/business');
   assert.equal(CONNECTOR_CATALOGUE.find(item => item.id === 'stripe-atlas')?.vendorUrl, 'https://stripe.com/atlas');
 });
 
 test('3. available modes are exactly what this build does; everything else is planned and unqualified', () => {
-  assert.deepEqual(availableIds('handoff'), ['article-publishing', 'bolt', 'lovable', 'mail-app', 'narration-distribution', 'newsletter-owner-tool', 'replit', 'tender-submission', 'v0']);
+  assert.deepEqual(availableIds('handoff'), ['ajio', 'app-testing-delivery', 'article-publishing', 'bolt', 'career-linkedin', 'career-naukri', 'career-pinloop', 'instagram-shop', 'jiomart', 'lovable', 'mail-app', 'meesho', 'myntra', 'narration-distribution', 'newsletter-owner-tool', 'nykaa', 'replit', 'source-export', 'tender-submission', 'triage-copy', 'v0', 'whatsapp-business']);
   // 4E3's mailbox (IMAP with an app password) and calendar address, labelled by 4J7: read, on the desktop app.
   // 5A6: mail files you import (read) and the n8n and Make webhooks (write: an item you approve, as shown).
-  assert.deepEqual(availableIds('read'), ['article-local-transcription', 'article-transcript', 'bank-account', 'chausar-books', 'chausar-crm', 'github', 'google-calendar', 'google-workspace', 'happenstance', 'mail-import', 'narration-files', 'narration-local-checks', 'nominatim', 'overpass', 'own-site', 'recruit-ashby', 'recruit-greenhouse', 'recruit-lever', 'seo-cloudflare-kv', 'tally', 'tender-documents', 'website-public-site', 'zoho-books', 'zoho-mail']);
-  assert.deepEqual(availableIds('write'), ['chausar-books', 'chausar-crm', 'google-tts', 'make-webhook', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'website-cloudflare', 'zoho-books']);
+  assert.deepEqual(availableIds('read'), ['article-local-transcription', 'article-transcript', 'bank-account', 'career-boards', 'career-links', 'chausar-books', 'chausar-crm', 'github', 'google-calendar', 'google-workspace', 'happenstance', 'mail-import', 'narration-files', 'narration-local-checks', 'nominatim', 'overpass', 'own-site', 'page-monitors', 'recruit-ashby', 'recruit-greenhouse', 'recruit-lever', 'seo-cloudflare-kv', 'shopify-admin', 'shopify-storefront', 'tally', 'tender-documents', 'website-public-site', 'zoho-books', 'zoho-mail']);
+  assert.deepEqual(availableIds('write'), ['bluesky', 'chausar-books', 'chausar-crm', 'discord', 'google-tts', 'local-live-captions', 'make-webhook', 'mastodon', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'shopify-admin', 'telegram', 'website-cloudflare', 'zoho-books']);
 
   const byId = new Map(cards().map(card => [card.id, card]));
   const mode = (id: string, name: 'handoff' | 'read' | 'write') => byId.get(id)!.modes.find(m => m.mode === name);
@@ -99,7 +103,7 @@ test('3. available modes are exactly what this build does; everything else is pl
       if (m.status === 'planned') assert.equal(m.qualification, 'unqualified', `${card.id} ${m.mode}`);
       else assert.notEqual(m.qualification, 'unqualified', `${card.id} ${m.mode}`);
     }
-    if (card.vendorUrl !== null && !['lovable', 'replit', 'bolt', 'v0'].includes(card.id)) {
+    if (card.vendorUrl !== null && !availableIds('handoff').includes(card.id)) {
       assert.deepEqual(card.modes[0], { mode: 'handoff', status: 'planned', qualification: 'unqualified', what: 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.' }, card.id);
     }
   }
@@ -155,17 +159,17 @@ test('5. the WhatsApp card carries its business-rules note; cards are plain, hon
 test('6. starter flags and ordering for an India venture, before and after the plan is accepted', async () => {
   const { deps } = setup();
   const none = await list(deps);
-  assert.equal(none.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal(none.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.ok(none.every(card => !card.starter), 'no venture yet: no starter cards');
 
   await seedIndia(deps);
   const before = await list(deps);
-  assert.equal(before.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length);
+  assert.equal(before.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   const expectedStarters = STARTER_CONNECTORS.map(id => (id === '<payment-rail>' ? 'razorpay' : id));
   assert.deepEqual(before.filter(card => card.starter).map(card => card.id).sort(), [...expectedStarters].sort());
   // Starter cards first, then category order, then name.
   assert.deepEqual(before.slice(0, 6).map(card => card.id), ['github', 'lovable', 'razorpay', 'mail-app', 'cal-com', 'chausar-books']);
-  assert.deepEqual(before.slice(6, 9).map(card => card.id), ['bolt', 'replit', 'v0']);
+  assert.deepEqual(before.slice(6, 9).map(card => card.id), ['bolt', 'android-local', 'docker-local']);
   const rest = before.slice(6);
   for (let i = 1; i < rest.length; i++) {
     const a = rest[i - 1], b = rest[i];
@@ -207,22 +211,15 @@ test('7. handlers keys equal the forty-one owned methods', () => {
 });
 
 test('the architecture Connectors table names cards whose available modes it claims (the doc test rule)', () => {
-  // Rows from ARCHITECTURE-B2C.md section 6, so this package stays in line with the doc P6 checks in Phase C.
-  const rows: [string, string][] = [
-    ['Lovable, Replit, Bolt, v0, GitHub', 'handoff (brief link or copy); GitHub read'],
-    ['Vercel, Netlify, Cloudflare, Porkbun', 'planned: handoff'],
-    ['Razorpay, Cashfree, Stripe, PayPal, Paddle', 'planned: handoff, read, write'],
-    // 4J7: the rows as docs/venture/architecture.md now has them, with 4E3's mailbox and calendar reads.
-    ['Your own mail app, Google Workspace, Zoho Mail, Resend', 'Your own mail app: handoff (you send a draft); Google Workspace and Zoho Mail: read (your inbox over IMAP with an app password, desktop app only); others planned'],
-    ['Cal.com, Calendly, Google Calendar', 'Google Calendar: read (the private address you paste, desktop app only); planned: handoff, read'],
-    ['Chausar CRM, HubSpot, Zoho CRM, Attio', 'Chausar CRM read and write; others planned'],
-    ['WhatsApp, Telegram, Slack, Discord', 'planned: handoff, write'],
-    ['Notion, Google Drive, Linear, Airtable', 'planned'],
-    ['LinkedIn, X, Instagram, Buffer', 'planned'],
-    ['Chausar back office, TallyPrime, Zoho Books, Xero', 'Chausar back office read and write; TallyPrime read; others planned'],
-    ['Stripe Atlas, India company and LLP, GST registration', 'planned: handoff (checklist), no legal advice'],
-    ['PostHog, Plausible, Tally forms', 'planned: handoff (brief adds analytics)'],
-  ];
+  // Inspect the actual documentation, rather than a second stale copy of its table.
+  const document = readFileSync(new URL('../../docs/venture/architecture.md', import.meta.url), 'utf8');
+  const section = document.split('## 6. Connectors')[1]?.split('## 7.')[0];
+  assert.ok(section, 'the connector table section is present');
+  const rows = section.split('\n').filter(line => line.startsWith('| ') && !line.startsWith('| Category |')).map(line => {
+    const columns = line.split('|').map(value => value.trim());
+    return [columns[2], columns[3]] as [string, string];
+  });
+  assert.equal(rows.length, 12);
   const all = cards();
   const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
   for (const [examples, modes] of rows) {

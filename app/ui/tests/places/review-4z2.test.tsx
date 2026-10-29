@@ -178,7 +178,7 @@ describe('8. Today: the folds, the stack and the card words', () => {
     start('#/today');
     // Today shows the five most urgent cards (4Z3); the post waits behind the fold.
     fireEvent.click(await screen.findByRole('button', { name: /^Show [0-9]+ more$/ }));
-    const post = (await screen.findByRole('button', { name: 'Post to LinkedIn' })).closest('article')!;
+    const post = (await screen.findByRole('button', { name: 'Post to X' })).closest('article')!;
     expect(post.querySelector('[data-count-of]')).toBeNull();
     expect(document.body.textContent).not.toContain('Asks once more');
     expect(document.body.textContent).toContain('Asks you to confirm');

@@ -650,7 +650,7 @@
     "regionNote": null,
     "auth": "Owner-scoped credentials, kept only for the open session",
     "vendorUrl": "https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant",
-    "note": "Use the desktop or hosted owner desk with an app in your own organization. Exact approved price, stock and title changes require actual acknowledgement and read-back. No live account qualification is claimed. Otherwise change the product in Shopify yourself.",
+    "note": "Desktop or hosted owner desk; your organisation's app. Exact approved price, stock and title edits need acknowledgement and readback. Live account unqualified. Otherwise edit in Shopify yourself.",
     "starter": false,
     "postingOptions": [],
     "guide": {

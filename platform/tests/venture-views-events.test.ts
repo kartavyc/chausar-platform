@@ -163,7 +163,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickNetworkFile', 'request', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject']);
+  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickNetworkFile', 'request', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

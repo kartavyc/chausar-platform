@@ -44,6 +44,7 @@ function shareTokenOf(url: string): string | null {
 }
 /** What the share page shows (SharePage in venture/build/share-links.ts). Text only; the page escapes every field. */
 export type SharePageView = {
+  canRequest?: boolean;
   businessName: string; title: string; text: string; expires: string; digest: string;
   decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
   /** 4J7 (O20): what the link shares, whether it may answer now, the posts a comment can name, the comments so far. */
@@ -658,4 +659,3 @@ export class HostedApp {
     return () => { for (const off of offs) off(); unwatch(); };
   }
 }
-

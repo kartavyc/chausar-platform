@@ -41,7 +41,7 @@
   "pb-dev.reviewHelp": "पक्का करने से पहले पूरा स्रोत पढ़ें और ज़रूरी ऑडिट करें। खाली सूची सुरक्षा साबित नहीं करती।",
   "pb-dev.confirm": "समीक्षा किए निष्कर्ष पक्के करें",
   "pb-dev.export": "निर्यात देखें",
-  "pb-dev.exportPreview": "ठीक यही रिपोर्ट",
+  "pb-dev.exportPreview": "मूल रिपोर्ट का पाठ; डाउनलोड में बदलाव नहीं होता",
   "pb-dev.download": "रिपोर्ट डाउनलोड करें",
   "pb-dev.verdict.incomplete": "समीक्षा अधूरी है",
   "pb-dev.verdict.hold": "जारी न करें",

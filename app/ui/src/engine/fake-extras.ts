@@ -1,7 +1,3 @@
-import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
-import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
-import { FAKE_CA_RULES } from './fake-ca-rules';
-import type { SignoffCheckView } from './types';
 /**
  * The fake engine's answers for the last screens, kept per business: Money at a glance (venture.money.overview), the
  * tax working (venture.tax.working), spend settings (venture.spend.policy.*), the CA firm page (venture.ca.*), leads
@@ -13,6 +9,9 @@ import type { SignoffCheckView } from './types';
  */
 
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
+import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { FAKE_CA_RULES } from './fake-ca-rules';
+import type { SignoffCheckView } from './types';
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
 import {
   EngineError, type BankConsentView, type BankImportResult, type CaReceiptView, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
@@ -20,6 +19,7 @@ import {
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
+import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -106,7 +106,6 @@ const STAGE_RANK: Partial<Record<LeadView['status'], number>> = { new: 0, drafte
 interface HeldShare extends ShareLink { businessId: string; deliveryId: string; draftDigest?:string }
 
 export class FakeExtrasDesk {
-  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {this.shares=this.shares.filter(s=>s.businessId!==biz||!runIds.includes(s.deliveryId));}
   private readonly host: ExtrasHost;
   private policies: Record<string, SpendPolicyView>;
   private rupees: Record<string, SampleRupeeRate | null> = {};
@@ -441,18 +440,6 @@ export class FakeExtrasDesk {
     return list.includes(email) || list.includes(domain);
   }
 
-  /**
-   * The engine's stage rule: forward only, won and lost stay, blocked (an opt-out) from any stage and never left.
-   * A move that is not forward leaves the stage as it is and records nothing; a move keeps its evidence. `at` is the
-   * time of the act that moved it, as the engine stamps both in one transaction.
-   */
-  private advance(lead: LeadView, to: LeadView['status'], evidence: LeadMoveView['evidence'], at: string = this.host.now()): void {
-    const from = lead.status;
-    if (from === 'blocked' || (to !== 'blocked' && (from === 'won' || from === 'lost' || STAGE_RANK[to]! <= STAGE_RANK[from]!))) return;
-    lead.moves.push({ from, to, at, by: 'owner', evidence });
-    lead.status = to;
-  }
-
   /** S10 uses the same lead store, with an atomic exact creator draft and no fake send. */
   influencerOutreach(biz:string,input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string}{
     const p=influencerOutreachInput({creatorId:input.creatorId,subject:input.subject,body:input.body,postalAddress:input.postalAddress});
@@ -466,6 +453,19 @@ export class FakeExtrasDesk {
     (this.leads[biz]??=[]).unshift(lead);return{leadId:id,draftId};
   }
   eraseInfluencerLeads(biz:string,ids:readonly string[]):void{this.leads[biz]=(this.leads[biz]??[]).filter(lead=>!ids.includes(lead.id));}
+
+  /**
+   * The engine's stage rule: forward only, won and lost stay, blocked (an opt-out) from any stage and never left.
+   * A move that is not forward leaves the stage as it is and records nothing; a move keeps its evidence. `at` is the
+   * time of the act that moved it, as the engine stamps both in one transaction.
+   */
+  private advance(lead: LeadView, to: LeadView['status'], evidence: LeadMoveView['evidence'], at: string = this.host.now()): void {
+    const from = lead.status;
+    if (from === 'blocked' || (to !== 'blocked' && (from === 'won' || from === 'lost' || STAGE_RANK[to]! <= STAGE_RANK[from]!))) return;
+    lead.moves.push({ from, to, at, by: 'owner', evidence });
+    lead.status = to;
+  }
+
   private addLead(biz: string, p: Record<string, unknown>): LeadView {
     const name = text(p.name);
     if (name.length < 2 || name.length > 120) throw invalid('A name must be between 2 and 120 characters.');
@@ -662,6 +662,7 @@ export class FakeExtrasDesk {
   }
 
   sharedDraftDigest(biz:string,id:string):string|null { return this.shares.find(share=>share.businessId===biz&&share.deliveryId===id)?.draftDigest??null; }
+  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {this.shares=this.shares.filter(s=>s.businessId!==biz||!runIds.includes(s.deliveryId));}
 
   private share(biz: string, p: Record<string, unknown>): ShareLink {
     // 4J20: a month of books for the owner's accountant (build/share-links.ts kind 'books'): read only, revocable.

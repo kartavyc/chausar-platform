@@ -261,20 +261,49 @@ describe('Network: the search box', () => {
     const { spy } = await start();
     await screen.findByRole('searchbox');
     expect(screen.queryByRole('heading', { level: 2, name: 'Everyone' })).toBeNull();
-    await click(await screen.findByRole('button', { name: 'Browse everyone (9)' }, { timeout: 3000 }));
-    const tile = (await screen.findByRole('heading', { level: 2, name: 'Everyone' })).closest('section') as HTMLElement;
-    await waitFor(() => expect(within(tile).getAllByRole('listitem').length).toBe(8), { timeout: 3000 });
-    await click(within(tile).getByRole('button', { name: 'Show more' }));
-    await waitFor(() => expect(within(tile).getAllByRole('listitem').length).toBe(9), { timeout: 3000 });
-    const before = calls(spy, 'venture.network.people').length;
-    const filter = within(tile).getByRole('textbox', { name: 'Find by name or company' });
-    fireEvent.change(filter, { target: { value: 'k' } });
-    fireEvent.change(filter, { target: { value: 'ke' } });
-    fireEvent.change(filter, { target: { value: 'kettle' } });
-    expect(calls(spy, 'venture.network.people').length, 'nothing asked while typing').toBe(before);
-    await waitFor(() => expect(within(tile).getAllByRole('listitem').map((row) => row.querySelector('[data-open]')?.textContent)).toEqual(['Kabir Sethi', 'Tara Iyer']), { timeout: 3000 });
-    expect(calls(spy, 'venture.network.people').filter(([, params]) => (params as { query?: string }).query === 'kettle')).toHaveLength(1);
-    expect(calls(spy, 'venture.network.people').filter(([, params]) => ['k', 'ke'].includes((params as { query?: string }).query ?? ''))).toHaveLength(0);
+    const browse = await screen.findByRole('button', { name: 'Browse everyone (9)' }, { timeout: 3000 });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await click(browse);
+      const tile = screen.getByRole('heading', { level: 2, name: 'Everyone' }).closest('section') as HTMLElement;
+      expect(within(tile).getAllByRole('listitem')).toHaveLength(8);
+      // The separate fast-pagination regression covers the initial filter timer. This test measures typing alone.
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await click(within(tile).getByRole('button', { name: 'Show more' }));
+      expect(within(tile).getAllByRole('listitem')).toHaveLength(9);
+      const before = calls(spy, 'venture.network.people').length;
+      const filter = within(tile).getByRole('textbox', { name: 'Find by name or company' });
+      fireEvent.change(filter, { target: { value: 'k' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+      fireEvent.change(filter, { target: { value: 'ke' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+      fireEvent.change(filter, { target: { value: 'kettle' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(299); });
+      expect(calls(spy, 'venture.network.people').length, 'nothing asked before the last key has been quiet for 300 ms').toBe(before);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(within(tile).getAllByRole('listitem').map((row) => row.querySelector('[data-open]')?.textContent)).toEqual(['Kabir Sethi', 'Tara Iyer']);
+      expect(calls(spy, 'venture.network.people').filter(([, params]) => (params as { query?: string }).query === 'kettle')).toHaveLength(1);
+      expect(calls(spy, 'venture.network.people').filter(([, params]) => ['k', 'ke'].includes((params as { query?: string }).query ?? ''))).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an unchanged initial filter never resets Browse everyone pagination after a fast Show more', async () => {
+    const { spy } = await start();
+    const browse = await screen.findByRole('button', { name: 'Browse everyone (9)' }, { timeout: 3000 });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await click(browse);
+      const tile = screen.getByRole('heading', { level: 2, name: 'Everyone' }).closest('section') as HTMLElement;
+      await click(within(tile).getByRole('button', { name: 'Show more' }));
+      expect(within(tile).getAllByRole('listitem')).toHaveLength(9);
+      const before = calls(spy, 'venture.network.people').length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect({ shown: within(tile).getAllByRole('listitem').length, reads: calls(spy, 'venture.network.people').length }).toEqual({ shown: 9, reads: before });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('Find more asks for the next people, leaving out those shown', async () => {

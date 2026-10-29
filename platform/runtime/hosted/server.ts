@@ -1,5 +1,3 @@
-import {storefrontWidgetHttp} from '../venture/build/storefront-widget-http.ts';
-import {siteFormHttp} from '../venture/playbooks/website-studio/form-http.ts';
 // Chausar hosted tier: the HTTP server. Experimental and off by default: it starts only with CHAUSAR_HOSTED=1 or --hosted.
 //   node platform/runtime/hosted/server.ts --hosted --dev      (npm run start:hosted: http://localhost:4320, development outbox)
 // Every response carries a strict content policy. Every POST must come from the configured origin. Sessions live in
@@ -24,6 +22,8 @@ import { FileDirectory, PostgresDirectory, type HostedDirectory } from './direct
 import { DevOutbox, NoMailer, type Mailer } from './mailer.ts';
 import { runEventFromActor, sseFrame } from '../venture/views/events.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from '../ui-ink.ts';
+import {siteFormHttp} from '../venture/playbooks/website-studio/form-http.ts';
+import {storefrontWidgetHttp} from '../venture/build/storefront-widget-http.ts';
 import { supportRatingHtml } from '../venture/playbooks/support-desk/rating-link.ts';
 
 const hostedDir = fileURLToPath(new URL('../../../app/hosted/', import.meta.url));
@@ -77,7 +77,9 @@ function sharePageHtml(page: SharePageView, said: string | null): string {
   const kind = page.kind ?? 'draft';
   const canAnswer = page.canAnswer ?? !page.decision;
   let decision = '';
-  if (kind === 'draft') {
+  if (page.canRequest) {
+    decision='<form method="post"><input type="hidden" name="item" value="room-request"><label for="request">What do you need? / आपको क्या चाहिए?</label><textarea id="request" name="text" rows="4" maxlength="1000" required></textarea><div class="actions"><button class="primary" type="submit">Send request / अनुरोध भेजें</button></div></form>';
+  } else if (kind === 'draft') {
     decision = page.decision
       ? `<p class="said">${page.decision.decision === 'approved' ? 'You approved this draft.' : 'You asked for changes.'}</p>`
         + (page.decision.comment ? `<p>${escapeHtml(page.decision.comment)}</p>` : '')
@@ -725,4 +727,3 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   console.log(`The app is at ${config.origin}/app/, built from app/ui.`);
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void http.close().finally(() => process.exit(0)); });
 }
-

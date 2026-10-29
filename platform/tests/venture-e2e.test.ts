@@ -242,13 +242,13 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal(cards.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.equal(new Set(cards.map(c => c.category)).size, 12);
   const availableFor = (mode: string) => cards.filter(c => c.modes.some(m => m.mode === mode && m.status === 'available')).map(c => c.id).sort();
-  assert.deepEqual(availableFor('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
+  assert.deepEqual(availableFor('handoff'), ['ajio', 'app-testing-delivery', 'article-publishing', 'bolt', 'career-linkedin', 'career-naukri', 'career-pinloop', 'instagram-shop', 'jiomart', 'lovable', 'mail-app', 'meesho', 'myntra', 'narration-distribution', 'newsletter-owner-tool', 'nykaa', 'replit', 'source-export', 'tender-submission', 'triage-copy', 'v0', 'whatsapp-business']);
   // W5 5A6: the owner's own Make and n8n webhooks write, each send approved.
-  assert.deepEqual(availableFor('write'), ['bluesky', 'chausar-books', 'chausar-crm', 'discord', 'make-webhook', 'mastodon', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'telegram']);
+  assert.deepEqual(availableFor('write'), ['bluesky', 'chausar-books', 'chausar-crm', 'discord', 'google-tts', 'local-live-captions', 'make-webhook', 'mastodon', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'shopify-admin', 'telegram', 'website-cloudflare', 'zoho-books']);
   const stripe = cards.find(c => c.id === 'stripe');
   assert.ok(stripe?.chips.includes('planned: handoff') && stripe.chips.includes('planned: write'));
   assert.ok(cards.find(c => c.id === 'github')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));
-  assert.ok(cards.find(c => c.id === 'zoho-books')?.modes.some(m => m.mode === 'read' && m.status === 'planned'));
+  assert.ok(cards.find(c => c.id === 'zoho-books')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));
   for (const card of cards) if (card.vendorUrl) assert.ok((EXTERNAL_ORIGINS as readonly string[]).includes(new URL(card.vendorUrl).origin), card.vendorUrl);
 
   // 16. Rehearse all three practice clients with the model, one per request, each judged. The clean and messy

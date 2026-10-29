@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-const require = createRequire(import.meta.url);
+const require = createRequire(new URL('../../app/desktop/main.cjs', import.meta.url));
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
@@ -54,8 +54,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
-    if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
-    if (name === './money-export.cjs') return require('../../app/desktop/money-export.cjs');
+    if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
+    if (name === './money-export.cjs') return require('./money-export.cjs');
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
@@ -209,7 +209,7 @@ test('notify.new with a count: "Chausar: 3 need you" in the tooltip, "3 need you
 });
 
 test('the count reaches the window on notify.new alone: the IPC contract has no separate count channel (4G3)', () => {
-  const contract = require('../../app/desktop/ipc-contract.cjs');
+  const contract = require('./ipc-contract.cjs');
   assert.equal(Object.hasOwn(contract, 'NOTIFY_COUNT_CHANNEL'), false);
   assert.equal(JSON.stringify(Object.values(contract).filter(value => typeof value === 'string')).includes('notify:count'), false);
 });
@@ -319,7 +319,7 @@ test('the tray icon is the two-square mark: opaque, padded, ink and green on the
 
 test('Export for your CA: main answers the save channel for the app\'s own window only, and asks the engine for the month (4J4)', async () => {
   const d = await desktop([]);
-  const contract = require('../../app/desktop/ipc-contract.cjs');
+  const contract = require('./ipc-contract.cjs');
   const handler = d.handlers.get(contract.MONEY_EXPORT_CHANNEL);
   assert.equal(typeof handler, 'function');
   const window = d.windows[0];

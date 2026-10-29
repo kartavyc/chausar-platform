@@ -134,8 +134,6 @@ function mailBody(head: string, body: string, depth = 0): string {
 const AIMED = /ignore (?:all )?previous instructions|disregard (?:the )?(?:above|previous)|you are now|system prompt/i;
 
 export class FakeKitConnectDesk {
-  eraseRecruitingMail(threadIds:readonly string[]):void{const ids=new Set(this.recruitingMail(threadIds).map(m=>m.id));this.book().mail=this.book().mail.filter(m=>!ids.has(m.id));}
-  recruitingMail(threadIds:readonly string[]):Mail[]{return [...this.threads()].filter(([id])=>threadIds.includes(id)).flatMap(([,messages])=>messages.filter(m=>m.source==='file-import')).map(m=>structuredClone(m));}
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   private readonly books = new Map<string, Book>();
@@ -154,6 +152,8 @@ export class FakeKitConnectDesk {
     const messages = this.threads().get(id);
     return messages ? { held: messages.some(mail => mail.held), messages: messages.map(mail => ({ messageId: mail.messageId, references: [...mail.references], from: mail.from, subject: mail.subject, date: mail.date, text: mail.source === 'file-import' ? mail.text ?? null : 'The original words remain in the mailbox. Forward or export them to read them here.', source: mail.source })) } : null;
   }
+  recruitingMail(threadIds:readonly string[]):Mail[]{return [...this.threads()].filter(([id])=>threadIds.includes(id)).flatMap(([,messages])=>messages.filter(m=>m.source==='file-import')).map(m=>structuredClone(m));}
+  eraseRecruitingMail(threadIds:readonly string[]):void{const ids=new Set(this.recruitingMail(threadIds).map(m=>m.id));this.book().mail=this.book().mail.filter(m=>!ids.has(m.id));}
   /** Forget erases full imported conversations involving the person, with the words kept for support. */
   forgetPeople(people: readonly { names: readonly string[]; emails: readonly string[] }[], erase: boolean): void {
     if (!erase) return;

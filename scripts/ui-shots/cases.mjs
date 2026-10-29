@@ -17,6 +17,8 @@
 //   note      what the comparison looks at (the walk table in WALK.md)
 
 export const PLACES = [
+  { id: 'ca-working', path: '#/today', steps: [{business:'Ledgerline'},{hash:'#/work'},{unfold:true}], hindi:true, note:'5C2 typed CA working forms and exact local approvals' },
+  { id: 'ca-example', path: '#/today', steps: [{business:'Ledgerline'},{hash:'#/work'},{unfold:true},{press:'Try an assumed example'}], note:'5C2 actual assumed calculator example and receipt' },
   { id: 'today', path: '#/today', board: 'D-Today', phone: 'D-Phone-Today', hindi: true, note: 'header, goal card with the goal and the next best step (4I2), team at work, needs-you cards, working now, earlier' },
   { id: 'today-questions', path: '#/today?show=questions', note: 'filter chips: Questions pressed' },
   { id: 'today-more', path: '#/today', steps: [{ press: 'Show 8 more' }], note: 'the folded cards shown (4Z3: five full cards, the rest folded)' },

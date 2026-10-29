@@ -380,9 +380,11 @@ function Everyone() {
   const [limit, setLimit] = useState(PAGE);
   // The filter asks only once the typing stops; useResource drops an answer a newer request overtook.
   useEffect(() => {
-    const timer = setTimeout(() => { setQuery(typed.trim()); setLimit(PAGE); }, FILTER_WAIT_MS);
+    const next = typed.trim();
+    if (next === query) return;
+    const timer = setTimeout(() => { setQuery(next); setLimit(PAGE); }, FILTER_WAIT_MS);
     return () => clearTimeout(timer);
-  }, [typed]);
+  }, [typed, query]);
   const people = useResource('venture.network.people', query ? { query, limit } : { limit }, { refreshOn: networkRefresh });
   useClientsChanged(engine, () => people.reload());
   const view = people.data;

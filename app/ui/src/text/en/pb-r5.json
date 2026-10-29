@@ -1,7 +1,7 @@
 {
   "pb-r5.order": "Client order",
   "pb-r5.choose": "Choose an order",
-  "pb-r5.downloadPreview": "Review download",
+  "pb-r5.downloadPreview": "Original file text; download is unchanged",
   "pb-r5.download": "Download",
   "pb-r5.unsent": "Nothing has been sent. Copy or download this approved text and send it yourself.",
   "pb-r5.watch.title": "Monitored data",
@@ -43,7 +43,7 @@
   "pb-r5.triage.admin": "I administer this channel and may use these messages.",
   "pb-r5.triage.save": "Save channel",
   "pb-r5.triage.evidence": "Channel evidence",
-  "pb-r5.triage.summary": "Summary for review",
+  "pb-r5.triage.summary": "Original summary to approve",
   "pb-r5.triage.approve": "Approve this summary",
   "pb-r5.triage.handoff": "Prepare manual handoff",
   "pb-r5.triage.importHelp": "Paste only permitted source text. This replaces the same message reference and clears earlier summary approval. Held source content is not retained.",

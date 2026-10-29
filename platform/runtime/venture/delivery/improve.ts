@@ -80,12 +80,13 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'ca-only-to-ca': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Hand audits, notices and anything not modelled to the CA, and never promise a reply.' },
   'no-filing-claims': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Never say a return was filed, signed or verified; the CA or the client does that on the portal.' },
   // The social agency's judge rules (playbooks/social/judge.ts): its posts are written on the drafts step.
-  'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
+  'fair-price-receipted': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Use the current creator price receipt within the owner cap and label forecasts model estimate until actual results exist.' },
   'ad-disclosed': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Disclose every ad upfront and label any synthetic presenter Made with AI.' },
   'reply-in-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Answer the specific comment in the client approved voice.' },
   'no-customer-pretence': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Never let a synthetic presenter claim to be a customer or claim personal product experience.' },
   'source-faithful': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'For a repurposed post use only facts from its bound source, even if other proof files contain more.' },
   'one-goal': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Give each post one clear goal and one audience action.' },
+  'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
   'fits-pillar': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Tie each post to one of the approved content pillars.' },
   'claims-backed': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: "Make only claims the client's proof files or brand sheet back, in any wording." },
   'disclosure-clear': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Begin a paid post with Ad, and say Made with AI in the first line when an AI person, voice or scene is in it.' },
@@ -94,6 +95,11 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'client-comfortable': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write only what the client would be comfortable seeing under their name.' },
   // The YouTube playbook's judge rules (playbooks/youtube/judge.ts): the package is written on the package step, and
   // the moments are picked on the find step.
+  'audit-one-fix': { level: 'harness', op: 'guidance.add', stepId: 'channel-audit', value: 'Keep the audit to one source backed fix, three things to keep and one thing not to do yet.' },
+  'plan-fits-hours': { level: 'harness', op: 'guidance.add', stepId: 'weekly-plan', value: 'Fit every planned piece within the owner hours and name the exact piece to drop first.' },
+  'reply-not-bait': { level: 'harness', op: 'guidance.add', stepId: 'comment-triage', value: 'Keep source linked replies within thirty words, never answer held bait and leave posting to the owner.' },
+  'clip-stands-alone': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'Choose a complete thought that makes sense without the full video.' },
+  'broll-fits-claim': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Use added images only to support what the speaker actually said, without implying a new claim.' },
   'meaning-kept': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Keep the speaker meaning and every qualifier when proposing a cut.' },
   'no-new-words': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Use only the supplied spoken word ids and never invent speech.' },
   'faithful-to-source': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Say only what the footage, the transcript and the brief show.' },

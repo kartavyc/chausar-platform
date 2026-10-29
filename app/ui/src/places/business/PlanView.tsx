@@ -1,3 +1,4 @@
+import {playbookLabel} from '../../text/playbook-label';
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -39,7 +40,7 @@ export function PlanView() {
   const view = plan.data;
   const bp = view.blueprint;
   // The playbook's own label when the idea picked a flagship playbook; else the service type's label.
-  const kind = view.playbook?.label ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
+  const kind = playbookLabel(t,view.playbook) ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
   const version = t(bp.status === 'accepted' ? 'business.versionAccepted' : 'business.versionDraft', { version: bp.version });
 
   return (

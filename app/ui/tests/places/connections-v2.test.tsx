@@ -30,6 +30,7 @@ function start(hash = '#/connections', options: { language?: 'en' | 'hi'; hosted
     }) as EngineClient['request'],
   };
   render(<App client={client} language={options.language ?? 'en'} />);
+  return client;
 }
 /**
  * The one honest rule for a tile's head chip and its look: the most its modes do today; else Writes when a way to post
@@ -72,17 +73,18 @@ function keyLikeText(root: HTMLElement): string[] {
 
 describe('Connections in the Ink v2 look', () => {
   it('Your AI is the first tile, then each category of connectors under its own heading', async () => {
-    start();
+    const client = start();
+    const cards = await client.request('venture.connectors.list', {}) as ConnectorCardLite[];
     await screen.findByText('Build', { selector: 'h2' });
     const main = document.querySelector('main')!;
     // The first tile in the page is a region named by its heading, Your AI.
     const first = main.querySelector('section[aria-labelledby]')!;
     expect(document.getElementById(first.getAttribute('aria-labelledby')!)?.textContent).toBe('Your AI');
-    const categories = [...new Set(CONNECTORS.map((card) => card.categoryLabel))];
+    const categories = [...new Set(cards.map((card) => card.categoryLabel))];
     const groups = categories.map((label) => screen.getByText(label, { selector: 'h2' }).closest('section')!);
     // The groups follow the engine's order, and every connector sits in its own category's group.
     for (const [index, label] of categories.entries()) {
-      const inGroup = CONNECTORS.filter((card) => card.categoryLabel === label).map((card) => card.name);
+      const inGroup = cards.filter((card) => card.categoryLabel === label).map((card) => card.name);
       expect(within(groups[index]!).getAllByRole('listitem').map((item) => item.querySelector('[data-connector-name]')?.textContent), label).toEqual(inGroup);
     }
     assertInkRules(document.body);
@@ -170,14 +172,15 @@ describe('Connections in the Ink v2 look', () => {
   });
 
   it('What Chausar can do on this computer lists every way that writes or sends, with the engine\'s words, and what stopping means', async () => {
-    start();
+    const client = start();
+    const cards = await client.request('venture.connectors.list', {}) as ConnectorCardLite[];
     const canDo = await region('What Chausar can do on this computer');
     const rows = await within(canDo).findAllByRole('listitem');
-    const expected = CONNECTORS.flatMap((card) => [
+    const expected = cards.flatMap((card) => [
       ...card.modes.filter((mode) => mode.mode === 'write' && mode.status === 'available').map((mode) => [card.name, mode.what]),
       ...card.postingOptions.filter((option) => option.status === 'available').map((option) => [card.name, option.what]),
     ]);
-    expect(expected.length).toBe(3);
+    expect(expected.length).toBe(8);
     expect(rows.map((row) => [row.querySelector('[data-can-do-name]')?.textContent, row.querySelector('[data-can-do-what]')?.textContent])).toEqual(expected);
     expect(canDo.textContent).toContain('Stopping a connection does not undo what already happened.');
     expect(canDo.textContent).not.toContain('GitHub');

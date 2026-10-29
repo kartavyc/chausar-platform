@@ -29,5 +29,8 @@
   "pb-va.reviewMorning": "Review morning brief",
   "pb-va.reviewWeekly": "Review weekly report",
   "pb-va.schedule": "Schedule",
-  "pb-va.reportHistory": "Report history"
+  "pb-va.reportHistory": "Report history",
+  "pb-va.promptMeaning": "What this instruction means",
+  "pb-va.promptMorning": "Read the saved mail, monitor status and Today records. Quote each line with its source. Keep this report private.",
+  "pb-va.promptWeekly": "Read this week saved mail, monitor status and Today records. Quote each line with its source. Keep this report private."
 }

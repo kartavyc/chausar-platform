@@ -1,4 +1,3 @@
-import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 // P6: the venture docs stay honest. The architecture page is the founder's document, copied as is, and its
 // Connectors table claims exactly the modes the catalogue makes available today. Every venture doc keeps house style.
 // Written in Phase B; it passes once the build package has landed (Phase C).
@@ -94,8 +93,12 @@ async function catalogueCards(): Promise<ConnectorCard[]> {
 
 test('the architecture Connectors table claims exactly the modes the catalogue makes available', async () => {
   const cards = await catalogueCards();
-  assert.equal(cards.length, 72 + PLAYBOOK_CATALOGUE_ENTRIES.length); // W5 5A6 added six shared connectors
-  const rows = connectorRows(await readFile(new URL('architecture.md', docsFolder), 'utf8'));
+  const {PLAYBOOK_CATALOGUE_ENTRIES}=await import('../runtime/venture/build/catalogue-playbooks.ts');
+  assert.equal(cards.length, 74+PLAYBOOK_CATALOGUE_ENTRIES.length);
+  const architecture = await readFile(new URL('architecture.md', docsFolder), 'utf8');
+  assert.ok(architecture.includes(`**What.** ${cards.length} registered connectors in 12 categories`), 'Piece 7 states the current registered catalogue count');
+  assert.doesNotMatch(architecture, /Zoho Books reading needs a sign-in path this build lacks|write` is available only for the built-in CRM and books/, 'Piece 7 does not deny implemented connector modes');
+  const rows = connectorRows(architecture);
   assert.equal(rows.length, 12, 'one row per connector category');
   for (const row of rows) {
     const matched = cards.filter(card => row.examples.some(item => item.toLowerCase() === plainName(card.name)));

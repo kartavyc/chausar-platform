@@ -154,8 +154,7 @@
   "connections.transcribe.save": "Save",
   "connections.transcribe.remove": "Remove",
   "connections.transcribe.failed": "Couldn't save this: {message}",
-  "connections.transcribe.loadFailed": "Couldn't read the setup: {message}"
-,
+  "connections.transcribe.loadFailed": "Couldn't read the setup: {message}",
   "connections.groupMeta": {
     "zero": "All planned",
     "one": "{live} of {total} works today",
@@ -267,9 +266,18 @@
   "connections.checks.checking": "Checking",
   "connections.checks.none": "Nothing is connected yet, so there was nothing to check.",
   "connections.checks.found": "What each check found",
-  "connections.checks.ready": {"one": "{count} ready", "other": "{count} ready"},
-  "connections.checks.warnings": {"one": "{count} warning", "other": "{count} warnings"},
-  "connections.checks.blocking": {"one": "{count} blocking", "other": "{count} blocking"},
+  "connections.checks.ready": {
+    "one": "{count} ready",
+    "other": "{count} ready"
+  },
+  "connections.checks.warnings": {
+    "one": "{count} warning",
+    "other": "{count} warnings"
+  },
+  "connections.checks.blocking": {
+    "one": "{count} blocking",
+    "other": "{count} blocking"
+  },
   "connections.checks.outcome.answered": "Answered",
   "connections.checks.outcome.failed": "Failed",
   "connections.checks.outcome.skipped": "Skipped",
@@ -280,5 +288,8 @@
   "connections.mailbox.open": "Connect your mailbox",
   "connections.mailbox.calendar.add": "Add the address",
   "connections.mailbox.calendar.next": "Next read {when}.",
-  "connections.checks.at": "Last checked {when}"
+  "connections.checks.at": "Last checked {when}",
+  "connections.posting.mode.api": "API posting",
+  "connections.posting.mode.owner-browser-session": "Browser posting",
+  "connections.posting.mode.handoff": "Manual posting"
 }

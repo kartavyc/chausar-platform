@@ -43,8 +43,8 @@ test('social playbook: registered as the social media agency, picked by the phra
   assert.equal(pickPlaybook('A bakery that sells bread'), null);
 });
 
-test('social playbook: thirteen offers, each priced by the owner, each naming the steps it uses', () => {
-  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads', 'repurpose-pack','linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting']);
+test('social playbook: fourteen offers, each priced by the owner, each naming the steps it uses', () => {
+  assert.deepEqual(SOCIAL_OFFERS.map(offer => offer.id), ['content-calendar', 'community-replies', 'monthly-report', 'ugc-ads', 'repurpose-pack','linkedin-ghostwriting','reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting','influencer-campaign']);
   const stepIds = new Set(SOCIAL_STEPS.map(step => step.id));
   for (const offer of SOCIAL_OFFERS) {
     assert.equal(offer.price, 'owner-sets');
@@ -101,7 +101,7 @@ test('social playbook: connectors carry honest labels and the never list names e
 });
 
 test('channels: a capability table per platform, with limits tied to dated rules', () => {
-  assert.deepEqual([...SOCIAL_CHANNELS], ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts']);
+  assert.deepEqual([...SOCIAL_CHANNELS], ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts', 'bluesky', 'mastodon', 'telegram', 'discord']);
   for (const id of SOCIAL_CHANNELS) {
     const channel = CHANNEL_CAPABILITIES[id];
     assert.equal(channel.id, id);

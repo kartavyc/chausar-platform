@@ -31,8 +31,8 @@ it('public fake collections uses only source debtor payments, including later sa
 });
 it('internal order files keep source bytes scoped, with no content in public metadata', async () => {
   const { FakeWorkDesk } = await import('../../src/engine/fake-work');
-  const plan = { blueprint: { offers: [{ id: 'service', name: { value: 'Books' }, pricing: { unitPriceMinor: '100', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: {} } as any;
-  const desk = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00Z', clients: () => [{ id: 'client', name: 'Shop' }] as any, plan: () => plan, runs: () => [], agentName: () => 'Bookkeeper', emit: () => {}, fingerprint: value => value }, { fresh: true });
+  const plan = { blueprint: {  backOffice: {currency:'INR',taxRegistered:{value:false}}, offers: [{ id: 'service', name: { value: 'Books' }, pricing: { unitPriceMinor: '100', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: {} } as any;
+  const desk = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00Z', clients: () => [{ id: 'client', name: 'Shop' }] as any, country:()=>({code:'IN',currency:'INR'}), plan: () => plan, runs: () => [], agentName: () => 'Bookkeeper', emit: () => {}, fingerprint: value => value }, { fresh: true });
   const order = desk.request('venture.order.create', { clientId: 'client', offerId: 'service', request: 'Monthly records' }) as any;
   const contentBase64 = btoa('id,amount\nprivate-customer,100');
   desk.request('venture.files.add', { orderId: order.id, name: 'collections.csv', contentBase64 });

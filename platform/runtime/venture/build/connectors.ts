@@ -1,5 +1,4 @@
 import {appTestingModes} from './app-testing-modes.ts';
-import {SELLER_HANDOFF_MODES,SELLER_READ_MODES,SELLER_WRITE_MODES} from './seller-connector-modes.ts';
 // Chausar venture launcher: connector cards with honest modes (package P4).
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
 // Ink v2 wave 4 (4J7): each card carries its setup guide (guides.ts) and, in venture.connectors.list, each mode's rung
@@ -18,6 +17,7 @@ import { youtubeConnectors } from '../playbooks/youtube/playbook.ts';
 import { localTranscription, transcriptionNote } from '../playbooks/youtube/transcribe.ts';
 import { NO_EVIDENCE, connectorEvidence, withTruth } from './connector-truth.ts';
 import { guideOf, halfConfigured } from './guides.ts';
+import {SELLER_HANDOFF_MODES,SELLER_READ_MODES,SELLER_WRITE_MODES} from './seller-connector-modes.ts';
 
 const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read', 'write']);
 
@@ -43,13 +43,12 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   'career-links':{qualification:'fixture-tested',what:'Reads one approved public static listing with policy, robots and complete-revision checks. LinkedIn and Naukri use pasted text only.'},
   'career-boards':{qualification:'fixture-tested',what:'Reads a bounded public Greenhouse, Lever or Ashby index. An index is not a complete captured listing.'},
   ...SELLER_READ_MODES,
-  'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
   'narration-files': {qualification:'fixture-tested',what:'Reads the current client manuscript bytes and rights from TXT, Markdown or bounded DOCX.'},
+  'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
   'website-public-site': {qualification:'fixture-tested',what:'Reads a client public page with robots and network guards. Runtime evidence needs an owner-installed checker or an uploaded report.'},
   'tender-documents': {qualification:'fixture-tested',what:'Reads current order RFP and separate client documents, preserving an explicit issuer spreadsheet column map. PDFs need the desktop reader.'},
   'article-transcript': {qualification:'fixture-tested',what:'Reads owner-supplied SRT, VTT or TXT and reuses transcripts only within the same client.'},
   'article-local-transcription': {qualification:'fixture-tested',what:'Desktop only, with owner-installed ffmpeg and whisper.cpp. Copies approved local video or audio up to 50 MB before transcription; otherwise add a transcript.'},
-  'zoho-books': {qualification:'fixture-tested',what:'Reads exact accounting references through the owner self client, scoped to the selected client organisation.'},
   'recruit-greenhouse': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Greenhouse board and filters.'},
   'recruit-lever': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Lever board and filters.'},
   'recruit-ashby': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Ashby board and filters.'},
@@ -61,6 +60,7 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
   happenstance: { qualification: 'fixture-tested', what: 'Uses your own key in the lead desk; each paid search shows credits and asks for exact approval.' },
   github: { qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' },
   tally: { qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' },
+  'zoho-books': {qualification:'fixture-tested',what:'Reads exact accounting references through the owner self client, scoped to the selected client organisation.'},
   'chausar-crm': { qualification: 'built-in', what: 'Shows your clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Shows invoices, payments and the books inside Chausar, each number with a receipt.' },
   // venture.bank.import reads a statement file the owner downloaded; venture.bank.consent keeps consent for a provider not yet wired.

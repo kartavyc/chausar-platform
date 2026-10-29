@@ -15,6 +15,7 @@ import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
 import { Tile, TileHead } from '../../parts/Tile';
 import { categoryIcon } from './categories';
+import { connectionWords, localizedConnectionCard } from './ConnectionWords';
 import s from './Connections.module.css';
 
 interface Way { id: string; card: ConnectorCardLite; what: string }
@@ -32,7 +33,7 @@ export function CanDo({ cards }: { cards: ConnectorCardLite[] }) {
   const headingId = useId();
   // On hosted, Chausar works from its server, so the title says so rather than "this computer".
   const hosted = useEngine().transport === 'hosted';
-  const ways = waysThatAct(cards);
+  const ways = waysThatAct(cards.map(card => localizedConnectionCard(t, card)));
   return (
     <Tile as="section" labelledBy={headingId}>
       <TileHead id={headingId} title={t(hosted ? 'connections.canDo.titleHosted' : 'connections.canDo.title')} meta={t('connections.canDo.meta')} />
@@ -46,7 +47,7 @@ export function CanDo({ cards }: { cards: ConnectorCardLite[] }) {
               id={`can-do-${way.id}`}
               mark={<span className={s.mini} aria-hidden="true"><Icon name={categoryIcon(way.card.category)} size={16} /></span>}
               title={<span data-can-do-name="">{way.card.name}</span>}
-              line={<span data-can-do-what="">{way.what}</span>}
+              line={<span data-can-do-what="">{connectionWords(t, way.what)}</span>}
               aside={<ConnectorLabel label="write" />}
             />
           ))}

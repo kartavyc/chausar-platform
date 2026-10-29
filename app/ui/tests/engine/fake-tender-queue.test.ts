@@ -1,3 +1,4 @@
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import {expect,it,vi} from 'vitest';
 import {FakeEngine} from '../../src/engine/fake';
 import {FakePlaybooksDesk} from '../../src/engine/fake-playbooks';
@@ -7,7 +8,7 @@ it.each([false,true])('public Today shows source-bound tender gaps without expos
  const workspace=await engine.request('workspace.create',{name:'Tender studio',pack:'services',...(locked?{passphrase:'a-long-test-passphrase'}:{})}) as {folder:string};await engine.request('venture.create',{idea:'tender response business',countryCode:'IN'});
  for(const [questionId,answer]of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'project'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});
  const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any,offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='bid-response');
- await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'100'}]}});
+ await priceAndAcceptPlan(engine,plan,'100');
  const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
  const order=await engine.request('venture.order.create',{clientId:client.id,offerId:offer.id,request:'Prepare a tender.',intake:{fields:{rfpText:'Describe encryption.',deadline:'2026-11-15',portal:'CPPP',documents:['company.csv'],private:false}}}) as any;
  await engine.request('venture.files.add',{orderId:order.id,name:'company.csv',contentBase64:btoa('We provide support.')});

@@ -254,7 +254,7 @@
   "work.fix.run-again-online": "Run it again once you are back online.",
   "work.fix.split-work": "Split it into smaller orders, or pick a model that reads more at once, then run it again.",
   "work.fix.update-tool": "Update it, then check it again under Connections, Your AI.",
-  "work.fix.install-ffmpeg": "Install ffmpeg, or turn off the finishing check, then run again.",
+  "work.fix.install-ffmpeg": "Install ffmpeg, then run the required finishing checks again.",
   "work.fix.set-up-docker": "Set up Docker Desktop and start it, then run again.",
   "work.fix.get-python-image": "Get the Python image once, as the message says, then run again.",
   "work.fix.set-up-cli": "Set up Claude Code or Codex under Connections, Your AI, then run again.",

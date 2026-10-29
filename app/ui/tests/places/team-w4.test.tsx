@@ -179,8 +179,8 @@ describe('Team w4: one department', () => {
     // The rate once on the page: beside the hero's figure, not again after the held words.
     expect(main().textContent!.split('per $1').length - 1).toBe(1);
     const flow = await within(main()).findByRole('region', { name: 'How Production runs' });
-    expect(within(flow).getByText('Publish to YouTube')).toBeTruthy();
-    expect(flow.textContent).toContain('Always asks you');
+    expect(within(flow).queryByText('Publish to YouTube')).toBeNull();
+    expect(within(flow).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
     await waitFor(() => expect(flow.textContent).toMatch(/An instruction change makes version \d+\. You can undo it\./));
     expect(await within(main()).findByRole('region', { name: 'Recent work' })).toBeTruthy();
     await settle();

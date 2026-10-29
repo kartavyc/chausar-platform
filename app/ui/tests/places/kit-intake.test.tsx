@@ -101,14 +101,13 @@ it('accepts a client file while creating the first order and sends it for atomic
 import { KitIntakeFields } from '../../src/places/work/KitIntakeFields';
 import { EngineProvider } from '../../src/engine/context';
 import { TextProvider } from '../../src/text';
-import intakeEnglish from '../../src/text/en/kit-intake-words.json';
-import intakeHindi from '../../src/text/hi/kit-intake-words.json';
+import sellerHindi from '../../../../platform/runtime/venture/playbooks/online-seller/hi.json';
 
 it('renders kit labels help and options in Hindi while preserving raw submitted option values', () => {
   const field = { id: 'adsSalesBasis', label: 'Ads sales basis', help: 'Choose the sales basis used by the ads export.', kind: 'choice' as const, required: true, options: ['gst-inclusive', 'taxable'] };
   let answer: unknown;
   render(<EngineProvider client={createFakeClient(new FakeEngine())}><TextProvider language="hi"><KitIntakeFields ask={{ rights: [], fields: [], kit: [field] }} answers={{}} onChange={value => { answer = value; }} /></TextProvider></EngineProvider>);
-  const translated = Object.fromEntries(Object.entries(intakeEnglish).map(([key, value]) => [value, (intakeHindi as Record<string,string>)[key]]));
+  const translated = sellerHindi as Record<string, string>;
   const select = screen.getByLabelText(translated[field.label]!);
   expect(screen.getByText(translated[field.help]!)).toBeTruthy();
   expect(within(select).getByRole('option', { name: translated['gst-inclusive']! })).toBeTruthy();

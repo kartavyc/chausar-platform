@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -104,10 +107,78 @@ describe('Connections: your own, stricter posting limits', () => {
     await waitFor(() => expect(within(limits).getByRole('alert').textContent).toMatch(/^Couldn't save the limits: These are looser than Chausar's own limits: posts in 24 hours\./));
   });
 
+  it('all six posting limit views and four API settings match the native public contract exactly', async () => {
+    const native = (path: string) => JSON.stringify(pathToFileURL(resolve(process.cwd(), path)).href);
+    const script = `
+      import { setup, owner } from ${native('platform/tests/venture-views-env.ts')};
+      import { postingLimitsGet, postingLimitsSet } from ${native('platform/runtime/venture/build/posting-limits.ts')};
+      const { deps } = await setup();
+      const views = [await postingLimitsGet(deps, owner, {})], refusals = [];
+      for (const connectorId of ['bluesky', 'mastodon', 'telegram', 'discord']) {
+        views.push(await postingLimitsSet(deps, owner, { connectorId, limits: { capPer24h: 1, minGapMinutes: 180 } }));
+        try { await postingLimitsSet(deps, owner, { connectorId, limits: { capPer24h: 4 } }); }
+        catch (error) { refusals.push({ code: error.code, message: error.message }); }
+      }
+      try { await postingLimitsSet(deps, owner, { connectorId: 'stripe', limits: {} }); }
+      catch (error) { refusals.push({ code: error.code, message: error.message }); }
+      views.push(await postingLimitsGet(deps, owner, {}));
+      process.stdout.write(JSON.stringify({ views, refusals }));
+    `;
+    const expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 30_000 }));
+    const engine = new FakeEngine(), views = [await engine.request('venture.posting.limits.get', {})], refusals = [];
+    for (const connectorId of ['bluesky', 'mastodon', 'telegram', 'discord']) {
+      views.push(await engine.request('venture.posting.limits.set', { connectorId, limits: { capPer24h: 1, minGapMinutes: 180 } }));
+      try { await engine.request('venture.posting.limits.set', { connectorId, limits: { capPer24h: 4 } }); }
+      catch (error) { const e = error as EngineError; refusals.push({ code: e.code, message: e.message }); }
+    }
+    try { await engine.request('venture.posting.limits.set', { connectorId: 'stripe', limits: {} }); }
+    catch (error) { const e = error as EngineError; refusals.push({ code: e.code, message: e.message }); }
+    views.push(await engine.request('venture.posting.limits.get', {}));
+    expect({ views, refusals }).toEqual(expected);
+    expect(refusals).toHaveLength(5);
+  });
+
+  it('malformed posting limits match native refusal order, exact fields and numeric bounds', async () => {
+    const cases: [string, unknown][] = [
+      ['get', { extra: true }], ['get', []], ['set', []], ['set', null], ['set', {}],
+      ['set', { connectorId: 'bluesky' }],
+      ['set', { connectorId: 'stripe', limits: [], extra: true }],
+      ['set', { connectorId: 'bluesky', limits: [], extra: true }],
+      ['set', { connectorId: 'bluesky', limits: [] }],
+      ['set', { connectorId: 'bluesky', limits: null }],
+      ['set', { connectorId: 'bluesky', limits: { other: 1 } }],
+      ...[{ linkStreak: 1 }, { linkStreak: 10001 }, { minGapMinutes: 10001 }, { warmUpDays: 10001 },
+        { duplicatePercent: 101 }, { capPer24h: 1.5 }, { capPer24h: '1' }, { capPer24h: 0 },
+        { linkStreak: 5, capPer24h: 4 }, { linkStreak: 0, capPer24h: 0 },
+        { linkStreak: 2, minGapMinutes: 10000, warmUpDays: 10000 }, {}]
+        .map(limits => ['set', { connectorId: 'bluesky', limits }] as [string, unknown]),
+      ['get', {}],
+    ];
+    const native = (path: string) => JSON.stringify(pathToFileURL(resolve(process.cwd(), path)).href);
+    const script = `
+      import { readFileSync } from 'node:fs';
+      import { setup, owner } from ${native('platform/tests/venture-views-env.ts')};
+      import { postingLimitsGet, postingLimitsSet } from ${native('platform/runtime/venture/build/posting-limits.ts')};
+      const { deps } = await setup(), results = [];
+      for (const [method, params] of JSON.parse(readFileSync(0, 'utf8'))) {
+        try { results.push({ value: await (method === 'get' ? postingLimitsGet : postingLimitsSet)(deps, owner, params) }); }
+        catch (error) { results.push({ code: error.code, message: error.message }); }
+      }
+      process.stdout.write(JSON.stringify(results));
+    `;
+    const expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { input: JSON.stringify(cases), encoding: 'utf8', timeout: 30_000 }));
+    const engine = new FakeEngine(), actual = [];
+    for (const [method, params] of cases) {
+      try { actual.push({ value: await engine.request('venture.posting.limits.' + method, params) }); }
+      catch (error) { const e = error as EngineError; actual.push({ code: e.code, message: e.message }); }
+    }
+    expect(actual).toEqual(expected);
+  });
+
   it('the fake engine keeps the engine rules: tighten only, per channel', async () => {
     const engine = new FakeEngine();
     const view = await engine.request('venture.posting.limits.get', {}) as { channels: { connectorId: string; inUse: { capPer24h: number } }[] };
-    expect(view.channels.map((c) => c.connectorId)).toEqual(['linkedin', 'x']);
+    expect(view.channels.map((c) => c.connectorId)).toEqual(['linkedin', 'x', 'bluesky', 'mastodon', 'telegram', 'discord']);
     await expect(engine.request('venture.posting.limits.set', { connectorId: 'x', limits: { capPer24h: 5 } })).rejects.toMatchObject({ code: 'POSTING_LIMIT_LOOSER' });
     const set = await engine.request('venture.posting.limits.set', { connectorId: 'x', limits: { capPer24h: 1 } }) as typeof view;
     expect(set.channels.find((c) => c.connectorId === 'x')!.inUse.capPer24h).toBe(1);
@@ -219,4 +290,12 @@ describe('Connections: the date a check can give', () => {
     expect([x.stepsCheckedOn, x.boxAndButtonCheckedOn]).toEqual([null, '2026-10-23']);
     expect(x.steps.find((step) => step.step === 'confirm')?.response?.checkedOn).toBeNull();
   });
+});
+
+for(const language of ['en','hi'] as const)for(const connected of [false,true])it('posting heading names the actual '+(connected?'API':'browser')+' mode in '+language,async()=>{
+ const engine=new FakeEngine(),client=createFakeClient(engine);
+ if(connected){const base={playbook:'social-agency' as const,kind:'open-posting',id:'bluesky'},first=await client.request('venture.desk.get',base);await client.request('venture.desk.act',{...base,action:'connect',digest:first.digest,payload:{setup:{platform:'bluesky',server:'https://bsky.social',account:'owner.bsky.social',channel:''},credential:'fixture-app-password'}});}
+ const original=(await client.request('venture.connectors.list',{})).find(c=>c.id==='bluesky')!;start({engine,language});const tile=await card('Bluesky'),posting=tile.querySelector('[data-posting]')!;
+ expect(posting.firstElementChild!.textContent).toBe(connected?(language==='hi'?'एपीआई से पोस्ट करना':'API posting'):(language==='hi'?'ब्राउज़र से पोस्ट करना':'Browser posting'));
+ expect(posting.querySelector('[data-label]')!.getAttribute('data-label')).toBe(connected?'write':'planned');expect(tile.querySelector('[data-label]')!.getAttribute('data-label')).toBe('write');expect((await client.request('venture.connectors.list',{})).find(c=>c.id==='bluesky')).toEqual(original);
 });

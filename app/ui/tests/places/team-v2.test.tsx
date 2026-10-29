@@ -521,7 +521,9 @@ describe('Team v2: the agent panel', () => {
     expect(document.getElementById(shadow.getAttribute('aria-describedby')!)!.textContent).toBe('Works on real orders, but anything outside Chausar is only simulated.');
     for (const radio of radios) expect(radio.closest('[data-choice]')).not.toBeNull();
     expect(radios.find((r) => r.checked)!.closest('[data-choice]')!.hasAttribute('data-chosen')).toBe(true);
-    expect(within(within(panel).getByRole('list', { name: 'Steps' })).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(within(panel).getByRole('list', { name: 'Steps' })).getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold',
+    ]);
     assertInkRules(document.body);
   });
 

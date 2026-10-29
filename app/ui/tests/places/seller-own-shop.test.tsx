@@ -1,6 +1,7 @@
 // Seller fake parity at the public engine API, original Chausar test.
 import {it,expect} from 'vitest';
 import {FakeEngine,createFakeClient} from '../../src/engine/fake';
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import {TextProvider} from '../../src/text';
 import {EngineProvider} from '../../src/engine/context';
 import {render,screen,fireEvent} from '@testing-library/react';
@@ -16,7 +17,7 @@ async function shop(){
  await engine.request('venture.interview.answer',{questionId:'q_tax',answer:{yes:false}});
  const view=await engine.request('venture.blueprint.draft',{useTemplate:true}) as BlueprintViewLite;
  const offer=view.blueprint.offers.find(o=>o.playbookOffer==='own-shop-back-office')!;
- await engine.request('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'1000'}]}});
+ await priceAndAcceptPlan(engine,view,'1000');
  return {engine,offer};
 }
 it('own-shop fake orders use one self client and refuse customer invoice and shares',async()=>{

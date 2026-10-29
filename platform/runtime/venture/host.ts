@@ -1,4 +1,3 @@
-import {clearSessionMemory} from './core/session-cleanup.ts';
 // Chausar venture launcher: the host that serves every venture method to the engine.
 // Owned by package P6. The engine reaches this file only through a dynamic import at request time.
 //
@@ -19,6 +18,7 @@ import type {
 } from './contracts.ts';
 import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
+import {clearSessionMemory} from './core/session-cleanup.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);

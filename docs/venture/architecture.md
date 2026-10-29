@@ -85,9 +85,9 @@ The first useful output comes after one connection and one sentence. Without an 
 
 ### Piece 7. The connections catalogue
 
-**What.** 64 connectors in 12 categories, each card showing chips such as `handoff`, `planned: handoff`, `planned: read`.
+**What.** 133 registered connectors in 12 categories: 74 shared entries and 59 playbook entries. Each card shows its current modes and qualification, such as `handoff`, `planned: handoff` or `planned: read`. Installed tools and current permissions can change which operations are available.
 
-**How.** The catalogue is data. A `handoff` is available only where Chausar prepares something: Lovable and Replit (the brief in a link), Bolt and v0 (the brief to copy), and your mail app (a drafted reply or invoice to send yourself). Every other vendor shows `planned: handoff` and a plain "Visit site" link that isn't counted as a mode. `read` is available for GitHub, the existing Tally reader (TallyPrime must be running on this computer), and the built-in CRM and books. Zoho Books reading needs a sign-in path this build lacks, so it's planned. `write` is available only for the built-in CRM and books.
+**How.** The catalogue is data, and each card describes the implemented operation and its limits. A `handoff` prepares a brief, draft or export for the owner to use manually; opening a vendor site alone does not count. Available reads include GitHub, local TallyPrime, Zoho Books through the owner's self client and selected organisation, and source readers for individual playbooks. Available writes include the built-in CRM and books, exact approved Zoho Books operations with readback, plain-text posts through supported official API connections, and the specific operations described on other playbook cards. These external implementations are fixture-tested, not proof of success on a live account. Setup, current source and client permissions, and any required named review still apply. Every outside effect needs approval of the exact action. Invoice issue asks separately; uncertain outcomes require inspection, never an automatic resend. TallyPrime writes remain planned with manual entry meanwhile, and LinkedIn remains copy-and-open only.
 
 **Reference.** R6 for the list and region facts (Stripe is invite-only for new Indian businesses, so India defaults to Razorpay; WhatsApp limits AI-first chat services, and its card says so). agentOS: a versioned capability descriptor where each capability is available, planned or unavailable, with a plain reason.
 
@@ -182,10 +182,10 @@ The Anthropic route asks for structured JSON at low effort and records refusals 
 | Email and inbox | Your own mail app, Google Workspace, Zoho Mail, Resend | Your own mail app: handoff (you send a draft); Google Workspace and Zoho Mail: read (your inbox over IMAP with an app password, desktop app only); others planned |
 | Booking and calendar | Cal.com, Calendly, Google Calendar | Google Calendar: read (the private address you paste, desktop app only); planned: handoff, read |
 | Customers and CRM | Chausar CRM, HubSpot, Zoho CRM, Attio | Chausar CRM read and write; others planned |
-| Messaging and support | WhatsApp, Telegram, Slack, Discord | planned: handoff, write |
+| Messaging and support | WhatsApp, Telegram, Slack, Discord | Telegram and Discord: write (exact approved plain text through the owner API connection, fixture-tested); planned: other modes |
 | Docs and ops | Notion, Google Drive, Linear, Airtable | planned |
-| Marketing and social | LinkedIn, X, Instagram, Buffer | planned |
-| Books, tax and invoicing | Chausar back office, TallyPrime, Zoho Books, Xero | Chausar back office read and write; TallyPrime read; others planned |
+| Marketing and social | LinkedIn, X, Instagram, Buffer, Bluesky, Mastodon | Bluesky and Mastodon: write (exact approved plain text through the owner API connection, fixture-tested); planned: other modes. LinkedIn is copy-and-open only |
+| Books, tax and invoicing | Chausar back office, TallyPrime, Zoho Books, Xero | Chausar back office read and write; TallyPrime read; Zoho Books read and write (exact approved drafts, masters, opening balances and received settlements with readback, fixture-tested; invoice issue asks separately); planned: TallyPrime write and Xero |
 | Legal and entity | Stripe Atlas, India company and LLP, GST registration | planned: handoff (checklist), no legal advice |
 | Analytics and feedback | PostHog, Plausible, Tally forms | planned: handoff (brief adds analytics) |
 

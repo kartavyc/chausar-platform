@@ -10,6 +10,7 @@ import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
 import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
 import { useCliChecks } from './CliStatus';
+import { connectionWords } from './ConnectionWords';
 import s from './Connections.module.css';
 
 /** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
@@ -60,7 +61,7 @@ export function YourAi({ focus }: { focus: boolean }) {
   useEffect(() => { if (checks > 0 && known) reloadPresets(); }, [checks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const label = (presetId: string) => presets.find((p) => p.id === presetId)?.label ?? presetId;
-  const tierName = (tier: ModelTierLite) => (tier.presetId === TEMPLATES ? tier.reason : `${label(tier.presetId)}${tier.usable ? '' : `. ${tier.reason}`}`);
+  const tierName = (tier: ModelTierLite) => (tier.presetId === TEMPLATES ? connectionWords(t, tier.reason) : `${label(tier.presetId)}${tier.usable ? '' : `. ${connectionWords(t, tier.reason)}`}`);
 
   async function disconnect(connectionId: string) {
     setSaid(null);
@@ -86,8 +87,8 @@ export function YourAi({ focus }: { focus: boolean }) {
     const canConnect = choice.presets.every(({ preset }) => CONNECTABLE.has(preset.availability));
     const note = lead.verificationNote && !lead.availabilityReason.includes(lead.verificationNote) ? lead.verificationNote : null;
     const line = choice.id === 'recommended'
-      ? `${t('connections.ai.recommendedLine')} ${lead.availabilityReason}`
-      : <><span className={s.fixLine} data-fix-line="">{lead.availabilityReason}</span>{note && <span className={s.quiet}> {note}</span>}</>;
+      ? `${t('connections.ai.recommendedLine')} ${connectionWords(t, lead.availabilityReason)}`
+      : <><span className={s.fixLine} data-fix-line="">{connectionWords(t, lead.availabilityReason)}</span>{note && <span className={s.quiet}> {connectionWords(t, note)}</span>}</>;
     return (
       <Row
         key={choice.id}
@@ -132,7 +133,7 @@ export function YourAi({ focus }: { focus: boolean }) {
           <>
             <div className={s.jobs} data-one={bothTemplates ? '' : undefined}>
               {bothTemplates ? (
-                <Inner card={false} className={s.job}><span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span><span>{data.tiers.main.reason}</span></Inner>
+                <Inner card={false} className={s.job}><span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span><span>{connectionWords(t, data.tiers.main.reason)}</span></Inner>
               ) : (
                 (['fast', 'main'] as const).map((tier) => (
                   <Inner key={tier} card={false} className={s.job}>

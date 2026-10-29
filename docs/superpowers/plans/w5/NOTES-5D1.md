@@ -12,3 +12,7 @@ Independent final spec and quality PASS are recorded there, with the chain/repor
 ## Stable isolated verification
 
 Candidate on amended C1 `0288cb2b`: focused engine 187/187, focused UI/fake/text/source 126/126, engine and UI typechecks passed, syntax and JSON validation passed for 1738 files. Evidence is under `results/5d1-staging/`. The real-intake dynamic import hit its existing 20-second limit during parallel heavy checks; it passed alone and in the final two-worker UI run after the heavy checks finished, with no assertion or timeout change. These are package checks; full batch gates follow on this fixed snapshot.
+
+## Batch 2 omitted-hunk followup
+
+The full stable batch run exposed omitted D1 integration hunks: the Hindi social-revision notice branch, the live X connector test fixtures and accessibility selector, and the social dated-rule test at the exact ninety-day boundary. These already-reviewed primary changes were restored to the snapshot. The old assumptions produced actual RED in `results/5d1-staging/batch2-ui.txt`; the three business/connector files then passed 81/81, and the remaining affected UI/accessibility/build/interaction files passed 272/272 in `batch2-ui-retries.txt`. The snapshot dependency link was restored for the existing build test. No assertion or timeout was relaxed. Root independently inspected the five code/test hunks and gave spec PASS and quality PASS. Full bounded browser rerun and six engine shards remain the batch gate.

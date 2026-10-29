@@ -132,10 +132,10 @@ export const QUEUE: RowSeed[] = [
     actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'answer', label: 'Answer', primary: true }],
   },
   {
-    // The engine's connector row (posting.ts connectorQueueRows). LinkedIn, not Instagram: posting a picture or video
+    // The engine's connector row uses X. LinkedIn is copy-and-open only; posting a picture or video
     // through the browser is not built, so the engine never proposes an Instagram post; a text post is.
     id: 'post:linkedin-ep13:v1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
-    title: 'Post to LinkedIn', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
+    title: 'Post to X', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
     viewRef: { kind: 'draft', id: 'post-linkedin-ep13' },
     // 4J19 review: the engine's post: subject, and the whole text shown, so the sample can be approved in a set.
     descriptionComplete: true,
@@ -200,7 +200,7 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
     ],
   },
   {
-    kind: 'draft', id: 'post-linkedin-ep13', businessName: 'Lumen Studio', agent: 'Publisher', title: 'LinkedIn post for episode 13', line: 'Posts from your own account, after you approve',
+    kind: 'draft', id: 'post-linkedin-ep13', businessName: 'Lumen Studio', agent: 'Publisher', title: 'X post for episode 13', line: 'Posts from your own account, after you approve',
     sections: [
       { heading: 'Post', lines: ['We tested five budget mics in one room. The ₹2,000 one surprised us.', 'Full episode on the channel, link in the comments.'] },
       { heading: 'Attached', lines: ['Short 1 from episode 13, 48 s, 1080 x 1920'] },
@@ -245,7 +245,7 @@ export const RUNS: RunDetail[] = [
     progress: { done: 1, total: 3 },
     // W4 4F3: the error alone; the fix and its code as the engine's fixOf sends them (delivery/failure-words.ts).
     error: 'The renderer stopped: ffmpeg was not found on this computer.',
-    fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg',
+    fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg',
     steps: [
       { id: 's1', purpose: 'Picked 3 frames for thumbnails', state: 'done', elapsed: '22s' },
       { id: 's2', purpose: 'Render the thumbnails', state: 'failed', elapsed: '18s', error: 'ffmpeg was not found on this computer.' },
@@ -296,7 +296,6 @@ export const AGENTS: Record<string, AgentView[]> = {
         { id: 'cut', purpose: 'Cut the episode', gate: 'auto', floor: false },
         { id: 'shorts', purpose: 'Cut shorts from the episode', gate: 'auto', floor: false },
         { id: 'finish', purpose: 'Finishing check', gate: 'hold', floor: false },
-        { id: 'publish', purpose: 'Publish to YouTube', gate: 'hold', floor: true },
       ],
     },
     {
@@ -312,8 +311,6 @@ export const AGENTS: Record<string, AgentView[]> = {
       last: { line: 'Priced the sponsor slot', receiptId: 'R-0415' },
       steps: [
         { id: 'brief', purpose: 'Read sponsor briefs', gate: 'auto', floor: false },
-        { id: 'price', purpose: 'Change prices', gate: 'hold', floor: true },
-        { id: 'send', purpose: 'Send a quote to the sponsor', gate: 'hold', floor: true },
       ],
     },
     {
@@ -328,7 +325,6 @@ export const AGENTS: Record<string, AgentView[]> = {
       steps: [
         { id: 'match', purpose: 'Match bank lines to invoices', gate: 'auto', floor: false },
         { id: 'gst', purpose: 'Prepare the GST working', gate: 'hold', floor: false },
-        { id: 'portal', purpose: 'Anything on the GST portal', gate: 'hold', floor: true },
       ],
     },
     {

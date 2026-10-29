@@ -142,8 +142,6 @@ const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
 // A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
 const EXTERNAL_ORIGINS = Object.freeze([
-  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
-  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
   'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com',
@@ -156,8 +154,28 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
   'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
   'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com', 'https://console.anthropic.com', 'https://platform.openai.com',
+  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
+  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
   'https://overpass-api.de', 'https://operations.osmfoundation.org', 'https://developers.google.com',
   'https://redditinc.com', 'https://developer.happenstance.ai',
+  // Exact catalogue Visit site origins only; no API permission or wildcard access.
+  'https://bsky.app',
+  'https://joinmastodon.org',
+  'https://developer-docs.amazon.com',
+  'https://advertising.amazon.com',
+  'https://seller.flipkart.com',
+  'https://supplier.meesho.com',
+  'https://partners.myntrainfo.com',
+  'https://seller.ajio.com',
+  'https://seller.nykaa.com',
+  'https://seller.jiomart.com',
+  'https://apidocs.shiprocket.in',
+  'https://help.delhivery.com',
+  'https://www.whatsapp.com',
+  'https://sorftime.com',
+  'https://shopify.dev',
+  'https://developer.android.com',
+  'https://docs.docker.com',
 ]);
 const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);

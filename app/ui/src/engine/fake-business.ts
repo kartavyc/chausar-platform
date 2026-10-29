@@ -79,7 +79,7 @@ export class FakeBusinessDesk {
   private models: Record<string, ModelStatusLite>;
   private draftAi: ModelStatusLite;
   private blueprints: Record<string, BlueprintViewLite>;
-  private accepted: Record<string, BlueprintLite> = {};
+  private accepted: Record<string, BlueprintViewLite> = {};
   private builds: Record<string, BuildStatusView>;
   private receipts: ReceiptLite[];
   /** What each priced offer costs, as the engine would show it, by business and offer. */
@@ -93,8 +93,8 @@ export class FakeBusinessDesk {
     this.models = options.fresh ? {} : clone(MODEL_STATUS);
     this.draftAi = clone(DRAFT_AI_STATUS);
     this.blueprints = options.fresh ? {} : clone(BLUEPRINTS);
-    for (const [id, view] of Object.entries(this.blueprints)) if (view.blueprint.status === 'accepted') this.keepAccepted(id, view.blueprint);
     for (const [id, view] of Object.entries(this.blueprints)) if (view.playbook?.id === 'ca-firm') this.blueprints[id] = fakeCaPlan(view, true);
+    for (const [id, view] of Object.entries(this.blueprints)) if (view.blueprint.status === 'accepted') this.keepAccepted(id, view);
     this.builds = options.fresh ? {} : clone(BUILDS);
     this.receipts = clone(OFFER_RECEIPTS);
   }
@@ -115,7 +115,8 @@ export class FakeBusinessDesk {
   }
 
   /** Internal queue projection, without changing the open business. */
-  acceptedOffersFor(businessId: string) { return clone(this.accepted[businessId]?.offers ?? []); }
+  acceptedOffersFor(businessId: string) { return clone(this.accepted[businessId]?.blueprint.offers ?? []); }
+  acceptedPlanFor(businessId: string): BlueprintViewLite | null { return this.accepted[businessId] ? clone(this.accepted[businessId]!) : null; }
   blueprintFor(businessId: string): BlueprintViewLite | null { return this.blueprints[businessId] ? clone(this.blueprints[businessId]!) : null; }
 
   /** A plan written elsewhere in the fake (onboarding) becomes this business's plan. */
@@ -136,12 +137,12 @@ export class FakeBusinessDesk {
     const view = this.blueprints[businessId];
     if (!view || view.blueprint.id !== blueprintId) return;
     view.blueprint.status = 'accepted';
-    this.keepAccepted(businessId, view.blueprint);
+    this.keepAccepted(businessId, view);
   }
 
-  private keepAccepted(businessId: string, blueprint: BlueprintLite): void {
-    this.accepted[businessId] = clone(blueprint);
-    for (const offer of blueprint.offers) {
+  private keepAccepted(businessId: string, view: BlueprintViewLite): void {
+    this.accepted[businessId] = clone(view);
+    for (const offer of view.blueprint.offers) {
       const shown = this.prices[`${businessId}:${offer.id}`];
       if (shown) this.prices[`accepted:${businessId}:${offer.id}`] = shown;
     }
@@ -389,7 +390,7 @@ export class FakeBusinessDesk {
   /** The engine's plan row (views/queue.ts planRows): one per business, for the latest draft version. */
   private planRow(biz: string, latest: BlueprintLite): void {
     const rows = this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan'));
-    const accepted = this.accepted[biz];
+    const accepted = this.accepted[biz]?.blueprint;
     const base = { id: `q-plan-${biz}-v${latest.version}`, businessId: biz, businessName: this.host.businessName(biz), createdAt: latest.at, line: latest.oneLiner.value, viewRef: { kind: 'plan' as const, id: latest.id } };
     let seed: Omit<QueueRow, 'digest'>;
     const changes = accepted ? latest.offers.filter((o) => {
@@ -567,7 +568,7 @@ export class FakeBusinessDesk {
     if (!view || !this.accepted[biz]) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first. The brief is written from the accepted plan.');
     const build = this.buildOf(biz);
     const version = (build.brief?.version ?? 0) + 1;
-    const markdown = templateBrief(this.accepted[biz].name.value, version);
+    const markdown = templateBrief(this.accepted[biz].blueprint.name.value, version);
     build.brief = { id: `brief-${biz}-${version}`, at: this.host.now(), briefId: `chb_${biz.slice(0, 8)}`, version, markdown, chars: markdown.length, wordsBy: 'template', lint: { ok: true, findings: [] } };
     return clone(build.brief);
   }

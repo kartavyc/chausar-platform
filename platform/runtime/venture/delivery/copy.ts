@@ -26,7 +26,7 @@ export async function deliveryCopyHandler(deps: VentureDeps, ctx: Context, paylo
     check(order && order.ventureId === tx.venture!.id, 'ORDER_NOT_FOUND', 'That order was not found.');
     const text = source.editedText ?? source.renderedText ?? '';
     const copy: DeliveryRunRecord = {
-      ...tx.base('venture-delivery-run'), orderId: source.orderId, playbookId: source.playbookId, playbookHash: source.playbookHash,
+      ...tx.base('venture-delivery-run'), orderId: source.orderId, playbookId: source.playbookId, playbookHash: source.playbookHash, ...(source.workflow ? { workflow: source.workflow } : {}),
       status: 'ready-for-review', servedBy: 'owner', practice: false, callId: null, preview: null, deliverable: source.deliverable,
       renderedText: text, checks: [], verdict: null, editedText: text, copiedFrom: source.id,
     };
