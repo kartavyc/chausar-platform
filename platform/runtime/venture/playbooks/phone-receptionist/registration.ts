@@ -4,4 +4,4 @@
 // line). Written for Chausar; nothing here is learned from an outside source.
 import type { PlaybookRegistration } from '../registry.ts';
 
-export const PHONE_RECEPTIONIST_REGISTRATION: PlaybookRegistration | null = null;
+export const PHONE_RECEPTIONIST_REGISTRATION:PlaybookRegistration={id:'phone-receptionist',label:'AI phone receptionist',serviceType:'support',picks:['phone receptionist','ai receptionist','call answering service','clinic receptionist'],summary:'An AI voice answers your clients\' calls with their facts, says it is an AI, and hands every booking and callback to a person; calls run only within the budget you set.',riskLevel:'high',lastReviewed:'2026-10-29'};

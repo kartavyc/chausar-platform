@@ -37,6 +37,7 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
   eraseR5Copies?(orderIds:readonly string[]):void;
+  erasePhoneCopies?(orderIds:readonly string[]):void;
   acceptedOffers?():readonly {id:string;playbookOffer?:string|null}[];
   eraseFormsCopies?(orderIds:readonly string[]):void;
   eraseDevCopies?(orderIds:readonly string[]):void;

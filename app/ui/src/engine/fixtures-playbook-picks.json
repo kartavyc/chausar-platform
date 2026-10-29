@@ -258,5 +258,14 @@
       "slack support bot",
       "it helpdesk for"
     ]
+  },
+  {
+    "id": "phone-receptionist",
+    "picks": [
+      "phone receptionist",
+      "ai receptionist",
+      "call answering service",
+      "clinic receptionist"
+    ]
   }
 ]

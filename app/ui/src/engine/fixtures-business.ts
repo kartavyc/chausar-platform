@@ -1,3 +1,4 @@
+import phoneConnector from './phone-connector.json';
 import r5Connectors from './r5-connectors.json';
 import testingConnectors from './app-testing-connectors.json';
 import formsConnector from './forms-connector.json';
@@ -46,6 +47,7 @@ export const CONNECTORS: ConnectorCardLite[] = [
   formsConnector as ConnectorCardLite,
   ...testingConnectors as ConnectorCardLite[],
   ...r5Connectors as ConnectorCardLite[],
+  phoneConnector as ConnectorCardLite,
   {
     id: 'github', name: 'GitHub', category: 'build', categoryLabel: 'Build',
     modes: [PLANNED_HANDOFF, { mode: 'read', status: 'available', qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' }, { mode: 'write', status: 'planned', qualification: 'unqualified', what: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today.' }],

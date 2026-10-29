@@ -316,5 +316,9 @@
   "kit-intake-words.it-triage.sourceScope.label": "Client source scope",
   "kit-intake-words.it-triage.sourceScope.help": "Name the exact help channel and requested review.",
   "kit-intake-words.it-triage.permission.label": "Source permission",
-  "kit-intake-words.it-triage.permission.help": "Record who permits this source use and its limits."
+  "kit-intake-words.it-triage.permission.help": "Record who permits this source use and its limits.",
+  "kit-intake-words.phone-receptionist.clientFacts.label": "Client facts",
+  "kit-intake-words.phone-receptionist.clientFacts.help": "Add hours, services, the client price list and common answers.",
+  "kit-intake-words.phone-receptionist.callerNotice.label": "Caller notice",
+  "kit-intake-words.phone-receptionist.callerNotice.help": "Record the client permission and notice for imported call data."
 }

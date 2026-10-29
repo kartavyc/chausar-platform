@@ -1792,6 +1792,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   vaBriefBinding?: string;
   /** Exact R2 source rows; mapping proposals still need owner review. */
   formsSourceBinding?: string;
+  phoneReportBinding?: string;
   watchReportBinding?: string;
   triageReportBinding?: string;
   devReportBinding?: string;
@@ -6323,6 +6324,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'CALL_LOG_NOT_FOUND', 'CALL_ALREADY_IMPORTED', 'CALL_ALREADY_RESERVED', 'CALL_ALREADY_SETTLED', 'CALL_BUDGET_CHANGED', 'CALL_FACTS_HELD', 'CALL_FACTS_INVALID', 'CALL_LOG_INVALID', 'CALL_NOT_RESERVED', 'CALL_ORDER_REQUIRED', 'CALL_REQUEST_NOT_FOUND', 'CALL_RESPONSE_STOPPED', 'CALL_SEND_UNCONFIRMED', 'CALL_SETUP_REQUIRED', 'VOICE_PROVIDER_UNVERIFIED',
   // 5R5 source evidence and exact channel refusal codes.
   'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
   // 5R4 exact copied-source and owner-command refusals.

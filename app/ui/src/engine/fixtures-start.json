@@ -1279,6 +1279,63 @@
             "connections": "मंज़ूर जवाब का हैंडऑफ़ के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "phone-receptionist",
+        "playbook": "phone-receptionist",
+        "label": "AI phone receptionist",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "An AI receptionist for clinics and shops that says it is an AI and hands bookings to a person.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Set facts, call people back.",
+        "team": [
+          {
+            "role": "Receptionist",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Prepares facts and logs callbacks.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹15,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Call exports."
+        },
+        "starter": "AI phone receptionist: An AI receptionist for clinics and shops that says it is an AI and hands bookings to a person.",
+        "yours": [],
+        "hi": {
+          "label": "एआई फ़ोन रिसेप्शनिस्ट",
+          "line": "क्लिनिक और दुकानों के लिए एआई रिसेप्शनिस्ट, जो एआई होने की बात बताता है और बुकिंग व्यक्ति को सौंपता है।",
+          "hours": "हफ़्ते में 2 से 4 घंटे",
+          "youDo": "तथ्य तय करें, लोगों को वापस कॉल करें।",
+          "team": [
+            "रिसेप्शनिस्ट",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "तथ्य तैयार करता है और कॉलबैक दर्ज करता है।",
+          "pay": "₹5,000 से ₹15,000",
+          "per": "एक क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "AI phone receptionist: क्लिनिक और दुकानों के लिए एआई रिसेप्शनिस्ट, जो एआई होने की बात बताता है और बुकिंग व्यक्ति को सौंपता है।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "कॉल निर्यात के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -1304,7 +1361,7 @@
         "id": "shops-and-firms",
         "label": "Shops and firms",
         "hi": "दुकानें और फ़र्म",
-        "count": 7
+        "count": 8
       }
     ],
     "upTo": {

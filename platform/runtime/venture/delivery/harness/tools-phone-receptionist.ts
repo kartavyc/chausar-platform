@@ -1,14 +1,8 @@
-// Chausar delivery harness: the phone-receptionist playbook's own tools (AI phone receptionist; Ink v2 wave 5, packages
-// 5R6). Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with
-// the tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type PhoneReceptionistToolName = Extract<ToolName, 'calls.cost' | 'calls.log'>;
-
-export const PHONE_RECEPTIONIST_TOOLS: Readonly<Record<PhoneReceptionistToolName, Spec>> = Object.freeze({
-  'calls.cost': notBuiltTool('calls.cost', 'compute', 'The calls\' cost worked out by code from the provider\'s dated prices.'), // 5R6
-  'calls.log': notBuiltTool('calls.log', 'compute', 'A call logged with what was said and who it was handed to.'), // 5R6
+// Original read-only receptionist tools. A model never inserts call outcomes, books a request or supplies provider prices.
+import {check} from '../../../contracts.ts';import type {ToolName} from '../../contracts.ts';import {findRecord,exactPayload} from '../../records.ts';import {phoneRunSource} from '../../playbooks/phone-receptionist/run-source.ts';import {phoneDelivery} from '../../playbooks/phone-receptionist/report.ts';import {callCostReceipt} from '../../playbooks/phone-receptionist/receipt.ts';import type {ToolEnv,Spec} from './tools.ts';
+function scoped(env:ToolEnv){const run=env.runRef.kind==='delivery'?findRecord(env.deps.store.read(),'venture-delivery-run',env.runRef.runId):null;check(run&&run.ventureId===env.ventureId,'CALL_SETUP_REQUIRED','Use the current client receptionist run.');return phoneRunSource(env.deps.store.read(),env.ventureId,run.orderId);}
+type PhoneReceptionistToolName=Extract<ToolName,'calls.cost'|'calls.log'>;
+export const PHONE_RECEPTIONIST_TOOLS:Readonly<Record<PhoneReceptionistToolName,Spec>>=Object.freeze({
+ 'calls.log':{name:'calls.log',effect:'read',tier:'code',endsTurn:false,summary:'Read the current approved script and screened owner-imported call report. No call, booking or payment is performed.',input:{},async run(env,input){exactPayload(input,[]);const {report}=scoped(env);return{result:{report,delivery:phoneDelivery(report),saved:false}};}},
+ 'calls.cost':{name:'calls.cost',effect:'compute',tier:'code',endsTurn:false,summary:'Read one saved call export cost and its dated, integer calculation receipt. No guessed price or live provider call.',input:{callId:{type:'text',required:true,max:160,about:'Exact call identity from the current imported call report.'}},async run(env,input){exactPayload(input,['callId'],['callId']);const {row}=scoped(env),entry=row.logs.find(l=>l.log.callId===input.callId);check(entry,'CALL_LOG_NOT_FOUND','Choose a call in the current owner-imported export.');const draft=callCostReceipt(row.orderId,{id:row.id,digest:entry.importDigest},entry.cost,env.runRef);const {receiptOut}=await import('./tools.ts');const out=receiptOut(env,draft);return{result:{callId:entry.log.callId,currency:entry.cost.currency,figures:out.figures,receipt:out.alias,sourceReceiptId:entry.receiptId,saved:false},receipts:[out.record]};}}
 });

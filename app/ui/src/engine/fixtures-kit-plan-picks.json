@@ -156,5 +156,12 @@
     "offers": [
       "triage-desk"
     ]
+  },
+  {
+    "id": "phone-receptionist",
+    "offers": [
+      "receptionist-setup",
+      "receptionist-monthly"
+    ]
   }
 ]

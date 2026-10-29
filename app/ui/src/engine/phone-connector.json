@@ -1,0 +1,42 @@
+{
+  "id": "voice-provider",
+  "name": "Phone receptionist provider",
+  "category": "docs-ops",
+  "categoryLabel": "Docs and ops",
+  "modes": [
+    {
+      "mode": "write",
+      "status": "planned",
+      "qualification": "unqualified",
+      "what": "Planned: writing to Phone receptionist provider. Not in this build."
+    }
+  ],
+  "chips": [
+    "planned: write"
+  ],
+  "regions": [
+    "india"
+  ],
+  "regionNote": null,
+  "auth": "Owner account, Indian number, provider identity checks and authenticated hosted callback",
+  "vendorUrl": null,
+  "note": "Live calling is planned until the provider account, Indian number, callback authentication and dated rates are verified and a lawyer confirms the calling setup. Use your own phone forwarding and the approved client script meanwhile.",
+  "starter": false,
+  "postingOptions": [],
+  "guide": {
+    "steps": [
+      "1. Nothing to set up in Chausar yet: linking Phone receptionist provider is planned.",
+      "2. When it is built, Chausar will ask for owner account, Indian number, provider identity checks and authenticated hosted callback, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+      "3. Until then, use Phone receptionist provider on its own."
+    ],
+    "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+    "charges": {
+      "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+      "checkedOn": null
+    },
+    "checks": "Nothing connects to it in this build, so there is no access to check.",
+    "sends": "Sends: nothing, so nothing here can change Phone receptionist provider.",
+    "agentLimits": "Agents can't use Phone receptionist provider: nothing connects to it in this build.",
+    "missing": null
+  }
+}

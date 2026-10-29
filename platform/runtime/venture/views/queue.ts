@@ -591,6 +591,7 @@ function bankRows(state: State, venture: VentureRecord, business: Business, ctx:
 const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/monitored-data/rows.ts')).watchSourceRows(deps, ctx, state, venture)],
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/tender-desk/rows.ts')).tenderGapRows(deps, ctx, state, venture)],
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/phone-receptionist/rows.ts')).receptionistRows(deps, ctx, state, venture)],
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/social/revision-due.ts')).revisionDueRows(deps, ctx, state, venture)],
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued

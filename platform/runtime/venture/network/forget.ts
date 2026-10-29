@@ -1,3 +1,4 @@
+import {eraseReceptionist} from '../playbooks/phone-receptionist/privacy.ts';
 import {eraseWatchNaming} from '../playbooks/monitored-data/privacy.ts';
 import {eraseTriageNaming} from '../playbooks/it-triage/privacy.ts';
 import {eraseDevNaming} from '../playbooks/dev-agency/privacy.ts';
@@ -312,6 +313,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseNarrationNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseAppTesting(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseReceptionist(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseSiteNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);

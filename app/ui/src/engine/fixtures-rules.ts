@@ -1,3 +1,4 @@
+import {phoneRules} from './phone-rules';
 import {r5Rules} from './r5-rules';
 import {devRules} from './dev-rules';
 import {landedKitRules} from './landed-kit-rules';
@@ -43,6 +44,7 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
 export function rulesListFor(playbook: { id: string; label: string } | null | undefined, today: string): RulesListView {
   if(playbook?.id==='monitored-data'||playbook?.id==='it-triage')return r5Rules(playbook.id,today);
   if(playbook?.id==='dev-agency')return devRules(today) as RulesListView;
+  if(playbook?.id==='phone-receptionist')return phoneRules(today) as RulesListView;
   if(playbook?.id==='data-entry-desk')return formsRules(today) as RulesListView;
   const landed=playbook?landedKitRules(playbook.id,today):null;
   if(landed)return landed;

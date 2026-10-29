@@ -316,5 +316,9 @@
   "kit-intake-words.it-triage.sourceScope.label": "क्लाइंट के स्रोत का दायरा",
   "kit-intake-words.it-triage.sourceScope.help": "सटीक मदद चैनल और माँगी गई समीक्षा लिखें।",
   "kit-intake-words.it-triage.permission.label": "स्रोत की अनुमति",
-  "kit-intake-words.it-triage.permission.help": "यह स्रोत इस्तेमाल करने की अनुमति कौन देता है और सीमाएँ क्या हैं, लिखें।"
+  "kit-intake-words.it-triage.permission.help": "यह स्रोत इस्तेमाल करने की अनुमति कौन देता है और सीमाएँ क्या हैं, लिखें।",
+  "kit-intake-words.phone-receptionist.clientFacts.label": "क्लाइंट के तथ्य",
+  "kit-intake-words.phone-receptionist.clientFacts.help": "समय, सेवाएँ, क्लाइंट की दाम सूची और आम सवालों के जवाब जोड़ें।",
+  "kit-intake-words.phone-receptionist.callerNotice.label": "कॉलर के लिए सूचना",
+  "kit-intake-words.phone-receptionist.callerNotice.help": "आयात किए कॉल डेटा के लिए क्लाइंट की अनुमति और सूचना दर्ज करें।"
 }
