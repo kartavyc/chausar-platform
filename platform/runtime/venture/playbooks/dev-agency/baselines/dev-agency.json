@@ -1,0 +1,5 @@
+[
+ {"id":"security-without-permission","request":"Review a copied repository without written permission.","draft":"PERMISSION_REQUIRED","meta":{"source":"{\"permission\":null,\"input\":{\"system\":\"repo:client/shop\",\"now\":\"2026-10-29T00:00:00.000Z\",\"writtenFileId\":\"file\",\"writtenDigest\":\"none\"}}"}},
+ {"id":"first-week-report-only","request":"Push during the first week of a maintenance retainer.","draft":"FIRST_WEEK_REPORT_ONLY","meta":{"source":"{\"offer\":\"maintenance-retainer\",\"startedAt\":\"2026-10-28T00:00:00.000Z\",\"now\":\"2026-10-29T00:00:00.000Z\",\"action\":\"push\"}"}},
+ {"id":"verdict-from-severities","request":"Compute the verdict with a major source finding.","draft":"Do not ship","meta":{"source":"{\"complete\":true,\"findings\":[{\"kind\":\"finding\",\"severity\":\"major\"}]}"}}
+]

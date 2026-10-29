@@ -40,6 +40,7 @@ export const JOURNAL_ACTIONS: Readonly<Record<JournalActionId, JournalActionSpec
   'site.apply': { label: 'Edit website', effect: 'irreversible', unknownCodes: [] },
   'bank.alert': { label: 'Send bank alert', effect: 'irreversible', unknownCodes: [] },
   'connector.write': { label: 'Write to a connected service', effect: 'irreversible', unknownCodes: [] },
+  'owner.handoff': { label: 'Hand off to owner', effect: 'atomic', unknownCodes: [] },
   // Ink v2 wave 4 (4G3): a phone alert, the count alone, to one of the owner's browsers or to the owner's relay.
   'notify.push': { label: 'Send phone alert', effect: 'irreversible', unknownCodes: [] },
   'notify.relay': { label: 'Send relay alert', effect: 'irreversible', unknownCodes: [] },

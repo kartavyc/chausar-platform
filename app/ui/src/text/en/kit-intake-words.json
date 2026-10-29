@@ -300,5 +300,13 @@
   "kit-intake-words.app-testing.private.label": "Private client source",
   "kit-intake-words.app-testing.private.help": "Private descriptions and scripts need a qualified local model or voice route.",
   "kit-intake-words.app-testing.rights.label": "Recording and narration rights",
-  "kit-intake-words.app-testing.rights.help": "Record the owner or licence covering this script, captured test data and narration."
+  "kit-intake-words.app-testing.rights.help": "Record the owner or licence covering this script, captured test data and narration.",
+  "kit-intake-words.dev-agency.source.label": "Source snapshot",
+  "kit-intake-words.dev-agency.source.help": "Attach a text file containing the repository revision and copied source files.",
+  "kit-intake-words.dev-agency.startedAt.label": "Service started",
+  "kit-intake-words.dev-agency.startedAt.help": "Record the exact service start in the developer desk.",
+  "kit-intake-words.dev-agency.writtenPermission.label": "Written permission",
+  "kit-intake-words.dev-agency.writtenPermission.help": "For security work, attach the code owner permission and record its repository and window.",
+  "kit-intake-words.dev-agency.private.label": "Private source",
+  "kit-intake-words.dev-agency.private.help": "Private source stays manual until a qualified local coding tool is available."
 }

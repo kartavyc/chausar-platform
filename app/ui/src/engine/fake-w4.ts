@@ -38,6 +38,7 @@ export type SupportImportedMail={messageId:string;references:string[];from:strin
 export interface W4DeskHost {
   acceptedOffers?():readonly {id:string;playbookOffer?:string|null}[];
   eraseFormsCopies?(orderIds:readonly string[]):void;
+  eraseDevCopies?(orderIds:readonly string[]):void;
   keepVaReport?(routineId:string,title:string,text:string):void;
   eraseVaReports?():void;
   eraseVaCopies?(orderIds:readonly string[]):void;

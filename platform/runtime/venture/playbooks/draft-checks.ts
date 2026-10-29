@@ -67,6 +67,7 @@ import { runKitChecks } from './kit/checks.ts';
 export type FlagshipCheckInput = {
   testingEvidence?: import('./app-testing/delivery-core.ts').TestingDeliveryEvidence | null;
   formsEntries?: readonly import('./data-entry-desk/checks.ts').FormsReportRow[];
+  devReport?: import('./dev-agency/report.ts').DevReport | null;
   roomBrief?: import('./kit/client-room-core.ts').RoomBrief | null;
   /** Current engine-resolved episode evidence, including null after Forget. */
   siteProject?: import('./website-studio/records.ts').SiteRequirementBody | null;
@@ -138,7 +139,7 @@ function textLines(deliverable: Deliverable): string[] {
 export async function runFlagshipChecks(input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Promise<PlaybookCheckResult[]> {
   // Ink v2 wave 5 (5A1): a kit playbook's own checks and their coverage (playbooks/kit/checks.ts), then the same lint.
   const kit = kitDefinition(input.flagship, definitions);
-  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='app-testing'&&input.testingEvidence||input.flagship==='data-entry-desk'&&input.formsEntries||input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
+  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='dev-agency'&&input.devReport||input.flagship==='app-testing'&&input.testingEvidence||input.flagship==='data-entry-desk'&&input.formsEntries||input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
     : await playbookOwnChecks(input);
   if (!own.length || input.servedBy === 'template') return own;
   const line = promptLeakLine(draftLeaks(input));

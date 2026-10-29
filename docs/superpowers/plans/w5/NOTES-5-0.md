@@ -736,3 +736,8 @@ Fourteen previously landed kits returned no rule register through browser rehear
 ### 5R3 app testing and demos
 
 The completed source-bound emulator testing and private demo desk, exact provider approvals, client cleanup, real reviewed exports and browser preparation paths are recorded in NOTES-5R3.md. It preserves explicit local-tool and named-lawyer gates. Separate full spec and quality review evidence and limits are in that note. Final isolated gates follow the frozen candidate bytes.
+
+
+### 5R4 isolated final-base checkpoint
+
+Developer agency source, owner CLI, exact metadata audit, reviewed reports and journalled manual command handoff passed independent specification and quality reviews. Metadata reclosure passed separately. Scope, evidence, limitations and ownership are in NOTES-5R4.md. The isolated candidate is based on committed R3 cf908956. Inherited accepted-offer declarations are preserved byte-for-byte; later accepted-plan and order-receipt integration changes are excluded. Frozen-byte checks are recorded in the candidate gate report.

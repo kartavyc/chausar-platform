@@ -48,6 +48,7 @@ export type TenderNotice={subject:string;version:string;createdAt:string;title:s
 export interface FakePlaybookDesk {
   testingSource?(orderId:string):void;
   formsSource?(orderId:string):void;
+  devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
   tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
   sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
@@ -105,6 +106,7 @@ export class FakePlaybooksDesk {
 
   formsSource(orderId:string){return this.desks.find(d=>d.playbook==='data-entry-desk')!.formsSource!(orderId);}
   testingSource(orderId:string){return this.desks.find(d=>d.playbook==='app-testing')!.testingSource!(orderId);}
+  devReport(orderId:string){return this.desks.find(d=>d.playbook==='dev-agency')!.devReport!(orderId);}
   careerSource(orderId:string){return this.desks.find(d=>d.playbook==='job-search-desk')!.careerSource!(orderId);}
   vaBrief(orderId:string,expected?:string){return this.rooms.currentBrief(orderId,expected);}
   receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }

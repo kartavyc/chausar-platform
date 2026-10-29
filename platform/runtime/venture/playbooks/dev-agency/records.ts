@@ -1,7 +1,3 @@
-// Chausar playbook: Dev agency: maintenance, QA and security reviews (Ink v2 wave 5, packages 5R4). The bodies of its
-// own records, as contracts.ts types each one (RecordBase<kind> & Body). Package 5-0 named each as a placeholder; the
-// package replaces it with the record's fields here, never in contracts.ts. Types only. Written for Chausar; nothing
-// here is learned from an outside source.
-
-/** venture-dev-permission: a placeholder until package 5R4 lands. */
-export type DevPermissionBody = { placeholder: true };
+// Original developer project facts. Browser-safe record bodies; the outer vault record supplies identity and scope.
+import type {DevPermission,DevOffer} from './permission.ts';import type {DevFinding} from './verdict.ts';import type {DevRead} from './source-core.ts';import type {AuditFinding} from './scanners.ts';import type {DevPush,DevPushResult} from './handoff.ts';
+export type DevPermissionBody={orderId:string;clientId:string;offer:DevOffer;orderDigest:string;fileId:string;sourceDigest:string;repository:string;revision:string;startedAt:string;permission:DevPermission|null;reads:DevRead[];findings:DevFinding[];reviewConfirmed:boolean;audit:{sourceDigest:string;findings:AuditFinding[];at:string}|null;patch:{text:string;digest:string;approved:string|null}|null;push:DevPush|DevPushResult|null;pushJournalId?:string|null;cli?:{generation:number;state:'running'|'finished'|'unknown';approval:string;delegateId:string|null;untrusted:true}};

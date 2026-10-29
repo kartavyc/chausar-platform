@@ -135,5 +135,13 @@
       "app-test-round",
       "demo-video"
     ]
+  },
+  {
+    "id": "dev-agency",
+    "offers": [
+      "maintenance-retainer",
+      "qa-service",
+      "security-review"
+    ]
   }
 ]

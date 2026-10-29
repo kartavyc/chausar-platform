@@ -1,0 +1,3 @@
+// Original X6 business metadata, after loop-engineering (MIT), OpenQodex and Open Security (Apache), ideas only.
+import type {PlaybookRegistration} from '../registry.ts';
+export const DEV_REGISTRATION_DATA:PlaybookRegistration={id:'dev-agency',label:'Dev agency: maintenance, QA and security reviews',serviceType:'consulting',picks:['maintenance retainer','website maintenance','qa as a service','security review for','code review service'],summary:'Your own coding tool reviews a local copy; every change waits for you, and security reviews need the code owner’s written permission.',riskLevel:'high',lastReviewed:'2026-10-29'};

@@ -1,3 +1,4 @@
+import {devRules} from './dev-rules';
 import {landedKitRules} from './landed-kit-rules';
 import {formsRules} from './forms-rules';
 /**
@@ -39,6 +40,7 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
 
 /** venture.rules.list for a business on a playbook (by id and label) on a day; a null playbook for a business on none. */
 export function rulesListFor(playbook: { id: string; label: string } | null | undefined, today: string): RulesListView {
+  if(playbook?.id==='dev-agency')return devRules(today) as RulesListView;
   if(playbook?.id==='data-entry-desk')return formsRules(today) as RulesListView;
   const landed=playbook?landedKitRules(playbook.id,today):null;
   if(landed)return landed;

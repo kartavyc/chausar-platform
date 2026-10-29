@@ -418,7 +418,7 @@ export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, toda
   if (kinds !== 'clean,messy,pushy') refuse('practice', 'it needs three practice clients: a clean, a messy and a pushy one.');
   for (const client of definition.practice) {
     if (!client.request?.trim()) refuse('practice', `the ${client.kind} client needs a request.`);
-    for (const file of client.files) if (!/\.(csv|srt|vtt)$/i.test(file.name)) refuse('practice', `${file.name} is not a file the tools read: CSV, SRT or VTT.`);
+    for (const file of client.files) if (!/\.(csv|srt|vtt|txt|md|markdown)$/i.test(file.name)) refuse('practice', `${file.name} is not a file the tools read: CSV, SRT, VTT or plain text.`);
   }
 
   // 5A3: the dated rules, recipes, measurement boundaries and manual paths, in their own codes, before their words are

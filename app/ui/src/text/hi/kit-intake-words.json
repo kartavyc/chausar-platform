@@ -300,5 +300,13 @@
   "kit-intake-words.app-testing.private.label": "निजी क्लाइंट स्रोत",
   "kit-intake-words.app-testing.private.help": "निजी विवरण और स्क्रिप्ट के लिए जाँचा स्थानीय मॉडल या आवाज़ सेवा चाहिए।",
   "kit-intake-words.app-testing.rights.label": "रिकॉर्डिंग और वाचन अधिकार",
-  "kit-intake-words.app-testing.rights.help": "इस स्क्रिप्ट, रिकॉर्ड परीक्षण डेटा और वाचन के मालिक या लाइसेंस का रिकॉर्ड रखें।"
+  "kit-intake-words.app-testing.rights.help": "इस स्क्रिप्ट, रिकॉर्ड परीक्षण डेटा और वाचन के मालिक या लाइसेंस का रिकॉर्ड रखें।",
+  "kit-intake-words.dev-agency.source.label": "स्रोत की तय कॉपी",
+  "kit-intake-words.dev-agency.source.help": "रिपॉज़िटरी का वर्ज़न और कॉपी की गई स्रोत फ़ाइलें रखने वाली टेक्स्ट फ़ाइल जोड़ें।",
+  "kit-intake-words.dev-agency.startedAt.label": "सेवा की शुरुआत",
+  "kit-intake-words.dev-agency.startedAt.help": "डेवलपर डेस्क में सेवा शुरू होने का सही समय दर्ज करें।",
+  "kit-intake-words.dev-agency.writtenPermission.label": "लिखित अनुमति",
+  "kit-intake-words.dev-agency.writtenPermission.help": "सुरक्षा काम के लिए कोड के मालिक की अनुमति जोड़ें। उसकी रिपॉज़िटरी और समय सीमा दर्ज करें।",
+  "kit-intake-words.dev-agency.private.label": "निजी स्रोत",
+  "kit-intake-words.dev-agency.private.help": "योग्य स्थानीय कोडिंग टूल मिलने तक निजी स्रोत पर काम ख़ुद करें।"
 }

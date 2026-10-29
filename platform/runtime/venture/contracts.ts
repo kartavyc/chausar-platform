@@ -1368,7 +1368,7 @@ export type JudgeSettingRecord = RecordBase<'venture-judge-setting'> & {
  * The action journal (P2-journal, venture/journal/). Every outside effect is one entry: described, then approved inside
  * the app, then applied, rejected or outcome_unknown. A connector post is its own journalled record with the same fields.
  */
-export const JOURNAL_ACTION_IDS = ['invoice.issue', 'delivery.send', 'connector.post', 'site.apply', 'bank.alert', 'connector.write', 'notify.push', 'notify.relay', 'credit.issue'] as const;
+export const JOURNAL_ACTION_IDS = ['invoice.issue', 'delivery.send', 'connector.post', 'site.apply', 'bank.alert', 'connector.write', 'notify.push', 'notify.relay', 'credit.issue', 'owner.handoff'] as const;
 export type JournalActionId = typeof JOURNAL_ACTION_IDS[number];
 export type JournalState = ConnectorPostState;
 export type JournalStep = { state: JournalState; at: IsoTime; by: string; line: string };
@@ -1791,6 +1791,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   vaBriefBinding?: string;
   /** Exact R2 source rows; mapping proposals still need owner review. */
   formsSourceBinding?: string;
+  devReportBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
@@ -6318,6 +6319,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // 5R4 exact copied-source and owner-command refusals.
+  'DEV_AUDIT_REQUIRED', 'DEV_CLI_PENDING', 'DEV_EVIDENCE_REQUIRED', 'DEV_EXPLOIT_REFUSED', 'DEV_LIVE_TARGET_REFUSED', 'DEV_PROJECT_NOT_FOUND', 'DEV_REVIEW_REQUIRED', 'DEV_SCANNER_CHANGED', 'DEV_SCANNER_REQUIRED', 'DEV_SCAN_FAILED', 'DEV_SCAN_INVALID', 'DEV_SCAN_REQUIRED', 'DEV_SECRET_FOUND', 'DEV_SOURCE_INVALID', 'FIRST_WEEK_REPORT_ONLY', 'PERMISSION_REQUIRED',
   // 5R2 exact source, owner browser and saved-response refusals.
   'FORM_ACTION_HELD', 'FORM_ALREADY_SUBMITTED', 'FORM_BROWSER_CLOSED', 'FORM_CAPTURE_INCOMPLETE', 'FORM_CONSENT_REQUIRED', 'FORM_DESKTOP_REQUIRED', 'FORM_MAPPING_INVALID', 'FORM_ORDER_CLOSED', 'FORM_ORDER_REQUIRED', 'FORM_PERMISSION_REQUIRED', 'FORM_PRIVACY_PENDING', 'FORM_READBACK_INVALID', 'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED', 'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING', 'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
   'CAPTION_AUDIO_UNAVAILABLE',

@@ -1,3 +1,4 @@
+import {FakeDevDelivery} from './fake-dev-delivery';
 import {FakeCareerDelivery} from './fake-career-delivery';
 import {FakeVaDelivery} from './fake-va-delivery';
 import {taxDecision} from '../../../../platform/runtime/venture/money/tax-decision';
@@ -48,6 +49,7 @@ export interface WorkHost {
   formsSource?(orderId:string):void;
   testingSource?(orderId:string):void;
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
+  devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
   vaBrief?(orderId:string,expected?:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomBrief;
   recruitDigest?(value:unknown):string;
   rows?(): import('./types').QueueRow[];
@@ -97,6 +99,7 @@ function checkIntake(raw: unknown, ask: OfferIntakeLite | null, offerName: strin
 export class FakeWorkDesk {
   private readonly host: WorkHost;
   readonly careerDelivery:FakeCareerDelivery;
+  readonly devDelivery:FakeDevDelivery;
   readonly vaDelivery:FakeVaDelivery;
   readonly socialChain: FakeSocialChain;
   readonly narrationChain: FakeNarrationChain;
@@ -117,6 +120,7 @@ export class FakeWorkDesk {
   constructor(host: WorkHost, options: { fresh?: boolean } = {}) {
     this.host = host;
     this.careerDelivery=new FakeCareerDelivery(host,{deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
+    this.devDelivery=new FakeDevDelivery(host,{deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.vaDelivery=new FakeVaDelivery(host,{deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.youtubeServices=new FakeYoutubeServiceRun(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],files:id=>this.orderFiles(host.current(),id),keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
     this.narrationChain=new FakeNarrationChain(host,{orders:()=>this.orders[host.current()]??[],deliveries:()=>this.deliveries[host.current()]??[],keep:run=>{(this.deliveries[host.current()]??=[]).unshift(run);}});
@@ -137,7 +141,7 @@ export class FakeWorkDesk {
   eraseInfluencerOrders(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,...rest}=order;return {...rest,request:'',status:'cancelled'};});}
   eraseCareerOrders(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,...rest}=order;return {...rest,request:'Client data deleted.',status:'cancelled'};});}
   eraseTenderIntake(biz:string,orderIds:readonly string[]):void{this.orders[biz]=(this.orders[biz]??[]).map(order=>{if(!orderIds.includes(order.id))return order;const {intake:_intake,narrationFetched:_narrationFetched,...rest}=order;return rest;});}
-  eraseRecruitingCopies(biz:string,orderIds:readonly string[],line='Candidate evidence was deleted. Start with new approved sources.'):string[]{this.careerDelivery.eraseOrders(biz,orderIds);this.vaDelivery.eraseOrders(biz,orderIds);this.narrationChain.eraseOrders(biz,orderIds);this.youtubeServices.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
+  eraseRecruitingCopies(biz:string,orderIds:readonly string[],line='Candidate evidence was deleted. Start with new approved sources.'):string[]{this.devDelivery.eraseOrders(biz,orderIds);this.careerDelivery.eraseOrders(biz,orderIds);this.vaDelivery.eraseOrders(biz,orderIds);this.narrationChain.eraseOrders(biz,orderIds);this.youtubeServices.eraseOrders(biz,orderIds);this.articleChain.eraseOrders(biz,orderIds);const ids=new Set((this.deliveries[biz]??[]).filter(r=>orderIds.includes(r.orderId)).map(r=>r.id));this.deliveries[biz]=(this.deliveries[biz]??[]).map(r=>ids.has(r.id)?{...r,status:'stopped',deliverable:null,renderedText:null,editedText:null,verdict:null,awaitingYou:false}:r);for(const r of this.host.runs())if(r.businessId===biz&&ids.has(r.runId)){r.state='waiting';r.stop={state:'stopped',line};r.steps=[];this.host.emit({type:'run.stopped',businessId:biz,runId:r.runId,at:this.host.now()});}return [...ids];}
 
   /** Internal byte fingerprint for source-bound fake media; file metadata is never a substitute. */
   uploadFingerprint(biz: string, id: string): string | null {
@@ -190,7 +194,7 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': if(this.host.plan()?.playbook?.id==='narration-studio'){const order=this.order(biz,p.orderId),id='narration-run-'+(++this.seq);return this.narrationChain.start(order.id,id,p);}return this.start(biz, p);
-      case 'venture.delivery.approve': case 'venture.delivery.review': return this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
+      case 'venture.delivery.approve': case 'venture.delivery.review': return this.devDelivery.handles(p.runId)?this.devDelivery.request(method,p):this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
@@ -324,7 +328,7 @@ export class FakeWorkDesk {
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
     if(this.host.plan()?.playbook?.id==='social-agency'){if(p.useTemplate===true)throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');if(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean')throw invalid('Send the required fields and nothing else.');}
-    const social=this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p)??this.youtubeServices.start(order,runId,p)??this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
+    const social=this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p)??this.youtubeServices.start(order,runId,p)??this.articleChain.start(order,runId)??this.socialChain.start(order,runId);
     if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();

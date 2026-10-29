@@ -1126,6 +1126,57 @@
             "connections": "आपकी उपलब्ध वाचन आवाज़ और समीक्षित फ़ाइलें सौंपना के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "dev-agency",
+        "playbook": "dev-agency",
+        "label": "Dev agency: maintenance, QA and security reviews",
+        "category": "content",
+        "department": "production",
+        "line": "Maintenance retainers, QA before release and security reviews for small web apps.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Approve pull requests, talk to clients.",
+        "team": [
+          {
+            "role": "Reviewer",
+            "initials": "RE",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Works on a local copy, finds issues, writes the report.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹40,000",
+          "per": "per client per month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with GitHub and Your coding tool."
+        },
+        "starter": "Maintenance retainer: Maintenance retainers, QA before release and security reviews for small web apps.",
+        "yours": [],
+        "hi": {
+          "label": "डेव एजेंसी: रखरखाव, गुणवत्ता और सुरक्षा समीक्षा",
+          "line": "छोटे वेब ऐप के लिए रखरखाव सेवा, रिलीज़ से पहले गुणवत्ता जाँच और सुरक्षा समीक्षा।",
+          "hours": "हफ़्ते में 4 से 8 घंटे",
+          "youDo": "पुल रिक्वेस्ट मंज़ूर करें और क्लाइंट से बात करें।",
+          "team": [
+            "समीक्षक"
+          ],
+          "teamLine": "स्थानीय कॉपी पर काम करती है, दिक्कतें ढूँढ़ती है और रिपोर्ट लिखती है।",
+          "pay": "₹10,000 से ₹40,000",
+          "per": "हर क्लाइंट, हर महीने",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Maintenance retainer: छोटे वेब ऐप के लिए रखरखाव सेवा, रिलीज़ से पहले गुणवत्ता जाँच और सुरक्षा समीक्षा।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "गिटहब और आपका कोडिंग टूल के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -1133,7 +1184,7 @@
         "id": "content",
         "label": "Content",
         "hi": "कंटेंट",
-        "count": 8
+        "count": 9
       },
       {
         "id": "marketing",
