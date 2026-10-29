@@ -34,6 +34,7 @@ export class FakeKitChainDesk {
     if (typeof p.orderId !== 'string' || !ID.test(p.orderId)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Order must be a known identifier.');
     const orders = this.host.ask('venture.order.list', {}) as { id: string }[];
     if (!orders.some((order) => order.id === p.orderId)) throw new EngineError('ORDER_NOT_FOUND', 'That order was not found.');
+    const plan=this.host.ask('venture.blueprint.get',{}) as import('./types').BlueprintViewLite|null;const order=orders.find(row=>row.id===p.orderId) as import('./types').OrderLite;const offer=plan?.blueprint.offers.find(row=>row.id===order.offerId);if(plan?.playbook?.id==='data-entry-desk'&&['data-entry-monthly','backlog-project'].includes(offer?.playbookOffer??''))return {orderId:order.id,playbook:'data-entry-desk',offerKey:offer!.playbookOffer,stage:1,of:2,line:'Stage 1 of 2',state:'running',since:null,stages:[{n:1,stepId:'mapping',title:'Propose field mapping',produces:'Propose field mapping',state:'now',manualPath:null},{n:2,stepId:'report',title:'Report saved comparisons',produces:'Report saved comparisons',state:'not-started',manualPath:null}],note:null};
     const social=this.host.socialChain?.(p.orderId);if(social)return social;
     throw new EngineError('INVALID_VENTURE_REQUEST', "This order's offer runs no stages of a playbook.");
   }

@@ -282,5 +282,15 @@
   "kit-intake-words.virtual-assistant.deadline.label": "आखिरी तारीख़",
   "kit-intake-words.virtual-assistant.deadline.help": "कैलेंडर की सही तारीख़ चुनें।",
   "kit-intake-words.virtual-assistant.hoursBand.label": "घंटों का स्तर",
-  "kit-intake-words.virtual-assistant.hoursBand.help": "क्लाइंट के साथ तय घंटों का स्तर लिखें।"
+  "kit-intake-words.virtual-assistant.hoursBand.help": "क्लाइंट के साथ तय घंटों का स्तर लिखें।",
+  "kit-intake-words.data-entry-desk.source-file.label": "क्लाइंट CSV",
+  "kit-intake-words.data-entry-desk.source-file.help": "सिर्फ़ तय स्रोत रिकॉर्ड जोड़ें, पासवर्ड या एक्सेस कोड नहीं।",
+  "kit-intake-words.data-entry-desk.record-id-column.label": "क्लाइंट रिकॉर्ड का अलग कॉलम",
+  "kit-intake-words.data-entry-desk.record-id-column.help": "स्थिर और अलग रिकॉर्ड पहचान वाले कॉलम का नाम दें।",
+  "kit-intake-words.data-entry-desk.site-url.label": "क्लाइंट पेज का पता",
+  "kit-intake-words.data-entry-desk.site-url.help": "अनुमति मिले क्लाइंट पेज का पूरा पता दें।",
+  "kit-intake-words.data-entry-desk.permission-file.label": "लिखित अनुमति",
+  "kit-intake-words.data-entry-desk.permission-file.help": "अनुमति टेक्स्ट फ़ाइल में जोड़ें, कर्मचारी का पासवर्ड कभी नहीं।",
+  "kit-intake-words.data-entry-desk.data-consent.label": "क्लाइंट डेटा की सहमति",
+  "kit-intake-words.data-entry-desk.data-consent.help": "इन स्रोत रिकॉर्ड पर काम करने की सहमति की पुष्टि करें।"
 }

@@ -45,6 +45,7 @@ const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', 
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
 export interface WorkHost {
+  formsSource?(orderId:string):void;
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
   vaBrief?(orderId:string,expected?:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomBrief;
   recruitDigest?(value:unknown):string;
@@ -304,6 +305,7 @@ export class FakeWorkDesk {
     if(this.host.plan()?.playbook?.id==='youtube'&&(Object.keys(p).some(k=>!['orderId','useTemplate'].includes(k))||p.useTemplate!==undefined&&typeof p.useTemplate!=='boolean'))throw invalid('Send the required fields and nothing else.');
     const order = this.order(biz, p.orderId);
     fakeRecruitPreflight(this.host,order);
+    if(this.host.plan()?.playbook?.id==='data-entry-desk'){this.host.formsSource!(order.id);throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Client system permission" yet. It works in practice runs only until they do.');}
     if(this.host.plan()?.playbook?.id==='website-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
     if(this.host.plan()?.playbook?.id==='website-studio'&&!SITE_FORM_RULE.confirmedBy)throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Website form notice and permission" yet. It works in practice runs only until they do.');
     if(this.host.plan()?.playbook?.id==='newsletter-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');

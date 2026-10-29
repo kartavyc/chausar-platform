@@ -1,14 +1,10 @@
-// Chausar delivery harness: the data-entry-desk playbook's own tools (Data entry desk; Ink v2 wave 5, packages 5R2).
-// Package 5-0 registered each name with a stub that answers NOT_BUILT_YET; the package replaces each stub with the
-// tool. Only this playbook's roles may hold them (5A1's grants from the definition's tools). Written for Chausar;
-// nothing here is learned from an outside source.
-import type { ToolName } from '../../contracts.ts';
-import { notBuiltTool } from './tool-stub.ts';
-import type { Spec } from './tools.ts';
-
-type DataEntryDeskToolName = Extract<ToolName, 'forms.map' | 'forms.readBack'>;
-
-export const DATA_ENTRY_DESK_TOOLS: Readonly<Record<DataEntryDeskToolName, Spec>> = Object.freeze({
-  'forms.map': notBuiltTool('forms.map', 'compute', 'The record\'s fields matched to the client\'s form.'), // 5R2
-  'forms.readBack': notBuiltTool('forms.readBack', 'read', 'A saved record read back from the client\'s system and compared.'), // 5R2
+// Original R2 tools over actual source and browser records. Model values never become saved-response evidence.
+import {check,ChausarError} from '../../../contracts.ts';
+import {formWorkEntry,formWorkRows,proposeFormMapping,formWorkArtifact} from '../../build/form-fill.ts';
+import type {Spec,ToolEnv,Field} from './tools.ts';
+const field=(about:string,max=200,required=true):Field=>({type:'text',about,max,required});
+function context(env:ToolEnv){check(env.ctx&&env.runRef.kind==='delivery','FORM_ORDER_REQUIRED','Use this active client data-entry run.');return {ctx:env.ctx,runId:env.runRef.runId};}
+export const DATA_ENTRY_DESK_TOOLS:Readonly<Record<'forms.map'|'forms.readBack',Spec>>=Object.freeze({
+ 'forms.map':{name:'forms.map',effect:'compute',tier:'code',endsTurn:false,summary:'Read exact source and captured target IDs, or save a field mapping proposal for the owner. Does not type, sign in or submit.',input:{entryId:field('Current source entry ID.',100,false),mapping:field('JSON array of exact source column and targetId, only after reading the current capture.',20000,false)},async run(env,input){const scope=context(env);check(Object.keys(input).every(key=>['entryId','mapping'].includes(key)),'INVALID_VENTURE_REQUEST','Read current entries or provide one exact mapping.');if(input.entryId===undefined){check(input.mapping===undefined,'INVALID_VENTURE_REQUEST','Choose an entry before proposing its mapping.');return{result:{entries:formWorkRows(env.deps,scope.ctx,env.ventureId,scope.runId),artifact:formWorkArtifact(env.deps,env.ventureId,scope.runId),submitted:false}};}check(typeof input.entryId==='string','INVALID_VENTURE_REQUEST','Choose a current source entry.');const current=formWorkEntry(env.deps,scope.ctx,env.ventureId,scope.runId,input.entryId);if(input.mapping===undefined)return {result:{entryId:current.row.id,source:current.source.values,capture:current.capture?{pageHash:current.capture.pageHash,pages:current.capture.pages,targets:current.capture.targets}:null,needsOwnerApproval:true,artifact:formWorkArtifact(env.deps,env.ventureId,scope.runId),submitted:false}};check(typeof input.mapping==='string'&&input.mapping.length<=20000,'FORM_MAPPING_INVALID','Use a bounded mapping proposal.');let mapping:unknown;try{mapping=JSON.parse(input.mapping);}catch{throw new ChausarError('FORM_MAPPING_INVALID','Use a valid mapping proposal.');}const result=await proposeFormMapping(env.deps,scope.ctx,env.ventureId,scope.runId,input.entryId,mapping);return{result:{...result,artifact:formWorkArtifact(env.deps,env.ventureId,scope.runId)}};}},
+ 'forms.readBack':{name:'forms.readBack',effect:'read',tier:'code',endsTurn:false,summary:'Read this entry actual saved-response comparison. Missing identity stays unverified; differences never cause a retry.',input:{entryId:field('Current source entry ID.',100)},async run(env,input){check(Object.keys(input).join(',')==='entryId'&&typeof input.entryId==='string','INVALID_VENTURE_REQUEST','Read one current saved entry; never supply replacement saved values.');const scope=context(env),current=formWorkEntry(env.deps,scope.ctx,env.ventureId,scope.runId,input.entryId);return{result:{entryId:current.row.id,sourceRecordId:current.row.sourceRecordId,state:current.row.state,mapping:current.row.mapping??[],comparison:current.row.comparison??null,responseEvidence:current.row.responseEvidence??null,artifact:formWorkArtifact(env.deps,env.ventureId,scope.runId),retried:false}};}}
 });

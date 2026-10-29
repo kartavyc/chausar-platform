@@ -4,4 +4,4 @@
 // Chausar; nothing here is learned from an outside source.
 import type { CatalogueEntry } from '../catalogue.ts';
 
-export const DATA_ENTRY_DESK_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([]);
+export const DATA_ENTRY_DESK_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([{id:'formfill',name:'Client form browser',category:'docs-ops',auth:'Written client permission and a revocable staff login entered by the owner',regions:['india','global'],regionNote:null,note:'Planned pending a lawyer confirming client permission and data use. A guarded desktop native-form browser is implemented; dynamic forms and restricted portals stay unsupported. Use the permitted client system manually meanwhile.',vendorUrl:null,targets:['write']}]);

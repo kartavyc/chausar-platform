@@ -1,10 +1,24 @@
-// Chausar playbook: Data entry desk (Ink v2 wave 5, packages 5R2). Its desk: the handlers venture.desk.list, .get and
-// .act reach for its own record kinds (playbooks/desks.ts), and their types (playbooks/desk-types.ts). Package 5-0 left
-// it empty, so every desk method for this playbook answers NOT_BUILT_YET. Written for Chausar; nothing here is learned
-// from an outside source.
-import type { DeskHandlers } from '../desk-types.ts';
-
-/** This desk's record kinds, each a DeskKindTypes (desk-types.ts) by kind; none until the package lands. */
-export type DataEntryDeskDeskTypes = Record<never, never>;
-/** This desk's handlers by record kind; none until the package lands. */
-export const DATA_ENTRY_DESK_DESK: DeskHandlers = Object.freeze({});
+// Original source-bound owner desk. External browser actions wait for their complete journal flow.
+import {formsScreenshot} from './screenshots.ts';
+import {authorize,check,type Context} from '../../../contracts.ts';
+import {exactPayload,digest,listRecords,readVenture,requireAppChannel,ventureAction} from '../../records.ts';
+import type {EntryRecordRecord,VentureDeps} from '../../contracts.ts';
+import type {DeskHandlers,DeskKindTypes} from '../desk-types.ts';
+import {formsBrowserAction,FORM_BROWSER_ACTIONS} from './browser-actions.ts';
+import {formsTransient,endFormsBrowser} from './browser-state.ts';
+import {loadFormsSource,type FormsSourceReader} from './source.ts';
+import {FORMS_BROWSER_DESK} from './browser-desk.ts';
+export type DataEntryDeskDeskTypes={entries:DeskKindTypes;browser:DeskKindTypes};
+function request(raw:unknown,op:'list'|'get'|'act'){
+ const p=exactPayload(raw,op==='list'?['playbook','kind','filter']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload','digest'],op==='list'?['playbook','kind']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload']);
+ check(p.playbook==='data-entry-desk'&&p.kind==='entries','INVALID_VENTURE_REQUEST','Choose the data-entry desk.');return p;
+}
+function sourceView(read:FormsSourceReader,row:EntryRecordRecord){let source:ReturnType<typeof loadFormsSource>|null=null;try{const current=loadFormsSource(read,row.orderId,row.fileId,row.identityColumn,row.rowIndex);if(current.sourceDigest===row.sourceDigest&&current.rowDigest===row.rowDigest&&current.order.clientId===row.clientId)source=current;}catch{/* Missing source stays stale. */}if(!source)return {id:row.id,orderId:row.orderId,state:row.state,stale:true,source:null};return {...row,stale:false,source:{columns:source.columns,values:source.values,totalRows:source.totalRows}};}
+async function currentView(deps:VentureDeps,ctx:Context,row:EntryRecordRecord){const {state,venture}=readVenture(deps,ctx),read:FormsSourceReader={venture,find:(kind,id)=>listRecords(state,kind,venture.id).find(value=>value.id===id)};const view=sourceView(read,row);if(view.stale)await endFormsBrowser(deps,row.id);return {...view,...(!view.stale?{filmstrip:formsScreenshot(deps,ctx,row)}:{}),...formsTransient(deps,row)};}
+export const DATA_ENTRY_DESK_DESK:DeskHandlers={browser:FORMS_BROWSER_DESK,entries:{
+ async list(deps,ctx,raw){const p=request(raw,'list');check(p.filter===undefined,'INVALID_VENTURE_REQUEST','This entry list takes no filter.');const {state,venture}=readVenture(deps,ctx),read:FormsSourceReader={venture,find:(kind,id)=>listRecords(state,kind,venture.id).find(value=>value.id===id)};return {playbook:'data-entry-desk',kind:'entries',rows:listRecords(state,'venture-entry-record',venture.id).map(row=>sourceView(read,row)),line:'Client source records and exact owner decisions.'};},
+ async get(deps,ctx,raw){const p=request(raw,'get'),{state,venture}=readVenture(deps,ctx);check(typeof p.id==='string','FORM_RECORD_NOT_FOUND','Choose an entry in this business.');const row=listRecords(state,'venture-entry-record',venture.id).find(value=>value.id===p.id);check(row,'FORM_RECORD_NOT_FOUND','Choose an entry in this business.');const read:FormsSourceReader={venture,find:(kind,id)=>listRecords(state,kind,venture.id).find(value=>value.id===id)};const view=sourceView(read,row);if(view.stale)await endFormsBrowser(deps,row.id);return {playbook:'data-entry-desk',kind:'entries',item:{...view,...(!view.stale?{filmstrip:formsScreenshot(deps,ctx,row)}:{}),...formsTransient(deps,row)},digest:digest(row)};},
+ async act(deps,ctx,raw){requireAppChannel(ctx,'venture.desk.act');const p=request(raw,'act');authorize(deps.store,ctx,'approve');if(typeof p.action==='string'&&(FORM_BROWSER_ACTIONS as readonly string[]).includes(p.action)){const row=await formsBrowserAction(deps,ctx,p.id,p.action,p.payload,p.digest);return {playbook:'data-entry-desk',kind:'entries',id:row.id,result:await currentView(deps,ctx,row),line:'The client entry is ready for your next review.'};}check(p.action==='prepare','INVALID_VENTURE_REQUEST','Choose an available data-entry action.');check(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','Prepare a new source row.');const b=exactPayload(p.payload,['orderId','fileId','identityColumn','rowIndex']);check(typeof b.orderId==='string'&&typeof b.fileId==='string'&&typeof b.identityColumn==='string'&&typeof b.rowIndex==='number','FORM_SOURCE_INVALID','Choose the source row and record-ID column.');
+  return ventureAction(deps,ctx,'approve','forms.prepare',tx=>{const source=loadFormsSource(tx,b.orderId as string,b.fileId as string,b.identityColumn as string,b.rowIndex as number);check(!tx.list('venture-entry-record').some(row=>row.orderId===source.order.id&&row.sourceRecordId===source.sourceRecordId),'FORM_RECORD_EXISTS','This source record already has an entry. Review its outcome before making another.');check(tx.list('venture-entry-record').filter(row=>row.orderId===source.order.id).length<200,'FORM_SOURCE_INVALID','An order supports at most 200 source records. Split a larger volume into separate client orders.');const row=tx.put<EntryRecordRecord>({...tx.base('venture-entry-record'),orderId:source.order.id,clientId:source.order.clientId,fileId:source.file.id,identityColumn:b.identityColumn as string,rowIndex:b.rowIndex as number,sourceRecordId:source.sourceRecordId,sourceDigest:source.sourceDigest,rowDigest:source.rowDigest,state:'source'});tx.emit('desk.changed',{playbook:'data-entry-desk',kind:'entries',id:row.id});return {playbook:'data-entry-desk',kind:'entries',id:row.id,result:sourceView(tx,row),line:'Source row prepared. Nothing has been entered or submitted.'};});
+ }
+}};

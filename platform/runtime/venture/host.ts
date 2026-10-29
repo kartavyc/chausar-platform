@@ -203,6 +203,7 @@ export class VentureHost {
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
       // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
       ...(options.print && options.host !== 'hosted-web' ? { print: options.print } : {}),
+      ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
     });
   }
 

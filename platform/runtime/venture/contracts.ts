@@ -1,3 +1,4 @@
+import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type { SocialScheduledBody, ScheduledPostBinding } from './playbooks/social/scheduled-core.ts';
 // Chausar venture launcher: shared contracts.
 // Every type, record kind, RPC method name, payload and result shape used by the venture packages.
@@ -274,6 +275,8 @@ export type RecordBase<K extends VentureRecordKind> = {
 };
 
 export type VentureRecord = RecordBase<'venture-record'> & {
+  /** Opaque partition IDs awaiting an already approved Forget. No client text or credentials. */
+  formsSignInErasure?: string[];
   youtubePublicQuota?: import('./playbooks/youtube/public-state.ts').YoutubeQuotaUse[];
   idea: string;
   ideaDigest: string;
@@ -1780,6 +1783,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   careerPackBinding?: string;
   /** Exact owner-approved room brief this VA delivery read. */
   vaBriefBinding?: string;
+  /** Exact R2 source rows; mapping proposals still need owner review. */
+  formsSourceBinding?: string;
   socialGhostwriting?: import('./playbooks/social/approvals.ts').GhostwritingState;
   workflow?: DeliveryWorkflow;
   orderId: string;
@@ -6306,6 +6311,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // 5R2 exact source, owner browser and saved-response refusals.
+  'FORM_ACTION_HELD', 'FORM_ALREADY_SUBMITTED', 'FORM_BROWSER_CLOSED', 'FORM_CAPTURE_INCOMPLETE', 'FORM_CONSENT_REQUIRED', 'FORM_DESKTOP_REQUIRED', 'FORM_MAPPING_INVALID', 'FORM_ORDER_CLOSED', 'FORM_ORDER_REQUIRED', 'FORM_PERMISSION_REQUIRED', 'FORM_PRIVACY_PENDING', 'FORM_READBACK_INVALID', 'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED', 'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING', 'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
   'CAPTION_AUDIO_UNAVAILABLE',
   'CAPTION_BUSY',
   'CAPTION_EVENT_STALE',
@@ -6737,6 +6744,7 @@ export type VentureDeps = {
   trial?: () => boolean;
   /** Ink v2 wave 5 (5A5): the desktop's printer for a report's PDF (Electron's printToPDF). Never on hosted; absent: no PDF. */
   print?: PrintPort;
+  formsBrowser?: FormsBrowserPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
 };
@@ -6812,6 +6820,7 @@ export type VentureHostOptions = {
   trial?: () => boolean;
   /** Trusted host composition (5A5): the desktop's report printer over the worker's channel (VentureDeps.print). Never on hosted. */
   print?: PrintPort;
+  formsBrowser?: FormsBrowserPort;
 };
 
 /**

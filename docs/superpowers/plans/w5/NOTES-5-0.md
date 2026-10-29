@@ -721,3 +721,8 @@ Consented stock-voice dubbing, actual audio checks and desktop local captions wi
 ### 5R1 isolated commit checkpoint
 
 Virtual assistant orders have exact approved client-room briefs, source-only owner-approved morning and weekly routines, receipt-backed manual purchase handoffs and refusal of payment fields. Current brief revisions bind native and rehearsal delivery, with real Forget clearing saved and unsaved private copies. Independent native and owner reviews, test-first evidence, screenshots and capability limits are in NOTES-5R1.md and NOTES-5R1-UI.md. No live purchase, client hosting or model-provider qualification is claimed.
+
+
+### 5R2 isolated commit checkpoint
+
+Data-entry work has exact source rows, owner-only native browser mapping and submit approvals, source-bound agent proposals and code-rendered reports, actual saved-response comparison and acknowledged sign-in erasure. The desktop remains planned pending lawyer confirmation; native HTML forms only, with a manual path for dynamic or unsupported sites. Independent whole-package specification and quality reviews passed; isolated validation is recorded separately. Exact manifest, tests, screenshots and limitations are in NOTES-5R2.md.

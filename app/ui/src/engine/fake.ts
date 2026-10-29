@@ -225,6 +225,7 @@ export class FakeEngine {
     }, { fresh });
     this.work = new FakeWorkDesk({
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
+      formsSource:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.formsSource(id);},
       vaBrief:(id,expected)=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('APPROVAL_STALE','Approve the current client room brief and start this work again.');return desk.vaBrief(id,expected);},
       rows:()=>this.rows,setRows:rows=>{this.rows=rows;},
       hosted: () => this.hosted,
@@ -290,6 +291,7 @@ export class FakeEngine {
       eraseTenderIntake:(orderIds:readonly string[])=>this.work.eraseTenderIntake(this.current,orderIds),
       eraseYoutubeIdeaSources:(sources:readonly string[])=>this.kitRules()?.eraseSources(this.current,sources),
       eraseCareerCopies:(orderIds:readonly string[])=>{this.work.eraseCareerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Client data deleted.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
+      eraseFormsCopies:(orderIds:readonly string[])=>{this.work.eraseCareerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Client data deleted.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
       socialChain:(orderId:string)=>this.work.narrationChain.view(orderId)??this.work.articleChain.view(orderId)??this.work.socialChain.view(orderId),
       supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),

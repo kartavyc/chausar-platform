@@ -1,0 +1,8 @@
+// R2 source workflow and its professional review boundary.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {definePlaybook} from '../runtime/venture/playbooks/kit/define.ts';
+import {FORMS_DATA,FORMS_HI} from '../runtime/venture/playbooks/data-entry-desk/definition-data.ts';
+test('R2 defines owner-priced source work, exact approval floors and truthful desktop legal boundary',()=>{const d=definePlaybook(FORMS_DATA,FORMS_HI);assert.deepEqual(d.offers.map(o=>o.id),['data-entry-monthly','backlog-project']);assert.ok(d.offers.every(o=>o.price==='owner-sets'));assert.ok(d.rules.every(rule=>Object.hasOwn(rule,'needs')));assert.equal(d.rules.find(rule=>rule.id==='forms-client-permission')!.confirmedBy,null);assert.equal(d.connectors.find(c=>c.id==='formfill')!.label,'planned: write');assert.ok(d.connectors.find(c=>c.id==='formfill')!.manualPath);assert.deepEqual(d.steps.map(step=>step.id),['map-source','mapping','approve-mapping','site-check','fill','hold','read-back','check-saved','report']);assert.ok(d.approvals.filter(a=>['site-check','hold'].includes(a.step)).every(a=>a.floor));assert.deepEqual(d.tools,['forms.map','forms.readBack']);});
+
+import {readFileSync} from 'node:fs';import {runKitBaseline} from '../runtime/venture/playbooks/kit/baseline.ts';
+test('R2 committed baseline runs the actual domain guards at its recorded rate',()=>{const file=JSON.parse(readFileSync(new URL('../runtime/venture/playbooks/data-entry-desk/baselines/data-entry-desk.json',import.meta.url),'utf8'));assert.equal(runKitBaseline(definePlaybook(FORMS_DATA,FORMS_HI),file).ok,true);});

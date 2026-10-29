@@ -48,6 +48,7 @@ const ASK_RULE: Rule = { level: 'harness', op: 'guidance.add', stepId: 'clarify'
  * and a wrong fact at the dictionary; neither is ever fixed in a prompt, so those reasons get no patch.
  */
 export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
+  'mapping-faithful': { level: 'dictionary', why: 'Correct the current source, mapping or saved response evidence in the data-entry desk. Never rewrite an uncertain result as success or try to repair it with a prompt.' },
   'missing-fact': ASK_RULE, 'questions-raised': ASK_RULE,
   'missing-section': SECTIONS_RULE, 'required-sections': SECTIONS_RULE, format: SECTIONS_RULE,
   'off-brief': { level: 'harness', op: 'guidance.add', stepId: 'gather', value: 'Restate what the client asked for in one sentence before you plan the work.' },

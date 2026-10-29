@@ -1,3 +1,4 @@
+import {formsRunSource,formsRunCurrent,formsDispatchGuard,formsDeliverable} from '../playbooks/data-entry-desk/run-source.ts';
 import {careerPackDeliverable} from '../playbooks/job-search-desk/pack.ts';
 import {vaRunSource,vaRunCurrent,vaDispatchGuard,vaBriefDeliverable,vaRoomEvidence} from '../playbooks/virtual-assistant/run-source.ts';
 import {careerRunSource,careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
@@ -148,6 +149,7 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
   const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(deps.store.read(), context.venture), playbook.flagship ?? null);
   if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
   const checkInput = {
+    ...(playbook.flagship==='data-entry-desk'?{formsEntries:formsRunSource(deps.store.read(),context.venture.id,context.order.id).rows}:{}),
     ...(playbook.flagship==='virtual-assistant'?{roomBrief:vaRoomEvidence(deps.store.read(),context.venture.id,context.order.id)}:{}),
     ...(playbook.flagship==='job-search-desk'?{careerPack:careerRunSource(deps.store.read(),context.venture.id,context.order.id)}:{}),
     ...(playbook.flagship==='podcast-to-article'?{articleRecord:listRecords(deps.store.read(),'venture-article-ledger',context.venture.id).find(row=>row.orderId===context.order.id&&row.clientId===context.order.clientId)??null}:{}),
@@ -256,6 +258,7 @@ function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, gr
     ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null,
     ...((playbook as RunPlaybook).runWorkflow ? { workflow: (playbook as RunPlaybook).runWorkflow } : {}),
     ...(playbook.flagship==='job-search-desk'?{careerPackBinding:careerRunSource(tx.state,tx.venture!.id,order.id).sourceBinding}:{}),
+    ...(playbook.flagship==='data-entry-desk'?{formsSourceBinding:formsRunSource(tx.state,tx.venture!.id,order.id).binding}:{}),
     ...(playbook.flagship==='virtual-assistant'?{vaBriefBinding:vaRunSource(tx.state,tx.venture!.id,order.id).digest}:{}),
     scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
     // Ink v2 wave 5 (5A1): the chain stage this run drafts, once a kit chain order is past its first (playbooks/kit/chain.ts).
@@ -289,6 +292,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
   // stages or the playbook's checks rest on waits for a CA or lawyer (RULE_UNCONFIRMED). The check-time gate stays as a backstop.
   const chain = orderChain(state, venture, order);
+  if(chain?.definition.registration.id==='data-entry-desk')formsRunSource(state,venture.id,order.id);
   if(chain?.definition.registration.id==='virtual-assistant')vaRunSource(state,venture.id,order.id);
   if(chain?.definition.registration.id==='job-search-desk')careerRunSource(deps.store.read(),venture.id,order.id);
   if(chain?.definition.registration.id==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,order.id,true);
@@ -314,8 +318,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
   const socialGuard=await socialVoiceGuard();
   const socialSnapshot=(state:State,venture:VentureRecord)=>JSON.stringify({order:findRecord(state,'venture-order',orderId),uploads:orderUploads(state,venture.id,orderId)});
+  const formsBefore=playbook.flagship==='data-entry-desk'?formsRunSource(fresh.state,fresh.venture.id,orderId).binding:null;
   const socialBefore=context.order.socialChain?socialSnapshot(fresh.state,fresh.venture):null;
-  const fenceSocialPreview=(tx:VentureTx)=>{if(socialBefore===null)return;check(socialBefore===socialSnapshot(tx.state,tx.venture!),'APPROVAL_STALE','The order or its sources changed. Start again and read the new preview.');socialGuard(tx.state,tx.venture!,tx.find('venture-order',orderId)!);};
+  const fenceSocialPreview=(tx:VentureTx)=>{if(formsBefore)check(formsRunSource(tx.state,tx.venture!.id,orderId).binding===formsBefore,'FORM_SOURCE_CHANGED','The source changed while the preview was prepared.');if(socialBefore===null)return;check(socialBefore===socialSnapshot(tx.state,tx.venture!),'APPROVAL_STALE','The order or its sources changed. Start again and read the new preview.');socialGuard(tx.state,tx.venture!,tx.find('venture-order',orderId)!);};
   const socialReport = !template ? await (await import('../playbooks/social/report-run.ts')).prepareSocialReport(deps,ctx,fresh.state,fresh.venture,playbook,context.order,uploads) : null;
   const sellerReport = await (await import('../playbooks/online-seller/prepare-run.ts')).prepareSellerReport(deps,ctx,fresh.state,fresh.venture,playbook,context.order,context.offerKey,uploads);
   const codeReport = socialReport ?? sellerReport;
@@ -360,10 +365,11 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
 
   if (!preview) {
     const career=playbook.flagship==='job-search-desk'?careerRunSource(deps.store.read(),venture.id,order.id):null;
+    const forms=playbook.flagship==='data-entry-desk'?formsRunSource(deps.store.read(),venture.id,order.id):null;
     const va=playbook.flagship==='virtual-assistant'?vaRunSource(deps.store.read(),venture.id,order.id):null;
-    const deliverable = career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
-    const renderedText = career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
-    const checks = checkDraft(context, playbook, deliverable, renderedText,career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
+    const deliverable = testing?testingDeliverable(testing):forms?formsDeliverable(forms.rows,order.chainStage):career?careerPackDeliverable(career.text):va?vaBriefDeliverable(va):templateOutline(context.blueprint.serviceType, templateTotal(refs, 'order.total'));
+    const renderedText = testing||forms?renderDeliverable(deliverable,context.receipts,context.venture.country):career?career.text:`${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable, context.receipts, context.venture.country)}`;
+    const checks = checkDraft(context, playbook, deliverable, renderedText,testing?{sections:['Reviewed evidence'],answers:[testing.text]}:forms?{sections:deliverable.sections.map(section=>section.heading),answers:deliverable.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}:career?{sections:['Approved evidence'],answers:[career.text]}:va?{sections:['Brief','Work notes'],answers:[va.fields.scope,va.fields.deliverable,va.fields.deadline]}:{});
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       fenceSocialPreview(tx);
@@ -528,7 +534,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(latestSupport, venture, orderContext(latestSupport, venture, run.orderId).order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,orderContext(deps.store.read(),venture,run.orderId).order);
     recheckSend(deps, venture.id, runId, callId, approved);
-    vaRunCurrent(deps.store.read(),venture.id,run);
+    vaRunCurrent(deps.store.read(),venture.id,run);formsRunCurrent(deps.store.read(),venture.id,run);
     if(playbook.flagship==='job-search-desk')careerRunSource(deps.store.read(),venture.id,run.orderId);
     if(playbook.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,run.orderId,true);
     if(playbook.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,venture.id,run.orderId,true);
@@ -541,9 +547,9 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     const youtubeGuard=youtubeDispatchGuard(deps,venture,context.order),vaGuard=vaDispatchGuard(deps,venture.id,run);
     let deliverable: Deliverable;
     try {
-      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }),{beforeDispatch:()=>{youtubeGuard();vaGuard();}});
+      const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }),{beforeDispatch:()=>{youtubeGuard();vaGuard();formsDispatchGuard(deps,context.venture.id,run)();}});
       went.out = true;
-      vaRunCurrent(deps.store.read(),venture.id,run);
+      vaRunCurrent(deps.store.read(),venture.id,run);formsRunCurrent(deps.store.read(),venture.id,run);
       deliverable = outcome.value;
     } catch (error) {
       await markFailedWhenSpent(deps, ctx, run, callId, error);
@@ -565,7 +571,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
           return runView(settled, tx.venture!, Date.parse(tx.now), tx.state);
         }
         check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
-        vaRunCurrent(tx.state,tx.venture!.id,current);
+        vaRunCurrent(tx.state,tx.venture!.id,current);formsRunCurrent(tx.state,tx.venture!.id,current);
         // Checked again: the stage can move down while the call is out. At shadow the answer is a practice draft.
         const stage = tx.venture!.launchStage;
         check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
@@ -661,7 +667,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   await refuseStaleSources(deps, ctx, a);
   let value: unknown, by: 'model' | 'template', costMicros: string;
   try {
-    const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw),{beforeDispatch:()=>{youtubeGuard();vaGuard();}});
+    const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw),{beforeDispatch:()=>{youtubeGuard();vaGuard();formsDispatchGuard(deps,context.venture.id,run)();}});
     value = outcome.value; by = outcome.by; costMicros = outcome.costMicros;
     a.answered?.();
   } catch (error) {
@@ -673,7 +679,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   }
 
   try {
-    vaRunCurrent(deps.store.read(),context.venture.id,run);
+    vaRunCurrent(deps.store.read(),context.venture.id,run);formsRunCurrent(deps.store.read(),context.venture.id,run);
     if (harness.phase === 'act') {
       // The owner approved this turn's exact text before it ran: that is the approval a step on hold waits for.
       const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available, approval: { kind: 'owner-turn', callId }, intake: context.order.intake ?? null });
@@ -683,21 +689,24 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
       // 4J18: and the sources it read, the same way (agents/knowledge-recall.ts sourcesCarried).
       const approvedText = run.preview?.payloadText ?? '';
       const turned = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros, recalled: notesCarried(a.state, context.venture, approvedText), knowledge: sourcesCarried(a.state, context.venture, approvedText) });
-      vaRunCurrent(deps.store.read(),context.venture.id,run);
+      vaRunCurrent(deps.store.read(),context.venture.id,run);formsRunCurrent(deps.store.read(),context.venture.id,run);
       const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
       // 4F1: what the owner changed while the turn ran (a stop, a note, the gate) joins what the turn made.
       const next = carryControls(turned, liveHarness(deps, run.id));
       // A hand-off waits for an answer and a heavy-work brief for the owner's decision: neither previews a turn yet.
       // Nor does a stop (the owner's, a force stop, or the gate's) or the round gate holding the run for the owner (4F1).
       const pauses = next.phase === 'needs-answer' || next.phase === 'brief' || !!next.control?.stop || gateWaits(next);
-      const preview = pauses ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
-      check(pauses || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+      const formsDone=!pauses&&next.phase==='write'&&run.formsSourceBinding?formsDeliverable(formsRunSource(deps.store.read(),context.venture.id,run.orderId).rows,run.chainStage):null;
+      const formsChecks=formsDone?checkDraft(context,playbook,formsDone,renderDeliverable(formsDone,context.receipts,context.venture.country),{sections:formsDone.sections.map(section=>section.heading),answers:formsDone.sections.flatMap(section=>section.parts.flatMap(part=>part.kind==='text'?[part.text]:[]))}):null;
+      const formsOwn=formsDone?await flagshipChecks(deps,context,playbook,formsDone,'template',{runId:run.id,work:env.receipts,tables:env.tables,files,harness:next}):undefined;
+      const preview = pauses||formsDone ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
+      check(pauses || formsDone || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', run.id);
         // 4F1: a force stop cut this very call: the turn is thrown away, nothing it made is stored, only what it cost.
         if (current?.harness?.control?.cutCallId === callId) return keepCutTurn(tx, current, costMicros);
         check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
-        vaRunCurrent(tx.state,tx.venture!.id,current);
+        vaRunCurrent(tx.state,tx.venture!.id,current);formsRunCurrent(tx.state,tx.venture!.id,current);
         const stage = tx.venture!.launchStage;
         check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
         for (const table of newTables) tx.put(table);
@@ -706,6 +715,10 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
         const practice = current.practice || stage === 'shadow';
         // 4F1: the owner's stop, or the gate's, takes effect now: finished steps are kept and nothing more runs.
         const stopping = !!merged.control?.stop;
+        if(formsDone&&!stopping){
+          const completed:DeliveryRunRecord={...current,status:'ready-for-review',servedBy:'template',callId:null,preview:null,practice,deliverable:formsDone,renderedText:renderDeliverable(formsDone,context.receipts,context.venture.country),checks:formsChecks!,playbookChecks:formsOwn,harness:finishWrite(merged,{by:'template',callId:null,costMicros:'0'}),readyAt:tx.now};
+          formsRunCurrent(tx.state,tx.venture!.id,completed);tx.replace(completed);storeRunEvidence(tx,env.evidence??[],{runId:run.id,clientId:context.order.clientId});recordCheckSignal(tx,run.id,completed.checks);tx.emit('delivery-ready',{runId:run.id,orderId:run.orderId,servedBy:'template'});tx.emit('run.step',{runId:run.id});tx.emit('run.waiting',{runId:run.id});return runView(completed,tx.venture!,Date.parse(tx.now),tx.state);
+        }
         const stored: DeliveryRunRecord = stopping
           ? { ...current, status: 'stopped', callId: null, preview: null, harness: stoppedNow(merged, tx.now, STOPPED_BY_YOU), practice }
           : preview
@@ -756,7 +769,7 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
       // 4F1: a force stop cut this write turn's call: the draft is thrown away; only what its call cost is kept.
       if (current?.harness?.control?.cutCallId === callId) return keepCutTurn(tx, current, costMicros);
       check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
-      vaRunCurrent(tx.state,tx.venture!.id,current);
+      vaRunCurrent(tx.state,tx.venture!.id,current);formsRunCurrent(tx.state,tx.venture!.id,current);
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       // 4F1: the last step finished, so a stop asked meanwhile has nothing left to stop; the owner's notes and gate stay.
@@ -899,7 +912,7 @@ function keepCutBrief(tx: VentureTx, current: DeliveryRunRecord, record: Delegat
  * previews its draft again. Returns the loop state the preview was made from, which the caller stores with it.
  */
 export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, run: DeliveryRunRecord, harness: HarnessState | null): Promise<{ preview: ModelPreview; harness: HarnessState | null }> {
-  vaRunCurrent(deps.store.read(),venture.id,run);
+  vaRunCurrent(deps.store.read(),venture.id,run);formsRunCurrent(deps.store.read(),venture.id,run);
   const context = orderContext(state, venture, run.orderId);
   const playbook = playbookForRun(state, run);
   check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
@@ -1245,7 +1258,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const run = tx.find('venture-delivery-run', runId);
     check(run, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
-    if(verdict!=='rejected')vaRunCurrent(tx.state,tx.venture!.id,run);
+    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
+    if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,tx.venture!.id,run.orderId,true);

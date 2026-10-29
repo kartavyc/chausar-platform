@@ -282,5 +282,15 @@
   "kit-intake-words.virtual-assistant.deadline.label": "Deadline",
   "kit-intake-words.virtual-assistant.deadline.help": "Choose a real calendar day.",
   "kit-intake-words.virtual-assistant.hoursBand.label": "Hours band",
-  "kit-intake-words.virtual-assistant.hoursBand.help": "Use the hours band agreed with the client."
+  "kit-intake-words.virtual-assistant.hoursBand.help": "Use the hours band agreed with the client.",
+  "kit-intake-words.data-entry-desk.source-file.label": "Client CSV",
+  "kit-intake-words.data-entry-desk.source-file.help": "Upload only the agreed source records, with no passwords or access codes.",
+  "kit-intake-words.data-entry-desk.record-id-column.label": "Unique client record column",
+  "kit-intake-words.data-entry-desk.record-id-column.help": "Name the stable unique record identity column.",
+  "kit-intake-words.data-entry-desk.site-url.label": "Client page address",
+  "kit-intake-words.data-entry-desk.site-url.help": "Use the exact permitted client page address.",
+  "kit-intake-words.data-entry-desk.permission-file.label": "Written permission",
+  "kit-intake-words.data-entry-desk.permission-file.help": "Upload permission as a text file, never the staff password.",
+  "kit-intake-words.data-entry-desk.data-consent.label": "Client data consent",
+  "kit-intake-words.data-entry-desk.data-consent.help": "Confirm consent for processing these source records."
 }

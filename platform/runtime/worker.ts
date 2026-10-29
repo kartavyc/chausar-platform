@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
 import { processPrintPort } from './venture/playbooks/kit/report/pdf.ts';
+import { processFormsPort } from './venture/build/form-fill-port.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 
 /** Verified host evidence is installed before the worker can announce readiness. */
@@ -12,7 +13,7 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
   return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: environment.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}),
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
-    ...(typeof process.send === 'function' ? { print: processPrintPort(process) } : {}) } });
+    ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process) } : {}) } });
 }
 
 /** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */

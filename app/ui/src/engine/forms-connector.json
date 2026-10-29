@@ -1,0 +1,43 @@
+{
+  "id": "formfill",
+  "name": "Client form browser",
+  "category": "docs-ops",
+  "categoryLabel": "Docs and ops",
+  "modes": [
+    {
+      "mode": "write",
+      "status": "planned",
+      "qualification": "unqualified",
+      "what": "Planned: writing to Client form browser. Not in this build."
+    }
+  ],
+  "chips": [
+    "planned: write"
+  ],
+  "regions": [
+    "india",
+    "global"
+  ],
+  "regionNote": null,
+  "auth": "Written client permission and a revocable staff login entered by the owner",
+  "vendorUrl": null,
+  "note": "Planned pending a lawyer confirming client permission and data use. A guarded desktop native-form browser is implemented; dynamic forms and restricted portals stay unsupported. Use the permitted client system manually meanwhile.",
+  "starter": false,
+  "postingOptions": [],
+  "guide": {
+    "steps": [
+      "1. Nothing to set up in Chausar yet: linking Client form browser is planned.",
+      "2. When it is built, Chausar will ask for written client permission and a revocable staff login entered by the owner, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+      "3. Until then, use Client form browser on its own."
+    ],
+    "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+    "charges": {
+      "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+      "checkedOn": null
+    },
+    "checks": "Nothing connects to it in this build, so there is no access to check.",
+    "sends": "Sends: nothing, so nothing here can change Client form browser.",
+    "agentLimits": "Agents can't use Client form browser: nothing connects to it in this build.",
+    "missing": null
+  }
+}

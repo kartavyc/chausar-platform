@@ -1,3 +1,4 @@
+import {formsRules} from './forms-rules';
 /**
  * The fake engine's answer for the dated platform rules (venture.rules.list, Ink v2 wave 2, package 2H). The rules and
  * the playbooks' risk levels are the engine's own (fixtures-rules-data.ts, made from its registers), and the words for
@@ -37,6 +38,7 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
 
 /** venture.rules.list for a business on a playbook (by id and label) on a day; a null playbook for a business on none. */
 export function rulesListFor(playbook: { id: string; label: string } | null | undefined, today: string): RulesListView {
+  if(playbook?.id==='data-entry-desk')return formsRules(today) as RulesListView;
   const review = playbook ? PLAYBOOK_REVIEW[playbook.id] : undefined;
   // 5A3: the dev page's ?kit-sample shows a kit playbook's rules, recipes and boundaries (no kit playbook has landed yet).
   if (devAsksKitSample()) return kitSampleRules(today);

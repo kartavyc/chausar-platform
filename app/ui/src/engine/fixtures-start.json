@@ -1006,6 +1006,63 @@
             "connections": "सहेजी डाक, सहेजे पेज मॉनिटर और आपका खुद का संदेश और खरीद के साथ काम करता है।"
           }
         }
+      },
+      {
+        "id": "data-entry-desk",
+        "playbook": "data-entry-desk",
+        "label": "Data entry desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Client source records, each submit approved and read back.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Sign in and approve each record.",
+        "team": [
+          {
+            "role": "Operator",
+            "initials": "OP",
+            "department": "operations"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Proposes mappings and compares saved records.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client source files."
+        },
+        "starter": "Data entry service: Client source records, each submit approved and read back.",
+        "yours": [],
+        "hi": {
+          "label": "डेटा एंट्री डेस्क",
+          "line": "क्लाइंट स्रोत रिकॉर्ड, हर भेजना मंज़ूर और फिर पढ़कर जाँचा जाता है।",
+          "hours": "हफ़्ते में 4 से 8 घंटे",
+          "youDo": "साइन-इन करें और हर रिकॉर्ड मंज़ूर करें।",
+          "team": [
+            "ऑपरेटर",
+            "जाँचकर्ता"
+          ],
+          "teamLine": "मिलान प्रस्ताव देता है और सेव रिकॉर्ड की तुलना करता है।",
+          "pay": "₹5,000 से ₹20,000",
+          "per": "एक क्लाइंट प्रति माह",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Data entry service: क्लाइंट स्रोत रिकॉर्ड, हर भेजना मंज़ूर और फिर पढ़कर जाँचा जाता है।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट की स्रोत फ़ाइलें के साथ काम करता है।"
+          }
+        }
       }
     ],
     "categories": [
@@ -1031,7 +1088,7 @@
         "id": "shops-and-firms",
         "label": "Shops and firms",
         "hi": "दुकानें और फ़र्म",
-        "count": 4
+        "count": 6
       }
     ],
     "upTo": {

@@ -1,3 +1,4 @@
+import formsConnector from './forms-connector.json';
 import {siteScreenFlowText} from '../../../../platform/runtime/venture/playbooks/website-studio/screen-flow';
 import {SITE_UI_ARTIFACT_GUIDANCE} from '../../../../platform/runtime/venture/playbooks/website-studio/ui-contract';
 /**
@@ -40,6 +41,7 @@ function posting(options: PostingOptionLite[]): Pick<ConnectorCardLite, 'posting
 }
 
 export const CONNECTORS: ConnectorCardLite[] = [
+  formsConnector as ConnectorCardLite,
   {
     id: 'github', name: 'GitHub', category: 'build', categoryLabel: 'Build',
     modes: [PLANNED_HANDOFF, { mode: 'read', status: 'available', qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' }, { mode: 'write', status: 'planned', qualification: 'unqualified', what: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today.' }],

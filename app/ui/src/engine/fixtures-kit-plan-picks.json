@@ -121,5 +121,12 @@
       "va-monthly",
       "errands-pack"
     ]
+  },
+  {
+    "id": "data-entry-desk",
+    "offers": [
+      "data-entry-monthly",
+      "backlog-project"
+    ]
   }
 ]

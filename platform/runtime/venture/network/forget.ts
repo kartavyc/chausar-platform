@@ -1,3 +1,4 @@
+import {eraseFormsNaming,clearForgottenFormSignIns} from '../playbooks/data-entry-desk/privacy.ts';
 import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
 import { eraseInfluencerNaming } from '../playbooks/social/influencer-privacy.ts';
@@ -295,6 +296,7 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
     eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseFormsNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),options.captions);
     eraseCareerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseClientRooms(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
@@ -428,7 +430,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
     tx.emit('privacy.forgotten', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
-  });
+  }).then(async result=>{if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}return result;});
 }
 
 /**
