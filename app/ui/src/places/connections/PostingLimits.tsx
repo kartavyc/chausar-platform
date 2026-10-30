@@ -1,10 +1,4 @@
-/**
- * The owner's own, stricter posting limits for one channel (Ink v2 wave 2, K5), folded under its connector tile:
- * posts a day, minutes between posts, warm-up days, the near-duplicate percent and the link streak. The numbers in use
- * come from the engine (venture.posting.limits.get), each with Chausar's own as the hint. Save sends them as typed
- * (venture.posting.limits.set); the engine refuses any looser than Chausar's own, and that refusal is shown in its
- * words. An empty box means Chausar's own number. Nothing here works out a limit.
- */
+/** Owner posting settings, folded under each channel. Empty fields restore defaults. */
 
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';

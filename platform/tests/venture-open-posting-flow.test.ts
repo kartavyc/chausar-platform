@@ -1,5 +1,10 @@
 // Real owner setup and the existing durable per-destination post journal. Transport is recorded, never live.
 import test from 'node:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { diskPostLog } from '../runtime/venture/build/post-log.ts';
+import { postPrint } from '../runtime/venture/playbooks/social/risk-gate.ts';
 import {ChausarError} from '../runtime/contracts.ts';
 import {SCHEDULED_DESK} from '../runtime/venture/playbooks/social/scheduled-desk.ts';
 import assert from 'node:assert/strict';
@@ -63,4 +68,24 @@ test('owner limits tightened during DNS prevent an already approved open-network
   assert.equal(stopped.state, tighten ? 'rejected' : 'applied');
   if (tighten) assert.equal(stopped.outcome?.line, 'Nothing was sent. Review the current connection and approval.');
   }
+});
+
+test('Forget removes retained cross-vault post timestamps and leaves unrelated posts', async () => {
+ const root = await mkdtemp(join(tmpdir(), 'chausar-forget-log-'));
+ try {
+  const e = await env(); await e.connect();
+  const log = diskPostLog(root, () => Date.parse(e.now()));
+  e.deps.connectors = { ...e.deps.connectors, postLog: log };
+  const run = await seedPostDraft(e.deps, ['Bluesky: Maya supplied this private campaign.']);
+  const proposal = await postingPropose(e.deps, owner, { draftId: run.id + '.post-1' });
+  const old = new Date(Date.parse(e.now()) - 50 * 86400000).toISOString();
+  log.append({ id: proposal.postId, connectorId: 'bluesky', at: old, print: postPrint('Maya private campaign') });
+  log.append({ id: 'unrelated-vault-post', connectorId: 'bluesky', at: e.now(), print: postPrint('Unrelated business') });
+  assert.deepEqual(log.read('bluesky')[0].print, { shingles: [], domains: [] });
+  let personId = '';
+  await ventureAction(e.deps, owner, 'approve', 'test.person', tx => { personId = tx.put({ ...tx.base('venture-person'), name: 'Maya', handles: { emails: [], phones: [], linkedinUrl: null }, role: null, roles: [], facts: [], hidden: false, clientId: null, history: [] }).id; });
+  const { networkForget } = await import('../runtime/venture/network/forget.ts');
+  await networkForget(e.deps, owner, { id: personId });
+  assert.deepEqual(log.read('bluesky').map(row => row.id), ['unrelated-vault-post']);
+ } finally { await rm(root, { recursive: true, force: true }); }
 });

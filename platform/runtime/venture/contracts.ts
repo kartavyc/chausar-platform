@@ -1474,7 +1474,7 @@ export type PostLogEntry = { id: string; connectorId: string; at: IsoTime; print
  * One posting history per computer (build/post-log.ts), kept beside the browser profiles, so two businesses signed in
  * to the same account are counted together by the risk gate (Ink v2 wave 2, K5).
  */
-export type PostLogPort = { read(connectorId: string): PostLogEntry[]; append(entry: PostLogEntry): void };
+export type PostLogPort = { read(connectorId: string): PostLogEntry[]; append(entry: PostLogEntry): void; remove(connectorId: string, ids: readonly string[]): void };
 export type ConnectorPorts = {
   browser?: BrowserPort;
   /** Connector ids whose API app review is recorded (the real host reads CHAUSAR_APP_REVIEWED). */
@@ -2556,7 +2556,7 @@ export type SpendPolicyRecord = RecordBase<'venture-spend-policy'> & {
   dailyCapMicros?: MicroString | null; // a cap per day on the owner's calendar across every paid call
   alertPermille?: number; // Today tells the owner once a month at this share of the monthly limit; absent: 800
   agentCaps?: { agent: string; capMicros: MicroString }[]; // an agent's own monthly limit: past it only that agent pauses
-  writeCaps?: Partial<Record<WriteCapKind, number>>; // the owner's lower daily caps on agent writes (never above the default)
+  writeCaps?: Partial<Record<WriteCapKind, number>>; // the owner's daily caps on agent writes
   currencyLead?: CurrencyLead; // 4Z3: which currency leads spend; absent: 'auto'
 };
 /**
@@ -2655,7 +2655,7 @@ export interface LimitReachedView { scope: 'business' | 'key'; presetId?: string
 /** 4F2 (M5): one agent's own monthly limit; past it only that agent is paused. */
 export interface AgentCapView { agent: string; name: Display; capMicros: MicroString; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
 /** 4F2 (H32): one daily write cap: today's cap (raised once when the owner allowed more), what agents made today, in words. */
-export interface WriteCapView { kind: WriteCapKind; cap: number; used: number; raised: boolean; line: Display }
+export interface WriteCapView { kind: WriteCapKind; configuredCap: number; cap: number; used: number; raised: boolean; line: Display }
 /**
  * 4F2 (M6): one price on the rate card. confirmed: the owner's checked rate with its source and date; list: Chausar's
  * list price with the day it was checked. Prompt-cache reads and writes are lines of their own.
@@ -3218,13 +3218,13 @@ export interface ShareAnswerView { draftId: string; decision: 'approved' | 'chan
  */
 export interface DraftPostView { draftId: string; channel: string; name: string; connectorId: string | null; text: string }
 /**
- * The posting limits the owner may tighten for one channel, in the owner's units (playbooks/social/post-limits.ts):
+ * The posting limits the owner may set for one channel, in the owner's units (playbooks/social/post-limits.ts):
  * posts in 24 hours, minutes between posts, warm-up days, the near-duplicate threshold in whole percent, the link streak.
  */
 export type OwnerPostingLimitsView = { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number };
-/** The owner's stricter limits for one channel (venture.posting.limits.set). An empty set means Chausar's own limits. */
+/** The owner's limits for one channel (venture.posting.limits.set). An empty set means Chausar's own limits. */
 export type PostingLimitsRecord = RecordBase<'venture-posting-limits'> & { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
-/** venture.posting.limits.*: per channel, Chausar's own limits, the owner's stricter ones, and the ones the risk gate uses. */
+/** venture.posting.limits.*: per channel, Chausar's own limits, the owner's settings, and the ones the risk gate uses. */
 export interface PostingLimitsView {
   channels: { connectorId: string; name: string; house: OwnerPostingLimitsView; owner: Partial<OwnerPostingLimitsView>; inUse: OwnerPostingLimitsView }[];
   line: Display;
@@ -3721,8 +3721,8 @@ export type PipelineSettingsRecord = RecordBase<'venture-pipeline-settings'> & {
 };
 /** The send governor's lanes (4E2): LinkedIn notes and messages count apart; a call is not governed. */
 export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
-/** 4E1's people a day and a week; channels (4E2): the owner's lower daily caps per lane, never above Chausar's own. */
-export type PipelineCaps = { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>> };
+/** Owner-set daily and weekly outreach caps, per-lane caps, and five weekly warm-up percentages. */
+export type PipelineCaps = { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] };
 
 /** What a drafted message is (4E2). 'reminder': 4J5's invoice reminder, handed off the same way. */
 export const OUTREACH_KINDS = ['intro-request', 'double-opt-in', 'connection-note', 'follow-up', 'reply', 'cold-email', 'reminder'] as const;
@@ -5356,7 +5356,7 @@ export const VENTURE_METHODS = [
   'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
   // Ink v2 wave 2 (2C1): whether the judge runs on its own on drafts for a client or the public (judgeAuto)
   'venture.judge.auto.get', 'venture.judge.auto.set',
-  // Ink v2 wave 2 (2B1): the owner's stricter posting limits per channel, tighten only
+  // Ink v2 wave 2 (2B1): the owner's posting limits per channel
   'venture.posting.limits.get', 'venture.posting.limits.set',
   // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer
   'venture.transcription.get', 'venture.transcription.set',
@@ -5764,7 +5764,7 @@ export type VenturePayloads = {
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };
   'venture.posting.limits.get': Empty;
-  /** limits: only stricter numbers than Chausar's own (POSTING_LIMIT_LOOSER otherwise); a number left out is Chausar's own. */
+  /** limits: owner-set numbers; a number left out uses Chausar's default. */
   'venture.posting.limits.set': { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
   'venture.transcription.get': Empty;
   'venture.transcription.set': { command: string; model: string } | { clear: true };
@@ -5817,7 +5817,7 @@ export type VenturePayloads = {
   'venture.pipeline.add': { personId: string; trigger: { kind: OpportunityTrigger['kind']; ref?: string }; votes?: CardVote[] };
   'venture.pipeline.setNext': { id: string; text: string; due: IsoDate };
   'venture.pipeline.move': { id: string; stage: PipelineStage; reason?: LostReason; evidence?: PipelineEvidenceInput };
-  'venture.pipeline.settings': { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>> }; scoreRules?: ScoreRule[] };
+  'venture.pipeline.settings': { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }; scoreRules?: ScoreRule[] };
   /**
    * 4E2. basis: the lawful basis a cold email needs (kept on the card); limit: a connection note's 200 (free) or 300
    * (Premium); introduce: who a double opt-in introduces; about: the owner's own words; postalAddress: as leads.draft.

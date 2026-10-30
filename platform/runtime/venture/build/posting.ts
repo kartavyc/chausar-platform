@@ -45,7 +45,7 @@ import { draftApprovalsOfRun, needsClientApproval, parsePostId, scheduleReasons 
 import { resolveKit } from '../playbooks/kit/brand-kit-read.ts';
 import { postPrint, postingRisk, type RiskResult, type SentPost } from '../playbooks/social/risk-gate.ts';
 import { diskPostLog } from './post-log.ts';
-import { gateUnits, tightenedLimits, type OwnerPostingLimits } from '../playbooks/social/post-limits.ts';
+import { gateUnits, effectivePostingLimits, type OwnerPostingLimits } from '../playbooks/social/post-limits.ts';
 import type { FileLike } from '../delivery/harness/files.ts';
 import {
   currentVenture, digest, exactPayload, houseStyleFindings, identifier, isAppChannel, listRecords, requireAppChannel, singleLine, ventureAction,
@@ -392,7 +392,7 @@ function channelOfConnector(connectorId: string): SocialChannel {
   return SOCIAL_CHANNELS.find(channel => channelCapability(channel).connectorId === connectorId) ?? 'linkedin';
 }
 
-/** The owner's stricter limits for one channel as they set them last (venture.posting.limits.set); {} for none. */
+/** The owner's limits for one channel as they set them last (venture.posting.limits.set); {} for none. */
 export function ownerPostingLimits(state: State, connectorId: string): Partial<OwnerPostingLimits> {
   const venture = currentVenture(state);
   return (venture ? listRecords(state, 'venture-posting-limits', venture.id) : []).filter(record => record.connectorId === connectorId).at(-1)?.limits ?? {};
@@ -421,7 +421,7 @@ function logPost(deps: VentureDeps, post: ConnectorPostRecord): void {
 }
 
 /**
- * The risk of one post on its channel now, at the house limits or the owner's stricter ones, from every post on that
+ * The risk of one post on its channel now, at the house limits or the owner's settings, from every post on that
  * connector this computer knows: the vault's, whichever business made it, and the per-computer log's (two businesses
  * signed in to one account are counted together). A log entry for a post this vault holds, in any state, is left to the
  * vault: one the owner resolved as "did not go out" no longer counts. except: the post being decided.
@@ -437,7 +437,7 @@ function postRisk(state: State, input: { connectorId: string; channel: SocialCha
   } catch {
     logged = [];
   }
-  const limits = tightenedLimits(gateUnits(ownerPostingLimits(state, input.connectorId)));
+  const limits = effectivePostingLimits(gateUnits(ownerPostingLimits(state, input.connectorId)));
   return postingRisk({ channel: input.channel, name: nameOf(input.connectorId), text: input.text, now: nowIso, history: [...history, ...logged], limits });
 }
 

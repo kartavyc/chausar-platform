@@ -276,7 +276,7 @@ export interface LimitReachedView { scope: 'business' | 'key'; presetId?: string
 /** 4F2 (M5): one agent's own monthly limit; past it only that agent is paused. */
 export interface AgentCapView { agent: string; name: Display; capMicros: string; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
 /** 4F2 (H32): one daily write cap: today's cap, what agents made today, in words. */
-export interface WriteCapView { kind: WriteCapKind; cap: number; used: number; raised: boolean; line: Display }
+export interface WriteCapView { kind: WriteCapKind; configuredCap: number; cap: number; used: number; raised: boolean; line: Display }
 /** 4F2 (M6): one price on the rate card: the owner's checked rate, or Chausar's list price with its checked date. */
 export interface RateCardLine { item: string; label: Display; state: 'confirmed' | 'list'; price: Display; checked: Display; source: string; unconfirmed?: boolean }
 /** allowedBy (4J1): a step a saved rule let run without asking; Stop always allowing is venture.team.gate { agentId, stepId, gate: 'hold' }. */
@@ -922,9 +922,9 @@ export interface ShareAnswer { draftId: string; decision: 'approved' | 'changes'
  * ('<run id>.post-<n>'). `connectorId` is null when this build has no posting connector for the channel.
  */
 export interface DraftPostLite { draftId: string; channel: string; name: string; connectorId: string | null; text: string }
-/** The posting limits the owner may only tighten, in the owner's units: posts a day, minutes, days, percent, posts. */
+/** The posting limits the owner may set, in the owner's units: posts a day, minutes, days, percent, posts. */
 export interface OwnerPostingLimits { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number }
-/** `venture.posting.limits.*`: per channel, Chausar's own limits, the owner's stricter ones and those the gate uses. */
+/** `venture.posting.limits.*`: per channel, Chausar's own limits, the owner's settings and those the gate uses. */
 export interface PostingLimitsView {
   channels: { connectorId: string; name: string; house: OwnerPostingLimits; owner: Partial<OwnerPostingLimits>; inUse: OwnerPostingLimits }[];
   line: Display;
@@ -1141,7 +1141,7 @@ export type OutreachSentChannel = 'own-mailbox' | 'linkedin' | 'whatsapp' | 'pho
 export type OutreachLanguage = 'en' | 'hi';
 export type LawfulBasis = 'they-wrote-first' | 'existing-contact' | 'public-business-contact';
 export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
-export interface PipelineCaps { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>> }
+export interface PipelineCaps { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }
 export interface ScoreRule { field: string; operator: 'is' | 'contains' | 'at-least' | 'at-most'; value: string; points: number }
 export interface PipelineCardView {
   id: string; personId: string; name: string; initials: string; company: string | null; stage: PipelineStage; band: TieBand | null; dots: number;
@@ -1799,7 +1799,7 @@ export interface EngineMethods {
   'venture.judge.auto.get': { params: Record<string, never>; result: JudgeAutoView };
   /** The owner's, inside the app. auto: true records the standing consent for the judge's calls. */
   'venture.judge.auto.set': { params: { auto: boolean }; result: JudgeAutoView };
-  /** Per channel: Chausar's own posting limits, the owner's stricter ones and those in use (Ink v2 wave 2, 2B1). */
+  /** Per channel: Chausar's own posting limits, the owner's settings and those in use (Ink v2 wave 2, 2B1). */
   'venture.posting.limits.get': { params: Record<string, never>; result: PostingLimitsView };
   /** The owner's, inside the app: only stricter numbers (POSTING_LIMIT_LOOSER otherwise); a number left out is Chausar's own. */
   'venture.posting.limits.set': { params: { connectorId: string; limits: Partial<OwnerPostingLimits> }; result: PostingLimitsView };
@@ -1853,7 +1853,7 @@ export interface EngineMethods {
   'venture.pipeline.add': { params: { personId: string; trigger: { kind: 'import' | 'search' | 'saved-search' | 'owner' | 'lead'; ref?: string }; votes?: { factor: string; points: number; evidence: string }[] }; result: { card: PipelineCardView; line: Display } };
   'venture.pipeline.setNext': { params: { id: string; text: string; due: string }; result: { card: PipelineCardView; line: Display } };
   'venture.pipeline.move': { params: { id: string; stage: PipelineStage; reason?: LostReason; evidence?: { kind: 'reply' | 'quote' | 'note' | 'client'; id?: string; on?: string; text?: string } }; result: { card: PipelineCardView; line: Display } };
-  'venture.pipeline.settings': { params: { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>> }; scoreRules?: ScoreRule[] }; result: PipelineSettingsView };
+  'venture.pipeline.settings': { params: { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }; scoreRules?: ScoreRule[] }; result: PipelineSettingsView };
   'venture.outreach.draft': {
     params: {
       opportunityId: string; kind: OutreachKind; channel: OutreachChannel; basis?: LawfulBasis; limit?: 200 | 300; introduce?: string; about?: string;

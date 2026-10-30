@@ -14,7 +14,7 @@ async function fixture(empty = false, initialAccount:string|null = '@cafe',text=
     let account=initialAccount;
     const env = await setup();
     const jobs: string[] = [];
-    env.deps.connectors = { browser: { async signedInAccount(){return account;}, async probe() { return { present: true, reason: 'Local test port.' }; }, async post(job) { jobs.push(job.postId); return { outcome: 'posted', line: 'X showed the post.', url: null }; } }, postLog: { read: () => [], append: () => { } } };
+    env.deps.connectors = { browser: { async signedInAccount(){return account;}, async probe() { return { present: true, reason: 'Local test port.' }; }, async post(job) { jobs.push(job.postId); return { outcome: 'posted', line: 'X showed the post.', url: null }; } }, postLog: { read: () => [], append: () => { }, remove: () => { } } };
     const draft = await seedPostDraft(env.deps, ['X: '+text]);
     const source = await ventureAction(env.deps, owner, 'prepare', 'seed.source', tx => tx.put({ ...tx.base('venture-upload'), name: 'brief.csv', format: 'csv', bytes: 3, digest: 'stored-original-digest', contentBase64: Buffer.from('old').toString('base64'), scope: { kind: 'order', orderId: draft.orderId }, clientData: true }));
     const post = empty ? null : await proposePost(env.deps, owner, { connectorId: 'x', draftId: draft.id });

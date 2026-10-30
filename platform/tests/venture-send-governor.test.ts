@@ -63,7 +63,7 @@ test('opening past the day cap is refused in plain words; during the warm-up the
   }
   await assert.rejects(open(env, drafts[2]), (error: any) => {
     assert.equal(error.code, 'OUTREACH_DAILY_CAP');
-    assert.equal(error.message, "You've sent 2 LinkedIn notes today, your limit while this account warms up (25 percent of 10 a day in its first week). Chausar opens LinkedIn again tomorrow.");
+    assert.equal(error.message, "You've sent 2 LinkedIn notes today, your limit while this account warms up (25 percent of 10 a day). Chausar opens LinkedIn again tomorrow.");
     return true;
   });
   env.advance(86_400_000);
@@ -89,15 +89,13 @@ test('after the warm-up the full caps hold: 10 LinkedIn notes a day and 50 a wee
   assert.equal(laneLimits(env.store.read(), env.venture, 'linkedin-message', '2026-10-16').day, 5, 'no LinkedIn message was sent yet, so it starts warming up');
 });
 
-test('you may lower a channel cap, never raise it; the lower cap warms up too', async () => {
+test('a lower owner cap warms up too', async () => {
   const env = await setup();
   await withPeople(env);
   const asha = personNamed(env, 'Asha Rao');
   await know(env, asha.id);
   const settings = await pipe<PipelineSettingsView>(env, 'venture.pipeline.settings', { caps: { channels: { email: 4 } } });
   assert.deepEqual(settings.caps.channels, { email: 4 });
-  await assert.rejects(pipe(env, 'venture.pipeline.settings', { caps: { channels: { email: 31 } } }), (error: any) =>
-    error.code === 'INVALID_VENTURE_REQUEST' && error.message === "Chausar's own limit for emails is 30 a day. You can only make it lower.");
   await assert.rejects(pipe(env, 'venture.pipeline.settings', { caps: { channels: { fax: 3 } } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(pipe(env, 'venture.pipeline.settings', { caps: { channels: { email: 0 } } }), code('INVALID_VENTURE_REQUEST'));
   assert.deepEqual(laneLimits(env.store.read(), env.venture, 'email', '2026-10-15'), { day: 1, week: null, percent: 25, house: { day: 30, week: null }, owner: 4 });

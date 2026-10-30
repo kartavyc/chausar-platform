@@ -67,7 +67,7 @@ test('drafts: the real model port reads the cap again inside the claim that lets
   assert.equal(env.sent.length, 1);
 });
 
-test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner may lower each, never raise it', async () => {
+test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner may change each', async () => {
   assert.deepEqual({ ...WRITE_CAPS }, { drafts: 30, 'books-lines': 500, messages: 40 });
   assert.ok(Object.isFrozen(WRITE_CAPS));
   const env = await setup();
@@ -76,10 +76,10 @@ test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner ma
   assert.equal(before.writeCaps![0].line, "Chausar stops agents at 30 drafts a day so a stuck agent can't flood you.");
   const lowered = await policySet(env, { writeCaps: { drafts: 5, messages: 0 } });
   assert.deepEqual(lowered.writeCaps!.map(item => [item.kind, item.cap]), [['drafts', 5], ['books-lines', 500], ['messages', 0]]);
-  await assert.rejects(policySet(env, { writeCaps: { drafts: 31 } }), code('INVALID_VENTURE_REQUEST'));
+  assert.equal((await policySet(env, { writeCaps: { drafts: 31 } })).writeCaps![0].cap, 31);
   await assert.rejects(policySet(env, { writeCaps: { pages: 3 } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(policySet(env, { writeCaps: { drafts: 2 } }, phone), code('APP_APPROVAL_REQUIRED'));
-  assert.equal((await policySet(env, { askFirstUsd: '1.00' })).writeCaps![0].cap, 5, 'other changes keep the caps');
+  assert.equal((await policySet(env, { askFirstUsd: '1.00' })).writeCaps![0].cap, 31, 'other changes keep the caps');
 });
 
 test('drafts: past the cap the next draft is not sent; Today says so; Allow more raises it once for the day; the next day starts again', async () => {

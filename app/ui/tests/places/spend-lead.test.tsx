@@ -141,7 +141,7 @@ describe('4Z3: which currency leads AI spend', () => {
   it('settings at rest say which currency leads; saving Dollars first changes the paid calls at once, with no navigation', async () => {
     await start('#/money/spend');
     const settings = await screen.findByRole('region', { name: 'Limits and rates' });
-    await waitFor(() => expect(settings.textContent).toContain('Shown first: Rupees, by where your business is'));
+    await waitFor(() => expect(settings.textContent).toContain('Shown first: Rupees, by business location'));
     const paid = await tile('Paid calls');
     // The sample's calls, engine-shaped: USD 0.5389 reserved and USD 0.5041 settled, led by rupees at ₹83.50.
     const billed = (await within(paid).findByText('Model calls for episode 14')).closest('li')!;

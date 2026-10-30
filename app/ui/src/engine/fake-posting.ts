@@ -42,13 +42,12 @@ const POSTING_METHODS = new Set<string>([
   'venture.posting.propose', 'venture.posting.signIn', 'venture.share.recordAnswer', 'venture.posting.limits.get', 'venture.posting.limits.set',
   'venture.posting.checkSteps',
 ]);
-/** Chausar's own posting limits (playbooks/social/post-limits.ts) in the owner's units, and which way is stricter. */
+/** Chausar's default posting limits (playbooks/social/post-limits.ts) in the owner's units. */
 const HOUSE_LIMITS: OwnerPostingLimits = { capPer24h: 3, minGapMinutes: 60, warmUpDays: 7, duplicatePercent: 85, linkStreak: 3 };
-const LOWER_IS_STRICTER = new Set<keyof OwnerPostingLimits>(['capPer24h', 'duplicatePercent', 'linkStreak']);
 const LIMIT_WORDS: Readonly<Record<keyof OwnerPostingLimits, string>> = {
   capPer24h: 'posts in 24 hours', minGapMinutes: 'minutes between posts', warmUpDays: 'warm-up days', duplicatePercent: 'near-duplicate percent', linkStreak: 'posts in a row linking one site',
 };
-const LIMITS_LINE = "Chausar's own posting limits are the loosest it posts at. You can only make them stricter, per channel, for this business; posts from every business on this computer count toward them.";
+const LIMITS_LINE = "You set the limits. WhatsApp, Gmail and X can ban accounts that send too fast. Every send still needs your approval. Posts across businesses on this computer count.";
 
 /** The native exactPayload boundary, kept local so this browser desk imports no server graph. */
 function limitsObject(value: unknown, allowed: readonly string[], required: readonly string[] = []): Record<string, unknown> {
@@ -141,7 +140,7 @@ export class FakePostingDesk {
     }
   }
 
-  /** The owner's stricter limits, by business and channel. */
+  /** The owner's limits, by business and channel. */
   private limits: Record<string, Record<string, Partial<OwnerPostingLimits>>> = {};
 
   private limitsView(biz: string): PostingLimitsView {
@@ -166,12 +165,10 @@ export class FakePostingDesk {
     for (const name of keys) {
       const value = given[name];
       if (value === undefined) continue;
-      const least = name === 'linkStreak' ? 2 : 1;
-      if (typeof value !== 'number' || !Number.isInteger(value) || value < least || value > (name === 'duplicatePercent' ? 100 : 10_000)) throw new EngineError('INVALID_VENTURE_REQUEST', `The ${LIMIT_WORDS[name]} must be a whole number from ${least}.`);
+      const least = name === 'linkStreak' ? 2 : name === 'minGapMinutes' || name === 'warmUpDays' ? 0 : 1;
+      if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < least || (name === 'duplicatePercent' && value > 100)) throw new EngineError('INVALID_VENTURE_REQUEST', `The ${LIMIT_WORDS[name]} must be a whole number from ${least}.`);
       chosen[name] = value;
     }
-    const looser = keys.filter(key => chosen[key] !== undefined && (LOWER_IS_STRICTER.has(key) ? chosen[key]! > HOUSE_LIMITS[key] : chosen[key]! < HOUSE_LIMITS[key]));
-    if (looser.length) throw new EngineError('POSTING_LIMIT_LOOSER', `These are looser than Chausar's own limits: ${looser.map(key => LIMIT_WORDS[key]).join(', ')}. ${LIMITS_LINE}`);
     (this.limits[biz] ??= {})[connectorId] = chosen;
     return this.limitsView(biz);
   }

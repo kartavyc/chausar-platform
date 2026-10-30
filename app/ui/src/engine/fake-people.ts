@@ -260,10 +260,10 @@ export class FakePeopleDesk {
   }
 
   /** 4E4: what the pipeline desk reads about one person: who, how well you know them, their addresses and paths. */
-  contact(id: string): { id: string; name: string; company: string | null; band: TieBand | null; emails: string[]; phone: string | null; linkedin: string | null; paths: WarmPathView[] } | null {
+  contact(id: string): { connected: boolean; id: string; name: string; company: string | null; band: TieBand | null; emails: string[]; phone: string | null; linkedin: string | null; paths: WarmPathView[] } | null {
     const person = this.network().people.find((item) => item.id === id);
     if (!person) return null;
-    return { id: person.id, name: person.name, company: person.company, band: person.band, emails: [...person.emails], phone: person.facts.find((item) => item.field === 'Phone')?.value ?? null, linkedin: person.linkedin, paths: structuredClone(person.paths) };
+    return { connected: person.facts.some(item => item.field === 'LinkedIn connection'), id: person.id, name: person.name, company: person.company, band: person.band, emails: [...person.emails], phone: person.facts.find((item) => item.field === 'Phone')?.value ?? null, linkedin: person.linkedin, paths: structuredClone(person.paths) };
   }
 
   /** 4E4: everyone in the open business's network, as contact() reads them. */

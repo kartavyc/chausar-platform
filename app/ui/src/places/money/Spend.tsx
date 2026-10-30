@@ -21,6 +21,7 @@ import type { SpendRow } from '../../engine/types';
 import { Amount, EngineWords, Failed, Rupees, Section, spendShown } from './parts';
 import { Meter } from './Meter';
 import { SpendPolicy } from './SpendPolicy';
+import { WriteLimits } from '../connections/WriteLimits';
 import { onRuns } from './words';
 import s from './Money.module.css';
 
@@ -60,6 +61,7 @@ export function Spend() {
         {rows.some((row) => row.kind === 'refused' && !row.reason) && <p className={s.quietLine}>{t('money.spend.refusedNote')}</p>}
       </Section>
       <SpendPolicy onSaved={() => { spend.reload(); setRound((n) => n + 1); }} />
+      <WriteLimits />
     </>
   );
 }

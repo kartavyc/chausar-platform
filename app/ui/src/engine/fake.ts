@@ -470,7 +470,11 @@ export class FakeEngine {
         if (this.work.handles(method)) return this.work.request(method, p);
         if(method==='venture.share.list')return this.shareView(p);
         if(method==='venture.share.revoke'&&typeof p.id==='string'){const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.revokeShare(p.id);if(extra)return extra;}
-        if (this.extras.handles(method)) return this.extras.request(method, p);
+        if (this.extras.handles(method)) {
+          const answer = this.extras.request(method, p);
+          if (method === 'venture.leads.recordSend' && typeof p.leadId === 'string') this.network.recordLeadSend(p.leadId);
+          return answer;
+        }
         if (method === 'venture.posting.limits.set' && params === null) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send one request object.');
         if (this.posting.handles(method)) return this.posting.request(method, p);
         if (this.practice.handles(method)) return this.practice.request(method, p);

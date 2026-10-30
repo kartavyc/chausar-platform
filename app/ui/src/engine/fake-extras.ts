@@ -19,6 +19,7 @@ import {
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
+import type { WriteCapKind } from './types';
 import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -252,14 +253,32 @@ export class FakeExtrasDesk {
     this.policies[biz] ??= {
       capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
     };
+    this.policies[biz].writeCaps ??= (['drafts', 'books-lines', 'messages'] as const).map((kind, i) => ({ kind, configuredCap: [30, 500, 40][i]!, cap: [30, 500, 40][i]!, used: 0, raised: false, line: this.writeCapLine(kind, [30, 500, 40][i]!) }));
     return this.policies[biz];
   }
 
+  private writeCapLine(kind: WriteCapKind, cap: number): string {
+    const word = kind === 'drafts' ? cap === 1 ? 'draft' : 'drafts' : kind === 'books-lines' ? cap === 1 ? 'books line' : 'books lines' : cap === 1 ? 'message for people' : 'messages for people';
+    return `Chausar stops agents at ${cap} ${word} a day so a stuck agent can't flood ${kind === 'drafts' ? 'you' : kind === 'books-lines' ? 'your books' : 'anyone'}.`;
+  }
+
   private setPolicy(biz: string, p: Record<string, unknown>): SpendPolicyView {
-    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead'].includes(key));
+    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead', 'writeCaps'].includes(key));
     if (extra) throw invalid(`${extra} is not a spend setting.`);
     const figure = (value: unknown, field: string): string | null => dollars(value, field, 6);
     const policy = clone(this.policyOf(biz));
+    if (p.writeCaps !== undefined) {
+      const caps = p.writeCaps;
+      if (caps === null || typeof caps !== 'object' || Array.isArray(caps)) throw invalid('Write caps are drafts, books lines and messages, each a whole number.');
+      for (const [kind, value] of Object.entries(caps)) {
+        if (!['drafts', 'books-lines', 'messages'].includes(kind)) throw invalid('Write caps are drafts, books lines and messages.');
+        if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw invalid(`The ${kind.replace('-', ' ')} cap must be a whole number from 0.`);
+        const row = policy.writeCaps!.find(item => item.kind === kind)!;
+        row.configuredCap = value;
+        row.cap = row.raised ? Math.min(Number.MAX_SAFE_INTEGER, value + Math.max(value, 1)) : value;
+        row.line = this.writeCapLine(row.kind, value);
+      }
+    }
     if (p.capUsd !== undefined) {
       policy.capMicros = dollars(p.capUsd, 'The monthly limit', 2);
       policy.capUsd = asUsd(policy.capMicros);

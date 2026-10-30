@@ -30,7 +30,7 @@ import type {
   AgentCapView, LimitReachedView, SpendMeterView, WriteCapKind,
 } from '../contracts.ts';
 // Ink v2 wave 4 (4F2): the write caps' defaults and today's counts, the month's reset day in the owner's words.
-import { WRITE_CAP_KINDS, WRITE_CAPS, writeCapsToday } from '../delivery/harness/write-caps.ts';
+import { WRITE_CAP_KINDS, writeCapsToday } from '../delivery/harness/write-caps.ts';
 import { resetDay, shortDay } from '../delivery/failure-words.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { presetSpec } from '../models/presets.ts';
@@ -836,9 +836,8 @@ function limitsOf(body: Record<string, unknown>): Limits {
     const typed: Partial<Record<WriteCapKind, number>> = {};
     for (const [kind, value] of Object.entries(caps as Record<string, unknown>)) {
       check((WRITE_CAP_KINDS as readonly string[]).includes(kind), 'INVALID_VENTURE_REQUEST', 'Write caps are drafts, books lines and messages.');
-      const most = WRITE_CAPS[kind as WriteCapKind];
-      check(typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= most, 'INVALID_VENTURE_REQUEST',
-        `You can lower the ${kind.replace('-', ' ')} cap, from ${most} a day down to none, but not raise it.`);
+      check(typeof value === 'number' && Number.isSafeInteger(value) && value >= 0, 'INVALID_VENTURE_REQUEST',
+        `The ${kind.replace('-', ' ')} cap must be a whole number from 0.`);
       typed[kind as WriteCapKind] = value;
     }
     limits.writeCaps = typed;

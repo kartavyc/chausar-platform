@@ -1,4 +1,6 @@
 import {HIDDEN,FORMULA,normalEmail} from './normal-email.ts';
+import { fold } from './fold.ts';
+export { fold } from './fold.ts';
 export {normalEmail} from './normal-email.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): the pure core of the extractor that reads the owner's
 // own files where they are: in the desktop's worker process, in the engine as a second guard, and later in the hosted
@@ -321,9 +323,6 @@ export function rawPhone(raw: string | null | undefined): string | null {
 }
 
 /** A name or company folded for comparing: accents, case, punctuation and spacing ignored. */
-export function fold(value: string | null | undefined): string {
-  return (value ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-}
 
 const COMPANY_SUFFIX = /\s+(?:pvt|private|ltd|limited|llp|llc|inc|incorporated|co|company|corp|corporation|opc|plc|gmbh)$/;
 

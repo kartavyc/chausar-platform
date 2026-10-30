@@ -148,7 +148,7 @@
   "money.policy.lead.inr": "Rupees",
   "money.policy.lead.usd": "US dollars",
   "money.policy.shownFirst": "Shown first: {currency}",
-  "money.policy.shownFirst.auto": "{currency}, by where your business is",
+  "money.policy.shownFirst.auto": "{currency}, by business location",
   "money.policy.shownFirst.INR": "Rupees",
   "money.policy.shownFirst.USD": "US dollars",
   "money.policy.rates": "Your rates",
@@ -442,5 +442,13 @@
   "money.chain.notConfirmed": "Not confirmed",
   "money.chain.reason.unsigned-old": "It was made before Chausar signed receipts, so there is no signature to check.",
   "money.chain.reason.no-key": "This business has no signing key here, so its receipts are not signed.",
-  "money.chain.reason.key-gone": "It was signed with a key no longer kept, so the signature cannot be checked."
+  "money.chain.reason.key-gone": "It was signed with a key no longer kept, so the signature cannot be checked.",
+  "money.writeLimits.title": "Daily work limits",
+  "money.writeLimits.line": "You set how much agents can prepare each day. Zero pauses that work. Sending still needs your approval.",
+  "money.writeLimits.drafts": "Drafts a day",
+  "money.writeLimits.books-lines": "Books lines a day",
+  "money.writeLimits.messages": "Messages a day",
+  "money.writeLimits.save": "Save limits",
+  "money.writeLimits.saving": "Saving",
+  "money.writeLimits.saved": "Saved. New work uses these limits."
 }

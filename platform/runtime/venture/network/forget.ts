@@ -5,6 +5,7 @@ import {eraseFormsNaming,clearForgottenFormSignIns} from '../playbooks/data-entr
 import {eraseAppTesting,clearForgottenDemoDesktops,clearForgottenAppTests} from '../playbooks/app-testing/privacy.ts';
 import {eraseReceptionist} from '../playbooks/phone-receptionist/privacy.ts';
 import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
+import { removePostingLogEntries } from '../build/post-log.ts';
 import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
 import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): Forget, the DPDP erasure of one person, in one step.
@@ -224,6 +225,7 @@ const sharesHandle = (person: PersonRecord, emails: ReadonlySet<string>, phones:
  * Answers how many pipeline cards and drafts went.
  */
 export function removePersonData(tx: VentureTx, people: PersonRecord[], options: { erase: boolean; secrets?: VentureDeps['secrets']; captions?: VentureDeps }): { cards: number; drafts: number } {
+  const priorPosts = options.erase ? tx.list('venture-connector-post').map(post => ({ id: post.id, connectorId: post.connectorId, text: post.text })) : [];
   const ids = new Set(people.map(person => person.id));
   if (!ids.size) return { cards: 0, drafts: 0 };
   const emails = new Set(people.flatMap(person => person.handles.emails));
@@ -390,6 +392,10 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
       default: return false;
     }
   });
+  if (options.erase && options.captions) {
+    const erased = priorPosts.filter(post => { const current = tx.find('venture-connector-post', post.id); return !current || current.text !== post.text || current.digest === 'erased'; });
+    removePostingLogEntries(options.captions, erased);
+  }
   return { cards, drafts };
 }
 

@@ -68,7 +68,7 @@ describe('the fake engine signs in by the engine rules', () => {
   });
 });
 
-describe('Connections: your own, stricter posting limits', () => {
+describe('Connections: your own posting limits', () => {
   // The limits stay folded under the card until the owner opens them.
   const form = async (name: string) => {
     const row = await card(name);
@@ -79,13 +79,13 @@ describe('Connections: your own, stricter posting limits', () => {
     return group;
   };
 
-  it("shows the limits in use with Chausar's own as the hint, and saves only stricter numbers through the engine", async () => {
+  it("shows the limits in use with Chausar's own as the hint, and saves owner numbers through the engine", async () => {
     const { calls } = start();
     const limits = await form('X');
     const posts = within(limits).getByLabelText('Posts a day') as HTMLInputElement;
     expect(posts.value).toBe('3');
-    expect(limits.textContent).toContain("Chausar's own: 3");
-    expect(limits.textContent).toContain('These limits are for this business');
+    expect(limits.textContent).toContain("Default: 3");
+    expect(limits.textContent).toContain('WhatsApp, Gmail and X can ban accounts that send too fast.');
     fireEvent.change(posts, { target: { value: '2' } });
     fireEvent.change(within(limits).getByLabelText('Minutes between posts'), { target: { value: '120' } });
     await act(async () => { fireEvent.click(within(limits).getByRole('button', { name: 'Save limits' })); });
@@ -94,12 +94,12 @@ describe('Connections: your own, stricter posting limits', () => {
     await waitFor(() => expect(within(limits).getByRole('status').textContent).toBe('Saved. These limits apply to the next post.'));
   });
 
-  it("a looser number is refused in the engine's words", async () => {
+  it("a higher limit is saved", async () => {
     start();
     const limits = await form('X');
     fireEvent.change(within(limits).getByLabelText('Posts a day'), { target: { value: '9' } });
     await act(async () => { fireEvent.click(within(limits).getByRole('button', { name: 'Save limits' })); });
-    await waitFor(() => expect(within(limits).getByRole('alert').textContent).toMatch(/^Couldn't save the limits: These are looser than Chausar's own limits: posts in 24 hours\./));
+    await waitFor(() => expect(within(limits).getByRole('status').textContent).toContain('Saved.'));
   });
 
   it('all six posting limit views and four API settings match the native public contract exactly', async () => {
@@ -130,7 +130,7 @@ describe('Connections: your own, stricter posting limits', () => {
     catch (error) { const e = error as EngineError; refusals.push({ code: e.code, message: e.message }); }
     views.push(await engine.request('venture.posting.limits.get', {}));
     expect({ views, refusals }).toEqual(expected);
-    expect(refusals).toHaveLength(5);
+    expect(refusals).toHaveLength(1);
   });
 
   it('malformed posting limits match native refusal order, exact fields and numeric bounds', async () => {
@@ -170,11 +170,11 @@ describe('Connections: your own, stricter posting limits', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('the fake engine keeps the engine rules: tighten only, per channel', async () => {
+  it('the fake engine keeps owner limits per channel', async () => {
     const engine = new FakeEngine();
     const view = await engine.request('venture.posting.limits.get', {}) as { channels: { connectorId: string; inUse: { capPer24h: number } }[] };
     expect(view.channels.map((c) => c.connectorId)).toEqual(['linkedin', 'x', 'bluesky', 'mastodon', 'telegram', 'discord']);
-    await expect(engine.request('venture.posting.limits.set', { connectorId: 'x', limits: { capPer24h: 5 } })).rejects.toMatchObject({ code: 'POSTING_LIMIT_LOOSER' });
+    expect((await createFakeClient(engine).request('venture.posting.limits.set', { connectorId: 'x', limits: { capPer24h: 5 } })).channels.find(c => c.connectorId === 'x')!.inUse.capPer24h).toBe(5);
     const set = await engine.request('venture.posting.limits.set', { connectorId: 'x', limits: { capPer24h: 1 } }) as typeof view;
     expect(set.channels.find((c) => c.connectorId === 'x')!.inUse.capPer24h).toBe(1);
   });

@@ -4,10 +4,12 @@
 // reasons shown, so a score always says why. A rule that would judge a protected trait (religion, caste, health, age,
 // gender, sexual orientation, pregnancy, disability, race, marriage) is refused, in English or Hindi, whatever field it names: Chausar
 // never scores people on who they are. The same check serves any feature that reads traits (4D3's search may reuse it).
-import { ChausarError, check } from '../../contracts.ts';
-import { TIE_BANDS } from '../contracts.ts';
-import type { CardVote, PipelineStage, ScoreRule, TieBand } from '../contracts.ts';
-import { fold } from './text.ts';
+import { ChausarError, check } from '../../portable.ts';
+import type { PipelineStage, ScoreRule } from './followup-input.ts';
+import { fold } from './fold.ts';
+const TIE_BANDS = ['close', 'know-well', 'know', 'met-once', 'cold'] as const;
+type TieBand = typeof TIE_BANDS[number];
+type CardVote = { factor: string; points: number; evidence: string };
 
 /** The fields a rule may read, and how each is compared. */
 export const SCORE_FIELDS = ['title', 'company', 'email-domain', 'band', 'trigger', 'stage', 'meetings', 'client'] as const;

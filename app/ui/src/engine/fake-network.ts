@@ -37,6 +37,8 @@ export class FakeNetworkDesk {
 
   recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
 
+  recordLeadSend(leadId: string): void { this.pipeline.recordLeadSend(leadId); }
+
   handles(method: string): boolean {
     return NETWORK_METHODS.has(method);
   }

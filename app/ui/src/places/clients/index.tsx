@@ -28,9 +28,9 @@ import { NetworkTab } from './NetworkTab';
 import { ProposalSheet } from './Proposal';
 import { PersonSheet } from './PersonSheet';
 import { PipelineTab } from './PipelineTab';
+import { SendingLimits } from './SendingLimits';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
-
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
 type Tab = 'clients' | 'pipeline' | 'network';
@@ -91,6 +91,7 @@ function Clients({ tab }: { tab: Tab }) {
         />
         {tool && <div className={s.tools}>{tool}</div>}
       </div>
+      {tab === 'pipeline' && <SendingLimits />}
       {tab === 'clients' ? <ClientsTab clients={clients} /> : tab === 'pipeline' ? <PipelineTab board={board} leads={leads.data?.leads ?? []} /> : <NetworkTab count={people} />}
     </>
   );
