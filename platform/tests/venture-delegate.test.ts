@@ -20,7 +20,8 @@ import { handlers } from '../runtime/venture/delivery/index.ts';
 import { capabilityList } from '../runtime/venture/delivery/capabilities.ts';
 import { claimBacked } from '../runtime/venture/delivery/harness/claims.ts';
 import {
-  DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateBusy, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, REAL_ORDER_ONLY,
+  DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateBusy, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, prepareDelegation, REAL_ORDER_ONLY,
+  runDelegation,
 } from '../runtime/venture/delivery/harness/delegate.ts';
 import { createDelegatePorts } from '../runtime/venture/delivery/harness/delegate-process.ts';
 import { tablesOfFile } from '../runtime/venture/delivery/harness/files.ts';
@@ -51,7 +52,7 @@ const IN: CountryProfile = {
 // The fake command-line tool, installed in a folder of its own
 // ---------------------------------------------------------------------------
 
-type FakeMode = { kind: 'claude' | 'codex' | 'other'; behavior?: 'work' | 'hang' | 'fail'; figures?: unknown[]; extras?: boolean; version?: string };
+type FakeMode = { kind: 'claude' | 'codex' | 'other'; behavior?: 'work' | 'hang' | 'fail' | 'blocked' | 'empty'; figures?: unknown[]; extras?: boolean; version?: string };
 type Fake = { dir: string; ports: DelegatePorts; spy(): any; setMode(mode: FakeMode): void; located: number; cleanup(): void };
 
 /** Puts a fake `claude` (and `codex`) on a search path of its own and returns the real port pointed at it. */
@@ -320,6 +321,17 @@ test('arguments and environment: fixed flags safe for cmd.exe, no shell or web f
   assert.equal(maskNumbers('INR 99,999.00 in 5 rows'), 'INR ##,###.## in # rows');
 });
 
+// Found live on 30 Oct 2026 with codex-cli 0.154.0 on Windows: workspace-write fell back to read-only, so Codex could
+// neither read the order's file nor save anything.
+test('arguments: on Windows Codex runs with its own Windows sandbox on, so workspace-write is not quietly read-only', () => {
+  const limits = { ...DELEGATE_DEFAULT_LIMITS, budgetMicros: null };
+  const windows = delegateArgs('codex', limits, 'win32');
+  assert.equal(windows[windows.indexOf('windows.sandbox=unelevated') - 1], '--config');
+  assert.equal(windows.at(-1), '-', 'standard input stays the last argument');
+  for (const platform of ['linux', 'darwin'] as const) assert.ok(!delegateArgs('codex', limits, platform).some(arg => arg.startsWith('windows.')), platform);
+  assert.deepEqual(delegateArgs('claude-code', DELEGATE_DEFAULT_LIMITS, 'win32'), delegateArgs('claude-code', DELEGATE_DEFAULT_LIMITS, 'linux'));
+});
+
 // ---------------------------------------------------------------------------
 // 2. A real order: the brief, the approval, the locked folder, untrusted output, receipts
 // ---------------------------------------------------------------------------
@@ -494,6 +506,31 @@ test('real order: the time limit stops the tool and its whole process tree; a fa
     const failedEnvelope = again.harness!.toolCalls[0].envelope;
     assert.equal(!failedEnvelope.ok && failedEnvelope.error.code, 'DELEGATE_FAILED');
   } finally { fake.cleanup(); }
+});
+
+/** One approved run straight through runDelegation, against the fake tool in the given behaviour. */
+async function runFake(kind: 'claude' | 'codex', behavior: FakeMode['behavior']) {
+  const fake = installFake({ kind, behavior });
+  try {
+    const offer = await delegateAvailability(fake.ports, kind === 'claude' ? 'claude-code' : 'codex', 'accepted');
+    const file = { id: 'upload_1', name: FILES[0].name, format: 'csv' as const, bytes: 1, digest: digest(FILES[0].content), contentBase64: b64(FILES[0].content), clientData: true };
+    const draft = prepareDelegation({ offer, task: BRIEF, files: [file], minutes: 2, allowed: [] });
+    return await runDelegation(fake.ports, { ...draft, toolCallId: 't1.1', turn: 1 }, [file], { currency: 'INR', dateOrder: 'day-month-year', runRef: { kind: 'delivery', runId: 'run_x' } });
+  } finally { fake.cleanup(); }
+}
+
+test('real order: a tool that exits cleanly but says it was blocked, or leaves no files, did not succeed', async () => {
+  for (const kind of ['codex', 'claude'] as const) {
+    const blocked = await runFake(kind, 'blocked');
+    assert.equal(blocked.outcome, 'failed', kind);
+    assert.match(blocked.reason, /said it was blocked\. It left 1 file\.$/, kind);
+    assert.deepEqual(blocked.figures, [], 'nothing from a blocked run is worked out again');
+    const empty = await runFake(kind, 'empty');
+    assert.equal(empty.outcome, 'failed', kind);
+    assert.match(empty.reason, /finished but left no files/, kind);
+  }
+  const done = await runFake('codex', 'work');
+  assert.equal(done.outcome, 'succeeded', 'a run that leaves files and does not say it stopped still succeeds');
 });
 
 // ---------------------------------------------------------------------------
