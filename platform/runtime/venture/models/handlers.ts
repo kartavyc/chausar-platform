@@ -172,7 +172,10 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   check(inspect, 'CLI_UNAVAILABLE', CLI_STATUS_WORDS.noPort);
   const fresh = input.fresh === true;
   const findings: CliFinding[] = [];
-  for (const cli of DELEGATE_CLIS) findings.push(await inspect(cli, fresh ? { fresh: true } : undefined));
+  for (const cli of DELEGATE_CLIS) {
+    if (cli === 'claude-code' && !claudeTermsOpen(deps.claudeCodeTerms)) continue;
+    findings.push(await inspect(cli, fresh ? { fresh: true } : undefined));
+  }
   const state = deps.store.read();
   const venture = currentVenture(state);
   const clis = findings.map(finding => cliStatusView(finding, { claudeTerms: deps.claudeCodeTerms, lastTask: lastCliTask(state, venture?.id ?? null, finding.cli) }));

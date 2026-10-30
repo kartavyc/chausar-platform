@@ -37,9 +37,9 @@ export const DELEGATE_MINUTES: readonly string[] = ['2', '5', '10'];
 export const REAL_ORDER_ONLY = 'Heavy work runs only on a real order, after the owner approves its brief. Rehearsals never start it.';
 export const DELEGATE_NOT_CHECKED = 'Chausar has not looked for it on this computer.';
 /** The Claude Code terms gate (onboarding spec 2.8) holds for heavy work too: Chausar starts Claude Code only once it is open. */
-export const DELEGATE_CLAUDE_TERMS = "Chausar hasn't yet accepted Anthropic's terms for running Claude Code, so heavy work can't hand it a job yet.";
+export const DELEGATE_CLAUDE_TERMS = 'Claude Code is disabled on this computer. Choose another AI.';
 /**
- * Open only when the trusted host says 'accepted' (CHAUSAR_CLAUDE_CODE_TERMS); absent is 'pending'. The rule is the one
+ * Open by default (wave 6 D13); CHAUSAR_CLAUDE_CODE_TERMS=pending disables it. The rule is the one
  * the models status keeps too (models/cli-look.ts), so the two never disagree about the same tool.
  */
 export function delegateGateOpen(cli: DelegateCli, claudeTerms: VentureDeps['claudeCodeTerms']): boolean {

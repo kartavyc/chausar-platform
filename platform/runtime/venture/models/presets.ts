@@ -95,14 +95,14 @@ export const AVAILABILITY_REASONS = Object.freeze({
   codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
   templates: 'Nothing is sent anywhere.',
   hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
-  claudeTerms: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.",
+  claudeTerms: 'Claude Code is disabled on this computer. Choose another AI.',
   cliWorked: 'Found on this computer. Its last task worked.',
   codexNoAnswer: 'Codex did not answer its version check on this computer. Update or reinstall it, then check again.',
 });
 
-/** The Claude Code terms gate (onboarding spec 2.8): open only when the trusted host says 'accepted'. */
+/** Wave 6 D13: accepted by default; an explicit host override can disable Claude Code. */
 export function claudeTermsOpen(terms: 'accepted' | 'pending' | undefined): boolean {
-  return terms === 'accepted';
+  return terms !== 'pending';
 }
 
 // ---------------------------------------------------------------------------
@@ -154,8 +154,8 @@ export function cliProblemWords(finding: CliFinding | null | undefined): CliWord
 /**
  * Availability as of now: the Claude Code check result, the Claude Code terms gate and the Codex host profile all
  * change it. On the hosted web server no command-line tool ever runs, so both are unavailable there whatever the
- * server has installed. Until Chausar accepts Anthropic's terms for running Claude Code (claudeTerms 'accepted'),
- * Claude Code needs setup, before the vault and in it alike. With a look at the installed tool (4H1): a flag it does
+ * server has installed. Claude Code is enabled by default; a pending override refuses direct calls
+ * before the vault and in it alike. With a look at the installed tool (4H1): a flag it does
  * not know or a signed-out tool needs setup in those words; a tool that answered turns 'ready' only once a real task
  * on it worked (worked), and stays 'unverified' until then.
  */

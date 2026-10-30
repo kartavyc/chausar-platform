@@ -427,10 +427,9 @@ test('the Claude Code route answers with the terms accepted, and the same connec
   const fixture = await recording('dog-walking-claude-cli.json');
   const pending = await newEngine(t, fixture, { claudeCodeTerms: 'pending' });
   const closed = await pending.ask('venture.ai.options') as AiOptionsView;
-  assert.deepEqual([closed.options.find(option => option.id === 'claude-code')!.status, closed.options.find(option => option.id === 'claude-code')!.canConnect], ['needs-setup', false]);
-  const preset = presetOf(closed, 'claude-code-cli');
-  assert.equal(preset.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
-  await assert.rejects(pending.ask('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: preset.consentDigest }), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
+  assert.equal(closed.options.some(option => option.id === 'claude-code'), false);
+  assert.equal(closed.presets.some(preset => preset.id === 'claude-code-cli'), false);
+  await assert.rejects(pending.ask('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: 'untrusted-disabled-choice' }), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
 
   const open = await newEngine(t, fixture, { claudeCodeTerms: 'accepted' });
   const options = await open.ask('venture.ai.options') as AiOptionsView;

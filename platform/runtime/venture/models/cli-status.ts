@@ -208,7 +208,7 @@ const needsSetup = (words: CliWords): Words => ({ state: 'needs-setup', ...words
 function statusWords(finding: CliFinding, terms: CliStatusView['terms'], lastTask: CliStatusView['lastTask']): Words {
   const label = CLI_LABELS[finding.cli];
   const named = cliNamed(finding.cli, finding.version);
-  if (terms === 'pending') return needsSetup({ line: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.", fix: 'Use an Anthropic key for now.' });
+  if (terms === 'pending') return needsSetup({ line: 'Claude Code is disabled on this computer.', fix: 'Choose another AI.' });
   if (!finding.found) return needsSetup({ line: `${label} isn't installed on this computer.`, fix: `Install ${label} and sign in to it, then check again.` });
   // A command script (an npm .cmd shim on Windows) cannot be started without a shell, and Chausar never uses one.
   if (!finding.answered && finding.path && SCRIPT_SHIM.test(finding.path) && finding.via !== 'npm-shim') {
@@ -259,7 +259,7 @@ export function homePath(path: string | null, home: string = homedir(), platform
  * tool's own status command saying so.
  */
 export function cliStatusView(finding: CliFinding, context: { claudeTerms: 'accepted' | 'pending' | undefined; lastTask: CliStatusView['lastTask'] }): CliStatusView {
-  const terms: CliStatusView['terms'] = finding.cli === 'codex' ? 'not-needed' : context.claudeTerms === 'accepted' ? 'accepted' : 'pending';
+  const terms: CliStatusView['terms'] = finding.cli === 'codex' ? 'not-needed' : context.claudeTerms === 'pending' ? 'pending' : 'accepted';
   return {
     cli: finding.cli, label: CLI_LABELS[finding.cli], found: finding.found, path: homePath(finding.path), version: finding.version, flags: finding.flags,
     missingFlags: [...finding.missingFlags], signedIn: finding.signedIn, terms, lastTask: context.lastTask,

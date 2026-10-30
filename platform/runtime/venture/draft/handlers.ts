@@ -69,7 +69,7 @@ export function weakestStatus(statuses: readonly AiOptionStatus[]): AiOptionStat
  */
 export function aiOptionsView(presets: readonly ModelPreset[], status: AiStatusView, claudeTermsAccepted: boolean): AiOptionsView {
   const byId = new Map(presets.map(preset => [preset.id, preset]));
-  const options: AiOption[] = AI_OPTION_IDS.map(id => {
+  const options: AiOption[] = AI_OPTION_IDS.filter(id => id !== 'claude-code' || claudeTermsAccepted).map(id => {
     const words = AI_OPTION_WORDS[id];
     const presetIds = [...ROW_PRESETS[id]].filter(presetId => byId.has(presetId));
     if (id === 'chatgpt-sign-in') {
@@ -85,7 +85,7 @@ export function aiOptionsView(presets: readonly ModelPreset[], status: AiStatusV
     };
   });
   const unchecked = options.some(option => option.canConnect && option.presetIds.some(presetId => byId.get(presetId)?.verification === 'not-live-verified'));
-  return { options, presets: presets.map(preset => structuredClone(preset)), status, unchecked };
+  return { options, presets: presets.filter(preset => preset.id !== 'claude-code-cli' || claudeTermsAccepted).map(preset => structuredClone(preset)), status, unchecked };
 }
 
 export function aiStatus(desk: DeskHandle): AiStatusView {
@@ -95,7 +95,7 @@ export function aiStatus(desk: DeskHandle): AiStatusView {
 
 export async function aiOptions(desk: DeskHandle, payload: unknown): Promise<AiOptionsView> {
   exactPayload(payload, []);
-  return aiOptionsView(desk.deps.models.presets(), aiStatus(desk), desk.deps.claudeCodeTerms === 'accepted');
+  return aiOptionsView(desk.deps.models.presets(), aiStatus(desk), desk.deps.claudeCodeTerms !== 'pending');
 }
 
 export async function aiConnect(desk: DeskHandle, payload: unknown): Promise<AiStatusView> {

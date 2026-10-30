@@ -26,8 +26,6 @@
   "connection-words.line.anthropic-ready": "Uses your Anthropic key. Not yet checked with a live key.",
   "connection-words.line.live-key": "Not yet checked with a live key.",
   "connection-words.line.live-task": "Not yet checked on a real task.",
-  "connection-words.line.claude-terms": "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.",
-  "connection-words.line.claude-setup": "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.",
   "connection-words.line.codex-setup": "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.",
   "connection-words.line.cli-look": "Chausar ran only the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.",
   "connection-words.line.cli-can-look": "Chausar can only run the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.",

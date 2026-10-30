@@ -274,7 +274,7 @@ test('the Claude Code terms gate: while it is pending heavy work never looks for
   const looked: string[] = [];
   const ports: DelegatePorts = { locate: async cli => { looked.push(cli); return fake.ports.locate(cli); }, process: request => fake.ports.process(request) };
   try {
-    for (const terms of [undefined, 'pending'] as const) {
+    for (const terms of ['pending'] as const) {
       const closed = await delegateAvailability(ports, 'claude-code', terms);
       assert.deepEqual([closed.state, closed.reason, closed.executable], ['needs-setup', DELEGATE_CLAUDE_TERMS, null], String(terms));
     }

@@ -556,7 +556,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
     presets(): ModelPreset[] {
       const live = liveOf(store.read());
-      return PRESETS.map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
+      return PRESETS.filter(spec => spec.id !== 'claude-code-cli' || claudeTermsOpen(claudeTerms))
+        .map(spec => ({ ...structuredClone(spec), ...availabilityOf(spec.id, live) }));
     },
 
     /**

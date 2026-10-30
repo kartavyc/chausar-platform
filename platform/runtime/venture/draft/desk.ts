@@ -163,7 +163,7 @@ export class DraftDesk {
     const store = new DraftStore(countryProfile('XX'));
     const shelf = createSecretShelf();
     const host = options.host ?? 'test';
-    const claudeCodeTerms = options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending';
+    const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
     const port: ModelPort = createModelPort({
       store, clock: this.#clock, transport, secrets: shelf, host, demo: options.demo, claudeCodeTerms,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),

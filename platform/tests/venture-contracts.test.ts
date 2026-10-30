@@ -286,18 +286,19 @@ test('activateTerm turns a proposed term active with evidence and does nothing w
 
 test('ventureHostEnv honours replay files only in demo mode with the replay switch', () => {
   const env = { CHAUSAR_VENTURE_MODEL_REPLAY: '/tmp/model.json', CHAUSAR_VENTURE_GITHUB_REPLAY: '/tmp/github.json' };
-  const pending = { claudeCodeTerms: 'pending' };
-  assert.deepEqual(ventureHostEnv(env, { demo: false, host: 'local-web' }), { host: 'local-web', ...pending });
-  assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: false, host: 'desktop', args: ['--replay'] }), { host: 'desktop', ...pending });
-  assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'desktop' }), { host: 'desktop', ...pending });
-  const replayed = { host: 'desktop', ...pending, modelReplayPath: '/tmp/model.json', githubReplayPath: '/tmp/github.json' };
+  const defaults = { claudeCodeTerms: 'accepted' };
+  assert.deepEqual(ventureHostEnv(env, { demo: false, host: 'local-web' }), { host: 'local-web', ...defaults });
+  assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: false, host: 'desktop', args: ['--replay'] }), { host: 'desktop', ...defaults });
+  assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'desktop' }), { host: 'desktop', ...defaults });
+  const replayed = { host: 'desktop', ...defaults, modelReplayPath: '/tmp/model.json', githubReplayPath: '/tmp/github.json' };
   assert.deepEqual(ventureHostEnv({ ...env, CHAUSAR_VENTURE_REPLAY: '1' }, { demo: true, host: 'desktop' }), replayed);
   assert.deepEqual(ventureHostEnv(env, { demo: true, host: 'local-web', args: ['--demo', '--replay'] }), { ...replayed, host: 'local-web' });
 });
 
-test('ventureHostEnv opens the Claude Code terms gate only for the exact word accepted', () => {
+test('ventureHostEnv defaults Claude Code to accepted and refuses invalid explicit overrides', () => {
   assert.equal(ventureHostEnv({ CHAUSAR_CLAUDE_CODE_TERMS: 'accepted' }, { demo: false, host: 'desktop' }).claudeCodeTerms, 'accepted');
-  for (const value of [undefined, '', 'yes', 'ACCEPTED', 'accepted ', '1']) {
+  assert.equal(ventureHostEnv({}, { demo: false, host: 'desktop' }).claudeCodeTerms, 'accepted');
+  for (const value of ['pending', '', 'yes', 'ACCEPTED', 'accepted ', '1']) {
     assert.equal(ventureHostEnv({ CHAUSAR_CLAUDE_CODE_TERMS: value }, { demo: false, host: 'desktop' }).claudeCodeTerms, 'pending', String(value));
   }
 });

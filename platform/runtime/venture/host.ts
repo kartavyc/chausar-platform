@@ -176,7 +176,7 @@ export class VentureHost {
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
-      claudeCodeTerms: options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending',
+      claudeCodeTerms: options.claudeCodeTerms ?? 'accepted',
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
       ...(options.delegate ? { delegate: options.delegate } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
@@ -468,7 +468,7 @@ export class VentureHost {
     const portOptions: ModelPortOptions = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
-      claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'pending',
+      claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'accepted',
     };
     const port = (create as (options: ModelPortOptions) => ModelPort)(portOptions);
     if (!port || typeof port !== 'object') throw notBuilt();

@@ -118,10 +118,9 @@ function gate() {
 
 const unused = new Proxy({}, { get() { throw new Error('This service is not used by the models package.'); } });
 
-// The Claude Code route opens only once Chausar accepts Anthropic's terms (onboarding spec 2.8). These tests exercise
-// that route, so they say 'accepted' explicitly; the gate's own test below runs with it pending.
+// Exercise the enabled-by-default Claude Code route; the disabled-path test supplies pending explicitly.
 async function setup(options: { codexCli?: unknown; venture?: boolean; transport?: ModelTransport; claudeCodeTerms?: 'accepted' | 'pending' } = {}) {
-  const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
+  const claudeCodeTerms = options.claudeCodeTerms;
   let now = START;
   const clock = () => new Date(now);
   const advance = (ms: number) => { now += ms; };
@@ -235,23 +234,21 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
   assert.equal(withCodex.port.presets().find(item => item.id === 'codex-cli')?.availability, 'unverified');
 });
 
-test('the Claude Code terms gate: pending means needs setup with the terms words, and connect refuses before any check', async () => {
+test('disabled Claude Code is hidden and direct connect refuses before any check', async () => {
   const { port, deps, rec, store } = await setup({ claudeCodeTerms: 'pending' });
-  const claude = port.presets().find(item => item.id === 'claude-code-cli')!;
-  assert.equal(claude.availability, 'needs-setup');
-  assert.equal(claude.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
-  assert.equal(AVAILABILITY_REASONS.claudeTerms, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.");
+  assert.equal(port.presets().some(item => item.id === 'claude-code-cli'), false);
+  assert.equal(AVAILABILITY_REASONS.claudeTerms, 'Claude Code is disabled on this computer. Choose another AI.');
   // Even a found CLI stays behind the gate: the port's own check refuses in the terms words and runs nothing.
   await assert.rejects(port.checkCli('claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
   assert.deepEqual(rec.process, []);
-  assert.equal(port.presets().find(item => item.id === 'claude-code-cli')?.availability, 'needs-setup');
+  assert.equal(port.presets().some(item => item.id === 'claude-code-cli'), false);
   const checksBefore = rec.process.length;
   await assert.rejects(connect(deps, 'claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
   assert.equal(rec.process.length, checksBefore, 'the refusal comes before the version check');
   assert.equal(connections(store).length, 0);
   // The gate changes nothing else: keys connect as before.
   await connect(deps, 'anthropic-haiku-5-5');
-  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false }).availability, 'needs-setup', 'absent terms mean pending');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false }).availability, 'unverified', 'absent terms mean accepted');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false, claudeTerms: 'accepted' }).availability, 'unverified');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availability, 'needs-setup');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availabilityReason, AVAILABILITY_REASONS.claudeMissing);

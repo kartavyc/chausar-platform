@@ -6599,7 +6599,7 @@ export type VentureDeps = {
   delegate?: DelegatePorts;
   /** The engine's draft desk, so venture.create can adopt the AI and plan made before the vault. Absent on hosted. */
   draft?: DraftHandoverPort;
-  /** Whether Chausar has accepted Anthropic's terms for running Claude Code. Absent means 'pending'. */
+  /** Claude Code is enabled by default. Explicit 'pending' disables it. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** Posting ports. Absent means the real ones: a Playwright probe that installs nothing, and no API clients. */
   connectors?: ConnectorPorts;
@@ -6685,7 +6685,7 @@ export type ModelPortOptions = {
   host: VentureHostKind;
   demo: boolean;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
-  /** The Claude Code terms gate; absent is 'pending'. */
+  /** The Claude Code gate; absent is 'accepted', explicit 'pending' disables it. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** 4H1: finds a command on this computer's search path (an absolute one where it says). Absent means the real search; tests inject one. */
   locateCli?: (command: string) => string | null;
@@ -6707,7 +6707,7 @@ export type VentureHostOptions = {
   delegate?: DelegatePorts; // tests inject a port to a fake command-line tool
   /** Trusted host composition, never from a payload: the engine's draft desk handover. */
   draft?: DraftHandoverPort;
-  /** From CHAUSAR_CLAUDE_CODE_TERMS ('accepted' opens it). Absent or anything else is 'pending': Claude Code needs setup. */
+  /** From CHAUSAR_CLAUDE_CODE_TERMS. Absent defaults to accepted; pending disables Claude Code. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** Trusted host composition, never from a payload: the businesses on this computer (VentureWorkspacePort). */
   workspace?: VentureWorkspacePort;

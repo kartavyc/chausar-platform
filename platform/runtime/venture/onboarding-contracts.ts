@@ -279,7 +279,7 @@ export type AiOption = {
   line: string;
   why: string;
   status: AiOptionStatus; // the weakest of the row's presets, by AI_STATUS_ORDER
-  canConnect: boolean; // always false for chatgpt-sign-in, and for claude-code while the terms gate is pending
+  canConnect: boolean; // always false for chatgpt-sign-in; disabled Claude Code is omitted from the options
   presetIds: ModelPresetId[]; // [] for chatgpt-sign-in
   recommended: { fast: ModelPresetId; main: ModelPresetId } | null; // api-key: Haiku fast, Sonnet main
 };
@@ -290,7 +290,7 @@ export type AiStatusView = ModelStatusView & {
 };
 export type AiOptionsView = {
   options: AiOption[];
-  presets: ModelPreset[]; // with live availability, including the Claude Code terms gate
+  presets: ModelPreset[]; // with live availability; an explicit pending override omits Claude Code
   status: AiStatusView;
   /** True when any row that can connect holds a preset with verification 'not-live-verified'. */
   unchecked: boolean;

@@ -130,15 +130,14 @@ function livePresets(overrides: Partial<Record<ModelPreset['id'], Partial<ModelP
 
 test('row status: the API key row is the weakest of its presets, ChatGPT never opens, and unchecked is computed', () => {
   const view = aiOptionsView(livePresets(), statusStub(), false);
-  assert.deepEqual(view.options.map(option => option.id), [...AI_OPTION_IDS]);
+  assert.deepEqual(view.options.map(option => option.id), AI_OPTION_IDS.filter(id => id !== 'claude-code'));
   const byId = Object.fromEntries(view.options.map(option => [option.id, option]));
   assert.equal(byId['api-key'].status, 'unverified', 'Anthropic ready and OpenAI unverified: the weakest wins');
   assert.equal(AI_STATUS_CHIPS[byId['api-key'].status], 'Can connect');
   assert.deepEqual(byId['api-key'].recommended, { fast: 'anthropic-haiku-5-5', main: 'anthropic-sonnet-5-5' });
   assert.equal(byId['api-key'].canConnect, true);
   assert.deepEqual(byId['chatgpt-sign-in'], { id: 'chatgpt-sign-in', ...AI_OPTION_WORDS['chatgpt-sign-in'], status: 'not-open', canConnect: false, presetIds: [], recommended: null });
-  assert.equal(byId['claude-code'].status, 'needs-setup');
-  assert.equal(byId['claude-code'].canConnect, false, 'the terms gate is pending');
+  assert.equal(byId['claude-code'], undefined, 'pending hides Claude Code');
   assert.equal(byId.codex.canConnect, false);
   assert.equal(view.unchecked, true);
   assert.equal(aiOptionsView(livePresets(), statusStub(), true).options.find(option => option.id === 'claude-code')!.canConnect, true, 'gate open: Check and connect runs the version check');
