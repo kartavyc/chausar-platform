@@ -74,12 +74,16 @@ export type CheckInput = {
 /** The sources of a draft's claims. Each field left out adds nothing. */
 export type Grounding = {
   clientRequest: string;
+  /** Structural labels computed and verified by engine code, never supplied as model evidence. */
+  codeSources?: readonly SourceText[];
   /** Answers to the agent's questions, from the owner or the practice client. */
   answers?: readonly string[];
   /** The agent loop: every tool result that succeeded is a source. */
   harness?: HarnessState | null;
   /** The client's spreadsheet files, whole, even rows the agent never read. */
   files?: readonly FileLike[];
+  /** Current scoped input file identities only. These never establish claims about file contents. */
+  fileReferences?: readonly EvidenceFile[];
   /** Engine-verified generated artifact identities. Never supplied by model prose. */
   outputFiles?: readonly EvidenceFile[];
   /** Names that are never claims: the business, its offers, the client. */
@@ -218,6 +222,7 @@ function groundingSources(receipts: readonly AnyReceipt[], ventureId: string, gr
     harness: grounding?.harness ?? null,
     receipts: receipts.filter(receipt => receipt.ventureId === ventureId),
     extra: [
+      ...(grounding?.codeSources ?? []),
       ...(grounding?.answers ?? []).map((answer, index) => ({ id: `answer.${index + 1}`, text: answer })),
       ...sourcesFromFiles(grounding?.files ?? []),
     ],
@@ -287,7 +292,7 @@ function receiptEvidence(input: EvidenceInput): PreparedEvidence {
   const ours = input.receipts.filter(receipt => receipt.ventureId === input.ventureId);
   return prepareEvidence({
     sources: groundingSources(ours, input.ventureId, input.grounding), clientIds: clientSourceIds(input.grounding),
-    figures: calculatorFigures(ours, input.cited), files: [...evidenceFiles(ours, input.grounding?.files ?? []),...(input.grounding?.outputFiles??[])], links: ownerLinks(input.grounding),
+    figures: calculatorFigures(ours, input.cited), files: [...evidenceFiles(ours, input.grounding?.files ?? []),...(input.grounding?.fileReferences??[]),...(input.grounding?.outputFiles??[])], links: ownerLinks(input.grounding),
   }, input.grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year');
 }
 

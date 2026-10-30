@@ -1789,6 +1789,29 @@ export type DeliveryWorkflow = {
   dictionary: { id: string; kind: 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept'; name: string; meaning: string; aliases: string[] }[];
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
+  agentJob?: {
+    scope: import('./agent-runtime/driver-types.ts').AgentJobScope;
+    sourceDigest: string;
+    draftDigest: string | null;
+    /** The native tool and automatic quality review settled before owner acceptance. */
+    reviewReady?: boolean;
+    failure?: import('./delivery/failure-words.ts').FailureWords;
+    recalled?: string[];
+    sourcesRead?: { id: string; version: string }[];
+    screens?: { tool: string; note: ScreenNote }[];
+    proposal: import('./agent-runtime/job-tools.ts').JobProposal | null;
+    proposalAt?: string;
+    messages: { id: string; text: string; label: 'model-estimate'; chatId?: string }[];
+    ownerNotes?: { text: string; at: string; by: string }[];
+    calculations?: ToolCallRecord[];
+    pendingFacts?: { digest: string; missing: import('./playbooks/ca-firm/needs-facts.ts').MissingFact[]; question: string; callId: string; at: string };
+    factAnswers?: { digest: string; question: string; answer: string; at: string; by: string; turn: number }[];
+    tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
+    model?: string;
+    usage?: import('./agent-runtime/driver-types.ts').AgentUsage;
+    cost?: { display: string; state: 'priced' | 'unknown'; spendId: string; receiptId?: string };
+    pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
+  };
   careerPackBinding?: string;
   /** Exact owner-approved room brief this VA delivery read. */
   devReportBinding?: string;
@@ -6332,6 +6355,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // Wave 6 job-scoped toolbox.
+  'DRAFT_CHECK_FAILED', 'INVALID_JOB_FILE', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'MCP_RESULT_TOO_LARGE',
   'CALL_LOG_NOT_FOUND',
   // 5R5: exact monitored sources and one-channel triage.
   'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
