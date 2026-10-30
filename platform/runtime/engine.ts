@@ -1671,6 +1671,9 @@ export class Engine {
       case 'venture.models.connect':
       case 'venture.models.disconnect':
       case 'venture.models.status':
+      case 'venture.agentSettings.get':
+      case 'venture.agentSettings.set':
+      case 'venture.mcpCredential.set':
       case 'venture.models.calls':
       case 'venture.price.quote':
       case 'venture.receipt.get':

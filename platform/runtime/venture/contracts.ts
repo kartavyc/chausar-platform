@@ -257,6 +257,7 @@ export type RecordBase<K extends VentureRecordKind> = {
 };
 
 export type VentureRecord = RecordBase<'venture-record'> & {
+  aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -5347,6 +5348,7 @@ export const VENTURE_METHODS = [
   'venture.interview.next', 'venture.interview.answer',
   'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept',
   // P2 models
+  'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set',
   'venture.models.presets', 'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls',
   // P3 money
   'venture.price.quote', 'venture.receipt.get',
@@ -5436,6 +5438,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
   'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
+  'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
   'venture.models.presets': 'models', 'venture.models.connect': 'models', 'venture.models.disconnect': 'models', 'venture.models.status': 'models', 'venture.models.calls': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
@@ -5529,6 +5532,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
+  'venture.agentSettings.set', 'venture.mcpCredential.set',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentApproval.decide',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
@@ -5659,6 +5663,9 @@ export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
 type Empty = Record<string, never>;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 export type VenturePayloads = {
+  'venture.agentSettings.get': Empty;
+  'venture.agentSettings.set': { settings: import('./agent-runtime/settings.ts').AiSettings; approveMcpConfiguration?: true };
+  'venture.mcpCredential.set': { serverId: string; token: string | null };
   'venture.client.aiConsent.get': { clientId: string };
   'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
   'venture.client.aiConsent.withdraw': { clientId: string };
@@ -6053,6 +6060,9 @@ export type VenturePayloads = {
   'venture.compose.update': OnboardingPayloads['venture.compose.update'];
 };
 export type VentureResults = {
+  'venture.agentSettings.get': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.agentSettings.set': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.mcpCredential.set': { serverId: string; saved: boolean };
   'venture.client.aiConsent.get': ClientAiConsentView;
   'venture.client.aiConsent.agree': ClientAiConsentView;
   'venture.client.aiConsent.withdraw': ClientAiConsentView;
@@ -6396,6 +6406,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'AI_SETTING_UNSUPPORTED', 'MCP_CALL_DECLINED', 'MCP_CONFIGURATION_APPROVAL_REQUIRED', 'MCP_CONFIGURATION_CHANGED', 'MCP_CONNECTION_FAILED', 'MCP_RESPONSE_INVALID', 'MCP_SERVER_NOT_FOUND', 'MCP_TOOL_CHANGED',
   'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'JOB_BUSY',
   // Wave 6 job-scoped toolbox.
   'DRAFT_CHECK_FAILED', 'INVALID_JOB_FILE', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'MCP_RESULT_TOO_LARGE',

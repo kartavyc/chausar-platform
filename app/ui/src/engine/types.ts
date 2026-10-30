@@ -1,3 +1,4 @@
+import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 /**
@@ -1617,6 +1618,9 @@ export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string;
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface EngineMethods {
+  'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
+  'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
+  'venture.mcpCredential.set': { params:{serverId:string;token:string|null};result:{serverId:string;saved:boolean} };
   'venture.client.aiConsent.get': { params: {clientId:string}; result: ClientAiConsentView };
   'venture.client.aiConsent.agree': { params: {clientId:string;disclosureDigest:string}; result: ClientAiConsentView };
   'venture.client.aiConsent.withdraw': { params: {clientId:string}; result: ClientAiConsentView };

@@ -1,5 +1,6 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
+import { FakeAgentSettings } from './fake-agent-settings';
 import {withSellerCards} from './fake-seller-cards';
 import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -140,6 +141,7 @@ export const queueOrder = (a: QueueRow, b: QueueRow) => queueGroup(a) - queueGro
   || (a.kind === 'locked' ? 0 : a.createdAt.localeCompare(b.createdAt));
 
 export class FakeEngine {
+  private readonly agentSettings = new FakeAgentSettings({ current: () => this.current, exists: () => this.ventures.has(this.current), agents: () => (this.agents[this.current] ?? []).filter(agent => agent.kind !== 'code').map(({ id, name }) => ({ id, name })), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private rows: QueueRow[];
   private decided = new Set<string>();
   private runs: RunDetail[];
@@ -406,6 +408,8 @@ export class FakeEngine {
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
+    if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
+    if (method === 'venture.mcpCredential.set') return this.agentSettings.credential(params);
     this.guardInternalShare(method, p);
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
@@ -569,6 +573,7 @@ export class FakeEngine {
   }
 
   private answerNow(method: string, p: Record<string, unknown>): unknown {
+    if (method === 'venture.agentSettings.get') return this.agentSettings.request(method, p);
     if (method === 'venture.agentApproval.decide') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.agree' || method === 'venture.client.aiConsent.withdraw') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.get') return this.clientAiConsent(method,p);

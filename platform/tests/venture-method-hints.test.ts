@@ -21,11 +21,11 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 309 venture methods, 296 reached through the hosted host', () => {
+test('the pinned counts: 312 venture methods, 299 reached through the hosted host', () => {
   // 6B5 adds recorded client consent and exact native approval decisions.
-  assert.equal(VENTURE_METHODS.length, 309);
+  assert.equal(VENTURE_METHODS.length, 312);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 296);
+  assert.equal(hosted.length, 299);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

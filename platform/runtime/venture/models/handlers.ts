@@ -242,7 +242,13 @@ async function keepChecks(deps: VentureDeps, ctx: Context, clis: CliStatusList['
   });
 }
 
+import { setMcpCredential } from '../agent-runtime/external-credentials.ts';
+import { getAgentSettings, setAgentSettings } from '../agent-runtime/settings-methods.ts';
+
 export const handlers: VentureHandlerTable = {
+  'venture.agentSettings.get': getAgentSettings,
+  'venture.agentSettings.set': setAgentSettings,
+  'venture.mcpCredential.set': setMcpCredential,
   'venture.models.presets': presets,
   'venture.models.connect': connect,
   'venture.models.disconnect': disconnect,

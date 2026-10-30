@@ -1,5 +1,3 @@
-import type { ModelPresetId } from '../contracts.ts';
-
 /** Trusted host contracts. Credentials and MCP capabilities are ephemeral, never saved settings. */
 export const AGENT_MCP_TOOL_NAMES = ['read_business', 'read_client', 'read_order', 'list_files', 'read_file', 'calculate', 'draft_document', 'propose_action', 'search_records', 'external_tools', 'external_call'] as const;
 export type AgentJobScope = {
@@ -50,5 +48,3 @@ export interface AgentDriverSession {
   close(): Promise<void>;
 }
 export interface AgentDriver { open(input: AgentDriverInput): Promise<AgentDriverSession> }
-
-export type AgentRoute = { driver: AgentDriver; settings: AgentDriverSettings; credentials?: AgentDriverCredentials; billing?: { connectionId: string; presetId: ModelPresetId; model: string } };

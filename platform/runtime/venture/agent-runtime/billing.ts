@@ -7,7 +7,7 @@ import { sumReceiptIn } from '../money/sums.ts';
 import { modelBudgetUsed } from '../models/budget.ts';
 import { exactModelRate } from '../models/exact-rate.ts';
 import { agentCostPlan, priceAgentUsage } from './cost-proof.ts';
-import type { AgentRoute } from './driver-types.ts';
+import type { AgentRoute } from './route-types.ts';
 import type { AgentTurnResult, AgentUsage } from './driver-types.ts';
 export type AgentBilling = { dispatched(): Promise<void>; usage(usage: AgentUsage): Promise<void>; finish(result?: AgentTurnResult): Promise<void> };
 type Input = { runId: string; jobId: string; agentId: string; route: AgentRoute };

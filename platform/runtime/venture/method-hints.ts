@@ -20,6 +20,7 @@ type Flags = '' | 'r' | 'u' | 'i' | 'o' | 'ui' | 'uo' | 'io' | 'uio' | 'rui' | '
 
 /** The methods before wave 4: each one's level and flags, read from its handler. */
 const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, readonly [HintLevel, Flags]>> = Object.freeze({
+  'venture.agentSettings.get': ['read', 'rui'], 'venture.agentSettings.set': ['approve', 'ui'], 'venture.mcpCredential.set': ['admin', 'i'],
   'venture.client.aiConsent.get': ['read', 'rui'], 'venture.client.aiConsent.agree': ['approve', 'u'], 'venture.client.aiConsent.withdraw': ['approve', 'i'],
   'venture.agentApproval.decide': ['approve', ''],
   'venture.countries': ['read', 'rui'], 'venture.preview': ['read', 'rui'], 'venture.create': ['admin', ''], 'venture.get': ['read', 'rui'],
