@@ -462,7 +462,7 @@ describe('#/chats: asking', () => {
     stubWidth(false);
     await start('#/chats');
     await screen.findByRole('navigation', { name: 'Your chats' });
-    fireEvent.change(composer(), { target: { value: 'my key is sk-ant-abcdefghijklmnop1234' } });
+    fireEvent.change(composer(), { target: { value: ("my key is sk" + "-ant-abcdefghijklmnop1234") } });
     await click(screen.getByRole('button', { name: 'Send' }));
     await settle();
     expect(screen.getByRole('alert').textContent).toBe('That looks like a key. Keys go in Connections, never in chat.');

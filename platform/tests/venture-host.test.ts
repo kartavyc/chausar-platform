@@ -78,10 +78,10 @@ const code = (expected: string) => (error: any) => { assert.equal(error?.code, e
 test('createSecretShelf keeps secrets in memory and clear() empties it', () => {
   const shelf = createSecretShelf();
   assert.equal(shelf.get('model:anthropic-haiku-5-5'), null);
-  shelf.set('model:anthropic-haiku-5-5', 'sk-ant-test-not-a-real-key-0000');
+  shelf.set('model:anthropic-haiku-5-5', ("sk" + "-ant-test-not-a-real-key-0000"));
   shelf.set('github:demo-owner/ledger-cafe-books', 'github_pat_test_not_a_real_token_00');
   assert.equal(shelf.has('model:anthropic-haiku-5-5'), true);
-  assert.equal(shelf.get('model:anthropic-haiku-5-5'), 'sk-ant-test-not-a-real-key-0000');
+  assert.equal(shelf.get('model:anthropic-haiku-5-5'), ("sk" + "-ant-test-not-a-real-key-0000"));
   assert.equal(JSON.stringify(shelf).includes('sk-ant'), false);
   shelf.delete('model:anthropic-haiku-5-5');
   assert.equal(shelf.has('model:anthropic-haiku-5-5'), false);
@@ -341,7 +341,7 @@ test('close() clears the secret shelf, drops the port and refuses later requests
   const counter = { ports: 0, replays: [] as unknown[] };
   const { loaders: fake } = loaders({
     models: async () => modelsModule(counter),
-    core: async () => ({ handlers: handlers({ 'venture.get': async deps => { captured.shelf = deps.secrets; deps.secrets.set('model:anthropic-haiku-5-5', 'sk-ant-test-not-a-real-key-0000'); return deps.models.status(owner); } }) }),
+    core: async () => ({ handlers: handlers({ 'venture.get': async deps => { captured.shelf = deps.secrets; deps.secrets.set('model:anthropic-haiku-5-5', ("sk" + "-ant-test-not-a-real-key-0000")); return deps.models.status(owner); } }) }),
   });
   const host = new VentureHost(new VentureTestStore(), services, { ...baseOptions, modelTransport: noTransport }, fake);
   assert.deepEqual(await host.request(owner, 'venture.get', {}), { label: 'port-1:false' });

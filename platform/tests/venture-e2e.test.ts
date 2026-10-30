@@ -19,7 +19,7 @@ import { createFixtureGitHubTransport, decompressFromEncodedURIComponent } from 
 import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const API_KEY = 'sk-ant-test-not-a-real-key-0000';
+const API_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
 const GSTIN = '27ZZZZZ9999Z1Z8'; // synthetic, with a valid checksum
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';

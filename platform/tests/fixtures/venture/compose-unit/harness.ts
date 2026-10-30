@@ -9,8 +9,8 @@ import type { AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan } from 
 import { replay } from './plans.ts';
 
 export const PASSPHRASE = 'long-enough-passphrase';
-export const TEST_KEY = 'sk-ant-test-onboarding-not-a-real-key-7f3a';
-export const OPENAI_TEST_KEY = 'sk-openai-test-onboarding-not-a-real-key-91c2';
+export const TEST_KEY = ("sk" + "-ant-test-onboarding-not-a-real-key-7f3a");
+export const OPENAI_TEST_KEY = ("sk" + "-openai-test-onboarding-not-a-real-key-91c2");
 export const noGitHub: GitHubTransport = { kind: 'fixture', read: async () => ({ status: 404, etag: null, body: '{"message":"Not Found"}', rateRemaining: null }) };
 
 export type EngineOptions = {

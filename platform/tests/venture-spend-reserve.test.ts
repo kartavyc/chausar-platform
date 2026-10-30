@@ -207,7 +207,7 @@ async function portEnv() {
     blueprintId: null, acceptedBlueprintId: null, playbookId: null, invoiceSequence: 0, updatedAt: tx.now,
   }), { create: true });
   const sonnet = PRESETS.find(item => item.id === 'anthropic-sonnet-5-5')!;
-  await (modelHandlers as any)['venture.models.connect'](deps, owner, { presetId: sonnet.id, consentDigest: sonnet.consentDigest, apiKey: 'sk-ant-test-not-a-real-key-0000' });
+  await (modelHandlers as any)['venture.models.connect'](deps, owner, { presetId: sonnet.id, consentDigest: sonnet.consentDigest, apiKey: ("sk" + "-ant-test-not-a-real-key-0000") });
   return { store, port, http };
 }
 

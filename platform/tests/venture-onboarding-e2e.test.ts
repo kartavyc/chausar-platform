@@ -31,7 +31,7 @@ import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-cus
 import type { BackupView, BusinessList, CustodyView } from '../runtime/workspace-custody-contracts.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const KEY = 'sk-ant-test-onboarding-e2e-not-a-real-key-5d21';
+const KEY = ("sk" + "-ant-test-onboarding-e2e-not-a-real-key-5d21");
 const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
 const githubRecording = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
 

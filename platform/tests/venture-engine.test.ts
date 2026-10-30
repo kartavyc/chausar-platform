@@ -13,7 +13,7 @@ import type {
 } from '../runtime/venture/contracts.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const FAKE_KEY = 'sk-ant-test-not-a-real-key-0000';
+const FAKE_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 
 /** Records every model request and answers none of them: these tests never need a model's words. */

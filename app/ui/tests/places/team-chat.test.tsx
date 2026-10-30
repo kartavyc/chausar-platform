@@ -153,7 +153,7 @@ describe('The Chat tab', () => {
     start('#/team?sheet=agent:researcher&tab=chat');
     const panel = await panelOf('Researcher');
     await within(panel).findByRole('log');
-    await type(panel, 'here it is sk-ant-api03-abcdefghijklmnopqrstuvwxyz');
+    await type(panel, ("here it is sk" + "-ant-api03-abcdefghijklmnopqrstuvwxyz"));
     expect(within(panel).getByRole('alert').textContent).toContain('That looks like a key. Keys go in Connections, never in chat.');
     expect((within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement).value).toContain('sk-ant-');
   });

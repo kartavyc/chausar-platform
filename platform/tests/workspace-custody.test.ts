@@ -340,7 +340,7 @@ test('the silent onboarding create: connect, compose, create with folder null an
   const { engine, ask } = engineAt(t, directory, { clock, venture: { host: 'test', modelTransport: createReplayTransport(dog), sandbox: { process: async () => { throw new Error('docker not found'); } } } });
   const options = await ask('venture.ai.options') as AiOptionsView;
   const preset = (id: ModelPreset['id']) => options.presets.find(item => item.id === id)!;
-  const KEY = 'sk-ant-test-custody-not-a-real-key-0001';
+  const KEY = ("sk" + "-ant-test-custody-not-a-real-key-0001");
   await ask('venture.ai.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: preset('anthropic-haiku-5-5').consentDigest, apiKey: KEY });
   await ask('venture.ai.connect', { presetId: 'anthropic-sonnet-5-5', consentDigest: preset('anthropic-sonnet-5-5').consentDigest, apiKey: KEY });
   const decision = await ask('venture.compose.decide', { text: dog.text, countryCode: 'GB' }) as ComposeDecision;

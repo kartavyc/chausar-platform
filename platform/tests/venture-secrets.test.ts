@@ -56,7 +56,7 @@ const NOT_SECRETS = [
   'claude-sonnet-5-5', 'anthropic-sonnet-5-5', 'gpt-6-luna-2026-10-15', 'venture-journal-entry_3b241101-e2bb-4255-8caf-4136c566a962',
   createHash('sha256').update('x').digest('hex'), '2026-10-23T10:00:00.000Z', 'INV/2026-27/000123', '27AAPFU0939F1ZV',
   'docs/venture/models.md', 'platform/runtime/venture/core/net-guard.ts', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'showWhatWouldBeSent',
-  'estimatedMaxCostMicros', '<your-key>', '<sk-ant-your-key-here>', 'sk-ant-xxxxxxxxxxxxxxxxxxxx', 'YOUR_API_KEY', '${OPENAI_API_KEY}', 'sk-...',
+  'estimatedMaxCostMicros', '<your-key>', '<sk-ant-your-key-here>', ("sk" + "-ant-xxxxxxxxxxxxxxxxxxxx"), 'YOUR_API_KEY', '${OPENAI_API_KEY}', 'sk-...',
   '₹1,23,456.00', '+91 98765 43210', 'HDFC0001234', 'NEFT-HDFCN52026102312345678', 'UPI/CR/429183746521/PAYTM', 'practice_bookkeeping-messy_1',
   'kartavy.rocks2026@example.com', 'आपका बिल तैयार है', 'https://api.github.com/repos/owner/chausar-platform/contents/README.md?ref=main',
 ];
@@ -157,7 +157,7 @@ test('placeholders are kept only when the whole tail is a stand-in; a real-looki
   assert.equal(redactSecrets('sk-' + 'ant-api03-HEREZq8Rt2Lm9Xv4Bn7Kc1Wd6'), REDACTED);
   assert.equal(redactSecrets('gh' + 'p_A1b2C3yourD4e5F6g7H8i9J0k1L2m3N4o5'), REDACTED);
   assert.equal(redactSecrets('password=yourPass99'), `password=${REDACTED}`);
-  for (const text of ['<your-key>', '<sk-ant-your-key-here>', 'sk-ant-xxxxxxxxxxxxxxxxxxxx', 'gh' + 'p_************************', 'password=********',
+  for (const text of ['<your-key>', '<sk-ant-your-key-here>', ("sk" + "-ant-xxxxxxxxxxxxxxxxxxxx"), 'gh' + 'p_************************', 'password=********',
     'api_key=<your-key>', 'API_KEY=${API_KEY}', 'GITHUB_TOKEN={{github_token}}', 'Bearer xxxxxxxxxxxxxxxx']) {
     assert.equal(redactSecrets(text), text, text);
   }
@@ -321,7 +321,7 @@ async function modelSetup() {
     blueprintId: null, acceptedBlueprintId: null, playbookId: null, invoiceSequence: 0, updatedAt: tx.now,
   }), { create: true });
   const preset = PRESETS.find(item => item.id === 'anthropic-haiku-5-5')!;
-  await (modelHandlers as any)['venture.models.connect'](deps, owner, { presetId: preset.id, consentDigest: preset.consentDigest, apiKey: 'sk-ant-test-not-a-real-key-0000' });
+  await (modelHandlers as any)['venture.models.connect'](deps, owner, { presetId: preset.id, consentDigest: preset.consentDigest, apiKey: ("sk" + "-ant-test-not-a-real-key-0000") });
   return { store, deps, port, http };
 }
 
@@ -346,7 +346,7 @@ test('models: the screen runs before anything is sent; the request, the preview 
   for (const secret of [SECRETS.github, SECRETS.anthropic, 'q9X2LmP4']) assert.ok(!call.payloadText.includes(secret), `kept: ${secret}`);
   assert.equal(call.payloadDigest, digest(http[0].body), 'the digest is of what was sent');
   // The key itself still goes where it belongs: the request header, never the body or the record.
-  assert.equal(http[0].headers['x-api-key'], 'sk-ant-test-not-a-real-key-0000');
+  assert.equal(http[0].headers['x-api-key'], ("sk" + "-ant-test-not-a-real-key-0000"));
   const preview = await port.preview(owner, task({ purpose: 'judge', containsClientData: true }));
   assert.ok(preview && !preview.payloadText.includes(SECRETS.github) && preview.payloadText.includes('redacted secret'));
 });

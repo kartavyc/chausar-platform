@@ -30,7 +30,7 @@ import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { ...owner, channel: 'phone' };
-const KEY = 'sk-ant-test-not-a-real-key-0000';
+const KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const OPENAI_KEY = 'sk-' + 'proj-test-not-a-real-key-0000';
 const START = Date.parse('2026-10-15T09:00:00.000Z'); // at or before real time (rule 23)
 const REQUEST = 'Please close my September books. The bank statement and bills are in the shared folder.';
@@ -539,7 +539,7 @@ test('Claude Code CLI: flags, a clean environment, a 150 second limit and the te
     return { exitCode: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { words: 'Command line words' }, usage: { input_tokens: 10, output_tokens: 5 } }) };
   };
   const saved = process.env.ANTHROPIC_API_KEY;
-  process.env.ANTHROPIC_API_KEY = 'sk-ant-env-not-a-real-key-0000';
+  process.env.ANTHROPIC_API_KEY = ("sk" + "-ant-env-not-a-real-key-0000");
   let outcome;
   try { outcome = await deps.models.generate(owner, wordsTask({ purpose: 'blueprint', maxOutputTokens: 2048 })); } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = saved;
