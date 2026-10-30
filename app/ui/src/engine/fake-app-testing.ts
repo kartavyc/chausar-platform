@@ -1,3 +1,4 @@
+import {bindFakeClientAi} from './fake-client-ai-consent';
 import {fakeTestingVoice} from './fake-app-testing-voice';
 import {setFakeSpeechAccount} from './fake-speech-account';
 // Original browser demo preparation. Native SDK, Docker and paid providers are never simulated.
@@ -27,7 +28,7 @@ export function fakeAppTestingDesk(host:W4DeskHost):FakePlaybookDesk{
  const row=live(o.id);check(p.digest===digest(row),'APPROVAL_STALE','Review the current demo before changing it.');
  if(typeof p.action==='string'&&p.action.startsWith('voice-'))return reply(o.id,fakeTestingVoice(host,o,row,p.action,p.payload,exact,next=>{rows().set(o.id,{...row,...next});emit();}));
  if(p.action==='approve-plan'){exact(p.payload,[]);const next={...row,approvedPlan:row.plan.digest,pending:null};rows().set(o.id,next);emit();return reply(o.id,{job:next});}
- if(p.action==='ai-preview'||p.action==='ai-confirm'){exact(p.payload,p.action==='ai-preview'?[]:['callId','approvedDigest'],p.action==='ai-preview'?[]:['callId','approvedDigest']);check(o.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','Private client sources need a qualified local model.');if(p.action==='ai-confirm')check(false,'APPROVAL_STALE','Approve the exact current AI request before it expires.');check(false,'NO_MODEL_CONNECTED','Connect an AI in Your AI before asking for a plan.');}
+ if(p.action==='ai-preview'||p.action==='ai-confirm'){exact(p.payload,p.action==='ai-preview'?[]:['callId','approvedDigest'],p.action==='ai-preview'?[]:['callId','approvedDigest']);bindFakeClientAi(host,o.id);check(o.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','Private client sources need a qualified local model.');if(p.action==='ai-confirm')check(false,'APPROVAL_STALE','Approve the exact current AI request.');check(false,'NO_MODEL_CONNECTED','Connect an AI in Your AI before asking for a plan.');}
  if(p.action==='approve'){exact(p.payload,['approvedDigest'],['approvedDigest']);check(false,'APPROVAL_STALE','Review the exact current demo operation.');}
  if(['render','review','export'].includes(String(p.action)))check(false,'DEMO_RECORDING_REQUIRED','Finish the actual private desktop recording first.');
  check(row.approvedPlan===row.plan.digest,'APPROVAL_REQUIRED','Approve this exact client test-account script and shot list.');

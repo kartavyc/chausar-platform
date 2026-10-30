@@ -25,7 +25,7 @@ import { setPlan } from '../money/set-plan.ts';
 /** The words each action leaves on its decision and says back. */
 export const ACTION_WORDS = Object.freeze({
   sentBack: (text: string) => `Sent back with your words: ${text}`,
-  sentBackLine: 'Sent back. The revision waits for your approval before anything goes to your AI.',
+  sentBackLine: 'Sent back. The revised draft will wait for your review.',
   planKept: (text: string) => `Not accepted. Your words: ${text}`,
   planLine: 'Kept as a draft. Your words are on the decision.',
   edited: 'You edited the draft. Your version waits for your approval.',
@@ -123,7 +123,7 @@ function rowPayload(payload: unknown): { rowId: string; digest: string; text: un
 
 /**
  * venture.queue.sendBack { rowId, digest, text } (approve, app only). On a draft waiting for review: a revision turn
- * whose input begins "Revise this to: {text}", waiting for the owner's approval, and the row leaves Today. On a plan or
+ * whose input begins "Revise this to: {text}" starts under the current client consent; the row leaves Today. On a plan or
  * price row: a No that keeps the words on its decision. Empty words are SEND_BACK_EMPTY; an old digest is stale.
  */
 export async function queueSendBackHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<QueueDecision> {

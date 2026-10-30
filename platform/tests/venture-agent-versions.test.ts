@@ -4,6 +4,7 @@
 // points back at the parent, or rebuilds without that change so later changes stay; a plan change carries the owner's
 // changes; and the agent's standing orders are the owner's guidance in use on its steps.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
 import assert from 'node:assert/strict';
 import { digest, findRecord, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { code, owner, phone } from './venture-judge-helpers.ts';
@@ -72,10 +73,12 @@ test('reject: the decision is stored and nothing changes', async () => {
   await assert.rejects(env.agents('venture.agents.proposal.decide', { id: proposal.id, digest: proposal.digest, decision: 'accept' }), code('PROPOSAL_DECIDED'));
 });
 
-test('a run already going keeps its version, and the thread says so (spec 8)', async () => {
+test('a run already going keeps its version, and the thread says so (spec 8)', async t => {
   const { env, first } = await ready();
   const order = await episodeOrder(env);
-  const run = await env.call('venture.delivery.run', { orderId: order.id });
+  const native = await nativeContext(env.deps, owner, order.id);
+  t.after(() => native.job.close());
+  const run = native.run;
   assert.equal(run.status, 'waiting-for-you');
   const proposal = await propose(env, 'packager', 'package', PINNED);
   const decided = await accept(env, proposal);

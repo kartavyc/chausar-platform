@@ -1,4 +1,3 @@
-import { getClientAiConsent, agreeClientAiConsent, withdrawClientAiConsent } from '../clients/ai-consent.ts';
 // P3 money: price receipts, tax treatment, clients, orders, invoices, payments and the books.
 // Every money number comes from BigInt code with a receipt; the existing calculator proves billed,
 // received and earned from the facts written here. Loaded by the venture host on first use.
@@ -6,6 +5,7 @@ import { ChausarError } from '../../contracts.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
 import { booksSummary } from './books.ts';
 import { addClient, listClients } from './clients.ts';
+import { getClientAiConsent, agreeClientAiConsent, withdrawClientAiConsent } from '../clients/ai-consent.ts';
 import { getInvoice, issueInvoice, listInvoices, prepareInvoice } from './invoices.ts';
 import { createOrder, deliverOrder, listOrders } from './orders.ts';
 import { clearPayment, recordPayment } from './payments.ts';
@@ -36,13 +36,13 @@ export { taxTreatmentFor } from './tax.ts';
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
-  'venture.client.aiConsent.get': getClientAiConsent,
-  'venture.client.aiConsent.agree': agreeClientAiConsent,
-  'venture.client.aiConsent.withdraw': withdrawClientAiConsent,
   'venture.price.quote': quotePrice,
   'venture.receipt.get': getReceipt,
   'venture.client.add': addClient,
   'venture.client.list': listClients,
+  'venture.client.aiConsent.get': getClientAiConsent,
+  'venture.client.aiConsent.agree': agreeClientAiConsent,
+  'venture.client.aiConsent.withdraw': withdrawClientAiConsent,
   'venture.order.create': createOrder,
   'venture.order.list': listOrders,
   'venture.order.deliver': deliverOrder,

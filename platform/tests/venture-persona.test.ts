@@ -6,6 +6,8 @@
 // turns carry the personas of the agents that do them, and the writing turn the writer's, as background that grants
 // nothing. Each agent's skills come with a name, one line and a "try this" starter that only asks, and is never sent.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
+import { owner } from './venture-judge-helpers.ts';
 import assert from 'node:assert/strict';
 import { listRecords } from '../runtime/venture/records.ts';
 import { detectStanding, onlyAsks } from '../runtime/venture/agents/standing.ts';
@@ -107,61 +109,43 @@ test('persona test: the unsaved persona runs on the practice clients and shows i
   assert.ok(templated.results.every((item: any) => item.reply.startsWith('Hi there') && item.reply.includes('Take care')), 'built-in templates use the persona\'s own lines');
 });
 
-/** An order with one file, so its run starts with an act turn, previewed and waiting for the owner. */
-async function actPreview(env: AgentEnv) {
+async function nativeStyle(env: AgentEnv, t: { after(fn: () => Promise<void>): void }, withFile = false) {
   const order = await episodeOrder(env);
-  await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets, then the emergency fund.', 'utf8').toString('base64') });
-  await env.call('venture.delivery.run', { orderId: order.id });
-  const task = env.models.previewed.filter(item => item.purpose === 'agent-turn').at(-1);
-  assert.ok(task, 'the run previews an act turn');
-  return task;
+  if (withFile) await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets, then the emergency fund.').toString('base64') });
+  const context = await nativeContext(env.deps, owner, order.id); t.after(() => context.job.close());
+  return { context, style: (await context.read()).style };
 }
 
-test('persona in a run: the act turn carries the personas of the agents doing it after the fixed rules, as background; without one nothing changes', async () => {
+test('native jobs carry work-role personas as background without changing the fixed tool rules', async t => {
   const env = await agentBusiness();
-  const without = await actPreview(env);
-  assert.equal(Object.hasOwn(without.input as object, 'personas'), false, 'no persona: the input stays the same');
+  const without = await nativeStyle(env, t);
+  assert.equal(Object.hasOwn(without.style, 'personas'), false);
   await set(env, PERSONA);
-  const task = await actPreview(env);
-  const personas = (task.input as any).personas;
-  assert.equal(personas.note, PERSONA_BACKGROUND);
-  assert.deepEqual(personas.items.map((item: any) => item.agent), ['Story editor']);
-  assert.equal(personas.items[0].greeting, 'Hi there');
-  assert.equal(task.instructions, without.instructions, 'the fixed rules come first and stay the same');
-  const keys = Object.keys(task.input as object);
-  assert.ok(keys.indexOf('personas') > keys.indexOf('steps'), 'after the fixed parts of the input');
+  const { style } = await nativeStyle(env, t);
+  assert.equal(style.personas.note, PERSONA_BACKGROUND);
+  assert.deepEqual(style.personas.items.map((item: any) => item.agent), ['Story editor']);
+  assert.equal(style.personas.items[0].greeting, 'Hi there');
+  assert.throws(() => without.context.job.capability.assert(), { code: 'JOB_SOURCE_CHANGED' });
 });
 
-test('persona and voice in a run: the writing turn carries the writer\'s persona and the owner\'s voice that is on, as background', async () => {
+test('native writing context carries the writer persona and enabled owner voice for this channel', async t => {
   const env = await agentBusiness();
   await set(env, { ...PERSONA, signOff: 'Cheers' }, 'packager');
   await env.agents('venture.voice.set', { voice: { language: 'en', channel: null, on: true, sections: { audience: ['New savers'], howITalk: ['Plain'], neverUse: ['synergy'], wordsIUse: ['simple'], willNotClaim: ['guaranteed returns'], format: ['Short sentences'] } } });
   await env.agents('venture.voice.set', { voice: { language: 'hi', channel: 'whatsapp', on: true, sections: { audience: [], howITalk: [], neverUse: ['ज़बरदस्त'], wordsIUse: [], willNotClaim: [], format: [] } } });
-  const order = await episodeOrder(env);
-  const started = await env.call('venture.delivery.run', { orderId: order.id });
-  const write = env.models.previewed.filter(task => task.purpose === 'delivery').at(-1) ?? null;
-  const task = write ?? (await (async () => {
-    await env.call('venture.delivery.approve', { runId: started.id, digest: started.preview.digest });
-    return env.models.previewed.filter(item => item.purpose === 'delivery').at(-1)!;
-  })());
-  const input = task.input as any;
-  assert.deepEqual(input.personas.items.map((item: any) => [item.agent, item.signOff]), [['Packager', 'Cheers']]);
-  assert.equal(input.voice.voices.length, 1, 'only voices for every channel or mail reach a reply');
-  assert.deepEqual(input.voice.voices[0].neverUse, ['synergy']);
-  assert.match(input.voice.note, /grants nothing/);
+  const { style } = await nativeStyle(env, t);
+  assert.deepEqual(style.personas.items.map((item: any) => [item.agent, item.signOff]), [['Packager', 'Cheers']]);
+  assert.equal(style.voice.voices.length, 1);
+  assert.deepEqual(style.voice.voices[0].neverUse, ['synergy']);
+  assert.match(style.voice.note, /grants nothing/);
 });
 
-test('persona in a run with files: the harness writing turn carries the writer\'s persona too', async () => {
+test('native jobs with files still carry the writer persona and omit an unset voice', async t => {
   const env = await agentBusiness();
   await set(env, { ...PERSONA, signOff: 'Cheers' }, 'packager');
-  const order = await episodeOrder(env);
-  await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets, then the emergency fund.', 'utf8').toString('base64') });
-  const started = await env.call('venture.delivery.run', { orderId: order.id });
-  await env.call('venture.delivery.approve', { runId: started.id, digest: started.preview.digest });
-  const write = env.models.previewed.filter(task => task.purpose === 'delivery').at(-1)!;
-  assert.ok(write, 'the writing turn is previewed after the act turn');
-  assert.deepEqual((write.input as any).personas.items.map((item: any) => item.agent), ['Packager']);
-  assert.equal(Object.hasOwn(write.input as object, 'voice'), false, 'no voice set: none in the input');
+  const { style } = await nativeStyle(env, t, true);
+  assert.deepEqual(style.personas.items.map((item: any) => item.agent), ['Packager']);
+  assert.equal(Object.hasOwn(style, 'voice'), false);
 });
 
 test('persona: an action aimed at clients and romanized Hindi fact words are refused; a field over its length says so', async () => {

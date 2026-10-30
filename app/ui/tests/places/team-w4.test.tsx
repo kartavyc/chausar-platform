@@ -168,7 +168,7 @@ describe('Team w4: jobs done this week', () => {
 });
 
 describe('Team w4: one department', () => {
-  it('#/team?dept=prod: the hero with three stat boxes and the rupees beside the spend, how it runs with its gates and the version a change makes, recent work', async () => {
+  it('#/team?dept=prod: the hero with three stat boxes and the rupees beside the spend, how it runs with its step descriptions and the version a change makes, recent work', async () => {
     start('#/team?dept=prod');
     const hero = await within(main()).findByRole('region', { name: 'Production' });
     expect(hero.querySelectorAll('[data-count]')).toHaveLength(2);
@@ -179,8 +179,11 @@ describe('Team w4: one department', () => {
     // The rate once on the page: beside the hero's figure, not again after the held words.
     expect(main().textContent!.split('per $1').length - 1).toBe(1);
     const flow = await within(main()).findByRole('region', { name: 'How Production runs' });
+    expect(within(flow).getByText('Your AI reviews routine steps. You approve each outside action.')).toBeTruthy();
+    expect(flow.textContent).not.toMatch(/Auto steps run|Hold steps wait|Locked steps always/);
     expect(within(flow).queryByText('Publish to YouTube')).toBeNull();
-    expect(within(flow).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
+    expect(within(flow).getByText('Finishing check')).toBeTruthy();
+    expect(within(flow).queryByRole('switch')).toBeNull();
     await waitFor(() => expect(flow.textContent).toMatch(/An instruction change makes version \d+\. You can undo it\./));
     expect(await within(main()).findByRole('region', { name: 'Recent work' })).toBeTruthy();
     await settle();

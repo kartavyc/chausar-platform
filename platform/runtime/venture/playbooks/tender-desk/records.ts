@@ -5,6 +5,6 @@
 
 /** One actual source question and its exact owner approval. */
 import type {TenderQuestion,TenderTone} from './questions.ts';
-export type TenderPreview={callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;expiresAt:string;payer?:string};
+export type TenderPreview={clientAi?:import('../../clients/ai-consent-core.ts').ClientAiContextBinding;callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;payer?:string};
 export type TenderSourceSelection={rfpFileId:string|null;documentFileIds:string[];issuerFileId:string|null;mapping:{sheet:string;questionColumn:string;answerColumn:string;firstRow:number;lastRow:number}|null};
 export type TenderQuestionBody={orderId:string;clientId:string;sourceDigest:string;selection:TenderSourceSelection;question:TenderQuestion;controls:{lengthWords:number;tone:TenderTone};approval:string|null;aiRequest:{preview:TenderPreview;binding:string}|null;aiCallIds:string[]};

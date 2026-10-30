@@ -27,7 +27,7 @@ import {
 } from './judge/claim-check.ts';
 import { comparePair, type PairAsk } from './judge/pairwise.ts';
 import { DRAFT_RULES, judgeByRules, notRuled, type JudgeRule, type RulesAsk, type RulesInput, type RulesVerdict } from './judge/rules.ts';
-import { traceFromHarness } from './judge/trace.ts';
+import { traceFromHarness, type TraceEvent } from './judge/trace.ts';
 import { errorCode, quote } from './shared.ts';
 
 export const MIN_DRAFT_CHARS = 40;
@@ -453,6 +453,8 @@ export type DraftRulesInput = {
   clientRequest: string;
   harness?: HarnessState | null;
   receipts?: readonly { id: string; explanation?: string }[];
+  /** Code-owned evidence selected from this native run, never a reconstructed tool loop. */
+  evidence?: readonly TraceEvent[];
   /** Who the client is and what the reply should achieve, in plain words. */
   context: string;
   containsClientData: boolean;
@@ -482,7 +484,7 @@ export async function judgeDraftRules(ask: RulesAsk, input: DraftRulesInput): Pr
 export function draftRulesInput(input: DraftRulesInput): RulesInput {
   const trace = traceFromHarness(input.harness ?? null, {
     receipts: input.receipts,
-    extra: [{ id: 'client-message', kind: 'client', summary: input.clientRequest }, { id: 'draft', kind: 'draft', summary: input.draft }],
+    extra: [...(input.evidence ?? []), { id: 'client-message', kind: 'client', summary: input.clientRequest }, { id: 'draft', kind: 'draft', summary: input.draft }],
   });
   return { rules: input.rules ?? DRAFT_RULES, trace, draft: input.draft, containsClientData: input.containsClientData, ...(input.context ? { context: input.context } : {}) };
 }

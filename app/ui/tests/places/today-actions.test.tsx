@@ -212,7 +212,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     await press(within(box).getByRole('button', { name: 'Send back' }));
     expect(calls(spy, 'venture.queue.sendBack')).toEqual([{ rowId: 'run:d-ep14:review-1', digest: expect.any(String), text: 'Revise this to cut the intro to 20 seconds' }]);
     const decided = document.querySelector<HTMLElement>('[data-row-id="run:d-ep14:review-1"][data-decided]')!;
-    expect(decided.textContent).toContain('Sent back. The revision waits for your approval before anything goes to your AI.');
+    expect(decided.textContent).toContain('Sent back. The revised draft will wait for your review.');
     await press(within(decided).getByRole('button', { name: 'Undo' }));
     expect(calls(spy, 'venture.queue.undo')).toEqual([{ rowId: 'run:d-ep14:review-1' }]);
     expect(document.querySelector('[data-row-id="run:d-ep14:review-1"]')!.textContent).toContain('Restored until you edit this again.');

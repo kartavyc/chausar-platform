@@ -35,7 +35,6 @@ const NOT_FOUND = 'That agent was not found.';
 const KEY_REFUSED = 'That looks like a key. Keys go in Connections, never in chat.';
 const FLOOR_REPLY = 'That needs your approval on Today.';
 const WORK_REPLY = 'I can start on that as a new order. Check the details in New order, then create it.';
-const ANSWERED_LINE = 'I passed this on as your answer to my question. The next step waits for your approval on Today.';
 const STANDING_REPLY = "You said 'from now on', so here is the change to my instructions.";
 const NOTE_REPLY = 'Here is the note I would keep. Nothing is saved until you accept it.';
 const NOTE_KEPT_LINE = "I'll keep this note. You can correct it, forget it or undo it in my notes.";
@@ -465,11 +464,6 @@ export class FakeAgentsDesk {
     if (kind === 'note') return this.noteRequest(book, agent, words);
 
     const waiting = this.waiting(agent);
-    if (waiting && !onlyAsks(words)) {
-      const said = this.put(book, agent.id, 'owner', words, { answered: { runId: waiting.runId } });
-      this.answerRun(waiting.runId);
-      return { added: [this.asItem(said)], line: ANSWERED_LINE };
-    }
     if (!onlyAsks(words) && FLOOR_WORDS.some((pattern) => pattern.test(words))) {
       const said = this.put(book, agent.id, 'owner', words);
       const proposalId = this.raiseFloor(agent, words);
@@ -518,17 +512,6 @@ export class FakeAgentsDesk {
     });
     this.host.ask('venture.proposals.raise', { id: drafted.id });
     return drafted.id;
-  }
-
-  /** A reply while the run waits on the owner's question is its answer: the question closes and the Today card goes. */
-  private answerRun(runId: string): void {
-    const run = this.runs().find((r) => r.runId === runId);
-    if (!run) return;
-    delete run.question;
-    for (const step of run.steps) if (step.state === 'waiting') step.state = 'done';
-    this.host.setRows(this.host.rows().filter((row) => !(row.kind === 'question' && row.viewRef?.kind === 'run' && row.viewRef.id === runId)));
-    this.host.emit({ type: 'run.step', businessId: this.host.current(), runId, at: this.host.now() });
-    this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.host.now() });
   }
 
   /** storeInstruction: the template patch from the owner's words, on the agent's first guided step, as a drafted proposal. */

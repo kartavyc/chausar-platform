@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type DeliveryLite, type MethodName } from '../../src/engine/types';
+import { EngineError, type DeliveryLite, type MethodName, type ClientAiConsentView, type JudgePreview } from '../../src/engine/types';
 
 // Work > order, Ink v2 wave 2 package 2C2 (Q1 screen): the rules judge on a ready draft. "Ask the judge" previews the
 // call (venture.delivery.judge), "Send to the judge" sends it with the digest read (venture.delivery.judgeSend), and
@@ -22,6 +22,7 @@ const EDITED = "Your edit is your own words, so the quality check does not read 
 async function start(hash: string, options: StartOptions = {}) {
   window.location.hash = hash;
   const engine = options.engine ?? new FakeEngine({ now: () => NOW });
+  if (hash.includes('o-boat-14')) await allowQuality(engine);
   const client = createFakeClient(engine);
   const calls: Call[] = [];
   const request = client.request.bind(client);
@@ -38,6 +39,7 @@ async function start(hash: string, options: StartOptions = {}) {
 async function withAi(): Promise<FakeEngine> {
   const engine = new FakeEngine({ now: () => NOW });
   await engine.request('venture.models.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: 'consent-anthropic', apiKey: 'a-test-key-for-the-fake' });
+  await allowQuality(engine);
   return engine;
 }
 const judgeRegion = () => screen.findByRole('region', { name: 'Quality check' });
@@ -127,7 +129,7 @@ describe('Work: asking the judge about a ready draft', () => {
     const why = 'Quality check did not finish: Check quality again; the call you read is no longer available. Check quality again.';
     const waiting: DeliveryLite = {
       ...READY,
-      judge: { status: 'waiting', auto: false, line: null, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', expiresAt: '2026-10-23T10:30:00.000Z' } },
+      judge: { status: 'waiting', auto: false, line: null, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' } },
     };
     const failedNow: DeliveryLite = { ...READY, judge: { status: 'failed', preview: null, auto: false, line: why, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: null } };
     let stale = false;
@@ -135,7 +137,7 @@ describe('Work: asking the judge about a ready draft', () => {
       engine: await withAi(),
       intercept: {
         'venture.delivery.list': () => [stale ? failedNow : waiting],
-        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', expiresAt: '2026-10-23T10:30:00.000Z', containsClientData: true }),
+        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', containsClientData: true }),
         'venture.delivery.judgeSend': () => { stale = true; throw new EngineError('APPROVAL_STALE', 'Check quality again; the call you read is no longer available.'); },
       },
     });
@@ -154,7 +156,7 @@ describe('Work: asking the judge about a ready draft', () => {
       engine: await withAi(),
       intercept: {
         'venture.delivery.list': () => [stale ? failedNow : READY],
-        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', expiresAt: '2026-10-23T10:30:00.000Z', containsClientData: true }),
+        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', containsClientData: true }),
         'venture.delivery.judgeSend': () => { stale = true; throw new EngineError('APPROVAL_STALE', 'Check quality again; the call you read is no longer available.'); },
       },
     });
@@ -196,7 +198,7 @@ describe('Work: the judge on its own', () => {
       ...READY,
       judge: {
         status: 'waiting', auto: true, line: JUDGE_ON, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)',
-        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', expiresAt: '2026-10-23T10:30:00.000Z' },
+        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' },
       },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [waiting] } });
@@ -221,7 +223,7 @@ describe('Work: the judge on its own', () => {
       ...READY,
       judge: {
         status: 'waiting', auto: true, line: capped, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)',
-        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', expiresAt: '2026-10-23T10:15:00.000Z' },
+        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' },
       },
     };
     const { calls } = await start('#/work?order=o-boat-14', {
@@ -250,6 +252,7 @@ describe('Work: the judge on its own', () => {
 describe('the fake engine judges by the engine rules', () => {
   it('previews once, sends once with the digest read, and stores the verdict on the draft', async () => {
     const engine = new FakeEngine({ now: () => NOW });
+    await allowQuality(engine);
     await expect(engine.request('venture.delivery.judge', { runId: 'd-ep14-script' })).rejects.toMatchObject({ code: 'NO_MODEL_CONNECTED', message: NO_AI });
     await expect(engine.request('venture.delivery.judge', { runId: 'nope' })).rejects.toMatchObject({ code: 'DELIVERY_NOT_FOUND' });
     await expect(engine.request('venture.delivery.judge', { runId: 'd-ep12-script' })).rejects.toMatchObject({ code: 'JUDGE_NOT_READY' });
@@ -282,10 +285,10 @@ describe('the fake engine judges by the engine rules', () => {
     }
   });
 
-  it('a call waits thirty minutes, as the model port keeps a preview', async () => {
+  it('an unchanged quality request has no fixed preview expiry', async () => {
     const engine = await withAi();
-    const preview = (await engine.request('venture.delivery.judge', { runId: 'd-ep14-script' })) as { expiresAt: string };
-    expect(preview.expiresAt).toBe('2026-10-23T10:30:00.000Z');
+    const preview = await engine.request('venture.delivery.judge', { runId: 'd-ep14-script' });
+    expect(preview).not.toHaveProperty('expiresAt');
   });
 
   it("a send the owner asked for records no standing consent; sending the automatic call shown with the setting's words does", async () => {
@@ -309,4 +312,24 @@ describe('the fake engine judges by the engine rules', () => {
     expect(listed.find((d) => d.id === 'd-ep14-script')).toMatchObject({ canAccept: true, acceptBlocked: null });
     await expect(engine.request('venture.delivery.judgeSend', { runId: 'd-ep14-script', digest: 'a'.repeat(64) })).rejects.toMatchObject({ code: 'JUDGE_NOT_WAITING' });
   });
+});
+
+async function allowQuality(engine: FakeEngine) {
+  const view = await engine.request('venture.client.aiConsent.get', { clientId: 'c-boat' }) as ClientAiConsentView;
+  await engine.request('venture.client.aiConsent.agree', { clientId: 'c-boat', disclosureDigest: view.disclosureDigest });
+}
+it('manual quality requires client permission and cannot revive an old preview after a new grant', async () => {
+  const engine = new FakeEngine({ now: () => NOW });
+  await engine.request('venture.models.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: 'consent-anthropic', apiKey: 'a-test-key-for-the-fake' });
+  await expect(engine.request('venture.delivery.judge', { runId: 'd-ep14-script' })).rejects.toMatchObject({ code: 'CLIENT_AI_CONSENT_REQUIRED' });
+  await allowQuality(engine);
+  const old = await engine.request('venture.delivery.judge', { runId: 'd-ep14-script' }) as JudgePreview;
+  await engine.request('venture.client.aiConsent.withdraw', { clientId: 'c-boat' });
+  await expect(engine.request('venture.delivery.judgeSend', { runId: old.runId, digest: old.digest })).rejects.toMatchObject({ code: 'CLIENT_AI_CONSENT_REQUIRED' });
+  await allowQuality(engine);
+  await expect(engine.request('venture.delivery.judgeSend', { runId: old.runId, digest: old.digest })).rejects.toMatchObject({ code: 'CLIENT_AI_CONSENT_CHANGED' });
+  const fresh = await engine.request('venture.delivery.judge', { runId: old.runId }) as JudgePreview;
+  expect(fresh.digest).not.toBe(old.digest);
+  await expect(engine.request('venture.delivery.judgeSend', { runId: old.runId, digest: old.digest })).rejects.toMatchObject({ code: 'APPROVAL_STALE' });
+  expect((await engine.request('venture.delivery.judgeSend', { runId: fresh.runId, digest: fresh.digest }) as DeliveryLite).judge?.status).toBe('done');
 });

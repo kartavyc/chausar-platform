@@ -4,7 +4,7 @@ import axe from 'axe-core';
 import { App } from '../../src/shell/App';
 import { EngineProvider } from '../../src/engine/context';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type AgentView, type DepartmentView, type EngineClient, type RunSummary, type TeamListView } from '../../src/engine/types';
+import type { AgentView, DepartmentView, EngineClient, RunSummary, TeamListView } from '../../src/engine/types';
 import { TextProvider } from '../../src/text';
 import { DepartmentPanel } from '../../src/places/team/DepartmentPanel';
 import { OneDepartment } from '../../src/places/team/OneDepartment';
@@ -361,7 +361,7 @@ describe('Team v2: with departments from the engine', () => {
     it(`passes axe with departments at ${hash}`, async () => {
       const { container } = start(hash, { intercept: withDepartments });
       await screen.findByRole('group', { name: 'Show departments' });
-      await within(main()).findAllByRole(hash.includes('dept=') ? 'switch' : 'article');
+      await within(main()).findAllByRole(hash.includes('dept=') ? 'listitem' : 'article');
       await settle();
       const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] });
       expect(result.violations.flatMap((v) => v.nodes.map((node) => `${v.id}: ${node.target.join(' ')}`))).toEqual([]);
@@ -386,7 +386,7 @@ describe('Team v2: one department', () => {
     ],
   };
 
-  it('a hero panel with three stat boxes, the flow with gates, and recent work', () => {
+  it('a hero panel with three stat boxes, the flow with step descriptions, and recent work', () => {
     renderWithEngine(<OneDepartment data={data} />);
     const hero = screen.getByRole('region', { name: 'Production' });
     expect(hero.getAttribute('data-dept')).toBe('prod');
@@ -399,8 +399,8 @@ describe('Team v2: one department', () => {
     const flow = screen.getByRole('region', { name: 'How Production runs' });
     const steps = within(flow).getAllByRole('listitem');
     expect(steps).toHaveLength(3);
-    expect(within(steps[0]!).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
-    expect(within(steps[1]!).getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    expect(within(steps[0]!).queryByRole('switch')).toBeNull();
+    expect(within(steps[1]!).queryByRole('switch')).toBeNull();
     expect(within(steps[2]!).queryByRole('switch')).toBeNull();
     expect(steps[2]!.textContent).toContain('Always asks you');
     // No version line until the engine versions the playbook (W4 4B).
@@ -427,35 +427,9 @@ describe('Team v2: one department', () => {
     expect(screen.queryByRole('region', { name: 'How Operations runs' })).toBeNull();
   });
 
-  const finishSwitch = () => within(screen.getByRole('region', { name: 'How Production runs' }))
-    .getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' });
 
-  it('a flow gate keeps the engine\'s answer while the team is read again, and if that read never lands', async () => {
-    let reloads = 0;
-    renderWithEngine(<OneDepartment data={data} onChanged={() => { reloads += 1; }} />);
-    expect(finishSwitch().getAttribute('aria-checked')).toBe('false');
-    await act(async () => { fireEvent.click(finishSwitch()); });
-    await waitFor(() => expect(reloads).toBe(1));
-    await settle();
-    // The props still say Hold (the reload has not landed); the switch holds the engine's reply, Auto.
-    expect(finishSwitch().getAttribute('aria-checked')).toBe('true');
-  });
 
-  it('a refused flow gate says why under its step and goes back', async () => {
-    const base = createFakeClient(new FakeEngine());
-    const client: EngineClient = {
-      ...base,
-      request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.team.gate'
-        ? Promise.reject(new EngineError('OFFLINE', 'The engine is not answering.'))
-        : base.request(method as never, params as never))) as EngineClient['request'],
-    };
-    render(<EngineProvider client={client}><TextProvider language="en"><OneDepartment data={data} /></TextProvider></EngineProvider>);
-    await act(async () => { fireEvent.click(finishSwitch()); });
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toBe("Couldn't change this: The engine is not answering.");
-    expect(alert.closest('li')!.textContent).toContain('Finishing check');
-    expect(finishSwitch().getAttribute('aria-checked')).toBe('false');
-  });
+
 
   it('on a narrow page each stat box takes its own row, so a long figure is never cut', () => {
     const css = readFileSync(join(import.meta.dirname, '../../src/places/team/Team.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -510,19 +484,13 @@ describe('Team v2: the agent panel', () => {
     expect(all.at(-2)!.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('Steps: the postures as radio cards, each with what it means, and the steps with their gates', async () => {
+  it('Instructions: AI review settings and steps without old posture controls', async () => {
     start();
     const panel = await openPanel();
-    const group = within(panel).getByRole('group', { name: 'How much it asks you' });
-    const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
-    expect(radios).toHaveLength(4);
-    const shadow = within(group).getByRole('radio', { name: 'Practice on real orders' });
-    expect(shadow.getAttribute('aria-describedby')).toBeTruthy();
-    expect(document.getElementById(shadow.getAttribute('aria-describedby')!)!.textContent).toBe('Works on real orders, but anything outside Chausar is only simulated.');
-    for (const radio of radios) expect(radio.closest('[data-choice]')).not.toBeNull();
-    expect(radios.find((r) => r.checked)!.closest('[data-choice]')!.hasAttribute('data-chosen')).toBe(true);
+    expect(within(panel).getByRole('link',{name:'AI review settings'})).toBeTruthy();
+    expect(within(panel).queryByRole('radio')).toBeNull();
     expect(within(within(panel).getByRole('list', { name: 'Steps' })).getAllByRole('listitem').map(item => item.textContent)).toEqual([
-      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold',
+      'Cut the episode', 'Cut shorts from the episode', 'Finishing check',
     ]);
     assertInkRules(document.body);
   });

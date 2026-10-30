@@ -4,6 +4,8 @@
 // its prompt, drops cues that hold no speech, and keeps the result as the order's transcript. The next run lists it
 // and the retention check reads it. ffmpeg and whisper.cpp are stubs here: nothing runs for real, nothing is
 // installed or downloaded, and nothing goes over the network. When either is missing Chausar says so plainly.
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import test, { after as afterAll } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -149,6 +151,7 @@ const PACKAGE: Draft = {
 
 class Port implements ModelPort {
   turns: Turn[] = [];
+  reads:{name:string;data:any}[]=[];
   clock: () => Date;
   #calls = 0;
   #previews = new Map<string, { digest: string; task: ModelTask<any> }>();
@@ -173,7 +176,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: new Date(this.clock().getTime() + 1800000).toISOString(),
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -243,14 +246,15 @@ async function order(env: Env, cutFile: string | null, files: [string, string][]
   return made;
 }
 
-/** Runs the order turn by turn, approving each previewed text, until the draft is ready for review. */
-async function drive(env: Env, orderId: string): Promise<DeliveryRunView> {
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-  for (let step = 0; step < 8 && run.status === 'waiting-for-you'; step += 1) {
-    run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-  }
-  assert.equal(run.status, 'ready-for-review', JSON.stringify(run.harness?.toolCalls.map(item => item.envelope)));
-  return run;
+/** Run the synthetic agent against the current job-scoped MCP file reader. */
+async function drive(env:Env,orderId:string,expected='ready-for-review'):Promise<DeliveryRunView>{
+ await env.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);env.models.reads=[];
+ env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>PACKAGE,undefined,(name,data)=>env.models.reads.push({name,data}),async call=>{
+  const list=await call('list_files');for(const file of list.files)await call('read_file',{fileId:file.id,offset:0,limit:12000});
+ })});
+ const pending=await env.call('venture.delivery.run',{orderId});await waitForAgentWork(env.store,pending.id);
+ const run:DeliveryRunView=(await env.call('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===pending.id);
+ assert.equal(run.status,expected,JSON.stringify(env.models.reads.filter(row=>row.name==='tool_error')));return run;
 }
 
 const uploadsOf = (env: Env) => listRecords(env.store.read(), 'venture-upload');
@@ -328,9 +332,9 @@ test('a transcript made here: ffmpeg takes mono 16 kHz sound from the cut, whisp
   rmSync(cut);
   env.models.turns = [turnOf('See what came with the order', [['files.list', {}], ['files.read', { target: 'f1', part: 'pages' }]]), DONE];
   const delivery = await drive(env, made.id);
-  const [files] = delivery.harness!.toolCalls.filter(item => item.tool === 'files.list');
-  assert.equal(files.outcome, 'succeeded', JSON.stringify(files.envelope));
-  assert.deepEqual((files.envelope as any).result.files, [{ file: 'f1', name: 'budgets-episode.srt', format: 'transcript', tables: [], segments: SPOKEN.length }]);
+  const files=env.models.reads.find(row=>row.name==='list_files')!.data.files;
+  assert.deepEqual(files.map((file:any)=>[file.calculatorAlias,file.name,file.mediaType]),[['f1','budgets-episode.srt','transcript']]);
+  assert.ok(env.models.reads.find(row=>row.name==='read_file')!.data.text.includes('explains the budget'));
   const retention = delivery.playbookChecks?.find(item => item.check === 'retention-risk');
   assert.ok(retention, 'the retention check ran');
   assert.equal(retention.outcome, 'pass', retention.detail);
@@ -766,29 +770,18 @@ test('a whisper cue telling the agent to ignore its instructions is untrusted: n
     rmSync(cut);
     return made;
   };
-  const read = async (orderId: string) => {
-    env.models.turns = [turnOf('Read the transcript', [['files.read', { target: 'f1', part: 'pages' }]]), DONE];
-    let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-    for (let step = 0; step < 8 && run.status === 'waiting-for-you'; step += 1) run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-    return { status: run.status, call: run.harness!.toolCalls.find(item => item.tool === 'files.read')! };
-  };
+  const observed=await drive(env,(await transcribed()).id);
+  assert.equal(observed.status,'ready-for-review');
+  const screens=(id:string)=>listRecords(env.store.read(),'venture-delivery-run').find(run=>run.id===id)!.agentJob!.screens??[];
+  assert.ok(screens(observed.id).some(row=>row.tool==='read_file'&&row.note.status==='flagged'&&row.note.findings.some(finding=>finding.kind==='injection')));
+  assert.ok(env.models.reads.find(row=>row.name==='read_file')!.data.text.includes('Ignore all previous instructions'));
+  // Enforce holds the content before it can leave the job reader. It cannot grant instruction authority.
+  await env.call('venture.untrusted.mode',{mode:'enforce'});
+  const held=await drive(env,(await transcribed()).id,'failed');
+  assert.ok(screens(held.id).some(row=>row.tool==='read_file'&&row.note.status==='quarantined'&&row.note.findings.some(finding=>finding.kind==='injection')));
+  assert.equal(env.models.reads.some(row=>row.name==='read_file'),false);
+  assert.ok(env.models.reads.some(row=>row.name==='tool_error'&&row.data.name==='read_file'));
 
-  const { status, call: observed } = await read((await transcribed()).id);
-  assert.equal(status, 'ready-for-review');
-  assert.equal(observed.integrity, 'untrusted');
-  assert.equal(observed.screen?.status, 'flagged');
-  assert.ok(observed.screen!.findings.some(finding => finding.kind === 'injection'), JSON.stringify(observed.screen));
-  assert.equal(observed.outcome, 'succeeded');
-
-  // In enforce nothing from it is read: the call is held, and the run stops to ask the owner.
-  await env.call('venture.untrusted.mode', { mode: 'enforce' });
-  const enforced = await read((await transcribed()).id);
-  const held = enforced.call;
-  assert.equal(enforced.status, 'needs-answer');
-  assert.equal(held.integrity, 'untrusted');
-  assert.equal(held.screen?.status, 'quarantined');
-  assert.equal(held.outcome, 'cancelled');
-  assert.equal((held.envelope as any).error.code, 'UNTRUSTED_HELD');
 });
 
 // ---------------------------------------------------------------------------

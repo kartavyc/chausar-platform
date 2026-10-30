@@ -16,11 +16,84 @@ import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
 import { handlers as networkHandlers } from '../runtime/venture/network/index.ts';
 import { code, owner, phone } from './venture-judge-helpers.ts';
 import { episodeOrder, OWN_FOOTAGE, TEST_CARD } from './venture-agent-helpers.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
+import { withdrawClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
+import { chiefClientContext } from '../runtime/venture/chief/client-context.ts';
+import { runTool } from '../runtime/venture/chief/tools.ts';
 import {
   answer, chatConsent, chiefBusiness, chiefEvents, figure, figuresOf, proposal, scriptChief, text, tools, type ChiefEnv,
 } from './venture-chief-helpers.ts';
 
 const QUESTION = 'Can we hit 1.5 lakh this month?';
+
+test('chief: a tool view cannot borrow another client grant after an order is reassigned during its read', async () => {
+  const env = await chiefBusiness(), original = await episodeOrder(env);
+  await env.call('venture.delivery.run', { orderId: original.id, useTemplate: true });
+  const other = await env.call('venture.client.add', { name: 'Permitted Client' });
+  const otherOrder = await env.call('venture.order.create', { clientId: other.id, offerId: 'offer_1', request: 'Separate episode.', intake: { rights: OWN_FOOTAGE, format: 'long' } });
+  await consentForOrder(env.deps, owner, otherOrder.id);
+  const old = env.store.read(), venture = listRecords(old, 'venture-record')[0]!, priorClient = listRecords(old, 'venture-client').find(row => row.id === original.clientId)!;
+  const scope = chiefClientContext(env.deps, venture.id);
+  await ventureAction(env.deps, owner, 'prepare', 'test.reassign-during-chief-read', tx => tx.replace({ ...tx.find('venture-order', original.id)!, clientId: other.id }));
+  // The read handler has already captured its old snapshot while the permission check sees the committed reassignment.
+  const reading = { ...env.deps, store: { read: () => old, update: env.store.update.bind(env.store) } };
+  const result = await runTool(reading, owner, 'runs', scope);
+  assert.equal(JSON.stringify(result).includes(priorClient.name), false, 'old unconsented client bytes never borrow the new client permission');
+});
+
+test('chief: unconsented client records stay local while owner business context remains available', async () => {
+  const env = await chiefBusiness(); await chatConsent(env);
+  const client = await env.call('venture.client.add', { name: 'Private Cedar Client', email: 'cedar@example.com' });
+  const order = await env.call('venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'Confidential cedar episode.', intake: { rights: OWN_FOOTAGE, format: 'long' } });
+  await env.call('venture.invoice.prepare', { orderId: order.id });
+  const billed = await env.call('venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'Another confidential cedar episode.', intake: { rights: OWN_FOOTAGE, format: 'long' } });
+  const invoice = await env.call('venture.invoice.prepare', { orderId: billed.id });
+  await env.call('venture.invoice.issue', { invoiceId: invoice.invoice.id, digest: invoice.invoice.digest });
+  await env.call('venture.delivery.run', { orderId: order.id, useTemplate: true });
+  let tasks = scriptChief(env, [tools('clients', 'runs', 'queue', 'team', 'money', 'journal', 'plan'), answer([text('Review the business in Chausar.')])]);
+  await env.chief('venture.chief.thread.send', { text: 'What needs me today?' });
+  const sent = JSON.stringify(tasks.map(task => task.input));
+  assert.doesNotMatch(sent, /Private Cedar Client|cedar@example\.com|Confidential cedar episode/);
+  assert.equal(sent.includes(order.id), false);
+  assert.equal(sent.includes(invoice.invoice.id), false);
+  assert.ok((tasks[1].input as any).results.some((row: any) => row.tool === 'plan' && row.data.offers.length));
+  assert.equal((await env.call('venture.client.list')).some((row: any) => row.name === client.name), true, 'owner reads retain local client records');
+  await consentForOrder(env.deps, owner, order.id);
+  tasks = scriptChief(env, [tools('clients'), answer([text('Review the client in Chausar.')])]);
+  await env.chief('venture.chief.thread.send', { text: 'Which clients are open?' });
+  assert.match(JSON.stringify(tasks[1].input), /Private Cedar Client/);
+});
+
+test('chief: a client source changed after dispatch cannot be saved as a current answer', async () => {
+  const env = await chiefBusiness(); await chatConsent(env);
+  const order = await episodeOrder(env); await consentForOrder(env.deps, owner, order.id);
+  scriptChief(env, [tools('clients'), answer([text('Old client answer.')])]);
+  env.models.onSend = async task => {
+    if (task.purpose === 'chief-chat' && (task.input as any).turn === 2) await ventureAction(env.deps, owner, 'prepare', 'test.changed-chief-source', tx => {
+      tx.replace({ ...tx.find('venture-order', order.id)!, request: 'Changed source for the episode.' });
+    });
+  };
+  await assert.rejects(env.chief('venture.chief.thread.send', { text: 'Which orders are open?' }), code('JOB_SOURCE_CHANGED'));
+  assert.equal(listRecords(env.store.read(), 'venture-chief-message').some(row => row.text.includes('Old client answer')), false);
+});
+
+for (const phase of ['preview', 'dispatch', 'response', 'regrant'] as const) test(`chief: exact client permission is rechecked at ${phase}`, async () => {
+  const env = await chiefBusiness(); await chatConsent(env);
+  const order = await episodeOrder(env); await consentForOrder(env.deps, owner, order.id);
+  const clientId = order.clientId; let secondCall = false;
+  scriptChief(env, [tools('clients'), answer([text('Private client answer.')])]);
+  const revoke = async () => { await withdrawClientAiConsent(env.deps, owner, { clientId }); if (phase === 'regrant') await consentForOrder(env.deps, owner, order.id); };
+  const preview = env.models.preview.bind(env.models), send = env.models.runPreview.bind(env.models);
+  env.models.preview = async (ctx, task) => { secondCall = task.purpose === 'chief-chat' && (task.input as any).turn === 2; const made = await preview(ctx, task); if (secondCall && phase === 'preview') await revoke(); return made; };
+  env.models.runPreview = async (ctx, id, approved, validate, options) => {
+    if (secondCall && (phase === 'dispatch' || phase === 'regrant')) await revoke();
+    const result = await send(ctx, id, approved, validate, options);
+    if (secondCall && phase === 'response') await revoke();
+    return result;
+  };
+  await assert.rejects(env.chief('venture.chief.thread.send', { text: 'Which clients need me?' }), code(phase === 'regrant' ? 'CLIENT_AI_CONSENT_CHANGED' : 'CLIENT_AI_CONSENT_REQUIRED'));
+  assert.equal(listRecords(env.store.read(), 'venture-chief-message').some(row => row.text.includes('Private client answer')), false);
+});
 
 test('chief: a question makes a thread titled by it, stores both messages and announces each with ids only', async () => {
   const env = await chiefBusiness();
@@ -272,7 +345,9 @@ test('chief: outside words in the records never reach the prompt, labels and age
   const drafted = await order('One long episode on savings.');
   await env.call('venture.invoice.prepare', { orderId: drafted.id });
   const running = await order('One long episode on loans.');
-  await env.call('venture.delivery.run', { orderId: running.id });
+  await consentForOrder(env.deps, owner, running.id);
+  // Populate the chief's run summary without sending this client's source to a delivery model.
+  await env.call('venture.delivery.run', { orderId: running.id, useTemplate: true });
   const tasks = scriptChief(env, [tools('queue', 'runs', 'team', 'money', 'clients', 'journal'), answer([text('Here is the state of things.')])]);
   await env.chief('venture.chief.thread.send', { text: 'What needs me today?' });
   assert.equal(tasks.length, 2);

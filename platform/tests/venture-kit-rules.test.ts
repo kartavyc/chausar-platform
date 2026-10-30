@@ -17,7 +17,7 @@ import { runKitChecks } from '../runtime/venture/playbooks/kit/checks.ts';
 import { listRecords } from '../runtime/venture/records.ts';
 import { FIXTURE_ID, FIXTURE_RULES, TODAY, fixtureDefinition, rule } from './venture-kit-rules-helpers.ts';
 import { kitFixture } from './fixtures/venture/kit-fixture.ts';
-import { installKitFixture, kitBusiness } from './fixtures/venture/kit-business.ts';
+import { deliver, draft, installKitFixture, kitBusiness } from './fixtures/venture/kit-business.ts';
 
 const code = (expected: string, words?: RegExp) => (error: any) => {
   assert.equal(error?.code, expected, error?.message);
@@ -48,7 +48,7 @@ test('validateRules: a checkedOn after today, a value without a unit and usedBy 
   assert.throws(() => validate([rule('no-unit', { unit: undefined })]), code('RULE_INVALID', /no-unit has a value without a unit/));
   assert.throws(() => validate([rule('no-value', { value: undefined })]), code('RULE_INVALID', /no-value has a unit without a value/));
   validate([rule('neither', { value: undefined, unit: undefined })]);
-  assert.throws(() => validate([rule('lost', { usedBy: ['gather', 'publish', 'tone-check'] })]), code('RULE_INVALID', /lost is used by publish, tone-check, which the playbook has no step or check for/));
+  assert.throws(() => validate([rule('lost', { usedBy: ['gather', 'publish', 'tone-check'] })]), code('RULE_INVALID', /lost is used by publish, tone-check, which the work plan has no step or check for/));
   assert.throws(() => validate([rule('unused', { usedBy: [] })]), code('RULE_INVALID', /needs the steps or checks that use it/));
 });
 
@@ -156,6 +156,7 @@ test('a client order\'s run never starts on a rule a CA must confirm: refused be
       const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A voice sheet for Sunrise Bakery.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
       await assert.rejects(env.call('venture.delivery.run', { orderId: order.id }), code('RULE_UNCONFIRMED', /"Tax on the service"/), usedBy.join());
       assert.equal(env.models.previewed.length, 0, 'no preview, so nothing is spent');
+      assert.equal(env.models.agentReads.length, 0, 'the native agent receives no client context');
       assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 0, 'no run is left stranded');
     } finally { undo(); }
   }
@@ -164,7 +165,10 @@ test('a client order\'s run never starts on a rule a CA must confirm: refused be
   t.after(installKitFixture(confirmed));
   const env = await kitBusiness();
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A voice sheet for Sunrise Bakery.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
-  assert.equal((await env.call('venture.delivery.run', { orderId: order.id })).status, 'waiting-for-you');
+  // The positive path grants this synthetic client permission and waits for the real scoped agent workflow.
+  const ready = await deliver(env, order.id, draft('Voice sheet', { 'Voice sheet': ['A warm, plain voice for Sunrise Bakery.'] }));
+  assert.equal(ready.status, 'ready-for-review');
+  assert.ok(env.models.agentReads.some(read => read.name === 'read_client'), 'the confirmed rule permits the scoped native job');
 });
 
 test('rules-current runs for a kit playbook over the rules its run\'s checks used; a stale rule is not run and never blocks Accept', () => {

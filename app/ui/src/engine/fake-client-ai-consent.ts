@@ -1,5 +1,23 @@
 import { clientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import { EngineError, type ClientLite, type ClientAiConsentView } from './types';
+import type {W4DeskHost} from './fake-w4';
+
+type ClientAiBinding={ventureId:string;orderId:string;clientId:string;consentId:string;consentRevision:number};
+/** Same separate client grant as the native retained desk helpers. Request approval cannot replace it. */
+export function bindFakeClientAi(host:Pick<W4DeskHost,'ask'>,orderId:string,preview?:{clientAi?:ClientAiBinding}):ClientAiBinding {
+  const venture=(host.ask('venture.get',{}) as {venture?:{id?:string}}|null)?.venture;
+  const orders=host.ask('venture.order.list',{}) as {id:string;clientId:string;status?:string}[],order=Array.isArray(orders)?orders.find(order=>order.id===orderId):undefined;
+  if(!venture?.id||!order)throw new EngineError('ORDER_NOT_FOUND','Choose an order from this business.');
+  if(order.status==='cancelled')throw new EngineError('JOB_SOURCE_CHANGED','The client order changed before this AI request finished.');
+  const expected=preview?.clientAi;
+  if(preview&&(!expected||expected.ventureId!==venture.id||expected.orderId!==orderId||expected.clientId!==order.clientId))throw new EngineError('CLIENT_AI_CONSENT_CHANGED','This client AI permission changed. Prepare a new request.');
+  const clients=host.ask('venture.client.list',{}) as ClientLite[],client=Array.isArray(clients)?clients.find(client=>client.id===order.clientId):undefined;
+  if(!client)throw new EngineError('CLIENT_NOT_FOUND','Choose a client from this business.');
+  const consent=client.aiConsent;
+  if(!consent||consent.withdrawnAt)throw new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.');
+  if(expected&&(consent.id!==expected.consentId||consent.revision!==expected.consentRevision))throw new EngineError('CLIENT_AI_CONSENT_CHANGED','This client’s AI permission changed. Start a new job.');
+  return {ventureId:venture.id,orderId,clientId:client.id,consentId:consent.id,consentRevision:consent.revision};
+}
 
 /** The fake's app request surface has no model caller. Consent is part of the client, so Forget removes it too. */
 export function fakeClientAiConsent(method:string,raw:unknown,host:{clients:ClientLite[];ventureId:string;now:()=>string;changed:()=>void}):ClientAiConsentView {

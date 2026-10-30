@@ -354,3 +354,11 @@ test('close() clears the secret shelf, drops the port and refuses later requests
   await assert.rejects(host.request(owner, 'venture.get', {}), code('VAULT_LOCKED'));
   assert.equal(counter.ports, 1);
 });
+
+test('host forwards a trusted agent route without accepting a route from request data', async () => {
+ const route: NonNullable<VentureDeps['agentRoute']> = async () => { throw new Error('fixture route only'); };
+ const { loaders: fake } = loaders({ delivery: async () => ({ handlers: handlers({ 'venture.delivery.list': async deps => deps.agentRoute === route }) }) });
+ const host = new VentureHost(new VentureTestStore(), services, { ...baseOptions, agentRoute: route }, fake);
+ try { assert.equal(await host.request(owner, 'venture.delivery.list', { agentRoute: 'untrusted request' }), true); }
+ finally { host.close(); }
+});

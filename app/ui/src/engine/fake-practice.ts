@@ -10,6 +10,8 @@
  * client fails the house style, and the judge passes every draft it reads. Costs are the engine's text, never summed.
  */
 
+import { bindFakeClientAi } from './fake-client-ai-consent';
+
 import {
   EngineError, type BlueprintViewLite, type CheckLite, type DeliveryLite, type EpisodeLite, type ImprovementReadinessLite,
   type ImprovementRunLite, type ImprovementStatusLite, type JudgeAutoView, type JudgePreview, type ModelStatusLite, type PlaybookLite,
@@ -61,8 +63,6 @@ const SIGNAL_WORDS = { 'owner-edited': 'a draft you edited', 'owner-rejected': '
 interface Signal { run: DeliveryLite; source: keyof typeof SIGNAL_WORDS }
 
 const MINUTE_MS = 60_000;
-/** models/types.ts PREVIEW_TTL_MS: a previewed call waits thirty minutes. */
-const PREVIEW_MINUTES = 30;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const DIGEST = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -126,6 +126,7 @@ export class FakePracticeDesk {
   private rehearsals: Record<string, SimulationRunLite[]> = {};
   private improvements: Record<string, ImprovementRunLite[]> = {};
   private judgeAuto: Record<string, { auto: boolean; consentAt: string | null }> = {};
+  private judgeBindings = new Map<string, { digest: string; clientAi: ReturnType<typeof bindFakeClientAi> }>();
   private seq = 0;
 
   constructor(host: PracticeHost, options: { fresh?: boolean } = {}) {
@@ -434,17 +435,21 @@ export class FakePracticeDesk {
   private judge(p: Record<string, unknown>): JudgePreview {
     const runId = identifier(exact(p, ['runId'], ['runId']).runId, 'Draft reply');
     const run = this.run(runId);
+    const clientAi = bindFakeClientAi(this.host, run.orderId);
+    const key = `${this.host.current()}:${runId}`;
+    const binding = this.judgeBindings.get(key);
     const refused = this.notJudgeable(run);
     if (refused) throw refused;
     const draftDigest = this.draftDigest(run);
     const held = run.judge;
     if (held?.status === 'done' && held.draftDigest === draftDigest) throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);
-    if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && Date.parse(held.preview.expiresAt) > Date.parse(this.host.now())) {
+    if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && binding?.digest === held.preview.digest && JSON.stringify(binding.clientAi) === JSON.stringify(clientAi)) {
       return { runId, ...held.preview, containsClientData: true };
     }
     if (!this.aiServes()) throw new EngineError('NO_MODEL_CONNECTED', PRACTICE_WORDS.noAi);
     const at = this.host.now();
-    const preview = { digest: this.hex({ runId, call: ++this.seq }), estimatedMaxCostDisplay: JUDGE_COST, expiresAt: new Date(Date.parse(at) + PREVIEW_MINUTES * MINUTE_MS).toISOString() };
+    const preview = { digest: this.hex({ runId, call: ++this.seq }), estimatedMaxCostDisplay: JUDGE_COST };
+    this.judgeBindings.set(key, { digest: preview.digest, clientAi });
     this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { status: 'waiting', preview, auto: false, estimatedMaxCostDisplay: JUDGE_COST, line: null, draftDigest } }));
     this.host.emit({ type: 'run.step', businessId: this.host.current(), runId, at });
     return { runId, ...preview, containsClientData: true };
@@ -466,11 +471,9 @@ export class FakePracticeDesk {
     const refused = this.notJudgeable(run);
     if (refused) throw refused;
     if (held.draftDigest !== this.draftDigest(run)) throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.changed);
+    const binding = this.judgeBindings.get(`${biz}:${runId}`);
+    bindFakeClientAi(this.host, run.orderId, binding?.digest === held.preview.digest ? binding : {});
     const at = this.host.now();
-    if (Date.parse(held.preview.expiresAt) <= Date.parse(at)) {
-      this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { ...held, status: 'failed', preview: null, line: `The quality check did not finish: ${PRACTICE_WORDS.expired} Ask the quality check again.` } }));
-      throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.expired);
-    }
     // Sending the automatic call that was shown with the setting's own words is the standing consent, recorded once.
     // A call the owner asked for records nothing.
     const setting = this.judgeAuto[biz] ?? { auto: true, consentAt: null };

@@ -21,7 +21,7 @@ export class FakeR5Delivery {
   this.bindings.set(this.key(id),{orderId:order.id,digest:report.digest});this.hooks.keep(run);this.queue(run);return structuredClone(run);
  }
  request(method:string,p:Record<string,unknown>):DeliveryLite{
-  roomExact(p,method==='venture.delivery.approve'?['runId','digest']:['runId','verdict','reason','editedText'],method==='venture.delivery.approve'?['runId','digest']:['runId','verdict']);
+  roomExact(p,['runId','verdict','reason','editedText'],['runId','verdict']);
   if(method==='venture.delivery.review'){
    need(['accepted','edited','rejected'].includes(String(p.verdict))&&typeof p.verdict==='string','INVALID_VENTURE_REQUEST','Choose accept, edit or reject.');
    if(p.reason!==undefined)need(typeof p.reason==='string'&&['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other'].includes(p.reason),'INVALID_VENTURE_REQUEST','Choose a reason from the list.');
@@ -29,7 +29,7 @@ export class FakeR5Delivery {
    if(p.verdict==='rejected')need(p.reason!==undefined,'INVALID_VENTURE_REQUEST','Choose why you reject this draft.');if(p.verdict==='accepted')need(p.reason===undefined,'INVALID_VENTURE_REQUEST','An accepted draft needs no reason.');
   }
   const run=this.hooks.deliveries().find(r=>r.id===p.runId) as Run|undefined;need(run,'DELIVERY_NOT_FOUND','That draft reply was not found.');const r=run!;
-  if(method==='venture.delivery.approve')throw new EngineError('DELIVERY_NOT_WAITING','This draft reply is not waiting for your approval.');
+
   need(r.status==='ready-for-review','DELIVERY_NOT_READY','This draft reply is not ready for review.');const binding=this.bindings.get(this.key(r.id))!;
   if(p.verdict!=='rejected')need(this.host.r5Report!(binding.orderId).digest===binding.digest&&p.verdict!=='edited','DERIVED_STALE','Review the current source evidence in its desk and prepare a new report.');
   if(p.verdict==='accepted')need(r.canAccept,'DELIVERY_CHECK_FAILED','Resolve the checks before accepting this draft.');

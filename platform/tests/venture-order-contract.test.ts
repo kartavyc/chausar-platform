@@ -1,3 +1,4 @@
+import {nativeJudgeBusiness as business,waitNativeDraft} from './native-judge-business.ts';
 // Ink v2 wave 4 (4J12, H24): the per-order contract. For an offer marked contract: 'required' (a fixture: no shipped
 // plan sets it in W4), a run is refused ORDER_CONTRACT_UNSIGNED until the owner signs the newest revision. A contract
 // holds a goal, scope, constraints, protected items the engine enforces, deliverables with done by stage, and
@@ -11,8 +12,8 @@ import type { OrderContract, OrderContractRecord } from '../runtime/venture/cont
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { acceptedBlueprint } from '../runtime/venture/delivery/shared.ts';
 import { contractChecks, markContractItem, protectedBreaks } from '../runtime/venture/money/order-contracts.ts';
-import { approveFromToday, business, code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
-import { agentBusiness, askingRun, TEST_CARD } from './venture-agent-helpers.ts';
+import { code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { TEST_CARD } from './venture-agent-helpers.ts';
 import type { PersonRecord } from '../runtime/venture/contracts.ts';
 import { handlers as networkHandlers } from '../runtime/venture/network/index.ts';
 import { ERASED_NAMED } from '../runtime/venture/agents/notes.ts';
@@ -188,10 +189,10 @@ test('order contract: the run\'s checks fail a draft that changed a protected ph
     const proposed = await env.call('venture.order.contract.propose', { orderId: env.order.id, contract: contract({ protected: [{ kind: 'phrase', value: phrase }] }) });
     await env.call('venture.order.contract.sign', { orderId: env.order.id, digest: proposed.digest });
     const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-    const ready = await approveFromToday(env, waiting.id);
+    const ready = await waitNativeDraft(env, waiting.id);
     const stored = runs(env).find(run => run.id === ready.id)!;
     const own = (stored.playbookChecks ?? []).filter(item => item.playbook === 'contract');
-    assert.deepEqual(own.map(item => `${item.check}:${item.outcome}`), [`protected:${outcome}`], phrase);
+    assert.deepEqual(own.map(item => `${item.check}:${item.outcome}`), [`protected:${outcome}`], JSON.stringify({phrase,status:stored.status,messages:stored.agentJob?.messages,errors:env.control.errors,events:listRecords(env.store.read(),'venture-event').filter(row=>row.name==='run.failed')}));
     // The same check, read from the records alone.
     const state = env.store.read();
     assert.equal(contractChecks(state, listRecords(state, 'venture-record')[0], env.order.id, { text: stored.renderedText ?? '', files: [] })[0].outcome, outcome);
@@ -249,24 +250,17 @@ test('order contract: a protected phrase holds no digits, and an agent\'s propos
   assert.equal(revisions(env).length, 1);
 });
 
-test('order contract: approve, answer and resume check the contract again before the run goes on', async () => {
-  // Approve: a run made before the offer needed a contract does not send its next step without one.
-  const env = await contractBusiness(false);
-  const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-  await requireContract(env);
-  await assert.rejects(env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest }), code('ORDER_CONTRACT_UNSIGNED'));
-  assert.equal(runs(env).find(run => run.id === waiting.id)!.status, 'waiting-for-you', 'nothing was sent');
-  // Resume: a stopped run stays stopped.
-  const other = await contractBusiness(false);
-  const run = await other.call('venture.delivery.run', { orderId: other.order.id });
-  await other.call('venture.runs.stop', { runId: run.id });
-  await requireContract(other);
-  await assert.rejects(other.call('venture.runs.resume', { runId: run.id }), code('ORDER_CONTRACT_UNSIGNED'));
-  // Answer: a run waiting on the owner's answer does not move on.
-  const asking = await agentBusiness();
-  const asked = await askingRun(asking);
-  await requireContract(asking);
-  await assert.rejects(asking.call('venture.delivery.answer', { runId: asked.id, answer: 'About ten minutes.' }), code('ORDER_CONTRACT_UNSIGNED'));
+test('order contract: native dispatch and Resume recheck the current signed contract',async()=>{
+ const env=await contractBusiness(false);
+ env.control.beforeOpen=async()=>{await requireContract(env);};
+ const waiting=await env.call('venture.delivery.run',{orderId:env.order.id});await waitNativeDraft(env,waiting.id);
+ assert.equal(env.control.dispatched,0,'nothing reaches the AI after an unsigned requirement appears');
+ assert.equal(runs(env).find(run=>run.id===waiting.id)!.status,'failed');
+ const other=await contractBusiness(false);let release!:()=>void,opened!:()=>void;const gate=new Promise<void>(resolve=>release=resolve),seen=new Promise<void>(resolve=>opened=resolve);
+ other.control.beforeOpen=async()=>{opened();await gate;};
+ const run=await other.call('venture.delivery.run',{orderId:other.order.id});await seen;
+ await other.call('venture.runs.stop',{runId:run.id});await requireContract(other);release();await waitNativeDraft(other,run.id);
+ await assert.rejects(other.call('venture.runs.resume',{runId:run.id}),code('ORDER_CONTRACT_UNSIGNED'));
 });
 
 test('order contract: Forget of a person erases the contract words that name them (DPDP)', async () => {
@@ -302,32 +296,16 @@ test('order contract: after a Forget, a protected item that named them is droppe
   assert.ok(!/Meera/i.test(JSON.stringify(kept)));
   // The next run's draft keeps what is still protected, so its contract check passes.
   const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-  const ready = await approveFromToday(env, waiting.id);
+  const ready = await waitNativeDraft(env, waiting.id);
   const stored = runs(env).find(run => run.id === ready.id)!;
   assert.deepEqual((stored.playbookChecks ?? []).filter(item => item.playbook === 'contract').map(item => item.outcome), ['pass']);
 });
 
-test('order contract: a revision proposed while the approval is on its way stops it just before the send', async () => {
-  const env = await contractBusiness();
-  const proposed = await env.call('venture.order.contract.propose', { orderId: env.order.id, contract: contract() });
-  await env.call('venture.order.contract.sign', { orderId: env.order.id, digest: proposed.digest });
-  const waiting = await env.call('venture.delivery.run', { orderId: env.order.id });
-  // The approval's own read finds the contract signed; the first write after it (the journal entry for the send)
-  // is followed by an agent's revision, so only the check inside send() can stop it.
-  const update = env.store.update.bind(env.store);
-  let armed = false;
-  env.store.update = (async (change: any) => {
-    const out = await update(change);
-    if (armed) {
-      armed = false;
-      await env.call('venture.order.contract.propose', { orderId: env.order.id, contract: contract({ scope: ['The new product line only.', 'And the old one.'] }) }, agent);
-    }
-    return out;
-  }) as typeof env.store.update;
-  const sentBefore = env.models.sent;
-  armed = true;
-  await assert.rejects(env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest }), code('ORDER_CONTRACT_UNSIGNED'));
-  assert.equal(armed, false, 'the revision landed after the approval read the contract');
-  assert.equal(env.models.sent, sentBefore, 'nothing was sent to the AI');
-  assert.equal(revisions(env).at(-1)!.signedAt, null);
+test('order contract: a revision after native job creation stops dispatch at the physical boundary',async()=>{
+ const env=await contractBusiness();const proposed=await env.call('venture.order.contract.propose',{orderId:env.order.id,contract:contract()});
+ await env.call('venture.order.contract.sign',{orderId:env.order.id,digest:proposed.digest});
+ env.control.beforeOpen=async()=>{await env.call('venture.order.contract.propose',{orderId:env.order.id,contract:contract({scope:['The new product line only.','And the old one.']})},agent);};
+ const waiting=await env.call('venture.delivery.run',{orderId:env.order.id});await waitNativeDraft(env,waiting.id);
+ assert.equal(env.control.opened,1,'the route reached its final physical dispatch guard');assert.equal(env.control.dispatched,0,'no AI prompt was sent');
+ assert.equal(revisions(env).at(-1)!.signedAt,null);assert.equal(runs(env).find(run=>run.id===waiting.id)!.status,'failed');
 });

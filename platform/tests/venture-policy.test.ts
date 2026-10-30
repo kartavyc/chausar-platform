@@ -38,7 +38,7 @@ test('posture: a narrower scope (agent, run, step) can only tighten the wider on
       assert.ok(postureRank(result) <= postureRank(narrower), `${wider} never loosens ${narrower}`);
     }
   }
-  assert.throws(() => tighten('approve-each', 'everything' as Posture), /posture/i);
+  assert.throws(() => tighten('approve-each', 'everything' as Posture), { code: 'INVALID_VENTURE_REQUEST', message: 'Choose how much it asks you.' });
 });
 
 test('gates: start on hold; a floor step stays on hold whatever was stored', () => {
@@ -198,7 +198,7 @@ test('ladder: an auto step runs alone only at auto with spot checks; below that 
     assert.deepEqual(pick(asked), { verdict: 'ask', code: 'posture' }, posture);
     assert.equal(asked.step, 'work');
   }
-  assert.equal(ladder(tool('calc.sum', 'compute'), ctx({ posture: 'shadow' })).reason, 'In shadow, each step waits for you.');
+  assert.equal(ladder(tool('calc.sum', 'compute'), ctx({ posture: 'shadow' })).reason, 'In practice on real orders, each step waits for you.');
   assert.deepEqual(pick(ladder(tool('calc.sum', 'compute'), ctx({ posture: 'auto-spot-check' }))), { verdict: 'allow', code: 'auto' });
   // The strictest of the steps that grant a tool wins: files.read is in gather (hold) and work (auto).
   assert.deepEqual(pick(ladder(tool('files.read'), ctx({ posture: 'auto-spot-check' }))), { verdict: 'ask', code: 'step_on_hold' });

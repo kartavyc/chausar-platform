@@ -6,6 +6,21 @@ import { handlers } from '../runtime/venture/money/index.ts';
 import { code, owner, seedBlueprint, seedOrder, setup } from './venture-views-env.ts';
 import { watchClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
 import { apiConsentText, cliConsentText } from '../runtime/venture/models/presets.ts';
+import { bindClientAiContext } from '../runtime/venture/clients/ai-context.ts';
+import { ventureAction } from '../runtime/venture/records.ts';
+
+test('retained desk permission refuses cancelled orders at capture and after an asynchronous boundary', async () => {
+  const env = await setup(), { client, order } = await seedOrder(env, await seedBlueprint(env));
+  const disclosure = await methods['venture.client.aiConsent.get'](env.deps, owner, { clientId: client.id });
+  await methods['venture.client.aiConsent.agree'](env.deps, owner, { clientId: client.id, disclosureDigest: disclosure.disclosureDigest });
+  const captured = bindClientAiContext(env.deps, owner, order.id);
+  captured.assert();
+  await ventureAction(env.deps, owner, 'approve', 'test.cancel-retained-desk-order', tx => {
+    tx.replace({ ...tx.find('venture-order', order.id)!, status: 'cancelled' });
+  });
+  assert.throws(() => captured.assert(), code('JOB_SOURCE_CHANGED'));
+  assert.throws(() => bindClientAiContext(env.deps, owner, order.id), code('JOB_SOURCE_CHANGED'));
+});
 
 test('connection disclosures distinguish client permission from exact outside-action approval',()=>{
   for(const words of [apiConsentText('OpenAI'),apiConsentText('Anthropic'),cliConsentText('Codex'),cliConsentText('Claude Code')]){

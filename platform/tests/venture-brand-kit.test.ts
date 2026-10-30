@@ -13,7 +13,8 @@ import { handlers as agentHandlers } from '../runtime/venture/agents/index.ts';
 import { brandKitPart, resolveKit } from '../runtime/venture/playbooks/kit/brand-kit.ts';
 import { BANNED_WORDS } from '../runtime/venture/records.ts';
 import { TEST_CARD } from './venture-agent-helpers.ts';
-import { business, code, owner, phone, PLAIN_IDEA, readyDraft } from './venture-judge-helpers.ts';
+import { code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 
 type Env = Awaited<ReturnType<typeof business>>;
 const kit = (env: Env, method: string, payload: unknown = {}, ctx: Context = owner): Promise<any> =>
@@ -102,9 +103,8 @@ test('brand kit: the writing turn lists the resolved kit, and the client\'s past
   assert.deepEqual(brandKitPart(env.store.read(), currentVenture(env.store.read())!, env.client.id), {}, 'no kit: the input stays the same');
   await kit(env, 'venture.brandKit.set', { clientId: env.client.id, kit: FULL(logo.id, proof.id) });
   await readyDraft(env, 'Please write three posts for Diwali.');
-  const writing = env.models.answered.filter(task => task.purpose === 'delivery').at(-1)!;
-  const listed = (writing.input as any).brandKit;
-  assert.ok(listed, 'the writing turn carries the kit');
+  const listed = (env.control.business as any)?.style.brandKit;
+  assert.ok(listed, 'the native scoped business tool carries the kit');
   assert.match(listed.note, /client's brand kit/i);
   assert.deepEqual(listed.kit.colours, { value: ['#1f6f43', '#ffffff'], source: 'client-kit' });
   assert.deepEqual(listed.kit.bannedWords, { value: ['cheap'], source: 'client-kit' });

@@ -6,6 +6,7 @@ import { createExternalMcpTools } from '../runtime/venture/agent-runtime/externa
 import { JobCapability } from '../runtime/venture/agent-runtime/scope.ts';
 import { fileURLToPath } from 'node:url';
 import { agreeClientAiConsent, getClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
+import { createNativeJob } from '../runtime/venture/agent-runtime/native-job.ts';
 import { decideAgentApproval } from '../runtime/venture/agent-runtime/approvals.ts';
 import { findRecord } from '../runtime/venture/records.ts';
 import { createServer } from 'node:http';
@@ -65,6 +66,30 @@ test('installed MCP SDK runs a real harmless local stdio sample behind exact app
   assert.equal(approvals, 0); assert.equal(listing.tools[0].name, 'echo_sample');
   const result: any = await proxy.tools[1]!.call({ serverId: 'sample', tool: 'echo_sample', fingerprint: listing.tools[0].fingerprint, arguments: { text: 'Harmless local sample' } }, owner);
   assert.equal(approvals, 1); assert.equal(result.result.content[0].text, 'Harmless local sample');
+});
+
+test('production approval persistence holds the external call and owner decline never dispatches', async t => {
+  const env = await setup(); const { client, order } = await seedOrder(env, await seedBlueprint(env)); const run = await seedRun(env, order, {});
+  await env.deps.services.trust.updatePolicy(owner, { send: 'shape' });
+  const consent = await getClientAiConsent(env.deps, owner, { clientId: client.id });
+  await agreeClientAiConsent(env.deps, owner, { clientId: client.id, disclosureDigest: consent.disclosureDigest });
+  const settings = (await getAgentSettings(env.deps, owner, {})).settings;
+  settings.mcpServers = [{ id: 'sample', name: 'Sample', transport: 'stdio', command: process.execPath, args: [] }];
+  await setAgentSettings(env.deps, owner, { settings, approveMcpConfiguration: true });
+  const abort = new AbortController(), job = await createNativeJob(env.deps, owner, run.id, { agentId: 'delivery', sections: ['Reply'], check: () => undefined, signal: abort.signal });
+  t.after(() => job.close()); let called = 0;
+  const proxy = createExternalMcpTools(env.deps, owner, job.capability, { signal: abort.signal, guard: state => { job.assertState(state); },
+    connect: async () => ({ list: async () => [{ name: 'echo', description: 'Synthetic tool', inputSchema: { type: 'object' } }], call: async () => { called++; return {}; }, close: async () => undefined }) });
+  t.after(() => proxy.close());
+  const listing: any = await proxy.tools[0]!.call({ serverId: 'sample', query: '' }, owner);
+  const call = proxy.tools[1]!.call({ serverId: 'sample', tool: 'echo', fingerprint: listing.tools[0].fingerprint, arguments: { sample: 'no effect' } }, owner);
+  const rejected = assert.rejects(async () => await call, { code: 'MCP_CALL_DECLINED' });
+  for (let n = 0; n < 100 && !findRecord(env.store.read(), 'venture-delivery-run', run.id)!.agentJob!.pendingApproval; n++) await new Promise(resolve => setTimeout(resolve, 5));
+  const pending = findRecord(env.store.read(), 'venture-delivery-run', run.id)!.agentJob!.pendingApproval!;
+  assert.ok(pending); assert.equal(called, 0);
+  assert.deepEqual(pending.request.arguments.input, { sample: 'no effect' });
+  await decideAgentApproval(env.deps, owner, { runId: run.id, digest: pending.digest, decision: 'deny' });
+  await rejected; assert.equal(called, 0);
 });
 
 test('installed SDK connects to a real local Streamable HTTP server without redirects or outside traffic', async t => {

@@ -169,7 +169,11 @@ test('no CA request for unregulated work, practice drafts, failed checks, templa
   assert.equal(await requestSignoffForRun(plain.deps, owner, viewOf(plain, plainRun.id)), null, 'a bookkeeping idea is not the CA firm playbook');
 });
 
-test('delivery approve asks the CA after a draft is ready, and a failure there never fails the run', async () => {
+test('native delivery completion asks the CA after review readiness, and a failure there never fails the run', async () => {
   const source = await readFile(new URL('../runtime/venture/delivery/runs.ts', import.meta.url), 'utf8');
-  assert.match(source, /if \(view\.status === 'ready-for-review'\) \{\s*await import\('\.\.\/playbooks\/ca-firm\/delivery-signoff\.ts'\)\.then\(module => module\.requestSignoffForRun\(deps, ctx, view\)\)\.catch\(\(\) => null\);/);
+  const completion = source.slice(source.indexOf("if (result.status === 'completed')"), source.indexOf('} catch (error)', source.indexOf("if (result.status === 'completed')")));
+  assert.ok(completion.includes("current.status !== 'ready-for-review'"));
+  const ready = completion.indexOf('reviewReady: true'), signoff = completion.indexOf('module.requestSignoffForRun(deps, ctx, run)');
+  assert.ok(ready >= 0 && signoff > ready, 'CA request follows settled native quality and review readiness');
+  assert.match(completion, /await import\('\.\.\/playbooks\/ca-firm\/delivery-signoff\.ts'\)\.then\(module => module\.requestSignoffForRun\(deps, ctx, run\)\)\.catch\(\(\) => null\);/);
 });

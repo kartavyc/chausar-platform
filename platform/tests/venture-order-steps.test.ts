@@ -11,8 +11,11 @@ import { PLAYBOOK_REGISTRY } from '../runtime/venture/playbooks/registry.ts';
 import { ORDER_STAGE_LISTS, STAGE_RULES, stageListFor } from '../runtime/venture/playbooks/order-stages.ts';
 import { STAGE_RULE_READERS } from '../runtime/venture/money/order-steps.ts';
 import { clientDraft } from '../runtime/venture/build/draft-text.ts';
-import { harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
+import { owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
 import { put, record, seedYoutube, transcriptUpload, youtubeDraft } from './venture-previews-env.ts';
+import { nativeContext } from './fixtures/venture/native-context.ts';
+import { digest } from '../runtime/portable.ts';
+import { deliveryListHandler } from '../runtime/venture/delivery/runs.ts';
 
 const orders = async (env: Env) => await money['venture.order.list']!(env.deps, owner, {}) as OrderListRow[];
 const brief = (stages: OrderStageView[]) => stages.map(stage => [stage.id, stage.state, stage.detail]);
@@ -167,7 +170,7 @@ test('order steps: a social order reads the calendar, the client, the posts and 
   assert.equal(row.waitsOnYou, null);
 });
 
-test('order steps: a send to the AI with an unknown outcome reads "not sure"; a stopped draft and a question wait on you', async () => {
+test('order steps: a send to the AI with an unknown outcome reads "not sure"; a stopped draft and a question wait on you', async t => {
   const env = await setup();
   const plan = await seedBlueprint(env);
   const { order } = await seedOrder(env, plan);
@@ -180,13 +183,24 @@ test('order steps: a send to the AI with an unknown outcome reads "not sure"; a 
   }));
   const [unknown] = await orders(env);
   assert.deepEqual(unknown.stages[2], { id: 'draft', label: 'Draft', state: 'unknown', detail: 'not sure: the last send timed out', line: 'Draft, not sure: the last send timed out', reason: 'send-unknown' });
-  await seedRun(env, order, {
-    status: 'needs-answer', harness: harness({ phase: 'needs-answer', handoffs: [{ to: 'owner', question: 'Which account?', turn: 1, answer: null, answeredBy: null }] }),
+  env.advance(1000);
+  const native = await nativeContext(env.deps, owner, order.id);
+  t.after(() => native.job.close());
+  const question = 'Which account?';
+  await put(env, tx => {
+    const current = tx.find('venture-delivery-run', native.run.id)!;
+    tx.replace({ ...current, status: 'needs-answer', agentJob: { ...current.agentJob!,
+      pendingFacts: { digest: digest(question), missing: [], question, callId: 'synthetic-facts', at: tx.now } } });
   });
   const [asking] = await orders(env);
   assert.deepEqual(brief(asking.stages)[2], ['draft', 'waits', 'a question waits on you']);
   assert.equal(asking.stages[2].reason, 'question');
   assert.deepEqual(asking.waitsOnYou?.items, [{ stage: 'draft', what: 'a question' }]);
+  await put(env, tx => tx.replace({ ...order, status: 'cancelled' }));
+  const cancelled = (await deliveryListHandler(env.deps, owner, {})).find(item => item.id === native.run.id)!;
+  assert.equal(cancelled.awaitingYou, false, 'a cancelled order does not ask the owner for missing facts');
+  await put(env, tx => tx.replace(order));
+  env.advance(1000);
   await seedRun(env, order, { status: 'stopped' });
   const [stopped] = await orders(env);
   assert.deepEqual(brief(stopped.stages)[2], ['draft', 'waits', 'stopped, Resume waits on you']);

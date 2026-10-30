@@ -39,6 +39,7 @@ export class SearchPort implements ModelPort {
   onPreview: ((task: ModelTask<any>) => void | Promise<void>) | null = null;
   /** Runs inside a sent call, before the AI answers: lets a test act while the call is out. */
   onSend: ((task: ModelTask<any>) => Promise<void>) | null = null;
+  onBeforeDispatch: ((task: ModelTask<any>) => Promise<void>) | null = null;
   #scored = 0;
   #held = new Map<string, { digest: string; task: ModelTask<any>; used: boolean }>();
   #calls = 0;
@@ -75,10 +76,10 @@ export class SearchPort implements ModelPort {
     if (this.onPreview) await this.onPreview(task);
     return {
       callId, payloadText, digest: payloadDigest, presetId: tier.presetId, model: tier.model, endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: new Date(Date.parse(this.env.now()) + 30 * 60_000).toISOString(),
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
-  async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
+  async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]): Promise<ModelOutcome<T>> {
     if (ctx.channel !== 'desktop') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
     const held = this.#held.get(callId);
     if (!held || held.used || held.digest !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
@@ -88,6 +89,8 @@ export class SearchPort implements ModelPort {
       if (call) { call.status = status; if (status !== 'dispatching') call.costMicros = '200'; }
     });
     await setStatus('dispatching');
+    if (this.onBeforeDispatch) await this.onBeforeDispatch(held.task);
+    options?.beforeDispatch?.();
     this.sent.push(held.task);
     const scoring = held.task.schemaName === 'venture-network-scores';
     if (scoring) this.#scored += 1;

@@ -9,6 +9,6 @@ export type CareerFactBody = {orderId:string;clientId:string;state:CareerFactSta
 /** venture-career-listing: source-bound career evidence. */
 export type CareerListingBody = {orderId:string;clientId:string;url:string;text:string;revision:string;sourceKind:'static-page'|'owner-paste'|'public-board';capturedOn:string};
 import type {CareerStoredPack} from './thread-state.ts';
-export type CareerAiPreview={callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;expiresAt:string;payer?:string};
+export type CareerAiPreview={clientAi?:import('../../clients/ai-consent-core.ts').ClientAiContextBinding;callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;payer?:string};
 /** A manual career thread; a stored pack carries exact source and rendered-file approval. */
 export type CareerThreadBody={orderId:string;clientId:string;category:'pack'|'application';state:'draft'|'waiting'|'replied'|'applied'|'interview'|'closed';lastTouch:string|null;nextTouch:string|null;listingId:string|null;humanPath:string;pack:CareerStoredPack|null;aiRequest?:{preview:CareerAiPreview;binding:string}|null;aiCallIds?:string[]};

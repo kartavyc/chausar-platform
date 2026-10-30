@@ -5,6 +5,7 @@
 // monthly limit is paused alone; near a limit the next turn is told to report, not start new work, optional steps are
 // skipped and the automatic judge does not run. Nothing spends past a limit without the owner raising it.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
 import type { MicroString, SpendPolicyView, SpendRecord, VentureDeps } from '../runtime/venture/contracts.ts';
@@ -13,10 +14,9 @@ import { handlers as money } from '../runtime/venture/money/index.ts';
 import { budgetPressure } from '../runtime/venture/money/spend.ts';
 import { actTask, newHarnessState, DEFAULT_LIMITS } from '../runtime/venture/delivery/harness/loop.ts';
 import { BUDGET_LINE, SKIPPED_STEP_LINE } from '../runtime/venture/delivery/harness/breaker.ts';
-import {
-  approve, call, code, decide, owner, phone, queue, RECONCILE, DONE, setup, startRun,
-} from './venture-run-controls-env.ts';
-import { business, PLAIN_IDEA, readyDraft } from './venture-judge-helpers.ts';
+import { call, code, decide, owner, phone, queue, setup, seedOrder } from './venture-run-controls-env.ts';
+import { PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness, readyNativeDraft } from './native-judge-business.ts';
 import { owner as portOwner, realPortEnv, wordsTask } from './venture-real-port-env.ts';
 
 type Handler = (d: VentureDeps, c: Context, p: unknown) => Promise<SpendPolicyView>;
@@ -175,20 +175,32 @@ test('agent limit: a rehearsal\'s agent turn, sent on standing consent with no a
   assert.equal(env.sent.length, 1, 'a practice client is no agent\'s spend');
 });
 
-test('projection: "about N more drafts at today\'s cost", worked out in code from the last drafts\' costs, labelled a projection', async () => {
+test('projection: native paid jobs use settled usage while plan jobs and unknown costs are excluded', async t => {
   const env = await setup();
   await policySet(env, { capUsd: '0.01', inrPerUsd: '83.50' });
-  for (let n = 0; n < 2; n += 1) {
-    let run = await startRun(env, [RECONCILE, DONE]);
-    while (run.status === 'waiting-for-you') run = await approve(env, run);
-    assert.equal(run.status, 'ready-for-review');
+  const paidIds:string[]=[];
+  for (const kind of ['paid','paid','plan','unknown']) {
+    const order=await seedOrder(env);const native=await nativeContext(env.deps,owner,order.id);t.after(()=>native.job.close());
+    await ventureAction(env.deps,owner,'prepare','fixture.ready',tx=>{
+      const run=tx.find('venture-delivery-run',native.run.id)!;
+      tx.replace({...run,status:'ready-for-review',readyAt:tx.now,deliverable:{title:'Recorded draft',sections:[],questionsForClient:[]},renderedText:'Recorded draft'});
+    });
+    if(kind==='plan')continue;
+    const charge=await spent(env,kind==='paid'?'600':'1000');
+    await ventureAction(env.deps,owner,'prepare','fixture.native-charge',tx=>{
+      const job=tx.find('venture-delivery-run',native.run.id)!.agentJob!;
+      tx.replace({...charge,key:`agent:${job.scope.jobId}`,ref:native.run.id,agent:job.scope.agentId,
+        phase:kind==='paid'?'settled':'unknown',settledBy:kind==='paid'?'usage':null,settledMicros:kind==='paid'?'600':null});
+    });
+    if(kind==='paid')paidIds.push(native.run.id);
   }
   const meter = (await policyGet(env)).meter!;
-  // Each draft cost three calls of USD 0.0002 here; the cap leaves USD 0.0100, so 16 more fit at the dearest draft's cost.
+  // Two paid jobs used 1200 micro-dollars; the unknown job holds 1000. 7800 / 600 = 13.
   assert.deepEqual(meter.projection && { line: meter.projection.line, label: meter.projection.label, count: meter.projection.runIds.length },
-    { line: "About 16 more drafts at today's cost", label: 'projection from your last 2 drafts', count: 2 });
-  assert.equal(meter.projection!.left, 'USD 0.0100 left');
-  assert.match(meter.projection!.leftRupees!, /^₹0\.84 at ₹83\.50 per \$1/, 'the room left in rupees too, at the owner\'s rate');
+    { line: "About 13 more drafts at today's cost", label: 'projection from your last 2 drafts', count: 2 });
+  assert.deepEqual([...meter.projection!.runIds].sort(),paidIds.sort());
+  assert.equal(meter.projection!.left, 'USD 0.0078 left');
+  assert.match(meter.projection!.leftRupees!, /^₹0\.65 at ₹83\.50 per \$1/, 'the room left in rupees too, at the owner\'s rate');
 });
 
 test('pressure: near the day\'s or the month\'s limit the next turn is told to report, and an optional step is skipped', async () => {
@@ -221,17 +233,14 @@ test('pressure: near the day\'s or the month\'s limit the next turn is told to r
   // The run's own cap at 80% counts too.
   const nearRun = { ...newHarnessState(['files.list'], { ...DEFAULT_LIMITS, maxCostMicros: '1000' }, []), used: { turns: 1, toolCalls: 0, costMicros: '800' } };
   assert.ok(actTask({ ...(ctx as object), budget: { nearlyUsed: false } } as never, nearRun).instructions.includes(BUDGET_LINE));
-  // A real order's turn carries it: the run's loop reads the day's spend when it previews the turn.
-  await spent(env, '150000');
-  const run = await startRun(env, [RECONCILE, DONE]);
-  assert.ok(run.preview!.payloadText.includes(BUDGET_LINE));
+  // This prompt remains a rehearsal concern. Native jobs use the driver's own context.
 });
 
 test('pressure: the automatic judge does not run past the alert share and says so; code checks still run', async () => {
-  const env = await business(PLAIN_IDEA);
+  const env = await nativeJudgeBusiness(PLAIN_IDEA);
   await policySet(env, { capUsd: '10.00' });
   await spent(env, '8200000');
-  const run = await readyDraft(env);
+  const run = await readyNativeDraft(env);
   assert.equal(run.status, 'ready-for-review');
   assert.equal(run.judge.status, 'failed');
   assert.equal(run.judge.line, "Not checked: this month's limit is nearly used.");

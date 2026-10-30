@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -102,7 +102,9 @@ describe('Connections: your own posting limits', () => {
     await waitFor(() => expect(within(limits).getByRole('status').textContent).toContain('Saved.'));
   });
 
-  it('all six posting limit views and four API settings match the native public contract exactly', async () => {
+  describe('native posting settings oracle', () => {
+    let expected: unknown;
+    beforeAll(() => {
     const native = (path: string) => JSON.stringify(pathToFileURL(resolve(process.cwd(), path)).href);
     const script = `
       import { setup, owner } from ${native('platform/tests/venture-views-env.ts')};
@@ -119,7 +121,9 @@ describe('Connections: your own posting limits', () => {
       views.push(await postingLimitsGet(deps, owner, {}));
       process.stdout.write(JSON.stringify({ views, refusals }));
     `;
-    const expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 30_000 }));
+    expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 30_000 }));
+    }, 30_000);
+    it('all six posting limit views and four API settings match the native public contract exactly', async () => {
     const engine = new FakeEngine(), views = [await engine.request('venture.posting.limits.get', {})], refusals = [];
     for (const connectorId of ['bluesky', 'mastodon', 'telegram', 'discord']) {
       views.push(await engine.request('venture.posting.limits.set', { connectorId, limits: { capPer24h: 1, minGapMinutes: 180 } }));
@@ -131,9 +135,11 @@ describe('Connections: your own posting limits', () => {
     views.push(await engine.request('venture.posting.limits.get', {}));
     expect({ views, refusals }).toEqual(expected);
     expect(refusals).toHaveLength(1);
+    });
   });
 
-  it('malformed posting limits match native refusal order, exact fields and numeric bounds', async () => {
+  describe('native malformed posting oracle', () => {
+    let expected: unknown;
     const cases: [string, unknown][] = [
       ['get', { extra: true }], ['get', []], ['set', []], ['set', null], ['set', {}],
       ['set', { connectorId: 'bluesky' }],
@@ -149,6 +155,7 @@ describe('Connections: your own posting limits', () => {
         .map(limits => ['set', { connectorId: 'bluesky', limits }] as [string, unknown]),
       ['get', {}],
     ];
+    beforeAll(() => {
     const native = (path: string) => JSON.stringify(pathToFileURL(resolve(process.cwd(), path)).href);
     const script = `
       import { readFileSync } from 'node:fs';
@@ -161,13 +168,16 @@ describe('Connections: your own posting limits', () => {
       }
       process.stdout.write(JSON.stringify(results));
     `;
-    const expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { input: JSON.stringify(cases), encoding: 'utf8', timeout: 30_000 }));
+    expected = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { input: JSON.stringify(cases), encoding: 'utf8', timeout: 30_000 }));
+    }, 30_000);
+    it('malformed posting limits match native refusal order, exact fields and numeric bounds', async () => {
     const engine = new FakeEngine(), actual = [];
     for (const [method, params] of cases) {
       try { actual.push({ value: await engine.request('venture.posting.limits.' + method, params) }); }
       catch (error) { const e = error as EngineError; actual.push({ code: e.code, message: e.message }); }
     }
     expect(actual).toEqual(expected);
+    });
   });
 
   it('the fake engine keeps owner limits per channel', async () => {

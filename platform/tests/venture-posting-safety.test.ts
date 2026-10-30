@@ -87,7 +87,7 @@ test('a draft that did not pass its checks is refused with POST_DRAFT_UNCHECKED,
   await refuse(['X: Fresh pastries at 8.'], { checks: [{ check: 'house-style', passed: false, detail: 'The draft uses a long dash.' }] }, 'POST_DRAFT_UNCHECKED', /long dash/);
   await refuse(['X: Fresh pastries at 8.'], { checks: [] }, 'POST_DRAFT_UNCHECKED', /checks have not run/);
   await refuse(['X: Fresh pastries at 8.'], { servedBy: 'template' }, 'POST_DRAFT_UNCHECKED', /template/);
-  await refuse(['X: Fresh pastries at 8.'], { playbookId: youtube.id }, 'POST_DRAFT_UNCHECKED', /playbook's checks have not run/);
+  await refuse(['X: Fresh pastries at 8.'], { playbookId: youtube.id }, 'POST_DRAFT_UNCHECKED', /work plan's checks have not run/);
   await refuse(['X: Fresh pastries at 8.'], { playbookId: youtube.id, playbookChecks: [{ playbook: 'youtube', check: 'title-thumbnail', outcome: 'fail', detail: 'The title repeats the thumbnail.' }] }, 'POST_DRAFT_UNCHECKED', /repeats the thumbnail/);
   // The lint runs on the exact post text too, so an owner's edit or a non-flagship draft is covered.
   await refuse(['X: Here is a post: fresh pastries at 8.'], {}, 'POST_DRAFT_UNCHECKED', /words meant for the AI/);

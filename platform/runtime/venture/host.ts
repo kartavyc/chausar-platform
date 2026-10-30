@@ -182,6 +182,7 @@ export class VentureHost {
       claudeCodeTerms: options.claudeCodeTerms ?? 'accepted',
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
       ...(options.delegate ? { delegate: options.delegate } : {}),
+      ...(options.agentRoute ? { agentRoute: options.agentRoute } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
       ...(options.workspace ? { workspace: options.workspace } : {}),
       // A folder on this computer: never on the hosted web server.

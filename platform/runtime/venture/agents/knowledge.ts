@@ -15,6 +15,7 @@
 // with its work (agents/knowledge-recall.ts, wired in delivery/harness/loop.ts); a source the screen holds as it is
 // read says why here. A business with no country yet (still in its interview) shows plain dates and no requests.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import type {
   IdeaRecord, KnowledgeRecord, KnowledgeSourceInput, KnowledgeSourceView, KnowledgeTestView, KnowledgeView, ScreenNote, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -302,14 +303,11 @@ function sourceView(state: State, venture: VentureRecord, record: KnowledgeRecor
 
 /** The questions agents handed to the owner in real runs, with the month (the owner's) each was asked in. */
 function ownerQuestions(state: State, venture: VentureRecord & { country: NonNullable<VentureRecord['country']> }): { text: string; month: string }[] {
-  const calls = new Map(listRecords(state, 'venture-model-call', venture.id).map(call => [call.id, call.at] as const));
-  return listRecords(state, 'venture-delivery-run', venture.id).filter(run => !run.practice && run.harness).flatMap(run => {
-    const harness = run.harness!;
-    return (harness.handoffs ?? []).filter(handoff => handoff.to === 'owner' && handoff.answeredBy !== 'practice-client' && typeof handoff.question === 'string').map(handoff => {
-      const turn = (harness.turns ?? []).find(item => item.turn === handoff.turn);
-      const at = (turn?.callId ? calls.get(turn.callId) : undefined) ?? run.at;
-      return { text: handoff.question, month: localDayAt(at, venture.country).slice(0, 7) };
-    });
+  return listRecords(state, 'venture-delivery-run', venture.id).filter(run => !run.practice && run.agentJob).flatMap(run => {
+    const job = run.agentJob!;
+    try { requireClientAiConsent(state, venture.id, job.scope.clientId, job.scope); } catch { return []; }
+    const questions = [...(job.pendingFacts ? [job.pendingFacts] : []), ...(job.factAnswers ?? [])];
+    return questions.map(question => ({ text: question.question, month: localDayAt(question.at, venture.country).slice(0, 7) }));
   });
 }
 

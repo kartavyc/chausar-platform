@@ -17,6 +17,8 @@ import { HELPER_RETURN_CAP, helperBrief } from './helper-brief.ts';
 import { ERASED_NAMED } from './notes.ts';
 import { runStepsIn, draftStepIn, type TeamLedger } from '../money/department-spend.ts';
 import { roleOfTurn } from '../playbooks/departments.ts';
+import { countedMicros } from '../money/spend.ts';
+import { nativeJobSpends } from '../agent-runtime/job-spend.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
 import { HELD_WORDS, screenNote, screenUntrusted, type ScreenFinding } from '../policy/untrusted.ts';
 import { teamFlagship } from '../views/team-shape.ts';
@@ -107,8 +109,8 @@ export function rolledUpSpend(members: readonly RelayMember[], own: ReadonlyMap<
 }
 
 /**
- * Each role's own spend from the records: the paid model calls of the harness turns that role made (the rule the
- * department split uses, playbooks/departments.ts roleOfTurn). Calls no single role can claim count for nobody here.
+ * Each role's own spend from its native job's bound spend record, including unresolved held costs. Historical
+ * harness calls retain their recorded role split. Calls no single role can claim count for nobody here.
  */
 export function roleSpend(ledger: TeamLedger): Map<string, bigint> {
   const out = new Map<string, bigint>();
@@ -119,7 +121,17 @@ export function roleSpend(ledger: TeamLedger): Map<string, bigint> {
     if (record?.kind === 'venture-model-call' && typeof record.id === 'string' && typeof record.costMicros === 'string' && /^\d{1,30}$/.test(record.costMicros)) cost.set(record.id, BigInt(record.costMicros));
   }
   const add = (role: string | null | undefined, callId: string) => { if (role) out.set(role, (out.get(role) ?? 0n) + cost.get(callId)!); };
+  const seenSpend = new Set<string>();
   for (const run of listRecords(ledger.state, 'venture-delivery-run', ledger.venture.id)) {
+    if (run.agentJob) {
+      for(const charge of nativeJobSpends(ledger.state,run)){
+        if (!seenSpend.has(charge.id) && flagship.roles.some(role => role.id === charge.agent)) {
+          out.set(charge.agent!, (out.get(charge.agent!) ?? 0n) + BigInt(countedMicros(charge)));
+          seenSpend.add(charge.id);
+        }
+      }
+      continue;
+    }
     const turns = new Set<string>();
     for (const turn of run.harness?.turns ?? []) {
       if (!turn.callId || !cost.has(turn.callId)) continue;

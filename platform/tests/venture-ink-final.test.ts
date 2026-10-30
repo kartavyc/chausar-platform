@@ -231,10 +231,10 @@ test('team.posture: tighter than the business stage is stored, looser is refused
   assert.equal(tightened.agent.posture, 'shadow');
   const same = await call<{ agent: AgentView }>(env, 'venture.team.posture', { agentId: 'delivery', posture: 'approve-each' });
   assert.equal(same.agent.posture, 'approve-each');
-  // 4J15: auto with spot checks is built but locked (the founder's decision), so it answers AUTO_LOCKED at every rung.
+  // Routine-step approval remains unavailable at every rung.
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), (error: any) => {
     assert.equal(error.code, 'AUTO_LOCKED');
-    assert.equal(error.message, "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.");
+    assert.equal(error.message, 'Routine-step approval is not available yet.');
     return true;
   });
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'someone', posture: 'shadow' }), code('AGENT_NOT_FOUND'));

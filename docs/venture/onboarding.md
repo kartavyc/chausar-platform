@@ -182,6 +182,8 @@ The lead view is open at rest with only its lead items. The first support view i
 
 ## The composer contract
 
+`venture.country.suggest` accepts the owner's description and asks the connected AI for a country suggestion. The time-zone default stays selected until the owner confirms a change; computer language is never used to choose the country.
+
 ```
 venture.compose.decide { text, countryCode }
    quick tier, schema venture-decide, marker chausar-decide-v1

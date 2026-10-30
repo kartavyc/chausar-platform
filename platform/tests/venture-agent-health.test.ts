@@ -14,7 +14,28 @@ import { handlers as views } from '../runtime/venture/views/index.ts';
 import { HEALTH_WORDS } from '../runtime/venture/views/health.ts';
 import { call, code, harness, owner, phone, seedBlueprint, seedOrder, seedRun, type Env, setup } from './venture-views-env.ts';
 import { flagshipTeam, turn } from './venture-team-fixtures.ts';
-import { approve, realOrder, startRun, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
+import { realOrder, runAgentDraft, startRun, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
+import { consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+
+test('native preparation rechecks quarantine after selecting the tool and before storing a job', async () => {
+  const env = await realOrder();
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, env.order.id);
+  env.deps.agentRoute = async () => {
+    await quarantine(env);
+    return { settings: SCRIPTED_AGENT_SETTINGS, driver: { async open() { throw new Error('Must not open a quarantined job'); } } };
+  };
+  await assert.rejects(startRun(env), code('AGENT_QUARANTINED'));
+  assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 3);
+});
+
+test('quarantine during native work prevents saving or proposing its draft', async () => {
+  const env = await realOrder();
+  const run = await runAgentDraft(env, { beforeDraft: () => quarantine(env) });
+  assert.equal(run.status, 'failed');
+  assert.equal(run.deliverable, null);
+  assert.equal(run.agentJob?.proposal, null);
+});
 
 const DAY = 24 * 60 * 60_000;
 const agents = async (env: Env) => (await call<TeamListView>(env, 'venture.team.list')).agents;
@@ -74,27 +95,7 @@ test('health: healthy at first; two failed runs in a row is failing, three is qu
   assert.equal((await health(env)).status, 'healthy');
 });
 
-test('a scripted turn that proposes an outside action no step declares is refused TOOL_DENIED and quarantines the agent; its run stops advancing', async () => {
-  const env = await realOrder();
-  env.models.turns = [SEND, READ];
-  const run = await startRun(env);
-  const next = await approve(env, run);
-  const stored = findRecord(env.store.read(), 'venture-delivery-run', run.id)!;
-  const proposed = stored.harness!.toolCalls.find(item => item.tool === 'outbox.propose')!;
-  assert.equal(proposed.effect, 'outside-write');
-  assert.equal(proposed.envelope.ok ? null : proposed.envelope.error.code, 'TOOL_DENIED', 'the grant holds only the tools its steps declare');
-  const team = await viewsOf<TeamListView>(env, 'venture.team.list');
-  const quarantined = team.agents.find(item => item.id === 'delivery')!;
-  assert.deepEqual([quarantined.health?.status, quarantined.health?.reason], ['quarantined', HEALTH_WORDS.undeclared]);
-  assert.equal(team.teamHealth?.status, 'healthy', "the one agent's own cause is not a team-level one");
-  // The run in flight stops advancing: its next turn is refused before anything is sent.
-  const sent = env.models.sent;
-  await assert.rejects(approve(env, next), (error: any) => error.code === 'AGENT_QUARANTINED' && error.message.startsWith('Bookkeeping agent is quarantined: It proposed an outside action'));
-  assert.equal(env.models.sent, sent, 'nothing was sent');
-  // Cleared with the digest the owner saw, the run goes on.
-  await viewsOf(env, 'venture.team.clearQuarantine', { agentId: 'delivery', digest: quarantined.health!.digest });
-  assert.equal((await approve(env, next)).status, 'waiting-for-you');
-});
+
 
 test('a cause no single role can claim makes one team-level quarantine, which one digest clears', async () => {
   const env = await setup();
@@ -182,47 +183,4 @@ test('a quarantined agent starts no run; Clear quarantine needs the app and the 
   // Failures before the clear no longer count; new ones do.
   await failedRun(env, order); await failedRun(env, order);
   assert.equal((await health(env)).status, 'failing');
-});
-
-test('quarantined while the run was being prepared: the commit that would start it refuses', async () => {
-  const env = await realOrder();
-  env.models.turns = [READ];
-  const preview = env.models.preview.bind(env.models);
-  env.models.preview = async <T>(ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null> => { await quarantine(env); return preview(ctx, task); };
-  await assert.rejects(startRun(env), code('AGENT_QUARANTINED'));
-  assert.deepEqual(listRecords(env.store.read(), 'venture-delivery-run').map(item => item.status), ['failed', 'failed', 'failed'], 'no run started');
-});
-
-test('quarantined while a turn was out: none of its tools run', async () => {
-  const env = await realOrder();
-  env.models.turns = [READ, READ];
-  const run = await startRun(env);
-  const runPreview = env.models.runPreview.bind(env.models);
-  env.models.runPreview = (async (...args: Parameters<typeof runPreview>) => { const outcome = await runPreview(...args); await quarantine(env); return outcome; }) as typeof runPreview;
-  await assert.rejects(approve(env, run), code('AGENT_QUARANTINED'));
-  assert.deepEqual(findRecord(env.store.read(), 'venture-delivery-run', run.id)!.harness!.toolCalls, [], 'no tool ran');
-});
-
-test("a quarantined team's answer and heavy-work brief do not move its runs on", async () => {
-  const env = await realOrder();
-  env.models.turns = [ASK, READ];
-  const run = await startRun(env);
-  const asking = await approve(env, run);
-  assert.equal(asking.status, 'needs-answer');
-  await quarantine(env);
-  await assert.rejects(deliveryOf(env, 'venture.delivery.answer', { runId: run.id, answer: 'The HDFC account ending 1234.' }), code('AGENT_QUARANTINED'));
-  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', run.id)!.status, 'needs-answer');
-
-  // A run waiting on a heavy-work brief: approving the brief is refused; nothing starts.
-  const briefing = await ventureAction(env.deps, owner, 'prepare', 'seed.brief', tx => tx.put<DeliveryRunRecord>({
-    ...tx.base('venture-delivery-run'), orderId: env.order.id, playbookId: 'playbook_missing', playbookHash: 'hash', status: 'brief-waiting', servedBy: 'model',
-    practice: false, callId: null, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null,
-    harness: harness({
-      phase: 'brief', delegations: [{
-        toolCallId: 't1.1', turn: 1, cli: 'claude-code', executable: 'claude', version: '1.0.0', briefText: 'Sort the bills.', uploadIds: [],
-        limits: { minutes: 5, maxTurns: 4, budgetMicros: null }, digest: 'e'.repeat(64), status: 'waiting', startedAt: null, delegateRunId: null,
-      }],
-    }),
-  }));
-  await assert.rejects(deliveryOf(env, 'venture.delivery.delegate', { runId: briefing.id, digest: 'e'.repeat(64), decision: 'approve' }), code('AGENT_QUARANTINED'));
 });

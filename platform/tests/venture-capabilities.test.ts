@@ -16,7 +16,7 @@ import { playbookSteps } from '../runtime/venture/delivery/playbook.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import {
-  capabilityPage, capabilityTeam, EFFECT_OFF_WORDS, INPUT_WORDS, NO_CLI, NO_TOOLS_LINE, TEAM_LINE, TOOL_WORDS, type CapabilityTeam,
+  capabilityPage, capabilityTeam, EFFECT_OFF_WORDS, INPUT_WORDS, NO_TOOLS_LINE, TEAM_LINE, TOOL_WORDS, type CapabilityTeam,
 } from '../runtime/venture/agents/capabilities.ts';
 import { business, code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
 import { agentBusiness } from './venture-agent-helpers.ts';
@@ -37,7 +37,7 @@ const step = (patch: Partial<PlaybookStep>): PlaybookStep => ({
   id: 'one', kind: 'gather', title: 'Read the order', tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [], guidance: [], ...patch,
 });
 const teamOf = (steps: PlaybookStep[], patch: Partial<CapabilityTeam> = {}): CapabilityTeam => ({ steps, floor: {}, spends: new Set(), serviceType: null, flagship: true, ...patch });
-const desktop = { host: 'desktop' as const, delegate: true, judge: true };
+const desktop = { host: 'desktop' as const, judge: true };
 const ACT = new Set(['gather', 'question', 'work']);
 
 test('every tool, every input a turn carries and every effect kind have owner words: the page cannot drift', () => {
@@ -72,7 +72,7 @@ test('the fixed steps: the delivery agent shows the run\'s grant; the hands-on w
   const view = await page(env, 'delivery');
   const plan = listRecords(env.store.read(), 'venture-blueprint').find(entry => entry.status === 'accepted')!;
   const steps = playbookSteps(plan, null);
-  assert.deepEqual(toolsOn(view), [...playbookGrant({ steps })].sort());
+  assert.deepEqual(toolsOn(view), [...playbookGrant({ steps })].filter(name=>name!=='agent.delegate').sort());
   const work = item(view, 'step:work');
   assert.equal(work.state, 'planned', 'the owner\'s own hands-on work never shows as working');
   assert.equal(work.line, `${steps.find(entry => entry.id === 'work')!.title}. ${STEP_PLAN[1].note}`);
@@ -180,18 +180,15 @@ test('a step that needs a connector mode that is only planned is planned too, ne
   assert.equal(item(view, 'step:one').line, 'Read the books. Planned: it needs Xero to read, which this build does not do yet.');
 });
 
-test('Claude Code or Codex: works only when one is set up here; on the hosted app the server\'s own reason', async () => {
+test('primary agent capability pages do not advertise the retired heavy-work delegate', async () => {
   const env = await business(PLAIN_IDEA);
   const local = await page(env, 'delivery');
-  assert.equal(item(local, 'cli:agent.delegate').state, 'off', 'no CLI is set up in tests');
-  assert.equal(item(local, 'cli:agent.delegate').line, `${TOOL_WORDS['agent.delegate']} Off here: ${NO_CLI}`);
-  const work = step({ kind: 'work', tools: ['agent.delegate'] });
-  assert.equal(item(capabilityPage({ id: 'x', name: 'Helper', kind: 'agent', steps: [work] }, teamOf([work]), desktop), 'tool:agent.delegate').state, 'works');
-  env.deps.host = 'hosted-web';
-  const hosted = await page(env, 'delivery');
-  assert.equal(item(hosted, 'host:agent.delegate').line, `${TOOL_WORDS['agent.delegate']} Off here: ${hostRefusal('hosted-web', 'agent.delegate')}`);
-  assert.ok(hosted.items.some(entry => entry.key === 'host:sandbox.python'));
-  assert.ok(!keys(hosted, 'see').includes('tool:sandbox.python'));
+  assert.equal(local.items.some(row=>row.key.includes('agent.delegate')),false);
+  const work = step({kind:'work',tools:['agent.delegate']});
+  const view=capabilityPage({id:'x',name:'Helper',kind:'agent',steps:[work]},teamOf([work]),desktop);
+  assert.equal(view.items.some(row=>row.key.includes('agent.delegate')),false);
+  env.deps.host='hosted-web';const hosted=await page(env,'delivery');
+  assert.ok(hosted.items.some(entry=>entry.key==='host:sandbox.python'));
 });
 
 test('the judge setting of the business is read: turned off, the check step says only code checks', async () => {

@@ -1,4 +1,3 @@
-import { requireClientAiConsent } from '../clients/ai-consent.ts';
 // Chausar venture launcher, package P2 (models): the model port.
 // Every call is recorded before it is sent, with the exact text and a cost worked out by code. The workspace
 // send setting rules every send. Client data leaves only after one approval of its exact text (preview, then
@@ -40,8 +39,9 @@ import {
 import { CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import {
-  HTTP_TIMEOUT_MS, NOT_REPORTED, PREVIEW_TTL_MS, PROCESS_TIMEOUT_MS, STALE_DISPATCH_MESSAGE, STALE_DISPATCH_MS, isPlainRecord,
+  HTTP_TIMEOUT_MS, NOT_REPORTED, PROCESS_TIMEOUT_MS, STALE_DISPATCH_MESSAGE, STALE_DISPATCH_MS, isPlainRecord,
   type CallRecord, type ConnectionRecord, type ConnectionView, type Parsed,
 } from './types.ts';
 
@@ -77,7 +77,7 @@ type Prepared =
   | { transport: 'http'; routeKind: 'anthropic-messages' | 'openai-responses'; url: string; body: string; payloadText: string }
   | { transport: 'process'; plan: CliPlan; payloadText: string };
 
-type Pending = { prepared: Prepared; expiresAtMs: number };
+type Pending = { prepared: Prepared };
 
 // ---------------------------------------------------------------------------
 // Record access
@@ -116,12 +116,11 @@ export function newestFirst<T extends { at: string }>(records: T[]): T[] {
     .map(item => item.record);
 }
 
-/** How a call reads now, without writing: dispatching for over ten minutes is failed; a preview past 30 minutes is expired. */
+/** How a call reads now, without writing: dispatching for over ten minutes is failed. */
 export function viewCall(call: CallRecord, nowMs: number): CallRecord {
   if (call.status === 'dispatching' && nowMs - Date.parse(call.approvedAt ?? call.at) > STALE_DISPATCH_MS) {
     return { ...call, status: 'failed', error: { code: 'MODEL_TIMEOUT', message: STALE_DISPATCH_MESSAGE } };
   }
-  if (call.status === 'preview' && nowMs - Date.parse(call.at) > PREVIEW_TTL_MS) return { ...call, status: 'expired' };
   return call;
 }
 
@@ -513,10 +512,6 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     return current;
   };
 
-  const prunePending = (nowMs: number) => {
-    for (const [id, item] of pending) if (item.expiresAtMs < nowMs) pending.delete(id);
-  };
-
   return {
     status(ctx: Context): ModelStatusView {
       authorize(store, ctx);
@@ -643,13 +638,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         requireCurrentConnection(tx, route.connection);
         return putRecord(tx, newCall(tx, route, tier, task, prepared, estimate, 'approved-preview', table));
       });
-      const expiresAtMs = Date.parse(call.at) + PREVIEW_TTL_MS;
-      prunePending(clock().getTime());
-      pending.set(call.id, { prepared, expiresAtMs });
+      pending.set(call.id, { prepared });
       return {
         callId: call.id, payloadText: prepared.payloadText, digest: call.payloadDigest, presetId: call.presetId, model: call.model, endpoint: call.endpoint,
         estimatedMaxCostMicros: estimate, estimatedMaxCostDisplay: costDisplay(estimate, call.priceConfirmed, call.routeKind),
-        expiresAt: new Date(expiresAtMs).toISOString(),
         // Ink v2 wave 4 (4F2, M7): who pays, named before the owner approves.
         payer: payerWords(call.presetId),
       };
@@ -670,12 +662,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const claimed: { held?: Pending; table?: ModelPriceTable | null; metered?: boolean } = {};
       const call = await ventureAction(actionDeps, ctx, 'approve', 'models.approve', tx => {
         sweep(tx);
-        const nowMs = Date.parse(tx.now);
         const current = tx.find('venture-model-call', callId);
         const held = pending.get(callId);
         const stale = new ChausarError('APPROVAL_STALE', MESSAGES.approvalStale);
         if (!current || current.status !== 'preview' || current.approvedDigest !== null || current.payloadDigest !== approvedDigest || !held) throw stale;
-        if (nowMs > Date.parse(current.at) + PREVIEW_TTL_MS) throw stale;
         if (clientAi) {
           check(current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the quality check uses this client AI grant.');
           requireClientAiConsent(tx.state, current.ventureId, options!.clientAi!.clientId, options!.clientAi);

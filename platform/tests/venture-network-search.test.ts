@@ -13,6 +13,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import type { EvidenceRecord, NetworkSearchView, PeopleView, PersonView, QueueRow } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { namesProtectedTrait, protectedTerm } from '../runtime/venture/network/protected.ts';
+import { getClientAiConsent, agreeClientAiConsent, withdrawClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
 import { gather } from '../runtime/venture/network/search.ts';
 import { afterImportSearches, viewContext, holdingField, maskNames, nameMask, savedSearchRows, searchFields } from '../runtime/venture/network/saved-searches.ts';
 import { connectionsCsv, net, personNamed } from './venture-network-env.ts';
@@ -461,7 +462,7 @@ test('when a later scoring call fails, what was checked is kept, the rest wait f
   assert.equal(searchRecord(env, view.id).results.length, 70);
 });
 
-test('someone forgotten while the AI reads is dropped from the batch, and the call that carried them is erased', async () => {
+test('someone forgotten while the AI reads stops the search, and the call that carried them is erased', async () => {
   const env = await searchEnv();
   const { neha } = await skincare(env);
   env.port.onSend = async task => {
@@ -469,11 +470,9 @@ test('someone forgotten while the AI reads is dropped from the batch, and the ca
     env.port.onSend = null;
     await net(env, 'venture.network.forget', { id: neha.id });
   };
-  const view = await skincareSearch(env);
-  const record = searchRecord(env, view.id);
-  assert.ok(!names(view).includes('Neha Shah'));
-  assert.ok(record.batches!.every(batch => !batch.people.includes(neha.id)));
-  const scoring = listRecords(env.store.read(), 'venture-model-call').find(item => item.id === record.batches![0].callId)!;
+  await assert.rejects(skincareSearch(env), code('JOB_SOURCE_CHANGED'));
+  assert.equal(searches(env).length, 0);
+  const scoring = listRecords(env.store.read(), 'venture-model-call').at(-1)!;
   assert.ok(scoring.payloadText.startsWith('Erased:') && !scoring.payloadText.includes('Glow Skincare'));
 });
 
@@ -726,3 +725,94 @@ test('a LinkedIn headline in a name is cut off on import and kept as the title w
   await importFile(env, 'contacts-csv', 'again.csv', 'Name,E-mail 1 - Value\nNeha Shah | Founder,neha@glow.example\n');
   assert.ok(!listRecords(env.store.read(), 'venture-person').some(person => person.name.startsWith('Neha')), 'a forgotten person stays out');
 });
+
+async function linkedSearchClient(env: SearchEnv) {
+  const { asha } = await skincare(env);
+  const { client } = await seedPayingClient(env, 'Search client', 'search-client@example.test', '2026-01-01');
+  await ventureAction(env.deps, owner, 'admin', 'seed.clientLink', tx => { tx.replace({ ...tx.find('venture-person', asha.id)!, clientId: client.id }); });
+  return client;
+}
+async function allowSearchClient(env: SearchEnv, clientId: string) {
+  const view = await getClientAiConsent(env.deps, owner, { clientId });
+  await agreeClientAiConsent(env.deps, owner, { clientId, disclosureDigest: view.disclosureDigest });
+}
+
+test('linked clients without AI permission are excluded from scoring; prospects and locally filtered clients remain available', async () => {
+  const env = await searchEnv();
+  const client = await linkedSearchClient(env);
+  const first = await skincareSearch(env);
+  assert.ok(!names(first).includes('Asha Rao'));
+  assert.ok(names(first).includes('Neha Shah'));
+  assert.equal((env.port.scoring()[0].input as { people: unknown[] }).people.length, 2);
+  env.port.traits = () => query([], { clients: 'only' });
+  const local = await search(env, { text: 'my clients' });
+  assert.ok(names(local).includes('Asha Rao'), 'local filters do not send client facts to the AI');
+  assert.equal(env.port.scoring().length, 1);
+  await allowSearchClient(env, client.id);
+  assert.ok(names(await skincareSearch(env)).includes('Asha Rao'));
+});
+
+for (const phase of ['before-preview', 'after-preview', 'physical-send', 'response', 'regrant'] as const) {
+  test(`linked-client scoring binds the exact permission at ${phase}`, async () => {
+    const env = await searchEnv();
+    const client = await linkedSearchClient(env);
+    await allowSearchClient(env, client.id);
+    const withdraw = async () => {
+      await withdrawClientAiConsent(env.deps, owner, { clientId: client.id });
+      if (phase === 'regrant') await allowSearchClient(env, client.id);
+    };
+    const duringScores = async (task: { schemaName: string }) => { if (task.schemaName === 'venture-network-scores') await withdraw(); };
+    if (phase === 'before-preview') env.deps.webSearch = { search: async () => { await withdraw(); return []; } };
+    if (phase === 'after-preview') env.port.onPreview = duringScores;
+    if (phase === 'physical-send') env.port.onBeforeDispatch = duringScores;
+    if (phase === 'response' || phase === 'regrant') env.port.onSend = duringScores;
+    await assert.rejects(skincareSearch(env, QUESTION, { web: phase === 'before-preview' }), code(phase === 'regrant' ? 'CLIENT_AI_CONSENT_CHANGED' : 'CLIENT_AI_CONSENT_REQUIRED'));
+    assert.equal(searches(env).length, 0);
+    if (phase === 'before-preview') assert.equal(env.port.previewed.filter(task => task.schemaName === 'venture-network-scores').length, 0);
+    assert.equal(env.port.scoring().length, phase === 'response' || phase === 'regrant' ? 1 : 0);
+    assert.ok(listRecords(env.store.read(), 'venture-model-call').every(call => !call.payloadText.includes('skincare')), 'stopped searches erase their stored prompt text');
+  });
+}
+
+test('Find more excludes unconsented linked clients and binds a newly granted scoring batch', async () => {
+  const env = await searchEnv();
+  const client = await linkedSearchClient(env);
+  const first = await skincareSearch(env);
+  assert.ok(!names(first).includes('Asha Rao'));
+  const before = env.port.scoring().length;
+  assert.deepEqual(names(await searchMore(env, first.id)), []);
+  assert.equal(env.port.scoring().length, before);
+  await allowSearchClient(env, client.id);
+  env.port.onBeforeDispatch = async task => {
+    if (task.schemaName === 'venture-network-scores') await withdrawClientAiConsent(env.deps, owner, { clientId: client.id });
+  };
+  await assert.rejects(searchMore(env, first.id), code('CLIENT_AI_CONSENT_REQUIRED'));
+  assert.equal(env.port.scoring().length, before);
+  assert.ok(!searchRecord(env, first.id).results.some(result => result.personId === personNamed(env, 'Asha Rao').id));
+});
+
+test('a prospect linked to a client after candidate preparation cannot use the old unbound scoring input', async () => {
+  const env = await searchEnv();
+  const { asha } = await skincare(env);
+  const { client } = await seedPayingClient(env, 'New link', 'new-link@example.test', '2026-01-01');
+  env.port.onBeforeDispatch = async task => {
+    if (task.schemaName === 'venture-network-scores') await ventureAction(env.deps, owner, 'admin', 'seed.link', tx => {
+      tx.replace({ ...tx.find('venture-person', asha.id)!, clientId: client.id });
+    });
+  };
+  await assert.rejects(skincareSearch(env), code('JOB_SOURCE_CHANGED'));
+  assert.equal(env.port.scoring().length, 0);
+});
+
+for (const action of ['forget', 'hide'] as const) {
+  test(`a prospect ${action} during scoring setup is never dispatched`, async () => {
+    const env = await searchEnv();
+    const { neha } = await skincare(env);
+    env.port.onBeforeDispatch = async task => {
+      if (task.schemaName === 'venture-network-scores') await net(env, action === 'forget' ? 'venture.network.forget' : 'venture.network.hide', action === 'forget' ? { id: neha.id } : { personId: neha.id, hidden: true });
+    };
+    await assert.rejects(skincareSearch(env), code('JOB_SOURCE_CHANGED'));
+    assert.equal(env.port.scoring().length, 0);
+    assert.equal(searches(env).length, 0);
+  });
+}

@@ -9,7 +9,17 @@ import type { DecisionsView, DeliveryRunView, QueueDecision, QueueList, QueueRow
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { REVISE_PREFIX } from '../runtime/venture/delivery/revise.ts';
-import { call, code, owner, phone, record, seedOrder, setup, startRun, READ, DONE, approve, type Env } from './venture-run-controls-env.ts';
+import { call, code, owner, phone, record, seedOrder, setup, startNativeDraft, type Env } from './venture-run-controls-env.ts';
+
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
+
+const draftsFor = new WeakMap<Env, () => unknown>();
+const setDraft = (env: Env, next: () => unknown) => draftsFor.set(env, next);
+
+async function revised(env: Env, runId: string): Promise<DeliveryRunView> {
+  await waitForAgentWork(env.store, runId);
+  return (await call<DeliveryRunView[]>(env, 'venture.delivery.list', {})).find(run => run.id === runId)!;
+}
 
 const part = (text: string) => ({ kind: 'text', text, ref: '' });
 /** A one-step bookkeeping draft; first: the summary line. */
@@ -31,53 +41,38 @@ const sendBack = (env: Env, row: QueueRow, text: string, ctx = owner) => view<Qu
 async function readyDraft(drafts: unknown[] = [report('Here is the plan for your September books.')]) {
   const env = await setup();
   let next = 0;
-  env.models.respond.delivery = () => drafts[Math.min(next++, drafts.length - 1)];
+  setDraft(env, () => drafts[Math.min(next++, drafts.length - 1)]);
+  const contexts: Record<string, unknown>[] = [];
   const order = await seedOrder(env);
-  const started = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  const run = await approve(env, started);
+  const run = await startNativeDraft(env, { order, draft: () => draftsFor.get(env)!(), observe: (name, value) => { if (name === 'read_business') contexts.push(value as Record<string, unknown>); } });
   assert.equal(run.status, 'ready-for-review');
   const [row] = (await queue(env)).rows.filter(item => item.kind === 'draft');
   assert.ok(row, 'the review row');
-  return { env, run, row };
+  return { env, run, row, contexts };
 }
 
-test('sendBack on a draft: a revision turn whose input begins "Revise this to: {text}", waiting for approval; the row leaves Today', async () => {
-  const { env, run, row } = await readyDraft();
-  const before = env.models.previewed.length;
+test('sendBack starts a scoped revision with the exact owner words and previous draft, then returns a fresh review row', async () => {
+  const { env, run, row, contexts } = await readyDraft([report('Here is the plan for your September books.'), report('Here is a short plan for your September books.')]);
   const decision = await sendBack(env, row, 'Make it shorter and warmer.');
   assert.equal(decision.outcome, 'done');
-  assert.equal(decision.line, 'Sent back. The revision waits for your approval before anything goes to your AI.');
-  assert.equal(env.models.previewed.length, before + 1, 'one new preview, nothing sent');
-  const task = env.models.previewed.at(-1)!;
-  const input = task.input as Record<string, unknown>;
-  assert.equal(Object.keys(input)[0], 'revise', 'the owner\'s words come first');
-  assert.equal(input.revise, `${REVISE_PREFIX}Make it shorter and warmer.`);
-  assert.ok(String(input.revise).startsWith('Revise this to: '));
-  assert.equal(input.previousDraft, run.renderedText, 'the draft it revises is beside the words');
-  assert.equal(input.clientRequest !== undefined, true, 'the step\'s own input follows');
-  const stored = record(env, run.id);
-  assert.equal(stored.status, 'waiting-for-you');
-  assert.equal(stored.revision?.by, 'send-back');
-  assert.equal(stored.revision?.rowId, row.id);
-  assert.equal(stored.renderedText, run.renderedText, 'the draft is kept until the revision lands');
-  const after = (await queue(env)).rows;
-  assert.ok(!after.some(item => item.id === row.id), 'the review row left Today');
-  assert.ok(after.some(item => item.kind === 'quote' && item.viewRef?.id === run.id), 'the revision waits for the owner to send it to the AI');
-  // The words are on the decision, and the decision reaches venture.decisions.list.
+  assert.equal(decision.line, 'Sent back. The revised draft will wait for your review.');
+  const landed = await revised(env, run.id);
+  const context = contexts.at(-1)!;
+  const revision = context.revision as { words: string; previousDraft: string };
+  assert.equal(revision.words, `${REVISE_PREFIX}Make it shorter and warmer.`);
+  assert.equal(revision.previousDraft, run.renderedText);
+  assert.equal(env.models.previewed.filter(task => task.purpose === 'delivery' || task.purpose === 'agent-turn').length, 0, 'no Chausar per-turn preview');
+  assert.equal(landed.status, 'ready-for-review');
+  assert.match(landed.renderedText ?? '', /a short plan/);
+  assert.equal(record(env, run.id).revision ?? null, null);
   const [click] = listRecords(env.store.read(), 'venture-queue-decision');
   assert.equal(click.rowId, row.id);
   assert.equal(click.action, 'deny');
   assert.equal(click.line, 'Sent back with your words: Make it shorter and warmer.');
   const { decisions } = await view<DecisionsView>(env, 'venture.decisions.list', {});
   assert.ok(decisions.some(item => item.subject === `run:${run.id}` && item.reason === click.line && item.who === 'owner'));
-  // The revision lands once the owner approves it: a new draft on a new review row.
-  env.models.respond.delivery = () => report('Here is a short plan for your September books.');
-  const landed = await approve(env, (await call<DeliveryRunView[]>(env, 'venture.delivery.list', {})).find(item => item.id === run.id)!);
-  assert.equal(landed.status, 'ready-for-review');
-  assert.match(landed.renderedText ?? '', /a short plan/);
-  assert.equal(record(env, run.id).revision ?? null, null);
   const review = (await queue(env)).rows.find(item => item.kind === 'draft');
-  assert.ok(review && review.id !== row.id, 'a new review row');
+  assert.ok(review && review.id !== row.id, 'the revised content needs a new exact approval');
 });
 
 test('sendBack refuses empty words, more than 300 characters, an old digest, and works only inside the app', async () => {
@@ -121,43 +116,36 @@ test('sendBack on a plan or price row is a No that keeps the words on its decisi
 
 test('sendBack on a row that is neither a draft nor a plan change is refused in words', async () => {
   const { env, run } = await readyDraft();
-  // Send it back once: the revision's send row (a quote row) is not a draft.
-  const [row] = (await queue(env)).rows.filter(item => item.kind === 'draft');
-  await sendBack(env, row, 'Shorter');
-  const send = (await queue(env)).rows.find(item => item.viewRef?.id === run.id)!;
-  assert.equal(send.kind, 'quote');
-  const decision = await sendBack(env, send, 'Shorter still');
+  await ventureAction(env.deps, owner, 'prepare', 'test.failed', tx => {
+    tx.replace({ ...tx.find('venture-delivery-run', run.id)!, status: 'failed' });
+  });
+  const row = (await queue(env)).rows.find(item => item.viewRef?.id === run.id);
+  assert.ok(row, 'a non-draft queue row is present');
+  const decision = await sendBack(env, row, 'Shorter still');
   assert.equal(decision.outcome, 'refused');
   assert.equal(decision.reason, 'NOT_OFFERED');
 });
 
-test('the agent loop goes back to its writing turn: the write task carries the words first, and the run lands for review again', async () => {
-  const env = await setup();
-  const started = await startRun(env, [READ, DONE]);
-  env.models.respond.delivery = () => report('Here is what we found in your September files.');
-  let run: DeliveryRunView = started;
-  while (run.status === 'waiting-for-you') run = await approve(env, run);
-  assert.equal(run.status, 'ready-for-review');
-  assert.equal(record(env, run.id).harness?.phase, 'done');
-  const [row] = (await queue(env)).rows.filter(item => item.kind === 'draft');
-  assert.equal((await sendBack(env, row, 'Say what is left in plain words.')).outcome, 'done');
-  const stored = record(env, run.id);
-  assert.equal(stored.harness?.phase, 'write', 'back to the writing turn');
-  const task = env.models.previewed.at(-1)!;
-  assert.equal(task.purpose, 'delivery');
-  assert.equal((task.input as Record<string, unknown>).revise, 'Revise this to: Say what is left in plain words.');
-  assert.ok('proven' in (task.input as object), 'the writing turn\'s own input follows');
-  const landed = await approve(env, (await call<DeliveryRunView[]>(env, 'venture.delivery.list', {})).find(item => item.id === run.id)!);
+test('a native revision keeps the same order, renews its scoped job and never restores a per-turn harness', async () => {
+  const { env, run, row, contexts } = await readyDraft();
+  const original = record(env, run.id).agentJob!.scope;
+  await sendBack(env, row, 'Say what is left in plain words.');
+  const landed = await revised(env, run.id);
   assert.equal(landed.status, 'ready-for-review');
-  assert.equal(record(env, run.id).harness?.phase, 'done');
-  assert.equal(record(env, run.id).harness?.turns.filter(turn => turn.step === 'write').length, 2, 'the revision is a turn of the run');
+  const current = record(env, run.id);
+  assert.equal(current.harness, null);
+  assert.equal(current.agentJob!.scope.orderId, original.orderId);
+  assert.notEqual(current.agentJob!.scope.jobId, original.jobId);
+  assert.equal(current.agentJob!.scope.generation, original.generation + 1);
+  assert.equal((contexts.at(-1)!.revision as { words: string }).words, 'Revise this to: Say what is left in plain words.');
 });
 
 test('the owner\'s words pass the shared screen before they reach the AI', async () => {
-  const { env, row } = await readyDraft();
+  const { env, run, row, contexts } = await readyDraft();
   const key = 'sk-ant-' + 'api03-' + 'A'.repeat(40);
   await sendBack(env, row, `Remove the key ${key} from the draft.`);
-  const revise = String((env.models.previewed.at(-1)!.input as Record<string, unknown>).revise);
+  await revised(env, run.id);
+  const revise = String((contexts.at(-1)!.revision as { words: string }).words);
   assert.ok(!revise.includes(key), 'a key never goes to the AI');
 });
 
@@ -169,11 +157,11 @@ test('delivery.fix after failed checks: a revision that names those checks; once
   await assert.rejects(call(env, 'venture.delivery.fix', { runId: run.id, checks: 'all' }, phone), code('APP_APPROVAL_REQUIRED'));
   const fixing = await call<DeliveryRunView>(env, 'venture.delivery.fix', { runId: run.id, checks: 'all' });
   assert.equal(fixing.status, 'waiting-for-you');
-  const revise = String((env.models.previewed.at(-1)!.input as Record<string, unknown>).revise);
+  const revise = record(env, run.id).revision!.words;
   assert.ok(revise.startsWith('Revise this to: fix what these checks found.'));
   assert.match(revise, /no-done-claims/);
   assert.deepEqual(record(env, run.id).revision?.checks, ['no-done-claims']);
-  const landed = await approve(env, fixing);
+  const landed = await revised(env, fixing.id);
   assert.equal(landed.status, 'ready-for-review');
   assert.deepEqual(record(env, run.id).fix?.checks, ['no-done-claims']);
   assert.equal(record(env, run.id).fix?.status, 'fixed');
@@ -184,7 +172,8 @@ test('delivery.fix after failed checks: a revision that names those checks; once
 test('delivery.fix: a fix the checks still fail reads Not fixed; nothing to fix is refused', async () => {
   const claim = report('We reconciled your bank statement and filed your GST return.');
   const { env, run } = await readyDraft([claim, claim]);
-  const landed = await approve(env, await call<DeliveryRunView>(env, 'venture.delivery.fix', { runId: run.id, checks: ['no-done-claims'] }));
+  await call<DeliveryRunView>(env, 'venture.delivery.fix', { runId: run.id, checks: ['no-done-claims'] });
+  const landed = await revised(env, run.id);
   assert.equal(landed.status, 'ready-for-review');
   assert.equal(record(env, run.id).fix?.status, 'not-fixed');
   const clean = await readyDraft();

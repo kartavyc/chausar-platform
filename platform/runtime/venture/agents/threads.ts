@@ -4,23 +4,22 @@
 // waits on kept in one fixed place. venture.agents.thread.send takes the owner's words: keys are refused before
 // anything else, the chat consent is checked, and code decides what the words ask for (standing.ts, answer.ts).
 // Every stored message emits agent.message with ids only.
-import { check, type Context, type State } from '../../contracts.ts';
-import type { AgentMessageRecord, AgentMessageView, AgentRunItem, AgentSendResult, AgentThreadItem, AgentThreadView, ProposalRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
+import { check,type Context,type State } from '../../contracts.ts';
+import { draftProposal } from '../chief/store.ts';
+import type { AgentMessageRecord,AgentMessageView,AgentRunItem,AgentSendResult,AgentThreadItem,AgentThreadView,ProposalRecord,VentureDeps,VentureRecord } from '../contracts.ts';
 import { secretFindings } from '../core/secrets.ts';
-import { deliveryAnswerHandler } from '../delivery/runs.ts';
 import { ownerControlReason } from '../delivery/harness/patches.ts';
 import { ensurePlaybook } from '../delivery/playbook.ts';
 import { readAs } from '../delivery/shared.ts';
-import { draftProposal } from '../chief/store.ts';
+import { exactPayload,findRecord,identifier,listRecords,plainText,requireAppChannel,ventureAction,type VentureTx } from '../records.ts';
 import { short } from '../views/shared.ts';
-import { appendAgentMessage, type AgentMessageInput } from './store.ts';
-import { agentRuns, answerQuestion, holdsIdNumber, intentOf, offerFor, waitingOn, type Answer, type FloorRequest } from './answer.ts';
-import { chatConsentState, requireChatConsent } from './consent.ts';
-import { draftPatch, NOTE_REPLY, proposalView, STANDING_REPLY, storeInstruction, storeNoteProposal, templatePatch, type DraftedPatch } from './proposals.ts';
-import { chatAgent, type ChatAgent } from './roles.ts';
+import { agentRunHistory,answerQuestion,holdsIdNumber,intentOf,offerFor,waitingOn,type Answer,type FloorRequest } from './answer.ts';
+import { chatConsentState,requireChatConsent } from './consent.ts';
+import { draftPatch,NOTE_REPLY,proposalView,STANDING_REPLY,storeInstruction,storeNoteProposal,templatePatch,type DraftedPatch } from './proposals.ts';
 import { noteText } from './recall.ts';
-import { detectStanding, onlyAsks } from './standing.ts';
+import { chatAgent,type ChatAgent } from './roles.ts';
+import { detectStanding } from './standing.ts';
+import { appendAgentMessage,type AgentMessageInput } from './store.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -58,6 +57,7 @@ function messageView(record: AgentMessageRecord, state?: State): AgentMessageVie
 function recalledIn(state: State, venture: VentureRecord, runId: string, agent: ChatAgent): AgentRunItem['recalled'] {
   const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === runId);
   const ids = new Set((run?.harness?.turns ?? []).filter(turn => !turn.role || turn.role === agent.id).flatMap(turn => turn.recalled ?? []));
+  for (const id of run?.agentJob?.recalled ?? []) ids.add(id);
   return listRecords(state, 'venture-agent-note', venture.id).filter(note => ids.has(note.id) && note.agent === agent.id)
     .map(note => (note.forgotten ? { id: note.id, text: FORGOTTEN_NOTE, forgotten: true } : { id: note.id, text: noteText(note) }));
 }
@@ -72,7 +72,7 @@ function threadItems(deps: VentureDeps, state: State, venture: VentureRecord, ag
   for (const record of listRecords(state, 'venture-agent-proposal', venture.id)) {
     if (record.agent === agent.id) items.push({ id: record.id, at: record.at, seq: order.get(record.id) ?? 0, item: { type: 'proposal', proposal: proposalView(state, venture, record, agent.name) } });
   }
-  for (const { detail, steps } of agentRuns(deps, state, venture, agent)) {
+  for (const { detail, steps } of agentRunHistory(deps, state, venture, agent)) {
     const done = steps.filter(step => step.state === 'done' && step.audited !== false).length;
     items.push({
       id: detail.runId, at: detail.startedAt, seq: order.get(detail.runId) ?? 0,
@@ -122,7 +122,7 @@ const asItem = (record: AgentMessageRecord, state?: State): AgentThreadItem => (
  * what the words ask for:
  * - "from now on" (standing.ts): the agent drafts a change to its instructions, stored as a proposal for Accept;
  * - "remember that" (standing.ts): code drafts a note from the words, quoting them, stored as a note proposal (4B2);
- * - while the agent's run waits on the owner's question: the words are its answer, through venture.delivery.answer;
+ * - a pending job question is context only; its exact answer belongs on Work or Today;
  * - a request on the floor (publish, send, money, prices): a drafted proposal for Today, and "That needs your approval on Today.";
  * - a request for work: a prefilled New order suggestion, nothing created;
  * - anything else: one answer from the agent's own facts.
@@ -179,16 +179,6 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
 
   const agent = chatAgent(state, venture, agentId);
   const waiting = waitingOn(deps, state, venture, agent);
-  if (waiting && kind === null && !options.routine && !onlyAsks(words)) {
-    // A reply while the run waits on the owner counts as the answer (A2): the delivery answer path previews the next
-    // turn, and the owner's message is written in the same commit. A question that only asks is answered instead.
-    let said: AgentMessageRecord | null = null;
-    await deliveryAnswerHandler(deps, ctx, { runId: waiting.runId, answer: words }, (tx, handoff) => {
-      said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner', runId: waiting.runId, answered: { runId: waiting.runId, handoff } });
-    });
-    return { added: [asItem(said!)], line: ANSWERED_LINE };
-  }
-
   const intent = intentOf(words, agent.team);
   if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent);
   if (intent.kind === 'work') {

@@ -21,7 +21,7 @@ export const FAKE_4J19_METHODS: readonly string[] = [
 /** The engine's words, word for word. */
 export const FAKE_4J19_WORDS = {
   sentBack: (text: string) => `Sent back with your words: ${text}`,
-  sentBackLine: 'Sent back. The revision waits for your approval before anything goes to your AI.',
+  sentBackLine: 'Sent back. The revised draft will wait for your review.',
   planKept: (text: string) => `Not accepted. Your words: ${text}`,
   planLine: 'Kept as a draft. Your words are on the decision.',
   edited: 'You edited the draft. Your version waits for your approval.',

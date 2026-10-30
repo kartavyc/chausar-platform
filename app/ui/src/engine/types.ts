@@ -1,6 +1,3 @@
-import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
-export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
-import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 /**
  * The engine contract the UI builds to. The first block is the shared contract from
  * docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
@@ -159,6 +156,8 @@ export interface RunSummary {
  * of the turn in flight (U7).
  */
 export interface RunDetail extends RunSummary {
+  /** Actual driver updates. These words have not passed the delivery number guard. */
+  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
   scope?: RunScopeView; steer?: { text: Display; at: string; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: 'finished' | 'limit' | 'needs-answer' | 'blocked' | 'failures'; line: Display } | null };
@@ -651,6 +650,10 @@ export interface ClientLite {
   owed?: { display: Display; receiptId: string };
 }
 export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
+export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
+import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
 export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
 export interface OrderLite {
@@ -697,7 +700,7 @@ export type DeliveryStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting
   | DeliveryStatusW4; // 4F3 folds in 'stopped': the owner's (or Chausar's) stop, waiting for Resume
 export interface DeliveryLite {
   id: string; at: string; orderId: string; status: DeliveryStatus; practice: boolean;
-  deliverable: { title: string } | null; verdict: { choice: 'accepted' | 'edited' | 'rejected'; at: string } | null;
+  deliverable: { title: string } | null; verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason?: string | null; at: string } | null;
   /** DeliveryRunView: the run waits on the owner (it is on Today). The engine always sends it. */
   awaitingYou?: boolean;
   /**
@@ -733,7 +736,7 @@ export interface PlaybookCheckLite { playbook: string; check: string; outcome: '
  */
 export interface DeliveryJudgeLite {
   status: 'waiting' | 'done' | 'failed';
-  preview: { digest: string; estimatedMaxCostDisplay: Display; expiresAt: string } | null;
+  preview: { digest: string; estimatedMaxCostDisplay: Display } | null;
   auto?: boolean; estimatedMaxCostDisplay?: Display | null; line?: Display | null; draftDigest?: string;
 }
 /**
@@ -843,7 +846,7 @@ export interface QueueItemView {
 // ---------------------------------------------------------------------------------------------------------------
 
 /** `venture.delivery.judge`: the judge's call on a ready draft, waiting for "Send to the judge" with this digest. */
-export interface JudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; expiresAt: string; containsClientData: true }
+export interface JudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; containsClientData: true }
 /**
  * `venture.judge.auto.get` and `.set`: whether the judge runs on its own on every ready draft for a client or the
  * public (on by default), when its standing consent was recorded (null until then, or while off), and the engine's
@@ -1618,13 +1621,6 @@ export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string;
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface EngineMethods {
-  'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
-  'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
-  'venture.mcpCredential.set': { params:{serverId:string;token:string|null};result:{serverId:string;saved:boolean} };
-  'venture.client.aiConsent.get': { params: {clientId:string}; result: ClientAiConsentView };
-  'venture.client.aiConsent.agree': { params: {clientId:string;disclosureDigest:string}; result: ClientAiConsentView };
-  'venture.client.aiConsent.withdraw': { params: {clientId:string}; result: ClientAiConsentView };
-  'venture.agentApproval.decide': { params: {runId:string;digest:string;decision:'approve'|'deny'}; result: {runId:string;decision:'approve'|'deny'} };
   'venture.queue.list': { params: { scope?: 'current' | 'all' }; result: QueueList };
   'venture.queue.decide': { params: { id: string; digest: string; action: QueueActionId; answer?: string; viewed?: boolean }; result: QueueDecision };
   // 4J19: opened only when the owner explicitly opened the item; a card drawing its preview sends none (no view mark).
@@ -1745,6 +1741,13 @@ export interface EngineMethods {
   'trust.update': { params: { send: ModelStatusLite['sendPolicy'] }; result: { send: ModelStatusLite['sendPolicy'] } };
   'venture.client.list': { params: Record<string, never>; result: ClientLite[] };
   'venture.client.add': { params: ClientAddParams; result: ClientLite };
+  'venture.client.aiConsent.get': { params: {clientId:string}; result: ClientAiConsentView };
+  'venture.client.aiConsent.agree': { params: {clientId:string;disclosureDigest:string}; result: ClientAiConsentView };
+  'venture.client.aiConsent.withdraw': { params: {clientId:string}; result: ClientAiConsentView };
+  'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
+  'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
+  'venture.mcpCredential.set': { params:{serverId:string;token:string|null};result:{serverId:string;saved:boolean} };
+  'venture.agentApproval.decide': { params: {runId:string;digest:string;decision:'approve'|'deny'}; result: {runId:string;decision:'approve'|'deny'} };
   'venture.order.list': { params: Record<string, never>; result: OrderLite[] };
   'venture.files.list': { params: { orderId?: string }; result: UploadLite[] };
   'venture.delivery.list': { params: Record<string, never>; result: DeliveryLite[] };
@@ -1977,13 +1980,10 @@ export interface EngineMethods {
   'venture.simulation.fromSignal': { params: { signalId: string }; result: ScenarioLite };
   'venture.launch.status': { params: Record<string, never>; result: unknown };
   'venture.launch.advance': { params: { to: string }; result: unknown };
-  'venture.delivery.approve': { params: { runId: string; digest: string }; result: DeliveryLite };
   'venture.delivery.review': { params: { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: string; editedText?: string }; result: DeliveryLite };
   'venture.capabilities': { params: Record<string, never>; result: unknown[] };
-  'venture.delivery.answer': { params: { runId: string; answer: string }; result: DeliveryLite };
   'venture.work.get': { params: { id: string }; result: WorkReceiptLite };
   'venture.improve.get': { params: { runId: string }; result: ImprovementRunLite };
-  'venture.delivery.delegate': { params: { runId: string; digest: string; decision: 'approve' | 'decline' }; result: DeliveryLite };
   'venture.delegate.get': { params: { id: string }; result: unknown };
   'venture.ai.calls': { params: { limit?: number }; result: unknown[] };
   'venture.country.suggest': { params: { text: string }; result: { country: CountryLite | null; evidence: string | null; source: 'ai' | 'not-connected' } };

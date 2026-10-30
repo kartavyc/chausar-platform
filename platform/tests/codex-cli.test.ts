@@ -32,6 +32,12 @@ test('synthetic completed turn preserves one plan and measured usage', () => {
   assert.deepEqual(output.value, syntheticPlan); assert.deepEqual(output.usage, completed.usage);
   assert.equal(output.completed, true); assert.deepEqual(validatePlan(output.value, ['earned']), { operation: 'earned' });
 });
+test('synthetic read-only model calls disable host skill and plugin discovery', () => {
+  const args = buildCodexCliArguments('synthetic-model', resolve('schema.json'), syntheticProfile);
+  for (const setting of ['features.skip_host_skill_discovery=true', 'skills.bundled.enabled=false', 'features.plugins=false', 'features.skill_search=false', 'suppress_unstable_features_warning=true']) {
+    assert.ok(args.includes(setting), `The isolated quality call must set ${setting}`);
+  }
+});
 test('synthetic completion without usage does not fabricate measurements', () => {
   const output = parseCodexCliOutput(syntheticEvents(final(), { type: 'turn.completed' }));
   assert.equal(output.usage, undefined);

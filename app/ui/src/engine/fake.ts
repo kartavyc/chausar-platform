@@ -69,6 +69,8 @@ const DONE_LINES: Partial<Record<QueueAction['id'], string>> = {
 const RECEIPTED = new Set(['price', 'quote', 'invoice']);
 
 export interface FakeOptions {
+  /** An opt-in synthetic UI example, never evidence of a live model run. */
+  agentProgress?: boolean;
   latencyMs?: number; now?: () => string;
   /** A computer with no business yet and no vault open: the first run. */
   fresh?: boolean;
@@ -207,6 +209,10 @@ export class FakeEngine {
     const fresh = options.fresh ?? devAsks('fresh');
     this.rows = (options.queue ?? QUEUE).map((seed) => ({ ...clone(seed), digest: digestOf(seed) }));
     this.runs = clone(RUNS);
+    if(options.agentProgress ?? devAsks('agent-progress')) {
+      const sample=this.runs.find(run=>run.runId==='31');
+      if(sample){sample.progress='indeterminate';sample.steps=[];sample.agentProgress={model:'Synthetic example',messages:[{id:'sample-message',text:'Synthetic example: I am checking the supplied brief.',label:'model-estimate'}],tools:[{id:'sample-tool',name:'read_order',status:'running'}]};}
+    }
     this.agents = clone(AGENTS);
     this.clients = clone(CLIENTS);
     this.evidence = clone(EVIDENCE);
@@ -251,6 +257,7 @@ export class FakeEngine {
       rows:()=>this.rows,setRows:rows=>{this.rows=rows;},
       hosted: () => this.hosted,
       fingerprint: digestOf, recruitDigest: digestOf,
+      receipt:id=>this.findReceipt(id),
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
       country:()=>{const country=this.ventureView()?.venture.country;if(!country)throw new EngineError('VENTURE_NOT_FOUND','Start a business first.');return country;},
       plan: () => this.desk.acceptedPlanFor(this.current),
@@ -279,6 +286,9 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
+      nativeStop:(run:RunDetail)=>this.work.nativeStop(run),
+      nativeRestart:(run:RunDetail,resume:boolean)=>this.work.nativeRestart(run,resume),
       draftText: (id:string)=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
       sharedDraftDigest:(id:string)=>this.extras.sharedDraftDigest(this.current,id),
       socialClientAnswer:(id:string)=>this.posting.socialClientAnswer(id),
@@ -569,14 +579,14 @@ export class FakeEngine {
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
 
   private clientAiConsent(method:string, payload:unknown) {
-    return fakeClientAiConsent(method,payload,{clients:this.clients[this.current]??[],ventureId:"venture_"+this.current,now:()=>this.now(),changed:()=>{this.emit({type:'queue.changed',businessId:this.current,at:this.now()});}});
+    return fakeClientAiConsent(method,payload,{clients:this.clients[this.current]??[],ventureId:"venture_"+this.current,now:()=>this.now(),changed:()=>{this.work.recheckAiConsent();this.emit({type:'queue.changed',businessId:this.current,at:this.now()});}});
   }
 
   private answerNow(method: string, p: Record<string, unknown>): unknown {
-    if (method === 'venture.agentSettings.get') return this.agentSettings.request(method, p);
     if (method === 'venture.agentApproval.decide') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.agree' || method === 'venture.client.aiConsent.withdraw') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.get') return this.clientAiConsent(method,p);
+    if (method === 'venture.agentSettings.get') return this.agentSettings.request(method, p);
     if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();
@@ -684,8 +694,10 @@ export class FakeEngine {
       return { outcome: 'done', line: proposed };
     }
     // 4F3: Resume, Run again and the round gate's Continue and Stop on a run-control row, in the engine's words.
-    const controlled = this.w4.decideRunControl(row, action.id, p.answer);
+    let controlled:ReturnType<FakeW4Desk['decideRunControl']>;
+    try{controlled=this.w4.decideRunControl(row, action.id, p.answer);}catch(error){this.decided.delete(row.id);throw error;}
     if (controlled) {
+      if(controlled instanceof Promise)return controlled.then(line=>{this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done' as const,line};},error=>{this.decided.delete(row.id);throw error;});
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       return { outcome: 'done', line: controlled };
     }

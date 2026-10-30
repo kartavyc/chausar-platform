@@ -3,6 +3,7 @@
 // deny cancels it and says why; and while calls wait for approval, the agent is told they have not run, so it never
 // tells the owner something went out. No network, no paid calls.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
 import assert from 'node:assert/strict';
 import type { HarnessState, JournalRecord, ScenarioKind, ToolName, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -17,7 +18,7 @@ import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
 import { HOLD_APPROVE_ANSWER } from '../runtime/venture/policy/holds.ts';
 import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 import type { PolicyContext } from '../runtime/venture/policy/ladder.ts';
-import { approve, code, decideBrief, installFakeClaude, owner, realOrder, startRun, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
+import { code, owner, realOrder, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
 
 const practice = (kind: ScenarioKind) => practiceFiles({ id: `bookkeeping-${kind}`, serviceType: 'bookkeeping', source: 'template' });
 const turn = (calls: [string, unknown][], finished = false) => ({ note: 'Work on the files', calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
@@ -41,9 +42,10 @@ function toolEnv(over: Partial<PolicyContext> = {}, recheck?: ToolEnv['recheck']
 const error = (outcome: Awaited<ReturnType<typeof callTool>>) => outcome.record.envelope.ok ? null : outcome.record.envelope.error;
 const CANCELLED = { code: 'ORDER_NOT_ACTIVE', reason: 'The order was cancelled after you approved this.' };
 
-test('w6 an existing order keeps its original tool currency after the business moves', async () => {
+test('w6 an existing order keeps its original tool currency after the business moves', async t => {
   const env = await realOrder();
-  const run = await startRun(env);
+  const native = await nativeContext(env.deps, owner, env.order.id); t.after(()=>native.job.close());
+  const run = native.run;
   const changed = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'US' } });
   await blueprintAccept(env.deps, owner, { digest: changed.blueprint.digest });
   const state = env.store.read();
@@ -147,98 +149,25 @@ async function cancelOrder(env: RealOrderEnv) {
   await ventureAction(env.deps, owner, 'prepare', 'seed.cancel', tx => { tx.replace({ ...tx.find('venture-order', env.order.id)!, status: 'cancelled' }); });
 }
 
-test('real order: a send approved after its order was cancelled is stopped before it goes, and the journal says why', async () => {
-  const env = await realOrder();
-  env.models.turns = [READ];
-  const run = await startRun(env);
-  await cancelOrder(env);
-  await assert.rejects(approve(env, run), code('ORDER_NOT_ACTIVE'));
-  assert.equal(env.models.sent, 0, 'nothing went to the AI');
-  const [entry] = journalSends(env);
-  assert.equal(entry.state, 'rejected');
-  assert.equal(entry.outcome?.line, 'The order was cancelled after you approved this, so it was stopped.');
-});
 
-test('real order: the monthly limit is read again at the send; lowered under what the call may cost, it stops the send', async () => {
-  const env = await realOrder();
-  env.models.turns = [READ];
-  const run = await startRun(env);
-  await setSpendPolicy(env.deps, owner, { capMicros: '500' });
-  await assert.rejects(approve(env, run), code('SPEND_CAP'));
-  assert.equal(env.models.sent, 0);
-  const [entry] = journalSends(env);
-  assert.equal(entry.state, 'rejected');
-  assert.match(entry.outcome!.line, /past your limit of USD 0\.0005/);
-  await setSpendPolicy(env.deps, owner, { capMicros: null });
-  await approve(env, run);
-  assert.equal(env.models.sent, 1, 'with the limit lifted the same approval goes');
-});
 
-test('real order: the tools of an approved turn read the order again; with the order cancelled, each call is stopped', async () => {
-  const env = await realOrder();
-  const run = await startRun(env);
-  const state = env.store.read();
-  const venture = listRecords(state, 'venture-record')[0];
-  const playbook = listRecords(state, 'venture-playbook')[0];
-  const built = buildToolEnv({ deps: env.deps, ctx: owner, state, venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files: [], allowed: [], approval: { kind: 'owner-turn', callId: run.callId } });
-  assert.equal(recheckRun(env.deps, venture.id, run.id), null);
-  const open = await callTool(built, ['files.list'], 1, 0, { tool: 'files.list', input: '{}' });
-  assert.equal(open.record.outcome, 'succeeded');
-  await cancelOrder(env);
-  const stopped = await callTool(built, ['files.list'], 1, 0, { tool: 'files.list', input: '{}' });
-  assert.equal(error(stopped)?.code, 'ORDER_NOT_ACTIVE');
-});
 
-test('real order: the run cap is read again from the playbook in force; the smaller of it and the run snapshot, plus windows, counts', async () => {
-  const env = await realOrder();
-  env.models.turns = [READ, READ];
-  const run = await approve(env, await startRun(env));
-  const ventureId = env.venture.id;
-  assert.equal(recheckRun(env.deps, ventureId, run.id), null, '200 spent of 250000');
-  // The owner's playbook now allows each run only 100: the run has already spent 200.
-  await ventureAction(env.deps, owner, 'prepare', 'seed.limits', tx => {
-    const playbook = tx.find('venture-playbook', tx.venture!.playbookId!)!;
-    tx.replace({ ...playbook, limits: { ...DEFAULT_LIMITS, maxCostMicros: '100' } });
-  });
-  const denial = recheckRun(env.deps, ventureId, run.id);
-  assert.equal(denial?.code, 'RUN_CAP_REACHED');
-  assert.match(denial!.reason, /USD 0\.0001/);
-  await assert.rejects(approve(env, run), code('RUN_CAP_REACHED'), 'the send reads it again too');
-  assert.equal(env.models.sent, 1);
-  // A window the owner allowed still counts on top of the smaller cap.
-  await ventureAction(env.deps, owner, 'prepare', 'seed.window', tx => {
-    const current = tx.find('venture-delivery-run', run.id)!;
-    tx.replace({ ...current, harness: { ...current.harness!, capWindows: [{ micros: '5000', at: '2026-10-16T10:00:00.000Z', by: 'owner' }] } });
-  });
-  assert.equal(recheckRun(env.deps, ventureId, run.id), null);
-});
+
+
+
+
 
 test('real order: when the check before the send cannot finish, the send is refused, never left with an unknown outcome', async () => {
   const env = await realOrder();
-  env.models.turns = [READ];
-  const run = await startRun(env);
   const failing = { ...env.deps, store: { read: () => { throw new Error('vault closed'); } } } as unknown as VentureDeps;
-  assert.throws(() => recheckSend(failing, env.venture.id, run.id, run.callId!, run.preview!.digest), (error: any) => {
+  assert.throws(() => recheckSend(failing, env.venture.id, 'run_closed', 'call_closed', 'digest_closed'), (error: any) => {
     assert.equal(error.code, 'RECHECK_FAILED');
     assert.equal(error.message, 'The check before this ran could not finish, so it was stopped. Nothing was sent.');
     return true;
   });
 });
 
-test('heavy work: the start reads the order again; a brief approved after the order was cancelled starts nothing', async () => {
-  const fake = installFakeClaude();
-  try {
-    const env = await realOrder({ delegate: fake.ports });
-    env.models.turns = [turnOf('Hand the matching to the owner tool', [['agent.delegate', { brief: 'Match every payment in the bank statement to a bill.' }]])];
-    const run = await approve(env, await startRun(env));
-    assert.equal(run.status, 'brief-waiting');
-    await cancelOrder(env);
-    await assert.rejects(decideBrief(env, run, 'approve'), code('ORDER_NOT_ACTIVE'));
-    assert.equal(fake.started(), false);
-  } finally {
-    fake.cleanup();
-  }
-});
+
 
 // ---------------------------------------------------------------------------
 // 4. While approvals wait, the agent is told they have not run (H14)

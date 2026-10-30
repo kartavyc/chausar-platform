@@ -235,7 +235,7 @@ export async function recordDiffExplanation(deps: VentureDeps, ctx: Context, pay
     }) as DiffExplanation;
     const run = receipt.runRef.kind === 'delivery' ? tx.find('venture-delivery-run', receipt.runRef.runId) : undefined;
     if (run && run.ventureId === ventureId && run.playbookChecks?.some(item => item.check === 'portal-diff-explained')) {
-      const made = (run.harness?.workReceiptIds ?? []).flatMap(id => { const found = tx.find('venture-work-receipt', id); return found ? [found] : []; });
+      const made = tx.list('venture-work-receipt').filter(row => row.runRef.kind === 'delivery' && row.runRef.runId === run.id);
       const result = portalDiffExplained(made, [...earlier, record]);
       tx.replace({ ...run, playbookChecks: run.playbookChecks.map(item => (item.check === result.check ? { ...item, outcome: result.outcome, detail: result.detail } : item)) });
       tx.emit('run.step', { runId: run.id });

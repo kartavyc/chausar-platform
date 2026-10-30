@@ -2,8 +2,11 @@
 // client's export and the platform, and social.report works out every figure by code (social/report.ts), each with its
 // formula and the file, rows and columns it read, as one work receipt the report cites by reference. The narrative
 // check reads the draft's words against those receipts. Everything goes through venture.order.create,
-// venture.files.add, venture.delivery.run and venture.delivery.approve, turn by turn, as the owner's app calls them.
+// venture.files.add and venture.delivery.run, with the agent using the scoped MCP calculators.
 import test from 'node:test';
+import {calculatorAgent,calculatorEvents} from './fixtures/venture/calculator-agent.ts';
+import {consentForOrder} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
@@ -22,6 +25,7 @@ import { handlers as viewHandlers } from '../runtime/venture/views/index.ts';
 import { playbookGrant } from '../runtime/venture/delivery/harness/loop.ts';
 import { applyPatch } from '../runtime/venture/delivery/harness/patches.ts';
 import { runFlagshipChecks } from '../runtime/venture/playbooks/draft-checks.ts';
+import {socialReportSources} from '../runtime/venture/playbooks/social/report-run.ts';
 import { monthlyReport } from '../runtime/venture/playbooks/social/report.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -75,7 +79,7 @@ class ScriptPort implements ModelPort {
     this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -149,7 +153,12 @@ async function reportOrder(env: Env, name = 'instagram-november.csv', content = 
   await env.call('venture.files.add', { orderId: order.id, name, contentBase64: b64(content) });
   return order;
 }
-const approve = (env: Env, run: DeliveryRunView): Promise<DeliveryRunView> => env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+async function deliverReport(env:Env,orderId:string,draft:unknown):Promise<DeliveryRunView>{
+ await env.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);
+ calculatorAgent(env.deps,[REPORT_CALL],draft);
+ const pending=await env.call('venture.delivery.run',{orderId});await waitForAgentWork(env.store,pending.id);
+ return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===pending.id);
+}
 const checksOf = (run: { playbookChecks?: PlaybookCheckResult[] }) => Object.fromEntries((run.playbookChecks ?? []).map(item => [item.check, item]));
 
 test('report figures: social.report works out every figure from the export by code, as one receipt the report cites', async () => {
@@ -159,13 +168,10 @@ test('report figures: social.report works out every figure from the export by co
   assert.ok(playbookGrant(record).includes('social.report'));
 
   const order = await reportOrder(env);
-  env.models.respond['agent-turn'] = () => REPORT_CALL;
-  env.models.respond.delivery = () => report([part('The people your posts reached in the month:'), fig('w1.reach'), part('How many of them liked, commented, shared or saved:'), fig('w1.engagement-rate'), part('The post they took to most:'), fig('w1.top-post')]);
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(run.harness!.phase, 'write');
+  const run = await deliverReport(env,order.id,report([part('The people your posts reached in the month:'), fig('w1.reach'), part('How many of them liked, commented, shared or saved:'), fig('w1.engagement-rate'), part('The post they took to most:'), fig('w1.top-post')]));
   assert.equal(env.models.previewed.filter(task=>task.purpose==='agent-turn').length,0,'export figures are code work, not a model turn');
   const receipts = listRecords(env.store.read(), 'venture-work-receipt');
-  assert.equal(receipts.length, 1);
+  assert.equal(receipts.length, 1,JSON.stringify(calculatorEvents.get(env.deps)));
   const receipt = receipts[0] as WorkReceiptRecord;
   assert.equal(receipt.operation, 'social.report');
   assert.deepEqual(receipt.runRef, { kind: 'delivery', runId: run.id });
@@ -192,15 +198,13 @@ test('report figures: social.report works out every figure from the export by co
   assert.deepEqual(receipt.inputs.tables, [{ id: receipt.inputs.tables[0].id, name: 'instagram-november.csv', digest: sha }]);
 
   // The write step cites the receipt by reference; the narrative check passes and the draft can be accepted.
-  const write = env.models.previewed.filter(task => task.purpose === 'delivery').at(-1)!.input as { figures: { ref: string }[]; requiredSections: string[]; proven: string[] };
-  assert.ok(write.figures.some(item => item.ref === 'w1.reach'));
-  assert.deepEqual(write.requiredSections, ['Summary', 'What the figures show', 'What we will try next']);
-  run = await approve(env, run);
+  const write = calculatorEvents.get(env.deps)!.find(event=>event.name==='read_business')!.data;
+  assert.deepEqual(write.sections, ['Summary', 'What the figures show', 'What we will try next']);
   assert.equal(run.status, 'ready-for-review');
   assert.ok(run.renderedText!.includes('Reach: 10,162'), run.renderedText!);
   assert.ok(run.renderedText!.includes(`Engagement rate: ${rate.display}`), run.renderedText!);
   assert.ok(run.renderedText!.includes('Top post by engagements: 17900000000000013'), run.renderedText!);
-  assert.ok(write.proven.some(line => line.startsWith('Chausar worked out the report figures from the platform exports: Posts, Views, Reach')), 'the write step reads what code worked out');
+  assert.ok(calculatorEvents.get(env.deps)!.some(event=>event.name==='calculate'&&event.data.refs.figures.some((figure:any)=>figure.receiptId===receipt.id)), 'the agent reads the real report receipt references');
   const narrative = checksOf(run)['narrative-receipted'];
   assert.equal(narrative.outcome, 'pass', narrative.detail);
   assert.equal(narrative.detail, 'Every figure in the narrative comes from a receipt.');
@@ -212,23 +216,28 @@ test('report figures: social.report works out every figure from the export by co
   assert.equal((await env.call('venture.work.get', { id: receipt.id })).operation, 'social.report');
 });
 
-test('report prerequisites refuse unknown export shapes and duplicate platform exports before a preview',async()=>{
- const env=await business();const order=await reportOrder(env,'unknown.csv','Other,Columns\na,b');await assert.rejects(env.call('venture.delivery.run',{orderId:order.id}),code('SOCIAL_EXPORTS_REQUIRED'));assert.deepEqual(listRecords(env.store.read(),'venture-work-receipt'),[]);assert.equal(env.models.previewed.length,0);
- const twice=await reportOrder(env);await env.call('venture.files.add',{orderId:twice.id,name:'second.csv',contentBase64:b64(INSTAGRAM_NOVEMBER)});await assert.rejects(env.call('venture.delivery.run',{orderId:twice.id}),code('TOOL_FAILED'));assert.equal(env.models.previewed.length,0);
+test('report prerequisites refuse unknown export shapes and duplicate platform exports before any agent read',async()=>{
+ const env=await business();const order=await reportOrder(env,'unknown.csv','Other,Columns\na,b');
+ const run=await deliverReport(env,order.id,report([]));assert.equal(run.status,'failed');assert.deepEqual(calculatorEvents.get(env.deps),[]);
+ assert.deepEqual(listRecords(env.store.read(),'venture-work-receipt'),[]);
+ const sources=(id:string)=>listRecords(env.store.read(),'venture-upload').filter(file=>file.scope.kind==='order'&&file.scope.orderId===id);
+ const stored=(id:string)=>listRecords(env.store.read(),'venture-order').find(row=>row.id===id)!;
+ assert.throws(()=>socialReportSources(stored(order.id),sources(order.id)),code('SOCIAL_EXPORTS_REQUIRED'));
+ const twice=await reportOrder(env);await env.call('venture.files.add',{orderId:twice.id,name:'second.csv',contentBase64:b64(INSTAGRAM_NOVEMBER)});
+ assert.throws(()=>socialReportSources(stored(twice.id),sources(twice.id)),code('TOOL_FAILED'));
+ assert.equal((await deliverReport(env,twice.id,report([]))).status,'failed');assert.deepEqual(calculatorEvents.get(env.deps),[]);
 });
 
 test('narrative: a figure in the words with no receipt fails the check and blocks Accept; in a run with tools the AI cannot write one at all', async () => {
   const env = await business();
   // With the export, the write step refuses a number in the words before it is a draft.
   const order = await reportOrder(env);
-  env.models.respond['agent-turn'] = () => REPORT_CALL;
-  env.models.respond.delivery = () => report([part('Reach went up 40% this month:'), fig('w1.reach')]);
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  await assert.rejects(approve(env, run), code('MODEL_OUTPUT_REJECTED'));
+  const run=await deliverReport(env,order.id,report([part('Reach went up 40% this month:'),fig('w1.reach')]));
+  assert.equal(run.status,'failed');assert.equal(run.deliverable,null);assert.equal(run.canAccept,false);
 
   // Without exports, no model is allowed to write a report at all.
   const bare=await env.call('venture.order.create',{clientId:env.client.id,offerId:REPORT_OFFER,request:REQUEST,intake:{fields:{reportMonth:'2026-11'}}});
-  const before=env.models.previewed.length;await assert.rejects(env.call('venture.delivery.run',{orderId:bare.id}),code('SOCIAL_EXPORTS_REQUIRED'));assert.equal(env.models.previewed.length,before);
+  assert.equal((await deliverReport(env,bare.id,report([]))).status,'failed');assert.deepEqual(calculatorEvents.get(env.deps),[]);
 
   // The same words against a real receipt fail the same way: only the receipt's own figures pass.
   const receipt = { id: 'work_1', operation: 'social.report', figures: [{ key: 'reach', label: 'Reach', minor: '10162', display: '10,162', currency: 'INR', unit: 'count' }], report: [{ month: '2026-11' }] };

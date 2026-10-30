@@ -1,3 +1,4 @@
+import {completedSocialFixture,setFixtureDeliveryStatus} from '../helpers/completed-social';
 import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import { it, expect } from 'vitest';
 import { fakeSocialRevision } from '../../src/engine/fake-social-revision';
@@ -43,12 +44,11 @@ it.each([['IN','INR'],['US','USD']])('public fake revision quote opens its %s co
  const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as any;const offer=plan.blueprint.offers.find((o:any)=>o.playbookOffer==='linkedin-ghostwriting');await priceAndAcceptPlan(engine,plan,'100');
  const client=await engine.request('venture.client.add',{name:'Studio',countryCode:'IN'}) as any;
  const order=await engine.request('venture.order.create',{clientId:client.id,offerId:offer.id,request:'Write useful studio guidance.',intake:{fields:{postCount:'8'},moneyAmounts:{extraRoundPrice:'250'}}}) as any;
- let run=await engine.request('venture.delivery.run',{orderId:order.id}) as any;
- for(let stage=1;stage<=3;stage++){run=await engine.request('venture.delivery.approve',{runId:run.id,digest:run.preview.digest}) as any;if(stage<3){await engine.request('venture.delivery.review',{runId:run.id,verdict:'accepted'});run=(await engine.request('venture.delivery.list',{}) as any[])[0];}}
+ const run=completedSocialFixture(engine,order,{status:'ready-for-review'});
  const postId=run.id+'.post-1';const act=async(action:string)=>{const item=await engine.request('venture.desk.get',{playbook:'social-agency',kind:'revision',id:postId}) as any;return engine.request('venture.desk.act',{playbook:'social-agency',kind:'revision',id:postId,digest:item.digest,action,payload:{runId:run.id,postId,words:'Make it warmer.'}}) as Promise<any>;};
- for(let round=0;round<2;round++){await act('revise');run=(await engine.request('venture.delivery.list',{}) as any[]).find(r=>r.id===run.id);run=await engine.request('venture.delivery.approve',{runId:run.id,digest:run.preview.digest}) as any;}
+ for(let round=0;round<2;round++){await act('revise');setFixtureDeliveryStatus(engine,run.id,'ready-for-review');}
  const quote=(await act('quote')).result;expect(quote.currency).toBe(currency);const receipt=await engine.request('venture.receipt.get',{id:quote.receiptId}) as any;expect(receipt.figures[0].display).toBe(quote.display);
- await engine.request('venture.delivery.review',{runId:run.id,verdict:'accepted'});const item=await engine.request('venture.desk.get',{playbook:'social-agency',kind:'revision',id:postId}) as any;
+ setFixtureDeliveryStatus(engine,run.id,'accepted');const item=await engine.request('venture.desk.get',{playbook:'social-agency',kind:'revision',id:postId}) as any;
  await engine.request('venture.desk.act',{playbook:'social-agency',kind:'revision',id:postId,digest:item.digest,action:'client-answer',payload:{runId:run.id,postId,decision:'approved'}});
  await engine.request('venture.share.create',{deliveryId:run.id});await engine.request('venture.share.recordAnswer',{draftId:run.id,answer:'changes',comment:'Asha requests a warmer tone.'});
  const latest=await engine.request('venture.desk.get',{playbook:'social-agency',kind:'revision',id:postId}) as any;expect(latest.item.clientDecision).toBe('changes');

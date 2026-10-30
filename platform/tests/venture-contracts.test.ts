@@ -46,14 +46,16 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 312 unique valid names with owners and well-formed subsets', () => {
+test('VENTURE_METHODS: 309 unique valid names with owners and well-formed subsets', () => {
   // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
   // venture.bills.stop; and the 34 wave 5 names package 5-0 added (W5_METHODS: venture.order.chain, salesProposal.draft
   // and .get, goNoGo.card, ideas.add, .move and .grade, brandKit.get and .set, assets.list, .rerun and .reuse,
   // voiceConsent.record, .revoke and .list, report.render, .share, .shareRotate and .shareDisable, monitors.list, .add
   // and .remove, mail.import and .threads, localApps.list, webhook.set, speechOut.providers, ca.confirmCitations,
   // ca.signoff.get, ca.differential.add, ca.dataPack.export, desk.list, .get and .act); 5A2 added goNoGo.list, 5A5 report.list.
-  assert.equal(VENTURE_METHODS.length, 312); // 6B5 and 6B7 add consent, exact approvals, settings and protected MCP credentials.
+  // Wave 6 adds country suggestion, three client-consent methods, exact native approval,
+  // two AI settings methods and MCP credentials; the three per-turn delivery methods are removed.
+  assert.equal(VENTURE_METHODS.length, 309);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
@@ -75,7 +77,7 @@ test('DRAFT_METHODS: onboarding methods with app-only model calls and country su
 test('VENTURE_ERRORS: unique codes the desktop keeps, including the ones packages rely on', () => {
   assert.ok(unique(VENTURE_ERRORS));
   for (const error of VENTURE_ERRORS) assert.match(error, ERROR_CODE);
-  for (const needed of ['INVALID_AMOUNT', 'INVALID_TAX_RATE', 'SEND_DISABLED', 'INVALID_EXTERNAL_URL', 'EXTERNAL_URL_NOT_ALLOWED']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(needed), needed);
+  for (const needed of ['INVALID_AMOUNT', 'INVALID_TAX_RATE', 'SEND_DISABLED', 'INVALID_EXTERNAL_URL', 'EXTERNAL_URL_NOT_ALLOWED', 'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'RUN_RESTART_REQUIRED', 'MCP_CONFIGURATION_APPROVAL_REQUIRED', 'MCP_CONFIGURATION_CHANGED', 'MCP_SERVER_NOT_FOUND', 'MCP_TOOL_CHANGED', 'MCP_RESPONSE_INVALID', 'MCP_CALL_DECLINED', 'MCP_CONNECTION_FAILED']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(needed), needed);
 });
 
 test('EXTERNAL_ORIGINS: unique https origins', () => {

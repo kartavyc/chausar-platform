@@ -11,11 +11,21 @@ import { proposalKindCheck, RUN_STARTED_LINE } from '../runtime/venture/chief/pr
 import type { ProposalRecord } from '../runtime/venture/contracts.ts';
 import { code, owner, phone } from './venture-judge-helpers.ts';
 import { episodeOrder } from './venture-agent-helpers.ts';
+import { consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import {
   answer, chatConsent, chiefBusiness, createdCount, priceOffer, proposal, scriptChief, text, tools, type ChiefEnv,
 } from './venture-chief-helpers.ts';
 
 const TODAY_LINE = 'This becomes a card on Today for your approval.';
+
+async function nativeProposal(env: ChiefEnv, orderId: string) {
+  await consentForOrder(env.deps, owner, orderId);
+  // This suite checks job launch, not draft quality. The synthetic installed agent completes without proposing any outside action.
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: { async open() { return {
+    async run() { return { status: 'completed' as const, text: 'Synthetic launch check.' }; }, async close() {}, async interrupt() {},
+  }; } } });
+}
 
 /** One chief answer carrying these proposals, after a look at the clients and the plan. */
 async function suggest(env: ChiefEnv, proposals: unknown[]): Promise<any> {
@@ -75,6 +85,7 @@ test('proposals: raise makes a Today card, announced once; Approve runs the real
   const env = await chiefBusiness();
   await chatConsent(env);
   const order = await episodeOrder(env);
+  await nativeProposal(env, order.id);
   const sent = await suggest(env, [proposal('start-run', { orderId: order.id })]);
   const id = sent.added[1].proposals[0].id;
   const raised = await env.chief('venture.proposals.raise', { id });
@@ -97,10 +108,11 @@ test('proposals: raise makes a Today card, announced once; Approve runs the real
   const runsBefore = listRecords(env.store.read(), 'venture-delivery-run').length;
   const decided = await env.call('venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve' });
   assert.equal(decided.outcome, 'done', JSON.stringify(decided));
-  assert.equal(decided.line, 'Started. Its first step waits for you on Today.');
+  assert.equal(decided.line, 'Started. Follow it on Work.');
   const runs = listRecords(env.store.read(), 'venture-delivery-run');
   assert.equal(runs.length, runsBefore + 1);
   assert.equal(runs.at(-1)!.orderId, order.id);
+  await waitForAgentWork(env.store, runs.at(-1)!.id);
   const after = listRecords(env.store.read(), 'venture-proposal')[0];
   assert.equal(after.status, 'approved');
   assert.equal(after.decidedBy, 'owner');
@@ -258,6 +270,7 @@ test('proposals: kinds by code; keys, money policy, posture or storage are never
 async function startRunCard(env: ChiefEnv) {
   await chatConsent(env);
   const order = await episodeOrder(env);
+  await nativeProposal(env, order.id);
   const sent = await suggest(env, [proposal('start-run', { orderId: order.id })]);
   const id = sent.added[1].proposals[0].id;
   await env.chief('venture.proposals.raise', { id });
@@ -268,7 +281,8 @@ async function startRunCard(env: ChiefEnv) {
 test('proposals: a method that refuses puts the card back on Today, in the method\'s own words (S1-4)', async () => {
   const env = await chiefBusiness();
   const { id, row, runs } = await startRunCard(env);
-  env.models.refusePreview = () => new ChausarError('SEND_DISABLED', 'Sending is off for this workspace.');
+  const route = env.deps.agentRoute!;
+  env.deps.agentRoute = async () => { throw new ChausarError('SEND_DISABLED', 'Sending is off for this workspace.'); };
   const refused = await env.call('venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve' });
   assert.deepEqual(refused, { outcome: 'refused', reason: 'SEND_DISABLED', line: 'Sending is off for this workspace.' });
   const record = listRecords(env.store.read(), 'venture-proposal').find(item => item.id === id)!;
@@ -279,10 +293,11 @@ test('proposals: a method that refuses puts the card back on Today, in the metho
   const [again] = await proposalRows(env);
   assert.equal(again.id, row.id, 'the same card is back on Today');
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, runs);
-  env.models.refusePreview = null;
+  env.deps.agentRoute = route;
   const done = await env.call('venture.queue.decide', { id: again.id, digest: again.digest, action: 'approve' });
   assert.equal(done.outcome, 'done', JSON.stringify(done));
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, runs + 1);
+  await waitForAgentWork(env.store, listRecords(env.store.read(), 'venture-delivery-run').at(-1)!.id);
 });
 
 test('proposals: two approvals of one card at once run its method once (S1-4)', async () => {
@@ -293,14 +308,16 @@ test('proposals: two approvals of one card at once run its method once (S1-4)', 
   assert.equal(decided.filter(item => item.outcome !== 'done').length, 1);
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, runs + 1);
   assert.equal(listRecords(env.store.read(), 'venture-proposal').find(item => item.id === id)!.status, 'approved');
+  await waitForAgentWork(env.store, listRecords(env.store.read(), 'venture-delivery-run').at(-1)!.id);
 });
 
 test('proposals: a run that started before its method failed counts; the card is done, never put back (S2-3)', async () => {
   const env = await chiefBusiness();
   const { order, id, row, runs } = await startRunCard(env);
   let nested = false;
-  env.models.onPreview = async () => {
-    if (nested) return;
+  const route = env.deps.agentRoute!;
+  env.deps.agentRoute = async (ctx, agentId) => {
+    if (nested) return route(ctx, agentId);
     nested = true;
     await env.call('venture.delivery.run', { orderId: order.id });
     throw new ChausarError('MODEL_TIMEOUT', 'Your AI did not answer in time.');
@@ -313,4 +330,5 @@ test('proposals: a run that started before its method failed counts; the card is
   assert.equal(record.outcome, RUN_STARTED_LINE);
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, runs + 1);
   assert.equal((await proposalRows(env)).length, 0);
+  await waitForAgentWork(env.store, listRecords(env.store.read(), 'venture-delivery-run').at(-1)!.id);
 });

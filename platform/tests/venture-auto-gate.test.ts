@@ -55,7 +55,7 @@ test('every readiness item can be met, and auto with spot checks still answers A
   assert.equal(view.agent, 'delivery');
   assert.match(view.line, /^1 of 8 steps has every item met\. /);
   assert.ok(view.line.endsWith(AUTO_LOCKED_WORDS));
-  assert.equal(AUTO_LOCKED_WORDS, "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.");
+  assert.equal(AUTO_LOCKED_WORDS, 'Routine-step approval is not available yet.');
   const locked = (error: any) => { assert.equal(error.code, 'AUTO_LOCKED'); assert.equal(error.message, AUTO_LOCKED_WORDS); return true; };
   await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'auto-spot-check' }), locked);
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), locked);
@@ -91,7 +91,7 @@ test('readiness says what is missing, item by item, in plain words', async () =>
   assert.equal(item(view, 'drills').met, false);
   assert.match(item(view, 'drills').line, /Run the drills twice/);
   assert.equal(CLEAN_DRILL_RUNS, 2);
-  assert.match(AUTO_LOCKED_WORDS, /two clean drill runs/, 'the lock words and the readiness item count the same runs');
+  assert.equal(AUTO_LOCKED_WORDS, 'Routine-step approval is not available yet.', 'legacy readiness never grants routine-step approval');
   await deliveryHandlers['venture.drills.run']!(env.deps, owner, {});
   const once = item(await readiness(env), 'drills');
   assert.equal(once.met, false);
@@ -135,7 +135,7 @@ test('readiness goes stale: an old real run, an old drill, a drill before the la
   });
   view = await readiness(env);
   assert.equal(item(view, 'drills').met, false);
-  assert.match(item(view, 'drills').line, /since the playbook last changed/);
+  assert.match(item(view, 'drills').line, /since the work instructions last changed/);
 });
 
 test('a decision model may lower friction but never authorises; any doubt goes to the owner', async () => {

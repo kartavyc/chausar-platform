@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type KeyboardEvent } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { AgentView, RunSummary } from '../../engine/types';
+import type { RunSummary } from '../../engine/types';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
@@ -30,7 +30,7 @@ const CODE_TABS: readonly AgentTab[] = ['instructions', 'runs'];
  * state in the head, then four tabs (W4 4B3), held in the address as `&tab=`. Chat: every run of the agent as a
  * conversation, and talking to it (AgentChat); opened from the quiet Chat button on its card, never on its own.
  * Instructions, with the version in use: how it works in words, its standing orders and going back from a change, its
- * posture and who set it, when each step asks the owner, its AI and its spend (Instructions). Runs: its runs with their
+ * AI review settings, step instructions, its AI and its spend (Instructions). Runs: its runs with their
  * rings and state words, each opening the run sheet. Notes: what it keeps from the owner's words (AgentNotes). Opened by
  * its name, the panel shows Instructions. Keeper is code, not AI: its jobs instead. W4 4J22b adds Can do: its skills
  * (whose "Try this" opens Chat with the question in the box, unsent, once) and its capability page; how it talks
@@ -43,9 +43,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const runsId = useId();
   const team = useResource('venture.team.list', {}, { refreshOn });
   const runs = useResource('venture.runs.list', { state: 'all' }, { refreshOn });
-  // The engine's answer to a gate or posture change, shown until the list itself is read again.
-  const [saved, setSaved] = useState<AgentView | null>(null);
-  useEffect(() => { setSaved(null); }, [team.data]);
   // The tab pressed here shows at once; the address follows, and an address that names another tab wins.
   const [picked, setPicked] = useState<AgentTab | null>(null);
   useEffect(() => { setPicked(null); }, [route.query.tab, id]);
@@ -54,7 +51,7 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const [starter, setStarter] = useState<{ text: string; key: number } | null>(null);
   useEffect(() => { setStarter(null); }, [id]);
 
-  const agent = saved ?? team.data?.agents.find((a) => a.id === id);
+  const agent = team.data?.agents.find((a) => a.id === id);
   // The version in use, the agent's steps with their guidance and checks, its standing orders and what Undo would do:
   // read-level, so opening the panel never writes (a role whose steps are code has none of these).
   const standing = useResource('venture.agents.orders.list', { agent: id }, { refreshOn: chatRefresh, skip: !agent || !canChat(agent) });
@@ -177,8 +174,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <Instructions
             agent={agent}
             standing={standing}
-            onSaved={setSaved}
-            onFloor={team.reload}
             onPlaybookChanged={standing.reload}
           />
         )}

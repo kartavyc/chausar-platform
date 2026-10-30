@@ -12,7 +12,8 @@ import {
   CORRECTION_SHARE, CORRECTION_REVIEWS, checkExpectations, correctionCases, expectationsFor, fixTheRule, type Expectation,
 } from '../runtime/venture/delivery/corrections.ts';
 import { detectStanding } from '../runtime/venture/agents/standing.ts';
-import { PLAIN_IDEA, business, owner, readyDraft } from './venture-judge-helpers.ts';
+import { PLAIN_IDEA, owner } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 import { agentBusiness, consent, scriptChat } from './venture-agent-helpers.ts';
 
 const text = (value: string) => ({ kind: 'text' as const, text: value });

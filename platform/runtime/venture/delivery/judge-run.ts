@@ -1,4 +1,5 @@
 import {testingJudgeCurrent} from '../playbooks/app-testing/run-source.ts';
+import {projectNativeQualityCost} from '../agent-runtime/quality-cost.ts';
 import {formsRunCurrent} from '../playbooks/data-entry-desk/run-source.ts';
 import {careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
 import {vaRunCurrent} from '../playbooks/virtual-assistant/run-source.ts';
@@ -51,6 +52,10 @@ import { boundSocialSource } from '../playbooks/social/bound-source.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
 import { kitDefinition } from '../playbooks/kit/installed.ts';
 import { scanRun } from './trace-scan.ts';
+import { assertAgentDraftCurrent } from '../agent-runtime/native-job.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
+import type { ClientAiContextBinding } from '../clients/ai-consent-core.ts';
+import type { TraceEvent } from './judge/trace.ts';
 
 /** Why the judge did not run on its own near the month's limit (Ink v2 wave 4, 4F2, M5). */
 export const JUDGE_PRESSURE_LINE = "Not checked: this month's limit is nearly used.";
@@ -61,7 +66,6 @@ const NO_JUDGE_AI = 'Connect an AI for quick work first; the quality check runs 
 const ALREADY = 'The quality check already read this draft.';
 const NOT_WAITING = 'Ask the quality check first, then send it.';
 const CHANGED = 'The draft changed since you asked the quality check. Ask again.';
-const EXPIRED = 'Ask the quality check again; the call you read is no longer available.';
 const RECHECK_FAILED = 'The check before the quality check ran could not finish, so it was stopped. Nothing was sent.';
 const CAP_LINE = 'The quality check did not run automatically: this run is at its spend cap. Start the check yourself with the cost shown.';
 const STANDING_OFF = 'The quality check setting is off, or its standing consent is not recorded, so the quality check did not run on its own.';
@@ -125,6 +129,22 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
   return run;
 }
 
+/** Even a manually requested check cannot substitute for the client's current AI-sharing permission. */
+function requireJudgeSharing(state: State, run: DeliveryRunRecord, preview?: ModelPreview): ClientAiContextBinding {
+  const order = findRecord(state, 'venture-order', run.orderId);
+  check(order && order.ventureId === run.ventureId, 'ORDER_NOT_FOUND', 'That order was not found.');
+  check(order.status !== 'cancelled', 'JOB_SOURCE_CHANGED', 'The client order changed before this AI request finished.');
+  const consent = requireClientAiConsent(state, run.ventureId, order.clientId, run.agentJob?.scope);
+  if (preview) {
+    const bound = preview.clientAi;
+    check(bound && bound.ventureId === run.ventureId && bound.orderId === order.id && bound.clientId === order.clientId,
+      'CLIENT_AI_CONSENT_CHANGED', 'The client permission changed. Prepare a new quality check.');
+    requireClientAiConsent(state, run.ventureId, order.clientId, bound);
+  }
+  if (run.agentJob) assertAgentDraftCurrent(state, run);
+  return { ventureId: run.ventureId, orderId: order.id, clientId: order.clientId, consentId: consent.id, consentRevision: consent.revision };
+}
+
 /**
  * Why the judge can't read this draft now, or null. It reads a ready draft an agent wrote, not a practice draft, once
  * every code check and every playbook check passed; an earlier verdict of its own is left out of that.
@@ -154,14 +174,31 @@ function judgeInput(state: State, venture: VentureRecord, run: DeliveryRunRecord
   const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   const made = run.harness ? madeSoFar(state, run.harness) : { tables: [], receipts: [] };
-  const receipts = [...ventureReceipts(state, venture.id), ...made.receipts];
+  // Calculation storage can precede a failed current-source check or held output screen.
+  // Only references admitted into this checked draft establish its quality evidence.
+  const usedReceipts = new Set([
+    ...(run.deliverable?.sections.flatMap(section => section.parts.flatMap(part => part.kind === 'figure' ? [part.receiptId] : [])) ?? []),
+    ...(run.deliverable?.attachments?.map(attachment => attachment.receiptId) ?? []),
+  ]);
+  const nativeWork = run.agentJob ? listRecords(state, 'venture-work-receipt', venture.id)
+    .filter(receipt => usedReceipts.has(receipt.id) && receipt.runRef.kind === 'delivery' && receipt.runRef.runId === run.id) : [];
+  const nativePrice = run.agentJob ? ventureReceipts(state, venture.id)
+    .filter(receipt => usedReceipts.has(receipt.id) && receipt.id === order.priceReceiptId && receipt.subject.type === 'order' && receipt.subject.orderId === order.id && !receipt.stale) : [];
+  const receipts = run.agentJob ? [...nativePrice, ...nativeWork] : [...ventureReceipts(state, venture.id), ...made.receipts];
+  const evidence: TraceEvent[] = run.agentJob ? [
+    ...receipts.map(receipt => ({ id: receipt.id, kind: 'receipt', summary: `Calculator receipt: ${receipt.explanation}` })),
+    ...nativeWork.flatMap(receipt => receipt.inputs.tables.map(source => ({
+      id: `source.${digest(source)}`, kind: 'source', summary: `Source ${source.id}; digest ${source.digest}; name ${source.name}`,
+    }))),
+    ...run.agentJob.tools.map((tool, index) => ({ id: `native-tool.${index + 1}`, kind: 'tool', summary: `${tool.name}: ${tool.status}` })),
+  ] : [];
   const client = findRecord(state, 'venture-client', order.clientId);
   const offer = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.name.value ?? 'a service';
   const goesTo = judgeAudience(state, venture, run) === 'public' ? 'It goes to the client, then out in public.' : 'It goes to the client.';
   const offerKey = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.playbookOffer;
   const socialEvidence = offerKey === 'repurpose-pack' ? '\nOnly this bound source can establish repurposed facts, including facts said in other words:\n' + boundSocialSource(state, venture, order) : offerKey === 'community-replies' ? '\nCommunity rules pasted by the owner:\n' + String(order.intake?.fields?.communityRules ?? '') : '';
   const asked = draftRulesInput({
-    draft: draft ?? renderForJudge(run.deliverable!, receipts), clientRequest: order.request, harness: run.harness ?? null, receipts: made.receipts,
+    draft: draft ?? renderForJudge(run.deliverable!, receipts), clientRequest: order.request, harness: run.harness ?? null, receipts: made.receipts, evidence,
     context: `A draft for a real client's order of ${quote(offer, 120)} from this business. ${goesTo}${socialEvidence}`,
     containsClientData: true, rules: flagshipJudgeRules(playbook.flagship),
   });
@@ -278,8 +315,16 @@ function recordConsent(tx: VentureTx, ctx: Context, how: 'default' | 'send', ent
 }
 
 const previewOf = (runId: string, preview: ModelPreview): DeliveryJudgePreview => ({
-  runId, digest: preview.digest, estimatedMaxCostDisplay: preview.estimatedMaxCostDisplay, expiresAt: preview.expiresAt, containsClientData: true,
+  runId, digest: preview.digest, estimatedMaxCostDisplay: preview.estimatedMaxCostDisplay, containsClientData: true,
 });
+
+/** A prepared request that lost authority is never retained as a sendable preview. Settled calls keep their costs. */
+async function discardJudgePreview(deps: VentureDeps, ctx: Context, callId: string): Promise<void> {
+  await ventureAction(deps, ctx, 'prepare', 'delivery.judgePreviewExpired', tx => {
+    const call = tx.find('venture-model-call', callId);
+    if (call?.status === 'preview') tx.replace({ ...call, status: 'expired', payloadText: '', payloadTruncated: false, erasedAt: tx.now });
+  }).catch(() => undefined);
+}
 
 /**
  * venture.delivery.judge { runId }: previews the judge's call on a ready draft and keeps it waiting on the run for
@@ -290,25 +335,33 @@ export async function deliveryJudgeHandler(deps: VentureDeps, ctx: Context, payl
   const runId = identifier(body.runId, 'Draft reply');
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const run = findRun(state, venture, runId);
+  const clientAi = requireJudgeSharing(state, run);
   const nowMs = deps.clock().getTime();
   const refused = notJudgeable(state, venture, run, nowMs);
   if (refused) throw refused;
   const draftDigest = draftDigestOf(run);
   const held = run.judge;
   if (held?.status === 'done' && held.draftDigest === draftDigest) throw new ChausarError('JUDGE_ALREADY_SENT', ALREADY);
-  if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && Date.parse(held.preview.expiresAt) > nowMs) return previewOf(runId, held.preview);
+  if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && digest(held.preview.clientAi ?? null) === digest(clientAi)) {
+    requireJudgeSharing(state, run, held.preview);
+    return previewOf(runId, held.preview);
+  }
   const { asked } = judgeInput(state, venture, run);
-  const preview = await deps.models.preview(ctx, rulesTask(asked));
-  check(preview, 'NO_MODEL_CONNECTED', NO_JUDGE_AI);
+  const prepared = await deps.models.preview(ctx, { ...rulesTask(asked), ...(run.agentJob ? {agentId:run.agentJob.scope.agentId,agentJobId:run.agentJob.scope.jobId} : {}) });
+  check(prepared, 'NO_MODEL_CONNECTED', NO_JUDGE_AI);
+  const preview = { ...prepared, clientAi };
   await ventureAction(deps, ctx, 'prepare', 'delivery.judge', tx => {
     const current = tx.find('venture-delivery-run', runId);
     check(current && current.status === 'ready-for-review' && draftDigestOf(current) === draftDigest, 'JUDGE_NOT_READY', NOT_READY);
+    requireJudgeSharing(tx.state, current, preview);
     testingJudgeCurrent(tx.state,venture.id,current,tx.now);
     careerRunCurrent(tx.state,venture.id,current,tx.now);
     vaRunCurrent(tx.state,venture.id,current);formsRunCurrent(tx.state,venture.id,current);
+    const priorCall = current.judge?.preview && tx.find('venture-model-call', current.judge.preview.callId);
+    if (priorCall?.status === 'preview') tx.replace({ ...priorCall, status: 'expired', payloadText: '', payloadTruncated: false, erasedAt: tx.now });
     tx.replace({ ...current, judge: waitingJudge(preview, tx.now, draftDigest, false, null) });
     tx.emit('run.step', { runId });
-  });
+  }).catch(async error => { await discardJudgePreview(deps, ctx, preview.callId); throw error; });
   return previewOf(runId, preview);
 }
 
@@ -336,11 +389,6 @@ export async function deliveryJudgeSendHandler(deps: VentureDeps, ctx: Context, 
   const refused = notJudgeable(state, venture, run, nowMs);
   if (refused) throw refused;
   check(held.draftDigest === draftDigestOf(run), 'APPROVAL_STALE', CHANGED);
-  if (Date.parse(preview.expiresAt) <= nowMs) {
-    const stale = new ChausarError('APPROVAL_STALE', EXPIRED);
-    await markJudgeFailed(deps, ctx, runId, preview.callId, stale, true);
-    throw stale;
-  }
   return sendJudge(deps, ctx, { venture, run, preview, standing: false });
 }
 
@@ -357,6 +405,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
     const setting = judgeAutoOf(state, ventureId);
     if (standing && (!setting.auto || !setting.consent)) throw new ChausarError('POLICY_DENIED', STANDING_OFF);
     const run = findRecord(state, 'venture-delivery-run', runId);
+    if (run) requireJudgeSharing(state, run, preview);
     const waiting = run && run.ventureId === ventureId && run.status === 'ready-for-review' && run.judge?.status === 'waiting' && run.judge.callId === preview.callId ? run.judge.preview : null;
     const order = run ? findRecord(state, 'venture-order', run.orderId) : undefined;
     const live = order && order.ventureId === ventureId ? order : undefined;
@@ -367,7 +416,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
       run: null, month: monthSpendNow(state, ventureId, deps.clock().toISOString()), callMicros: preview.estimatedMaxCostMicros,
     });
   } catch (error) {
-    if (errorCode(error) === 'POLICY_DENIED') throw error;
+    if (['POLICY_DENIED', 'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'JOB_SOURCE_CHANGED'].includes(errorCode(error))) throw error;
     denial = { code: 'RECHECK_FAILED', reason: RECHECK_FAILED };
   }
   if (denial) throw new ChausarError(denial.code, denial.reason);
@@ -383,7 +432,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
-  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the quality check could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
+  const careerDispatch=()=>{recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the quality check could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
@@ -404,6 +453,8 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       check(current && current.judge?.status === 'waiting' && current.judge.callId === callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
       // A draft decided while the judge read it (rejected, edited) keeps no verdict: nothing lands on a decided draft.
       check(current.status === 'ready-for-review', 'JUDGE_NOT_READY', DECIDED);
+      requireJudgeSharing(tx.state, current, a.preview);
+      check(draftDigestOf(current) === draftDigestOf(a.run), 'APPROVAL_STALE', CHANGED);
       if(a.run.appTestingBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The reviewed report changed while the quality check read it.');testingJudgeCurrent(tx.state,a.venture.id,current,tx.now);}
       if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the quality check read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
       if(a.run.formsSourceBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The source artifact changed while the quality check read it.');formsRunCurrent(tx.state,a.venture.id,current);}
@@ -428,7 +479,7 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
     const sent = await journalled(deps, ctx, {
       action: 'delivery.send', subject: `${runId}:judge:${callId}`, target: client, actionDigest: a.preview.digest,
       line: a.standing ? `Send the draft for ${client} to the quality check on your AI, under your standing consent.` : `Send the draft for ${client} to the quality check on your AI.`,
-      notAfter: a.preview.expiresAt, quote: { figure: a.preview.estimatedMaxCostMicros, payer: a.preview.presetId },
+      quote: { figure: a.preview.estimatedMaxCostMicros, payer: a.preview.presetId },
       descriptionComplete: previewShownWhole(a.preview),
     }, async handle => ({ outcome: 'applied', line: 'Sent to your AI. The quality check answered.', value: await send(handle.entry.id) }),
     a.standing ? { standing: { line: STANDING_LINE } } : {});
@@ -436,6 +487,8 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
   } catch (error) {
     await markJudgeFailed(deps, ctx, runId, callId, error, false, a.standing);
     throw error;
+  } finally {
+    if(a.run.agentJob)await projectNativeQualityCost(deps,ctx,runId,callId);
   }
 }
 
@@ -498,13 +551,98 @@ async function markJudgeFailed(deps: VentureDeps, ctx: Context, runId: string, c
  */
 export async function autoJudge(deps: VentureDeps, ctx: Context, view: Pick<DeliveryRunView, 'id'>): Promise<DeliveryRunView> {
   try {
-    await askOnItsOwn(deps, ctx, view.id);
+    const run = findRecord(deps.store.read(), 'venture-delivery-run', view.id);
+    if (run?.agentJob) await askForNativeJob(deps, ctx, run);
+    else await askOnItsOwn(deps, ctx, view.id);
   } finally {
     // However it went, the draft is no longer due: the judge was asked, waits for the owner, or was never due.
     await clearPending(deps, ctx, view.id);
   }
   const fresh = readAs(deps, ctx, 'read');
   return runView(findRun(fresh.state, fresh.venture, view.id), fresh.venture, deps.clock().getTime(), fresh.state);
+}
+
+/** Quality work is part of the client-authorized AI job, never an invented outside-action approval. */
+async function askForNativeJob(deps: VentureDeps, ctx: Context, original: DeliveryRunRecord): Promise<void> {
+  const initial = readAs(deps, ctx, 'approve');
+  if (original.judge || notJudgeable(initial.state, initial.venture, original, deps.clock().getTime())
+    || judgeAudience(initial.state, initial.venture, original) === 'internal' || !judgeAutoOf(initial.state, original.ventureId).auto) return;
+  if (deps.models.status(ctx).tiers.fast.presetId === 'built-in-templates') return;
+  const boundDraft = draftDigestOf(original);
+  const scope = original.agentJob!.scope;
+  const guard = (state: State) => {
+    const current = findRecord(state, 'venture-delivery-run', original.id);
+    check(current && current.ventureId === original.ventureId && current.status === 'ready-for-review' && !current.verdict
+      && digest(current.agentJob?.scope) === digest(scope) && draftDigestOf(current) === boundDraft,
+    'JOB_SOURCE_CHANGED', 'The draft changed before its quality check finished.');
+    requireClientAiConsent(state, original.ventureId, scope.clientId, scope);
+    check(state.policy.send !== 'nothing', 'MODEL_SEND_BLOCKED', 'AI sharing is switched off in privacy settings.');
+    check(judgeAutoOf(state, original.ventureId).auto, 'POLICY_DENIED', 'The automatic quality check is switched off.');
+    assertAgentDraftCurrent(state, current);
+    const venture = findRecord(state, 'venture-record', original.ventureId)!;
+    const refused = notJudgeable(state, venture, current, deps.clock().getTime());
+    if (refused) throw refused;
+    return current;
+  };
+  const beforeDispatch = () => { const fresh = readAs(deps, ctx, 'approve'); guard(fresh.state); };
+  let callId: string | null = null;
+  let storedPreview = false;
+  try {
+    guard(initial.state);
+    if (budgetPressure(initial.state, initial.venture, deps.clock().toISOString()).month) {
+      await noteNotRun(deps, ctx, original.id, boundDraft, JUDGE_PRESSURE_LINE); return;
+    }
+    const waits = backgroundWaits(backgroundGateNow(deps, ctx, initial.state));
+    if (waits) { await noteWaiting(deps, ctx, original.id, boundDraft, waits); return; }
+    const { asked } = judgeInput(initial.state, initial.venture, original);
+    const clientAi = requireJudgeSharing(initial.state, original);
+    const prepared = await deps.models.preview(ctx, { ...rulesTask(asked), agentId: scope.agentId, agentJobId: scope.jobId });
+    callId = prepared?.callId ?? null;
+    beforeDispatch();
+    if (!prepared) return;
+    const preview = { ...prepared, clientAi };
+    await ventureAction(deps, ctx, 'approve', 'delivery.judgeAuto', tx => {
+      const current = guard(tx.state);
+      check(!current.judge, 'JUDGE_ALREADY_SENT', ALREADY);
+      tx.replace({ ...current, judge: waitingJudge(preview, tx.now, boundDraft, true, null) });
+      tx.emit('run.step', { runId: original.id });
+    });
+    storedPreview = true;
+    let verdict: RulesVerdict;
+    try {
+      const outcome = await deps.models.runPreview(ctx, preview.callId, preview.digest, raw => validateBallot(raw, asked.rules), {
+        consent: 'client-ai', clientAi: { clientId: scope.clientId, consentId: scope.consentId, consentRevision: scope.consentRevision }, beforeDispatch,
+      });
+      beforeDispatch();
+      verdict = decideRules(asked.rules, [outcome.value], asked.trace);
+    } catch (error) {
+      beforeDispatch();
+      if (!judgeAnswerRefused(error)) throw error;
+      verdict = refusedVerdict(asked.rules, error);
+    }
+    const result = rulesJudgeResult(verdict);
+    await ventureAction(deps, ctx, 'approve', 'delivery.judgeResult', tx => {
+      const current = guard(tx.state);
+      check(current.judge?.status === 'waiting' && current.judge.callId === preview.callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
+      tx.replace({ ...current, checks: [...current.checks.filter(item => item.check !== 'rules-judge'), result],
+        judge: { ...current.judge, status: 'done', preview: null, at: tx.now, line: null,
+          rules: verdict.rules.map(rule => ({ rule: rule.rule, outcome: rule.outcome, yes: rule.yes, votes: rule.votes.length })) } });
+      recordJudgeSignal(tx, original.id, verdict, result);
+      tx.emit('run.step', { runId: original.id }); tx.emit('queue.changed', {});
+    });
+  } catch (error) {
+    const line = `The quality check did not finish: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
+    if (callId) await discardJudgePreview(deps, ctx, callId);
+    if (!storedPreview || !callId) { await noteNotRun(deps, ctx, original.id, boundDraft, line); return; }
+    await ventureAction(deps, ctx, 'approve', 'delivery.judgeFailed', tx => {
+      const current = tx.find('venture-delivery-run', original.id);
+      if (!current?.judge || current.judge.callId !== callId || current.judge.status !== 'waiting') return;
+      tx.replace({ ...current, judge: { ...current.judge, status: 'failed', preview: null, at: tx.now, line } });
+      tx.emit('run.step', { runId: original.id }); tx.emit('queue.changed', {});
+    }).catch(() => undefined);
+  } finally {
+    await projectNativeQualityCost(deps, ctx, original.id, callId);
+  }
 }
 
 /**
@@ -533,7 +671,9 @@ async function askOnItsOwn(deps: VentureDeps, ctx: Context, runId: string): Prom
   }
   let preview: ModelPreview | null;
   try {
-    preview = await deps.models.preview(ctx, rulesTask(judgeInput(state, venture, run).asked));
+    const clientAi = requireJudgeSharing(state, run);
+    const prepared = await deps.models.preview(ctx, rulesTask(judgeInput(state, venture, run).asked));
+    preview = prepared ? { ...prepared, clientAi } : null;
   } catch (error) {
     await noteNotRun(deps, ctx, run.id, draftDigest, `The quality check did not run: ${quote(error instanceof Error ? error.message : 'no reason given', 200)} Ask the quality check to try again.`);
     return;
@@ -543,6 +683,7 @@ async function askOnItsOwn(deps: VentureDeps, ctx: Context, runId: string): Prom
   const stored = await ventureAction(deps, ctx, 'approve', 'delivery.judgeAuto', tx => {
     const current = tx.find('venture-delivery-run', run.id);
     if (!current || current.status !== 'ready-for-review' || current.judge || draftDigestOf(current) !== draftDigest) return null;
+    requireJudgeSharing(tx.state, current, preview);
     // Read again here: the owner may have turned it off while the call was being prepared.
     const setting = judgeAutoOf(tx.state, tx.venture!.id);
     if (!setting.auto) return null;
@@ -556,7 +697,8 @@ async function askOnItsOwn(deps: VentureDeps, ctx: Context, runId: string): Prom
     tx.emit('run.step', { runId: run.id });
     return { run: next, venture: tx.venture!, goes };
   }).catch(() => null);
-  if (!stored || !stored.goes) return;
+  if (!stored) { await discardJudgePreview(deps, ctx, preview.callId); return; }
+  if (!stored.goes) return;
   try {
     await sendJudge(deps, ctx, { venture: stored.venture, run: stored.run, preview, standing: true });
   } catch (error) {

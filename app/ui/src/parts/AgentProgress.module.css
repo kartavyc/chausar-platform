@@ -1,0 +1,75 @@
+.summary {
+  composes: hit from './touch.module.css';
+  cursor: pointer;
+  color: var(--fg2);
+  font-size: var(--text-read);
+}
+.progress {
+  min-width: 0;
+}
+.stack {
+  display: grid;
+  gap: var(--sp-3);
+}
+.model, .status {
+  color: var(--fg2);
+  font-size: var(--text-label);
+  overflow-wrap: anywhere;
+}
+.tools {
+  display: grid;
+  gap: var(--sp-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tool {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--fg);
+  font-size: var(--text-read);
+}
+.message {
+  display: grid;
+  gap: var(--sp-2);
+  color: var(--fg);
+  font-size: var(--text-read);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.approval {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+.approval h3 {
+  font-size: var(--text-read);
+}
+.arguments {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+.cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  overflow-wrap: anywhere;
+}

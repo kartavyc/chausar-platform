@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -252,14 +252,19 @@ describe('Team: helpers nested under their parent (W4 4J22b, from 4J12)', () => 
   });
 });
 
-it('owner-only native work is absent from sample agent assignments and their capability claims', async () => {
+let ownerWork: { publish: string; publishRole: null; file: string; fileRole: null };
+beforeAll(() => {
   const module = JSON.stringify(pathToFileURL(resolve(process.cwd(), 'platform/runtime/venture/playbooks/steps.ts')).href);
-  const native = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `
+  ownerWork = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `
     import {flagshipDelivery} from ${module};
     const y=flagshipDelivery('youtube'),ca=flagshipDelivery('ca-firm');
     console.log(JSON.stringify({publish:y.steps.find(s=>s.id==='publish').doneBy,
       publishRole:y.roleOf.publish??null,file:ca.steps.find(s=>s.id==='file').doneBy,fileRole:ca.roleOf.file??null}));
-  `], { encoding: 'utf8' })) as { publish: string; publishRole: null; file: string; fileRole: null };
+  `], { encoding: 'utf8', timeout: 30_000 }));
+}, 30_000);
+
+it('owner-only native work is absent from sample agent assignments and their capability claims', async () => {
+  const native=ownerWork;
   expect(native).toEqual({ publish: 'you', publishRole: null, file: 'you', fileRole: null });
 
   const client = createFakeClient(new FakeEngine());

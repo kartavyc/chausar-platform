@@ -9,6 +9,7 @@ import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
 import type { AgentRoute } from '../runtime/venture/agent-runtime/route-types.ts';
 import type { AgentUsage } from '../runtime/venture/agent-runtime/driver-types.ts';
 import type { SpendRate } from '../runtime/venture/contracts.ts';
+import { projectNativeQualityCost } from '../runtime/venture/agent-runtime/quality-cost.ts';
 const rate: SpendRate = { item: 'model:openai-gpt-6-luna', model: 'gpt-6-luna', unit: 'per-million-tokens', inputMicrosPerMillion: '1000000', outputMicrosPerMillion: '2000000', microsPerCall: null, cacheReadMicrosPerMillion: '100000', cacheWriteMicrosPerMillion: '1250000', source: 'Synthetic owner rate', checkedOn: '2026-10-15', confirmed: true, by: 'owner' };
 const usage = (inputTokens = 1000, outputTokens = 2000): AgentUsage => ({ inputTokens, outputTokens, model: 'gpt-6-luna', source: 'provider-reported' });
 async function fixture() {
@@ -85,4 +86,45 @@ test('disconnect during tool startup refuses dispatch and releases the unused al
   });
   await assert.rejects(billing.dispatched(), { code: 'MODEL_KEY_MISSING' }); await billing.finish();
   assert.equal(listRecords(env.store.read(), 'venture-spend').at(-1)!.phase, 'released');
+});
+
+test('native quality cost adds its one bound charge to job usage, keeps unknown failures honest and never reserves twice', async () => {
+  const env = await fixture();
+  await ventureAction(env.deps,owner,'prepare','fixture.scope',tx=>{
+    const run=tx.find('venture-delivery-run',env.run.id)!;const order=tx.find('venture-order',run.orderId)!;
+    tx.replace({...run,agentJob:{scope:{jobId:'quality-job',runId:run.id,ventureId:run.ventureId,orderId:run.orderId,clientId:order.clientId,agentId:'delivery',memberId:owner.memberId,epoch:owner.epoch,consentId:'synthetic',consentRevision:1,generation:1},sourceDigest:'source',draftDigest:null,proposal:null,messages:[],tools:[]}});
+  });
+  const billing=await startAgentBilling(env.deps,owner,{runId:env.run.id,jobId:'quality-job',agentId:'delivery',route:env.route});
+  await billing.dispatched();await billing.finish({status:'completed',text:'',usage:usage()});
+  const callId=await ventureAction(env.deps,owner,'prepare','fixture.quality',tx=>{
+    const main=tx.list('venture-spend').find(row=>row.key==='agent:quality-job')!;
+    const call=tx.put({...tx.base('venture-model-call'),purpose:'judge',agentId:'delivery',agentJobId:'quality-job',tier:'fast',presetId:'openai-gpt-6-luna',connectionId:env.route.billing!.connectionId,routeKind:'openai-responses',model:'gpt-6-luna',consent:'client-ai',endpoint:'https://api.openai.com/v1/responses',payloadText:'synthetic',payloadDigest:'proof',payloadTruncated:false,containsClientData:true,status:'failed',approvedDigest:null,approvedAt:null,approvedBy:null,estimatedMaxCostMicros:'500',priceConfirmed:true,usage:{inputTokens:100,outputTokens:0},costMicros:'100',outputDigest:null,error:{code:'MODEL_OUTPUT_REJECTED',message:'Synthetic refused ballot'},replay:false});
+    tx.put({...main,...tx.base('venture-spend'),key:`model:${call.id}`,ref:call.id,agentUsage:undefined,reservedMicros:'500',settledMicros:'100',settledBy:'usage',phase:'settled'});
+    const run=tx.find('venture-delivery-run',env.run.id)!;
+    tx.replace({...run,judge:{status:'failed',callId:call.id,preview:null,at:tx.now,draftDigest:'draft',auto:true,estimatedMaxCostDisplay:null,line:'Synthetic refused ballot'}});
+    return call.id;
+  });
+  await projectNativeQualityCost(env.deps,owner,env.run.id,callId);
+  await projectNativeQualityCost(env.deps,owner,env.run.id,callId);
+  assert.equal(listRecords(env.store.read(),'venture-spend').length,2,'projection creates no second charge');
+  const run=listRecords(env.store.read(),'venture-delivery-run').find(row=>row.id===env.run.id)!;
+  assert.equal(run.agentJob!.cost!.state,'priced');
+  const receipt=listRecords(env.store.read(),'venture-sum-receipt').find(row=>row.id===run.agentJob!.cost!.receiptId)!;
+  assert.equal(receipt.totalMinor,'5100');
+  const secondId=await ventureAction(env.deps,owner,'prepare','fixture.second-quality',tx=>{
+    const first=tx.find('venture-model-call',callId)!;
+    const second=tx.put({...first,...tx.base('venture-model-call')});
+    const charge=tx.list('venture-spend').find(row=>row.ref===callId)!;
+    tx.put({...charge,...tx.base('venture-spend'),key:`model:${second.id}`,ref:second.id});
+    const current=tx.find('venture-delivery-run',env.run.id)!;tx.replace({...current,judge:{...current.judge!,callId:second.id}});
+    return second.id;
+  });
+  await projectNativeQualityCost(env.deps,owner,env.run.id,secondId);
+  const repeated=listRecords(env.store.read(),'venture-delivery-run').find(row=>row.id===env.run.id)!;
+  assert.equal(listRecords(env.store.read(),'venture-sum-receipt').find(row=>row.id===repeated.agentJob!.cost!.receiptId)!.totalMinor,'5200','a second quality check retains the first billed check');
+  await ventureAction(env.deps,owner,'prepare','fixture.unknown',tx=>{const charge=tx.list('venture-spend').find(row=>row.ref===callId)!;tx.replace({...charge,phase:'unknown',settledMicros:null});});
+  await projectNativeQualityCost(env.deps,owner,env.run.id,callId);
+  const unknown=listRecords(env.store.read(),'venture-delivery-run').find(row=>row.id===env.run.id)!.agentJob!.cost!;
+  assert.equal(unknown.state,'unknown');assert.equal(unknown.receiptId,undefined);
+  assert.match(unknown.display,/held/);
 });

@@ -7,11 +7,17 @@ import { narrationReportRows, narrationReportReady } from '../playbooks/narratio
 import { tenderApproved } from '../playbooks/tender-desk/state.ts';
 import {socialReportSources} from '../playbooks/social/report-run.ts';
 import { formsRunSource } from '../playbooks/data-entry-desk/run-source.ts';
+import { sellerReportSource } from '../playbooks/online-seller/report-source.ts';
 
 /** Project only this client's current order. Secret-bearing transport state and unrelated captured people stay private. */
-export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRecord, flagship: string | undefined) {
+export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRecord, flagship: string | undefined, offerKey:string|null=null) {
   const scoped = <K extends VentureRecordKind>(kind: K) => listRecords(state, kind, run.ventureId)
     .filter((row: any) => row.orderId === order.id && row.clientId === order.clientId);
+  if (flagship === 'online-seller') {
+    const files=listRecords(state,'venture-upload',run.ventureId).filter(file=>file.scope.kind==='order'&&file.scope.orderId===order.id&&(run.uploadIds===undefined||run.uploadIds.includes(file.id)));
+    const report=sellerReportSource(order,offerKey,files,run.at.slice(0,10));
+    return {binding:digest({files,report}),data:{sellerReport:report}};
+  }
   if (flagship === 'social-agency' && order.socialChain?.offerKey === 'monthly-report') {
     const files=listRecords(state,'venture-upload',run.ventureId).filter(file=>file.scope.kind==='order'&&file.scope.orderId===order.id&&(run.uploadIds===undefined||run.uploadIds.includes(file.id)));
     const report=socialReportSources(order,files);

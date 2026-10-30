@@ -161,28 +161,6 @@ describe('Work: the stopped tile (O1, O14)', () => {
 
 });
 
-describe('Work: the round gate (O2)', () => {
-  it('the gate row shows on the waiting tile with an optional note, and Continue carries it into the next step', async () => {
-    const gated = (p: unknown, real: () => Promise<unknown>) => ((p as { runId: string }).runId === '29'
-      ? real().then((run) => ({ ...(run as RunDetail), question: undefined, gate: { on: true, every: 1, waiting: { round: 2, reason: 'finished', line: 'Round 2 is done: 3 tool calls, 1 failed.' } } }))
-      : real());
-    const row: QueueRow = {
-      id: 'runctl:29:gate-2', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'question', createdAt: '2026-10-21T10:05:00.000Z',
-      title: 'Round 2 of the draft for Boat Club is done: 3 tool calls, 1 failed. Continue or stop?', line: 'Round 2 is done: 3 tool calls, 1 failed.', digest: 'd-gate',
-      viewRef: { kind: 'run', id: '29' }, actions: [{ id: 'stop', label: 'Stop', primary: false }, { id: 'continue', label: 'Continue', primary: true }],
-    };
-    const { calls } = await start('#/work', { intercept: { 'venture.runs.get': gated, 'venture.queue.list': withRows(row) } });
-    const tile = await tileOf('Pricing the sponsor slot');
-    const gate = await within(tile).findByRole('group', { name: 'Round 2 is done: 3 tool calls, 1 failed.' });
-    expect(within(tile).queryByRole('button', { name: 'Stop run 29' })).toBeNull();
-    fireEvent.change(within(gate).getByLabelText('Anything for the next step? (optional)'), { target: { value: 'Keep the price under the brief.' } });
-    expect(within(gate).getByRole('button', { name: 'Continue' }).getAttribute('data-variant')).toBe('primary');
-    assertOnePrimary();
-    await click(within(gate).getByRole('button', { name: 'Continue' }));
-    expect(of(calls, 'venture.queue.decide')).toEqual([{ id: 'runctl:29:gate-2', digest: 'd-gate', action: 'continue', viewed: false, answer: 'Keep the price under the brief.' }]);
-  });
-});
-
 describe('Today: Stop in Working now', () => {
   it('each running row has Stop; a stopped run says so in the engine words', async () => {
     const { calls } = await start('#/today');
@@ -254,7 +232,7 @@ describe('4F3 review', () => {
     expect(await screen.findByText('Paused by you. No new work starts until you unpause.')).toBeTruthy();
   });
 
-  it("a stopped run's step reads Waiting for Resume; the tile's Stop hides while the round gate waits", async () => {
+  it("a stopped run's step reads Waiting for Resume", async () => {
     await start('#/work', { intercept: withRun({ ...STOPPED, stop: { state: 'stopped', line: 'Stopped by you. Finished steps are kept.' } }) });
     const tile = await tileOf('Rendering the poster set');
     expect(await within(tile).findByText('Waiting for Resume')).toBeTruthy();
@@ -268,7 +246,7 @@ describe('4F3 review', () => {
   });
 
   it('after Resume the focus goes to the next tile', async () => {
-    await start('#/work', { intercept: { ...withRun(STOPPED), 'venture.runs.resume': () => ({ run: STOPPED, line: 'Resumed. Approve the next step when you are ready.' }) } });
+    await start('#/work', { intercept: { ...withRun(STOPPED), 'venture.runs.resume': () => ({ run: STOPPED, line: 'Resumed in a new AI session.' }) } });
     const tile = await tileOf('Rendering the poster set');
     await click(within(tile).getByRole('button', { name: 'Resume' }));
     await waitFor(() => expect(document.activeElement?.closest('li')).toBe(screen.getByRole('heading', { level: 3, name: 'Rendering the thumbnail set' }).closest('li')));

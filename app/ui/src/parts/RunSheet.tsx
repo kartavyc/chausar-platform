@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { Field } from './Field';
 import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
+import { AgentProgress } from './AgentProgress';
 import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
@@ -29,6 +30,7 @@ type Evidence = NonNullable<RunStep['evidence']>[number];
 const RING: Record<RunState, AvatarState> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };
 
 export interface RunSheetViewProps {
+  onAgentApproval?: ((digest:string,decision:'approve'|'deny')=>Promise<void>)|undefined;
   run: RunDetail;
   onClose: () => void;
   returnFocus?: (() => void) | undefined;
@@ -55,7 +57,7 @@ export interface RunSheetViewProps {
  * on the inner grey (D-TeamDept `.run`); a stopped run says what went wrong in its own box, in the engine's words
  * (D-Work `.why`), with Run again under it.
  */
-export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, onRunAgain, onSteer, onResume, needs, onCopy, questionExpiresAt }: RunSheetViewProps) {
+export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, onRunAgain, onSteer, onResume, needs, onCopy, questionExpiresAt, onAgentApproval }: RunSheetViewProps) {
   const t = useT();
   const [answer, setAnswer] = useState('');
   const [sending, setSending] = useState(false);
@@ -109,13 +111,14 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
           </details>
           {result}
         </div>
-      ) : (
+      ) : (!run.agentProgress || run.steps.length > 0) && (
         <div className={s.run}>
           <Steps steps={run.steps} progress={run.progress} showTools waitingWord={run.stop?.state === 'stopped' ? t('work.stop.waitsResume') : undefined} />
         </div>
       )}
       {!finished && <LiveCalls run={run} />}
-      <RunStopNote run={run} onResume={onResume} />
+      <AgentProgress progress={run.agentProgress} onDecide={onAgentApproval} />
+      <RunStopNote run={run} onResume={onResume} onRunAgain={onRunAgain} />
       {run.delivered && <DeliveredCard delivered={run.delivered} onCopy={onCopy} />}
       {/* W4 4J22a: coverage, the checks not run, the outcome and the report, from the engine's codes. */}
       <RunQuality run={run} />
@@ -233,12 +236,13 @@ export function RunSheet({ runId, onClose, returnFocus }: { runId: string; onClo
       returnFocus={returnFocus}
       onEvidence={(item) => openSheet(item.kind, item.id)}
       onAnswer={answerRow ? (text) => decide(answerRow, 'answer', text) : undefined}
-      onRunAgain={againRow ? () => void decide(againRow, 'run-again') : undefined}
+      onRunAgain={againRow ? () => decide(againRow, 'run-again') : undefined}
       onSteer={async (text) => { await client.request('venture.runs.steer', { runId, text }); run.reload(); }}
-      onResume={async () => { await client.request('venture.runs.resume', { runId }); run.reload(); queue.reload(); }}
+      onResume={async () => { const resumed=await client.request('venture.runs.resume', { runId }); if(resumed.run.runId!==runId)openSheet('run',resumed.run.runId);else run.reload(); queue.reload(); }}
       needs={needs}
       onCopy={practice ? undefined : async () => { await client.request('venture.delivery.copy', { runId }); }}
       questionExpiresAt={answerRow?.meta?.expiresAt}
+      onAgentApproval={async(digest,decision)=>{try{await client.request('venture.agentApproval.decide',{runId,digest,decision});}finally{run.reload();queue.reload();}}}
     />
   );
 }

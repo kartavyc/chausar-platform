@@ -4,7 +4,9 @@
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
 import type { ModelTask } from '../runtime/venture/contracts.ts';
-import { listRecords } from '../runtime/venture/records.ts';
+import { listRecords, digest, ventureAction } from '../runtime/venture/records.ts';
+import {getClientAiConsent,agreeClientAiConsent} from '../runtime/venture/clients/ai-consent.ts';
+import {createNativeJob} from '../runtime/venture/agent-runtime/native-job.ts';
 import { verhoeffValid } from '../runtime/venture/core/secrets.ts';
 import { handlers as agentHandlers } from '../runtime/venture/agents/index.ts';
 import { business, owner } from './venture-judge-helpers.ts';
@@ -93,14 +95,22 @@ export async function episodeOrder(env: AgentEnv, request = EPISODE_REQUEST) {
   return env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request, intake: { rights: OWN_FOOTAGE, format: 'long' } });
 }
 
-/** A YouTube order with one file whose run's first act turn asks the owner a question, approved so the run waits for the answer. */
-export async function askingRun(env: AgentEnv, question = 'How long should the episode be?') {
+/** Explicit durable question fixture; native source/consent binding is real, no AI or retired handoff is simulated. */
+export async function pendingFactsRun(env: AgentEnv, question = 'How long should the episode be?') {
   const order = await episodeOrder(env);
   await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets, then the emergency fund.', 'utf8').toString('base64') });
-  env.models.respond['agent-turn'] = () => ({ note: 'Check the length first', calls: [{ tool: 'handoff.owner', input: JSON.stringify({ question }) }], finished: false });
-  const started = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(started.status, 'waiting-for-you', JSON.stringify(started));
-  const asked = await env.call('venture.delivery.approve', { runId: started.id, digest: started.preview.digest });
-  assert.equal(asked.status, 'needs-answer', JSON.stringify(asked.harness?.toolCalls?.map((item: any) => item.envelope)));
-  return asked;
+  const started = await env.call('venture.delivery.run', { orderId: order.id, useTemplate: true });
+  await env.deps.services.trust.updatePolicy(owner,{send:'shape'});
+  const consent=await getClientAiConsent(env.deps,owner,{clientId:order.clientId});
+  if(consent.status!=='agreed')await agreeClientAiConsent(env.deps,owner,{clientId:order.clientId,disclosureDigest:consent.disclosureDigest});
+  await bindPendingFactsFixture(env,started.id,question);
+  return (await env.call('venture.delivery.list')).find((run:any)=>run.id===started.id);
+}
+
+/** Rebind the explicit question fixture after a test adds its source files. */
+export async function bindPendingFactsFixture(env:AgentEnv,runId:string,question:string){
+  await ventureAction(env.deps,owner,'prepare','fixture.question-job',tx=>{const run=tx.find('venture-delivery-run',runId)!;tx.replace({...run,status:'waiting-for-you',verdict:null,harness:null});});
+  const job=await createNativeJob(env.deps,owner,runId,{agentId:'producer',sections:[],check:()=>{}});
+  try {await ventureAction(env.deps,owner,'prepare','fixture.pending-facts',tx=>{const run=tx.find('venture-delivery-run',runId)!;tx.replace({...run,status:'needs-answer',agentJob:{...run.agentJob!,pendingFacts:{digest:digest(question),missing:[],question,callId:'synthetic-facts',at:tx.now}}});});}
+  finally {await job.close();}
 }

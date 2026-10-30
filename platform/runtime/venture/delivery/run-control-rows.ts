@@ -6,9 +6,10 @@
 // Reads only.
 import type { Context, State } from '../../contracts.ts';
 import { listRecords } from '../records.ts';
+import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import type { DeliveryRunRecord, QueueAction, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
-import { canAddTurns, gateWaits, STOPPED_BY_YOU } from './harness/controls.ts';
+import { STOPPED_BY_YOU } from './harness/controls.ts';
 import { agentName, clientNameFor, lastEventAt } from '../views/shared.ts';
 import { breakerStopped, triggerWords } from './harness/breaker.ts';
 import { writeCapRows } from './harness/write-caps.ts';
@@ -18,20 +19,6 @@ import { spendRows } from '../money/spend.ts';
 const BREAKER_KEPT = 'Finished steps are kept. Resume tells the agent what was tried.';
 
 const action = (id: QueueAction['id'], label: string, primary: boolean): QueueAction => ({ id, label, primary });
-
-/** The gate's question for one held run, from its line: which round of whose draft, and what to do next. */
-function gateTitle(run: DeliveryRunRecord, client: string): { title: string; continueLabel: string } {
-  const waiting = run.harness!.gate!.waiting!;
-  const whose = `the draft for ${client}`;
-  if (waiting.reason === 'limit') {
-    const more = canAddTurns(run.harness!);
-    const what = waiting.line.replace(/^The (agent|run) /, '').replace(/\.$/, '');
-    return { title: `The draft for ${client} ${what}. ${more ? 'Allow 2 more turns?' : 'Write up what was found?'}`, continueLabel: more ? 'Allow 2 more turns' : 'Write it up' };
-  }
-  const said = waiting.line.replace(`Round ${waiting.round} `, `Round ${waiting.round} of ${whose} `)
-    .replace(`in round ${waiting.round} `, `in round ${waiting.round} of ${whose} `).replace(/\.$/, '');
-  return { title: `${said}. Continue or stop?`, continueLabel: 'Continue' };
-}
 
 /**
  * The open business's run-control rows: stopped runs and runs the round gate holds; 4F2 adds the write caps agents
@@ -65,14 +52,11 @@ export function runControlRows(deps: VentureDeps, _ctx: Context, state: State, v
         title: tripped ? `${agent}'s run stopped: ${triggerWords(tripped)}` : `The draft for ${client} is stopped`,
         // 4J13: a run a crash cut says so (leases.ts), never "Stopped by you".
         line: tripped ? tripped.fix ?? BREAKER_KEPT : run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU, viewRef,
-        actions: [action('run-again', 'Run again', false), action('resume', 'Resume', true)],
+        actions: !canResumeAgentJob(state, run)
+          ? [action('run-again', 'Run again', true)]
+          : [action('run-again', 'Run again', false), action('resume', 'Resume', true)],
       });
-    } else if (run.status === 'waiting-for-you' && run.harness && gateWaits(run.harness) && !run.preview) {
-      const { title, continueLabel } = gateTitle(run, client);
-      rows.push({
-        kind: 'question', subject, version: `gate-${run.harness.gate!.waiting!.round}`, createdAt, agent, title, line: run.harness.gate!.waiting!.line, viewRef,
-        actions: [action('stop', 'Stop', false), action('continue', continueLabel, true)],
-      });
+
     }
   }
   const now = deps.clock().toISOString();

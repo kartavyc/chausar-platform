@@ -29,6 +29,8 @@ import { diagnose, scoreEpisode } from '../runtime/venture/delivery/improve.ts';
 import { scenariosFor } from '../runtime/venture/delivery/scenarios.ts';
 import { SOCIAL_STEPS } from '../runtime/venture/playbooks/social/playbook.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 
 const text = (value: string): TextPart => ({ kind: 'text', text: value });
 
@@ -414,7 +416,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (value: unknown) => T): Promise<ModelOutcome<T>> {
@@ -467,32 +469,26 @@ async function plainBusiness() {
 
 async function deliver(env: Awaited<ReturnType<typeof plainBusiness>>, answer: unknown): Promise<DeliveryRunView> {
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offerId, request: 'Please close my September books.' });
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,order.id);
+  env.deps.agentRoute=async()=>({driver:scriptedAgent(()=>answer),settings:SCRIPTED_AGENT_SETTINGS});
   const waiting = await env.call('venture.delivery.run', { orderId: order.id });
   assert.equal(waiting.status, 'waiting-for-you');
-  env.models.drafts.push(answer);
-  return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  await waitForAgentWork(env.deps.store,waiting.id);
+  return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }
 
-test("wired: a real order's draft carries the calculator's figure in place of a refuted one, with the note on its receipts check", async () => {
+test("wired: an invented amount is refused before saving; actual calculator references remain usable", async () => {
   const env = await plainBusiness();
   const run = await deliver(env, raw('Plan for your books', [said('The total comes to 500 for this order.'), priced('order.total')]));
-  assert.equal(run.status, 'ready-for-review');
-  const parts = run.deliverable!.sections[0].parts;
-  assert.equal(parts[0].kind === 'text' && parts[0].text, 'The total comes to');
-  assert.equal(parts[1].kind === 'figure' && parts[1].figureKey, 'total');
-  assert.ok(!run.renderedText!.includes('500'), run.renderedText!);
-  const receipts = run.checks.find(item => item.check === 'receipts')!;
-  assert.equal(receipts.passed, false);
-  assert.match(receipts.detail, /Chausar corrected one figure; check them/);
-  assert.match(receipts.detail, /said 500/);
-  assert.equal(run.checks.find(item => item.check === 'claims-grounded')!.passed, true);
-  // Not green until the owner checks it: Accept waits, and the owner's edit settles the draft.
+  assert.equal(run.status, 'failed');
+  assert.equal(run.deliverable,null);assert.equal(run.renderedText,null);
   assert.equal(run.canAccept, false);
-  const edited = await env.call('venture.delivery.review', { runId: run.id, verdict: 'edited', editedText: 'The total for this order is on the receipt below.' });
-  assert.equal(edited.status, 'edited');
+  await assert.rejects(env.call('venture.delivery.review',{runId:run.id,verdict:'accepted'}),{code:'DELIVERY_NOT_READY'});
+  const valid=await deliver(env,raw('Plan for your books',[said('The total for this order is on the receipt.'),priced('order.total')]));
+  assert.equal(valid.status,'ready-for-review');assert.ok(valid.deliverable!.sections[0].parts.some(part=>part.kind==='figure'&&part.figureKey==='total'));
 });
 
-test("wired: a business whose stored playbook predates the receipts and prompt-leak checks still runs both, and is corrected", async () => {
+test("wired: removing checks from a stored playbook cannot bypass the native receipt guard", async () => {
   const env = await plainBusiness();
   await env.call('venture.delivery.playbook');
   await ventureAction(env.deps, owner, 'prepare', 'seed.older', tx => {
@@ -501,35 +497,19 @@ test("wired: a business whose stored playbook predates the receipts and prompt-l
     }
   });
   const run = await deliver(env, raw('Plan for your books', [said('The total comes to 500 for this order.'), priced('order.total')]));
-  assert.ok(run.checks.some(item => item.check === 'prompt-leak'));
-  assert.match(run.checks.find(item => item.check === 'receipts')!.detail, /Chausar corrected one figure/);
-  assert.ok(!run.renderedText!.includes('500'));
+  assert.equal(run.status,'failed');assert.equal(run.deliverable,null);assert.equal(run.renderedText,null);
 });
 
-test('wired: Today shows the agent\'s words with numbers that have no receipt labelled', async () => {
+test('wired: raw AI progress retains its model-estimate label without turning into a receipted draft', async () => {
   const env = await plainBusiness();
   const ready = await deliver(env, raw('Plan for your 3 bills', [said('We will sort your bills.'), priced('order.total')]));
-  const draftItem = await env.call('venture.queue.view', { id: ready.id, kind: 'draft' });
-  assert.equal(draftItem.title, 'Plan for your 3 (model estimate) bills');
-
-  // The same run asking the owner a question, with the agent's own note on its step.
+  assert.equal(ready.status,'failed');assert.equal(ready.deliverable,null);
   await ventureAction(env.deps, owner, 'prepare', 'seed.question', tx => {
     const stored = tx.find('venture-delivery-run', ready.id)!;
-    tx.replace({
-      ...stored, status: 'needs-answer', deliverable: null, renderedText: null, checks: [], harness: {
-        ...newHarnessState(['files.read'], DEFAULT_LIMITS, []), phase: 'needs-answer',
-        handoffs: [{ to: 'owner', question: 'Are the 3 bills from March?', turn: 1, answer: null, answeredBy: null }],
-        turns: [{ turn: 1, step: 'act', note: 'Read 14 rows of the statement.', calls: [], finished: false, forced: false, by: 'model', callId: null, costMicros: '0' }],
-      },
-    });
+    tx.replace({...stored,agentJob:{...stored.agentJob!,messages:[{id:'synthetic-note',text:'Read 14 rows of the statement.',label:'model-estimate'}]}});
   });
-  const list = await env.call('venture.queue.list', {});
-  const row = list.rows.find((item: any) => item.kind === 'question');
-  assert.ok(row, JSON.stringify(list.rows.map((item: any) => item.kind)));
-  assert.equal(row.line, 'Are the 3 (model estimate) bills from March?');
-  const asked = await env.call('venture.queue.view', { id: ready.id, kind: 'draft' });
-  assert.equal(asked.line, 'Are the 3 (model estimate) bills from March?');
-  assert.ok(asked.sections.some((section: any) => section.lines.includes('Read 14 (model estimate) rows of the statement.')), JSON.stringify(asked.sections));
+  const asked = await env.call('venture.runs.get', {runId:ready.id});
+  assert.deepEqual(asked.agentProgress.messages,[{id:'synthetic-note',text:'Read 14 rows of the statement.',label:'model-estimate'}]);
 });
 
 test("wired: a real order's draft with words meant for the AI fails prompt-leak and cannot be accepted", async () => {
@@ -540,12 +520,12 @@ test("wired: a real order's draft with words meant for the AI fails prompt-leak 
   assert.equal(run.canAccept, false);
 });
 
-test('wired: the runs view labels a number the agent wrote with no receipt as a model estimate', async () => {
+test('wired: a refused invented count never appears as a completed draft in the runs view', async () => {
   const env = await plainBusiness();
   const run = await deliver(env, raw('Plan for your 3 bills', [said('We will sort your bills.'), priced('order.total')]));
   const detail: RunDetail = await env.call('venture.runs.get', { runId: run.id });
   const labels = detail.steps.flatMap(step => (step.evidence ?? []).filter(item => item.kind === 'draft').map(item => item.label));
-  assert.deepEqual(labels, ['Plan for your 3 (model estimate) bills']);
+  assert.deepEqual(labels, []);assert.equal(run.status,'failed');assert.equal(run.deliverable,null);
 });
 
 test('wired: a rehearsal draft is corrected by the calculator before its checks, and every case runs the receipts check', async () => {

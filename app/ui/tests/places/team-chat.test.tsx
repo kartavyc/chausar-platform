@@ -110,20 +110,19 @@ describe('The Chat tab', () => {
     assertInkRules(document.body);
   });
 
-  it('pins the question the run waits on above the thread, and Answer sends the owner words as the answer', async () => {
-    const { spy } = start('#/team?sheet=agent:producer&tab=chat');
+  it('keeps a pending question visible after chat and opens its exact Work run to answer', async () => {
+    const { spy, base } = start('#/team?sheet=agent:producer&tab=chat');
     const panel = await panelOf('Producer');
     const waiting = await within(panel).findByRole('region', { name: 'Waiting on you' });
+    const before = await base.request('venture.agents.thread.list', { agent: 'producer' });
     expect(waiting.textContent).toContain('Share a private preview link with them?');
-    const log = within(panel).getByRole('log');
-    expect(waiting.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    await click(within(waiting).getByRole('button', { name: 'Answer' }));
-    expect(within(panel).getByRole('textbox', { name: 'Your answer to Producer' })).toBeTruthy();
     await type(panel, 'Yes, share a private link');
     expect(calls(spy, 'venture.agents.thread.send').at(-1)).toEqual({ agent: 'producer', text: 'Yes, share a private link' });
-    expect(within(panel).getByRole('status').textContent).toBe('I passed this on as your answer to my question. The next step waits for your approval on Today.');
-    await waitFor(() => expect(within(panel).queryByRole('region', { name: 'Waiting on you' })).toBeNull());
+    const after = await base.request('venture.agents.thread.list', { agent: 'producer' });
+    expect(after.waiting).toEqual(before.waiting);
+    expect(after.items.filter(item => item.type === 'message').some(item => item.type === 'message' && item.message.answered)).toBe(false);
+    await click(within(panel).getByRole('button', { name: 'Answer' }));
+    expect(new URLSearchParams(window.location.hash.split('?')[1]).get('sheet')).toBe(`run:${before.waiting!.runId}`);
   });
 
   it('steps between the agents that have a chat with ‹ and ›, saying where it is', async () => {
@@ -287,7 +286,7 @@ describe('Proposals in the thread', () => {
 });
 
 describe('The Instructions tab', () => {
-  it('shows the version in use, each step with its guidance and the checks it must pass, and who set the posture', async () => {
+  it('shows the version in use, each step with its guidance and the checks it must pass, and the AI review settings link', async () => {
     start('#/team?sheet=agent:editor');
     const panel = await panelOf('Editor');
     expect(within(panel).getByRole('tab', { name: /^Instructions/ }).getAttribute('aria-selected')).toBe('true');
@@ -297,9 +296,7 @@ describe('The Instructions tab', () => {
     const shorts = within(how).getByRole('heading', { level: 4, name: 'Cut shorts from the episode' }).closest('li')!;
     expect(shorts.textContent).toContain('Pick moments that make sense without the episode.');
     expect(shorts.textContent).toContain("Done when these checks pass: the length is within limits, it claims no work it didn't do.");
-    expect(within(panel).getByText('How much it asks, set for the whole business')).toBeTruthy();
-    // What Steps held before stays: the posture and when each step asks the owner.
-    expect(within(panel).getByRole('group', { name: 'How much it asks you' })).toBeTruthy();
+    expect(within(panel).getByRole('link',{name:'AI review settings'})).toBeTruthy();
     expect(within(panel).getByRole('list', { name: 'Steps' })).toBeTruthy();
     assertInkRules(document.body);
   });

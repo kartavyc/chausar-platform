@@ -1,6 +1,6 @@
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { useLanguage, useT } from '../../text';
-import type { AgentView, RunSummary } from '../../engine/types';
+import type { RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
 import { Inner, Lift } from '../../parts/Card';
 import { BarChart } from '../../parts/charts/BarChart';
@@ -24,14 +24,14 @@ const MOST_RECENT = 3;
 
 export interface OneDepartmentProps {
   data: DepartmentData;
-  /** A gate changed, or the engine refused one: read the team again. */
+  /** An agent changed: read the team again. */
   onChanged?: (() => void) | undefined;
 }
 
 /**
  * One department at a time (D-TeamDept): the department as a hero panel (what it is for, its counts as chips, jobs
  * this week, spend this month with its receipt, and how many playbook steps it has), its agents, how it runs (each
- * step with its gate; floor steps always ask), its recent runs, and its jobs by week when the engine sends them. A
+ * step description; floor steps always ask), its recent runs, and its jobs by week when the engine sends them. A
  * department with no agents says so in one sentence and points to the ways to earn (spec section 8).
  */
 export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
@@ -42,24 +42,11 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const flowId = useId();
   const recentId = useId();
   const chartId = useId();
-  // The engine's answer to a gate change, by agent, with the agent it replaced. It is shown while the team is read
-  // again, and kept if that read fails: a switch never flips back to a gate the engine no longer has. Once the read
-  // lands (a new agent arrives for that id), the read wins.
-  const [saved, setSaved] = useState<ReadonlyMap<string, { from: AgentView; agent: AgentView }>>(() => new Map());
   const name = t(`dept.${data.dept}`);
   if (data.members.length === 0) {
     return <EmptyState title={t('team.dept.none', { dept: name })} actions={[{ label: t('team.dept.noneLink'), href: waysFor(data.dept) }]} />;
   }
-  const agents = data.members.map(({ agent }) => {
-    const answer = saved.get(agent.id);
-    return answer && answer.from === agent ? answer.agent : agent;
-  });
-
-  function keep(answer: AgentView) {
-    const from = data.members.find((member) => member.agent.id === answer.id)?.agent;
-    if (from) setSaved((before) => new Map(before).set(answer.id, { from, agent: answer }));
-    onChanged?.();
-  }
+  const agents = data.members.map(({agent})=>agent);
   const steps = agents.flatMap((agent) => agent.steps).length;
   const proof = data.spend ? proofOf({ receiptId: data.spend.receiptId }) : null;
   const recent = (data.runs ?? []).slice(0, MOST_RECENT);
@@ -113,7 +100,7 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
         {steps > 0 && <Tile as="section" span={7} labelledBy={flowId} className={s.column}>
           <TileHead id={flowId} title={t('team.dept.flow', { dept: name })} meta={data.version ? t('team.dept.versionNow', { version: data.version.current }) : undefined} />
           <p className={s.flowSub}>{t('team.dept.flowSub')}</p>
-          <GateList agents={agents} look="flow" dept={data.dept} onSaved={keep} onFloor={onChanged} />
+          <GateList agents={agents} look="flow" dept={data.dept} />
           {data.version && <p className={s.flowFoot}>{t('team.dept.version', { version: data.version.next })}</p>}
         </Tile>}
       </Bento>

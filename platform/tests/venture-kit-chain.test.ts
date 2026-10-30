@@ -48,7 +48,8 @@ test('accepting the voice draft starts the calendar run on the same order, never
   const { env, order, record, runs } = await chainOrder();
   const voice = await deliver(env, order.id, VOICE);
   assert.equal(voice.status, 'ready-for-review', JSON.stringify(voice.acceptBlocked ?? voice.checks));
-  assert.ok(env.models.previewed.at(-1)!.instructions.includes('Voice sheet') || JSON.stringify(env.models.previewed.at(-1)!.input).includes('Voice sheet'));
+  assert.ok(JSON.stringify(env.models.agentReads.find(read=>read.name==='read_business')?.data).includes('Voice sheet'));
+  assert.equal(env.models.previewed.filter(task=>task.purpose==='delivery').length,0);
   assert.equal(record().chainStage, undefined, 'a draft waiting for review moves nothing');
   assert.equal(runs().length, 1);
   await env.call('venture.delivery.review', { runId: voice.id, verdict: 'accepted' });
@@ -57,20 +58,19 @@ test('accepting the voice draft starts the calendar run on the same order, never
   const next = runs().find(run => run.id !== voice.id)!;
   assert.ok(next, 'the calendar run started');
   assert.equal(next.chainStage, 2);
-  assert.equal(next.status, 'waiting-for-you', 'it waits for the owner like every run');
-  assert.ok(JSON.stringify(env.models.previewed.at(-1)!.input).includes('Calendar'), 'the calendar stage drafts its own sections');
+  assert.equal(next.status,'waiting-for-you','the AI owns its turns until the checked draft');
+  assert.equal(next.preview,null);
   const view = await env.call('venture.order.chain', { orderId: order.id });
   assert.equal(view.line, 'Stage 2 of 3');
   assert.deepEqual(view.stages.map((stage: any) => stage.state), ['done', 'now', 'not-started']);
 
   // The calendar, then the posts: the last acceptance ends the chain.
-  env.models.drafts.push(CALENDAR);
-  const calendar = await env.call('venture.delivery.approve', { runId: next.id, digest: next.preview!.digest });
+  const calendar=await approveWaiting(env,next as any,CALENDAR);
+  assert.ok(env.models.agentReads.some(read=>read.name==='read_business'&&JSON.stringify(read.data.sections).includes('Calendar')));
   await env.call('venture.delivery.review', { runId: calendar.id, verdict: 'accepted' });
   assert.equal(record().chainStage, 3);
   const last = runs().find(run => run.chainStage === 3)!;
-  env.models.drafts.push(POSTS);
-  const posts = await env.call('venture.delivery.approve', { runId: last.id, digest: last.preview!.digest });
+  const posts=await approveWaiting(env,last as any,POSTS);
   await env.call('venture.delivery.review', { runId: posts.id, verdict: 'accepted' });
   assert.equal(record().chainState, 'done');
   assert.equal(runs().length, 3, 'nothing starts after the last stage');
@@ -119,42 +119,14 @@ test('a stopped chain resumes when the owner accepts that stage\'s draft, and it
   assert.deepEqual(await stoppedRows(), []);
 });
 
-/** One agent turn the harness reads: what the agent noted, its tool calls, and whether it is done. */
-const turn = (note: string, calls: [string, unknown][], finished = false) => ({ note, calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
-
-test('the waiting path through the harness: the stage asks the client, waits, shows on Today by local day, and the answer resumes it', async t => {
-  // The calendar stage may wait one day, so the row comes while the client's question (24 hours) can still be answered.
-  const base = kitFixture();
-  t.after(installKitFixture(kitFixture({ steps: base.steps.map(step => (step.id === 'calendar' ? { ...step, waitDays: 1 } : step)) })));
-  // 20:00 UTC on the 21st is already the 22nd in India: the business's own day decides how long a stage has waited.
-  const clock = { now: new Date('2026-10-21T20:00:00.000Z') };
-  const { env, order, record, runs } = await chainOrder(clock);
-  await env.call('venture.files.add', { orderId: order.id, name: 'menu.csv', contentBase64: Buffer.from('Item,Kind\nBread,Loaf\n').toString('base64') });
-  // The voice stage: one turn that is done, then the writing turn.
-  let run = await env.call('venture.delivery.run', { orderId: order.id });
-  run = await approveWaiting(env, run, turn('Nothing more to read', [], true) as never);
-  run = await approveWaiting(env, run, VOICE);
-  assert.equal(run.status, 'ready-for-review');
-  await env.call('venture.delivery.review', { runId: run.id, verdict: 'accepted' });
-  // The calendar stage asks the client which days, through the harness's own hand-off.
-  const calendar = runs().find(item => item.chainStage === 2)!;
-  const asked = await approveWaiting(env, { id: calendar.id, preview: calendar.preview } as never, turn('Ask which days', [['handoff.client', { question: 'Which days should the posts go out?' }]]) as never);
-  assert.equal(asked.status, 'needs-answer', JSON.stringify({ calls: (asked as any).harness?.toolCalls, h: (asked as any).harness?.handoffs, phase: (asked as any).harness?.phase }));
-  assert.equal(record().chainState, 'waiting');
-  const waitRows = async () => (await env.call('venture.queue.list')).rows.filter((row: any) => row.title.startsWith('Waiting on your client'));
-  clock.now = new Date('2026-10-22T17:00:00.000Z'); // a UTC day on, but still the 22nd in India: no local day yet
-  assert.deepEqual(await waitRows(), [], "by the business's own day it has not waited a day");
-  clock.now = new Date('2026-10-22T19:00:00.000Z'); // the 23rd in India
-  const rows = await waitRows();
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].title, 'Waiting on your client for 1 day');
-  assert.equal((await env.call('venture.order.chain', { orderId: order.id })).stages[1].state, 'waiting');
-  // The client's answer: the calendar step's blocked edge names the posts stage.
-  const answered = await env.call('venture.delivery.answer', { runId: calendar.id, answer: 'Mondays and Thursdays.' });
-  assert.equal(answered.status, 'waiting-for-you');
-  assert.equal(record().chainStage, 3);
-  assert.equal(record().chainState, 'running');
-  assert.deepEqual(await waitRows(), []);
+test('a waiting stage counts local calendar days without the retired model turn loop',async t=>{
+ const base=kitFixture();t.after(installKitFixture(kitFixture({steps:base.steps.map(step=>step.id==='calendar'?{...step,waitDays:1}:step)})));
+ const clock={now:new Date('2026-10-21T20:00:00.000Z')};const {env,order}=await chainOrder(clock);
+ await ventureAction(env.deps,owner,'prepare','test.waiting-stage',tx=>{tx.replace({...tx.find('venture-order',order.id)!,chainStage:2,chainState:'waiting',chainSince:tx.now});});
+ const waitRows=async()=>(await env.call('venture.queue.list')).rows.filter((row:any)=>row.title.startsWith('Waiting on your client'));
+ clock.now=new Date('2026-10-22T17:00:00.000Z');assert.deepEqual(await waitRows(),[]);
+ clock.now=new Date('2026-10-22T19:00:00.000Z');const rows=await waitRows();assert.equal(rows.length,1);assert.equal(rows[0].title,'Waiting on your client for 1 day');
+ assert.equal((await env.call('venture.order.chain',{orderId:order.id})).stages[1].state,'waiting');
 });
 
 test('chainOnAnswer moves nothing for a run of another stage, or a practice run', async t => {

@@ -84,6 +84,7 @@ export function writesOn(state: State, venture: VentureRecord, day: string, flig
   const runs: DeliveryRunRecord[] = listRecords(state, 'venture-delivery-run', venture.id);
   const calls = runs.filter(run => run.id !== flight?.runId).flatMap(run => run.harness?.toolCalls ?? []);
   let messages = [...calls, ...(flight?.calls ?? [])].filter(call => recordedMessage(call) && onDay(call.startedAt)).length;
+  messages += runs.filter(run => !run.practice && run.agentJob?.proposal && onDay(run.agentJob.proposalAt)).length;
   messages += listRecords(state, 'venture-connector-post', venture.id).filter(post => post.agent !== null && onDay(post.at)).length;
   return { drafts, 'books-lines': lines, messages };
 }

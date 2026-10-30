@@ -85,7 +85,6 @@ const TEAM_LINE = "The order's AI team shares one tool list: every agent that wo
 const APPROVAL = 'Anything that sends, spends, posts or changes a price still waits for your approval.';
 const NO_TOOLS_LINE = `It holds no tools of its own: it works from what the team found. ${APPROVAL}`;
 const PROVIDER = 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.';
-const NO_CLI = 'neither Claude Code nor Codex is set up on this computer.';
 const TOOL_WORDS = {
   'files.list': 'The list of files the client sent with the order.',
   'files.read': 'The files the client sent with the order: tables, PDF text and transcript lines.',
@@ -840,7 +839,6 @@ export class FakeAgentExtras {
     // What is off: what nothing it does reaches, and the team tools this computer cannot run.
     const off = [item('off', 'effect:send', 'off', OFF_WORDS.send), item('off', 'effect:money', 'off', OFF_WORDS.money), ...(acts ? [] : [item('off', 'effect:write', 'off', OFF_WORDS.write)])];
     if (!kinds.some((kind) => kind !== 'floor')) off.push(item('off', 'effect:egress', 'off', "Can't take data off this computer or hand it to another program."));
-    if (acts) off.push(item('off', 'cli:agent.delegate', 'off', `${TOOL_WORDS['agent.delegate']} Off here: ${NO_CLI}`));
     items.push(...off);
     const of = (list: CapabilityItemView['list']) => items.filter((entry) => entry.list === list).map((entry) => entry.line);
     return { agent: agent.id, canSee: of('see'), canDo: of('do'), off: of('off'), items, line: acts ? TEAM_LINE : NO_TOOLS_LINE };

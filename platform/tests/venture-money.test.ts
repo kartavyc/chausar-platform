@@ -1040,7 +1040,7 @@ test('every error code the money package throws is a listed venture code or a kn
 
 test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 wave 4 added, and 4J5\'s bills.stop', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 40);
+  assert.equal(owned.length, 43); // The three per-client AI consent handlers belong to money.
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

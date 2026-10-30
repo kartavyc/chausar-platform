@@ -14,12 +14,15 @@ import { reworkTiesDaily } from '../network/strength.ts';
 import { readCalendarFeedDaily } from '../network/calendar-feed.ts';
 import { settleInbound } from '../network/inbound-rows.ts';
 import { runMoneySchedules } from '../money/recurring.ts';
+import { recoverNativeJobs } from '../agent-runtime/recovery.ts';
 
 /** The longest any journalled effect may take before its claim counts as interrupted: a turn on the owner's AI with its tools. */
 export const JOURNAL_CLAIM_LIMIT_MS = 30 * 60_000;
 
 /** Sweeps every kind of journalled effect of the open business. Returns what moved. */
 export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLimitMs: number = JOURNAL_CLAIM_LIMIT_MS): Promise<Journalled[]> {
+  // The host uses a one-millisecond claim limit on vault open. Ordinary ticks must not interrupt startup work.
+  if (claimLimitMs === 1) await recoverNativeJobs(deps, ctx);
   const posts = await sweepStaleClaims(deps, ctx);
   const rest = await sweepJournal(deps, ctx, {
     claimLimitMs,

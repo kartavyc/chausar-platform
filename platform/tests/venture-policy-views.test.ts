@@ -3,18 +3,14 @@
 // hold for a held call; spot checks at auto with spot checks pick runs by a fixed rule and wait on Today for review.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AgentView, DeliveryRunRecord, QueueDecision, QueueList, QueueRow } from '../runtime/venture/contracts.ts';
+import type { AgentView, QueueList } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
-import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
-import { HOLD_APPROVE_ANSWER, HOLD_DECLINE_ANSWER } from '../runtime/venture/policy/holds.ts';
 import { setAgentPosture } from '../runtime/venture/policy/context.ts';
 import { recordSpotCheck, sampleRun, SPOT_CHECK_RULE } from '../runtime/venture/policy/spot-check.ts';
-import { CLIENT_NAME, call, code, harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
+import { call, code, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
 
 const team = (env: Env) => call<{ agents: AgentView[] }>(env, 'venture.team.list').then(result => result.agents);
 const list = (env: Env) => call<QueueList>(env, 'venture.queue.list', {});
-const decide = (env: Env, row: QueueRow, action: string, extra: Record<string, unknown> = {}) =>
-  call<QueueDecision>(env, 'venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });
 
 // ---------------------------------------------------------------------------
 // 1. The team
@@ -50,57 +46,8 @@ test('team: gates start on hold at every posture, auto with spot checks included
 // 2. A held call on Today
 // ---------------------------------------------------------------------------
 
-const PREVIEW = {
-  callId: 'call_2', payloadText: '{"system":"..."}', digest: 'c'.repeat(64), presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5',
-  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-15T10:30:00.000Z',
-};
+// Per-turn held-call questions were retired. Exact native approvals are exercised by agent-approvals-w6.test.ts.
 
-async function heldRun(env: Env) {
-  const plan = await seedBlueprint(env, { price2: '1500000' });
-  const { order } = await seedOrder(env, plan);
-  await setStage(env, 'approve-each');
-  env.models.connected = true;
-  (env.models as unknown as { preview: () => Promise<typeof PREVIEW> }).preview = async () => PREVIEW;
-  const playbook = await delivery['venture.delivery.playbook']!(env.deps, owner, {}) as { id: string; hash: string };
-  const question = 'Read the files is on hold, so it waits for you. The agent wants to run files.list. Let it run once?';
-  return seedRun(env, order, {
-    playbookId: playbook.id, playbookHash: playbook.hash, status: 'needs-answer',
-    harness: harness({
-      phase: 'needs-answer', used: { turns: 1, toolCalls: 0, costMicros: '1000' },
-      handoffs: [{ to: 'owner', question, turn: 1, answer: null, answeredBy: null }],
-      holds: [{ id: 'h1.1', toolCallId: 't1.1', tool: 'files.list', stepId: 'gather', inputDigest: 'd'.repeat(64), code: 'step_on_hold', reason: 'Read the files is on hold, so it waits for you.', turn: 1, handoff: 0, status: 'waiting', validTurn: null }],
-    }),
-  });
-}
-
-test('queue: a held call is a question with Let it run once and Keep on hold; approving answers with the exact approve words', async () => {
-  const env = await setup();
-  const run = await heldRun(env);
-  const [row] = (await list(env)).rows.filter(item => item.kind === 'question');
-  assert.equal(row.title, `Bookkeeping agent wants to run a step on hold for ${CLIENT_NAME}`);
-  assert.equal(row.line, 'Read the files is on hold, so it waits for you. The agent wants to run files.list. Let it run once?');
-  assert.deepEqual(row.actions.map(action => [action.id, action.label, action.primary]), [['deny', 'Keep on hold', false], ['approve', 'Let it run once', true]]);
-  assert.deepEqual(row.viewRef, { kind: 'run', id: run.id });
-  const done = await decide(env, row, 'approve');
-  assert.deepEqual([done.outcome, done.line], ['done', 'It runs once, in the next step.']);
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id) as DeliveryRunRecord;
-  assert.equal(stored.harness?.handoffs[0].answer, HOLD_APPROVE_ANSWER);
-  assert.deepEqual(stored.harness?.holds?.map(hold => [hold.status, hold.validTurn]), [['approved', 2]]);
-  assert.equal(stored.status, 'waiting-for-you', 'the next turn waits for the owner like every other');
-});
-
-test('queue: Keep on hold declines the held call and tells the agent to go on without it', async () => {
-  const env = await setup();
-  const run = await heldRun(env);
-  const [row] = (await list(env)).rows.filter(item => item.kind === 'question');
-  const done = await decide(env, row, 'deny');
-  assert.deepEqual([done.outcome, done.line], ['done', 'Kept on hold. The agent goes on without it.']);
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id) as DeliveryRunRecord;
-  assert.equal(stored.harness?.handoffs[0].answer, HOLD_DECLINE_ANSWER);
-  assert.equal(stored.harness?.holds?.[0].status, 'declined');
-});
-
-// ---------------------------------------------------------------------------
 // 3. Spot checks at auto with spot checks
 // ---------------------------------------------------------------------------
 

@@ -49,6 +49,8 @@ import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
 import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
+import { eraseAgentJobs, eraseAgentJobRecords } from '../agent-runtime/privacy.ts';
+import { stopClientAgentJobs, stopAgentJob } from '../agent-runtime/lifecycle.ts';
 
 /** Said with every Forget: a backup the owner made earlier is a copy Chausar cannot reach into. */
 /** What a model call's stored text reads as once it named someone the owner asked Chausar to forget (4E3). */
@@ -271,6 +273,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     tx.replace<NetworkImportRecord>({ ...record, ...(absorbed ? { absorbed } : {}), ...(before ? { before } : {}) });
   }
   if (options.erase) {
+    const agentRuns = tx.list('venture-delivery-run').filter(run => run.agentJob);
+    eraseAgentJobs(tx, new Set(people.flatMap(person => person.clientId ? [person.clientId] : [])));
     // 4D2: a link the owner made leads to someone who stays, directly or through the merges they took in; one that
     // leads to no one any more goes too.
     const staying = tx.list('venture-person').filter(person => !ids.has(person.id));
@@ -341,6 +345,12 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     const naming = (text: unknown) => typeof text === 'string' && (mentionsName(text) || handles.some(handle => text.toLowerCase().includes(handle.toLowerCase())));
     eraseCallText(tx, new Set(), ERASED_NAMED_CALL, call => Object.entries(call).some(([key, value]) => key.endsWith('Text') && naming(value))
       || naming((call as { error?: { message?: unknown } | null }).error?.message));
+    // Domain erasure may clear a run's source or draft before its nested native copies are reached.
+    // Its original snapshot retains exact call links; unrelated jobs and client consent stay intact.
+    eraseAgentJobRecords(tx, agentRuns.filter(run => {
+      const before = JSON.stringify(run), current = tx.find('venture-delivery-run', run.id);
+      return naming(before) || !current || JSON.stringify(current) !== before;
+    }));
     // 4E3: the calls Today would ask for notes about leave them out; a call left with no one goes.
     for (const feed of tx.list('venture-calendar-feed')) {
       const events = feed.events.map(event => ({ ...event, personIds: event.personIds.filter(id => !ids.has(id)) })).filter(event => event.personIds.length > 0);
@@ -413,6 +423,8 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
   const key = networkKey(deps);
   readAs(deps, ctx, 'approve'); // a caller who may not forget adds no one to the shared list (4J6)
   const shared = await shareForgotten(deps, id);
+  let forgottenClient: string | null = null;
+  let forgottenRuns: string[] = [];
   return ventureAction(deps, ctx, 'approve', 'network.forget', tx => {
     const person = tx.find('venture-person', id);
     check(person, 'INVALID_VENTURE_REQUEST', 'This person is not in your network.');
@@ -432,6 +444,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
       ...(person.handles.linkedinUrl ? [{ kind: 'linkedin' as const, hash: handleHash(key, 'linkedin', person.handles.linkedinUrl) }] : []),
     ];
     const client = person.clientId ? tx.find('venture-client', person.clientId) : undefined;
+    forgottenClient = client?.id ?? null;
     const invoices = client ? tx.list('venture-invoice').filter(invoice => invoice.clientId === client.id).length : 0;
     const kept = !client ? [] : invoices > 0 ? ['The client record, for the invoices', plural(invoices, 'invoice', 'invoices')] : ['The client record, in Clients'];
     const first = firstName(person.name);
@@ -440,14 +453,16 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
       : invoices > 0
         ? `${first} is your client. ${first}'s invoices stay; everything else Chausar kept about ${first} is gone.`
         : `${first} is your client, so the client record stays in Clients; everything else Chausar kept about ${first} is gone.`;
+    const activeRuns = tx.list('venture-delivery-run').filter(run => run.agentJob).map(run => run.id);
     const removed = removePersonData(tx, [person], { erase: true, secrets: deps.secrets, captions: deps });
+    forgottenRuns = activeRuns.filter(runId => !tx.find('venture-delivery-run', runId) || tx.find('venture-delivery-run', runId)!.status === 'stopped');
     tx.put<ForgottenRecord>({ ...tx.base('venture-forgotten'), hashes, names: nameHashes, kept, by: ctx.memberId, scheme: 'hmac-sha256' });
     if (removed.cards || removed.drafts) tx.emit('pipeline.changed', {});
     // Published only after the deletion commits, with no client or contact identity in the frame.
     tx.emit('privacy.forgotten', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
-  }).then(async result=>{if(!await clearForgottenAppTests(deps,ctx)){result.line='Client source data was deleted. Emulator data deletion is still pending.';result.kept.push('An exact client app or temporary emulator screen still needs removal. Open the desktop emulator to finish deleting it; new tests stay blocked meanwhile.');}if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}if(!await clearForgottenDemoDesktops(deps,ctx)){result.line='Client source data was deleted. Private demo desktop deletion is still pending.';result.kept.push('A private client demo desktop still needs removal. Open the desktop app to finish deleting it; new demo desktops stay blocked meanwhile.');}return result;});
+  }).then(async result=>{for(const runId of forgottenRuns)stopAgentJob(deps.store,runId);if(forgottenClient)stopClientAgentJobs(deps.store,forgottenClient);if(!await clearForgottenAppTests(deps,ctx)){result.line='Client source data was deleted. Emulator data deletion is still pending.';result.kept.push('An exact client app or temporary emulator screen still needs removal. Open the desktop emulator to finish deleting it; new tests stay blocked meanwhile.');}if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}if(!await clearForgottenDemoDesktops(deps,ctx)){result.line='Client source data was deleted. Private demo desktop deletion is still pending.';result.kept.push('A private client demo desktop still needs removal. Open the desktop app to finish deleting it; new demo desktops stay blocked meanwhile.');}return result;});
 }
 
 /**

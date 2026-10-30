@@ -216,7 +216,7 @@ async function callMethod(deps: VentureDeps, ctx: Context, method: VentureMethod
 function doneLine(kind: ProposalKind, result: unknown): W4Outcome {
   const value = result as { status?: unknown; id?: unknown } | null;
   switch (kind) {
-    case 'start-run': return { line: value?.status === 'waiting-for-you' ? 'Started. Its first step waits for you on Today.' : 'Started. Follow it on Work.' };
+    case 'start-run': return { line: 'Started. Follow it on Work.' };
     case 'draft-invoice': return { line: 'Drafted. The invoice waits on Today for you to issue it.' };
     case 'quote': return { line: 'Worked out. The quote has its receipt.', ...(typeof value?.id === 'string' ? { receiptId: value.id } : {}) };
     case 'next-step': return { line: 'Next step set.' };

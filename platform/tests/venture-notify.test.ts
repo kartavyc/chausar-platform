@@ -13,9 +13,10 @@ import type {
 import { handlers } from '../runtime/venture/notify/index.ts';
 import { DEFAULT_NOTIFY_SETTINGS, NOTIFY_PACING, notifyRefresh, planAlert, planRefresh, type AlertInput } from '../runtime/venture/notify/centre.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
-import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
+import { nativeContext } from './fixtures/venture/native-context.ts';
+import { requestAgentApproval, decideAgentApproval } from '../runtime/venture/agent-runtime/approvals.ts';
 import {
-  CLIENT_NAME, code, harness, IN, owner, phone, seedBlueprint, seedOrder, seedRun, setStage, setup, START, type Env,
+  CLIENT_NAME, code, IN, owner, phone, seedBlueprint, seedOrder, seedRun, setStage, setup, START, type Env,
 } from './venture-views-env.ts';
 
 const MIN = 60_000;
@@ -258,18 +259,20 @@ test('an item that leaves Today and comes back is news again: a second draft pla
   assert.equal(list.unread, open);
 });
 
-test('a run that waits on the owner again is news again; once its row leaves Today no name stays, and old items go after 30 days', async () => {
+test('a run that waits on the owner again is news again; once its row leaves Today no name stays, and old items go after 30 days', async t => {
   const env = await setup();
   await notify(env, 'venture.notify.settings', { quietHours: null, digest: null });
   const plan = await seedBlueprint(env, { price2: '1500000' });
   const { order } = await seedOrder(env, plan);
   await setStage(env, 'approve-each');
   env.models.connected = true;
-  const playbook = await delivery['venture.delivery.playbook']!(env.deps, owner, {}) as { id: string; hash: string };
-  const ask = (n: number) => ({ to: 'owner' as const, question: `Which bank account is number ${n}?`, turn: n, answer: null, answeredBy: null });
-  const run = await seedRun(env, order, {
-    playbookId: playbook.id, playbookHash: playbook.hash, status: 'needs-answer', harness: harness({ phase: 'needs-answer', handoffs: [ask(1)] }),
-  }, ['run.waiting']);
+  const {run,job}=await nativeContext(env.deps,owner,order.id);t.after(()=>job.close());
+  const ask = (n: number) => ({ digest: String(n).repeat(64), question: `Which bank account is number ${n}?`, callId: `calculation-${n}`, missing: [], at: env.now() });
+  await ventureAction(env.deps,owner,'prepare','seed.first-question',tx=>{
+    const stored=tx.find('venture-delivery-run',run.id)!;
+    tx.replace({...stored,status:'needs-answer',agentJob:{...stored.agentJob!,pendingFacts:ask(1)}});
+    tx.emit('run.waiting',{runId:run.id});
+  });
   await notifyRefresh(env.deps, owner);
   const episodes = () => notifications(env).filter(record => record.subject === `run:${run.id}`);
   assert.deepEqual(episodes().map(record => record.alert), ['sent']);
@@ -279,7 +282,7 @@ test('a run that waits on the owner again is news again; once its row leaves Tod
   env.published.length = 0;
   await ventureAction(env.deps, owner, 'prepare', 'seed.second', tx => {
     const stored = tx.find('venture-delivery-run', run.id)!;
-    tx.replace({ ...stored, harness: harness({ phase: 'needs-answer', handoffs: [{ ...ask(1), answer: 'The HDFC one.', answeredBy: 'owner' }, ask(2)] }) });
+    tx.replace({ ...stored, agentJob: {...stored.agentJob!,pendingFacts:ask(2),factAnswers:[{digest:ask(1).digest,question:ask(1).question,answer:'The HDFC one.',by:owner.memberId,at:env.now(),turn:1}]} });
     tx.emit('run.waiting', { runId: run.id });
   });
   await notifyRefresh(env.deps, owner);
@@ -295,6 +298,23 @@ test('a run that waits on the owner again is news again; once its row leaves Tod
   env.advance(30 * 24 * HOUR + MIN);
   await notifyRefresh(env.deps, owner);
   assert.deepEqual(episodes(), []);
+});
+
+test('two native step approvals notify separately even when the owner decides before the centre refreshes',async t=>{
+  const env=await setup();await notify(env,'venture.notify.settings',{quietHours:null,digest:null});
+  const plan=await seedBlueprint(env,{price2:'1500000'}),{order}=await seedOrder(env,plan);
+  await setStage(env,'approve-each');env.models.connected=true;
+  const {run,job}=await nativeContext(env.deps,owner,order.id);t.after(()=>job.close());
+  const abort=new AbortController();t.after(()=>abort.abort());
+  const request=(n:number)=>requestAgentApproval(env.deps,owner,run.id,{kind:'file-change',requestId:`request-${n}`,threadId:'thread',turnId:`turn-${n}`,itemId:`item-${n}`,name:'edit draft',arguments:{path:'draft.txt',text:`Revision ${n}`}}, {guard:()=>job.capability.assert(),signal:abort.signal});
+  const pending=()=>listRecords(env.store.read(),'venture-delivery-run',env.venture.id).find(row=>row.id===run.id)!.agentJob!.pendingApproval;
+  const settle=async()=>{for(let i=0;i<100&&!pending();i++)await new Promise<void>(resolve=>setImmediate(resolve));assert.ok(pending());return pending()!;};
+  const first=request(1),firstPending=await settle();await notifyRefresh(env.deps,owner);
+  await decideAgentApproval(env.deps,owner,{runId:run.id,digest:firstPending.digest,decision:'approve'});assert.equal(await first,true);
+  env.advance(15*MIN);
+  const second=request(2),secondPending=await settle();await notifyRefresh(env.deps,owner);
+  try{assert.deepEqual(notifications(env).filter(row=>row.subject===`run:${run.id}`).map(row=>[row.alert,row.readAt===null]),[['sent',false],['sent',true]]);}
+  finally{await decideAgentApproval(env.deps,owner,{runId:run.id,digest:secondPending.digest,decision:'deny'});assert.equal(await second,false);}
 });
 
 test('a refresh with nothing new writes nothing: no commit, no revision, no activity line', async () => {

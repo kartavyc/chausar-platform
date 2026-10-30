@@ -232,7 +232,7 @@ describe('Ctrl+Enter approves only a plain yes or no (O7)', () => {
     const tools = (given: ApprovalToolsApi) => { api = given; return null; };
     const { article } = card(plain, { tools });
     const undo = vi.fn(async () => 'Restored until you edit this again.');
-    await act(async () => { api!.finish({ outcome: 'done', line: 'Sent back. The revision waits for your approval before anything goes to your AI.' }, undo); });
+    await act(async () => { api!.finish({ outcome: 'done', line: 'Sent back. The revised draft will wait for your review.' }, undo); });
     const decided = document.querySelector('[data-decided]')!;
     expect(decided.textContent).toContain('Sent back.');
     await act(async () => { fireEvent.click(within(decided as HTMLElement).getByRole('button', { name: 'Undo' })); });

@@ -48,7 +48,7 @@ async function relayEnv() {
   const rootOf = async (name: string): Promise<string> => {
     if (!roots.has(name)) {
       const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: `Task ${name}: look at my prices.` });
-      roots.set(name, (await env.call('venture.delivery.run', { orderId: order.id })).id);
+      roots.set(name, (await env.call('venture.delivery.run', { orderId: order.id, useTemplate: true })).id);
     }
     return roots.get(name)!;
   };
@@ -282,17 +282,31 @@ test('relay: Team nests a helper under its parent; no shipped team has a helper;
   // A team with no helper is left as it is; a helper whose parent is not shown is not nested.
   assert.deepEqual(nestTeam(views, flagshipDelivery(YOUTUBE_ID), () => new Map(), ''), views);
   assert.deepEqual(nestTeam(views.slice(1), fixture, () => new Map(), ''), views.slice(1));
-  // A role's own spend counts a one-step run's write call, for the role that drafts the reply.
-  const order = await episodeOrder(env);
-  const run = await env.call('venture.delivery.run', { orderId: order.id });
-  await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview.digest });
-  const state = env.store.read();
-  const venture = listRecords(state, 'venture-record')[0];
-  const ledger = teamLedger(state, venture);
-  const call = listRecords(state, 'venture-model-call').find(item => item.id === run.callId)!;
-  assert.ok(BigInt(call.costMicros ?? '0') > 0n, 'the write call cost something');
-  const drafter = ledger.flagship!.roleOf[ledger.flagship!.draftStep(null)];
-  assert.equal(roleSpend(ledger).get(drafter), BigInt(call.costMicros!));
+  // The native job binds a durable spend record; plans with no charge count as zero.
+  const order=await episodeOrder(env);
+  const venture=listRecords(env.store.read(),'venture-record')[0];
+  const ledger=teamLedger(env.store.read(),venture),drafter=ledger.flagship!.roleOf[ledger.flagship!.draftStep(null)];
+  await ventureAction(env.deps,owner,'prepare','test.native-spend',tx=>{
+    const base=tx.base('venture-delivery-run');
+    const charge=tx.put({...tx.base('venture-spend'),key:'agent:job-priced',item:'model:openai-gpt-6-luna',label:'Synthetic native usage',agent:drafter,connector:'openai-gpt-6-luna',payer:'connection:synthetic',draftDigest:'a'.repeat(64),rate:null,reservedMicros:'500000',settledMicros:'12345',settledBy:'usage',phase:'settled',quoteId:null,ref:base.id,refusal:null,settledAt:tx.now});
+    const run=tx.put({...base,orderId:order.id,playbookId:venture.playbookId!,playbookHash:'a'.repeat(64),status:'stopped',servedBy:'model',practice:false,callId:null,preview:null,deliverable:null,renderedText:null,checks:[],verdict:null,editedText:null,
+      agentJob:{scope:{jobId:'job-priced',runId:base.id,ventureId:venture.id,orderId:order.id,clientId:order.clientId,agentId:drafter,memberId:owner.memberId,epoch:owner.epoch,consentId:'synthetic',consentRevision:1,generation:1},sourceDigest:'a'.repeat(64),draftDigest:null,proposal:null,messages:[],tools:[],cost:{display:'Ignored display',state:'priced',spendId:charge.id}}});
+    tx.put({...run,...tx.base('venture-delivery-run')}); // A duplicate reference cannot count the same spend twice.
+    tx.put({...run,...tx.base('venture-delivery-run'),agentJob:{...run.agentJob!,cost:undefined}}); // Plan usage has no per-call charge.
+    tx.put({...run,...tx.base('venture-delivery-run'),agentJob:{...run.agentJob!,cost:{...run.agentJob!.cost!,spendId:'foreign-charge'}}});
+    tx.put({...charge,id:'foreign-charge',ventureId:'another-business',settledMicros:'999999'});
+  });
+  assert.equal(roleSpend(teamLedger(env.store.read(),venture)).get(drafter),12345n);
+  await ventureAction(env.deps,owner,'prepare','test.native-held-spend',tx=>{
+    const charge=tx.list('venture-spend').find(row=>row.key==='agent:job-priced'&&row.ventureId===venture.id)!;
+    tx.replace({...charge,phase:'unknown',settledMicros:null});
+  });
+  assert.equal(roleSpend(teamLedger(env.store.read(),venture)).get(drafter),500000n,'unknown usage retains the existing allowance hold');
+  await ventureAction(env.deps,owner,'prepare','test.native-released-spend',tx=>{
+    const charge=tx.list('venture-spend').find(row=>row.key==='agent:job-priced'&&row.ventureId===venture.id)!;
+    tx.replace({...charge,phase:'released',settledMicros:null});
+  });
+  assert.equal(roleSpend(teamLedger(env.store.read(),venture)).get(drafter),0n,'released allowance is not spent');
   // A parent's spend is its own and its helpers', down the tree, in BigInt.
   const rolled = rolledUpSpend(TEAM.members, new Map([[AGENT_ID, 10n], ['researcher', 5n], ['writer', 7n], ['checker', 3n]]));
   assert.deepEqual(Object.fromEntries(rolled), { [AGENT_ID]: 25n, researcher: 8n, writer: 7n, checker: 3n, editor: 0n });

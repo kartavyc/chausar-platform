@@ -56,7 +56,7 @@ export async function requestSignoffForRun(deps: VentureDeps, ctx: Context, run:
     const client = findRecord(state, 'venture-client', order.clientId);
     const clientName = client && client.ventureId === venture.id ? client.name.slice(0, 120) : null;
     const title = `${papers.offer.name}${clientName ? ` for ${clientName}` : ''}${stored.status === 'edited' ? ', your edit' : ''}`.slice(0, 140);
-    const receiptIds = [order.priceReceiptId, ...(stored.harness?.workReceiptIds ?? [])].filter(id => RECEIPT_ID.test(id)).slice(0, 50);
+    const receiptIds = [order.priceReceiptId, ...listRecords(state, 'venture-work-receipt', venture.id).filter(row => row.runRef.kind === 'delivery' && row.runRef.runId === stored.id).map(row => row.id)].filter(id => RECEIPT_ID.test(id)).slice(0, 50);
     if (!receiptIds.length) return null;
     const request = await requestCaSignoff(deps, ctx, {
       subjectKind: papers.subjectKind, title, clientName, workingDigest: papersDigest(stored),

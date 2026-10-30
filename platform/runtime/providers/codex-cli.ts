@@ -27,10 +27,15 @@ export const CODEX_CLI_CONFIG = Object.freeze([
   'approval_policy="never"', 'forced_login_method="chatgpt"', 'model_provider="openai"',
   'web_search="disabled"', 'project_doc_max_bytes=0', 'history.persistence="none"',
   ...(process.platform === 'win32' ? ['windows.sandbox=unelevated'] : []),
+  'skills.bundled.enabled=false',
+  // The qualified discovery control is experimental in 0.154; suppress only its startup notice, not error events.
+  'suppress_unstable_features_warning=true',
   'features.view_image=false', 'features.image_generation=false', 'features.sleep_tool=false',
   'features.tool_suggest=false', 'features.request_permissions_tool=false',
   'features.shell_tool=false', 'features.apps=false', 'features.multi_agent=false',
   'features.hooks=false', 'features.memories=false', 'features.goals=false',
+  'features.skip_host_skill_discovery=true',
+  'features.plugins=false', 'features.skill_search=false',
   'features.skill_mcp_dependency_install=false',
 ]);
 export const CODEX_CLI_LIMITS = Object.freeze({

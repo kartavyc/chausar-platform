@@ -1674,6 +1674,7 @@ export class Engine {
       case 'venture.agentSettings.get':
       case 'venture.agentSettings.set':
       case 'venture.mcpCredential.set':
+      case 'venture.agentApproval.decide':
       case 'venture.models.calls':
       case 'venture.price.quote':
       case 'venture.receipt.get':
@@ -1682,7 +1683,6 @@ export class Engine {
       case 'venture.client.aiConsent.get':
       case 'venture.client.aiConsent.agree':
       case 'venture.client.aiConsent.withdraw':
-      case 'venture.agentApproval.decide':
       case 'venture.order.create':
       case 'venture.order.list':
       case 'venture.order.deliver':
@@ -1710,19 +1710,16 @@ export class Engine {
       case 'venture.launch.status':
       case 'venture.launch.advance':
       case 'venture.delivery.run':
-      case 'venture.delivery.approve':
       case 'venture.delivery.review':
       case 'venture.delivery.list':
       case 'venture.capabilities':
       case 'venture.files.add':
       case 'venture.files.list':
-      case 'venture.delivery.answer':
       case 'venture.work.get':
       case 'venture.improve.status':
       case 'venture.improve.run':
       case 'venture.improve.get':
       case 'venture.improve.adopt':
-      case 'venture.delivery.delegate':
       case 'venture.delegate.get':
       case 'venture.queue.list':
       case 'venture.queue.decide':

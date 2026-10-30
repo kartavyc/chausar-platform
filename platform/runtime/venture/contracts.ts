@@ -258,6 +258,8 @@ export type RecordBase<K extends VentureRecordKind> = {
 
 export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
+  /** Host-owned revocation generations; owner settings never accept these counters. */
+  aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -543,16 +545,7 @@ export const SECOND_OFFER_MODEL: Readonly<Record<ServiceType, PricingModel>> = O
   research: 'hourly', content: 'project', support: 'hourly', other: 'project',
 });
 /** Headings promise work ahead, never work done: agents in this build only draft from the client's message. */
-export const REQUIRED_SECTIONS: Readonly<Record<ServiceType, readonly string[]>> = Object.freeze({
-  agency: ['Summary', 'Plan', 'Drafts', 'Next steps'],
-  studio: ['Summary', 'What we will make', 'Questions on the brief', 'Next steps'],
-  consulting: ['Summary', 'What we heard', 'Recommendations', 'Next steps'],
-  bookkeeping: ['Summary', 'What we will do', 'What we need from you', 'Next steps'],
-  research: ['Summary', 'Method', 'What we will look for', 'Sources to check'],
-  content: ['Summary', 'Draft', 'Notes for review', 'Next steps'],
-  support: ['Summary', 'Replies drafted', 'Escalations', 'Next steps'],
-  other: ['Summary', 'What we will do', 'Questions', 'Next steps'],
-});
+export { REQUIRED_SECTIONS } from './delivery/template-outline.ts';
 export const SCENARIO_KINDS = ['clean', 'messy', 'pushback'] as const;
 export type ScenarioKind = typeof SCENARIO_KINDS[number];
 /** Starter connectors; '<payment-rail>' is replaced with country.paymentRails[0]. */
@@ -646,9 +639,9 @@ export type ModelStatusView = {
 };
 
 export type ModelCallRecord = RecordBase<'venture-model-call'> & {
+  purpose: ModelPurpose;
   agentId?: string; // trusted task role for owner-set spending limits
   agentJobId?: string; // exact native job receiving this quality charge
-  purpose: ModelPurpose;
   tier: ModelTier;
   presetId: ModelPresetId;
   connectionId: string | null;
@@ -687,9 +680,9 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
 
 /** One unit of model work. Built by P1, P4 and P5; executed by P2. */
 export type ModelTask<T> = {
+  purpose: ModelPurpose;
   agentId?: string; // set by trusted job composition, never model input
   agentJobId?: string; // stable job identity across repeated quality checks
-  purpose: ModelPurpose;
   instructions: string; // system text
   input: Json; // user content, serialized as JSON text
   schemaName: string; // [a-z][a-z0-9-]{0,40}
@@ -712,6 +705,8 @@ export type ModelOutcome<T> = {
   answeredBy?: string | null;
 };
 export type ModelPreview = {
+  /** Trusted client permission captured when a scoped desk request is prepared. */
+  clientAi?: import('./clients/ai-consent-core.ts').ClientAiContextBinding;
   callId: string;
   payloadText: string;
   digest: string;
@@ -720,7 +715,6 @@ export type ModelPreview = {
   endpoint: string;
   estimatedMaxCostMicros: MicroString;
   estimatedMaxCostDisplay: string; // adds '(estimate, price unconfirmed)' when the table is unconfirmed
-  expiresAt: IsoTime; // 30 minutes
   /** Ink v2 wave 4 (4F2, M7): who pays for this call, in words ('Paid by your Anthropic key'); absent on older previews. */
   payer?: string;
 };
@@ -2334,7 +2328,7 @@ export type Reconciliation = {
  * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
  */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'seo.claim' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -2917,6 +2911,14 @@ export interface RunSummary {
  * the round gate (O2); live, the calls of the turn in flight, from the run.call events (U7).
  */
 export interface RunDetail extends RunSummary {
+  agentProgress?: {
+    canResume?: boolean;
+    cost?: {display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};
+    messages: { id: string; text: string; label: 'model-estimate' }[];
+    tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
+    model?: string;
+    pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
+  };
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
   scope?: RunScopeView; steer?: { text: Display; at: IsoTime; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: RoundGateReason; line: Display } | null };
@@ -3227,7 +3229,7 @@ export type ShareComment = { item: string; text: string; at: IsoTime; recordedFo
  * venture.delivery.judge: the rules judge's call on one ready real-order draft, previewed and waiting for the owner to
  * send it (venture.delivery.judgeSend with this digest). It carries the client's words, so it never goes on its own.
  */
-export interface DeliveryJudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; expiresAt: IsoTime; containsClientData: true }
+export interface DeliveryJudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; containsClientData: true }
 /** venture.posting.propose: the post waits on Today for the owner's approval. line says so; warnings are the risk gate's. */
 export interface PostingProposal { postId: string; connectorId: string; draftId: string; part: number | null; state: ConnectorPostState; line: Display; warnings: Display[] }
 /**
@@ -3999,7 +4001,7 @@ export type DraftEditRecord = RecordBase<'venture-draft-edit'> & {
  * 4J2 (O5): the owner sent a draft back with words, or asked the agent to fix failed checks. words: what the revision
  * turn is told, beginning "Revise this to: "; previous: the text the owner saw, which the agent revises (their edit,
  * else the agent's draft); base: the agent's own draft, the merge base when the revision lands; callId: the revision
- * turn's call; prior: the run's call and loop phase before, so Undo puts the draft back while the revision has not
+ * job ID once native work starts (blank before launch); prior: the saved run state, so Undo restores the draft before work has
  * started. checks: a fix's targets.
  */
 export type DraftRevision = {
@@ -5342,17 +5344,17 @@ export const W5_METHODS = [
 export type W5Method = typeof W5_METHODS[number];
 
 export const VENTURE_METHODS = [
-  'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentApproval.decide',
   // P1 core (venture.countries and venture.preview are answered before a vault is open)
   'venture.countries', 'venture.preview', 'venture.create', 'venture.get', 'venture.events',
   'venture.interview.next', 'venture.interview.answer',
   'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept',
   // P2 models
-  'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set',
   'venture.models.presets', 'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls',
+  'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set',
   // P3 money
   'venture.price.quote', 'venture.receipt.get',
   'venture.client.add', 'venture.client.list',
+  'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
@@ -5364,13 +5366,14 @@ export const VENTURE_METHODS = [
   // P5 delivery, rehearsal, launch, capabilities
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal',
   'venture.launch.status', 'venture.launch.advance',
-  'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list',
+  'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list',
+  'venture.agentApproval.decide',
   'venture.capabilities',
   // P5 delivery harness: client files, hand-off answers, work receipts, the gated improvement loop
-  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get',
+  'venture.files.add', 'venture.files.list', 'venture.work.get',
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
   // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
-  'venture.delivery.delegate', 'venture.delegate.get',
+  'venture.delegate.get',
   // Ink frontend views (P1-A): Today's queue, runs, the team and its gates
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   // Evidence ledger (P2-evidence): what backs each client and business field, and the owner applying a suggestion
@@ -5431,16 +5434,13 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
  */
 export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views' | 'agents' | 'chief' | 'network' | 'notify' | 'playbooks';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
-  'venture.client.aiConsent.get': 'money',
-  'venture.client.aiConsent.agree': 'money',
-  'venture.client.aiConsent.withdraw': 'money',
-  'venture.agentApproval.decide': 'delivery',
   'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
   'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
-  'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
   'venture.models.presets': 'models', 'venture.models.connect': 'models', 'venture.models.disconnect': 'models', 'venture.models.status': 'models', 'venture.models.calls': 'models',
+  'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
+  'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
@@ -5449,11 +5449,12 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.connectors.list': 'build',
   'venture.delivery.playbook': 'delivery', 'venture.simulation.scenarios': 'delivery', 'venture.simulation.run': 'delivery', 'venture.simulation.get': 'delivery', 'venture.simulation.fromSignal': 'delivery',
   'venture.launch.status': 'delivery', 'venture.launch.advance': 'delivery',
-  'venture.delivery.run': 'delivery', 'venture.delivery.approve': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
+  'venture.delivery.run': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
+  'venture.agentApproval.decide': 'delivery',
   'venture.capabilities': 'delivery',
-  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
+  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
-  'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
+  'venture.delegate.get': 'delivery',
   'venture.queue.list': 'views', 'venture.queue.decide': 'views', 'venture.runs.list': 'views', 'venture.runs.get': 'views', 'venture.team.list': 'views', 'venture.team.gate': 'views',
   'venture.evidence.list': 'core', 'venture.evidence.apply': 'core',
   'venture.journal.list': 'views', 'venture.journal.resolve': 'views',
@@ -5532,11 +5533,12 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
+  'venture.agentApproval.decide',
   'venture.agentSettings.set', 'venture.mcpCredential.set',
-  'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentApproval.decide',
+  'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
-  'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
-  'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
+  'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
+  'venture.files.add', 'venture.improve.adopt',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
   'venture.country.suggest',
   'venture.queue.decide', 'venture.team.gate',
@@ -5663,13 +5665,6 @@ export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
 type Empty = Record<string, never>;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 export type VenturePayloads = {
-  'venture.agentSettings.get': Empty;
-  'venture.agentSettings.set': { settings: import('./agent-runtime/settings.ts').AiSettings; approveMcpConfiguration?: true };
-  'venture.mcpCredential.set': { serverId: string; token: string | null };
-  'venture.client.aiConsent.get': { clientId: string };
-  'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
-  'venture.client.aiConsent.withdraw': { clientId: string };
-  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny' };
   'venture.countries': Empty;
   'venture.preview': { idea: string; countryCode: CountryCode; pricingModel?: PricingModel };
   /** composeId and composedDigest are sent together or not at all; the engine holds the plan itself. */
@@ -5691,6 +5686,12 @@ export type VenturePayloads = {
   'venture.price.quote': { offerId: string; quantity?: string };
   'venture.receipt.get': { id: string };
   'venture.client.add': { name: string; email?: string; countryCode?: CountryCode; taxId?: string; stateCode?: string; note?: string };
+  'venture.client.aiConsent.get': { clientId: string };
+  'venture.agentSettings.get': Empty;
+  'venture.agentSettings.set': { settings: import('./agent-runtime/settings.ts').AiSettings; approveMcpConfiguration?: true };
+  'venture.mcpCredential.set': { serverId: string; token: string | null };
+  'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
+  'venture.client.aiConsent.withdraw': { clientId: string };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
@@ -5741,14 +5742,12 @@ export type VenturePayloads = {
   'venture.launch.status': Empty;
   'venture.launch.advance': { to: LaunchStage };
   'venture.delivery.run': { orderId: string; useTemplate?: boolean };
-  'venture.delivery.approve': { runId: string; digest: string };
+  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny' };
   'venture.delivery.review': { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: DeliveryReason; editedText?: string };
   'venture.delivery.list': Empty;
   'venture.capabilities': Empty;
   'venture.files.add': { orderId: string; name: string; contentBase64: string };
   'venture.files.list': { orderId?: string };
-  'venture.delivery.answer': { runId: string; answer: string };
-  'venture.delivery.delegate': { runId: string; digest: string; decision: 'approve' | 'decline' };
   'venture.delegate.get': { id: string };
   'venture.work.get': { id: string };
   'venture.improve.status': Empty;
@@ -6060,13 +6059,6 @@ export type VenturePayloads = {
   'venture.compose.update': OnboardingPayloads['venture.compose.update'];
 };
 export type VentureResults = {
-  'venture.agentSettings.get': import('./agent-runtime/settings.ts').AiSettingsView;
-  'venture.agentSettings.set': import('./agent-runtime/settings.ts').AiSettingsView;
-  'venture.mcpCredential.set': { serverId: string; saved: boolean };
-  'venture.client.aiConsent.get': ClientAiConsentView;
-  'venture.client.aiConsent.agree': ClientAiConsentView;
-  'venture.client.aiConsent.withdraw': ClientAiConsentView;
-  'venture.agentApproval.decide': { runId: string; decision: 'approve' | 'deny' };
   'venture.countries': CountryProfile[];
   'venture.preview': PlanPreview;
   'venture.create': VentureView;
@@ -6091,6 +6083,12 @@ export type VentureResults = {
   /** A price receipt, a sum receipt (owed, received, spent) that code made from venture records, or a tie's receipt (4D2). */
   'venture.receipt.get': (PriceReceiptRecord | SumReceiptRecord | TieReceipt | RowFigureReceipt) & { signature?: ReceiptSignature };
   'venture.client.add': ClientRecord;
+  'venture.client.aiConsent.get': ClientAiConsentView;
+  'venture.agentSettings.get': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.agentSettings.set': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.mcpCredential.set': { serverId: string; saved: boolean };
+  'venture.client.aiConsent.agree': ClientAiConsentView;
+  'venture.client.aiConsent.withdraw': ClientAiConsentView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;
   /** 4J3: each order with its stage steps and what waits on the owner (money/order-steps.ts). */
@@ -6120,14 +6118,12 @@ export type VentureResults = {
   'venture.launch.status': LaunchStatus;
   'venture.launch.advance': LaunchStatus;
   'venture.delivery.run': DeliveryRunView;
-  'venture.delivery.approve': DeliveryRunView;
+  'venture.agentApproval.decide': { runId: string; decision: 'approve' | 'deny' };
   'venture.delivery.review': DeliveryRunView;
   'venture.delivery.list': DeliveryRunView[];
   'venture.capabilities': CapabilityStatus[];
   'venture.files.add': UploadView;
   'venture.files.list': UploadView[];
-  'venture.delivery.answer': DeliveryRunView;
-  'venture.delivery.delegate': DeliveryRunView;
   'venture.delegate.get': DelegateRunRecord;
   'venture.work.get': WorkReceiptRecord & { coverage?: CoverageView }; // 4J14 (Q6): fraction first where code counts it
   'venture.improve.status': ImprovementStatus;
@@ -6406,10 +6402,11 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
-  'AI_SETTING_UNSUPPORTED', 'MCP_CALL_DECLINED', 'MCP_CONFIGURATION_APPROVAL_REQUIRED', 'MCP_CONFIGURATION_CHANGED', 'MCP_CONNECTION_FAILED', 'MCP_RESPONSE_INVALID', 'MCP_SERVER_NOT_FOUND', 'MCP_TOOL_CHANGED',
-  'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'JOB_BUSY',
-  // Wave 6 job-scoped toolbox.
-  'DRAFT_CHECK_FAILED', 'INVALID_JOB_FILE', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'MCP_RESULT_TOO_LARGE',
+  // Wave 6: scoped native jobs and owner-configured external tools.
+  'JOB_BUSY', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED',
+  'MODEL_SEND_BLOCKED',
+  'AGENT_ABORTED', 'AGENT_PROMPT_INVALID', 'AGENT_SHELL_UNAVAILABLE', 'AGENT_TURN_BUSY',
+  'MCP_CALL_DECLINED', 'MCP_CONFIGURATION_APPROVAL_REQUIRED', 'MCP_CONFIGURATION_CHANGED', 'MCP_CONNECTION_FAILED', 'MCP_RESPONSE_INVALID', 'MCP_SERVER_NOT_FOUND', 'MCP_TOOL_CHANGED',
   'CALL_LOG_NOT_FOUND',
   // 5R5: exact monitored sources and one-channel triage.
   'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
@@ -6454,10 +6451,11 @@ export const VENTURE_ERRORS = [
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
-  'CREDENTIAL_INVALID', 'CREDENTIAL_UNAVAILABLE',
-  'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE',
+  'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE', 'CREDENTIAL_INVALID', 'CREDENTIAL_UNAVAILABLE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
   'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
+  'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED',
+  'AI_SETTING_UNSUPPORTED',
   'RECEIPT_NOT_FOUND', 'BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'HANDOFF_NOT_FOUND', 'REPO_NOT_LINKED', 'INVALID_REPO', 'TOKEN_NOT_FINE_GRAINED',
   'GITHUB_UNAUTHORIZED', 'GITHUB_NOT_FOUND', 'GITHUB_RATE_LIMITED', 'GITHUB_READ_FAILED',
   'PLAYBOOK_NOT_FOUND', 'SCENARIO_NOT_FOUND', 'SIMULATION_NOT_FOUND', 'SIGNAL_NOT_FOUND',
@@ -6538,7 +6536,7 @@ export const VENTURE_ERRORS = [
   // 4E3: a mailbox that refused the app password, one not connected (or whose password is not loaded), one that failed
   'MAILBOX_LOGIN_FAILED', 'MAILBOX_NOT_CONNECTED', 'MAILBOX_FAILED',
   // Run controls, breakers, write caps and who pays (4F1, 4F2)
-  'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED', 'RUN_CAPABILITY_MISSING', 'WRITE_CAP_REACHED', 'PAYER_AMBIGUOUS',
+  'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_RESTART_REQUIRED', 'RUN_CONTROL_UNAVAILABLE', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED', 'RUN_CAPABILITY_MISSING', 'WRITE_CAP_REACHED', 'PAYER_AMBIGUOUS',
   // Notifications and push (4G1, 4G3), the CLI status (4H1), goals (4I1)
   'NOTIFY_PAUSE_TOO_LONG', 'PUSH_ENDPOINT_REFUSED', 'PUSH_NOT_SUBSCRIBED', 'CLI_FLAGS_UNSUPPORTED', 'GOAL_INVALID', 'GOAL_MONTH_PAST',
   // Approvals, edits and set approval (4J1, 4J2)
@@ -6658,6 +6656,8 @@ export function experimentalStorage(deps: { storage: VentureStorage; host: Ventu
 export type VentureDeps = {
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
+  /** Trusted test or desktop composition. Never accepted from an engine request. */
+  agentRoute?: (ctx: Context, agentId: string) => Promise<import('./agent-runtime/route-types.ts').AgentRoute>;
   store: StateStore;
   clock: () => Date;
   models: ModelPort;
@@ -6767,6 +6767,8 @@ export type ModelPortOptions = {
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
 export type VentureHostOptions = {
+  /** Trusted host composition for a tool driver, never supplied by an engine request. */
+  agentRoute?: VentureDeps['agentRoute'];
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */

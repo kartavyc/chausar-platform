@@ -198,10 +198,40 @@ test('Codex keeps its default but an owner can explicitly choose an available mo
 // 1. Presets
 // ---------------------------------------------------------------------------
 
+test('an unchanged AI request survives time passing while altered approval content is still refused', async () => {
+  const { deps, rec, advance } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  const preview = (await deps.models.preview(owner, wordsTask({ purpose: 'delivery', containsClientData: true })))!;
+  advance(24 * 60 * 60_000);
+  await assert.rejects(deps.models.runPreview(owner, preview.callId, 'different-content', validateWords), code('APPROVAL_STALE'));
+  rec.replyHttp = () => anthropicReply({ words: 'Kept exact request' });
+  const result = await deps.models.runPreview(owner, preview.callId, preview.digest, validateWords);
+  assert.equal(result.value.words, 'Kept exact request');
+  assert.equal(rec.http.length, 1);
+});
+
 test('the owner can set a key allowance above the former undocumented ceiling', async () => {
   const { deps, store } = await setup();
   await connect(deps, 'openai-gpt-6-luna', { monthlyCapUsd: '1000.01' });
   assert.equal(connections(store).at(-1)!.monthlyCapMicros, '1000010000');
+});
+
+test('client AI quality permission records its grant without inventing owner approval', async () => {
+  const { deps, rec, store } = await setup();
+  await connect(deps, 'anthropic-haiku-5-5');
+  const client = await ventureAction(deps, owner, 'admin', 'test.client-grant', tx => tx.put({ ...tx.base('venture-client'), name: 'Synthetic client', aiConsent: { id: 'grant', revision: 1, withdrawnAt: null } } as any));
+  const grant = { clientId: client.id, consentId: 'grant', consentRevision: 1 };
+  const task = wordsTask({ purpose: 'judge', containsClientData: true });
+  const preview = (await deps.models.preview(owner, task))!;
+  await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords, { consent: 'client-ai', clientAi: grant }), code('INVALID_VENTURE_REQUEST'));
+  rec.replyHttp = () => anthropicReply({ words: 'Checked under client permission' });
+  await deps.models.runPreview(owner, preview.callId, preview.digest, validateWords, { consent: 'client-ai', clientAi: grant, beforeDispatch() {} });
+  const saved = calls(store).find(row => row.id === preview.callId)!;
+  assert.equal(saved.consent, 'client-ai'); assert.equal(saved.approvedBy, null); assert.equal(saved.approvedAt, null);
+  const another = (await deps.models.preview(owner, task))!;
+  await ventureAction(deps, owner, 'admin', 'test.withdraw', tx => { const current = tx.find('venture-client', client.id)!; tx.replace({ ...current, aiConsent: { ...current.aiConsent!, withdrawnAt: tx.now, revision: 2 } }); });
+  await assert.rejects(deps.models.runPreview(owner, another.callId, another.digest, validateWords, { consent: 'client-ai', clientAi: grant, beforeDispatch() {} }), code('CLIENT_AI_CONSENT_REQUIRED'));
+  assert.equal(rec.http.length, 1);
 });
 
 test('presets: seven presets, consent digests, Luna unverified, CLI checks change availability', async () => {
@@ -788,7 +818,7 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   assert.ok(preview.payloadText.includes('Please close my September books'));
   assert.equal(JSON.stringify(stored).includes(KEY), false);
   assert.equal(JSON.stringify(stored).includes('x-api-key'), false);
-  assert.equal(preview.expiresAt, '2026-10-15T09:30:00.000Z');
+  assert.equal(Object.hasOwn(preview, 'expiresAt'), false);
   assert.equal(preview.endpoint, 'https://api.anthropic.com/v1/messages');
   assert.equal(preview.estimatedMaxCostDisplay, formatMicros(preview.estimatedMaxCostMicros));
 
@@ -815,13 +845,12 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   assert.equal(sent.approvedAt, '2026-10-15T09:00:00.000Z');
   await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords), code('APPROVAL_STALE'));
 
-  // Expired after 30 minutes.
+  // Time passing does not change the exact request.
   const late = (await deps.models.preview(owner, clientTask()))!;
   advance(31 * 60_000);
-  await assert.rejects(deps.models.runPreview(owner, late.callId, late.digest, validateWords), code('APPROVAL_STALE'));
-  // The refused claim wrote nothing; the list shows the preview as expired without writing either.
-  assert.equal(calls(store).find(item => item.id === late.callId).status, 'preview');
-  assert.equal((await call(deps, 'venture.models.calls', {})).find((item: any) => item.id === late.callId).status, 'expired');
+  await deps.models.runPreview(owner, late.callId, late.digest, validateWords);
+  assert.equal(calls(store).find(item => item.id === late.callId).status, 'completed');
+  assert.equal((await call(deps, 'venture.models.calls', {})).find((item: any) => item.id === late.callId).status, 'completed');
 
   // A changed consent digest, then a disconnected connection, make approval stale; nothing is sent.
   const consentChanged = (await deps.models.preview(owner, clientTask()))!;
@@ -836,7 +865,7 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   await call(deps, 'venture.models.disconnect', { connectionId: live.id });
   await connect(deps, 'anthropic-sonnet-5-5');
   await assert.rejects(deps.models.runPreview(owner, beforeDisconnect.callId, beforeDisconnect.digest, validateWords), code('APPROVAL_STALE'));
-  assert.equal(rec.http.length, 1);
+  assert.equal(rec.http.length, 2);
 });
 
 test('approval budget: a second approval refuses while the first is in flight and their estimates pass the limit', async () => {

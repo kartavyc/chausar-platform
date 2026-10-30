@@ -2,6 +2,7 @@
 // for the model and GitHub (build spec section 11). No network: the model and GitHub answer from hand-written fixtures.
 // Written in Phase B against the contracts; it passes once all packages have landed (Phase C).
 import test from 'node:test';
+import { scriptedAgent, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,7 @@ async function newEngine(t: any, withRecordings: boolean) {
     const githubFixture = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
     engine = new Engine({ directory, demo: true, storage: 'experimental-file', venture: {
       host: 'test',
+      agentRoute: async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: scriptedAgent(() => JSON.parse(modelFixture.responses.find((row: any) => row.body?.id === 'msg_synthetic_delivery_order').body.content[0].text)) }),
       // Docker is absent here, so the container tier says it needs setup; no docker command runs in this test.
       sandbox: { process: async () => { throw new Error('docker not found'); } },
       modelTransport: createReplayTransport(modelFixture),
@@ -73,7 +75,14 @@ async function newEngine(t: any, withRecordings: boolean) {
 
 test('the whole venture journey in India, with a model and GitHub answering from synthetic recordings', async t => {
   const { engine, ask } = await newEngine(t, true);
-  const events = async () => ((await ask('venture.events', { limit: 100 })) as { events: VentureEventRecord[] }).events;
+  const events = async () => {
+    const result: VentureEventRecord[] = [];
+    for (;;) {
+      const page = (await ask('venture.events', { limit: 100, afterSeq: result.at(-1)?.seq ?? 0 }) as { events: VentureEventRecord[] }).events;
+      result.push(...page);
+      if (page.length < 100) return result;
+    }
+  };
   const calls = async () => await ask('venture.models.calls', { limit: 100 }) as CallRecord[];
 
   // 1. Countries, before any vault.
@@ -297,35 +306,32 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal(figure(orderReceipt, 'sgst').minor, '22491');
   assert.equal(figure(orderReceipt, 'total').minor, '294882');
 
-  // 19. At shadow, an agent draft waits for the owner to see the exact text before anything is sent.
+  // Native AI work uses one recorded client consent and stops at the exact draft handoff.
+  const consent = await ask('venture.client.aiConsent.get', { clientId: client.id });
+  await ask('venture.client.aiConsent.agree', { clientId: client.id, disclosureDigest: consent.disclosureDigest });
+  const ready = async (id: string): Promise<DeliveryRunRecord> => {
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const current = (await ask('venture.delivery.list') as DeliveryRunRecord[]).find(row => row.id === id)!;
+      if (current.agentJob?.reviewReady || current.status === 'failed') return current;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw new Error('Synthetic native job did not settle.');
+  };
   const waiting = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
-  assert.equal(waiting.status, 'waiting-for-you');
-  assert.equal(waiting.practice, true);
-  assert.ok(waiting.preview);
-  assert.ok(waiting.preview.payloadText.includes(REQUEST));
-  const previewCall = (await calls()).find(c => c.id === waiting.preview?.callId);
-  assert.equal(previewCall?.status, 'preview');
-  assert.equal(previewCall?.containsClientData, true);
-
-  // 20. Approve the send; the practice draft is ready, every check passed, and it can't be accepted.
-  const practice = await ask('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest }) as DeliveryRunRecord;
-  assert.equal(practice.status, 'ready-for-review');
+  assert.equal(waiting.status, 'waiting-for-you'); assert.equal(waiting.practice, true); assert.equal(waiting.preview, null);
+  const practice = await ready(waiting.id);
+  assert.equal(practice.status, 'ready-for-review', JSON.stringify(practice));
   assert.ok(practice.renderedText?.includes('Total: INR 2,948.82'), practice.renderedText ?? '');
   assert.ok(practice.checks.length > 0 && practice.checks.every(c => c.passed), JSON.stringify(practice.checks));
   assert.ok(practice.checks.some(c => c.check === 'no-done-claims'));
   await assert.rejects(ask('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
-
-  // 21. Approve each: the business is live and a real draft can be accepted.
   assert.equal((await ask('venture.launch.advance', { to: 'approve-each' }) as LaunchStatus).stage, 'approve-each');
   assert.equal((await ask('venture.get') as VentureView).venture.status, 'live');
   const real = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
-  assert.equal(real.practice, false);
-  assert.equal(real.status, 'waiting-for-you');
-  assert.ok(real.preview);
-  await ask('venture.delivery.approve', { runId: real.id, digest: real.preview.digest });
+  assert.equal(real.practice, false); assert.equal(real.preview, null);
+  const nativeDraft = await ready(real.id); assert.equal(nativeDraft.agentJob?.proposal?.to, client.email);
   const reviewed = await ask('venture.delivery.review', { runId: real.id, verdict: 'accepted' }) as DeliveryRunRecord;
   assert.equal(reviewed.status, 'accepted');
-  assert.equal((await calls()).find(c => c.id === real.preview?.callId)?.approvedBy, 'owner');
 
   // 22. Delivered: a sale fact goes into the books.
   const delivered = await ask('venture.order.deliver', { orderId: order.id, deliveredOn: '2026-10-04' }) as OrderRecord;
@@ -387,9 +393,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
     cursor = at + 1;
   }
 
-  // 29. What was sent: only recordings, no key or token, client data only in the two approved delivery calls. The judge's
-  // call on the draft made at approve each was prepared (prices as placeholders) and waits for the owner: the write
-  // turn was approved here, not on Today, so no standing consent was given and nothing went on its own.
+  // 29. Model calls use recordings. The native driver drafts through MCP; quality uses the recorded client consent.
   const sent = await calls();
   assert.ok(sent.length > 0);
   for (const call of sent) {
@@ -397,11 +401,13 @@ test('the whole venture journey in India, with a model and GitHub answering from
     for (const secret of [API_KEY, GITHUB_TOKEN, 'Cafe Aroma Demo', 'owner@aroma.example']) assert.equal(call.payloadText.includes(secret), false, `${call.purpose} ${call.id}`);
   }
   const withRequest = sent.filter(call => call.payloadText.includes(REQUEST));
-  assert.deepEqual(withRequest.map(call => call.purpose).sort(), ['delivery', 'delivery', 'judge']);
-  for (const call of withRequest.filter(item => item.purpose === 'delivery')) assert.equal(call.consent, 'approved-preview');
-  const judgeCall = withRequest.find(call => call.purpose === 'judge')!;
-  assert.equal(judgeCall.status, 'preview', 'the judge call was never sent');
-  assert.equal(judgeCall.approvedBy, null);
+  assert.ok(withRequest.length > 0);
+  for (const call of withRequest) {
+    assert.equal(call.purpose, 'judge');
+    assert.equal(call.consent, 'client-ai');
+    assert.equal(call.status, 'completed');
+    assert.ok(call.agentJobId);
+  }
   for (const call of sent.filter(c => c.purpose === 'judge')) assert.equal(call.payloadText.includes('2,948.82'), false);
 
   // 30. The vault holds neither the key nor the token.

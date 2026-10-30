@@ -10,6 +10,17 @@ import {
   type Ballot, type JudgeRule, type JudgeTrace,
 } from '../runtime/venture/delivery/judge/rules.ts';
 import { traceFromHarness } from '../runtime/venture/delivery/judge/trace.ts';
+import { renderForJudge } from '../runtime/venture/delivery/deliverable.ts';
+
+test('quality instructions explain code-rendered amount marks without asking the judge to calculate or waive content rules',()=>{
+ const text=renderForJudge({title:'Voice sheet',questionsForClient:[],sections:[{heading:'Agreed price',parts:[{kind:'figure',receiptId:'price-a',figureKey:'total'}]}]},[{id:'price-a',figures:[{key:'total',label:'Total',display:'INR 1,000.00'}]}] as any);
+ const task=rulesTask({rules:RULES,trace:TRACE,draft:text,containsClientData:true});
+ assert.match(text,/Total: \[price from Chausar\]/);
+ assert.match(task.instructions,/\[price from Chausar\]/);
+ assert.match(task.instructions,/not missing client content/);
+ assert.match(task.instructions,/labels and placement/);
+ assert.doesNotMatch(text,/1,000/);
+});
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 

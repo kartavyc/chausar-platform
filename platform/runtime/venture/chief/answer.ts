@@ -15,6 +15,7 @@ import { chatCall, leftOutLine } from '../agents/answer.ts';
 import type { ChatRoute } from '../agents/consent.ts';
 import { ownerToday } from '../local-day.ts';
 import { runTool, TOOL_CATALOGUE, type ToolFigure, type ToolResult } from './tools.ts';
+import { chiefClientContext } from './client-context.ts';
 // 4J14: counts by code when the AI's answer fails (Q21), and proposals decided first (Q22).
 import { countedByCode, type FallbackView } from '../delivery/fallbacks.ts';
 import { decideFirstSchema, readDecideFirst } from '../delivery/decide-first.ts';
@@ -186,6 +187,7 @@ const TURN_SCHEMA: Json = {
 const INSTRUCTIONS = [
   "You are Chausar, the chief of staff of a small business the owner runs. Speak plainly, as a capable colleague would: no persona, no greetings, no sign-offs. Answer in the language the owner wrote in, English or Hindi.",
   'Answer from what the read tools return and from nothing else. On a turn you may name read tools in tools (they run, and you see their results next turn), or answer in parts. The last turn must answer.',
+  'Client-specific records are included only with that client\'s current AI permission. Missing records may be withheld for permission; do not claim that no clients or orders exist just because none were returned. The owner can review permission in Clients.',
   'Give every amount, count or total a tool returned as a figure part with its receiptId and key. Never write money in words: an amount with no receipt is left out. Any other number you write is shown to the owner as a model estimate.',
   'You never act. To get something done, add a proposal of one of the kinds in proposalKinds, with the fields it uses; the owner raises it to Today and approves it there. Leave every proposal field you do not use empty. You never change keys, money rules, posture or storage.',
   'Decide each proposal first: decision yes or no, then one short reason, then its fields in content. No is the default; a no keeps nothing, so leave its fields empty.',
@@ -227,6 +229,7 @@ export function checkParts(raw: readonly RawPart[], figures: readonly ToolFigure
 // ---------------------------------------------------------------------------
 
 export type ChiefAnswer = {
+  assertCurrent?: (state: State) => void;
   parts: ChatPart[];
   dropped: string[];
   worked: Worked[];
@@ -323,6 +326,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
   const callIds: string[] = [];
   const budget = { used: 0n };
   const capped = cappedDeps(deps, budget);
+  const clientContext = chiefClientContext(deps, venture.id);
   for (let turn = 1; turn <= MAX_TURNS; turn += 1) {
     const last = turn === MAX_TURNS;
     const task: ModelTask<TurnOutput> = {
@@ -338,7 +342,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     };
     let answered: { value: TurnOutput; callId: string | null } | null;
     try {
-      answered = await chatCall(capped, ctx, route, task);
+      answered = await chatCall(capped, ctx, route, task, clientContext.assert);
     } catch (error) {
       if (codeOf(error) === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
       throw error;
@@ -348,7 +352,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     const out = answered.value;
     if (!last && out.tools.length) {
       for (const name of [...new Set(out.tools)]) {
-        const result = await runTool(deps, ctx, name);
+        const result = await runTool(deps, ctx, name, clientContext);
         results.push(result);
         if ('figures' in result) figures.push(...result.figures);
       }
@@ -357,7 +361,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     const checked = checkParts(out.parts, unique(figures), question);
     const parts = checked.parts.length ? checked.parts : [{ kind: 'text' as const, text: NO_PROOF }];
     const receiptIds = [...new Set(parts.flatMap(item => (item.kind === 'figure' ? [item.receiptId] : [])))];
-    return { parts, dropped: checked.dropped, worked: checked.worked, receiptIds, callIds, author: 'model', proposals: out.proposals, counted: null };
+    return { parts, dropped: checked.dropped, worked: checked.worked, receiptIds, callIds, author: 'model', proposals: out.proposals, counted: null, assertCurrent: clientContext.assert };
   }
   throw new ChausarError('INVALID_VENTURE_REQUEST', NO_PROOF);
 }

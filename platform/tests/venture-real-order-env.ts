@@ -3,9 +3,6 @@
 // up to `estimate` and each approved call bills `cost`; the agent's turns and the report come from the script. Nothing
 // here touches the network or pays for anything.
 import assert from 'node:assert/strict';
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { JUDGE_QUESTIONS, STEP_PLAN } from '../runtime/venture/contracts.ts';
 import type {
@@ -15,8 +12,9 @@ import type {
 import { digest, ventureAction, type VentureTx } from '../runtime/venture/records.ts';
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { PRACTICE_FILES } from '../runtime/venture/delivery/harness/practice.ts';
-import { createDelegatePorts } from '../runtime/venture/delivery/harness/delegate-process.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 
 export const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 export const AT = '2026-10-16T10:00:00.000Z';
@@ -71,14 +69,15 @@ export class ScriptPort implements ModelPort {
     await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: this.estimate, estimatedMaxCostDisplay: `estimate ${this.estimate}`, expiresAt: '2026-10-16T10:30:00.000Z',
+      estimatedMaxCostMicros: this.estimate, estimatedMaxCostDisplay: `estimate ${this.estimate}`,
     };
   }
-  async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
+  async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
     const held = this.#previews.get(callId);
     if (!held || held.used || held.digest !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
     held.used = true;
+    options?.beforeDispatch?.();
     this.sent += 1;
     const raw = held.task.purpose === 'agent-turn' ? this.turns[Math.min(this.#turn++, this.turns.length - 1)]
       : held.task.schemaName === 'venture-judge-rules' ? rulesYes(held.task) : this.report;
@@ -155,21 +154,14 @@ export async function realOrder(options: { delegate?: DelegatePorts } = {}): Pro
 }
 
 export const startRun = (env: RealOrderEnv) => call<DeliveryRunView>(env, delivery, 'venture.delivery.run', { orderId: env.order.id });
-export const approve = (env: RealOrderEnv, run: DeliveryRunView) => call<DeliveryRunView>(env, delivery, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+/** Explicit fixture-only permission and native scoped tools. Direct startRun keeps the public refusal boundary. */
+export async function runAgentDraft(env: RealOrderEnv, options: { beforeDraft?: () => Promise<void> } = {}): Promise<DeliveryRunView> {
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, env.order.id);
+  env.deps.agentRoute = async () => ({ driver: scriptedAgent(async () => structuredClone(env.models.report), options.beforeDraft), settings: SCRIPTED_AGENT_SETTINGS });
+  const started = await startRun(env);
+  await waitForAgentWork(env.store, started.id);
+  return runOf(env, started.id);
+}
 export const runOf = async (env: RealOrderEnv, id: string) => (await call<DeliveryRunView[]>(env, delivery, 'venture.delivery.list')).find(item => item.id === id)!;
 export const turnOf = (note: string, calls: [string, unknown][], finished = false) => ({ note, calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
-export const decideBrief = (env: RealOrderEnv, run: DeliveryRunView, decision: 'approve' | 'decline') =>
-  call<DeliveryRunView>(env, delivery, 'venture.delivery.delegate', { runId: run.id, digest: run.harness!.delegations!.at(-1)!.digest, decision });
-
-/**
- * A fake `claude` on a search path of its own (fixtures/venture/delegate/fake-cli.mjs, as venture-delegate.test.ts):
- * it makes no model call and no network call, reports a cost of USD 0.0421, and leaves spy.json when it did the work.
- */
-export function installFakeClaude(): { ports: DelegatePorts; started(): boolean; cleanup(): void } {
-  const dir = mkdtempSync(join(tmpdir(), 'chausar-fake-cli-'));
-  copyFileSync(new URL('./fixtures/venture/delegate/fake-cli.mjs', import.meta.url), join(dir, 'fake-cli.mjs'));
-  if (process.platform === 'win32') writeFileSync(join(dir, 'claude.cmd'), `@echo off\r\n"${process.execPath}" "%~dp0fake-cli.mjs" %*\r\n`);
-  else { writeFileSync(join(dir, 'claude'), `#!/bin/sh\nexec "${process.execPath}" "${join(dir, 'fake-cli.mjs')}" "$@"\n`); chmodSync(join(dir, 'claude'), 0o755); }
-  writeFileSync(join(dir, 'mode.json'), JSON.stringify({ kind: 'claude', behavior: 'work' }));
-  return { ports: createDelegatePorts({ pathEnv: dir }), started: () => existsSync(join(dir, 'spy.json')), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
-}

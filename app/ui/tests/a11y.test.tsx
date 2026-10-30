@@ -262,7 +262,7 @@ const OPENED: Case[] = [
   { name: 'Business, practice with the drills run and every fold open', hash: '#/business/practice', press: ['Run the drills'], openFolds: true },
   { name: 'Business, routines with the history open and a removal asked', hash: '#/business/routines', openFolds: true, press: ['Remove'] },
   { name: 'Work, an order contract with its Sign asked', hash: '#/work?order=o-iyer-oct', before: ledgerline, press: ['Sign'] },
-  { name: 'Team, the posture with what auto would need open', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
+  { name: 'Team, instructions and AI review settings', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
   { name: 'Business, keep with every fold open and a restore asked', hash: '#/business/keep', openFolds: true, press: ['Restore'] },
   { name: 'Business, keep, a move code shown', hash: '#/business/keep', openFolds: true, press: ['Make the file'] },
   { name: 'Business, keep, a passphrase business', hash: '#/business/keep', openFolds: true, before: (engine) => engine.request('workspace.lock', {}).then(() => engine.request('workspace.open', { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE })) },

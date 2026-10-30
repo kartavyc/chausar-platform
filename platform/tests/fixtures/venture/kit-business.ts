@@ -19,6 +19,8 @@ import { definePlaybook } from '../../../runtime/venture/playbooks/kit/define.ts
 import { installTestPlaybooks } from '../../../runtime/venture/playbooks/kit/installed.ts';
 import { VentureTestStore } from '../../venture-test-store.ts';
 import { kitFixture } from './kit-fixture.ts';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './scripted-agent.ts';
+import {waitForAgentWork} from '../../../runtime/venture/agent-runtime/runner.ts';
 
 export const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 export const KIT_IDEA = 'A kit fixture studio for bakeries and gyms in Pune';
@@ -32,6 +34,18 @@ export const draft = (title: string, sections: Record<string, string[]>): Draft 
 /** Both tiers are an AI. Previews wait for approval; an approved preview answers with the next queued draft. */
 export class Port implements ModelPort {
   drafts: unknown[] = [];
+  agentReads:{name:string;data:any}[]=[];
+  private agentAnswer:((answer:unknown)=>void)|null=null;
+  queueAgentDraft(answer:unknown){if(this.agentAnswer)this.agentAnswer(answer);else this.drafts.push(answer);}
+  nextAgentDraft(signal?:AbortSignal):Promise<unknown>{
+    if(this.drafts.length)return Promise.resolve(this.drafts.shift());
+    return new Promise((resolve,reject)=>{
+      const clear=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);this.agentAnswer=null;};
+      const abort=()=>{clear();reject(new Error('Synthetic agent stopped before a draft was supplied.'));};
+      const timer=setTimeout(()=>{clear();reject(new Error('Queue a synthetic tool-agent draft before starting this stage.'));},2000);
+      this.agentAnswer=answer=>{clear();resolve(answer);};signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+    });
+  }
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
   #calls = 0;
@@ -62,12 +76,13 @@ export class Port implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
-  async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
+  async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]): Promise<ModelOutcome<T>> {
     if (this.#previews.get(callId) !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again.');
     this.#previews.delete(callId);
+    options?.beforeDispatch?.();
     return { value: validate(this.drafts.shift()), by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: '10', priceConfirmed: true };
   }
 }
@@ -98,6 +113,7 @@ export async function kitBusiness(clock = { now: new Date('2026-10-21T10:00:00.0
     github: { kind: 'fixture', async read() { throw new ChausarError('GITHUB_READ_FAILED', 'No GitHub here.'); } },
     secrets, host: 'test', demo: true, storage: 'experimental-file',
   };
+  deps.agentRoute=async()=>({driver:scriptedAgent(signal=>models.nextAgentDraft(signal),undefined,(name,data)=>models.agentReads.push({name,data})),settings:SCRIPTED_AGENT_SETTINGS});
   const call = (method: VentureMethod | string, payload: unknown = {}): Promise<any> => {
     const handler = HANDLERS[method];
     assert.ok(handler, `no handler for ${method}`);
@@ -118,15 +134,19 @@ export async function kitBusiness(clock = { now: new Date('2026-10-21T10:00:00.0
   return { deps, call, models, store, client, clock, offers: priced.blueprint.offers as { id: string; playbookOffer?: string }[] };
 }
 
-/** delivery.run previews; delivery.approve answers with the queued draft. Returns the ready run. */
+/** Explicitly permit this synthetic client's AI work, then run the production scoped tool-agent path. */
 export async function deliver(env: Awaited<ReturnType<typeof kitBusiness>>, orderId: string, answer: Draft): Promise<DeliveryRunView> {
+  await env.deps.services.trust.updatePolicy(owner,{send:'shape'});
+  await consentForOrder(env.deps,owner,orderId);
+  env.models.queueAgentDraft(answer);
   const waiting = await env.call('venture.delivery.run', { orderId });
-  assert.equal(waiting.status, 'waiting-for-you');
-  return approveWaiting(env, waiting, answer);
+  await waitForAgentWork(env.store,waiting.id);
+  return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }
 
-/** Approves a run already waiting for the owner, answering with the queued draft. */
+/** Supply a scripted agent answer to an already running synthetic job, with no model-turn approval. */
 export async function approveWaiting(env: Awaited<ReturnType<typeof kitBusiness>>, waiting: DeliveryRunView, answer: Draft): Promise<DeliveryRunView> {
-  env.models.drafts.push(answer);
-  return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview!.digest });
+  env.models.queueAgentDraft(answer);
+  await waitForAgentWork(env.store,waiting.id);
+  return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }

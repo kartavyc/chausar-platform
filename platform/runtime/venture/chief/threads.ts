@@ -189,6 +189,7 @@ const said = (text: string): ChatPart[] => [{ kind: 'text', text }];
  */
 async function store(deps: VentureDeps, ctx: Context, threadId: string | null, words: string, reply: Reply): Promise<ChiefSendResult> {
   return ventureAction(deps, ctx, 'prepare', 'chief.thread.send', tx => {
+    reply.assertCurrent?.(tx.state);
     const venture = tx.venture!;
     const thread = threadId ? threadOf(tx.state, venture, threadId)
       : tx.put<ChiefThreadRecord>({ ...tx.base('venture-chief-thread'), title: short(tidyWords(words), 80), pinned: false, routine: null, lastAt: tx.now });

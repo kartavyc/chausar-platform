@@ -7,8 +7,11 @@ import assert from 'node:assert/strict';
 import { LINKEDIN_STRUCTURES, ghostwritingChecks } from '../runtime/venture/playbooks/social/structures.ts';
 import {HOOK_FORMULAS} from '../runtime/venture/playbooks/social/post-plan.ts';
 import { preserveOtherPosts } from '../runtime/venture/playbooks/social/ghostwriting.ts';
-const draft = (count = 8, changed = false) => ({ title: 'Monthly posts', questionsForClient: [], sections: Array.from({ length: count }, (_, n) => ({ heading: `Post ${n + 1} | ${LINKEDIN_STRUCTURES[n % 5]!.name}`, parts: [{ kind: 'text' as const, ref: '', text: `LinkedIn: ${changed ? 'Changed' : 'Original'} post ${n + 1}.` }] })) });
+const numberWord=['one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
+const draft = (count = 8, changed = false) => ({ title: 'Monthly posts', questionsForClient: [], sections: Array.from({ length: count }, (_, n) => ({ heading: `Post ${n + 1} | ${LINKEDIN_STRUCTURES[n % 5]!.name}`, parts: [{ kind: 'text' as const, ref: '', text: `LinkedIn: ${changed ? 'Changed' : 'Original'} post ${numberWord[n]}.` }] })) });
 const packDraft=(count=8)=>{const base=draft(count);return {...base,sections:[...base.sections,{heading:'Post plan',parts:Array.from({length:count},(_,n)=>({kind:'text' as const,ref:'',text:`Post ${n+1} | Value | Goal: Teach useful idea | Reader action: Try it | Hook: ${HOOK_FORMULAS[n]}`}))}]};};
+const packDraftChanged=(count:number)=>({...packDraft(count),sections:[...draft(count,true).sections,packDraft(count).sections.at(-1)!]});
+
 test('ghostwriting requires eight or twelve LinkedIn posts using all five declared structures', () => {
     assert.equal(LINKEDIN_STRUCTURES.length, 5);
     for (const count of [8, 12])
@@ -34,12 +37,12 @@ test('landing a one-post revision preserves every other post and the owner edits
     const run = { deliverable: previous, revision: { socialPost: { postId: 'run.post-2', n: 2, posts: previous.sections.map((s, n) => ({ channel: 'linkedin', text: n === 0 ? 'Owner exact words.' : s.parts[0]!.text.slice(10) })) } } } as any;
     const landed = preserveOtherPosts(run, candidate);
     assert.equal(textOf(landed.sections[0]!.parts[0]!), 'LinkedIn: Owner exact words.');
-    assert.equal(textOf(landed.sections[1]!.parts[0]!), 'LinkedIn: Changed post 2.');
+    assert.equal(textOf(landed.sections[1]!.parts[0]!), 'LinkedIn: Changed post two.');
     assert.deepEqual(landed.sections.slice(2), previous.sections.slice(2));
     assert.throws(() => preserveOtherPosts(run, draft(1, true)), { code: 'SOCIAL_REVISION_SHAPE' });
     assert.throws(() => preserveOtherPosts({...run,deliverable:draft(7)},candidate), {code:'SOCIAL_REVISION_SHAPE'});
 });
-import { kitBusiness, owner } from './fixtures/venture/kit-business.ts';
+import { kitBusiness, owner, deliver, approveWaiting, draft as kitDraft } from './fixtures/venture/kit-business.ts';
 import { findRecord, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { SOCIAL_REVISION_DESK } from '../runtime/venture/playbooks/social/revision-desk.ts';
 import { renderDeliverable } from '../runtime/venture/delivery/deliverable.ts';
@@ -49,21 +52,23 @@ async function fixture(count = 8) {
     const env = await kitBusiness({ now: new Date('2026-10-27T10:00:00Z') }, { idea: 'A social media agency for small shops' });
     const offer = env.offers.find(o => o.playbookOffer === 'linkedin-ghostwriting')!;
     const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Write grounded LinkedIn posts for the client.', intake: { fields: { postCount: String(count) }, moneyAmounts: { extraRoundPrice: '250' } } });
-    const started = await env.call('venture.delivery.run', { orderId: order.id });
-    const run = await ventureAction(env.deps, owner, 'prepare', 'fixture.social', tx => { const original = tx.find('venture-delivery-run', started.id)!; const orderNow = tx.find('venture-order', order.id)!; tx.replace({ ...orderNow, chainStage: 3 }); return tx.replace({ ...original, chainStage: 3, status: 'ready-for-review', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: packDraft(count), renderedText: renderDeliverable(packDraft(count), [], tx.venture!.country), checks: [], verdict: null, editedText: null }); });
+    await env.call('venture.judge.auto.set',{auto:false});
+    const started=await deliver(env,order.id,kitDraft('Voice sheet',{Voice:['Warm and grounded.'],Pillars:['Useful client guidance.'],'Words to avoid':['Inflated claims.']}));
+    const run = await ventureAction(env.deps, owner, 'prepare', 'fixture.social', tx => { const original = tx.find('venture-delivery-run', started.id)!; const orderNow = tx.find('venture-order', order.id)!; tx.replace({ ...orderNow, chainStage: 3 }); return tx.replace({ ...original, agentJob:undefined, chainStage: 3, status: 'ready-for-review', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: packDraft(count), renderedText: renderDeliverable(packDraft(count), [], tx.venture!.country), checks: [], verdict: null, editedText: null }); });
     env.models.previewed.length = 0;
     const postId = run.id + '.post-1';
     const get = async () => await SOCIAL_REVISION_DESK.revision!.get!(env.deps, owner, { playbook: 'social-agency', kind: 'revision', id: postId }) as {item:SocialRevisionRow;digest:string};
     const act = async (action: string, payload: any = {}) => SOCIAL_REVISION_DESK.revision!.act!(env.deps, owner, { playbook: 'social-agency', kind: 'revision', id: postId, digest: (await get()).digest, action, payload: { runId: run.id, postId, words: 'Make this warmer.', ...payload } });
     return { env, order, run, postId, get, act };
 }
-test('real revision previews count per post, Undo restores only an unsent round, and the third needs its exact owner price', async () => {
+test('native revisions count per post, started rounds cannot be undone, and the third needs its exact owner price', async () => {
     const f = await fixture();
     await f.act('revise');
     assert.equal((await f.get()).item.roundsUsed, 1);
-    assert.equal(f.env.models.previewed.length, 1);
-    await undoRevision(f.env.deps, owner, f.run.id, null);
-    assert.equal((await f.get()).item.roundsUsed, 0);
+    assert.equal(f.env.models.previewed.length, 0,'native revisions have no per-turn preview');
+    await assert.rejects(undoRevision(f.env.deps,owner,f.run.id,null),{code:'UNDO_TOO_LATE'});
+    await approveWaiting(f.env,f.run as any,packDraft() as any);
+    assert.equal((await f.get()).item.roundsUsed,1,'an already-started revision keeps its round');
     // Seed two completed rounds: the next action must stop before any model preview.
     await ventureAction(f.env.deps, owner, 'prepare', 'fixture.rounds', tx => { const order = tx.find('venture-order', f.order.id)!; tx.replace({ ...order, socialGhostwriting: { rounds: { 'post-1': 2 }, decisions: {}, charges: [] } }); });
     const before = f.env.models.previewed.length;
@@ -76,7 +81,7 @@ test('real revision previews count per post, Undo restores only an unsent round,
     await assert.rejects(f.act('revise', { quoteDigest: 'wrong' }), { code: 'OFFER_EXTRA_ROUND' });
     await f.act('revise', { quoteDigest: quote.digest });
     assert.equal((await f.get()).item.roundsUsed, 3);
-    assert.equal(f.env.models.previewed.length, before + 1);
+    assert.equal(f.env.models.previewed.length, before);
     const stored = findRecord(f.env.store.read(), 'venture-order', f.order.id)!;
     assert.equal(stored.socialGhostwriting?.charges[0]?.amountMinor, '25000');
     assert.equal(stored.socialGhostwriting?.charges[0]?.receiptId,quote.receiptId);
@@ -106,7 +111,7 @@ test('an owner-recorded client answer approves only its exact post and a changed
     let rows = draftApprovalsOfRun(f.env.store.read(), f.run.id);
     assert.equal(rows[0]!.approval.client.decision, 'approved');
     assert.equal(rows[1]!.approval.client.decision, null);
-    await ventureAction(f.env.deps, owner, 'approve', 'fixture.edit', tx => { const run = tx.find('venture-delivery-run', f.run.id)!; tx.replace({ ...run, editedText: run.renderedText!.replace('Original post 1.', 'Different words.') }); });
+    await ventureAction(f.env.deps, owner, 'approve', 'fixture.edit', tx => { const run = tx.find('venture-delivery-run', f.run.id)!; tx.replace({ ...run, editedText: run.renderedText!.replace('Original post one.', 'Different words.') }); });
     rows = draftApprovalsOfRun(f.env.store.read(), f.run.id);
     assert.notEqual(rows[0]!.approval.client.decision, 'approved');
 });
@@ -114,13 +119,12 @@ test('the actual model response lands only the chosen post and runs checks on th
     const f = await fixture();
     await f.act('revise');
     const pending = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
-    f.env.models.drafts.push(draft(8, true));
-    const landed = await f.env.call('venture.delivery.approve', { runId: f.run.id, digest: pending.preview!.digest });
+    const landed=await approveWaiting(f.env,pending as any,packDraftChanged(8) as any);
     assert.equal(landed.status, 'ready-for-review');
     const kept = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
-    assert.match(kept.renderedText!, /Changed post 1/);
-    assert.match(kept.renderedText!, /Original post 2/);
-    assert.doesNotMatch(kept.renderedText!, /Changed post 2/);
+    assert.match(kept.renderedText!, /Changed post one/);
+    assert.match(kept.renderedText!, /Original post two/);
+    assert.doesNotMatch(kept.renderedText!, /Changed post two/);
     assert.equal(kept.editedText, null);
     assert.ok(kept.checks.length > 0);
 });
@@ -132,8 +136,7 @@ test('concurrent revision clicks reserve one round and a failed model response d
     assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
     assert.equal((await f.get()).item.roundsUsed, 1);
     const pending = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
-    f.env.models.drafts.push({ bad: 'invalid model draft' });
-    await assert.rejects(f.env.call('venture.delivery.approve', { runId: f.run.id, digest: pending.preview!.digest }));
+    assert.equal((await approveWaiting(f.env,pending as any,{bad:'invalid model draft'} as any)).status,'failed');
     assert.equal((await f.get()).item.roundsUsed, 1);
 });
 test('generic social refinement preserves non-LinkedIn channels too', () => {
@@ -151,8 +154,7 @@ test('an existing exact share approval survives for untouched posts after one po
     assert.equal(draftApprovalsOfRun(f.env.store.read(), f.run.id)[1]!.approval.client.decision, 'approved');
     await f.act('revise');
     const pending = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
-    f.env.models.drafts.push(draft(8, true));
-    await f.env.call('venture.delivery.approve', { runId: f.run.id, digest: pending.preview!.digest });
+    await approveWaiting(f.env,pending as any,packDraftChanged(8) as any);
     const rows = draftApprovalsOfRun(f.env.store.read(), f.run.id);
     assert.equal(rows[1]!.approval.client.decision, 'approved');
     assert.notEqual(rows[1]!.approval.digest, 'the-draft-changed-since-the-answer');
@@ -163,8 +165,7 @@ test('a selected twelve-post pack keeps its schema on real revision approval', a
     const f = await fixture(12);
     await f.act('revise');
     const pending = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
-    f.env.models.drafts.push(draft(12, true));
-    const landed = await f.env.call('venture.delivery.approve', { runId: f.run.id, digest: pending.preview!.digest });
+    const landed=await approveWaiting(f.env,pending as any,packDraftChanged(12) as any);
     assert.equal(landed.status, 'ready-for-review');
     const stored = findRecord(f.env.store.read(), 'venture-delivery-run', f.run.id)!;
     assert.equal(stored.deliverable!.sections.filter(s=>s.heading!=='Post plan').length, 12);
@@ -180,7 +181,7 @@ test('a newer exact client share answer supersedes an owner-recorded per-post an
 test('client approval binds the channel as well as exact post words',async()=>{
  const f=await fixture();await ventureAction(f.env.deps,owner,'approve','fixture.accept',tx=>tx.replace({...tx.find('venture-delivery-run',f.run.id)!,status:'accepted'}));
  await SOCIAL_REVISION_DESK.revision!.act!(f.env.deps,owner,{playbook:'social-agency',kind:'revision',id:f.postId,action:'client-answer',digest:(await f.get()).digest,payload:{runId:f.run.id,postId:f.postId,decision:'approved'}});
- await ventureAction(f.env.deps,owner,'approve','fixture.channel',tx=>{const run=tx.find('venture-delivery-run',f.run.id)!;tx.replace({...run,editedText:run.renderedText!.replace('LinkedIn: Original post 1.','Instagram: Original post 1.')});});
+ await ventureAction(f.env.deps,owner,'approve','fixture.channel',tx=>{const run=tx.find('venture-delivery-run',f.run.id)!;tx.replace({...run,editedText:run.renderedText!.replace('LinkedIn: Original post one.','Instagram: Original post one.')});});
  assert.notEqual(draftApprovalsOfRun(f.env.store.read(),f.run.id)[0]!.approval.client.decision,'approved');
 });
 

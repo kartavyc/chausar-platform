@@ -14,7 +14,8 @@ import { learnVoice, voicePart, voiceRules } from '../runtime/venture/agents/voi
 import { VOICE_CHECK, voiceDraftCheck, withVoiceCheck } from '../runtime/venture/playbooks/draft-checks.ts';
 import { failedCheckReason } from '../runtime/venture/delivery/runs.ts';
 import { runReportPlaybook } from '../runtime/venture/views/runs.ts';
-import { business, code, owner, phone, PLAIN_IDEA, readyDraft } from './venture-judge-helpers.ts';
+import { code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 import { TEST_CARD } from './venture-agent-helpers.ts';
 
 type Env = Awaited<ReturnType<typeof business>>;

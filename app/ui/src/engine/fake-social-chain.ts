@@ -4,10 +4,7 @@ import {ghostwritingTextChecks} from '../../../../platform/runtime/venture/playb
 import {socialLegalBlock} from '../../../../platform/runtime/venture/playbooks/social/legal-confirmation';
 import {repurposeCoverage} from '../../../../platform/runtime/venture/playbooks/social/repurpose-coverage';
 // Demo writing stages share the engine stage order and report arithmetic. No model or publishing calls.
-import {ghostwritingSections} from '../../../../platform/runtime/venture/playbooks/social/structures-data';
 import {analyseSocialPostPlan,type SocialHookHistory,type SocialPlanIntake} from '../../../../platform/runtime/venture/playbooks/social/slot-plan-core';
-import {planCalendar} from '../../../../platform/runtime/venture/playbooks/social/calendar-core';
-import {HOOK_FORMULAS} from '../../../../platform/runtime/venture/playbooks/social/post-plan';
 import {socialStages} from '../../../../platform/runtime/venture/playbooks/social/stages';
 import {fakeSocialSteps as SOCIAL_STEPS} from './fake-social-plan';
 import {createReportComputer,type ExportPlatform} from '../../../../platform/runtime/venture/playbooks/social/report-core';
@@ -65,16 +62,7 @@ export class FakeSocialChain {
   if(new Set(entries.map(e=>e.platform)).size!==entries.length)throw new EngineError('TOOL_FAILED','Give one export for each platform: each platform is worked out once for the month.');
   return createReportComputer({text:s=>this.host.fingerprint?.(s)??s,value:v=>this.digest(v),error:(code,message)=>new EngineError(code,message)}).monthlyReport({month,files:entries});
  }
- start(order:OrderLite,id:string):SocialRun|null{
-  const pin=this.pin(order);if(!pin)return null;
-  this.checkLegal(order);
-  const report=pin.offerKey==='monthly-report'?this.report(order):null;
-  const input={orderId:order.id,stageId:pin.stages[pin.stage-1],request:order.request,...(pin.voice?{approvedClientVoice:clone(pin.voice)}:{}),...(report?{report}:{})};
-  const run:SocialRun={id,at:this.host.now(),orderId:order.id,status:'waiting-for-you',practice:false,deliverable:null,verdict:null,awaitingYou:true,chainStage:pin.stage,preview:{digest:this.digest(input).padStart(64,'0'),input}};
-  this.sourcePins.set(this.key(id),this.digest(this.hooks.files(order.id).map(f=>({id:f.id,digest:f.digest}))));
-  if(report)this.reports.set(this.key(id),report);
-  this.hooks.keep(run);this.row(run);return clone(run);
- }
+  preflight(order:OrderLite){const pin=this.pin(order);if(!pin)return;this.checkLegal(order);if(pin.offerKey==='monthly-report')this.report(order);}
  view(orderId:string):OrderChainView|null{
   const order=this.hooks.orders().find(o=>o.id===orderId);if(!order||this.host.plan()?.playbook?.id!=='social-agency')return null;const offerKey=this.host.plan()?.blueprint.offers.find(o=>o.id===order.offerId)?.playbookOffer;if(!offerKey)return null;const pin=this.pins.get(this.key(orderId))??{offerKey,stages:[...socialStages(offerKey)],stage:1,state:'running' as const,since:null};
   const reportReady=this.hooks.deliveries().some(r=>r.orderId===orderId&&this.reports.has(this.key(r.id)));
@@ -86,22 +74,7 @@ export class FakeSocialChain {
   const order=this.hooks.orders().find(o=>o.id===run.orderId)!;const pin=this.pins.get(this.key(order.id))!;
   if(p.verdict!=='rejected')this.checkLegal(order);
   if(p.verdict!=='rejected'&&pin.brand!==this.brand(order.clientId))throw new EngineError('SOCIAL_VOICE_CHANGED','The client brand or business voice changed. Start this order again to approve a fresh voice sheet.');
-  if(method==='venture.delivery.approve'){
-   exact(p,['runId','digest'],['runId','digest']);if(typeof p.digest!=='string'||!/^[a-f0-9]{64}$/.test(p.digest))throw new EngineError('INVALID_VENTURE_REQUEST','Send the digest of the text you approved.');
-   if(run.status!=='waiting-for-you'||!run.preview)throw new EngineError('DELIVERY_NOT_WAITING','This draft reply is not waiting for your approval.');
-   if(run.preview.digest!==p.digest)throw new EngineError('APPROVAL_STALE','This changed since you read it. Read it again.');
-   if(this.sourcePins.get(this.key(run.id))!==this.digest(this.hooks.files(order.id).map(f=>({id:f.id,digest:f.digest}))))throw new EngineError('APPROVAL_STALE','The order files changed. Start a new run and read its preview.');
-   const revision=run.preview.input.socialRevision as {n:number;originalText:string}|undefined;
-   const stage=pin.stages[run.chainStage-1],title=`Demo ${stage}`;
-   run.renderedText=stage==='voice'?'Demo voice sheet\nVoice: Warm, plain, and useful.\nPillars: Practical client guidance.\nWords to avoid: Inflated claims.':stage==='calendar'?'Demo calendar\nCalendar: Useful client topics.\nTopics and hooks: A practical first step.':stage==='report'?'Demo monthly report\nSummary: The figures come from the supplied export.\nWhat the figures show: Read the attached code receipts.\nWhat we will try next: Keep the next posts useful.':'Demo drafts\nLinkedIn: Share a useful practical lesson.';
-   if(stage==='report'){const report=this.reports.get(this.key(run.id));run.renderedText+='\n'+(report?.receipts.map(r=>`${r.label}: ${r.display} [${r.id}]`).join('\n')??'');}
-   if(['drafts','creative-briefs'].includes(stage!))run.renderedText=this.demoPosts(order,pin);
-   if(revision){const location=actualSocialPostLocations(revision.originalText)[revision.n-1];if(!location)throw new EngineError('SOCIAL_REVISION_SHAPE','The selected post is missing.');const pieces=revision.originalText.split(/(\r\n|\n)/);const line=pieces[location.lineIndex*2]!;const prefix=/^(\s*[^:]+:\s*)/.exec(line)![1];pieces[location.lineIndex*2]=prefix+'Demo revision: '+location.text+(/\s*$/.exec(line)?.[0]??'');run.renderedText=pieces.join('');run.editedText=null;}
-   const validation=this.plan(run,order,pin,run.renderedText??'');run.playbookChecks=validation?.checks.map(c=>({...c,playbook:'social-agency'}))??[];
-   run.deliverable={title};run.status='ready-for-review';run.canAccept=!(run.playbookChecks.some(c=>c.outcome==='fail'));run.writtenBy='Demo draft';run.preview=null;
-   const running=this.host.runs().find(r=>r.runId===run.id);if(running){running.state='waiting';running.progress={done:1,total:1};}
-   this.row(run);return clone(run);
-  }
+
   exact(p,['runId','verdict','reason','editedText'],['runId','verdict']);
   if(!['accepted','edited','rejected'].includes(String(p.verdict)))throw new EngineError('INVALID_VENTURE_REQUEST','Choose accept, edit or reject.');
   if(run.status!=='ready-for-review')throw new EngineError('DELIVERY_NOT_READY','This draft reply is not ready for review.');
@@ -128,16 +101,6 @@ export class FakeSocialChain {
   if(pin.offerKey==='repurpose-pack')result.checks.push(repurposeCoverage(text,order.intake?.fields?.channels));
   if(pin.offerKey==='linkedin-ghostwriting')result.checks.push(...ghostwritingTextChecks(text,order.intake?.fields?.postCount));
   return result;
- }
- private demoPosts(order:OrderLite,pin:Pin):string{
-  const intake=order.intake as SocialPlanIntake,ghost=pin.offerKey==='linkedin-ghostwriting';
-  const headings=ghost?ghostwritingSections(intake):[];
-  const channels=ghost?headings.map(()=> 'linkedin'):intake?.calendar?planCalendar(intake.calendar).map(slot=>slot.channel):Array.isArray(intake?.fields?.channels)?intake.fields.channels as string[]:['linkedin'];
-  const history=new Set(this.recent(order,null).map(row=>row.hookFormula)),available=HOOK_FORMULAS.filter(h=>!history.has(h));
-  const label=(channel:string)=>channel==='linkedin'?'LinkedIn':channel==='x'?'X':channel==='youtube-shorts'?'YouTube Shorts':channel.charAt(0).toUpperCase()+channel.slice(1);
-  const posts=channels.map((channel,i)=>(ghost?'## '+headings[i]+'\n':'')+label(channel)+': Share a useful practical lesson.');
-  const plans=channels.map((_,i)=>'Post '+(i+1)+' | Value | Goal: Teach a useful idea | Reader action: Try it | Hook: '+(available[i%Math.max(1,available.length)]??HOOK_FORMULAS[i%HOOK_FORMULAS.length]));
-  return '# Demo drafts\n\n'+(ghost?'':'## Drafts\n')+posts.join('\n\n')+'\n\n## Post plan\n'+plans.join('\n')+(pin.offerKey==='repurpose-pack'?'\n\n## Newsletter blurb\nDemo newsletter: Share a useful practical lesson.':'');
  }
  forgetPeople(people:readonly FakeForgottenPerson[],erase:boolean):void{
   if(!erase)return;
@@ -178,6 +141,6 @@ export class FakeSocialChain {
  }
  decide(row:QueueRow,action:string):string|null{
   if(!row.id.startsWith('social-stage:')||action!=='approve')return null;const run=this.hooks.deliveries().find(r=>r.id===row.viewRef?.id) as SocialRun|undefined;if(!run)return null;
-  this.request(run.status==='waiting-for-you'?'venture.delivery.approve':'venture.delivery.review',run.preview?{runId:run.id,digest:run.preview.digest}:{runId:run.id,verdict:'accepted'});return 'Done';
+  this.request('venture.delivery.review',{runId:run.id,verdict:'accepted'});return 'Done';
  }
 }

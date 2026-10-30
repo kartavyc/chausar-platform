@@ -21,11 +21,11 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 312 venture methods, 299 reached through the hosted host', () => {
-  // 6B5 adds recorded client consent and exact native approval decisions.
-  assert.equal(VENTURE_METHODS.length, 312);
+test('the pinned counts: 309 venture methods, 296 reached through the hosted host', () => {
+  // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods.
+  assert.equal(VENTURE_METHODS.length, 309);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 299);
+  assert.equal(hosted.length, 296);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 
@@ -71,7 +71,7 @@ test('what the hints say about the methods that matter most', () => {
     assert.equal(METHOD_HINTS[method].undoable, false, method);
   }
   // Each one that sends something off this computer says so.
-  for (const method of ['venture.delivery.approve', 'venture.delivery.judgeSend', 'venture.posting.signIn', 'venture.site.apply', 'venture.share.create', 'venture.mailbox.sync', 'venture.agents.thread.send', 'venture.chief.thread.send', 'venture.queue.decide'] as const) {
+  for (const method of ['venture.delivery.judgeSend', 'venture.posting.signIn', 'venture.site.apply', 'venture.share.create', 'venture.mailbox.sync', 'venture.agents.thread.send', 'venture.chief.thread.send', 'venture.queue.decide'] as const) {
     assert.equal(METHOD_HINTS[method].reachesOutside, true, method);
   }
   // A handoff opens the owner's own mail or LinkedIn; Chausar never sends it.

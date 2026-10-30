@@ -11,7 +11,8 @@ import { decideFirstSchema, readDecideFirst } from '../runtime/venture/delivery/
 import { actOutcome, deliverableReport, runOutcome } from '../runtime/venture/delivery/outcomes.ts';
 import { coverageView } from '../runtime/venture/delivery/coverage.ts';
 import { call, harness, owner, seedBlueprint, seedOrder, seedRun, setup } from './venture-views-env.ts';
-import { business, noOn, PLAIN_IDEA, readyDraft } from './venture-judge-helpers.ts';
+import { noOn, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 import { DRAFT_RULES } from '../runtime/venture/delivery/judge/rules.ts';
 import { REVIEW_INCOMPLETE } from '../runtime/venture/delivery/verdicts.ts';
 import { answer, chatConsent, chiefBusiness, proposalFields, scriptChief, text, tools } from './venture-chief-helpers.ts';

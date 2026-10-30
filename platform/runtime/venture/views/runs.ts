@@ -12,6 +12,7 @@
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
 import { playbookForRun } from '../delivery/workflow.ts';
+import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
 import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
@@ -33,7 +34,7 @@ import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
-import { questionRowId, runError } from './queue.ts';
+import { agentFactsRowId, questionRowId, runError } from './queue.ts';
 import { screenSummary } from '../policy/untrusted.ts';
 import { agentName, businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
 // What each tool did, in the owner's words: a leaf module now, so the breaker can read it too (4F2).
@@ -64,6 +65,18 @@ const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
 };
 
 const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
+const AGENT_TOOL_KIND:Readonly<Record<string,StepKind>>={read_business:'gather',read_client:'gather',read_order:'gather',list_files:'gather',read_file:'gather',search_records:'gather',calculate:'compute',draft_document:'write'};
+function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position):RunStep['state'] {
+  const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
+  if(calls.some(tool=>tool.status==='running'))return record.agentJob!.pendingApproval?'waiting':'current';
+  if(calls.some(tool=>tool.status==='failed'))return 'failed';
+  if(kind==='write')return record.deliverable?'done':position.kind==='write'?position.state:'pending';
+  if(kind==='verify')return record.checks.length?record.checks.every(check=>check.passed)?'done':'failed':'pending';
+  if(kind==='approve')return record.status==='ready-for-review'?'waiting':record.verdict?'done':'pending';
+  // A proposed handoff is still unsent. No model tool completion can count as sending it.
+  if(kind==='operator')return 'pending';
+  return calls.some(tool=>tool.status==='done')?'done':'pending';
+}
 
 /**
  * A check result in the owner's words, through the one table (delivery/verdicts.ts, 4J14). A rules-judge check no vote
@@ -141,7 +154,7 @@ function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
   };
   switch (run.status) {
     // A stop asked while a turn is out (4F1): the run is still working until that step finishes.
-    case 'waiting-for-you': return { kind: loopKind(), state: stopAsked(run.harness) ? 'current' : 'waiting' };
+    case 'waiting-for-you': return { kind: loopKind(), state: run.agentJob?.pendingApproval ? 'waiting' : run.agentJob || stopAsked(run.harness) ? 'current' : 'waiting' };
     // Stopped (4F1): it waits for the owner's Resume at the step it stopped on; a stopped run never reads as done.
     case 'stopped': return { kind: run.harness?.phase === 'needs-answer' ? 'question' : run.harness?.phase === 'brief' ? 'work' : loopKind(), state: 'waiting' };
     case 'needs-answer': return { kind: 'question', state: 'waiting' };
@@ -170,7 +183,7 @@ function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = nul
     case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
     case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
-    case 'stopped': return run.harness?.control?.line ?? STOPPED_BY_YOU;
+    case 'stopped': return run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
     default: return undefined;
   }
 }
@@ -188,7 +201,7 @@ function deliveryRun(
   const run = runView(record, venture, now.getTime(), state);
   const harness = run.harness ?? null;
   // Runs without the agent loop never read files, asked or worked with tools: their loop steps are left out.
-  const steps = stepsFor(state, venture, record).filter(step => harness || !LOOP_KINDS.includes(step.kind));
+  const steps = stepsFor(state, venture, record).filter(step => record.agentJob || harness || !LOOP_KINDS.includes(step.kind));
   const position = positionOf(run, now.getTime());
   const runState = runStateOf(run, position);
   // In the loop the agent moves between reading, asking and working in any order: each of those steps is done once
@@ -208,7 +221,9 @@ function deliveryRun(
 
   const built: RunStep[] = steps.map((step, index) => {
     let stepState: RunStep['state'];
-    if (inLoop) {
+    if (record.agentJob) {
+      stepState=agentStepState(record,step.kind,position);
+    } else if (inLoop) {
       const used = calls.some(call => toolKind(call.tool) === step.kind);
       stepState = step.kind === position.kind ? position.state : LOOP_KINDS.includes(step.kind) && used ? 'done' : 'pending';
     } else {
@@ -278,6 +293,15 @@ function deliveryRun(
   const screened = harness ? screenSummary([...harness.toolCalls, ...harness.handoffs].flatMap(item => item.screen ? [item.screen] : [])) : null;
   const detail: RunDetail = plain({
     ...summary, steps: built,
+    ...(record.agentJob ? { agentProgress: {
+      canResume: canResumeAgentJob(state,record),
+      ...(record.agentJob.cost?{cost:{...record.agentJob.cost}}:{}),
+      messages: record.agentJob.messages.map(({ id, text, label }) => ({ id, text, label })),
+      tools: record.agentJob.tools.map(tool => ({ ...tool })),
+      ...(record.agentJob.model ? { model: record.agentJob.model } : {}),
+      ...(record.agentJob.pendingApproval ? { pendingApproval: structuredClone(record.agentJob.pendingApproval) } : {}),
+    } } : {}),
+    ...(record.agentJob?.pendingFacts ? { question: { id: agentFactsRowId(run.id, record.agentJob.pendingFacts.digest), text: record.agentJob.pendingFacts.question } } : {}),
     // 4J17 (A14): the question card, whole, when the agent asked one (checked when asked, agents/questions.ts).
     ...(open && harness ? { question: { id: questionRowId(run.id, harness), text: agentWords(open.question), ...(open.to === 'owner' && open.card ? { card: structuredClone(open.card) } : {}) } } : {}),
     ...(error ? { error } : {}),
@@ -374,6 +398,7 @@ function scopeRupees(state: State, venture: VentureRecord, capMicros: string): P
 
 /** The scope frozen when the run started (O21), the owner's notes (O3), the round gate (O2) and the turn in flight (U7). */
 function controlDetail(state: State, venture: VentureRecord, record: DeliveryRunRecord): Pick<RunDetail, 'scope' | 'steer' | 'gate' | 'live'> {
+  if(record.agentJob)return record.agentJob.ownerNotes?.length?{steer:record.agentJob.ownerNotes.map(note=>({text:note.text,at:note.at,line:'Saved for the next AI session.'}))}:{};
   const harness = record.harness ?? null;
   const scope = record.scope;
   const view: Pick<RunDetail, 'scope' | 'steer' | 'gate' | 'live'> = {};

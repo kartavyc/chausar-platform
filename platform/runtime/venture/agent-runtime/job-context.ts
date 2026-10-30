@@ -19,7 +19,7 @@ export function jobContext(state: State, run: DeliveryRunRecord, order: OrderRec
   const playbook = playbookForRun(state, run);
   const draft = playbook && flagshipDraft(playbook, offer?.playbookOffer ?? null, order.intake, order.chainStage);
   const workInstructions = draft?.guidance ?? playbook?.steps.find(step => step.kind === 'write')?.guidance ?? [];
-  const desk = deskContext(state, run, order, playbook?.flagship);
+  const desk = deskContext(state, run, order, playbook?.flagship, offer?.playbookOffer??null);
   return {
     offer: offer ? { name: offer.name.value, description: offer.description.value } : null,
     workInstructions: [...workInstructions],
